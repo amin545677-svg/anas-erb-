@@ -55,3 +55,15 @@ jobs:
           assert not missing, f"Missing Worker safety/contract markers: {missing}"
           print("Worker syntax and required contract markers passed")
           PY
+      - name: Validate Firebase rules are user-scoped
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          rules = Path("firebase/firestore.rules").read_text(encoding="utf-8")
+          config = json.loads(Path("firebase.json").read_text(encoding="utf-8"))
+          assert config.get("firestore", {}).get("rules") == "firebase/firestore.rules", "firebase.json does not point to Firestore rules"
+          assert "request.auth != null" in rules, "Firestore rules must require authentication"
+          assert "request.auth.uid == userId" in rules, "Firestore rules must restrict snapshots to their owner"
+          print("Firestore rules configuration and owner-only access checks passed")
+          PY
