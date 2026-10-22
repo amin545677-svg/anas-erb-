@@ -1,0 +1,29 @@
+name: Deploy ANAS ERP Firebase Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/worker_firebase_snapshot.js"
+      - "cloudflare/wrangler.toml"
+      - ".github/workflows/deploy-firebase-worker.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy Firebase snapshot Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: cloudflare
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          secrets: |
+            FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
