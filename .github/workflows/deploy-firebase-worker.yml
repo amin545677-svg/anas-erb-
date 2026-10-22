@@ -31,7 +31,7 @@ jobs:
           from pathlib import Path
           import re
           html = Path("index.html").read_text(encoding="utf-8")
-          match = re.search(r'apiKey\\s*:\\s*["\\']([^"\\']+)["\\']', html)
+          match = re.search(r'apiKey\s*:\s*["\']([^"\']+)["\']', html)
           if not match:
               raise SystemExit("Could not find Firebase apiKey in index.html; add FIREBASE_API_KEY as a repository secret.")
           print(match.group(1))
@@ -40,7 +40,7 @@ jobs:
           fi
           test -n "$FIREBASE_API_KEY" || (echo "::error::Firebase API key is unavailable." && exit 1)
           echo "::add-mask::$FIREBASE_API_KEY"
-          printf 'FIREBASE_API_KEY=%s\\n' "$FIREBASE_API_KEY" >> "$GITHUB_ENV"
+          printf 'FIREBASE_API_KEY=%s\n' "$FIREBASE_API_KEY" >> "$GITHUB_ENV"
 
       - name: Check required Cloudflare deployment secrets
         env:
