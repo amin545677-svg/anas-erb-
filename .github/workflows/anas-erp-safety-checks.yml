@@ -1,0 +1,57 @@
+name: ANAS ERP Safety Checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "cloudflare/**"
+      - "firebase/**"
+      - ".github/workflows/anas-erp-safety-checks.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "cloudflare/**"
+      - "firebase/**"
+      - ".github/workflows/anas-erp-safety-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Validate full app remains intact
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          s = p.read_text(encoding="utf-8")
+          assert len(s.encode("utf-8")) > 400_000, f"Unexpectedly small app entry point: {p.stat().st_size} bytes"
+          assert "ANAS_THE_ENTERPRISE_V11_OFFLINE" in s, "Existing local data key is missing"
+          assert "anasFirebaseGoogleLogin" in s, "Firebase Google login hook is missing"
+          assert "anasWorkerUrl" in s, "Worker configuration field is missing"
+          assert "</html>" in s.lower(), "HTML document appears incomplete"
+          print(f"Full app entry point present: {p.stat().st_size} bytes")
+          PY
+      - name: Check Worker JavaScript syntax
+        run: node --check cloudflare/worker_firebase_snapshot.js
+      - name: Validate Worker contract and security guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("cloudflare/worker_firebase_snapshot.js").read_text(encoding="utf-8")
+          required = [
+              "verifyFirebaseToken", "Access-Control-Allow-Origin",
+              "request.method === \"GET\"", "request.method === \"POST\"",
+              "Array.isArray(appData.products)", "Array.isArray(appData.customers)",
+              "MAX_BODY_BYTES", "FIREBASE_PROJECT_ID", "ALLOWED_ORIGINS"
+          ]
+          missing = [x for x in required if x not in s]
+          assert not missing, f"Missing Worker safety/contract markers: {missing}"
+          print("Worker syntax and required contract markers passed")
+          PY
