@@ -70,8 +70,8 @@ async function handleSnapshot(request, env, origin) {
     let doc;
     try { doc = JSON.parse(raw); } catch (_) { return json({ error: "Invalid Firestore response" }, 502, origin); }
     const payload = doc.fields && doc.fields.payload && doc.fields.payload.stringValue;
-    if (!payload) return json({ ok: true, exists: false }, 200, origin);
-    try { return json({ ok: true, exists: true, snapshot: JSON.parse(payload) }, 200, origin); }
+    if (!payload) return json({ ok: true, exists: false, data: "" }, 200, origin);
+    return json({ ok: true, exists: true, data: payload, parts: 1 }, 200, origin); }
     catch (_) { return json({ error: "Stored snapshot is malformed" }, 502, origin); }
   }
 
@@ -82,14 +82,15 @@ async function handleSnapshot(request, env, origin) {
     }
     let body;
     try { body = JSON.parse(text); } catch (_) { return json({ error: "Request body must be valid JSON" }, 400, origin); }
-    if (!body || typeof body !== "object" || !body.data || typeof body.data !== "object") {
-      return json({ error: "Expected a snapshot object in the data field" }, 400, origin);
+    if (!body || typeof body !== "object" || typeof body.data !== "string" || !body.data) {
+      return json({ error: "Expected serialized application JSON in the data field" }, 400, origin);
     }
-    const payload = JSON.stringify({
-      schemaVersion: Number(body.schemaVersion) || 1,
-      updatedAt: typeof body.updatedAt === "string" ? body.updatedAt : new Date().toISOString(),
-      data: body.data
-    });
+    let appData;
+    try { appData = JSON.parse(body.data); } catch (_) { return json({ error: "Snapshot data is not valid JSON" }, 400, origin); }
+    if (!appData || typeof appData !== "object" || !Array.isArray(appData.products) || !Array.isArray(appData.customers)) {
+      return json({ error: "Snapshot does not match the ANAS ERP data structure" }, 400, origin);
+    }
+    const payload = body.data;
     const qs = new URLSearchParams();
     qs.append("updateMask.fieldPaths", "payload");
     qs.append("updateMask.fieldPaths", "updatedAt");
@@ -103,7 +104,7 @@ async function handleSnapshot(request, env, origin) {
     });
     const raw = await res.text();
     if (!res.ok) return json({ error: "Firestore write failed. Check Firestore rules and database setup.", details: raw.slice(0, 500) }, res.status, origin);
-    return json({ ok: true, saved: true, uid, updatedAt: new Date().toISOString() }, 200, origin);
+    return json({ ok: true, saved: true, uid, parts: 1, updatedAt: new Date().toISOString() }, 200, origin);
   }
 
   return json({ error: "Method not allowed" }, 405, origin);
