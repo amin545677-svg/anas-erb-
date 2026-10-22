@@ -15,14 +15,25 @@ jobs:
   deploy-worker:
     runs-on: ubuntu-latest
     steps:
+      - name: Check required deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "::error::Add repository secret CLOUDFLARE_API_TOKEN first." && exit 1)
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Add repository secret CLOUDFLARE_ACCOUNT_ID first." && exit 1)
+          test -n "$FIREBASE_API_KEY" || (echo "::error::Add repository secret FIREBASE_API_KEY first." && exit 1)
       - name: Checkout
         uses: actions/checkout@v4
       - name: Deploy Firebase snapshot Worker
         uses: cloudflare/wrangler-action@v3
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         with:
           workingDirectory: cloudflare
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
           secrets: |
-            FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+            FIREBASE_API_KEY
