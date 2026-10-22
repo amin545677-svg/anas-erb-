@@ -1,4 +1,4 @@
-name: Deploy ANAS ERP to GitHub Pages
+name: Deploy ANAS ERP Full App to GitHub Pages
 
 on:
   push:
@@ -22,8 +22,18 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
-      - name: Verify site entry point
-        run: test -f index.html
+      - name: Verify full app entry point
+        run: |
+          test -s index.html
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          s = p.read_text(encoding="utf-8")
+          assert len(s.encode("utf-8")) > 400_000, f"Expected full ANAS ERP, got only {p.stat().st_size} bytes"
+          assert "ANAS_THE_ENTERPRISE_V11_OFFLINE" in s, "Full-app data key missing"
+          assert "</html>" in s.lower(), "HTML closing tag missing"
+          print(f"Full ANAS ERP verified: {p.stat().st_size} bytes")
+          PY
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
