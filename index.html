@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    <!-- ANAS ERP HTTPS enforcement: upgrade hosted HTTP URLs without interfering with local offline use. -->
+    <script>
+      (function () {
+        try {
+          var p = window.location.protocol;
+          var h = window.location.hostname;
+          var localHost = h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+          if (p === 'http:' && !localHost && h) {
+            window.location.replace('https://' + h + (window.location.port ? ':' + window.location.port : '') + window.location.pathname + window.location.search + window.location.hash);
+          }
+        } catch (_) {}
+      })();
+    </script>
     <meta charset="UTF-8">
     <meta name="theme-color" content="#1e3a6d">
     <meta name="description" content="Anas ERP لإدارة المبيعات والمشتريات والعملاء والمخزون والصندوق دون اتصال على هذا الجهاز">
