@@ -71,8 +71,7 @@ async function handleSnapshot(request, env, origin) {
     try { doc = JSON.parse(raw); } catch (_) { return json({ error: "Invalid Firestore response" }, 502, origin); }
     const payload = doc.fields && doc.fields.payload && doc.fields.payload.stringValue;
     if (!payload) return json({ ok: true, exists: false, data: "" }, 200, origin);
-    return json({ ok: true, exists: true, data: payload, parts: 1 }, 200, origin); }
-    catch (_) { return json({ error: "Stored snapshot is malformed" }, 502, origin); }
+    return json({ ok: true, exists: true, data: payload, parts: 1 }, 200, origin);
   }
 
   if (request.method === "POST") {
