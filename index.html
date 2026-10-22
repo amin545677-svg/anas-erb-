@@ -6346,15 +6346,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       return messages[code] || (detail || code || 'خطأ غير معروف أثناء المصادقة');
     };
     try{
-      if(!auth) throw Error('لم تتم تهيئة Firebase. تأكد من اتصال الإنترنت وتحميل مكتبات Firebase.');
-      if(!window.firebase || !firebase.auth || !firebase.auth.GoogleAuthProvider) throw Error('مكتبة تسجيل Google غير متاحة؛ أعد تحميل الصفحة بعد التأكد من الاتصال.');
+      // Check the protocol first: downloaded file:// and Android content:// pages must be redirected even if Firebase scripts did not load.
       if(location.protocol!=='https:' && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
-        // A downloaded file cannot complete Google OAuth. Move the user to the hosted HTTPS app instead of repeating the same error.
         const hostedAppUrl='https://amin545677-svg.github.io/anas-erb/';
         status('سيتم فتح النسخة المنشورة عبر HTTPS لإكمال تسجيل Google…');
         window.location.replace(hostedAppUrl);
         return;
       }
+      if(!auth) throw Error('لم تتم تهيئة Firebase. تأكد من اتصال الإنترنت وتحميل مكتبات Firebase.');
+      if(!window.firebase || !firebase.auth || !firebase.auth.GoogleAuthProvider) throw Error('مكتبة تسجيل Google غير متاحة؛ أعد تحميل الصفحة بعد التأكد من الاتصال.');
       if(!navigator.onLine) throw Error('الجهاز غير متصل بالإنترنت. يلزم الاتصال لإكمال تسجيل الدخول.');
       const provider=new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({prompt:'select_account'});
