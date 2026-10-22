@@ -1,6 +1,7 @@
 name = "anas-erp-firebase-snapshot"
 main = "worker_firebase_snapshot.js"
 compatibility_date = "2026-10-22"
+workers_dev = true
 
 [vars]
 FIREBASE_PROJECT_ID = "anas-erb"
