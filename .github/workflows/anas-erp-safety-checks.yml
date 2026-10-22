@@ -8,12 +8,14 @@ on:
       - "cloudflare/**"
       - "firebase/**"
       - ".github/workflows/anas-erp-safety-checks.yml"
+      - ".github/workflows/deploy-firebase-worker.yml"
   pull_request:
     paths:
       - "index.html"
       - "cloudflare/**"
       - "firebase/**"
       - ".github/workflows/anas-erp-safety-checks.yml"
+      - ".github/workflows/deploy-firebase-worker.yml"
   workflow_dispatch:
 
 permissions:
