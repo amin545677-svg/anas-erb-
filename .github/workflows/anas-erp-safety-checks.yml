@@ -221,6 +221,63 @@ jobs:
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
+      - name: Exercise truck trip status transition guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("  window.anasTruckSetStatus = function(id,status){")
+          end = s.find("  // V54 draft: guarded truck custody settlement.", start)
+          assert start >= 0 and end > start, "Could not isolate truck status transition function"
+          function_js = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          global.window = {};
+          global.statusText = {planned:'Planned',in_transit:'In transit',delivered:'Delivered',cancelled:'Cancelled'};
+          global.ensure = () => {};
+          global.anasTruckRender = () => {};
+          const alerts = [];
+          global.alert = msg => alerts.push(String(msg));
+          global.confirm = () => true;
+          let saves = 0;
+          global.saveDB = () => { saves++; return true; };
+          global.postTripStock = () => true;
+          global.AppData = {truckTrips:[{id:'T1',status:'planned',stockItems:[]}]};
+          /*INSERT_TRUCK_STATUS_FUNCTION*/
+          const trip = AppData.truckTrips[0];
+          window.anasTruckSetStatus('T1','delivered');
+          assert.equal(trip.status,'planned','must reject skipping directly to delivered');
+          assert.equal(saves,0,'invalid transition must not persist');
+          assert.ok(alerts.length,'invalid transition should explain rejection');
+
+          window.anasTruckSetStatus('T1','in_transit');
+          assert.equal(trip.status,'in_transit','planned trip may enter transit');
+          assert.equal(saves,1,'valid transition should persist once');
+
+          window.anasTruckSetStatus('T1','delivered');
+          assert.equal(trip.status,'delivered','in-transit trip may be delivered');
+          assert.equal(saves,2,'delivery transition should persist');
+
+          window.anasTruckSetStatus('T1','planned');
+          assert.equal(trip.status,'delivered','delivered trip cannot be reopened');
+          assert.equal(saves,2,'reopening a delivered trip must not persist');
+
+          AppData.truckTrips = [{id:'T2',status:'cancelled',stockItems:[]}];
+          window.anasTruckSetStatus('T2','in_transit');
+          assert.equal(AppData.truckTrips[0].status,'cancelled','cancelled trip must remain terminal');
+          assert.equal(saves,2,'cancelled trip transition must not persist');
+
+          AppData.truckTrips = [{id:'T3',status:'planned',stockItems:[]}];
+          window.anasTruckSetStatus('T3','cancelled');
+          assert.equal(AppData.truckTrips[0].status,'cancelled','planned trip may be cancelled');
+          assert.equal(saves,3,'valid cancellation should persist');
+          console.log('Truck status transition tests passed: legal lifecycle, skipped delivery, terminal states');
+          """
+          js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_STATUS_FUNCTION*/", function_js)
+          Path("/tmp/anas-truck-status-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-truck-status-test.js
+          node /tmp/anas-truck-status-test.js
       - name: Exercise truck stock posting and rollback with mocks
         run: |
           python - <<'PY'
