@@ -54,6 +54,17 @@ export default {
     }
 
     const url = new URL(request.url);
+    // Allow direct, read-only health checks without an Origin header.
+    // All browser POST/OPTIONS requests still require an explicitly allowed origin.
+    if (request.method === "GET" && url.pathname === "/health" && !originHeader) {
+      return json({
+        ok: true,
+        service: "anas-erp-openai-ai",
+        configured: Boolean(env.OPENAI_API_KEY),
+        model: env.OPENAI_MODEL || DEFAULT_MODEL
+      }, 200);
+    }
+
     if (!originAllowed) return json({ error: "Origin is not allowed. Configure ALLOWED_ORIGINS for the ANAS ERP site." }, 403);
 
     if (request.method === "GET" && url.pathname === "/health") {
