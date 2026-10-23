@@ -174,6 +174,51 @@ jobs:
           assert "if(!question||!question.trim())return;" in s, "AI analysis must require an explicit user-confirmed question"
           print("Document center capabilities and explicit-send guard passed")
           PY
+      - name: Exercise customer debt settlement and cash rollback with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function collectCustDebt(cId)")
+          end = s.find("function openGoogleMaps(loc)", start)
+          assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
+          js = s[start:end]
+          js += r"""
+          const assert = require('node:assert/strict');
+          global.alert = () => {};
+          global.renderCustomersDebts = () => {};
+          global.updateCashUI = () => {};
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50, currentUser: { id: 'u1', name: 'Admin' } };
+          global.prompt = () => '40';
+          global.saveDB = () => true;
+          collectCustDebt('c1');
+          assert.equal(AppData.customers[0].debt, 60, 'successful collection reduces customer debt');
+          assert.equal(AppData.caisseBalance, 90, 'successful collection increases cash');
+          assert.equal(AppData.cashMovements.length, 1, 'successful collection creates a cash ledger entry');
+          assert.equal(AppData.cashMovements[0].amount, 40);
+          assert.equal(AppData.cashMovements[0].referenceType, 'customer_debt');
+
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
+          global.prompt = () => '40';
+          global.saveDB = () => false;
+          collectCustDebt('c1');
+          assert.equal(AppData.customers[0].debt, 100, 'failed save restores customer debt');
+          assert.equal(AppData.caisseBalance, 50, 'failed save restores cash balance');
+          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'failed save removes a newly created ledger');
+
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
+          global.prompt = () => '101';
+          let saveCalled = false;
+          global.saveDB = () => { saveCalled = true; return true; };
+          collectCustDebt('c1');
+          assert.equal(saveCalled, false, 'invalid amount must not be persisted');
+          assert.equal(AppData.customers[0].debt, 100);
+          assert.equal(AppData.caisseBalance, 50);
+          console.log('Customer debt settlement tests passed: ledger entry, rollback, and invalid amount guard');
+          """
+          Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
+          PY
+          node /tmp/anas-customer-debt-test.js
       - name: Validate Firebase rules are user-scoped
         run: |
           python - <<'PY'
