@@ -6378,5 +6378,107 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 })();
 </script>
 
+<!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->
+<style>
+#anasContextAiFab{position:fixed;z-index:99990;right:16px;bottom:18px;border:0;border-radius:999px;padding:12px 16px;background:#5b21b6;color:#fff;font-weight:800;box-shadow:0 5px 22px #0003;cursor:pointer;font:inherit}
+#anasContextAiPanel{position:fixed;z-index:99999;right:12px;bottom:76px;width:min(420px,calc(100vw - 24px));max-height:min(78vh,680px);overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#111827);border:1px solid var(--mp-border,#d1d5db);border-radius:16px;box-shadow:0 12px 42px #0004;padding:14px;display:none}
+#anasContextAiPanel input,#anasContextAiPanel textarea{box-sizing:border-box;width:100%;font:inherit;color:inherit;background:var(--mp-input-bg,#fff);border:1px solid var(--mp-border,#d1d5db);border-radius:9px;padding:10px;margin-top:6px}
+#anasContextAiPanel button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:10px 12px;font-weight:700}
+#anasContextAiAnswer{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin-top:10px;padding:10px;border-radius:9px;background:rgba(124,58,237,.08);display:none}
+@media(max-width:480px){#anasContextAiFab{right:10px;bottom:10px;padding:10px 13px}#anasContextAiPanel{right:8px;bottom:62px;width:calc(100vw - 16px)}}
+</style>
+<button id="anasContextAiFab" type="button" aria-controls="anasContextAiPanel" aria-expanded="false">✨ مساعد ChatGPT</button>
+<section id="anasContextAiPanel" role="dialog" aria-modal="false" aria-labelledby="anasContextAiTitle">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <h3 id="anasContextAiTitle" style="margin:0;font-size:17px">مساعدك في ANAS ERP</h3>
+    <button id="anasContextAiClose" type="button" aria-label="إغلاق المساعد" style="background:transparent;font-size:22px;padding:2px 8px">×</button>
+  </div>
+  <p style="font-size:13px;line-height:1.6;margin:8px 0;color:var(--mp-text-muted,#64748b)">اسأل عن الخانة أو الشاشة الحالية. لن يغيّر المساعد بيانات التطبيق.</p>
+  <div id="anasContextAiWhere" style="font-size:12px;padding:8px;border-radius:8px;background:rgba(100,116,139,.10);overflow-wrap:anywhere">السياق: لم تُحدّد خانة بعد.</div>
+  <label for="anasContextAiQuestion" style="display:block;margin-top:10px;font-weight:700">ما المساعدة التي تحتاجها؟</label>
+  <textarea id="anasContextAiQuestion" rows="3" maxlength="4000" placeholder="مثال: ماذا أكتب هنا؟ وكيف أستخدم هذه الخانة؟"></textarea>
+  <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;margin-top:10px">
+    <input id="anasContextAiIncludeSummary" type="checkbox" style="width:auto;margin-top:2px">
+    <span>إرفاق ملخص تجاري مختصر لمساعدتي في التحليل. لا تفعّل هذا الخيار إلا إذا أردت إرسال الملخص إلى خدمة الذكاء الاصطناعي.</span>
+  </label>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="anasContextAiSend" type="button" style="flex:1;background:#6d28d9;color:#fff">إرسال السؤال</button>
+    <button id="anasContextAiClear" type="button" style="background:var(--mp-border,#e5e7eb);color:inherit">مسح</button>
+  </div>
+  <div id="anasContextAiAnswer" role="status" aria-live="polite"></div>
+</section>
+<script>
+(function(){
+  'use strict';
+  const fab=document.getElementById('anasContextAiFab');
+  const panel=document.getElementById('anasContextAiPanel');
+  const close=document.getElementById('anasContextAiClose');
+  const where=document.getElementById('anasContextAiWhere');
+  const question=document.getElementById('anasContextAiQuestion');
+  const send=document.getElementById('anasContextAiSend');
+  const clear=document.getElementById('anasContextAiClear');
+  const answer=document.getElementById('anasContextAiAnswer');
+  const include=document.getElementById('anasContextAiIncludeSummary');
+  let focusedField=null;
+  let contextText='لم تُحدّد خانة بعد.';
+  function labelFor(el){
+    if(!el)return '';
+    const id=el.id||'';
+    let label='';
+    if(id){const l=document.querySelector('label[for="'+id.replace(/["\\\\]/g,'')+'"]');if(l)label=(l.innerText||l.textContent||'').trim();}
+    if(!label&&el.closest){const wrap=el.closest('.field-group,.form-group,.field-container,div');const l=wrap&&wrap.querySelector('label');if(l)label=(l.innerText||l.textContent||'').trim();}
+    return (label||el.getAttribute('aria-label')||el.getAttribute('placeholder')||id||el.tagName||'خانة غير معنونة').slice(0,180);
+  }
+  function safeContext(el){
+    if(!el)return 'لم تُحدّد خانة بعد.';
+    const type=(el.type||el.tagName||'').toLowerCase();
+    if(type==='password'||type==='file'||el.autocomplete==='current-password'||el.autocomplete==='new-password')return 'خانة حساسة؛ لم يُرسل أي محتوى منها.';
+    const label=labelFor(el);
+    let page='';
+    const modal=el.closest&&el.closest('[role="dialog"],.modal,.modal-content,.modal-bg-backdrop');
+    if(modal){const h=modal.querySelector('h1,h2,h3,h4,[id$="Title"]');if(h)page=(h.innerText||h.textContent||'').trim();}
+    if(!page){const active=document.querySelector('.content-area:not([style*="display: none"]),.tab-content.active,main h1,main h2,main h3');if(active)page=(active.innerText||active.textContent||'').trim().slice(0,100);}
+    return 'الخانة: '+label+(type?' (نوع الحقل: '+type+')':'')+(page?' | الشاشة: '+page.slice(0,120):'')+'. لم تُرسل قيمة الخانة.';
+  }
+  function openPanel(){
+    panel.style.display='block';fab.setAttribute('aria-expanded','true');
+    contextText=safeContext(focusedField);where.textContent='السياق: '+contextText;
+    if(!question.value)question.focus();
+  }
+  function closePanel(){panel.style.display='none';fab.setAttribute('aria-expanded','false');fab.focus();}
+  document.addEventListener('focusin',function(e){
+    const el=e.target;
+    if(!el||!el.matches||!el.matches('input,textarea,select,[contenteditable="true"]'))return;
+    if(panel.contains(el))return;
+    focusedField=el;
+    contextText=safeContext(el);
+    where.textContent='السياق: '+contextText;
+  });
+  fab.addEventListener('click',openPanel);
+  close.addEventListener('click',closePanel);
+  clear.addEventListener('click',function(){question.value='';answer.textContent='';answer.style.display='none';});
+  question.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send.click();}});
+  send.addEventListener('click',async function(){
+    const q=(question.value||'').trim();
+    if(!q){answer.style.display='block';answer.textContent='اكتب سؤالك أولاً.';return;}
+    const url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim().replace(/\/$/,'');
+    if(!url){answer.style.display='block';answer.textContent='لم يُضبط رابط خادم الذكاء الاصطناعي بعد. افتح الإعدادات ← ربط خادم الذكاء الاصطناعي، واحفظ رابط العامل الجديد أولاً.';return;}
+    const payload={type:'chat',message:q+'\n\nسياق الشاشة: '+contextText,language:'ar'};
+    if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function'){
+      try{payload.businessData=window.anasBuildBusinessSnapshot();}catch(e){answer.style.display='block';answer.textContent='تعذر إعداد الملخص التجاري. أرسل السؤال دون الملخص أو جرّب لاحقاً.';return;}
+    }
+    send.disabled=true;send.textContent='جارٍ الاتصال…';answer.style.display='block';answer.textContent='جارٍ طلب المساعدة…';
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),45000);
+    try{
+      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
+      const raw=await res.text();let data;try{data=JSON.parse(raw);}catch(_){data={text:raw};}
+      if(!res.ok||data.error)throw new Error(data.error||('HTTP '+res.status));
+      answer.textContent=String(data.text||data.answer||'لم تصل إجابة نصية من المساعد.');
+    }catch(e){answer.textContent='تعذر الاتصال بالمساعد: '+(e.name==='AbortError'?'انتهت مهلة الاتصال.':(e.message||'خطأ غير معروف'))+'. تحقق من رابط الخادم وإعداده.';}
+    finally{clearTimeout(timer);send.disabled=false;send.textContent='إرسال السؤال';}
+  });
+})();
+</script>
+
 </body>
 </html>
