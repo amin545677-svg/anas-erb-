@@ -6533,11 +6533,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         const loaded=Number(item.qty);
         if(!p||!Number.isFinite(loaded)||loaded<=0){alert('بيانات الصنف أو الكمية غير صالحة؛ أُلغيت التسوية.');return;}
         const ask=(label)=>prompt(label+' — '+(item.productName||p.name||item.productId)+' (المحمّل '+loaded+')','0');
-        const delivered=Number(ask('الكمية المسلّمة فعلياً'));
+        const deliveredRaw=ask('الكمية المسلّمة فعلياً');if(deliveredRaw===null)return;
+        const delivered=Number(deliveredRaw);
         if(!Number.isFinite(delivered)||delivered<0||delivered>loaded){alert('كمية التسليم غير صالحة.');return;}
-        const returned=Number(ask('كمية المرتجع الصالح'));
-        const damaged=Number(ask('كمية التالف'));
-        const missing=Number(ask('كمية المفقود'));
+        const returnedRaw=ask('كمية المرتجع الصالح');if(returnedRaw===null)return;
+        const returned=Number(returnedRaw);
+        const damagedRaw=ask('كمية التالف');if(damagedRaw===null)return;
+        const damaged=Number(damagedRaw);
+        const missingRaw=ask('كمية المفقود');if(missingRaw===null)return;
+        const missing=Number(missingRaw);
         if(![returned,damaged,missing].every(n=>Number.isFinite(n)&&n>=0)||Math.abs(delivered+returned+damaged+missing-loaded)>1e-8){
           alert('الكميات لا تتطابق للصنف '+(item.productName||item.productId)+'. يجب أن يساوي مجموع المسلّم والمرتجع والتالف والمفقود '+loaded+'.');return;
         }
