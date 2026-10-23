@@ -3514,10 +3514,14 @@ function renderPurchasesTable() {
                 userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
             });
-            if (saveDB() === false) {
+            let cashSaved = false;
+            try { cashSaved = saveDB() !== false; }
+            catch (err) { console.error('ANAS cash movement save failed', err); }
+            if (!cashSaved) {
                 AppData.caisseBalance = previousBalance;
                 if (hadMovements) AppData.cashMovements = previousMovements; else delete AppData.cashMovements;
                 updateCashUI();
+                alert('تعذر حفظ حركة الصندوق؛ أُعيد الرصيد والحركة إلى حالتهما السابقة.');
                 return;
             }
             updateCashUI();
@@ -3542,10 +3546,14 @@ function renderPurchasesTable() {
                 userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
             });
-            if (saveDB() === false) {
+            let expenseSaved = false;
+            try { expenseSaved = saveDB() !== false; }
+            catch (err) { console.error('ANAS expense save failed', err); }
+            if (!expenseSaved) {
                 AppData.caisseBalance = previousBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 updateCashUI();
+                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وقائمة المصروفات إلى حالتهما السابقة.');
                 return;
             }
             alert('تم تسجيل المصروف وخصمه من الصندوق بنجاح ✅');
