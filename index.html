@@ -4024,11 +4024,24 @@ function renderPurchasesTable() {
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
-            // تحقّق مجدداً ثم حدّث الرصيدين وسجل السند في عملية حفظ واحدة.
-            if(from==='المخزن الرئيسي')p.stock=available-qty;else p.warehouseStock[from]=available-qty;
-            if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
-            const seq=Date.now();const doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
-            AppData.warehouseTransfers.unshift(doc);if(!saveDB()){alert('تعذر حفظ السند؛ تحقق من مساحة التخزين.');return;}
+            // معاملة قابلة للتراجع: لا نترك أرصدة معدّلة في الذاكرة إذا فشل الحفظ.
+            const beforeMain=Number(p.stock)||0;
+            const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');
+            const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:{};
+            const transfersBefore=AppData.warehouseTransfers.slice();
+            try{
+                if(from==='المخزن الرئيسي')p.stock=available-qty;else p.warehouseStock[from]=available-qty;
+                if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
+                const seq=Date.now();const doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
+                AppData.warehouseTransfers.unshift(doc);
+                if(!saveDB())throw new Error('تعذر حفظ السند؛ تحقق من مساحة التخزين.');
+            }catch(e){
+                p.stock=beforeMain;
+                if(hadWarehouseStock)p.warehouseStock=beforeWarehouseStock;else delete p.warehouseStock;
+                AppData.warehouseTransfers=transfersBefore;
+                alert((e.message||'تعذر حفظ سند التحويل')+' أُعيدت أرصدة التحويل إلى حالتها السابقة.');
+                return;
+            }
             document.getElementById('wtQty').value='';document.getElementById('wtNote').value='';wtInitScreen();renderInventoryList();
             alert(`تم اعتماد سند التحويل ${doc.number} وتحديث أرصدة المخزنين.`);
         }
@@ -4835,7 +4848,8 @@ function renderPurchasesTable() {
                 u = {id:Date.now(),name,phone,address,role,warehouse,secondaryWarehouse,permissions};
                 AppData.users.push(u);
             }
-            const warehousesBefore=(AppData.warehouses||[]).slice();
+            const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));
+            (AppData.warehouses||[]).forEach(w=>{if(w&&typeof w==='object'&&String(w.assigned_user_id||'')===String(u.id)&&String(w.name||'').trim()!==secondaryWarehouse)delete w.assigned_user_id;});
             if(secondaryWarehouse)wtEnsureUserWarehouse(u);
             if(!saveDB()) {
                 AppData.warehouses=warehousesBefore;
