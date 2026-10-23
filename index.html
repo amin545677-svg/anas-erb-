@@ -3637,15 +3637,52 @@ function renderPurchasesTable() {
         }
 
         function collectCustDebt(cId) {
-            const c = AppData.customers.find(x => x.id === cId);
-            const amt = parseFloat(prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + c.debt + '):', c.debt));
-            if(amt && amt > 0 && amt <= c.debt) {
-                c.debt -= amt;
-                AppData.caisseBalance = (AppData.caisseBalance || 0) + amt;
-                saveDB();
-                renderCustomersDebts();
-                alert('تم تسجيل قبض المبلغ بنجاح ✅');
+            const c = (Array.isArray(AppData.customers) ? AppData.customers : []).find(x => String(x.id) === String(cId));
+            if (!c) { alert('تعذر العثور على حساب العميل؛ لم يتم تسجيل أي قبض.'); return; }
+            const previousDebt = Number(c.debt);
+            if (!Number.isFinite(previousDebt) || previousDebt <= 0) { alert('لا يوجد دين صالح للتحصيل لهذا العميل.'); return; }
+            const rawAmount = prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + previousDebt + '):', String(previousDebt));
+            if (rawAmount === null) return;
+            const parsedAmount = Number(String(rawAmount).trim().replace(',', '.'));
+            const amt = Math.round(parsedAmount * 100) / 100;
+            if (!Number.isFinite(amt) || amt <= 0 || amt > previousDebt + 0.000001) {
+                alert('المبلغ غير صالح؛ أدخل مبلغاً أكبر من صفر ولا يتجاوز الدين المستحق.');
+                return;
             }
+
+            const previousBalance = Number(AppData.caisseBalance) || 0;
+            const hadMovements = Array.isArray(AppData.cashMovements);
+            const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
+            c.debt = Math.max(0, previousDebt - amt);
+            AppData.caisseBalance = previousBalance + amt;
+            if (!hadMovements) AppData.cashMovements = [];
+            AppData.cashMovements.push({
+                id: 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                type: 'add',
+                amount: amt,
+                description: 'تحصيل دين من العميل ' + String(c.name || c.id),
+                referenceType: 'customer_debt',
+                referenceId: String(c.id),
+                date: new Date().toISOString(),
+                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+            });
+
+            let saved = false;
+            try { saved = saveDB() !== false; }
+            catch (err) { console.error('ANAS customer debt collection save failed', err); }
+            if (!saved) {
+                c.debt = previousDebt;
+                AppData.caisseBalance = previousBalance;
+                if (hadMovements) AppData.cashMovements = previousMovements;
+                else delete AppData.cashMovements;
+                if (typeof updateCashUI === 'function') updateCashUI();
+                alert('تعذر حفظ قبض الدين؛ أُعيد رصيد العميل والصندوق وسجل الحركات إلى حالتهم السابقة.');
+                return;
+            }
+            if (typeof updateCashUI === 'function') updateCashUI();
+            renderCustomersDebts();
+            alert('تم تسجيل قبض الدين وحركة الصندوق بنجاح ✅');
         }
 
         function openGoogleMaps(loc) {
@@ -3944,7 +3981,7 @@ function renderPurchasesTable() {
             // Do not silently rewrite historic cash when an edited invoice total falls below money already collected.
             // Refunds must be recorded as a separate cash movement so the audit trail remains accurate.
             if (newTotal + 0.000001 < oldPaid) {
-                alert('إجمالي الفاتورة الجديد أقل من المبلغ المحصّل سابقاً (' + oldPaid + ' دج). لم يتم التعديل؛ سجّل ردّ المبلغ كحركة صندوق مستقلة أولاً، ثم أعد تعديل الفاتورة.');
+                alert('إجمالي الفاتورة الجديد أقل من المبلغ المحصّل سابقاً (' + oldPaid + ' دج). لم يتم تعديل الفاتورة. هذه الأداة لا تسوّي ردّ المبالغ المرتبط بالفاتورة؛ يلزم تنفيذ تسوية/ردّ موثّق مرتبط بالفاتورة قبل تعديل إجماليها.');
                 return;
             }
             const newPaid = oldPaid;
