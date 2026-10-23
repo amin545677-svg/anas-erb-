@@ -182,7 +182,7 @@ jobs:
           start = s.find("function collectCustDebt(cId)")
           end = s.find("function openGoogleMaps(loc)", start)
           assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
-          js = s[start:end]
+          js = "global.window = {}; const window = global.window;\n" + s[start:end]
           js += r"""
           const assert = require('node:assert/strict');
           global.alert = () => {};
@@ -321,7 +321,6 @@ jobs:
             invoices: [{id:'INV-1',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:6}]}],
             stockMovements: []
           };
-          const window = global.window;
           """ + js + r"""
           window.anasTruckSettle('T1');
           assert.equal(AppData.products[0].stock, 6, 'one returned unit goes back to main stock');
