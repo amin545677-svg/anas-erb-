@@ -182,8 +182,9 @@ jobs:
           start = s.find("function collectCustDebt(cId)")
           end = s.find("function openGoogleMaps(loc)", start)
           assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
-          js = s[start:end]
-          js += r"""
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_CUSTOMER_DEBT_FUNCTION*/
           const assert = require('node:assert/strict');
           global.alert = () => {};
           global.renderCustomersDebts = () => {};
@@ -216,6 +217,7 @@ jobs:
           assert.equal(AppData.caisseBalance, 50);
           console.log('Customer debt settlement tests passed: ledger entry, rollback, and invalid amount guard');
           """
+          js = js.replace("/*INSERT_CUSTOMER_DEBT_FUNCTION*/", function_js)
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
@@ -227,8 +229,9 @@ jobs:
           start = s.find("  function postTripStock(trip){")
           end = s.find("  window.anasTruckSaveTrip = function(){", start)
           assert start >= 0 and end > start, "Could not isolate truck stock posting function"
-          js = s[start:end]
-          js += r"""
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_TRUCK_STOCK_FUNCTION*/
           const assert = require('node:assert/strict');
           global.AppData = {
             products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }],
@@ -275,6 +278,7 @@ jobs:
           assert.equal(Object.hasOwn(failedTrip, 'stockPostedAt'), false, 'failed save removes posted marker');
           console.log('Truck stock tests passed: one-time load, movement ledger, and rollback on failed save');
           """
+          js = js.replace("/*INSERT_TRUCK_STOCK_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-stock-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-truck-stock-test.js
@@ -290,3 +294,113 @@ jobs:
           assert "request.auth.uid == userId" in rules, "Firestore rules must restrict snapshots to their owner"
           print("Firestore rules configuration and owner-only access checks passed")
           PY
+
+      - name: Exercise truck custody settlement and rollback with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("  window.anasTruckSettle = function(id){")
+          end = s.find("  window.anasTruckDelete = function(id){", start)
+          assert start >= 0 and end > start, "Could not isolate truck settlement function"
+          function_js = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          global.alert = () => {};
+          global.anasTruckRender = () => {};
+          global.ensure = () => {
+            if (!global.AppData) throw new Error('AppData unavailable');
+            if (!Array.isArray(AppData.truckTrips)) AppData.truckTrips = [];
+            if (typeof global.saveDB !== 'function') throw new Error('saveDB unavailable');
+          };
+          global.prompt = (() => {
+            const answers = ['6','1','1','2','INV-1'];
+            return () => answers.shift();
+          })();
+          global.saveDB = () => true;
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [{id:'T1',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+            invoices: [{id:'INV-1',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:6}]}],
+            stockMovements: []
+          };
+          /*INSERT_TRUCK_SETTLEMENT_FUNCTION*/
+          window.anasTruckSettle('T1');
+          window.anasTruckSettle('T1');
+          assert.equal(AppData.products[0].stock, 6, 'one returned unit goes back to main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 0, 'return/damaged/missing units leave truck balance');
+          assert.equal(AppData.stockMovements.length, 3, 'return, damaged and missing each get a ledger movement');
+          assert.equal(AppData.truckTrips[0].settlementInvoiceIds[0], 'INV-1');
+          assert.ok(AppData.truckTrips[0].settledAt);
+          const moves = AppData.stockMovements.length;
+          window.anasTruckSettle('T1');
+          assert.equal(AppData.stockMovements.length, moves, 'repeat settlement must not duplicate movements');
+
+          // Reject invoices from another warehouse before any stock or ledger mutation.
+          global.prompt = (() => {
+            const answers = ['6','1','1','2','INV-WRONG'];
+            return () => answers.shift();
+          })();
+          let invalidInvoiceSaveCalled = false;
+          global.saveDB = () => { invalidInvoiceSaveCalled = true; return true; };
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [{id:'T3',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+            invoices: [{id:'INV-WRONG',warehouse:'Main warehouse',warehouseName:'Main warehouse',items:[{id:'p1',qty:6}]}],
+            stockMovements: []
+          };
+          window.anasTruckSettle('T3');
+          assert.equal(invalidInvoiceSaveCalled, false, 'wrong-warehouse invoice must not be persisted');
+          assert.equal(AppData.products[0].stock, 5, 'wrong-warehouse invoice must not change main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'wrong-warehouse invoice must not change truck stock');
+          assert.equal(AppData.stockMovements.length, 0, 'wrong-warehouse invoice must not create ledger movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'invalid invoice must not mark trip settled');
+
+          global.prompt = (() => {
+            const answers = ['6','1','1','2','INV-1'];
+            return () => answers.shift();
+          })();
+          global.saveDB = () => false;
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [{id:'T2',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+            invoices: [{id:'INV-1',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:6}]}],
+            stockMovements: [{id:'prior'}]
+          };
+          window.anasTruckSettle('T2');
+          assert.equal(AppData.products[0].stock, 5, 'failed save restores main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'failed save restores truck stock');
+          assert.deepEqual(AppData.stockMovements, [{id:'prior'}], 'failed save restores movement ledger');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'failed save removes settlement marker');
+          // Reject empty invoice details and malformed invoice lines before any persistence.
+          for (const badInvoice of [
+            {id:'INV-EMPTY',warehouse:'Truck T',warehouseName:'Truck T',items:[]},
+            {id:'INV-BAD-QTY',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:-2}]},
+            {id:'INV-BAD-ID',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'',qty:6}]}
+          ]) {
+            global.prompt = (() => {
+              const answers = ['6','1','1','2',badInvoice.id];
+              return () => answers.shift();
+            })();
+            let badInvoiceSaveCalled = false;
+            global.saveDB = () => { badInvoiceSaveCalled = true; return true; };
+            global.AppData = {
+              products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+              truckTrips: [{id:'TBAD',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+              invoices: [badInvoice],
+              stockMovements: []
+            };
+            window.anasTruckSettle('TBAD');
+            assert.equal(badInvoiceSaveCalled, false, badInvoice.id + ' must not be persisted');
+            assert.equal(AppData.products[0].stock, 5, badInvoice.id + ' must not mutate main stock');
+            assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, badInvoice.id + ' must not mutate truck stock');
+            assert.equal(AppData.stockMovements.length, 0, badInvoice.id + ' must not create ledger movements');
+            assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, badInvoice.id + ' must not mark trip settled');
+          }
+          console.log('Truck settlement mock tests passed: invoice match, stock partition, idempotency, rollback, empty details and malformed invoice lines');
+          """
+          js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
+          Path("/tmp/anas-truck-settlement-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-truck-settlement-test.js
+          node /tmp/anas-truck-settlement-test.js
