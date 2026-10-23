@@ -5237,13 +5237,46 @@ function renderPurchasesTable() {
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
             const suppliers=Array.isArray(AppData.suppliers)?AppData.suppliers:[];
             const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
+            const purchases=Array.isArray(AppData.purchases)?AppData.purchases:[];
+            const truckTrips=Array.isArray(AppData.truckTrips)?AppData.truckTrips:[];
+            const stockMovements=Array.isArray(AppData.stockMovements)?AppData.stockMovements:[];
+            const warehouseTransfers=Array.isArray(AppData.warehouseTransfers)?AppData.warehouseTransfers:[];
+            const warehouses=Array.isArray(AppData.warehouses)?AppData.warehouses:[];
+            const expenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
             const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
             const stockValue=products.reduce((sum,p)=>sum+num(p.stock)*num(p.buyPrice),0);
             const debtTotal=customers.reduce((sum,c)=>sum+Math.max(0,num(c.debt)),0);
             const salesTotal=invoices.reduce((sum,i)=>sum+num(i.total),0);
-            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
+            const purchaseTotal=purchases.reduce((sum,p)=>sum+num(p.total || (num(p.cost)*num(p.qty))),0);
+            const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
+            const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
+            const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
+            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name||p.title),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
             const debtors=customers.filter(c=>num(c.debt)>0).sort((a,b)=>num(b.debt)-num(a.debt)).slice(0,20).map(c=>({name:anasAiSafeText(c.name),debt:num(c.debt)}));
-            return {currency:'DZD',counts:{products:products.length,customers:customers.length,suppliers:suppliers.length,invoices:invoices.length},totals:{customerDebtsDZD:debtTotal,estimatedStockCostDZD:stockValue,invoiceTotalsDZD:salesTotal},sampleProducts:recentProducts,topDebtors:debtors,note:'هذه بيانات ملخصة من التطبيق وقت السؤال؛ لا تعتبر مجموع الفواتير بالضرورة أرباحًا أو مبيعات صافية، ولا تستنتج ربحًا دون بيانات تكلفة مناسبة.'};
+            return {
+                currency:'DZD',
+                counts:{
+                    products:products.length,customers:customers.length,suppliers:suppliers.length,
+                    invoices:invoices.length,purchaseRecords:purchases.length,truckTrips:truckTrips.length,
+                    stockMovements:stockMovements.length,warehouseTransfers:warehouseTransfers.length,
+                    warehouses:warehouses.length,expenses:expenses.length
+                },
+                totals:{
+                    customerDebtsDZD:debtTotal,estimatedStockCostDZD:stockValue,
+                    invoiceTotalsDZD:salesTotal,purchaseRecordsTotalDZD:purchaseTotal,
+                    recordedExpensesDZD:expensesTotal,recordedTruckTripCostsDZD:tripCosts,
+                    cashBalanceDZD:num(AppData.caisseBalance)
+                },
+                truckTrips:{statusCounts:tripStatusCounts},
+                sampleProducts:recentProducts,topDebtors:debtors,
+                dataQualityNotes:[
+                    'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
+                    'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
+                    'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
+                    'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
+                ],
+                note:'ملخص لحظي اختياري من التطبيق وقت السؤال. لا يتضمن أسماء الموردين أو تفاصيل رحلاتهم؛ راجع القيم قبل اتخاذ قرار مالي.'
+            };
         }
         function anasAiAppendMessage(role,text){
             const log=document.getElementById('anasAiChatLog'); if(!log)return;
