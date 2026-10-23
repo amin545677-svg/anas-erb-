@@ -6461,7 +6461,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   send.addEventListener('click',async function(){
     const q=(question.value||'').trim();
     if(!q){answer.style.display='block';answer.textContent='اكتب سؤالك أولاً.';return;}
-    const url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim().replace(/\/$/,'');
+    let savedUrl='';
+    try{savedUrl=localStorage.getItem('anasErpAiGatewayUrlV1')||'';}catch(_){answer.style.display='block';answer.textContent='تعذر الوصول إلى إعدادات التخزين في المتصفح. اسمح للتطبيق باستخدام التخزين المحلي ثم أعد المحاولة.';return;}
+    const url=savedUrl.trim().replace(/\/$/,'');
     if(!url){answer.style.display='block';answer.textContent='لم يُضبط رابط خادم الذكاء الاصطناعي بعد. افتح الإعدادات ← ربط خادم الذكاء الاصطناعي، واحفظ رابط العامل الجديد أولاً.';return;}
     const payload={type:'chat',message:q+'\n\nسياق الشاشة: '+contextText,language:'ar'};
     if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function'){
