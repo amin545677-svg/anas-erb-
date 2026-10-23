@@ -90,6 +90,45 @@ jobs:
           assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
           print("Contextual AI helper presence and privacy guards passed")
           PY
+      - name: Check PDF extraction JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          marker = "async function anasExtractPdfText(file)"
+          pos = s.find(marker)
+          assert pos >= 0, "PDF text extraction function is missing"
+          start = s.rfind("<script>", 0, pos)
+          end = s.find("</script>", pos)
+          assert start >= 0 and end > pos, "Could not locate the PDF helper script block"
+          js = s[start + len("<script>"):end]
+          Path("/tmp/anas-pdf-helper.js").write_text(js, encoding="utf-8")
+          print("Extracted PDF helper script for syntax validation")
+          PY
+          node --check /tmp/anas-pdf-helper.js
+      - name: Validate document center capabilities and privacy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          required = [
+              "مركز الملفات الذكي | Excel · PDF",
+              'accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf',
+              "async function anasExtractPdfText(file)",
+              "Math.min(pdf.numPages,100)",
+              "function anasDownloadPdfText()",
+              "async function anasAskAiAboutPdf()",
+              "documentText:text.slice(0,28000)",
+              "function handleSmartAiUpload(e)",
+              "function parseSmartCsv(raw,delimiter)",
+              "function showSmartImportPreview(fileName,rows)",
+              "function anasRunLocalBusinessAudit()"
+          ]
+          missing = [x for x in required if x not in s]
+          assert not missing, f"Missing document-center capabilities/privacy markers: {missing}"
+          assert "if(!question||!question.trim())return;" in s, "AI analysis must require an explicit user-confirmed question"
+          print("Document center capabilities and explicit-send guard passed")
+          PY
       - name: Validate Firebase rules are user-scoped
         run: |
           python - <<'PY'
