@@ -1,0 +1,8 @@
+name = "anas-erp-openai-ai"
+main = "worker_openai_ai.js"
+compatibility_date = "2026-10-22"
+workers_dev = true
+
+[vars]
+OPENAI_MODEL = "gpt-4.1-mini"
+ALLOWED_ORIGINS = "https://amin545677-svg.github.io"
