@@ -40,6 +40,8 @@ jobs:
           PY
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare/worker_firebase_snapshot.js
+      - name: Check OpenAI AI Worker JavaScript syntax
+        run: node --check cloudflare/worker_openai_ai.js
       - name: Validate Worker contract and security guards
         run: |
           python - <<'PY'
