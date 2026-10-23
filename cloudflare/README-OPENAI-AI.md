@@ -25,5 +25,5 @@ Do not overwrite `anas-erp-firebase-snapshot` or any existing Gemini Worker. Dep
 - The browser sends the business summary only when the user presses the AI question button. Review the summary builder in `index.html` before sending real customer data.
 - This Worker uses the Responses API with `store: false`, but API processing is still subject to OpenAI's applicable data policies and the account's configuration.
 - Keep the API key private, restrict access to the Worker origin, and monitor API usage/budget.
-- CORS is a browser-origin control, not authentication. If the app is made public, consider adding authenticated requests and rate limiting before broad use.
+- CORS is a browser-origin control, not authentication. Before making this Worker broadly available, configure Cloudflare rate limiting and monitor usage/budget; CORS alone cannot stop non-browser callers.
 - This is an initial integration scaffold. Validate it in a test environment before relying on it for business decisions.
