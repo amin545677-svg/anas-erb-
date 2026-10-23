@@ -5335,16 +5335,23 @@ function renderPurchasesTable() {
             let pdf;
             try{pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;}
             catch(_){throw new Error('تعذر فتح ملف PDF. قد يكون تالفًا أو محميًا بكلمة مرور.');}
-            const chunks=[];const maxPages=Math.min(pdf.numPages,100);
-            for(let pageNo=1;pageNo<=maxPages;pageNo++){
-                const page=await pdf.getPage(pageNo);
-                const content=await page.getTextContent();
-                const line=content.items.map(item=>item.str||'').join(' ').replace(/[ \\t]+/g,' ').trim();
-                if(line) chunks.push('--- الصفحة '+pageNo+' ---\n'+line);
+            const chunks=[];const pageCount=pdf.numPages;const maxPages=Math.min(pageCount,100);
+            try{
+                for(let pageNo=1;pageNo<=maxPages;pageNo++){
+                    const page=await pdf.getPage(pageNo);
+                    const content=await page.getTextContent();
+                    const line=content.items.map(item=>item.str||'').join(' ').replace(/[ \\t]+/g,' ').trim();
+                    if(line) chunks.push('--- الصفحة '+pageNo+' ---\\n'+line);
+                    if(page.cleanup)page.cleanup();
+                }
+            }catch(_){
+                throw new Error('تعذر استخراج النص من الصفحة التالية. قد يكون الملف تالفًا أو يحتوي على محتوى غير مدعوم.');
+            }finally{
+                if(pdf.destroy)await pdf.destroy();
             }
-            let text=chunks.join('\n\n');
-            if(pdf.numPages>maxPages) text+='\n\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pdf.numPages+'.]';
-            return {text,pages:pdf.numPages};
+            let text=chunks.join('\\n\\n');
+            if(pageCount>maxPages) text+='\\n\\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pageCount+'.]';
+            return {text,pages:pageCount};
         }
         function anasDownloadPdfText(){
             const text=document.getElementById('smartPdfExtractText')?.value||'';
