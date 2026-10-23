@@ -6564,9 +6564,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           linked.push(inv);
         }
         const invoiced=new Map();
-        for(const inv of linked)for(const item of (Array.isArray(inv.items)?inv.items:[])){
-          const key=String(item.id??item.productId??'');
-          if(key)invoiced.set(key,(invoiced.get(key)||0)+(Number(item.qty)||0));
+        for(const inv of linked){
+          if(!Array.isArray(inv.items)||!inv.items.length){alert('الفاتورة '+inv.id+' لا تحتوي على تفاصيل أصناف صالحة.');return;}
+          for(const item of inv.items){
+            const key=String(item.id??item.productId??'');
+            const qty=Number(item.qty);
+            if(!key||!Number.isFinite(qty)||qty<=0){alert('تحتوي الفاتورة '+inv.id+' على صنف أو كمية غير صالحة؛ أُلغيت التسوية.');return;}
+            invoiced.set(key,(invoiced.get(key)||0)+qty);
+          }
         }
         for(const [productId,qty] of deliveredByProduct){
           if(Math.abs((invoiced.get(productId)||0)-qty)>1e-8){alert('كمية الفواتير للمنتج '+productId+' لا تطابق كمية التسليم '+qty+'.');return;}
