@@ -3057,12 +3057,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 required.set(id, (required.get(id) || 0) + qty);
             }
+            const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             for (const [id, qty] of required) {
                 const product = (AppData.products || []).find(p => String(p.id) === id);
                 if (!product) { alert('تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.'); return; }
-                const stock = Number(product.stock);
+                const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
                 if (!Number.isFinite(stock) || stock < qty) {
-                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + '. المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
+                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
                 }
             }
 
@@ -3087,7 +3088,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const oldStocks = new Map();
             for (const id of required.keys()) {
                 const p = AppData.products.find(x => String(x.id) === id);
-                oldStocks.set(id, Number(p.stock));
+                oldStocks.set(id, {
+                    stock:Number(p.stock),
+                    hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
+                    warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null
+                });
             }
             const oldCaisse = Number(AppData.caisseBalance) || 0;
             const oldCart = cart.map(it => ({...it}));
@@ -3103,6 +3108,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 id: 'INV-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
                 date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
                 customerObj: cust, items: cart.map(it => ({...it})), total, paid, remaining,
+                warehouse: saleWarehouse, warehouseName: saleWarehouse,
                 userId: (AppData.currentUser && AppData.currentUser.id) ?? null,
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
@@ -3117,7 +3123,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 for (const [id, qty] of required) {
                     const p = AppData.products.find(x => String(x.id) === id);
-                    p.stock = Number(p.stock) - qty;
+                    if(saleWarehouse==='المخزن الرئيسي') p.stock = (Number(p.stock)||0)-qty;
+                    else {
+                        if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
+                        p.warehouseStock[saleWarehouse]=(Number(p.warehouseStock[saleWarehouse])||0)-qty;
+                    }
                 }
                 if (paid > 0) AppData.caisseBalance = oldCaisse + paid;
                 AppData.invoices.unshift(invObj);
@@ -3125,9 +3135,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 posCart = [];
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
             } catch (e) {
-                for (const [id, stock] of oldStocks) {
+                for (const [id, stockState] of oldStocks) {
                     const p = AppData.products.find(x => String(x.id) === id);
-                    if (p) p.stock = stock;
+                    if (p) {
+                        p.stock = stockState.stock;
+                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock||{};
+                        else delete p.warehouseStock;
+                    }
                 }
                 if (registeredCustomer) {
                     cust.debt = oldDebt;
@@ -3941,6 +3955,27 @@ function renderPurchasesTable() {
 
         // مخزون مستقل لكل مستودع: p.stock هو رصيد المخزن الرئيسي، وwarehouseStock للأرصدة الثانوية.
         function wtEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+        function wtUserWarehouseName(user){return String(user&&(user.secondaryWarehouse||user.warehouseName)||'').trim();}
+        function wtEnsureUserWarehouse(user){
+            const name=wtUserWarehouseName(user);if(!name)return null;
+            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===name);
+            let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
+            if(!wh)wh={id:'wh_user_'+String(user.id),name,type:/شاحنة|truck|mobile/i.test(name)?'mobile':'secondary',status:'active'};
+            wh.id=wh.id||'wh_user_'+String(user.id);wh.name=name;wh.status=wh.status||'active';wh.assigned_user_id=String(user.id);
+            if(idx>=0)AppData.warehouses[idx]=wh;else AppData.warehouses.push(wh);
+            return wh;
+        }
+        function wtCurrentSaleWarehouse(){
+            const user=AppData.currentUser;
+            const assigned=wtUserWarehouseName(user);
+            return assigned||'المخزن الرئيسي';
+        }
+        function wtAvailableStock(product,warehouse){
+            if(!product)return 0;
+            if(!warehouse||warehouse==='المخزن الرئيسي')return Number(product.stock)||0;
+            return Number((product.warehouseStock||{})[warehouse])||0;
+        }
         function wtWarehouses(){
             const names=['المخزن الرئيسي'];
             (AppData.users||[]).forEach(u=>{[u.warehouse,u.secondaryWarehouse].forEach(n=>{n=String(n||'').trim();if(n&&!names.includes(n))names.push(n);});});
@@ -4778,6 +4813,10 @@ function renderPurchasesTable() {
             const secondaryWarehouse = document.getElementById('newUserSecondaryWarehouseInput').value.trim();
             const permissions = Array.from(document.querySelectorAll('.user-permission:checked')).map(c=>c.value);
             if(!name) { alert('أدخل اسم المستخدم'); return; }
+            if(secondaryWarehouse){
+                const duplicateWarehouse=(AppData.users||[]).find(x=>String(x.id)!==String(id||'')&&wtUserWarehouseName(x)===secondaryWarehouse);
+                if(duplicateWarehouse){alert('هذا المخزن الثانوي مسند بالفعل إلى المستخدم «'+duplicateWarehouse.name+'». اختر مخزناً آخر لضمان عهدة مستقلة لكل مستخدم.');return;}
+            }
             if(!permissions.includes('dashboard')) permissions.unshift('dashboard');
             if(role === 'مدير عام' && permissions.length !== USER_TASKS.length) {
                 if(!confirm('دور «مدير عام» يمنح جميع مهام التطبيق. هل تريد تفعيل جميع الصلاحيات لهذا المستخدم؟')) return;
@@ -4796,7 +4835,10 @@ function renderPurchasesTable() {
                 u = {id:Date.now(),name,phone,address,role,warehouse,secondaryWarehouse,permissions};
                 AppData.users.push(u);
             }
+            const warehousesBefore=(AppData.warehouses||[]).slice();
+            if(secondaryWarehouse)wtEnsureUserWarehouse(u);
             if(!saveDB()) {
+                AppData.warehouses=warehousesBefore;
                 if(id) { /* بيانات التعديل بقيت في الذاكرة؛ لا نغلق النموذج كي لا تضيع على المستخدم. */ }
                 else { AppData.users = (AppData.users || []).filter(x => x !== u); }
                 return alert('تعذر حفظ المستخدم في التخزين المحلي. بقي النموذج مفتوحًا؛ صدّر نسخة احتياطية وتحقق من مساحة الهاتف.');
