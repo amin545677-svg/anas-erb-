@@ -6381,7 +6381,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const rawDate=$('truckDate').value;
       if(rawDate && Number.isNaN(new Date(rawDate).getTime())){alert('تاريخ ووقت الرحلة غير صالحين.');return;}
       const tripId='TR-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
-      const initialStatus=$('truckStatus').value; if(initialStatus==='delivered'&&truckDraftItems.length){alert('أنشئ الرحلة أولاً، ثم اعتمد «في الطريق» لتحويل البضاعة إلى مخزن الشاحنة.');return;} const warehouseName='شاحنة '+plate; const trip={id:tripId,plate,driver,origin,destination,warehouseName,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
+      const initialStatus=$('truckStatus').value; if((initialStatus==='delivered'||initialStatus==='in_transit')&&truckDraftItems.length){alert('أنشئ الرحلة بحالة «مخططة» أولاً، ثم اعتمد «في الطريق» لتحويل البضاعة إلى مخزن الشاحنة مرة واحدة.');return;} const warehouseName='شاحنة '+plate; const trip={id:tripId,plate,driver,origin,destination,warehouseName,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
       const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));wtEnsureMobileWarehouse(warehouseName);
       AppData.truckTrips.unshift(trip);
       let persisted=true;
