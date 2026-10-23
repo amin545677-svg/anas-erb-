@@ -231,6 +231,7 @@ jobs:
           assert start >= 0 and end > start, "Could not isolate truck stock posting function"
           function_js = s[start:end]
           js = r"""
+          /*INSERT_TRUCK_STOCK_FUNCTION*/
           const assert = require('node:assert/strict');
           global.AppData = {
             products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }],
@@ -277,6 +278,7 @@ jobs:
           assert.equal(Object.hasOwn(failedTrip, 'stockPostedAt'), false, 'failed save removes posted marker');
           console.log('Truck stock tests passed: one-time load, movement ledger, and rollback on failed save');
           """
+          js = js.replace("/*INSERT_TRUCK_STOCK_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-stock-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-truck-stock-test.js
