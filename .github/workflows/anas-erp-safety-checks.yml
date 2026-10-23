@@ -227,7 +227,7 @@ jobs:
           start = s.find("  function postTripStock(trip){")
           end = s.find("  window.anasTruckSaveTrip = function(){", start)
           assert start >= 0 and end > start, "Could not isolate truck stock posting function"
-          js = s[start:end]
+          js = "global.window = {}; const window = global.window;\n" + s[start:end]
           js += r"""
           const assert = require('node:assert/strict');
           global.AppData = {
@@ -302,7 +302,6 @@ jobs:
           js = s[start:end]
           js += r"""
           const assert = require('node:assert/strict');
-          global.window = {};
           global.alert = () => {};
           global.anasTruckRender = () => {};
           global.ensure = () => {
