@@ -59,6 +59,35 @@ jobs:
           assert not missing, f"Missing Worker safety/contract markers: {missing}"
           print("Worker syntax and required contract markers passed")
           PY
+      - name: Validate OpenAI AI gateway health and UI contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          worker = Path("cloudflare/worker_openai_ai.js").read_text(encoding="utf-8")
+          app = Path("index.html").read_text(encoding="utf-8")
+          deploy = Path(".github/workflows/deploy-openai-ai-worker.yml").read_text(encoding="utf-8")
+          checks = {
+              "health endpoint reports the expected service": '"service: "anas-erp-openai-ai"' in worker,
+              "health endpoint reports API-key configuration without exposing the key": "configured: Boolean(env.OPENAI_API_KEY)" in worker,
+              "health endpoint returns model metadata": "model: env.OPENAI_MODEL || DEFAULT_MODEL" in worker,
+              "request body has a size limit": "MAX_BODY_BYTES" in worker,
+              "OpenAI calls disable response storage": "store: false" in worker,
+              "UI calls the health endpoint": "fetch(url+'/health'" in app,
+              "UI verifies the worker service identity": "anas-erp-openai-ai" in app,
+              "UI submits chat messages": "type:'chat'" in app and "businessData: anasBuildBusinessSnapshot()" in app,
+              "UI reads the text response": "data.text" in app,
+              "manual deployment requires Cloudflare token": "secrets.CLOUDFLARE_API_TOKEN" in deploy,
+              "manual deployment requires Cloudflare account id": "secrets.CLOUDFLARE_ACCOUNT_ID" in deploy,
+              "manual deployment requires OpenAI key": "secrets.OPENAI_API_KEY" in deploy,
+              "worker deployment remains manual-only": "workflow_dispatch:" in deploy and "push:" not in deploy,
+          }
+          missing = [name for name, passed in checks.items() if not passed]
+          for name, passed in checks.items():
+              print(("PASS" if passed else "FAIL") + ": " + name)
+          if missing:
+              raise SystemExit("AI gateway contract checks failed: " + "; ".join(missing))
+          print(f"All {len(checks)} AI gateway contract checks passed.")
+          PY
       - name: Check contextual AI helper JavaScript syntax
         run: |
           python - <<'PY'
