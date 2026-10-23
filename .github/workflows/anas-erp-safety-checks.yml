@@ -219,6 +219,65 @@ jobs:
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
+      - name: Exercise truck stock posting and rollback with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("  function postTripStock(trip){")
+          end = s.find("  window.anasTruckSaveTrip = function(){", start)
+          assert start >= 0 and end > start, "Could not isolate truck stock posting function"
+          js = s[start:end]
+          js += r"""
+          const assert = require('node:assert/strict');
+          global.AppData = {
+            products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }],
+            stockMovements: [],
+            warehouses: []
+          };
+          global.wtEnsureMobileWarehouse = name => {
+            if (!AppData.warehouses.includes(name)) AppData.warehouses.push(name);
+          };
+          global.saveDB = () => true;
+          const trip = {
+            id: 'TR-TEST-1',
+            plate: 'TEST',
+            warehouseName: 'Truck TEST',
+            stockItems: [{ productId: 'p1', productName: 'Product', qty: 4 }]
+          };
+          assert.equal(postTripStock(trip), true);
+          assert.equal(AppData.products[0].stock, 6, 'load reduces main stock once');
+          assert.equal(AppData.products[0].warehouseStock['Truck TEST'], 4, 'load increases truck warehouse stock');
+          assert.equal(AppData.stockMovements.length, 2, 'load records out and in movements');
+          const postedAt = trip.stockPostedAt;
+          assert.equal(postTripStock(trip), true, 'repeated posting must be idempotent');
+          assert.equal(AppData.products[0].stock, 6, 'repeated posting must not deduct stock twice');
+          assert.equal(AppData.stockMovements.length, 2, 'repeated posting must not duplicate ledger entries');
+          assert.equal(trip.stockPostedAt, postedAt);
+
+          global.AppData = {
+            products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: { Existing: 2 } }],
+            stockMovements: [{ id: 'old' }],
+            warehouses: ['Existing']
+          };
+          global.saveDB = () => false;
+          const failedTrip = {
+            id: 'TR-TEST-2',
+            plate: 'TEST2',
+            warehouseName: 'Truck TEST2',
+            stockItems: [{ productId: 'p1', productName: 'Product', qty: 4 }]
+          };
+          assert.throws(() => postTripStock(failedTrip), /تعذر حفظ حركة التحميل/);
+          assert.equal(AppData.products[0].stock, 10, 'failed save restores main stock');
+          assert.deepEqual(AppData.products[0].warehouseStock, { Existing: 2 }, 'failed save restores warehouse stock');
+          assert.deepEqual(AppData.stockMovements, [{ id: 'old' }], 'failed save restores prior movement ledger');
+          assert.deepEqual(AppData.warehouses, ['Existing'], 'failed save restores prior warehouse list');
+          assert.equal(Object.hasOwn(failedTrip, 'stockPostedAt'), false, 'failed save removes posted marker');
+          console.log('Truck stock tests passed: one-time load, movement ledger, and rollback on failed save');
+          """
+          Path("/tmp/anas-truck-stock-test.js").write_text(js, encoding="utf-8")
+          PY
+          node /tmp/anas-truck-stock-test.js
       - name: Validate Firebase rules are user-scoped
         run: |
           python - <<'PY'
