@@ -2709,7 +2709,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             results.innerHTML = matches.map((p, i) => {
                 const price = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
-                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · المخزون: ${Number(p.stock || 0)}</span></button>`;
+                const wh=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
+                const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,wh):(Number(p.stock)||0);
+                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
             }).join('');
             results.hidden = false;
         }
@@ -2773,12 +2775,14 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!p) { alert('تعذر إضافة المنتج: لم يعد موجودًا في قائمة المنتجات. حدّث القائمة وحاول مجددًا.'); return; }
             const ex = posCart.find(x => String(x.id) === String(p.id));
             const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
+            const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
+            const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,saleWarehouse):(Number(p.stock)||0);
 
             if(ex) {
-                if(ex.qty >= p.stock) { alert('الكمية تتجاوز الرصيد المتوفر بالمخزن (' + p.stock + ')'); return; }
+                if(ex.qty >= available) { alert('الكمية تتجاوز الرصيد المتوفر في «'+saleWarehouse+'» (' + available + ')'); return; }
                 ex.qty++;
             } else {
-                if(p.stock <= 0) { alert('السلعة غير متوفرة في المخزن!'); return; }
+                if(available <= 0) { alert('السلعة غير متوفرة في مخزن البيع «'+saleWarehouse+'»!'); return; }
                 posCart.push({
                     id: p.id,
                     name: p.name,
@@ -2866,8 +2870,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (next <= 0) { posCart.splice(idx, 1); }
             else {
                 const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-                if (product && Number(product.stock) >= 0 && next > Number(product.stock) && !AppData.allowNegativeStock) {
-                    alert('الكمية المطلوبة أكبر من المخزون المتوفر (' + Number(product.stock) + ').');
+                const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+                if (product && Number.isFinite(available) && available >= 0 && next > available && !AppData.allowNegativeStock) {
+                    alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                     return;
                 }
                 item.qty = next;
@@ -2881,8 +2886,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const q = parseInt(prompt('تعديل الكمية:', item.qty), 10);
             if (!Number.isFinite(q) || q <= 0) return;
             const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-            if (product && Number(product.stock) >= 0 && q > Number(product.stock) && !AppData.allowNegativeStock) {
-                alert('الكمية المطلوبة أكبر من المخزون المتوفر (' + Number(product.stock) + ').');
+            const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+            if (product && Number.isFinite(available) && available >= 0 && q > available && !AppData.allowNegativeStock) {
+                alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                 return;
             }
             const oldQty = item.qty;
@@ -2927,7 +2933,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                             ${imgThumb}
                             <div>
                                 <strong>${anasEscapeHTML(p.name)}</strong><br>
-                                <small style="color:#64748b;">رصيد: ${p.stock} ${p.unit || ''} | سعر: ${pr} د.ج</small>
+                                <small style="color:#64748b;">رصيد ${(typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي')}: ${(typeof wtAvailableStock==='function'?wtAvailableStock(p,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(p.stock)||0)} ${p.unit || ''} | سعر: ${pr} د.ج</small>
                             </div>
                         </div>
                         <span style="color:#15803d; font-weight:800;">+ أضف</span>
