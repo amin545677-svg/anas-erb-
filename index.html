@@ -3505,7 +3505,15 @@ function renderPurchasesTable() {
             if(!isAdd && previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
             AppData.caisseBalance = previousBalance + (isAdd ? amt : -amt);
             if (!hadMovements) AppData.cashMovements = [];
-            AppData.cashMovements.push({ type: isAdd ? 'add' : 'subtract', amount: amt, description: desc, date: new Date().toISOString() });
+            AppData.cashMovements.push({
+                id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                type: isAdd ? 'add' : 'subtract',
+                amount: amt,
+                description: desc,
+                date: new Date().toISOString(),
+                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+            });
             if (saveDB() === false) {
                 AppData.caisseBalance = previousBalance;
                 if (hadMovements) AppData.cashMovements = previousMovements; else delete AppData.cashMovements;
@@ -3527,7 +3535,13 @@ function renderPurchasesTable() {
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
             AppData.caisseBalance = previousBalance - amt;
             if (!hadExpenses) AppData.expenses = [];
-            AppData.expenses.push({ account: acc, desc: desc, amt: amt, date: new Date().toISOString() });
+            AppData.expenses.push({
+                id: 'EXP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                account: acc, desc: desc, amt: amt, date: new Date().toISOString(),
+                paymentMethod: 'cash',
+                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+            });
             if (saveDB() === false) {
                 AppData.caisseBalance = previousBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
@@ -3903,10 +3917,18 @@ function renderPurchasesTable() {
             const stockChanges = new Map();
             for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty || 0));
             for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty || 0));
+            // تسوية المخزن الذي صدرت منه الفاتورة، لا المخزن الرئيسي افتراضياً.
+            const invoiceWarehouse = String(inv.warehouseName || inv.warehouse || 'المخزن الرئيسي').trim() || 'المخزن الرئيسي';
             for (const [id, delta] of stockChanges) {
                 const p = (AppData.products || []).find(x => String(x.id) === id);
                 if (!p) { alert('تعذر العثور على صنف من أصناف الفاتورة.'); return; }
-                if (Number(p.stock) + delta < 0) { alert('المخزون الحالي لا يكفي لتعديل كمية ' + (p.name || id) + '.'); return; }
+                const available = typeof wtAvailableStock === 'function'
+                    ? wtAvailableStock(p, invoiceWarehouse)
+                    : (Number(p.stock) || 0);
+                if (!Number.isFinite(available) || available + delta < -0.000001) {
+                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 0) + '.');
+                    return;
+                }
             }
             const oldTotal = Number(inv.total) || 0;
             const oldPaid = Number(inv.paid) || 0;
@@ -3920,8 +3942,17 @@ function renderPurchasesTable() {
             try {
                 for (const [id, delta] of stockChanges) {
                     const p = AppData.products.find(x => String(x.id) === id);
-                    snapshot.stocks.set(id, p.stock);
-                    p.stock = Number(p.stock) + delta;
+                    snapshot.stocks.set(id, {
+                        stock: p.stock,
+                        hadWarehouseStock: Object.prototype.hasOwnProperty.call(p, 'warehouseStock'),
+                        warehouseStock: p.warehouseStock && typeof p.warehouseStock === 'object' ? {...p.warehouseStock} : null
+                    });
+                    if (invoiceWarehouse === 'المخزن الرئيسي') {
+                        p.stock = (Number(p.stock) || 0) + delta;
+                    } else {
+                        if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
+                        p.warehouseStock[invoiceWarehouse] = (Number(p.warehouseStock[invoiceWarehouse]) || 0) + delta;
+                    }
                 }
                 if (newPaid !== oldPaid) AppData.caisseBalance = (Number(AppData.caisseBalance) || 0) + (newPaid - oldPaid);
                 if (customer) customer.debt = Math.max(0, (Number(customer.debt) || 0) + (newRemaining - oldRemaining));
@@ -3937,7 +3968,14 @@ function renderPurchasesTable() {
                 alert('تم تعديل الفاتورة وتسوية المخزون والحسابات بنجاح.');
             } catch (e) {
                 inv.items = snapshot.items; inv.total = snapshot.total; inv.paid = snapshot.paid; inv.remaining = snapshot.remaining; inv.paymentMethod = snapshot.method;
-                for (const [id, stock] of snapshot.stocks) { const p = AppData.products.find(x => String(x.id) === id); if (p) p.stock = stock; }
+                for (const [id, state] of snapshot.stocks) {
+                    const p = AppData.products.find(x => String(x.id) === id);
+                    if (p) {
+                        p.stock = state.stock;
+                        if (state.hadWarehouseStock) p.warehouseStock = state.warehouseStock || {};
+                        else delete p.warehouseStock;
+                    }
+                }
                 AppData.caisseBalance = snapshot.caisse;
                 if (customer) customer.debt = snapshot.debt;
                 alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة. تحقق من مساحة التخزين ثم أعد المحاولة.');
