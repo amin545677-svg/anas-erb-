@@ -133,6 +133,51 @@ jobs:
           console.log('OpenAI Worker runtime smoke tests passed: health, key-free check, CORS allow/deny, missing-key guard, and 404.');
           JS
           node /tmp/anas-openai-worker-smoke.mjs
+      - name: Exercise OpenAI AI Worker malformed and oversized request guards
+        run: |
+          cp cloudflare/worker_openai_ai.js /tmp/anas-openai-worker-errors.mjs
+          cat > /tmp/anas-openai-worker-errors-test.mjs <<'JS'
+          import assert from 'node:assert/strict';
+          import worker from './anas-openai-worker-errors.mjs';
+
+          const origin = 'https://amin545677-svg.github.io';
+          const env = {
+            ALLOWED_ORIGINS: origin,
+            OPENAI_API_KEY: 'test-key-not-used'
+          };
+          let upstreamCalls = 0;
+          globalThis.fetch = async () => {
+            upstreamCalls++;
+            throw new Error('Upstream fetch must not run for invalid requests');
+          };
+          const call = (body, extra = {}) => worker.fetch(new Request('https://worker.example/', {
+            method: 'POST',
+            headers: { Origin: origin, 'Content-Type': 'application/json', ...extra.headers },
+            body,
+            ...Object.fromEntries(Object.entries(extra).filter(([key]) => key !== 'headers'))
+          }), env);
+
+          let response = await call('{broken-json');
+          assert.equal(response.status, 400, 'malformed JSON should return 400');
+
+          response = await call(JSON.stringify({ message: '   ' }));
+          assert.equal(response.status, 400, 'blank question should return 400');
+
+          response = await call(JSON.stringify({ message: 'x'.repeat(130 * 1024) }));
+          assert.equal(response.status, 413, 'oversized request body should return 413');
+
+          response = await call(JSON.stringify({ message: 'summarize', businessData: 'x'.repeat(31 * 1024) }));
+          assert.equal(response.status, 413, 'oversized business summary should return 413');
+
+          response = await worker.fetch(new Request('https://worker.example/', {
+            method: 'GET', headers: { Origin: origin }
+          }), env);
+          assert.equal(response.status, 404, 'unsupported method/path should return 404');
+
+          assert.equal(upstreamCalls, 0, 'invalid requests must not reach the OpenAI API');
+          console.log('OpenAI Worker error-path tests passed: malformed JSON, blank question, body limit, business-data limit, unsupported method, and no upstream calls.');
+          JS
+          node /tmp/anas-openai-worker-errors-test.mjs
       - name: Check contextual AI helper JavaScript syntax
         run: |
           python - <<'PY'
