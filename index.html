@@ -3989,7 +3989,7 @@ function renderPurchasesTable() {
             const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && oldRemaining > 0));
             if (newRemaining > 0 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بالدين. لم يتم تعديل الفاتورة لحماية الحسابات.'); return; }
             if (!confirm('سيتم تحديث أصناف الفاتورة وإعادة تسوية المخزون والحسابات. هل تريد المتابعة؟')) return;
-            const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined};
+            const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined, hadStockMovements: Array.isArray(AppData.stockMovements), stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null};
             try {
                 for (const [id, delta] of stockChanges) {
                     const p = AppData.products.find(x => String(x.id) === id);
@@ -4003,6 +4003,17 @@ function renderPurchasesTable() {
                     } else {
                         if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
                         p.warehouseStock[invoiceWarehouse] = (Number(p.warehouseStock[invoiceWarehouse]) || 0) + delta;
+                    }
+                    // Keep the stock ledger aligned with the net inventory correction made by this invoice edit.
+                    if (Math.abs(delta) > 0.000001) {
+                        if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
+                        AppData.stockMovements.unshift({
+                            id: 'INV-EDIT-' + String(inv.id) + '-' + String(id) + '-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,7).toUpperCase(),
+                            productId: p.id, productName: p.name || p.title || id, qty: delta,
+                            type: 'INVOICE_EDIT_ADJUSTMENT', referenceType: 'sales_invoice_edit', referenceId: inv.id,
+                            warehouse: invoiceWarehouse, date: new Date().toISOString(),
+                            note: 'تسوية صافي المخزون بعد تعديل الفاتورة ' + String(inv.id)
+                        });
                     }
                 }
                 if (newPaid !== oldPaid) AppData.caisseBalance = (Number(AppData.caisseBalance) || 0) + (newPaid - oldPaid);
@@ -4029,7 +4040,9 @@ function renderPurchasesTable() {
                 }
                 AppData.caisseBalance = snapshot.caisse;
                 if (customer) customer.debt = snapshot.debt;
-                alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة. تحقق من مساحة التخزين ثم أعد المحاولة.');
+                if (snapshot.hadStockMovements) AppData.stockMovements = snapshot.stockMovements || [];
+                else delete AppData.stockMovements;
+                alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة بما فيها سجل حركات المخزون. تحقق من مساحة التخزين ثم أعد المحاولة.');
             }
         }
 
