@@ -6515,6 +6515,98 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       anasTruckRender();if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&t.stockPostedAt)alert('تم تحميل عهدة الرحلة ونقل الأصناف إلى مخزن الشاحنة مرة واحدة. سجّل التسليم الفعلي بشكل منفصل عند اكتماله.');
     }catch(e){console.error(e);alert('تعذر تحديث حالة الرحلة. '+(e.message||e));}
   };
+  // V54 draft: guarded truck custody settlement. Sold units are verified against invoices and are not deducted twice.
+  window.anasTruckSettle = function(id){
+    try {
+      ensure();
+      const trip=AppData.truckTrips.find(x=>String(x.id)===String(id));
+      if(!trip){alert('لم يتم العثور على الرحلة.');return;}
+      if(trip.status!=='delivered'){alert('يجب أن تكون الرحلة في حالة «تم التسليم» قبل التسوية.');return;}
+      if(!trip.stockPostedAt||!Array.isArray(trip.stockItems)||!trip.stockItems.length){alert('لا توجد عهدة مخزنية محمّلة لهذه الرحلة.');return;}
+      if(trip.settlementId||trip.settledAt){alert('هذه الرحلة مسوّاة سابقاً؛ يمنع تكرار التسوية.');return;}
+      const products=Array.isArray(AppData.products)?AppData.products:[];
+      const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
+      const warehouse=String(trip.warehouseName||('شاحنة '+trip.plate));
+      const lines=[];
+      for(const item of trip.stockItems){
+        const p=products.find(x=>String(x.id)===String(item.productId));
+        const loaded=Number(item.qty);
+        if(!p||!Number.isFinite(loaded)||loaded<=0){alert('بيانات الصنف أو الكمية غير صالحة؛ أُلغيت التسوية.');return;}
+        const ask=(label)=>prompt(label+' — '+(item.productName||p.name||item.productId)+' (المحمّل '+loaded+')','0');
+        const delivered=Number(ask('الكمية المسلّمة فعلياً'));
+        if(!Number.isFinite(delivered)||delivered<0||delivered>loaded){alert('كمية التسليم غير صالحة.');return;}
+        const returned=Number(ask('كمية المرتجع الصالح'));
+        const damaged=Number(ask('كمية التالف'));
+        const missing=Number(ask('كمية المفقود'));
+        if(![returned,damaged,missing].every(n=>Number.isFinite(n)&&n>=0)||Math.abs(delivered+returned+damaged+missing-loaded)>1e-8){
+          alert('الكميات لا تتطابق للصنف '+(item.productName||item.productId)+'. يجب أن يساوي مجموع المسلّم والمرتجع والتالف والمفقود '+loaded+'.');return;
+        }
+        lines.push({productId:p.id,productName:p.name||p.title||item.productName||String(p.id),loaded,delivered,returned,damaged,missing});
+      }
+      const deliveredByProduct=new Map();
+      for(const line of lines)deliveredByProduct.set(String(line.productId),(deliveredByProduct.get(String(line.productId))||0)+line.delivered);
+      const deliveredTotal=lines.reduce((n,line)=>n+line.delivered,0);
+      let linked=[];
+      if(deliveredTotal>0){
+        const raw=prompt('أدخل أرقام فواتير البيع الصادرة من مخزن «'+warehouse+'» مفصولة بفواصل. يجب أن تطابق الكميات المسلّمة تماماً.','');
+        if(raw===null)return;
+        const ids=[...new Set(raw.split(',').map(x=>x.trim()).filter(Boolean))];
+        if(!ids.length){alert('لا يمكن اعتماد كمية مسلّمة دون فواتير.');return;}
+        for(const invoiceId of ids){
+          const inv=invoices.find(x=>String(x.id)===invoiceId);
+          if(!inv){alert('الفاتورة غير موجودة: '+invoiceId);return;}
+          if(String(inv.warehouseName||inv.warehouse||'المخزن الرئيسي')!==warehouse){alert('الفاتورة '+invoiceId+' ليست من مخزن هذه الشاحنة.');return;}
+          if(AppData.truckTrips.some(other=>String(other.id)!==String(trip.id)&&Array.isArray(other.settlementInvoiceIds)&&other.settlementInvoiceIds.includes(invoiceId))){alert('الفاتورة '+invoiceId+' مرتبطة بتسوية رحلة أخرى.');return;}
+          linked.push(inv);
+        }
+        const invoiced=new Map();
+        for(const inv of linked)for(const item of (Array.isArray(inv.items)?inv.items:[])){
+          const key=String(item.id??item.productId??'');
+          if(key)invoiced.set(key,(invoiced.get(key)||0)+(Number(item.qty)||0));
+        }
+        for(const [productId,qty] of deliveredByProduct){
+          if(Math.abs((invoiced.get(productId)||0)-qty)>1e-8){alert('كمية الفواتير للمنتج '+productId+' لا تطابق كمية التسليم '+qty+'.');return;}
+        }
+        for(const [productId,qty] of invoiced)if(qty>1e-8&&!deliveredByProduct.has(productId)){alert('الفواتير المحددة تتضمن صنفاً إضافياً غير موجود في التسوية: '+productId+'.');return;}
+      }
+      const snapshots=lines.map(line=>{
+        const p=products.find(x=>String(x.id)===String(line.productId));
+        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null};
+      });
+      const movesBefore=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
+      const tripBefore={settlementId:trip.settlementId,settledAt:trip.settledAt,settlementInvoiceIds:trip.settlementInvoiceIds,settlementLines:trip.settlementLines};
+      const settlementId='TR-SETTLE-'+String(trip.id);
+      try{
+        if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
+        for(const line of lines){
+          const p=products.find(x=>String(x.id)===String(line.productId));
+          if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
+          const truckQty=Number(p.warehouseStock[warehouse])||0;
+          if(truckQty+1e-8<line.returned+line.damaged+line.missing)throw new Error('رصيد الشاحنة لا يكفي للصنف '+line.productName+'.');
+          if(line.returned>0){
+            p.warehouseStock[warehouse]=truckQty-line.returned;
+            p.stock=(Number(p.stock)||0)+line.returned;
+            AppData.stockMovements.unshift({id:settlementId+'-RETURN-'+line.productId,productId:p.id,productName:line.productName,qty:line.returned,type:'TRUCK_RETURN',referenceType:'truck_settlement',referenceId:settlementId,warehouse:'المخزن الرئيسي',fromWarehouse:warehouse,date:new Date().toISOString(),note:'مرتجع صالح من الرحلة '+trip.id});
+          }
+          if(line.damaged>0||line.missing>0){
+            p.warehouseStock[warehouse]=(Number(p.warehouseStock[warehouse])||0)-line.damaged-line.missing;
+            if(line.damaged>0)AppData.stockMovements.unshift({id:settlementId+'-DAMAGED-'+line.productId,productId:p.id,productName:line.productName,qty:-line.damaged,type:'TRUCK_DAMAGED',referenceType:'truck_settlement',referenceId:settlementId,warehouse,date:new Date().toISOString(),note:'تالف في الرحلة '+trip.id});
+            if(line.missing>0)AppData.stockMovements.unshift({id:settlementId+'-MISSING-'+line.productId,productId:p.id,productName:line.productName,qty:-line.missing,type:'TRUCK_MISSING',referenceType:'truck_settlement',referenceId:settlementId,warehouse,date:new Date().toISOString(),note:'مفقود في الرحلة '+trip.id});
+          }
+        }
+        trip.settlementId=settlementId;trip.settledAt=new Date().toISOString();
+        trip.settlementInvoiceIds=linked.map(inv=>String(inv.id));trip.settlementLines=lines.map(line=>({...line}));
+        if(saveDB()===false)throw new Error('فشل حفظ التسوية.');
+      }catch(e){
+        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock||{};else delete old.p.warehouseStock;}
+        if(movesBefore===null)delete AppData.stockMovements;else AppData.stockMovements=movesBefore;
+        for(const key of ['settlementId','settledAt','settlementInvoiceIds','settlementLines'])if(tripBefore[key]===undefined)delete trip[key];else trip[key]=tripBefore[key];
+        throw e;
+      }
+      anasTruckRender();
+      alert('تم حفظ تسوية العهدة. لم تُنشأ إيرادات أو ديون جديدة؛ الفواتير المرتبطة تثبت البيع فقط.');
+    }catch(e){console.error('ANAS truck settlement failed',e);alert('لم تُعتمد التسوية: '+(e.message||e));}
+  };
   window.anasTruckDelete = function(id){
     try{
       ensure(); const previous=AppData.truckTrips; const index=previous.findIndex(t=>String(t.id)===String(id)); if(index<0)return;
