@@ -6501,6 +6501,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       ensure(); if(!Object.prototype.hasOwnProperty.call(statusText,status))return;
       const t=AppData.truckTrips.find(x=>String(x.id)===String(id));if(!t)return;
       if(t.status===status)return;
+      // Enforce a one-way lifecycle so completed/cancelled trips cannot be reopened or reposted accidentally.
+      const allowedNext={planned:['in_transit','cancelled'],in_transit:['delivered'],delivered:[],cancelled:[]};
+      if(!Object.prototype.hasOwnProperty.call(allowedNext,t.status)||!allowedNext[t.status].includes(status)){
+        alert('انتقال الحالة غير مسموح: المخطط ← في الطريق ← تم التسليم. الرحلات المسلّمة أو الملغاة نهائية؛ عالج أي تصحيح بسند مخزني/محاسبي مستقل.');
+        anasTruckRender();return;
+      }
       if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&!t.stockPostedAt&&!confirm('سيتم تحويل أصناف الرحلة من المخزن الرئيسي إلى مخزن الشاحنة «'+(t.warehouseName||('شاحنة '+t.plate))+'» مرة واحدة. هل تؤكد التحميل؟')){anasTruckRender();return;}
       if(status==='cancelled'&&t.stockPostedAt){alert('لا يمكن إلغاء رحلة حُمّلت بضاعتها إلى مخزن الشاحنة. أعد الكمية المتبقية إلى المخزن الرئيسي بسند تحويل أولاً.');return;}
       const previousStatus=t.status,previousUpdated=t.updatedAt,previousPosted=t.stockPostedAt;
