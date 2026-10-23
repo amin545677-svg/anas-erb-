@@ -57,6 +57,22 @@ jobs:
           assert not missing, f"Missing Worker safety/contract markers: {missing}"
           print("Worker syntax and required contract markers passed")
           PY
+      - name: Check contextual AI helper JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          marker = "<!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->"
+          start = s.find(marker)
+          assert start >= 0, "Contextual AI helper marker not found"
+          script_start = s.find("<script>", start)
+          script_end = s.find("</script>", script_start)
+          assert script_start >= 0 and script_end > script_start, "Contextual AI helper script block is incomplete"
+          js = s[script_start + len("<script>"):script_end]
+          Path("/tmp/anas-context-ai-helper.js").write_text(js, encoding="utf-8")
+          print("Extracted contextual AI helper script for syntax validation")
+          PY
+          node --check /tmp/anas-context-ai-helper.js
       - name: Validate contextual AI helper privacy guards
         run: |
           python - <<'PY'
