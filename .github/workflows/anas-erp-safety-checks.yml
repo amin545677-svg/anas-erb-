@@ -105,6 +105,46 @@ jobs:
           print("Extracted isolated PDF helper functions for syntax validation")
           PY
           node --check /tmp/anas-pdf-helper.js
+      - name: Exercise PDF helper limits and cleanup with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          js = Path("/tmp/anas-pdf-helper.js").read_text(encoding="utf-8")
+          js += r"""
+          const assert = require('node:assert/strict');
+          global.window = { pdfjsLib: { GlobalWorkerOptions: {}, getDocument: null } };
+          (async () => {
+            let opened = false;
+            const oversized = { size: 20 * 1024 * 1024 + 1, arrayBuffer: async () => { opened = true; return new ArrayBuffer(0); } };
+            await assert.rejects(() => anasExtractPdfText(oversized), /يتجاوز 20 ميغابايت/);
+            assert.equal(opened, false, 'oversized file must be rejected before reading bytes');
+
+            let fetchedPages = 0, cleanedPages = 0, destroyed = false;
+            window.pdfjsLib.getDocument = () => ({ promise: Promise.resolve({
+              numPages: 102,
+              getPage: async n => {
+                fetchedPages++;
+                return {
+                  getTextContent: async () => ({ items: [{ str: 'صفحة-' + n }] }),
+                  cleanup: () => { cleanedPages++; }
+                };
+              },
+              destroy: async () => { destroyed = true; }
+            }) });
+            const result = await anasExtractPdfText({ size: 10, arrayBuffer: async () => new ArrayBuffer(8) });
+            assert.equal(result.pages, 102);
+            assert.equal(fetchedPages, 100, 'only the first 100 pages should be extracted');
+            assert.equal(cleanedPages, 100, 'each processed page should be cleaned up');
+            assert.equal(destroyed, true, 'PDF resources should be destroyed');
+            assert.match(result.text, /صفحة-100/);
+            assert.doesNotMatch(result.text, /صفحة-101/);
+            assert.match(result.text, /أول 100 صفحة/);
+            console.log('PDF mock tests passed: size cap, 100-page cap, cleanup, and truncation notice');
+          })().catch(err => { console.error(err); process.exitCode = 1; });
+          """
+          Path("/tmp/anas-pdf-helper-test.js").write_text(js, encoding="utf-8")
+          PY
+          node /tmp/anas-pdf-helper-test.js
       - name: Validate document center capabilities and privacy
         run: |
           python - <<'PY'
