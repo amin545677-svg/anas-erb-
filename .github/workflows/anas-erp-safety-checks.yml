@@ -182,8 +182,8 @@ jobs:
           start = s.find("function collectCustDebt(cId)")
           end = s.find("function openGoogleMaps(loc)", start)
           assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
-          js = "global.window = {}; const window = global.window;\n" + s[start:end]
-          js += r"""
+          function_js = s[start:end]
+          js = r"""
           const assert = require('node:assert/strict');
           global.alert = () => {};
           global.renderCustomersDebts = () => {};
@@ -320,7 +320,7 @@ jobs:
             invoices: [{id:'INV-1',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:6}]}],
             stockMovements: []
           };
-          """ + js + r"""
+          """ + function_js + r"""
           window.anasTruckSettle('T1');
           assert.equal(AppData.products[0].stock, 6, 'one returned unit goes back to main stock');
           assert.equal(AppData.products[0].warehouseStock['Truck T'], 0, 'return/damaged/missing units leave truck balance');
@@ -349,6 +349,7 @@ jobs:
           assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'failed save removes settlement marker');
           console.log('Truck settlement mock tests passed: invoice match, stock partition, idempotency and rollback');
           """
+          js = "global.window = {}; const window = global.window;\n" + js
           Path("/tmp/anas-truck-settlement-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-truck-settlement-test.js
