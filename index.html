@@ -1857,7 +1857,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <section id="view-ai-excel-hub" class="page-view">
             <div class="sub-header-bar">
                 <button class="btn-arrow-back" onclick="openView('dashboard')">‹</button>
-                <div class="sub-header-title">مركز الإكسل الذكي</div>
+                <div class="sub-header-title">مركز الملفات الذكي | Excel · PDF</div>
                 <div>✨</div>
             </div>
 
@@ -1969,7 +1969,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('settings');"><span class="row-icon">⚙️</span> الاعدادات</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('settings');"><span class="row-icon">TAX</span> الضرائب</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('users');"><span class="row-icon">👥</span> المستخدمين والصلاحيات</div>
-        <div class="drawer-nav-row" onclick="closeDrawer(); openView('ai-excel-hub');"><span class="row-icon">📊</span> مركز الإكسل الذكي</div>
+        <div class="drawer-nav-row" onclick="closeDrawer(); openView('ai-excel-hub');"><span class="row-icon">📊</span> مركز الملفات الذكي | Excel · PDF</div>
 
         <div class="drawer-cat-heading">النسخ الاحتياطي والمساعدة</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); exportDataBackup();"><span class="row-icon">🕒</span> النسخ الاحتياطي للبيانات</div>
@@ -2709,7 +2709,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             results.innerHTML = matches.map((p, i) => {
                 const price = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
-                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · المخزون: ${Number(p.stock || 0)}</span></button>`;
+                const wh=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
+                const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,wh):(Number(p.stock)||0);
+                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
             }).join('');
             results.hidden = false;
         }
@@ -2773,12 +2775,14 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!p) { alert('تعذر إضافة المنتج: لم يعد موجودًا في قائمة المنتجات. حدّث القائمة وحاول مجددًا.'); return; }
             const ex = posCart.find(x => String(x.id) === String(p.id));
             const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
+            const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
+            const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,saleWarehouse):(Number(p.stock)||0);
 
             if(ex) {
-                if(ex.qty >= p.stock) { alert('الكمية تتجاوز الرصيد المتوفر بالمخزن (' + p.stock + ')'); return; }
+                if(ex.qty >= available) { alert('الكمية تتجاوز الرصيد المتوفر في «'+saleWarehouse+'» (' + available + ')'); return; }
                 ex.qty++;
             } else {
-                if(p.stock <= 0) { alert('السلعة غير متوفرة في المخزن!'); return; }
+                if(available <= 0) { alert('السلعة غير متوفرة في مخزن البيع «'+saleWarehouse+'»!'); return; }
                 posCart.push({
                     id: p.id,
                     name: p.name,
@@ -2866,8 +2870,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (next <= 0) { posCart.splice(idx, 1); }
             else {
                 const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-                if (product && Number(product.stock) >= 0 && next > Number(product.stock) && !AppData.allowNegativeStock) {
-                    alert('الكمية المطلوبة أكبر من المخزون المتوفر (' + Number(product.stock) + ').');
+                const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+                if (product && Number.isFinite(available) && available >= 0 && next > available && !AppData.allowNegativeStock) {
+                    alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                     return;
                 }
                 item.qty = next;
@@ -2881,8 +2886,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const q = parseInt(prompt('تعديل الكمية:', item.qty), 10);
             if (!Number.isFinite(q) || q <= 0) return;
             const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-            if (product && Number(product.stock) >= 0 && q > Number(product.stock) && !AppData.allowNegativeStock) {
-                alert('الكمية المطلوبة أكبر من المخزون المتوفر (' + Number(product.stock) + ').');
+            const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+            if (product && Number.isFinite(available) && available >= 0 && q > available && !AppData.allowNegativeStock) {
+                alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                 return;
             }
             const oldQty = item.qty;
@@ -2927,7 +2933,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                             ${imgThumb}
                             <div>
                                 <strong>${anasEscapeHTML(p.name)}</strong><br>
-                                <small style="color:#64748b;">رصيد: ${p.stock} ${p.unit || ''} | سعر: ${pr} د.ج</small>
+                                <small style="color:#64748b;">رصيد ${(typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي')}: ${(typeof wtAvailableStock==='function'?wtAvailableStock(p,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(p.stock)||0)} ${p.unit || ''} | سعر: ${pr} د.ج</small>
                             </div>
                         </div>
                         <span style="color:#15803d; font-weight:800;">+ أضف</span>
@@ -3057,12 +3063,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 required.set(id, (required.get(id) || 0) + qty);
             }
+            const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             for (const [id, qty] of required) {
                 const product = (AppData.products || []).find(p => String(p.id) === id);
                 if (!product) { alert('تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.'); return; }
-                const stock = Number(product.stock);
+                const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
                 if (!Number.isFinite(stock) || stock < qty) {
-                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + '. المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
+                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
                 }
             }
 
@@ -3087,7 +3094,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const oldStocks = new Map();
             for (const id of required.keys()) {
                 const p = AppData.products.find(x => String(x.id) === id);
-                oldStocks.set(id, Number(p.stock));
+                oldStocks.set(id, {
+                    stock:Number(p.stock),
+                    hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
+                    warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null
+                });
             }
             const oldCaisse = Number(AppData.caisseBalance) || 0;
             const oldCart = cart.map(it => ({...it}));
@@ -3103,6 +3114,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 id: 'INV-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
                 date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
                 customerObj: cust, items: cart.map(it => ({...it})), total, paid, remaining,
+                warehouse: saleWarehouse, warehouseName: saleWarehouse,
                 userId: (AppData.currentUser && AppData.currentUser.id) ?? null,
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
@@ -3117,7 +3129,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 for (const [id, qty] of required) {
                     const p = AppData.products.find(x => String(x.id) === id);
-                    p.stock = Number(p.stock) - qty;
+                    if(saleWarehouse==='المخزن الرئيسي') p.stock = (Number(p.stock)||0)-qty;
+                    else {
+                        if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
+                        p.warehouseStock[saleWarehouse]=(Number(p.warehouseStock[saleWarehouse])||0)-qty;
+                    }
                 }
                 if (paid > 0) AppData.caisseBalance = oldCaisse + paid;
                 AppData.invoices.unshift(invObj);
@@ -3125,9 +3141,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 posCart = [];
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
             } catch (e) {
-                for (const [id, stock] of oldStocks) {
+                for (const [id, stockState] of oldStocks) {
                     const p = AppData.products.find(x => String(x.id) === id);
-                    if (p) p.stock = stock;
+                    if (p) {
+                        p.stock = stockState.stock;
+                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock||{};
+                        else delete p.warehouseStock;
+                    }
                 }
                 if (registeredCustomer) {
                     cust.debt = oldDebt;
@@ -3485,11 +3505,23 @@ function renderPurchasesTable() {
             if(!isAdd && previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
             AppData.caisseBalance = previousBalance + (isAdd ? amt : -amt);
             if (!hadMovements) AppData.cashMovements = [];
-            AppData.cashMovements.push({ type: isAdd ? 'add' : 'subtract', amount: amt, description: desc, date: new Date().toISOString() });
-            if (saveDB() === false) {
+            AppData.cashMovements.push({
+                id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                type: isAdd ? 'add' : 'subtract',
+                amount: amt,
+                description: desc,
+                date: new Date().toISOString(),
+                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+            });
+            let cashSaved = false;
+            try { cashSaved = saveDB() !== false; }
+            catch (err) { console.error('ANAS cash movement save failed', err); }
+            if (!cashSaved) {
                 AppData.caisseBalance = previousBalance;
                 if (hadMovements) AppData.cashMovements = previousMovements; else delete AppData.cashMovements;
                 updateCashUI();
+                alert('تعذر حفظ حركة الصندوق؛ أُعيد الرصيد والحركة إلى حالتهما السابقة.');
                 return;
             }
             updateCashUI();
@@ -3507,11 +3539,21 @@ function renderPurchasesTable() {
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
             AppData.caisseBalance = previousBalance - amt;
             if (!hadExpenses) AppData.expenses = [];
-            AppData.expenses.push({ account: acc, desc: desc, amt: amt, date: new Date().toISOString() });
-            if (saveDB() === false) {
+            AppData.expenses.push({
+                id: 'EXP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                account: acc, desc: desc, amt: amt, date: new Date().toISOString(),
+                paymentMethod: 'cash',
+                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+            });
+            let expenseSaved = false;
+            try { expenseSaved = saveDB() !== false; }
+            catch (err) { console.error('ANAS expense save failed', err); }
+            if (!expenseSaved) {
                 AppData.caisseBalance = previousBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 updateCashUI();
+                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وقائمة المصروفات إلى حالتهما السابقة.');
                 return;
             }
             alert('تم تسجيل المصروف وخصمه من الصندوق بنجاح ✅');
@@ -3595,15 +3637,52 @@ function renderPurchasesTable() {
         }
 
         function collectCustDebt(cId) {
-            const c = AppData.customers.find(x => x.id === cId);
-            const amt = parseFloat(prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + c.debt + '):', c.debt));
-            if(amt && amt > 0 && amt <= c.debt) {
-                c.debt -= amt;
-                AppData.caisseBalance = (AppData.caisseBalance || 0) + amt;
-                saveDB();
-                renderCustomersDebts();
-                alert('تم تسجيل قبض المبلغ بنجاح ✅');
+            const c = (Array.isArray(AppData.customers) ? AppData.customers : []).find(x => String(x.id) === String(cId));
+            if (!c) { alert('تعذر العثور على حساب العميل؛ لم يتم تسجيل أي قبض.'); return; }
+            const previousDebt = Number(c.debt);
+            if (!Number.isFinite(previousDebt) || previousDebt <= 0) { alert('لا يوجد دين صالح للتحصيل لهذا العميل.'); return; }
+            const rawAmount = prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + previousDebt + '):', String(previousDebt));
+            if (rawAmount === null) return;
+            const parsedAmount = Number(String(rawAmount).trim().replace(',', '.'));
+            const amt = Math.round(parsedAmount * 100) / 100;
+            if (!Number.isFinite(amt) || amt <= 0 || amt > previousDebt + 0.000001) {
+                alert('المبلغ غير صالح؛ أدخل مبلغاً أكبر من صفر ولا يتجاوز الدين المستحق.');
+                return;
             }
+
+            const previousBalance = Number(AppData.caisseBalance) || 0;
+            const hadMovements = Array.isArray(AppData.cashMovements);
+            const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
+            c.debt = Math.max(0, previousDebt - amt);
+            AppData.caisseBalance = previousBalance + amt;
+            if (!hadMovements) AppData.cashMovements = [];
+            AppData.cashMovements.push({
+                id: 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                type: 'add',
+                amount: amt,
+                description: 'تحصيل دين من العميل ' + String(c.name || c.id),
+                referenceType: 'customer_debt',
+                referenceId: String(c.id),
+                date: new Date().toISOString(),
+                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+            });
+
+            let saved = false;
+            try { saved = saveDB() !== false; }
+            catch (err) { console.error('ANAS customer debt collection save failed', err); }
+            if (!saved) {
+                c.debt = previousDebt;
+                AppData.caisseBalance = previousBalance;
+                if (hadMovements) AppData.cashMovements = previousMovements;
+                else delete AppData.cashMovements;
+                if (typeof updateCashUI === 'function') updateCashUI();
+                alert('تعذر حفظ قبض الدين؛ أُعيد رصيد العميل والصندوق وسجل الحركات إلى حالتهم السابقة.');
+                return;
+            }
+            if (typeof updateCashUI === 'function') updateCashUI();
+            renderCustomersDebts();
+            alert('تم تسجيل قبض الدين وحركة الصندوق بنجاح ✅');
         }
 
         function openGoogleMaps(loc) {
@@ -3883,25 +3962,59 @@ function renderPurchasesTable() {
             const stockChanges = new Map();
             for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty || 0));
             for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty || 0));
+            // تسوية المخزن الذي صدرت منه الفاتورة، لا المخزن الرئيسي افتراضياً.
+            const invoiceWarehouse = String(inv.warehouseName || inv.warehouse || 'المخزن الرئيسي').trim() || 'المخزن الرئيسي';
             for (const [id, delta] of stockChanges) {
                 const p = (AppData.products || []).find(x => String(x.id) === id);
                 if (!p) { alert('تعذر العثور على صنف من أصناف الفاتورة.'); return; }
-                if (Number(p.stock) + delta < 0) { alert('المخزون الحالي لا يكفي لتعديل كمية ' + (p.name || id) + '.'); return; }
+                const available = typeof wtAvailableStock === 'function'
+                    ? wtAvailableStock(p, invoiceWarehouse)
+                    : (Number(p.stock) || 0);
+                if (!Number.isFinite(available) || available + delta < -0.000001) {
+                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 0) + '.');
+                    return;
+                }
             }
             const oldTotal = Number(inv.total) || 0;
             const oldPaid = Number(inv.paid) || 0;
             const oldRemaining = Number(inv.remaining) || Math.max(0, oldTotal - oldPaid);
-            const newPaid = Math.min(oldPaid, newTotal);
+            // Do not silently rewrite historic cash when an edited invoice total falls below money already collected.
+            // Refunds must be recorded as a separate cash movement so the audit trail remains accurate.
+            if (newTotal + 0.000001 < oldPaid) {
+                alert('إجمالي الفاتورة الجديد أقل من المبلغ المحصّل سابقاً (' + oldPaid + ' دج). لم يتم تعديل الفاتورة. هذه الأداة لا تسوّي ردّ المبالغ المرتبط بالفاتورة؛ يلزم تنفيذ تسوية/ردّ موثّق مرتبط بالفاتورة قبل تعديل إجماليها.');
+                return;
+            }
+            const newPaid = oldPaid;
             const newRemaining = Math.max(0, newTotal - newPaid);
             const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && oldRemaining > 0));
             if (newRemaining > 0 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بالدين. لم يتم تعديل الفاتورة لحماية الحسابات.'); return; }
             if (!confirm('سيتم تحديث أصناف الفاتورة وإعادة تسوية المخزون والحسابات. هل تريد المتابعة؟')) return;
-            const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined};
+            const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined, hadStockMovements: Array.isArray(AppData.stockMovements), stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null};
             try {
                 for (const [id, delta] of stockChanges) {
                     const p = AppData.products.find(x => String(x.id) === id);
-                    snapshot.stocks.set(id, p.stock);
-                    p.stock = Number(p.stock) + delta;
+                    snapshot.stocks.set(id, {
+                        stock: p.stock,
+                        hadWarehouseStock: Object.prototype.hasOwnProperty.call(p, 'warehouseStock'),
+                        warehouseStock: p.warehouseStock && typeof p.warehouseStock === 'object' ? {...p.warehouseStock} : null
+                    });
+                    if (invoiceWarehouse === 'المخزن الرئيسي') {
+                        p.stock = (Number(p.stock) || 0) + delta;
+                    } else {
+                        if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
+                        p.warehouseStock[invoiceWarehouse] = (Number(p.warehouseStock[invoiceWarehouse]) || 0) + delta;
+                    }
+                    // Keep the stock ledger aligned with the net inventory correction made by this invoice edit.
+                    if (Math.abs(delta) > 0.000001) {
+                        if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
+                        AppData.stockMovements.unshift({
+                            id: 'INV-EDIT-' + String(inv.id) + '-' + String(id) + '-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,7).toUpperCase(),
+                            productId: p.id, productName: p.name || p.title || id, qty: delta,
+                            type: 'INVOICE_EDIT_ADJUSTMENT', referenceType: 'sales_invoice_edit', referenceId: inv.id,
+                            warehouse: invoiceWarehouse, date: new Date().toISOString(),
+                            note: 'تسوية صافي المخزون بعد تعديل الفاتورة ' + String(inv.id)
+                        });
+                    }
                 }
                 if (newPaid !== oldPaid) AppData.caisseBalance = (Number(AppData.caisseBalance) || 0) + (newPaid - oldPaid);
                 if (customer) customer.debt = Math.max(0, (Number(customer.debt) || 0) + (newRemaining - oldRemaining));
@@ -3917,10 +4030,19 @@ function renderPurchasesTable() {
                 alert('تم تعديل الفاتورة وتسوية المخزون والحسابات بنجاح.');
             } catch (e) {
                 inv.items = snapshot.items; inv.total = snapshot.total; inv.paid = snapshot.paid; inv.remaining = snapshot.remaining; inv.paymentMethod = snapshot.method;
-                for (const [id, stock] of snapshot.stocks) { const p = AppData.products.find(x => String(x.id) === id); if (p) p.stock = stock; }
+                for (const [id, state] of snapshot.stocks) {
+                    const p = AppData.products.find(x => String(x.id) === id);
+                    if (p) {
+                        p.stock = state.stock;
+                        if (state.hadWarehouseStock) p.warehouseStock = state.warehouseStock || {};
+                        else delete p.warehouseStock;
+                    }
+                }
                 AppData.caisseBalance = snapshot.caisse;
                 if (customer) customer.debt = snapshot.debt;
-                alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة. تحقق من مساحة التخزين ثم أعد المحاولة.');
+                if (snapshot.hadStockMovements) AppData.stockMovements = snapshot.stockMovements || [];
+                else delete AppData.stockMovements;
+                alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة بما فيها سجل حركات المخزون. تحقق من مساحة التخزين ثم أعد المحاولة.');
             }
         }
 
@@ -3941,6 +4063,37 @@ function renderPurchasesTable() {
 
         // مخزون مستقل لكل مستودع: p.stock هو رصيد المخزن الرئيسي، وwarehouseStock للأرصدة الثانوية.
         function wtEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+        function wtUserWarehouseName(user){return String(user&&(user.secondaryWarehouse||user.warehouseName)||'').trim();}
+        function wtEnsureUserWarehouse(user){
+            const name=wtUserWarehouseName(user);if(!name)return null;
+            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===name);
+            let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
+            if(!wh)wh={id:'wh_user_'+String(user.id),name,type:/شاحنة|truck|mobile/i.test(name)?'mobile':'secondary',status:'active'};
+            wh.id=wh.id||'wh_user_'+String(user.id);wh.name=name;wh.status=wh.status||'active';wh.assigned_user_id=String(user.id);
+            if(idx>=0)AppData.warehouses[idx]=wh;else AppData.warehouses.push(wh);
+            return wh;
+        }
+        function wtCurrentSaleWarehouse(){
+            const user=AppData.currentUser;
+            const assigned=wtUserWarehouseName(user);
+            return assigned||'المخزن الرئيسي';
+        }
+        function wtAvailableStock(product,warehouse){
+            if(!product)return 0;
+            if(!warehouse||warehouse==='المخزن الرئيسي')return Number(product.stock)||0;
+            return Number((product.warehouseStock||{})[warehouse])||0;
+        }
+        function wtEnsureMobileWarehouse(name){
+            const label=String(name||'').trim();if(!label)return null;
+            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===label);
+            let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
+            if(!wh)wh={id:'wh_mobile_'+label.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g,'_'),name:label,type:'mobile',status:'active'};
+            wh.name=label;wh.type='mobile';wh.status=wh.status||'active';
+            if(idx>=0)AppData.warehouses[idx]=wh;else AppData.warehouses.push(wh);
+            return wh;
+        }
         function wtWarehouses(){
             const names=['المخزن الرئيسي'];
             (AppData.users||[]).forEach(u=>{[u.warehouse,u.secondaryWarehouse].forEach(n=>{n=String(n||'').trim();if(n&&!names.includes(n))names.push(n);});});
@@ -3989,11 +4142,24 @@ function renderPurchasesTable() {
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
-            // تحقّق مجدداً ثم حدّث الرصيدين وسجل السند في عملية حفظ واحدة.
-            if(from==='المخزن الرئيسي')p.stock=available-qty;else p.warehouseStock[from]=available-qty;
-            if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
-            const seq=Date.now();const doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
-            AppData.warehouseTransfers.unshift(doc);if(!saveDB()){alert('تعذر حفظ السند؛ تحقق من مساحة التخزين.');return;}
+            // معاملة قابلة للتراجع: لا نترك أرصدة معدّلة في الذاكرة إذا فشل الحفظ.
+            const beforeMain=Number(p.stock)||0;
+            const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');
+            const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:{};
+            const transfersBefore=AppData.warehouseTransfers.slice();
+            try{
+                if(from==='المخزن الرئيسي')p.stock=available-qty;else p.warehouseStock[from]=available-qty;
+                if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
+                const seq=Date.now();const doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
+                AppData.warehouseTransfers.unshift(doc);
+                if(!saveDB())throw new Error('تعذر حفظ السند؛ تحقق من مساحة التخزين.');
+            }catch(e){
+                p.stock=beforeMain;
+                if(hadWarehouseStock)p.warehouseStock=beforeWarehouseStock;else delete p.warehouseStock;
+                AppData.warehouseTransfers=transfersBefore;
+                alert((e.message||'تعذر حفظ سند التحويل')+' أُعيدت أرصدة التحويل إلى حالتها السابقة.');
+                return;
+            }
             document.getElementById('wtQty').value='';document.getElementById('wtNote').value='';wtInitScreen();renderInventoryList();
             alert(`تم اعتماد سند التحويل ${doc.number} وتحديث أرصدة المخزنين.`);
         }
@@ -4778,6 +4944,10 @@ function renderPurchasesTable() {
             const secondaryWarehouse = document.getElementById('newUserSecondaryWarehouseInput').value.trim();
             const permissions = Array.from(document.querySelectorAll('.user-permission:checked')).map(c=>c.value);
             if(!name) { alert('أدخل اسم المستخدم'); return; }
+            if(secondaryWarehouse){
+                const duplicateWarehouse=(AppData.users||[]).find(x=>String(x.id)!==String(id||'')&&wtUserWarehouseName(x)===secondaryWarehouse);
+                if(duplicateWarehouse){alert('هذا المخزن الثانوي مسند بالفعل إلى المستخدم «'+duplicateWarehouse.name+'». اختر مخزناً آخر لضمان عهدة مستقلة لكل مستخدم.');return;}
+            }
             if(!permissions.includes('dashboard')) permissions.unshift('dashboard');
             if(role === 'مدير عام' && permissions.length !== USER_TASKS.length) {
                 if(!confirm('دور «مدير عام» يمنح جميع مهام التطبيق. هل تريد تفعيل جميع الصلاحيات لهذا المستخدم؟')) return;
@@ -4796,7 +4966,11 @@ function renderPurchasesTable() {
                 u = {id:Date.now(),name,phone,address,role,warehouse,secondaryWarehouse,permissions};
                 AppData.users.push(u);
             }
+            const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));
+            (AppData.warehouses||[]).forEach(w=>{if(w&&typeof w==='object'&&String(w.assigned_user_id||'')===String(u.id)&&String(w.name||'').trim()!==secondaryWarehouse)delete w.assigned_user_id;});
+            if(secondaryWarehouse)wtEnsureUserWarehouse(u);
             if(!saveDB()) {
+                AppData.warehouses=warehousesBefore;
                 if(id) { /* بيانات التعديل بقيت في الذاكرة؛ لا نغلق النموذج كي لا تضيع على المستخدم. */ }
                 else { AppData.users = (AppData.users || []).filter(x => x !== u); }
                 return alert('تعذر حفظ المستخدم في التخزين المحلي. بقي النموذج مفتوحًا؛ صدّر نسخة احتياطية وتحقق من مساحة الهاتف.');
@@ -5088,16 +5262,30 @@ function renderPurchasesTable() {
                         <span style="font-size:1.35rem;">🤖</span>
                         <h3 style="font-size:1rem; color:var(--mp-navy); font-weight:900;">إدارة بيانات [${activeAiTab}]</h3>
                     </div>
-                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:14px; line-height:1.4;">
-                        تنزيل قوالب CSV منفصلة تفتح في Excel (ملف خاص بكل قسم)، أو استيراد ملف بعد المعاينة والفحص. لن تُخلط المنتجات بالعملاء أو الموردين:
+                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:14px; line-height:1.6;">
+                        مساحة موحّدة لملفات العمل: Excel وCSV وPDF. افحص الملف أولًا، راجع المعاينة، ثم اختر الإجراء المناسب. لا تُستورد أي بيانات إلى سجلات النظام تلقائيًا.
                     </p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px">
+                        <div style="padding:10px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a"><b>📊 Excel / CSV</b><div style="font-size:12px;margin-top:4px">قراءة ومعاينة وتدقيق الأعمدة</div></div>
+                        <div style="padding:10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff;color:#5b21b6"><b>📄 PDF</b><div style="font-size:12px;margin-top:4px">استخراج النص وتنزيله للمراجعة</div></div>
+                        <div style="padding:10px;border:1px solid #a7f3d0;border-radius:10px;background:#ecfdf5;color:#065f46"><b>🔒 حماية البيانات</b><div style="font-size:12px;margin-top:4px">المعالجة محليًا أولًا؛ الإرسال يدوي فقط</div></div>
+                    </div>
                     <div style="display:flex; gap:8px;">
                         <button class="btn-full-submit" style="background:#7c3aed; margin:0; flex:1;" onclick="triggerAiGeneration('${activeAiTab}')">✨ توليد بيانات جاهزة</button>
                         <button class="btn-full-submit" style="background:#0284c7; margin:0; flex:1;" onclick="document.getElementById('smartAiExcelUpload').click()">📂 استيراد Excel/CSV بأمان</button>
                     </div>
                     <button type="button" class="btn-full-submit" style="background:#9333ea; margin-top:10px; width:100%;" onclick="openInvoiceOcr()">📷 مسح الفواتير بالذكاء الاصطناعي</button>
-                    <input type="file" id="smartAiExcelUpload" accept=".csv,.txt,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="handleSmartAiUpload(event)">
-                    <div id="smartAiExcelStatus" role="status" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
+                    <input type="file" id="smartAiExcelUpload" accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="handleSmartAiUpload(event)">
+                    <div id="smartAiExcelStatus" role="status" aria-live="polite" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
+                    <div id="smartPdfExtractResults" style="display:none;margin-top:12px;border:1px solid #c4b5fd;border-radius:12px;padding:12px;background:var(--mp-card,#fff)">
+                        <div id="smartPdfExtractMeta" style="font-size:13px;font-weight:800;margin-bottom:8px"></div>
+                        <textarea id="smartPdfExtractText" rows="8" readonly aria-label="النص المستخرج من ملف PDF" style="width:100%;box-sizing:border-box;font:inherit;padding:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                            <button type="button" class="btn-full-submit" style="background:#475569;flex:1;margin:0" onclick="anasDownloadPdfText()">⬇️ تنزيل النص المستخرج</button>
+                            <button type="button" class="btn-full-submit" style="background:#6d28d9;flex:1;margin:0" onclick="anasAskAiAboutPdf()">✨ تحليل النص بالذكاء الاصطناعي</button>
+                        </div>
+                        <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">لن يُرسل النص إلى الخادم إلا عند الضغط على «تحليل النص بالذكاء الاصطناعي». ملفات PDF المصوّرة التي لا تحتوي على نص قابل للاستخراج تحتاج OCR.</small>
+                    </div>
                 </div>
 
                 <div class="action-menu-list">
@@ -5223,13 +5411,46 @@ function renderPurchasesTable() {
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
             const suppliers=Array.isArray(AppData.suppliers)?AppData.suppliers:[];
             const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
+            const purchases=Array.isArray(AppData.purchases)?AppData.purchases:[];
+            const truckTrips=Array.isArray(AppData.truckTrips)?AppData.truckTrips:[];
+            const stockMovements=Array.isArray(AppData.stockMovements)?AppData.stockMovements:[];
+            const warehouseTransfers=Array.isArray(AppData.warehouseTransfers)?AppData.warehouseTransfers:[];
+            const warehouses=Array.isArray(AppData.warehouses)?AppData.warehouses:[];
+            const expenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
             const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
             const stockValue=products.reduce((sum,p)=>sum+num(p.stock)*num(p.buyPrice),0);
             const debtTotal=customers.reduce((sum,c)=>sum+Math.max(0,num(c.debt)),0);
             const salesTotal=invoices.reduce((sum,i)=>sum+num(i.total),0);
-            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
+            const purchaseTotal=purchases.reduce((sum,p)=>sum+num(p.total || (num(p.cost)*num(p.qty))),0);
+            const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
+            const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
+            const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
+            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name||p.title),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
             const debtors=customers.filter(c=>num(c.debt)>0).sort((a,b)=>num(b.debt)-num(a.debt)).slice(0,20).map(c=>({name:anasAiSafeText(c.name),debt:num(c.debt)}));
-            return {currency:'DZD',counts:{products:products.length,customers:customers.length,suppliers:suppliers.length,invoices:invoices.length},totals:{customerDebtsDZD:debtTotal,estimatedStockCostDZD:stockValue,invoiceTotalsDZD:salesTotal},sampleProducts:recentProducts,topDebtors:debtors,note:'هذه بيانات ملخصة من التطبيق وقت السؤال؛ لا تعتبر مجموع الفواتير بالضرورة أرباحًا أو مبيعات صافية، ولا تستنتج ربحًا دون بيانات تكلفة مناسبة.'};
+            return {
+                currency:'DZD',
+                counts:{
+                    products:products.length,customers:customers.length,suppliers:suppliers.length,
+                    invoices:invoices.length,purchaseRecords:purchases.length,truckTrips:truckTrips.length,
+                    stockMovements:stockMovements.length,warehouseTransfers:warehouseTransfers.length,
+                    warehouses:warehouses.length,expenses:expenses.length
+                },
+                totals:{
+                    customerDebtsDZD:debtTotal,estimatedStockCostDZD:stockValue,
+                    invoiceTotalsDZD:salesTotal,purchaseRecordsTotalDZD:purchaseTotal,
+                    recordedExpensesDZD:expensesTotal,recordedTruckTripCostsDZD:tripCosts,
+                    cashBalanceDZD:num(AppData.caisseBalance)
+                },
+                truckTrips:{statusCounts:tripStatusCounts},
+                sampleProducts:recentProducts,topDebtors:debtors,
+                dataQualityNotes:[
+                    'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
+                    'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
+                    'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
+                    'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
+                ],
+                note:'ملخص لحظي اختياري من التطبيق وقت السؤال. لا يتضمن أسماء الموردين أو تفاصيل رحلاتهم؛ راجع القيم قبل اتخاذ قرار مالي.'
+            };
         }
         function anasAiAppendMessage(role,text){
             const log=document.getElementById('anasAiChatLog'); if(!log)return;
@@ -5260,6 +5481,19 @@ function renderPurchasesTable() {
             const ext=(file.name.split('.').pop()||'').toLowerCase();
             if(status) status.textContent='⏳ جارٍ فتح الملف: '+file.name;
             try {
+                if(ext==='pdf'){
+                    const extracted=await anasExtractPdfText(file);
+                    const box=document.getElementById('smartPdfExtractResults');
+                    const textBox=document.getElementById('smartPdfExtractText');
+                    const meta=document.getElementById('smartPdfExtractMeta');
+                    if(textBox) textBox.value=extracted.text;
+                    if(meta) meta.textContent='📄 '+file.name+' — '+extracted.pages+' صفحة — '+extracted.text.length.toLocaleString('fr-FR')+' حرف';
+                    if(box) box.style.display='block';
+                    if(status) status.textContent=extracted.text.trim()
+                      ? '✅ تم استخراج النص محليًا. راجعه قبل التنزيل أو التحليل.'
+                      : '⚠️ لم يُعثر على نص قابل للاستخراج. قد يكون PDF عبارة عن صور؛ استخدم مسح الفواتير بالذكاء الاصطناعي أو OCR.';
+                    return;
+                }
                 let rows=[];
                 if(ext==='csv' || ext==='txt') {
                     const raw=await file.text();
@@ -5289,6 +5523,72 @@ function renderPurchasesTable() {
                 alert('تعذر فتح الملف: '+(err.message||err));
             } finally { input.value=''; }
         }
+
+        async function anasExtractPdfText(file){
+            const maxBytes=20*1024*1024;
+            if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
+            if(!window.pdfjsLib){
+                await new Promise((resolve,reject)=>{
+                    const sc=document.createElement('script');
+                    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                    sc.crossOrigin='anonymous';sc.referrerPolicy='no-referrer';
+                    sc.onload=resolve;sc.onerror=()=>reject(new Error('تعذر تحميل قارئ PDF. تحقق من الإنترنت أو استخدم OCR.'));
+                    document.head.appendChild(sc);
+                });
+            }
+            if(!window.pdfjsLib) throw new Error('قارئ PDF غير متاح.');
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            const bytes=await file.arrayBuffer();
+            let pdf;
+            try{pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;}
+            catch(_){throw new Error('تعذر فتح ملف PDF. قد يكون تالفًا أو محميًا بكلمة مرور.');}
+            const chunks=[];const pageCount=pdf.numPages;const maxPages=Math.min(pageCount,100);
+            try{
+                for(let pageNo=1;pageNo<=maxPages;pageNo++){
+                    const page=await pdf.getPage(pageNo);
+                    const content=await page.getTextContent();
+                    const line=content.items.map(item=>item.str||'').join(' ').replace(/[ \\t]+/g,' ').trim();
+                    if(line) chunks.push('--- الصفحة '+pageNo+' ---\\n'+line);
+                    if(page.cleanup)page.cleanup();
+                }
+            }catch(_){
+                throw new Error('تعذر استخراج النص من الصفحة التالية. قد يكون الملف تالفًا أو يحتوي على محتوى غير مدعوم.');
+            }finally{
+                if(pdf.destroy)await pdf.destroy();
+            }
+            let text=chunks.join('\\n\\n');
+            if(pageCount>maxPages) text+='\\n\\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pageCount+'.]';
+            return {text,pages:pageCount};
+        }
+        function anasDownloadPdfText(){
+            const text=document.getElementById('smartPdfExtractText')?.value||'';
+            if(!text.trim()){alert('لا يوجد نص مستخرج لتنزيله.');return;}
+            const blob=new Blob(['\uFEFF'+text],{type:'text/plain;charset=utf-8;'});
+            const url=URL.createObjectURL(blob);const a=document.createElement('a');
+            a.href=url;a.download='ANAS_ERP_PDF_Extract.txt';document.body.appendChild(a);a.click();a.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),1500);
+        }
+        async function anasAskAiAboutPdf(){
+            const text=(document.getElementById('smartPdfExtractText')?.value||'').trim();
+            if(!text){alert('استخرج النص من ملف PDF أولًا.');return;}
+            let url='';
+            try{url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim();}catch(_){alert('تعذر قراءة إعدادات خادم الذكاء الاصطناعي.');return;}
+            if(!url){alert('اضبط رابط خادم الذكاء الاصطناعي من الإعدادات أولًا.');return;}
+            const question=prompt('ما المطلوب من ملف PDF؟ مثال: لخّصه، استخرج المبالغ والتواريخ، أو حوّله إلى جدول. لن يُرسل النص إلا بعد تأكيدك هنا.');
+            if(!question||!question.trim())return;
+            const status=document.getElementById('smartAiExcelStatus');
+            if(status)status.textContent='⏳ جارٍ تحليل النص الذي اخترت إرساله…';
+            try{
+                const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'chat',message:question.trim(),businessData:{documentText:text.slice(0,28000),source:'PDF text extracted in browser'},language:'ar'})});
+                const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
+                if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
+                const answer=String(data.text||data.answer||'لم تصل إجابة نصية.');
+                const blob=new Blob(['\uFEFF'+answer],{type:'text/plain;charset=utf-8;'});
+                const dl=URL.createObjectURL(blob);const a=document.createElement('a');a.href=dl;a.download='ANAS_ERP_PDF_Analysis.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(dl),1500);
+                if(status)status.textContent='✅ اكتمل التحليل ونُزّلت الإجابة في ملف نصي.';
+            }catch(err){if(status)status.textContent='❌ تعذر تحليل PDF: '+(err.message||err);}
+        }
+
         function parseSmartCsv(raw,delimiter) {
             const rows=[]; let row=[], cell='', quoted=false;
             raw=raw.replace(/^\uFEFF/,'');
@@ -6144,9 +6444,30 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(!items.length){trip.stockPostedAt=null;return true;}
     const products=Array.isArray(AppData.products)?AppData.products:[];const required=new Map();
     for(const item of items){const key=String(item.productId);required.set(key,(required.get(key)||0)+(Number(item.qty)||0));}
-    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية غير صالحة لأحد الأصناف.');if((Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
-    const oldStocks=products.map(p=>({p,stock:p.stock}));const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements:null;
-    try{if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);p.stock=Number(p.stock)-qty;AppData.stockMovements.unshift({id:'TR-MOV-'+trip.id+'-'+id,productId:p.id,productName:p.name||p.title||id,qty:-qty,type:'TRUCK_DELIVERY',referenceType:'truck_trip',referenceId:trip.id,date:new Date().toISOString(),note:'تسليم شاحنة '+trip.plate+' إلى '+trip.destination});}trip.stockPostedAt=new Date().toISOString();if(saveDB()===false)throw new Error('تعذر حفظ حركة المخزون.');return true;}catch(e){oldStocks.forEach(x=>x.p.stock=x.stock);if(oldMoves===null)delete AppData.stockMovements;else AppData.stockMovements=oldMoves;delete trip.stockPostedAt;throw e;}
+    const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
+    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية غير صالحة لأحد الأصناف.');if((Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
+    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null}));
+    const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
+    const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
+    try{
+      wtEnsureMobileWarehouse(warehouseName);
+      if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
+      for(const [id,qty] of required){
+        const p=products.find(x=>String(x.id)===id);
+        p.stock=(Number(p.stock)||0)-qty;
+        if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
+        p.warehouseStock[warehouseName]=(Number(p.warehouseStock[warehouseName])||0)+qty;
+        AppData.stockMovements.unshift({id:'TR-LOAD-'+trip.id+'-'+id,productId:p.id,productName:p.name||p.title||id,qty:-qty,type:'TRUCK_LOAD_OUT',referenceType:'truck_trip',referenceId:trip.id,warehouse:'المخزن الرئيسي',toWarehouse:warehouseName,date:new Date().toISOString(),note:'تحميل إلى '+warehouseName});
+        AppData.stockMovements.unshift({id:'TR-LOAD-IN-'+trip.id+'-'+id,productId:p.id,productName:p.name||p.title||id,qty:qty,type:'TRUCK_LOAD_IN',referenceType:'truck_trip',referenceId:trip.id,warehouse:warehouseName,fromWarehouse:'المخزن الرئيسي',date:new Date().toISOString(),note:'استلام عهدة '+warehouseName});
+      }
+      trip.warehouseName=warehouseName;trip.stockPostedAt=new Date().toISOString();
+      if(saveDB()===false)throw new Error('تعذر حفظ حركة التحميل.');
+      return true;
+    }catch(e){
+      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock||{};else delete x.p.warehouseStock;});
+      if(oldMoves===null)delete AppData.stockMovements;else AppData.stockMovements=oldMoves;
+      AppData.warehouses=oldWarehouses;delete trip.stockPostedAt;throw e;
+    }
   }
   window.anasTruckSaveTrip = function(){
     if(savingTrip) return;
@@ -6162,12 +6483,13 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const rawDate=$('truckDate').value;
       if(rawDate && Number.isNaN(new Date(rawDate).getTime())){alert('تاريخ ووقت الرحلة غير صالحين.');return;}
       const tripId='TR-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
-      const initialStatus=$('truckStatus').value; if(initialStatus==='delivered'&&truckDraftItems.length){alert('أنشئ الرحلة أولاً، ثم اعتمد «تم التسليم» حتى تُخصم الأصناف مرة واحدة وبشكل قابل للتراجع.');return;} const trip={id:tripId,plate,driver,origin,destination,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
+      const initialStatus=$('truckStatus').value; if((initialStatus==='delivered'||initialStatus==='in_transit')&&truckDraftItems.length){alert('أنشئ الرحلة بحالة «مخططة» أولاً، ثم اعتمد «في الطريق» لتحويل البضاعة إلى مخزن الشاحنة مرة واحدة.');return;} const warehouseName='شاحنة '+plate; const trip={id:tripId,plate,driver,origin,destination,warehouseName,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
+      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));wtEnsureMobileWarehouse(warehouseName);
       AppData.truckTrips.unshift(trip);
       let persisted=true;
       try { if(typeof saveDB==='function' && saveDB()===false) persisted=false; }
       catch(saveError){ persisted=false; console.error('ANAS truck persistence failed',saveError); }
-      if(!persisted){AppData.truckTrips=AppData.truckTrips.filter(t=>t.id!==trip.id);alert('تعذر حفظ الرحلة في التخزين المحلي؛ لم تُعتمد العملية.');return;}
+      if(!persisted){AppData.truckTrips=AppData.truckTrips.filter(t=>t.id!==trip.id);AppData.warehouses=warehousesBefore;alert('تعذر حفظ الرحلة في التخزين المحلي؛ لم تُعتمد العملية.');return;}
       ['truckPlate','truckDriver','truckOrigin','truckDestination','truckCargo','truckNotes'].forEach(id=>$(id).value=''); truckDraftItems=[]; renderDraftItems();
       $('truckWeight').value='0'; $('truckCost').value='0'; $('truckStatus').value='planned'; $('truckDate').value=new Date().toISOString().slice(0,16);
       anasTruckRender(); alert('تم حفظ الرحلة بنجاح.');
@@ -6179,11 +6501,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       ensure(); if(!Object.prototype.hasOwnProperty.call(statusText,status))return;
       const t=AppData.truckTrips.find(x=>String(x.id)===String(id));if(!t)return;
       if(t.status===status)return;
-      if(status==='delivered'&&Array.isArray(t.stockItems)&&t.stockItems.length&&!confirm('سيتم خصم كميات أصناف هذه الرحلة من المخزون مرة واحدة. هل تؤكد التسليم؟')){anasTruckRender();return;}
+      if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&!t.stockPostedAt&&!confirm('سيتم تحويل أصناف الرحلة من المخزن الرئيسي إلى مخزن الشاحنة «'+(t.warehouseName||('شاحنة '+t.plate))+'» مرة واحدة. هل تؤكد التحميل؟')){anasTruckRender();return;}
+      if(status==='cancelled'&&t.stockPostedAt){alert('لا يمكن إلغاء رحلة حُمّلت بضاعتها إلى مخزن الشاحنة. أعد الكمية المتبقية إلى المخزن الرئيسي بسند تحويل أولاً.');return;}
       const previousStatus=t.status,previousUpdated=t.updatedAt,previousPosted=t.stockPostedAt;
-      try{t.status=status;t.updatedAt=new Date().toISOString();if(status==='delivered'&&!t.stockPostedAt&&Array.isArray(t.stockItems)&&t.stockItems.length)postTripStock(t);else if(saveDB()===false)throw new Error('تعذر حفظ حالة الرحلة.');}
+      try{t.status=status;t.updatedAt=new Date().toISOString();if((status==='in_transit'||status==='delivered')&&!t.stockPostedAt&&Array.isArray(t.stockItems)&&t.stockItems.length)postTripStock(t);else if(saveDB()===false)throw new Error('تعذر حفظ حالة الرحلة.');}
       catch(e){t.status=previousStatus;if(previousUpdated===undefined)delete t.updatedAt;else t.updatedAt=previousUpdated;if(previousPosted===undefined)delete t.stockPostedAt;else t.stockPostedAt=previousPosted;anasTruckRender();alert('لم يتم اعتماد التسليم أو تغيير الحالة: '+(e.message||e)+' لم تُعتمد العملية.');return;}
-      anasTruckRender();if(status==='delivered'&&Array.isArray(t.stockItems)&&t.stockItems.length)alert('تم اعتماد التسليم وخصم الأصناف من المخزون مرة واحدة.');
+      anasTruckRender();if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&t.stockPostedAt)alert('تم تحميل عهدة الرحلة ونقل الأصناف إلى مخزن الشاحنة مرة واحدة. سجّل التسليم الفعلي بشكل منفصل عند اكتماله.');
     }catch(e){console.error(e);alert('تعذر تحديث حالة الرحلة. '+(e.message||e));}
   };
   window.anasTruckDelete = function(id){
@@ -6196,9 +6519,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
       if(!confirm('هل تريد حذف سجل هذه الرحلة؟ لا يمكن التراجع عن الحذف.'))return;
       AppData.truckTrips=previous.filter(t=>String(t.id)!==String(id));
-      if(typeof saveDB==='function'&&saveDB()===false){AppData.truckTrips=previous;alert('لم يتم حفظ الحذف؛ أُعيد سجل الرحلة.');return;}
+      try{if(typeof saveDB==='function'&&saveDB()===false)throw new Error('تعذر حفظ الحذف.');}
+      catch(saveError){AppData.truckTrips=previous;try{saveDB();}catch(restoreError){console.error('تعذر حفظ الاستعادة بعد فشل حذف الرحلة',restoreError);}anasTruckRender();alert('لم يتم اعتماد الحذف؛ أُعيد سجل الرحلة في الذاكرة. '+(saveError.message||saveError));return;}
       anasTruckRender();
-    } catch(e){console.error(e);alert('تعذر حذف الرحلة.');}
+    } catch(e){console.error(e);alert('تعذر حذف الرحلة. '+(e.message||e));}
   };
   window.anasTruckRender = function(){
     const list=$('anasTruckList'),summary=$('anasTruckSummary'); if(!list||!summary)return;
@@ -6375,6 +6699,110 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   window.anasTestWorker=async function(){const input=urlInput();const raw=(input?.value||'').trim();if(!raw){alert('الصق رابط Cloudflare Worker المنشور كاملًا أولًا.');return;}let parsed;try{parsed=new URL(raw);}catch(_){alert('الرابط غير مكتمل أو غير صالح.');return;}if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.search||parsed.hash){alert('يجب أن يكون الرابط HTTPS صالحًا دون اسم مستخدم أو كلمة مرور أو معاملات إضافية.');return;}const base=parsed.href.replace(/\/$/,'');localStorage.setItem('ANAS_ERP_WORKER_URL',base);const statusEl=document.getElementById('anasFirebaseAuthStatus');if(statusEl)statusEl.textContent='جارٍ اختبار اتصال الخادم…';try{let r;try{r=await fetch(base+'/health',{method:'GET',headers:{'Accept':'application/json'},cache:'no-store'});}catch(e){throw Error('تعذر الوصول إلى الخادم. تحقق من الرابط المنشور والإنترنت وCORS. '+(e.message||e));}const t=await r.text();let data;try{data=JSON.parse(t);}catch(_){data={raw:t.slice(0,250)};}if(!r.ok)throw Error('HTTP '+r.status+' — '+(data.error||data.raw||'استجابة غير صالحة'));if(data.ok!==true)throw Error('الخادم ردّ لكنه لم يرجع ok:true. الاستجابة: '+t.slice(0,250));if(statusEl){statusEl.textContent='نجح اختبار Worker: الخادم يستجيب. هذا لا يؤكد بعد صلاحيات Firestore.';statusEl.style.color='#15803d';}alert('نجح اختبار الاتصال الأساسي بالخادم. الخطوة التالية اختبار تسجيل الدخول وصلاحيات Firestore.');}catch(e){console.error('Anas ERP Worker health check:',e);if(statusEl)statusEl.textContent='فشل اختبار الخادم: '+(e.message||e);alert('فشل اختبار الخادم:\n'+(e.message||e)+'\nلم يتم رفع أو تغيير أي بيانات.');}};
   window.anasFirebasePush=async function(){if(!confirm('سيتم رفع نسخة من بيانات Anas ERP الحالية إلى السحابة. لن تُحذف البيانات المحلية. هل تريد المتابعة؟'))return;try{if(typeof AppData==='undefined')throw Error('بيانات التطبيق غير متاحة');const json=JSON.stringify(AppData);const result=await workerRequest('POST',{data:json});status('تم رفع نسخة احتياطية عبر Worker ('+result.parts+' أجزاء).',true);alert('تم رفع النسخة الاحتياطية. هذا ليس تزامنًا تلقائيًا؛ اختبر الاستعادة على جهاز آخر.');}catch(e){console.error(e);status('فشل الرفع: '+(e.message||e));alert('فشل رفع البيانات: '+(e.message||e)+'\nتحقق من رابط Worker وتسجيل الدخول وقواعد Firestore.');}};
   window.anasFirebasePull=async function(){if(!confirm('سيتم استبدال بيانات التطبيق الحالية بالنسخة السحابية. صدّر نسخة احتياطية محلية أولاً. هل تريد المتابعة؟'))return;try{const result=await workerRequest('GET');const restored=JSON.parse(result.data||'');if(!restored||typeof restored!=='object'||!Array.isArray(restored.products)||!Array.isArray(restored.customers))throw Error('بنية النسخة السحابية غير صالحة');if(typeof ANAS_DB_KEY==='undefined')throw Error('مفتاح التخزين المحلي غير متاح');localStorage.setItem(ANAS_DB_KEY,JSON.stringify(restored));alert('تم استرجاع النسخة. سيُعاد تحميل التطبيق الآن.');location.reload();}catch(e){console.error(e);status('فشل الاسترجاع: '+(e.message||e));alert('فشل استرجاع البيانات: '+(e.message||e)+'\nلم يتم اعتماد الاسترجاع.');}};
+})();
+</script>
+
+<!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->
+<style>
+#anasContextAiFab{position:fixed;z-index:99990;right:16px;bottom:18px;border:0;border-radius:999px;padding:12px 16px;background:#5b21b6;color:#fff;font-weight:800;box-shadow:0 5px 22px #0003;cursor:pointer;font:inherit}
+#anasContextAiPanel{position:fixed;z-index:99999;right:12px;bottom:76px;width:min(420px,calc(100vw - 24px));max-height:min(78vh,680px);overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#111827);border:1px solid var(--mp-border,#d1d5db);border-radius:16px;box-shadow:0 12px 42px #0004;padding:14px;display:none}
+#anasContextAiPanel input,#anasContextAiPanel textarea{box-sizing:border-box;width:100%;font:inherit;color:inherit;background:var(--mp-input-bg,#fff);border:1px solid var(--mp-border,#d1d5db);border-radius:9px;padding:10px;margin-top:6px}
+#anasContextAiPanel button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:10px 12px;font-weight:700}
+#anasContextAiAnswer{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin-top:10px;padding:10px;border-radius:9px;background:rgba(124,58,237,.08);display:none}
+@media(max-width:480px){#anasContextAiFab{right:10px;bottom:10px;padding:10px 13px}#anasContextAiPanel{right:8px;bottom:62px;width:calc(100vw - 16px)}}
+</style>
+<button id="anasContextAiFab" type="button" aria-controls="anasContextAiPanel" aria-expanded="false">✨ مساعد ChatGPT</button>
+<section id="anasContextAiPanel" role="dialog" aria-modal="false" aria-labelledby="anasContextAiTitle">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <h3 id="anasContextAiTitle" style="margin:0;font-size:17px">مساعدك في ANAS ERP</h3>
+    <button id="anasContextAiClose" type="button" aria-label="إغلاق المساعد" style="background:transparent;font-size:22px;padding:2px 8px">×</button>
+  </div>
+  <p style="font-size:13px;line-height:1.6;margin:8px 0;color:var(--mp-text-muted,#64748b)">اسأل عن الخانة أو الشاشة الحالية. لن يغيّر المساعد بيانات التطبيق.</p>
+  <div id="anasContextAiWhere" style="font-size:12px;padding:8px;border-radius:8px;background:rgba(100,116,139,.10);overflow-wrap:anywhere">السياق: لم تُحدّد خانة بعد.</div>
+  <label for="anasContextAiQuestion" style="display:block;margin-top:10px;font-weight:700">ما المساعدة التي تحتاجها؟</label>
+  <textarea id="anasContextAiQuestion" rows="3" maxlength="4000" placeholder="مثال: ماذا أكتب هنا؟ وكيف أستخدم هذه الخانة؟"></textarea>
+  <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;margin-top:10px">
+    <input id="anasContextAiIncludeSummary" type="checkbox" style="width:auto;margin-top:2px">
+    <span>إرفاق ملخص تجاري مختصر لمساعدتي في التحليل. لا تفعّل هذا الخيار إلا إذا أردت إرسال الملخص إلى خدمة الذكاء الاصطناعي.</span>
+  </label>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="anasContextAiSend" type="button" style="flex:1;background:#6d28d9;color:#fff">إرسال السؤال</button>
+    <button id="anasContextAiClear" type="button" style="background:var(--mp-border,#e5e7eb);color:inherit">مسح</button>
+  </div>
+  <div id="anasContextAiAnswer" role="status" aria-live="polite"></div>
+</section>
+<script>
+(function(){
+  'use strict';
+  const fab=document.getElementById('anasContextAiFab');
+  const panel=document.getElementById('anasContextAiPanel');
+  const close=document.getElementById('anasContextAiClose');
+  const where=document.getElementById('anasContextAiWhere');
+  const question=document.getElementById('anasContextAiQuestion');
+  const send=document.getElementById('anasContextAiSend');
+  const clear=document.getElementById('anasContextAiClear');
+  const answer=document.getElementById('anasContextAiAnswer');
+  const include=document.getElementById('anasContextAiIncludeSummary');
+  let focusedField=null;
+  let contextText='لم تُحدّد خانة بعد.';
+  function labelFor(el){
+    if(!el)return '';
+    const id=el.id||'';
+    let label='';
+    if(id){const l=document.querySelector('label[for="'+id.replace(/["\\\\]/g,'')+'"]');if(l)label=(l.innerText||l.textContent||'').trim();}
+    if(!label&&el.closest){const wrap=el.closest('.field-group,.form-group,.field-container,div');const l=wrap&&wrap.querySelector('label');if(l)label=(l.innerText||l.textContent||'').trim();}
+    return (label||el.getAttribute('aria-label')||el.getAttribute('placeholder')||id||el.tagName||'خانة غير معنونة').slice(0,180);
+  }
+  function safeContext(el){
+    if(!el)return 'لم تُحدّد خانة بعد.';
+    const type=(el.type||el.tagName||'').toLowerCase();
+    if(type==='password'||type==='file'||el.autocomplete==='current-password'||el.autocomplete==='new-password')return 'خانة حساسة؛ لم يُرسل أي محتوى منها.';
+    const label=labelFor(el);
+    let page='';
+    const modal=el.closest&&el.closest('[role="dialog"],.modal,.modal-content,.modal-bg-backdrop');
+    if(modal){const h=modal.querySelector('h1,h2,h3,h4,[id$="Title"]');if(h)page=(h.innerText||h.textContent||'').trim();}
+    if(!page){const active=document.querySelector('.content-area:not([style*="display: none"]),.tab-content.active,main h1,main h2,main h3');if(active)page=(active.innerText||active.textContent||'').trim().slice(0,100);}
+    return 'الخانة: '+label+(type?' (نوع الحقل: '+type+')':'')+(page?' | الشاشة: '+page.slice(0,120):'')+'. لم تُرسل قيمة الخانة.';
+  }
+  function openPanel(){
+    panel.style.display='block';fab.setAttribute('aria-expanded','true');
+    contextText=safeContext(focusedField);where.textContent='السياق: '+contextText;
+    if(!question.value)question.focus();
+  }
+  function closePanel(){panel.style.display='none';fab.setAttribute('aria-expanded','false');fab.focus();}
+  document.addEventListener('focusin',function(e){
+    const el=e.target;
+    if(!el||!el.matches||!el.matches('input,textarea,select,[contenteditable="true"]'))return;
+    if(panel.contains(el))return;
+    focusedField=el;
+    contextText=safeContext(el);
+    where.textContent='السياق: '+contextText;
+  });
+  fab.addEventListener('click',openPanel);
+  close.addEventListener('click',closePanel);
+  clear.addEventListener('click',function(){question.value='';answer.textContent='';answer.style.display='none';});
+  question.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send.click();}});
+  send.addEventListener('click',async function(){
+    const q=(question.value||'').trim();
+    if(!q){answer.style.display='block';answer.textContent='اكتب سؤالك أولاً.';return;}
+    let savedUrl='';
+    try{savedUrl=localStorage.getItem('anasErpAiGatewayUrlV1')||'';}catch(_){answer.style.display='block';answer.textContent='تعذر الوصول إلى إعدادات التخزين في المتصفح. اسمح للتطبيق باستخدام التخزين المحلي ثم أعد المحاولة.';return;}
+    const url=savedUrl.trim().replace(/\/$/,'');
+    if(!url){answer.style.display='block';answer.textContent='لم يُضبط رابط خادم الذكاء الاصطناعي بعد. افتح الإعدادات ← ربط خادم الذكاء الاصطناعي، واحفظ رابط العامل الجديد أولاً.';return;}
+    const payload={type:'chat',message:q+'\n\nسياق الشاشة: '+contextText,language:'ar'};
+    if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function'){
+      try{payload.businessData=window.anasBuildBusinessSnapshot();}catch(e){answer.style.display='block';answer.textContent='تعذر إعداد الملخص التجاري. أرسل السؤال دون الملخص أو جرّب لاحقاً.';return;}
+    }
+    send.disabled=true;send.textContent='جارٍ الاتصال…';answer.style.display='block';answer.textContent='جارٍ طلب المساعدة…';
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),45000);
+    try{
+      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
+      const raw=await res.text();let data;try{data=JSON.parse(raw);}catch(_){data={text:raw};}
+      if(!res.ok||data.error)throw new Error(data.error||('HTTP '+res.status));
+      answer.textContent=String(data.text||data.answer||'لم تصل إجابة نصية من المساعد.');
+    }catch(e){answer.textContent='تعذر الاتصال بالمساعد: '+(e.name==='AbortError'?'انتهت مهلة الاتصال.':(e.message||'خطأ غير معروف'))+'. تحقق من رابط الخادم وإعداده.';}
+    finally{clearTimeout(timer);send.disabled=false;send.textContent='إرسال السؤال';}
+  });
 })();
 </script>
 

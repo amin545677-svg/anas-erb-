@@ -40,6 +40,8 @@ jobs:
           PY
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare/worker_firebase_snapshot.js
+      - name: Check OpenAI AI Worker JavaScript syntax
+        run: node --check cloudflare/worker_openai_ai.js
       - name: Validate Worker contract and security guards
         run: |
           python - <<'PY'
@@ -55,6 +57,168 @@ jobs:
           assert not missing, f"Missing Worker safety/contract markers: {missing}"
           print("Worker syntax and required contract markers passed")
           PY
+      - name: Check contextual AI helper JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          marker = "<!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->"
+          start = s.find(marker)
+          assert start >= 0, "Contextual AI helper marker not found"
+          script_start = s.find("<script>", start)
+          script_end = s.find("</script>", script_start)
+          assert script_start >= 0 and script_end > script_start, "Contextual AI helper script block is incomplete"
+          js = s[script_start + len("<script>"):script_end]
+          Path("/tmp/anas-context-ai-helper.js").write_text(js, encoding="utf-8")
+          print("Extracted contextual AI helper script for syntax validation")
+          PY
+          node --check /tmp/anas-context-ai-helper.js
+      - name: Validate contextual AI helper privacy guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          required = [
+              'id="anasContextAiFab"', 'id="anasContextAiPanel"',
+              "anasErpAiGatewayUrlV1", "function safeContext(el)",
+              "type==='password'||type==='file'",
+              "let savedUrl='';", "try{savedUrl=localStorage.getItem",
+              "if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function')",
+              "لم تُرسل قيمة الخانة."
+          ]
+          missing = [x for x in required if x not in s]
+          assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
+          print("Contextual AI helper presence and privacy guards passed")
+          PY
+      - name: Check PDF extraction JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          marker = "async function anasExtractPdfText(file)"
+          pos = s.find(marker)
+          assert pos >= 0, "PDF text extraction function is missing"
+          end = s.find("function parseSmartCsv(raw,delimiter)", pos)
+          assert pos >= 0 and end > pos, "Could not locate the isolated PDF helper functions"
+          js = s[pos:end]
+          Path("/tmp/anas-pdf-helper.js").write_text(js, encoding="utf-8")
+          print("Extracted isolated PDF helper functions for syntax validation")
+          PY
+          node --check /tmp/anas-pdf-helper.js
+      - name: Exercise PDF helper limits and cleanup with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          js = Path("/tmp/anas-pdf-helper.js").read_text(encoding="utf-8")
+          js += r"""
+          const assert = require('node:assert/strict');
+          global.window = { pdfjsLib: { GlobalWorkerOptions: {}, getDocument: null } };
+          (async () => {
+            let opened = false;
+            const oversized = { size: 20 * 1024 * 1024 + 1, arrayBuffer: async () => { opened = true; return new ArrayBuffer(0); } };
+            await assert.rejects(() => anasExtractPdfText(oversized), /يتجاوز 20 ميغابايت/);
+            assert.equal(opened, false, 'oversized file must be rejected before reading bytes');
+
+            let fetchedPages = 0, cleanedPages = 0, destroyed = false;
+            window.pdfjsLib.getDocument = () => ({ promise: Promise.resolve({
+              numPages: 102,
+              getPage: async n => {
+                fetchedPages++;
+                return {
+                  getTextContent: async () => ({ items: [{ str: 'صفحة-' + n }] }),
+                  cleanup: () => { cleanedPages++; }
+                };
+              },
+              destroy: async () => { destroyed = true; }
+            }) });
+            const result = await anasExtractPdfText({ size: 10, arrayBuffer: async () => new ArrayBuffer(8) });
+            assert.equal(result.pages, 102);
+            assert.equal(fetchedPages, 100, 'only the first 100 pages should be extracted');
+            assert.equal(cleanedPages, 100, 'each processed page should be cleaned up');
+            assert.equal(destroyed, true, 'PDF resources should be destroyed');
+            assert.match(result.text, /صفحة-100/);
+            assert.doesNotMatch(result.text, /صفحة-101/);
+            assert.match(result.text, /أول 100 صفحة/);
+            console.log('PDF mock tests passed: size cap, 100-page cap, cleanup, and truncation notice');
+          })().catch(err => { console.error(err); process.exitCode = 1; });
+          """
+          Path("/tmp/anas-pdf-helper-test.js").write_text(js, encoding="utf-8")
+          PY
+          node /tmp/anas-pdf-helper-test.js
+      - name: Validate document center capabilities and privacy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          required = [
+              "مركز الملفات الذكي | Excel · PDF",
+              'accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf',
+              "async function anasExtractPdfText(file)",
+              "const maxBytes=20*1024*1024;",
+              "if(file.size>maxBytes)",
+              "Math.min(pageCount,100)",
+              "if(page.cleanup)page.cleanup();",
+              "if(pdf.destroy)await pdf.destroy();",
+              "تعذر استخراج النص من الصفحة التالية",
+              "قد يكون تالفًا أو محميًا بكلمة مرور",
+              "function anasDownloadPdfText()",
+              "async function anasAskAiAboutPdf()",
+              "documentText:text.slice(0,28000)",
+              "function handleSmartAiUpload(e)",
+              "function parseSmartCsv(raw,delimiter)",
+              "function showSmartImportPreview(fileName,rows)",
+              "function anasRunLocalBusinessAudit()"
+          ]
+          missing = [x for x in required if x not in s]
+          assert not missing, f"Missing document-center capabilities/privacy markers: {missing}"
+          assert "if(!question||!question.trim())return;" in s, "AI analysis must require an explicit user-confirmed question"
+          print("Document center capabilities and explicit-send guard passed")
+          PY
+      - name: Exercise customer debt settlement and cash rollback with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function collectCustDebt(cId)")
+          end = s.find("function openGoogleMaps(loc)", start)
+          assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
+          js = s[start:end]
+          js += r"""
+          const assert = require('node:assert/strict');
+          global.alert = () => {};
+          global.renderCustomersDebts = () => {};
+          global.updateCashUI = () => {};
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50, currentUser: { id: 'u1', name: 'Admin' } };
+          global.prompt = () => '40';
+          global.saveDB = () => true;
+          collectCustDebt('c1');
+          assert.equal(AppData.customers[0].debt, 60, 'successful collection reduces customer debt');
+          assert.equal(AppData.caisseBalance, 90, 'successful collection increases cash');
+          assert.equal(AppData.cashMovements.length, 1, 'successful collection creates a cash ledger entry');
+          assert.equal(AppData.cashMovements[0].amount, 40);
+          assert.equal(AppData.cashMovements[0].referenceType, 'customer_debt');
+
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
+          global.prompt = () => '40';
+          global.saveDB = () => false;
+          collectCustDebt('c1');
+          assert.equal(AppData.customers[0].debt, 100, 'failed save restores customer debt');
+          assert.equal(AppData.caisseBalance, 50, 'failed save restores cash balance');
+          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'failed save removes a newly created ledger');
+
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
+          global.prompt = () => '101';
+          let saveCalled = false;
+          global.saveDB = () => { saveCalled = true; return true; };
+          collectCustDebt('c1');
+          assert.equal(saveCalled, false, 'invalid amount must not be persisted');
+          assert.equal(AppData.customers[0].debt, 100);
+          assert.equal(AppData.caisseBalance, 50);
+          console.log('Customer debt settlement tests passed: ledger entry, rollback, and invalid amount guard');
+          """
+          Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
+          PY
+          node /tmp/anas-customer-debt-test.js
       - name: Validate Firebase rules are user-scoped
         run: |
           python - <<'PY'
