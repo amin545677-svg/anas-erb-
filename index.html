@@ -3941,7 +3941,13 @@ function renderPurchasesTable() {
             const oldTotal = Number(inv.total) || 0;
             const oldPaid = Number(inv.paid) || 0;
             const oldRemaining = Number(inv.remaining) || Math.max(0, oldTotal - oldPaid);
-            const newPaid = Math.min(oldPaid, newTotal);
+            // Do not silently rewrite historic cash when an edited invoice total falls below money already collected.
+            // Refunds must be recorded as a separate cash movement so the audit trail remains accurate.
+            if (newTotal + 0.000001 < oldPaid) {
+                alert('إجمالي الفاتورة الجديد أقل من المبلغ المحصّل سابقاً (' + oldPaid + ' دج). لم يتم التعديل؛ سجّل ردّ المبلغ كحركة صندوق مستقلة أولاً، ثم أعد تعديل الفاتورة.');
+                return;
+            }
+            const newPaid = oldPaid;
             const newRemaining = Math.max(0, newTotal - newPaid);
             const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && oldRemaining > 0));
             if (newRemaining > 0 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بالدين. لم يتم تعديل الفاتورة لحماية الحسابات.'); return; }
