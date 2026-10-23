@@ -336,6 +336,26 @@ jobs:
           window.anasTruckSettle('T1');
           assert.equal(AppData.stockMovements.length, moves, 'repeat settlement must not duplicate movements');
 
+          // Reject invoices from another warehouse before any stock or ledger mutation.
+          global.prompt = (() => {
+            const answers = ['6','1','1','2','INV-WRONG'];
+            return () => answers.shift();
+          })();
+          let invalidInvoiceSaveCalled = false;
+          global.saveDB = () => { invalidInvoiceSaveCalled = true; return true; };
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [{id:'T3',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+            invoices: [{id:'INV-WRONG',warehouse:'Main warehouse',warehouseName:'Main warehouse',items:[{id:'p1',qty:6}]}],
+            stockMovements: []
+          };
+          window.anasTruckSettle('T3');
+          assert.equal(invalidInvoiceSaveCalled, false, 'wrong-warehouse invoice must not be persisted');
+          assert.equal(AppData.products[0].stock, 5, 'wrong-warehouse invoice must not change main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'wrong-warehouse invoice must not change truck stock');
+          assert.equal(AppData.stockMovements.length, 0, 'wrong-warehouse invoice must not create ledger movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'invalid invoice must not mark trip settled');
+
           global.prompt = (() => {
             const answers = ['6','1','1','2','INV-1'];
             return () => answers.shift();
