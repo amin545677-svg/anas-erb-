@@ -6450,7 +6450,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const previousStatus=t.status,previousUpdated=t.updatedAt,previousPosted=t.stockPostedAt;
       try{t.status=status;t.updatedAt=new Date().toISOString();if((status==='in_transit'||status==='delivered')&&!t.stockPostedAt&&Array.isArray(t.stockItems)&&t.stockItems.length)postTripStock(t);else if(saveDB()===false)throw new Error('تعذر حفظ حالة الرحلة.');}
       catch(e){t.status=previousStatus;if(previousUpdated===undefined)delete t.updatedAt;else t.updatedAt=previousUpdated;if(previousPosted===undefined)delete t.stockPostedAt;else t.stockPostedAt=previousPosted;anasTruckRender();alert('لم يتم اعتماد التسليم أو تغيير الحالة: '+(e.message||e)+' لم تُعتمد العملية.');return;}
-      anasTruckRender();if(status==='delivered'&&Array.isArray(t.stockItems)&&t.stockItems.length)alert('تم اعتماد التسليم وخصم الأصناف من المخزون مرة واحدة.');
+      anasTruckRender();if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&t.stockPostedAt)alert('تم تحميل عهدة الرحلة ونقل الأصناف إلى مخزن الشاحنة مرة واحدة. سجّل التسليم الفعلي بشكل منفصل عند اكتماله.');
     }catch(e){console.error(e);alert('تعذر تحديث حالة الرحلة. '+(e.message||e));}
   };
   window.anasTruckDelete = function(id){
@@ -6463,9 +6463,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
       if(!confirm('هل تريد حذف سجل هذه الرحلة؟ لا يمكن التراجع عن الحذف.'))return;
       AppData.truckTrips=previous.filter(t=>String(t.id)!==String(id));
-      if(typeof saveDB==='function'&&saveDB()===false){AppData.truckTrips=previous;alert('لم يتم حفظ الحذف؛ أُعيد سجل الرحلة.');return;}
+      try{if(typeof saveDB==='function'&&saveDB()===false)throw new Error('تعذر حفظ الحذف.');}
+      catch(saveError){AppData.truckTrips=previous;try{saveDB();}catch(restoreError){console.error('تعذر حفظ الاستعادة بعد فشل حذف الرحلة',restoreError);}anasTruckRender();alert('لم يتم اعتماد الحذف؛ أُعيد سجل الرحلة في الذاكرة. '+(saveError.message||saveError));return;}
       anasTruckRender();
-    } catch(e){console.error(e);alert('تعذر حذف الرحلة.');}
+    } catch(e){console.error(e);alert('تعذر حذف الرحلة. '+(e.message||e));}
   };
   window.anasTruckRender = function(){
     const list=$('anasTruckList'),summary=$('anasTruckSummary'); if(!list||!summary)return;
