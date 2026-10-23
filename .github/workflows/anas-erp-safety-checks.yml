@@ -65,7 +65,7 @@ jobs:
           required = [
               'id="anasContextAiFab"', 'id="anasContextAiPanel"',
               "anasErpAiGatewayUrlV1", "function safeContext(el)",
-              "el.type==='password'", "el.type==='file'",
+              "type==='password'||type==='file'",
               "let savedUrl='';", "try{savedUrl=localStorage.getItem",
               "if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function')",
               "لم تُرسل قيمة الخانة."
