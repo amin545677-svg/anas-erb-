@@ -67,14 +67,14 @@ jobs:
           app = Path("index.html").read_text(encoding="utf-8")
           deploy = Path(".github/workflows/deploy-openai-ai-worker.yml").read_text(encoding="utf-8")
           checks = {
-              "health endpoint reports the expected service": '"service: "anas-erp-openai-ai"' in worker,
+              "health endpoint reports the expected service": 'service: "anas-erp-openai-ai"' in worker,
               "health endpoint reports API-key configuration without exposing the key": "configured: Boolean(env.OPENAI_API_KEY)" in worker,
               "health endpoint returns model metadata": "model: env.OPENAI_MODEL || DEFAULT_MODEL" in worker,
               "request body has a size limit": "MAX_BODY_BYTES" in worker,
               "OpenAI calls disable response storage": "store: false" in worker,
               "UI calls the health endpoint": "fetch(url+'/health'" in app,
               "UI verifies the worker service identity": "anas-erp-openai-ai" in app,
-              "UI submits chat messages": "type:'chat'" in app and "businessData: anasBuildBusinessSnapshot()" in app,
+              "UI submits chat messages": "type:\'chat\'" in app and "businessData:anasBuildBusinessSnapshot()" in app,
               "UI reads the text response": "data.text" in app,
               "manual deployment requires Cloudflare token": "secrets.CLOUDFLARE_API_TOKEN" in deploy,
               "manual deployment requires Cloudflare account id": "secrets.CLOUDFLARE_ACCOUNT_ID" in deploy,
