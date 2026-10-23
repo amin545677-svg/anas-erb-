@@ -1,13 +1,8 @@
 name: Deploy ANAS ERP Firebase Worker
 
 on:
+  # Deploy only after an explicit manual action.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "cloudflare/worker_firebase_snapshot.js"
-      - "cloudflare/wrangler.toml"
-      - ".github/workflows/deploy-firebase-worker.yml"
 
 permissions:
   contents: read

@@ -1,13 +1,8 @@
 name: Deploy ANAS ERP OpenAI AI Worker
 
 on:
+  # Deploy only after an explicit manual action.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "cloudflare/worker_openai_ai.js"
-      - "cloudflare/wrangler-openai.toml"
-      - ".github/workflows/deploy-openai-ai-worker.yml"
 
 permissions:
   contents: read
