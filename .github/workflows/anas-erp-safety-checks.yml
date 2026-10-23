@@ -98,12 +98,11 @@ jobs:
           marker = "async function anasExtractPdfText(file)"
           pos = s.find(marker)
           assert pos >= 0, "PDF text extraction function is missing"
-          start = s.rfind("<script>", 0, pos)
-          end = s.find("</script>", pos)
-          assert start >= 0 and end > pos, "Could not locate the PDF helper script block"
-          js = s[start + len("<script>"):end]
+          end = s.find("function parseSmartCsv(raw,delimiter)", pos)
+          assert pos >= 0 and end > pos, "Could not locate the isolated PDF helper functions"
+          js = s[pos:end]
           Path("/tmp/anas-pdf-helper.js").write_text(js, encoding="utf-8")
-          print("Extracted PDF helper script for syntax validation")
+          print("Extracted isolated PDF helper functions for syntax validation")
           PY
           node --check /tmp/anas-pdf-helper.js
       - name: Validate document center capabilities and privacy
