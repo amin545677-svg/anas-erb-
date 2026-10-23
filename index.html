@@ -5966,12 +5966,18 @@ function renderPurchasesTable() {
             const status=document.getElementById('anasAiGatewayStatus');
             const url=((input?.value||'').trim()||localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'').replace(/\/$/,'');
             if(!url){alert('الصق رابط Cloudflare الذي ينتهي بـ workers.dev أولاً.');return;}
-            if(status) status.textContent='⏳ جارٍ اختبار الاتصال…';
+            if(status) status.textContent='⏳ جارٍ اختبار صحة الخادم…';
             try{
-                const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'أجب بكلمة واحدة: متصل',prompt:'أجب بكلمة واحدة: متصل',message:'أجب بكلمة واحدة: متصل'}),mode:'cors'});
+                // Health checks must not invoke the model or consume API credits.
+                const r=await fetch(url+'/health',{method:'GET',headers:{'Accept':'application/json'},cache:'no-store',mode:'cors'});
                 const t=await r.text();
-                if(status) status.textContent=r.ok?'✅ وصل رد من الخادم (HTTP '+r.status+'): '+t.slice(0,250):'⚠️ الخادم ردّ برمز HTTP '+r.status+': '+t.slice(0,250);
-            }catch(e){if(status)status.textContent='❌ تعذر الاتصال. تحقق من رابط workers.dev وإعدادات CORS ونشر الخادم. التفاصيل: '+(e.message||e);}
+                let data; try{data=JSON.parse(t)}catch{data={};}
+                if(!r.ok) throw new Error('HTTP '+r.status+' — '+t.slice(0,180));
+                if(data.service!=='anas-erp-openai-ai'||typeof data.configured!=='boolean') throw new Error('استجابة الصحة غير متوافقة مع خادم Anas AI المتوقع.');
+                if(status) status.textContent=data.configured
+                    ? '✅ الخادم يعمل، ومفتاح الخدمة مُعدّ. النموذج: '+String(data.model||'غير محدد')+'. لم يتم إرسال سؤال مدفوع.'
+                    : '⚠️ الخادم متاح، لكن OPENAI_API_KEY غير مُعدّ في Cloudflare.';
+            }catch(e){if(status)status.textContent='❌ تعذر تأكيد صحة الخادم. تحقق من رابط workers.dev وCORS ونشر العامل. التفاصيل: '+(e.message||e);}
         }
         document.addEventListener('DOMContentLoaded',()=>{const i=document.getElementById('anasAiGateway');if(i)i.value=localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'';});
 
