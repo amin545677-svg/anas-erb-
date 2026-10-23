@@ -1,12 +1,8 @@
 name: Deploy ANAS ERP Firebase Worker
 
 on:
+  # Worker changes must be reviewed before an explicit manual deployment.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "cloudflare/worker_firebase_snapshot.js"
-      - "cloudflare/wrangler.toml"
 
 permissions:
   contents: read
