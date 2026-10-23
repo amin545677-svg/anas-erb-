@@ -1857,7 +1857,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <section id="view-ai-excel-hub" class="page-view">
             <div class="sub-header-bar">
                 <button class="btn-arrow-back" onclick="openView('dashboard')">‹</button>
-                <div class="sub-header-title">مركز الإكسل الذكي</div>
+                <div class="sub-header-title">مركز الملفات الذكي | Excel · PDF</div>
                 <div>✨</div>
             </div>
 
@@ -1969,7 +1969,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('settings');"><span class="row-icon">⚙️</span> الاعدادات</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('settings');"><span class="row-icon">TAX</span> الضرائب</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('users');"><span class="row-icon">👥</span> المستخدمين والصلاحيات</div>
-        <div class="drawer-nav-row" onclick="closeDrawer(); openView('ai-excel-hub');"><span class="row-icon">📊</span> مركز الإكسل الذكي</div>
+        <div class="drawer-nav-row" onclick="closeDrawer(); openView('ai-excel-hub');"><span class="row-icon">📊</span> مركز الملفات الذكي | Excel · PDF</div>
 
         <div class="drawer-cat-heading">النسخ الاحتياطي والمساعدة</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); exportDataBackup();"><span class="row-icon">🕒</span> النسخ الاحتياطي للبيانات</div>
@@ -5088,16 +5088,30 @@ function renderPurchasesTable() {
                         <span style="font-size:1.35rem;">🤖</span>
                         <h3 style="font-size:1rem; color:var(--mp-navy); font-weight:900;">إدارة بيانات [${activeAiTab}]</h3>
                     </div>
-                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:14px; line-height:1.4;">
-                        تنزيل قوالب CSV منفصلة تفتح في Excel (ملف خاص بكل قسم)، أو استيراد ملف بعد المعاينة والفحص. لن تُخلط المنتجات بالعملاء أو الموردين:
+                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:14px; line-height:1.6;">
+                        مساحة موحّدة لملفات العمل: Excel وCSV وPDF. افحص الملف أولًا، راجع المعاينة، ثم اختر الإجراء المناسب. لا تُستورد أي بيانات إلى سجلات النظام تلقائيًا.
                     </p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px">
+                        <div style="padding:10px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a"><b>📊 Excel / CSV</b><div style="font-size:12px;margin-top:4px">قراءة ومعاينة وتدقيق الأعمدة</div></div>
+                        <div style="padding:10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff;color:#5b21b6"><b>📄 PDF</b><div style="font-size:12px;margin-top:4px">استخراج النص وتنزيله للمراجعة</div></div>
+                        <div style="padding:10px;border:1px solid #a7f3d0;border-radius:10px;background:#ecfdf5;color:#065f46"><b>🔒 حماية البيانات</b><div style="font-size:12px;margin-top:4px">المعالجة محليًا أولًا؛ الإرسال يدوي فقط</div></div>
+                    </div>
                     <div style="display:flex; gap:8px;">
                         <button class="btn-full-submit" style="background:#7c3aed; margin:0; flex:1;" onclick="triggerAiGeneration('${activeAiTab}')">✨ توليد بيانات جاهزة</button>
                         <button class="btn-full-submit" style="background:#0284c7; margin:0; flex:1;" onclick="document.getElementById('smartAiExcelUpload').click()">📂 استيراد Excel/CSV بأمان</button>
                     </div>
                     <button type="button" class="btn-full-submit" style="background:#9333ea; margin-top:10px; width:100%;" onclick="openInvoiceOcr()">📷 مسح الفواتير بالذكاء الاصطناعي</button>
-                    <input type="file" id="smartAiExcelUpload" accept=".csv,.txt,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="handleSmartAiUpload(event)">
-                    <div id="smartAiExcelStatus" role="status" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
+                    <input type="file" id="smartAiExcelUpload" accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="handleSmartAiUpload(event)">
+                    <div id="smartAiExcelStatus" role="status" aria-live="polite" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
+                    <div id="smartPdfExtractResults" style="display:none;margin-top:12px;border:1px solid #c4b5fd;border-radius:12px;padding:12px;background:var(--mp-card,#fff)">
+                        <div id="smartPdfExtractMeta" style="font-size:13px;font-weight:800;margin-bottom:8px"></div>
+                        <textarea id="smartPdfExtractText" rows="8" readonly aria-label="النص المستخرج من ملف PDF" style="width:100%;box-sizing:border-box;font:inherit;padding:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                            <button type="button" class="btn-full-submit" style="background:#475569;flex:1;margin:0" onclick="anasDownloadPdfText()">⬇️ تنزيل النص المستخرج</button>
+                            <button type="button" class="btn-full-submit" style="background:#6d28d9;flex:1;margin:0" onclick="anasAskAiAboutPdf()">✨ تحليل النص بالذكاء الاصطناعي</button>
+                        </div>
+                        <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">لن يُرسل النص إلى الخادم إلا عند الضغط على «تحليل النص بالذكاء الاصطناعي». ملفات PDF المصوّرة التي لا تحتوي على نص قابل للاستخراج تحتاج OCR.</small>
+                    </div>
                 </div>
 
                 <div class="action-menu-list">
@@ -5260,6 +5274,19 @@ function renderPurchasesTable() {
             const ext=(file.name.split('.').pop()||'').toLowerCase();
             if(status) status.textContent='⏳ جارٍ فتح الملف: '+file.name;
             try {
+                if(ext==='pdf'){
+                    const extracted=await anasExtractPdfText(file);
+                    const box=document.getElementById('smartPdfExtractResults');
+                    const textBox=document.getElementById('smartPdfExtractText');
+                    const meta=document.getElementById('smartPdfExtractMeta');
+                    if(textBox) textBox.value=extracted.text;
+                    if(meta) meta.textContent='📄 '+file.name+' — '+extracted.pages+' صفحة — '+extracted.text.length.toLocaleString('fr-FR')+' حرف';
+                    if(box) box.style.display='block';
+                    if(status) status.textContent=extracted.text.trim()
+                      ? '✅ تم استخراج النص محليًا. راجعه قبل التنزيل أو التحليل.'
+                      : '⚠️ لم يُعثر على نص قابل للاستخراج. قد يكون PDF عبارة عن صور؛ استخدم مسح الفواتير بالذكاء الاصطناعي أو OCR.';
+                    return;
+                }
                 let rows=[];
                 if(ext==='csv' || ext==='txt') {
                     const raw=await file.text();
@@ -5289,6 +5316,61 @@ function renderPurchasesTable() {
                 alert('تعذر فتح الملف: '+(err.message||err));
             } finally { input.value=''; }
         }
+
+        async function anasExtractPdfText(file){
+            if(!window.pdfjsLib){
+                await new Promise((resolve,reject)=>{
+                    const sc=document.createElement('script');
+                    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                    sc.crossOrigin='anonymous';sc.referrerPolicy='no-referrer';
+                    sc.onload=resolve;sc.onerror=()=>reject(new Error('تعذر تحميل قارئ PDF. تحقق من الإنترنت أو استخدم OCR.'));
+                    document.head.appendChild(sc);
+                });
+            }
+            if(!window.pdfjsLib) throw new Error('قارئ PDF غير متاح.');
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            const bytes=await file.arrayBuffer();
+            const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+            const chunks=[];const maxPages=Math.min(pdf.numPages,100);
+            for(let pageNo=1;pageNo<=maxPages;pageNo++){
+                const page=await pdf.getPage(pageNo);
+                const content=await page.getTextContent();
+                const line=content.items.map(item=>item.str||'').join(' ').replace(/[ \\t]+/g,' ').trim();
+                if(line) chunks.push('--- الصفحة '+pageNo+' ---\\n'+line);
+            }
+            let text=chunks.join('\\n\\n');
+            if(pdf.numPages>maxPages) text+='\\n\\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pdf.numPages+'.]';
+            return {text,pages:pdf.numPages};
+        }
+        function anasDownloadPdfText(){
+            const text=document.getElementById('smartPdfExtractText')?.value||'';
+            if(!text.trim()){alert('لا يوجد نص مستخرج لتنزيله.');return;}
+            const blob=new Blob(['\\uFEFF'+text],{type:'text/plain;charset=utf-8;'});
+            const url=URL.createObjectURL(blob);const a=document.createElement('a');
+            a.href=url;a.download='ANAS_ERP_PDF_Extract.txt';document.body.appendChild(a);a.click();a.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),1500);
+        }
+        async function anasAskAiAboutPdf(){
+            const text=(document.getElementById('smartPdfExtractText')?.value||'').trim();
+            if(!text){alert('استخرج النص من ملف PDF أولًا.');return;}
+            let url='';
+            try{url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim();}catch(_){alert('تعذر قراءة إعدادات خادم الذكاء الاصطناعي.');return;}
+            if(!url){alert('اضبط رابط خادم الذكاء الاصطناعي من الإعدادات أولًا.');return;}
+            const question=prompt('ما المطلوب من ملف PDF؟ مثال: لخّصه، استخرج المبالغ والتواريخ، أو حوّله إلى جدول. لن يُرسل النص إلا بعد تأكيدك هنا.');
+            if(!question||!question.trim())return;
+            const status=document.getElementById('smartAiExcelStatus');
+            if(status)status.textContent='⏳ جارٍ تحليل النص الذي اخترت إرساله…';
+            try{
+                const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'chat',message:question.trim(),businessData:{documentText:text.slice(0,28000),source:'PDF text extracted in browser'},language:'ar'})});
+                const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
+                if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
+                const answer=String(data.text||data.answer||'لم تصل إجابة نصية.');
+                const blob=new Blob(['\\uFEFF'+answer],{type:'text/plain;charset=utf-8;'});
+                const dl=URL.createObjectURL(blob);const a=document.createElement('a');a.href=dl;a.download='ANAS_ERP_PDF_Analysis.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(dl),1500);
+                if(status)status.textContent='✅ اكتمل التحليل ونُزّلت الإجابة في ملف نصي.';
+            }catch(err){if(status)status.textContent='❌ تعذر تحليل PDF: '+(err.message||err);}
+        }
+
         function parseSmartCsv(raw,delimiter) {
             const rows=[]; let row=[], cell='', quoted=false;
             raw=raw.replace(/^\uFEFF/,'');
