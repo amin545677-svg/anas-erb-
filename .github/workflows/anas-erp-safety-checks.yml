@@ -372,7 +372,32 @@ jobs:
           assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'failed save restores truck stock');
           assert.deepEqual(AppData.stockMovements, [{id:'prior'}], 'failed save restores movement ledger');
           assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'failed save removes settlement marker');
-          console.log('Truck settlement mock tests passed: invoice match, stock partition, idempotency and rollback');
+          // Reject empty invoice details and malformed invoice lines before any persistence.
+          for (const badInvoice of [
+            {id:'INV-EMPTY',warehouse:'Truck T',warehouseName:'Truck T',items:[]},
+            {id:'INV-BAD-QTY',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:-2}]},
+            {id:'INV-BAD-ID',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'',qty:6}]}
+          ]) {
+            global.prompt = (() => {
+              const answers = ['6','1','1','2',badInvoice.id];
+              return () => answers.shift();
+            })();
+            let badInvoiceSaveCalled = false;
+            global.saveDB = () => { badInvoiceSaveCalled = true; return true; };
+            global.AppData = {
+              products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+              truckTrips: [{id:'TBAD',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+              invoices: [badInvoice],
+              stockMovements: []
+            };
+            window.anasTruckSettle('TBAD');
+            assert.equal(badInvoiceSaveCalled, false, badInvoice.id + ' must not be persisted');
+            assert.equal(AppData.products[0].stock, 5, badInvoice.id + ' must not mutate main stock');
+            assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, badInvoice.id + ' must not mutate truck stock');
+            assert.equal(AppData.stockMovements.length, 0, badInvoice.id + ' must not create ledger movements');
+            assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, badInvoice.id + ' must not mark trip settled');
+          }
+          console.log('Truck settlement mock tests passed: invoice match, stock partition, idempotency, rollback, empty details and malformed invoice lines');
           """
           js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-settlement-test.js").write_text(js, encoding="utf-8")
