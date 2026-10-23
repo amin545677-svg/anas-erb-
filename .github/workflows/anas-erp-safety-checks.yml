@@ -57,6 +57,23 @@ jobs:
           assert not missing, f"Missing Worker safety/contract markers: {missing}"
           print("Worker syntax and required contract markers passed")
           PY
+      - name: Validate contextual AI helper privacy guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          required = [
+              'id="anasContextAiFab"', 'id="anasContextAiPanel"',
+              "anasErpAiGatewayUrlV1", "function safeContext(el)",
+              "el.type==='password'", "el.type==='file'",
+              "let savedUrl='';", "try{savedUrl=localStorage.getItem",
+              "if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function')",
+              "لم تُرسل قيمة الخانة."
+          ]
+          missing = [x for x in required if x not in s]
+          assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
+          print("Contextual AI helper presence and privacy guards passed")
+          PY
       - name: Validate Firebase rules are user-scoped
         run: |
           python - <<'PY'
