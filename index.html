@@ -5318,6 +5318,8 @@ function renderPurchasesTable() {
         }
 
         async function anasExtractPdfText(file){
+            const maxBytes=20*1024*1024;
+            if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
             if(!window.pdfjsLib){
                 await new Promise((resolve,reject)=>{
                     const sc=document.createElement('script');
@@ -5330,22 +5332,24 @@ function renderPurchasesTable() {
             if(!window.pdfjsLib) throw new Error('قارئ PDF غير متاح.');
             window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
             const bytes=await file.arrayBuffer();
-            const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+            let pdf;
+            try{pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;}
+            catch(_){throw new Error('تعذر فتح ملف PDF. قد يكون تالفًا أو محميًا بكلمة مرور.');}
             const chunks=[];const maxPages=Math.min(pdf.numPages,100);
             for(let pageNo=1;pageNo<=maxPages;pageNo++){
                 const page=await pdf.getPage(pageNo);
                 const content=await page.getTextContent();
                 const line=content.items.map(item=>item.str||'').join(' ').replace(/[ \\t]+/g,' ').trim();
-                if(line) chunks.push('--- الصفحة '+pageNo+' ---\\n'+line);
+                if(line) chunks.push('--- الصفحة '+pageNo+' ---\n'+line);
             }
-            let text=chunks.join('\\n\\n');
-            if(pdf.numPages>maxPages) text+='\\n\\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pdf.numPages+'.]';
+            let text=chunks.join('\n\n');
+            if(pdf.numPages>maxPages) text+='\n\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pdf.numPages+'.]';
             return {text,pages:pdf.numPages};
         }
         function anasDownloadPdfText(){
             const text=document.getElementById('smartPdfExtractText')?.value||'';
             if(!text.trim()){alert('لا يوجد نص مستخرج لتنزيله.');return;}
-            const blob=new Blob(['\\uFEFF'+text],{type:'text/plain;charset=utf-8;'});
+            const blob=new Blob(['\uFEFF'+text],{type:'text/plain;charset=utf-8;'});
             const url=URL.createObjectURL(blob);const a=document.createElement('a');
             a.href=url;a.download='ANAS_ERP_PDF_Extract.txt';document.body.appendChild(a);a.click();a.remove();
             setTimeout(()=>URL.revokeObjectURL(url),1500);
@@ -5365,7 +5369,7 @@ function renderPurchasesTable() {
                 const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
                 if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
                 const answer=String(data.text||data.answer||'لم تصل إجابة نصية.');
-                const blob=new Blob(['\\uFEFF'+answer],{type:'text/plain;charset=utf-8;'});
+                const blob=new Blob(['\uFEFF'+answer],{type:'text/plain;charset=utf-8;'});
                 const dl=URL.createObjectURL(blob);const a=document.createElement('a');a.href=dl;a.download='ANAS_ERP_PDF_Analysis.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(dl),1500);
                 if(status)status.textContent='✅ اكتمل التحليل ونُزّلت الإجابة في ملف نصي.';
             }catch(err){if(status)status.textContent='❌ تعذر تحليل PDF: '+(err.message||err);}
