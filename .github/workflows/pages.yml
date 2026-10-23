@@ -1,8 +1,7 @@
 name: Deploy ANAS ERP Full App to GitHub Pages
 
 on:
-  push:
-    branches: [main]
+  # Production deployment is intentionally manual; ordinary code pushes must not publish.
   workflow_dispatch:
 
 permissions:
