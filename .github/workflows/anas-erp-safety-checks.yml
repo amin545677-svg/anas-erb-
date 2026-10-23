@@ -88,6 +88,51 @@ jobs:
               raise SystemExit("AI gateway contract checks failed: " + "; ".join(missing))
           print(f"All {len(checks)} AI gateway contract checks passed.")
           PY
+      - name: Exercise OpenAI AI Worker health, CORS, and input guards
+        run: |
+          cp cloudflare/worker_openai_ai.js /tmp/anas-openai-worker.mjs
+          cat > /tmp/anas-openai-worker-smoke.mjs <<'JS'
+          import assert from 'node:assert/strict';
+          import worker from './anas-openai-worker.mjs';
+
+          const call = (url, init = {}, env = {}) => worker.fetch(
+            new Request(url, init), env
+          );
+          const allowed = { ALLOWED_ORIGINS: 'https://amin545677-svg.github.io' };
+          let response = await call('https://worker.example/health');
+          assert.equal(response.status, 200, 'direct health endpoint should respond');
+          let body = await response.json();
+          assert.equal(body.ok, true);
+          assert.equal(body.service, 'anas-erp-openai-ai');
+          assert.equal(body.configured, false, 'health check must not require or expose a key');
+          assert.equal(body.model, 'gpt-4.1-mini');
+
+          response = await call('https://worker.example/health', {
+            headers: { Origin: 'https://amin545677-svg.github.io' }
+          }, allowed);
+          assert.equal(response.status, 200);
+          assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'https://amin545677-svg.github.io');
+
+          response = await call('https://worker.example/health', {
+            headers: { Origin: 'https://evil.example' }
+          }, allowed);
+          assert.equal(response.status, 403, 'unapproved origin must be rejected');
+
+          response = await call('https://worker.example/', {
+            method: 'POST',
+            headers: { Origin: 'https://amin545677-svg.github.io', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: 'test' })
+          }, allowed);
+          assert.equal(response.status, 503, 'chat without API key must fail safely before upstream call');
+
+          response = await call('https://worker.example/not-found', {
+            headers: { Origin: 'https://amin545677-svg.github.io' }
+          }, allowed);
+          assert.equal(response.status, 404);
+
+          console.log('OpenAI Worker runtime smoke tests passed: health, key-free check, CORS allow/deny, missing-key guard, and 404.');
+          JS
+          node /tmp/anas-openai-worker-smoke.mjs
       - name: Check contextual AI helper JavaScript syntax
         run: |
           python - <<'PY'
