@@ -142,6 +142,8 @@ def main():
         errors.append("integrated warehouse transfer must validate persisted stock data before mutation")
     if not transfer_fn or "WAREHOUSE_TRANSFER_OUT" not in transfer_fn or "WAREHOUSE_TRANSFER_IN" not in transfer_fn or "const movementsBefore=AppData.stockMovements.slice();" not in transfer_fn or "AppData.stockMovements=movementsBefore;" not in transfer_fn:
         errors.append("warehouse transfers must write balanced source/destination stock-ledger entries and roll them back on save failure")
+    if not transfer_fn or "const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');" not in transfer_fn or "if(hadMainStock)p.stock=beforeMain;else delete p.stock;" not in transfer_fn:
+        errors.append("warehouse transfer rollback must preserve whether the main stock property originally existed")
     if not modal_fn or "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" not in modal_fn or "return;" not in modal_fn:
         errors.append("integrated POS payment modal must remain blocked for malformed cart values")
     if sale_fn and transfer_fn and modal_fn and "wtTryEnsureData" in sale_fn and "hasDebtField" in sale_fn and "if(!wtTryEnsureData())return;" in transfer_fn and "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" in modal_fn and "return;" in modal_fn:
