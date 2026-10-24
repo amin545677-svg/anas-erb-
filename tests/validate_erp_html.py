@@ -57,6 +57,20 @@ def main():
     parser.close()
     errors = []
 
+    # Notification HTML is a sink: names from imported/local data must be escaped before interpolation.
+    alert_safety_guards = [
+        "const productName = anasEscapeHTML(String(p.name || 'منتج بدون اسم'));",
+        "const customerName = anasEscapeHTML(String(c.name || 'عميل بدون اسم'));",
+        "${productName}",
+        "${customerName}",
+        "Number.isFinite(debt) && debt > 0 && days > 30",
+    ]
+    for guard in alert_safety_guards:
+        if guard not in source:
+            errors.append("alert rendering safety guard is missing: " + guard)
+    if not any("alert rendering safety guard is missing:" in error for error in errors):
+        print("PASS: product/customer names are escaped in notification HTML")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
