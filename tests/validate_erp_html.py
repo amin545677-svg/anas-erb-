@@ -97,6 +97,13 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # Warehouse balances must be actual finite non-negative numbers or non-empty numeric strings.
+    warehouse_balance_guard = "String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0"
+    if warehouse_balance_guard not in source or "typeof balance === 'number' || typeof balance === 'string'" not in source:
+        errors.append("backup validator must reject blank, boolean, object, non-finite, and negative warehouse balances")
+    else:
+        print("PASS: backup validator rejects blank and non-numeric warehouse balances")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
