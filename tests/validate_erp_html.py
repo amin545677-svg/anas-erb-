@@ -73,6 +73,14 @@ def main():
     else:
         print("PASS: startup safely reads the active POS cart")
 
+    user_warehouse_start = source.find("function wtEnsureUserWarehouse(user)")
+    user_warehouse_end = source.find("function wtCurrentSaleWarehouse()", user_warehouse_start)
+    user_warehouse_helper = source[user_warehouse_start:user_warehouse_end] if user_warehouse_start >= 0 and user_warehouse_end > user_warehouse_start else ""
+    if "if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];" not in user_warehouse_helper or "AppData.warehouses.some(w=>" not in user_warehouse_helper or "if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];" in user_warehouse_helper:
+        errors.append("user warehouse assignment must preserve and reject malformed persisted warehouse lists")
+    else:
+        print("PASS: user warehouse assignment fails closed on malformed warehouse lists")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
