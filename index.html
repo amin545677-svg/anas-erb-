@@ -3231,39 +3231,41 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             a4Area.classList.remove('printable');
             area.classList.add('printable');
 
-            const sc = AppData.storeConfig;
+            const sc = AppData.storeConfig || {};
+            const esc = value => anasEscapeHTML(String(value ?? ''));
+            const money = value => (Number.isFinite(Number(value)) ? Number(value) : 0).toFixed(2);
             let rows = '';
-            inv.items.forEach(it => {
-                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${it.unit || ''}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${(Number(it.qty||0)*Number(it.price||0)).toFixed(2)}</td></tr>`;
+            (Array.isArray(inv.items) ? inv.items : []).forEach(it => {
+                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${esc(it.name)}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${money(it.qty)} ${esc(it.unit || '')}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${money(Number(it.qty||0)*Number(it.price||0))}</td></tr>`;
             });
 
             const custInfo = inv.customerObj || {};
 
             area.innerHTML = `
                 <div style="text-align:center; border-bottom:2px dashed #000; padding-bottom:8px; margin-bottom:8px; line-height:1.5; overflow-wrap:anywhere;">
-                    <h2 style="margin:0; font-size:16px;">${sc.name}</h2>
-                    <p style="margin:2px 0; font-size:11px;">${sc.address} | هاتف: ${sc.phone} ${sc.phone2 ? '- ' + sc.phone2 : ''}</p>
+                    <h2 style="margin:0; font-size:16px;">${esc(sc.name)}</h2>
+                    <p style="margin:2px 0; font-size:11px;">${esc(sc.address)} | هاتف: ${esc(sc.phone)} ${sc.phone2 ? '- ' + esc(sc.phone2) : ''}</p>
                     <div style="font-size:10px; margin:3px 0; line-height:1.4; border-top:1px dotted #ccc; border-bottom:1px dotted #ccc; padding:2px 0;">
-                        <span>RC: ${sc.rc || '-'}</span> | <span>NIF: ${sc.nif || '-'}</span><br>
-                        <span>NIS: ${sc.nis || '-'}</span> | <span>Art: ${sc.art || '-'}</span>
+                        <span>RC: ${esc(sc.rc || '-')}</span> | <span>NIF: ${esc(sc.nif || '-')}</span><br>
+                        <span>NIS: ${esc(sc.nis || '-')}</span> | <span>Art: ${esc(sc.art || '-')}</span>
                     </div>
-                    <p style="margin:3px 0; font-weight:bold; font-size:13px;">وصل بيع رقم: ${inv.id}</p>
-                    <p style="margin:2px 0; font-size:11px;">التاريخ: ${inv.date}</p>
-                    <p style="margin:2px 0; font-size:12px; font-weight:bold;">العميل: ${inv.customer}</p>
-                    ${custInfo.nif ? `<p style="margin:1px 0; font-size:10px;">NIF العميل: ${custInfo.nif} | RC: ${custInfo.rc || '-'}</p>` : ''}
+                    <p style="margin:3px 0; font-weight:bold; font-size:13px;">وصل بيع رقم: ${esc(inv.id)}</p>
+                    <p style="margin:2px 0; font-size:11px;">التاريخ: ${esc(inv.date)}</p>
+                    <p style="margin:2px 0; font-size:12px; font-weight:bold;">العميل: ${esc(inv.customer)}</p>
+                    ${custInfo.nif ? `<p style="margin:1px 0; font-size:10px;">NIF العميل: ${esc(custInfo.nif)} | RC: ${esc(custInfo.rc || '-')}</p>` : ''}
                 </div>
                 <table style="width:100%; table-layout:fixed; font-size:11px; line-height:1.45; border-collapse:collapse; margin-bottom:8px;">
                     <thead><tr style="border-bottom:1px solid #000;"><th style="text-align:right;">السلعة</th><th style="text-align:center;">الكمية</th><th style="text-align:left;">المجموع</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 <div style="border-top:2px dashed #000; padding-top:7px; font-size:12px; line-height:1.7;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الإجمالي:</span><span>${inv.total} د.ج</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المدفوع:</span><span>${inv.paid} د.ج</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المتبقي:</span><span>${inv.remaining} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الإجمالي:</span><span>${money(inv.total)} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span>المدفوع:</span><span>${money(inv.paid)} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span>المتبقي:</span><span>${money(inv.remaining)} د.ج</span></div>
                     <hr style="border:0; border-top:1px dashed #000; margin:3px 0;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>دين العميل الكلي:</span><span>${inv.newDebt} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>دين العميل الكلي:</span><span>${money(inv.newDebt)} د.ج</span></div>
                 </div>
-                <div style="text-align:center; margin-top:8px; font-size:10px;">${sc.footer}</div>
+                <div style="text-align:center; margin-top:8px; font-size:10px;">${esc(sc.footer)}</div>
             `;
             window.print();
         }
@@ -3274,20 +3276,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             area.classList.remove('printable');
             a4Area.classList.add('printable');
 
-            const sc = AppData.storeConfig;
+            const sc = AppData.storeConfig || {};
             const cust = inv.customerObj || {};
+            const esc = value => anasEscapeHTML(String(value ?? ''));
+            const money = value => (Number.isFinite(Number(value)) ? Number(value) : 0).toFixed(2);
             let tableRows = '';
 
-            inv.items.forEach((it, index) => {
-                const sub = it.qty * it.price;
+            (Array.isArray(inv.items) ? inv.items : []).forEach((it, index) => {
+                const qty = Number(it.qty) || 0;
+                const price = Number(it.price) || 0;
+                const sub = qty * price;
                 tableRows += `
                     <tr style="border-bottom:1px solid #e2e8f0;">
                         <td style="padding:8px; text-align:center;">${index + 1}</td>
-                        <td style="padding:8px; text-align:right; font-weight:bold;">${it.name}</td>
-                        <td style="padding:8px; text-align:center;">${it.unit || 'قطعة'}</td>
-                        <td style="padding:8px; text-align:center;">${it.qty}</td>
-                        <td style="padding:8px; text-align:left;">${it.price.toFixed(2)}</td>
-                        <td style="padding:8px; text-align:left; font-weight:bold;">${sub.toFixed(2)}</td>
+                        <td style="padding:8px; text-align:right; font-weight:bold;">${esc(it.name)}</td>
+                        <td style="padding:8px; text-align:center;">${esc(it.unit || 'قطعة')}</td>
+                        <td style="padding:8px; text-align:center;">${money(qty)}</td>
+                        <td style="padding:8px; text-align:left;">${money(price)}</td>
+                        <td style="padding:8px; text-align:left; font-weight:bold;">${money(sub)}</td>
                     </tr>
                 `;
             });
@@ -3296,33 +3302,33 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="direction:rtl; font-family:Arial,Tahoma,sans-serif; color:#0f172a; line-height:1.55; width:100%; min-height:240mm; box-sizing:border-box; padding:4mm; background:#fff; font-size:12px;">
                     <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e3a8a; padding-bottom:14px; margin-bottom:14px;">
                         <div>
-                            <h1 style="margin:0; font-size:20px; color:#1e3a8a;">${sc.name}</h1>
-                            <p style="margin:3px 0; font-size:13px;">${sc.address}</p>
-                            <p style="margin:3px 0; font-size:13px;">هاتف: ${sc.phone} ${sc.phone2 ? ' / ' + sc.phone2 : ''}</p>
+                            <h1 style="margin:0; font-size:20px; color:#1e3a8a;">${esc(sc.name)}</h1>
+                            <p style="margin:3px 0; font-size:13px;">${esc(sc.address)}</p>
+                            <p style="margin:3px 0; font-size:13px;">هاتف: ${esc(sc.phone)} ${sc.phone2 ? ' / ' + esc(sc.phone2) : ''}</p>
                         </div>
                         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:8px 14px; font-size:11px; line-height:1.6; text-align:right;">
-                            <div><strong>N° RC :</strong> ${sc.rc || '-'}</div>
-                            <div><strong>NIF :</strong> ${sc.nif || '-'}</div>
-                            <div><strong>NIS :</strong> ${sc.nis || '-'}</div>
-                            <div><strong>N° Article :</strong> ${sc.art || '-'}</div>
+                            <div><strong>N° RC :</strong> ${esc(sc.rc || '-')}</div>
+                            <div><strong>NIF :</strong> ${esc(sc.nif || '-')}</div>
+                            <div><strong>NIS :</strong> ${esc(sc.nis || '-')}</div>
+                            <div><strong>N° Article :</strong> ${esc(sc.art || '-')}</div>
                         </div>
                     </div>
 
                     <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; margin-bottom:14px;">
                         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; flex:1 1 280px; box-sizing:border-box;">
                             <h3 style="margin:0 0 4px; font-size:15px; color:#1e3a8a;">فاتورة بيع رسمية (FACTURE)</h3>
-                            <div style="font-size:12px;"><strong>رقم الفاتورة:</strong> ${inv.id}</div>
-                            <div style="font-size:12px;"><strong>التاريخ:</strong> ${inv.date}</div>
-                            <div style="font-size:12px;"><strong>طريقة السداد:</strong> ${inv.paid >= inv.total ? 'نقداً (كاش)' : 'بالآجل (على الحساب)'}</div>
+                            <div style="font-size:12px;"><strong>رقم الفاتورة:</strong> ${esc(inv.id)}</div>
+                            <div style="font-size:12px;"><strong>التاريخ:</strong> ${esc(inv.date)}</div>
+                            <div style="font-size:12px;"><strong>طريقة السداد:</strong> ${Number(inv.paid) >= Number(inv.total) ? 'نقداً (كاش)' : 'بالآجل (على الحساب)'}</div>
                         </div>
 
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; flex:1 1 280px; box-sizing:border-box;">
                             <h3 style="margin:0 0 4px; font-size:14px; color:#334155;">بيانات الزبون (Client)</h3>
-                            <div style="font-size:12px;"><strong>السيد / المحل:</strong> ${cust.name || inv.customer}</div>
-                            <div style="font-size:12px;"><strong>العنوان:</strong> ${cust.address || 'غير محدد'}</div>
-                            <div style="font-size:12px;"><strong>الهاتف:</strong> ${cust.phone || '-'}</div>
+                            <div style="font-size:12px;"><strong>السيد / المحل:</strong> ${esc(cust.name || inv.customer)}</div>
+                            <div style="font-size:12px;"><strong>العنوان:</strong> ${esc(cust.address || 'غير محدد')}</div>
+                            <div style="font-size:12px;"><strong>الهاتف:</strong> ${esc(cust.phone || '-')}</div>
                             <div style="font-size:11px; color:#64748b; margin-top:2px;">
-                                RC: ${cust.rc || '-'} | NIF: ${cust.nif || '-'} | Art: ${cust.art || '-'}
+                                RC: ${esc(cust.rc || '-')} | NIF: ${esc(cust.nif || '-')} | Art: ${esc(cust.art || '-')}
                             </div>
                         </div>
                     </div>
@@ -3344,17 +3350,17 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:stretch; margin:14px 0;">
                         <div style="flex:1 1 280px; box-sizing:border-box; font-size:12px; padding:12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px;">
                             <p style="margin:0 0 4px; font-weight:bold;">المبلغ الإجمالي بالحروف:</p>
-                            <p style="margin:0; font-style:italic; color:#1e3a8a;">أوقفت هذه الفاتورة عند المبلغ الإجمالي الصافي: <strong>${inv.total.toFixed(2)} دينار جزائري</strong> لا غير.</p>
+                            <p style="margin:0; font-style:italic; color:#1e3a8a;">أوقفت هذه الفاتورة عند المبلغ الإجمالي الصافي: <strong>${money(inv.total)} دينار جزائري</strong> لا غير.</p>
                         </div>
 
                         <div style="flex:1 1 220px; box-sizing:border-box; font-size:13px; line-height:1.9;">
                             <div style="display:flex; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding:2px 0;">
                                 <span>المجموع الإجمالي:</span>
-                                <strong>${inv.total.toFixed(2)} د.ج</strong>
+                                <strong>${money(inv.total)} د.ج</strong>
                             </div>
                             <div style="display:flex; justify-content:space-between; background:#dbeafe; padding:6px 8px; border-radius:6px; font-weight:900; color:#1e3a8a; margin-top:4px;">
                                 <span>الصافي للدفع (TTC):</span>
-                                <span>${inv.total.toFixed(2)} د.ج</span>
+                                <span>${money(inv.total)} د.ج</span>
                             </div>
                         </div>
                     </div>

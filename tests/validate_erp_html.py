@@ -57,6 +57,30 @@ def main():
     parser.close()
     errors = []
 
+    # Thermal and A4 invoice print surfaces must escape imported names and business/customer metadata.
+    invoice_guards = [
+        "const esc = value => anasEscapeHTML(String(value ?? ''));",
+        "${esc(sc.name)}",
+        "${esc(sc.address)}",
+        "${esc(inv.customer)}",
+        "${esc(cust.name || inv.customer)}",
+        "${esc(cust.address || 'غير محدد')}",
+        "${esc(cust.phone || '-')}",
+        "${esc(cust.rc || '-')}",
+        "${esc(cust.nif || '-')}",
+        "${esc(cust.art || '-')}",
+        "${money(inv.total)}",
+        "${esc(it.name)}",
+        "${esc(it.unit || 'قطعة')}",
+        "const money = value => (Number.isFinite(Number(value)) ? Number(value) : 0).toFixed(2);",
+        "(Array.isArray(inv.items) ? inv.items : []).forEach(it =>",
+    ]
+    for guard in invoice_guards:
+        if guard not in source:
+            errors.append("invoice print safety guard is missing: " + guard)
+    if not any("invoice print safety guard is missing:" in error for error in errors):
+        print("PASS: thermal/A4 invoice print fields are escaped and numeric output is normalized")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
