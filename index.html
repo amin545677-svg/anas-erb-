@@ -4279,9 +4279,15 @@ function renderPurchasesTable() {
                 inv.paymentMethod = newPaid <= 0 ? 'credit' : (newRemaining > 0 ? 'partial' : 'cash');
                 inv.editedAt = new Date().toISOString();
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
-                renderInvoicesList();
-                if (typeof renderInventoryList === 'function') renderInventoryList();
-                alert('تم تعديل الفاتورة وتسوية المخزون والحسابات بنجاح.');
+                // Persistence has committed. UI rendering errors must never roll back in-memory data after storage succeeded.
+                try {
+                    renderInvoicesList();
+                    if (typeof renderInventoryList === 'function') renderInventoryList();
+                    alert('تم تعديل الفاتورة وتسوية المخزون والحسابات بنجاح.');
+                } catch (uiError) {
+                    console.error('Invoice edit saved; UI refresh failed:', uiError);
+                    alert('تم حفظ تعديل الفاتورة وتسوية المخزون والحسابات، لكن تعذر تحديث الواجهة. أعد تحميل الصفحة للتحقق من العرض.');
+                }
             } catch (e) {
                 for (const [key, state] of Object.entries(snapshot.invoiceFields)) {
                     if (state.hadOwn) inv[key] = state.value;
