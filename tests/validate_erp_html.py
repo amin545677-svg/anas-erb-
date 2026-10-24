@@ -97,6 +97,14 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # POS sale must validate all warehouse balances and customer debt before financial mutation.
+    if "if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;" not in source:
+        errors.append("POS sale must run warehouse preflight before mutating stock")
+    if "Object.prototype.hasOwnProperty.call(cust,'debt')" not in source or "رصد دين العميل غير صالح" not in source:
+        errors.append("POS sale must reject malformed stored customer debt instead of coercing it to zero")
+    if not any("POS sale must validate" in error or "POS sale must run" in error for error in errors):
+        print("PASS: POS sale validates warehouse balances and customer debt before mutation")
+
     # Malformed array-shaped warehouse maps must block stock mutation, not be silently reset.
     sale_guard = "saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)"
     transfer_guard = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
