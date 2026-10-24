@@ -127,6 +127,12 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+    # At least one active warehouse initializer must reject array-shaped maps.
+    if "typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)" in source:
+        print("PASS: warehouse initialization rejects array-shaped warehouseStock")
+    else:
+        errors.append("warehouse initialization does not normalize array-shaped warehouseStock")
+
     if errors:
         for error in errors:
             print("FAIL:", error)
