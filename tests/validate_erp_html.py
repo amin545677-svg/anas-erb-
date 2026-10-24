@@ -129,12 +129,12 @@ def main():
 
     # Targeted regressions for the invoice/alert HTML injection fixes.
     def function_source(name):
-        match = re.search(r"\\bfunction\\s+" + re.escape(name) + r"\\s*\\([^)]*\\)\\s*\\{", source)
-        if not match:
+        marker = "function " + name + "("
+        start = source.find(marker)
+        if start < 0:
             return ""
-        next_function = re.search(r"\\n        function\\s+", source[match.end():])
-        end = match.end() + next_function.start() if next_function else len(source)
-        return source[match.start():end]
+        next_function = source.find("\n        function ", start + len(marker))
+        return source[start:next_function if next_function >= 0 else len(source)]
 
     escape_body = function_source("anasEscapeHTML")
     thermal = function_source("printThermalReceipt")
@@ -150,9 +150,9 @@ def main():
         "A4 invoice escapes store, customer, invoice, and item text":
             all(token in legal_a4 for token in ("anasEscapeHTML(sc.name)", "anasEscapeHTML(sc.address)", "anasEscapeHTML(inv.id)", "anasEscapeHTML(inv.date)", "anasEscapeHTML(cust.name", "anasEscapeHTML(cust.address", "anasEscapeHTML(cust.phone", "anasEscapeHTML(it.name)", "anasEscapeHTML(it.unit)")),
         "invoice print functions contain no raw high-risk text interpolations":
-            not any(token in thermal + legal_a4 for token in ("\${sc.name}", "\${sc.address}", "\${inv.id}", "\${inv.date}", "\${inv.customer}", "\${it.name}", "\${it.unit}")),
+            not any(token in thermal + legal_a4 for token in ("${sc.name}", "${sc.address}", "${inv.id}", "${inv.date}", "${inv.customer}", "${it.name}", "${it.unit}")),
         "alert product and customer names are HTML-escaped":
-            "esc(p.name)" in alerts and "esc(c.name)" in alerts and "\${p.name}" not in alerts and "\${c.name}" not in alerts,
+            "esc(p.name)" in alerts and "esc(c.name)" in alerts and "${p.name}" not in alerts and "${c.name}" not in alerts,
     }
     for label, passed in targeted_checks.items():
         if passed:
