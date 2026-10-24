@@ -104,6 +104,12 @@ def main():
     else:
         print("PASS: backup validator rejects blank and non-numeric warehouse balances")
 
+    primary_stock_guard = "typeof p.stock === 'number' || typeof p.stock === 'string'"
+    if primary_stock_guard not in source or "String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0" not in source:
+        errors.append("backup validator must reject blank, boolean, object, non-finite, and negative primary stock values")
+    else:
+        print("PASS: backup validator rejects malformed primary stock values")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
