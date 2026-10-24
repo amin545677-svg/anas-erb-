@@ -332,7 +332,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # POS sale must fail closed on malformed customer/invoice collections and cash balance.
     sale_start = source.find("function confirmHasibPayment()")
-    sale_end = source.find("\\n        function printLastConfirmedInvoice", sale_start)
+    sale_end = source.find("\n        function printLastConfirmedInvoice", sale_start)
     sale_source = source[sale_start:sale_end] if sale_start >= 0 and sale_end > sale_start else ""
     sale_integrity_guards = [
         "Object.prototype.hasOwnProperty.call(AppData, 'customers')",
