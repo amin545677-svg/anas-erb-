@@ -3302,23 +3302,23 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="direction:rtl; font-family:Arial,Tahoma,sans-serif; color:#0f172a; line-height:1.55; width:100%; min-height:240mm; box-sizing:border-box; padding:4mm; background:#fff; font-size:12px;">
                     <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e3a8a; padding-bottom:14px; margin-bottom:14px;">
                         <div>
-                            <h1 style="margin:0; font-size:20px; color:#1e3a8a;">${sc.name}</h1>
-                            <p style="margin:3px 0; font-size:13px;">${sc.address}</p>
-                            <p style="margin:3px 0; font-size:13px;">هاتف: ${sc.phone} ${sc.phone2 ? ' / ' + esc(sc.phone2) : ''}</p>
+                            <h1 style="margin:0; font-size:20px; color:#1e3a8a;">${esc(sc.name)}</h1>
+                            <p style="margin:3px 0; font-size:13px;">${esc(sc.address)}</p>
+                            <p style="margin:3px 0; font-size:13px;">هاتف: ${esc(sc.phone)} ${sc.phone2 ? ' / ' + esc(sc.phone2) : ''}</p>
                         </div>
                         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:8px 14px; font-size:11px; line-height:1.6; text-align:right;">
-                            <div><strong>N° RC :</strong> ${sc.rc || '-'}</div>
-                            <div><strong>NIF :</strong> ${sc.nif || '-'}</div>
-                            <div><strong>NIS :</strong> ${sc.nis || '-'}</div>
-                            <div><strong>N° Article :</strong> ${sc.art || '-'}</div>
+                            <div><strong>N° RC :</strong> ${esc(sc.rc || '-')}</div>
+                            <div><strong>NIF :</strong> ${esc(sc.nif || '-')}</div>
+                            <div><strong>NIS :</strong> ${esc(sc.nis || '-')}</div>
+                            <div><strong>N° Article :</strong> ${esc(sc.art || '-')}</div>
                         </div>
                     </div>
 
                     <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; margin-bottom:14px;">
                         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; flex:1 1 280px; box-sizing:border-box;">
                             <h3 style="margin:0 0 4px; font-size:15px; color:#1e3a8a;">فاتورة بيع رسمية (FACTURE)</h3>
-                            <div style="font-size:12px;"><strong>رقم الفاتورة:</strong> ${inv.id}</div>
-                            <div style="font-size:12px;"><strong>التاريخ:</strong> ${inv.date}</div>
+                            <div style="font-size:12px;"><strong>رقم الفاتورة:</strong> ${esc(inv.id)}</div>
+                            <div style="font-size:12px;"><strong>التاريخ:</strong> ${esc(inv.date)}</div>
                             <div style="font-size:12px;"><strong>طريقة السداد:</strong> ${Number(inv.paid) >= Number(inv.total) ? 'نقداً (كاش)' : 'بالآجل (على الحساب)'}</div>
                         </div>
 
