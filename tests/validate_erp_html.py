@@ -52,10 +52,17 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # Stocktake system quantities come from saved data and must render as numbers.
+    stocktake_system_qty_guard = "${safeNum(i.systemQty)}"
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    if stocktake_system_qty_guard not in source:
+        errors.append("stocktake system quantity is not normalized before HTML rendering")
+    else:
+        print("PASS: stocktake system quantity is rendered as a numeric value")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
