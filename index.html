@@ -3234,23 +3234,23 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const sc = AppData.storeConfig;
             let rows = '';
             inv.items.forEach(it => {
-                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${it.unit || ''}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${(Number(it.qty||0)*Number(it.price||0)).toFixed(2)}</td></tr>`;
+                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${anasEscapeHTML(it.unit || '')}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${(Number(it.qty||0)*Number(it.price||0)).toFixed(2)}</td></tr>`;
             });
 
             const custInfo = inv.customerObj || {};
 
             area.innerHTML = `
                 <div style="text-align:center; border-bottom:2px dashed #000; padding-bottom:8px; margin-bottom:8px; line-height:1.5; overflow-wrap:anywhere;">
-                    <h2 style="margin:0; font-size:16px;">${sc.name}</h2>
-                    <p style="margin:2px 0; font-size:11px;">${sc.address} | هاتف: ${sc.phone} ${sc.phone2 ? '- ' + sc.phone2 : ''}</p>
+                    <h2 style="margin:0; font-size:16px;">${anasEscapeHTML(sc.name)}</h2>
+                    <p style="margin:2px 0; font-size:11px;">${anasEscapeHTML(sc.address)} | هاتف: ${anasEscapeHTML(sc.phone)} ${sc.phone2 ? '- ' + anasEscapeHTML(sc.phone2) : ''}</p>
                     <div style="font-size:10px; margin:3px 0; line-height:1.4; border-top:1px dotted #ccc; border-bottom:1px dotted #ccc; padding:2px 0;">
-                        <span>RC: ${sc.rc || '-'}</span> | <span>NIF: ${sc.nif || '-'}</span><br>
-                        <span>NIS: ${sc.nis || '-'}</span> | <span>Art: ${sc.art || '-'}</span>
+                        <span>RC: ${anasEscapeHTML(sc.rc || '-')}</span> | <span>NIF: ${anasEscapeHTML(sc.nif || '-')}</span><br>
+                        <span>NIS: ${anasEscapeHTML(sc.nis || '-')}</span> | <span>Art: ${anasEscapeHTML(sc.art || '-')}</span>
                     </div>
-                    <p style="margin:3px 0; font-weight:bold; font-size:13px;">وصل بيع رقم: ${inv.id}</p>
-                    <p style="margin:2px 0; font-size:11px;">التاريخ: ${inv.date}</p>
-                    <p style="margin:2px 0; font-size:12px; font-weight:bold;">العميل: ${inv.customer}</p>
-                    ${custInfo.nif ? `<p style="margin:1px 0; font-size:10px;">NIF العميل: ${custInfo.nif} | RC: ${custInfo.rc || '-'}</p>` : ''}
+                    <p style="margin:3px 0; font-weight:bold; font-size:13px;">وصل بيع رقم: ${anasEscapeHTML(inv.id)}</p>
+                    <p style="margin:2px 0; font-size:11px;">التاريخ: ${anasEscapeHTML(inv.date)}</p>
+                    <p style="margin:2px 0; font-size:12px; font-weight:bold;">العميل: ${anasEscapeHTML(inv.customer)}</p>
+                    ${custInfo.nif ? `<p style="margin:1px 0; font-size:10px;">NIF العميل: ${anasEscapeHTML(custInfo.nif)} | RC: ${anasEscapeHTML(custInfo.rc || '-')}</p>` : ''}
                 </div>
                 <table style="width:100%; table-layout:fixed; font-size:11px; line-height:1.45; border-collapse:collapse; margin-bottom:8px;">
                     <thead><tr style="border-bottom:1px solid #000;"><th style="text-align:right;">السلعة</th><th style="text-align:center;">الكمية</th><th style="text-align:left;">المجموع</th></tr></thead>
@@ -3263,7 +3263,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <hr style="border:0; border-top:1px dashed #000; margin:3px 0;">
                     <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>دين العميل الكلي:</span><span>${inv.newDebt} د.ج</span></div>
                 </div>
-                <div style="text-align:center; margin-top:8px; font-size:10px;">${sc.footer}</div>
+                <div style="text-align:center; margin-top:8px; font-size:10px;">${anasEscapeHTML(sc.footer)}</div>
             `;
             window.print();
         }
@@ -3283,8 +3283,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 tableRows += `
                     <tr style="border-bottom:1px solid #e2e8f0;">
                         <td style="padding:8px; text-align:center;">${index + 1}</td>
-                        <td style="padding:8px; text-align:right; font-weight:bold;">${it.name}</td>
-                        <td style="padding:8px; text-align:center;">${it.unit || 'قطعة'}</td>
+                        <td style="padding:8px; text-align:right; font-weight:bold;">${anasEscapeHTML(it.name)}</td>
+                        <td style="padding:8px; text-align:center;">${anasEscapeHTML(it.unit || 'قطعة')}</td>
                         <td style="padding:8px; text-align:center;">${it.qty}</td>
                         <td style="padding:8px; text-align:left;">${it.price.toFixed(2)}</td>
                         <td style="padding:8px; text-align:left; font-weight:bold;">${sub.toFixed(2)}</td>
@@ -3296,33 +3296,33 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="direction:rtl; font-family:Arial,Tahoma,sans-serif; color:#0f172a; line-height:1.55; width:100%; min-height:240mm; box-sizing:border-box; padding:4mm; background:#fff; font-size:12px;">
                     <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e3a8a; padding-bottom:14px; margin-bottom:14px;">
                         <div>
-                            <h1 style="margin:0; font-size:20px; color:#1e3a8a;">${sc.name}</h1>
-                            <p style="margin:3px 0; font-size:13px;">${sc.address}</p>
-                            <p style="margin:3px 0; font-size:13px;">هاتف: ${sc.phone} ${sc.phone2 ? ' / ' + sc.phone2 : ''}</p>
+                            <h1 style="margin:0; font-size:20px; color:#1e3a8a;">${anasEscapeHTML(sc.name)}</h1>
+                            <p style="margin:3px 0; font-size:13px;">${anasEscapeHTML(sc.address)}</p>
+                            <p style="margin:3px 0; font-size:13px;">هاتف: ${anasEscapeHTML(sc.phone)} ${sc.phone2 ? ' / ' + anasEscapeHTML(sc.phone2) : ''}</p>
                         </div>
                         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:8px 14px; font-size:11px; line-height:1.6; text-align:right;">
-                            <div><strong>N° RC :</strong> ${sc.rc || '-'}</div>
-                            <div><strong>NIF :</strong> ${sc.nif || '-'}</div>
-                            <div><strong>NIS :</strong> ${sc.nis || '-'}</div>
-                            <div><strong>N° Article :</strong> ${sc.art || '-'}</div>
+                            <div><strong>N° RC :</strong> ${anasEscapeHTML(sc.rc || '-')}</div>
+                            <div><strong>NIF :</strong> ${anasEscapeHTML(sc.nif || '-')}</div>
+                            <div><strong>NIS :</strong> ${anasEscapeHTML(sc.nis || '-')}</div>
+                            <div><strong>N° Article :</strong> ${anasEscapeHTML(sc.art || '-')}</div>
                         </div>
                     </div>
 
                     <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; margin-bottom:14px;">
                         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; flex:1 1 280px; box-sizing:border-box;">
                             <h3 style="margin:0 0 4px; font-size:15px; color:#1e3a8a;">فاتورة بيع رسمية (FACTURE)</h3>
-                            <div style="font-size:12px;"><strong>رقم الفاتورة:</strong> ${inv.id}</div>
-                            <div style="font-size:12px;"><strong>التاريخ:</strong> ${inv.date}</div>
+                            <div style="font-size:12px;"><strong>رقم الفاتورة:</strong> ${anasEscapeHTML(inv.id)}</div>
+                            <div style="font-size:12px;"><strong>التاريخ:</strong> ${anasEscapeHTML(inv.date)}</div>
                             <div style="font-size:12px;"><strong>طريقة السداد:</strong> ${inv.paid >= inv.total ? 'نقداً (كاش)' : 'بالآجل (على الحساب)'}</div>
                         </div>
 
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; flex:1 1 280px; box-sizing:border-box;">
                             <h3 style="margin:0 0 4px; font-size:14px; color:#334155;">بيانات الزبون (Client)</h3>
-                            <div style="font-size:12px;"><strong>السيد / المحل:</strong> ${cust.name || inv.customer}</div>
-                            <div style="font-size:12px;"><strong>العنوان:</strong> ${cust.address || 'غير محدد'}</div>
-                            <div style="font-size:12px;"><strong>الهاتف:</strong> ${cust.phone || '-'}</div>
+                            <div style="font-size:12px;"><strong>السيد / المحل:</strong> ${anasEscapeHTML(cust.name || inv.customer)}</div>
+                            <div style="font-size:12px;"><strong>العنوان:</strong> ${anasEscapeHTML(cust.address || 'غير محدد')}</div>
+                            <div style="font-size:12px;"><strong>الهاتف:</strong> ${anasEscapeHTML(cust.phone || '-')}</div>
                             <div style="font-size:11px; color:#64748b; margin-top:2px;">
-                                RC: ${cust.rc || '-'} | NIF: ${cust.nif || '-'} | Art: ${cust.art || '-'}
+                                RC: ${anasEscapeHTML(cust.rc || '-')} | NIF: ${anasEscapeHTML(cust.nif || '-')} | Art: ${anasEscapeHTML(cust.art || '-')}
                             </div>
                         </div>
                     </div>
@@ -5074,15 +5074,16 @@ function renderPurchasesTable() {
         function renderAlertsList() {
             const cont = document.getElementById('alertModalMessageList');
             let alerts = [];
+            const esc = value => anasEscapeHTML(String(value ?? ''));
             AppData.products.forEach(p => {
                 if(p.stock <= (p.minAlert || 5)) {
-                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${p.name}] متبقي منها ${p.stock} فقط.`);
+                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${esc(p.name)}] متبقي منها ${p.stock} فقط.`);
                 }
             });
             AppData.customers.forEach(c => {
                 const days = getDebtAgeDays(c.debtDate);
                 if(c.debt > 0 && days > 30) {
-                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${c.name}] عليه ${c.debt} د.ج منذ ${days} يوم.`);
+                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${esc(c.name)}] عليه ${c.debt} د.ج منذ ${days} يوم.`);
                 }
             });
 
