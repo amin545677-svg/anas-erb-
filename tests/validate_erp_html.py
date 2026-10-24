@@ -14,6 +14,7 @@ class ERPParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=False)
         self.ids = []
+        self.inline_handlers = []
         self.inline_scripts = []
         self._script_attrs = None
         self._script_chunks = []
@@ -22,6 +23,9 @@ class ERPParser(HTMLParser):
         attrs = dict(attrs)
         if "id" in attrs and attrs["id"]:
             self.ids.append(attrs["id"])
+        for name, value in attrs.items():
+            if name.lower().startswith("on") and value:
+                self.inline_handlers.append(value)
         if tag.lower() == "script":
             self._script_attrs = attrs
             self._script_chunks = []
@@ -58,6 +62,27 @@ def main():
         errors.append("duplicate HTML IDs: " + ", ".join(duplicates[:20]))
     else:
         print(f"PASS: {len(parser.ids)} non-empty HTML IDs are unique")
+
+    # Catch common project-function calls from inline event handlers that no longer resolve.
+    # This intentionally targets app-style names, not browser built-ins or arbitrary expressions.
+    defined = set(re.findall(r"\\bfunction\\s+([A-Za-z_$][\\w$]*)\\s*\\(", source))
+    defined.update(re.findall(r"\\bwindow\\.([A-Za-z_$][\\w$]*)\\s*=", source))
+    defined.update(re.findall(
+        r"\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>|[A-Za-z_$][\\w$]*\\s*=>)",
+        source,
+    ))
+    app_call = re.compile(
+        r"\\b((?:anas[A-Za-z0-9_$]*|wt[A-Z][A-Za-z0-9_$]*|"
+        r"(?:open|save|render|submit|update|delete|add|edit|close|show|toggle|sync|import|export|print|quick|select|change|clear|confirm|cancel|return|switch|post|ask|trigger|apply|check|load|reset|filter|handle|collect|record|request|detect|populate|refresh|remove|preview|run|send|copy|reprint)[A-Z][A-Za-z0-9_$]*)\\s*\\("
+    )
+    unresolved = sorted({
+        name for handler in parser.inline_handlers for name in app_call.findall(handler)
+        if name not in defined
+    })
+    if unresolved:
+        errors.append("unresolved app functions in inline event handlers: " + ", ".join(unresolved[:30]))
+    else:
+        print(f"PASS: {len(parser.inline_handlers)} inline event handlers have no unresolved app-function calls")
 
     if "<!doctype html" not in source.lower():
         errors.append("HTML doctype is missing")
