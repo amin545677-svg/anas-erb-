@@ -4209,7 +4209,13 @@ function renderPurchasesTable() {
             if(AppData.warehouses==null)AppData.warehouses=[];
             else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
             if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة. أُوقفت عملية المخزون دون تعديل البيانات.');
-            AppData.products.forEach(p=>{if(!p||typeof p!=='object')throw new Error('سجل منتج غير صالح. أُوقفت العملية دون تعديل البيانات.');if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock'))p.warehouseStock={};else if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة. أُوقفت العملية دون استبدال البيانات.');});
+            AppData.products.forEach(p=>{
+                if(!p||typeof p!=='object')throw new Error('سجل منتج غير صالح. أُوقفت العملية دون تعديل البيانات.');
+                if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock'))p.warehouseStock={};
+                else if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة. أُوقفت العملية دون استبدال البيانات.');
+                if(Object.prototype.hasOwnProperty.call(p,'stock')&&(p.stock===null||p.stock===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0))throw new Error('رصيد المخزن الرئيسي غير صالح للمنتج '+(p.name||p.id||'غير معروف')+'؛ أُوقفت العملية دون تعديل الأرصدة.');
+                Object.entries(p.warehouseStock).forEach(([name,value])=>{if(!name||value===null||value===''||!Number.isFinite(Number(value))||Number(value)<0)throw new Error('رصيد مخزن فرعي غير صالح للمنتج '+(p.name||p.id||'غير معروف')+'؛ أُوقفت العملية دون تعديل الأرصدة.');});
+            });
         }
         function wtTryEnsureData(){try{wtEnsureData();return true;}catch(e){alert((e&&e.message)||'بيانات المخازن غير صالحة. أُوقفت العملية دون تعديل الأرصدة.');return false;}}
         function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
