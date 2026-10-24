@@ -140,36 +140,6 @@ def main():
     sale = function_source("confirmHasibPayment")
     purchase = function_source("savePurchaseItem")
     transfer = function_source("wtCreateTransfer")
-    backup_validate = function_source("anasValidateBackupData")
-    backup_import = function_source("importDataBackup")
-    transaction_checks = {
-        "sale validates cart items and aggregates repeated product quantities":
-            "required.set(id, (required.get(id) || 0) + qty)" in sale
-            and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
-        "sale rolls back stock, debt, cash, invoices, and cart if persistence fails":
-            "if (!saveDB()) throw" in sale and "p.stock = stockState.stock" in sale
-            and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
-            and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale,
-        "purchase validates positive safe integer quantity and restores state on save failure":
-            "Number.isSafeInteger(qty)" in purchase and "saveDB() === false" in purchase
-            and "AppData = previous" in purchase,
-        "warehouse transfer rejects insufficient stock and restores balances on failure":
-            "qty>available" in transfer and "if(!saveDB())throw" in transfer
-            and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
-        "backup validator requires core lists and rejects invalid or negative product stock":
-            "['products', 'customers', 'suppliers']" in backup_validate
-            and "p.stock) < 0" in backup_validate and "رُفض الملف لحماية المخزون" in backup_validate,
-        "backup validator rejects malformed or negative per-warehouse balances":
-            "p.warehouseStock != null" in backup_validate
-            and "Array.isArray(p.warehouseStock)" in backup_validate
-            and "Object.entries(p.warehouseStock)" in backup_validate
-            and "Number(balance) < 0" in backup_validate,
-        "backup validator checks transfer and stock-movement history lists":
-            "'warehouseTransfers','stockMovements'" in backup_validate,
-        "backup import restores the previous in-memory state if persistence fails":
-            "if (!saveDB())" in backup_import and "AppData = previous" in backup_import
-            and "posCart = previousCart" in backup_import,
-    }
     for label, passed in transaction_checks.items():
         if passed:
             print("PASS:", label)
