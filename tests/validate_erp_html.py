@@ -78,8 +78,8 @@ def main():
 
     # Normalized POS cart price and quantity remain escaped at the HTML output boundary.
     pos_cart_numeric_escape_guards = [
-        "${anasEscapeHTML(price)}",
-        "${anasEscapeHTML(qty)}",
+        "\${priceNumber===null?'غير صالح':anasEscapeHTML(priceNumber)}",
+        "\${qtyNumber===null?'غير صالح':anasEscapeHTML(qtyNumber)}",
         "item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
         "item.price !== null && item.price !== undefined && item.price !== '' && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
         "${anasEscapeHTML(item.unit || '')}",
