@@ -1097,7 +1097,7 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("        function wtCreateTransfer()")
-          end = s.find("\\n        function wtRenderHistory()", start)
+          end = s.find("\n        function wtRenderHistory()", start)
           assert start >= 0 and end > start, "Could not isolate warehouse transfer transaction"
           function_js = s[start:end]
           js = r"""
