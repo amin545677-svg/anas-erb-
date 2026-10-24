@@ -2617,7 +2617,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return true;
         }
 
-        function openQuickSale() {
+        function old_openQuickSale() {
             // يفتح شاشة المبيعات نفسها دون إنشاء فاتورة أو تغيير بيانات المخزون.
             if (!openView('pos')) return;
             const search = document.getElementById('posSearchField');
@@ -2675,7 +2675,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             alert('تم تثبيت سعر البيع ' + tier + ' بنجاح ✅');
         }
 
-        function renderQuickProducts() {
+        function old_renderQuickProducts() {
             const cont = document.getElementById('quickProductsContainer');
             cont.innerHTML = '';
             AppData.products.forEach(p => {
