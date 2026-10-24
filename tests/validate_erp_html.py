@@ -106,6 +106,15 @@ def main():
     else:
         print("PASS: stock mutation paths fail closed on malformed warehouse maps")
 
+    # Truck loading must reject malformed maps before mutation; settlement rollback must preserve array shape.
+    load_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل"
+    settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
+    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source:
+        errors.append("truck load guard or settlement rollback preservation is missing")
+    else:
+        print("PASS: truck load blocks malformed maps and settlement rollback preserves them")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
