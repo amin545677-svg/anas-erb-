@@ -5856,7 +5856,7 @@ function renderPurchasesTable() {
                         const keyName=norm(name);
                         if(seenNames.has(keyName)) throw new Error('اسم مكرر داخل الملف');
                         if(existingNames.has(keyName)) throw new Error('الاسم موجود مسبقًا في النظام؛ لم يتم دمجه تلقائيًا');
-                        const recordId=id||(target==='products'?'P-IMP-':'')+(Date.now())+'-'+ix;
+                        const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);
                         if(existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل موجود مسبقًا أو مكرر داخل الملف');
                         const rec={};
                         if(target==='products'){
