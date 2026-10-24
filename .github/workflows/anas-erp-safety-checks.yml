@@ -1003,7 +1003,7 @@ jobs:
           start = s.find("        function showProfitsReportModal() {")
           end = s.find("            const byProduct = {}, byCategory = {}", start)
           assert start >= 0 and end > start, "Could not isolate profit report preflight"
-          function_js = s[start:end] + "\\n        }"
+          function_js = s[start:end] + "\n        }"
           js = r"""
           /*INSERT_PROFIT_REPORT_GUARD*/
           const assert = require('node:assert/strict');
