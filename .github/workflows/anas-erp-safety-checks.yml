@@ -994,3 +994,43 @@ jobs:
           PY
           node --check /tmp/anas-pos-payment-guard-test.js
           node /tmp/anas-pos-payment-guard-test.js
+
+      - name: Exercise profit report guard against malformed financial values
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function showProfitsReportModal() {")
+          end = s.find("            const byProduct = {}, byCategory = {}", start)
+          assert start >= 0 and end > start, "Could not isolate profit report preflight"
+          function_js = s[start:end] + "\\n        }"
+          js = r"""
+          /*INSERT_PROFIT_REPORT_GUARD*/
+          const assert = require('node:assert/strict');
+          for (const invoice of [
+            { id: 'I1', total: ' ' },
+            { id: 'I2', items: [{ id: 'p1', qty: ' ', price: 5 }] },
+            { id: 'I3', items: [{ id: 'p1', qty: 1, price: true }] },
+            { id: 'I4', items: null }
+          ]) {
+            let shown = '';
+            let opened = false;
+            global.AppData = { invoices: [invoice], products: [] };
+            global.document = {
+              getElementById(id) {
+                if (id === 'profitsReportBody') return { set innerHTML(value) { shown = String(value); }, get innerHTML() { return shown; } };
+                if (id === 'profitsModal') return { classList: { add(name) { if (name === 'active') opened = true; } } };
+                throw new Error('unexpected DOM access: ' + id);
+              }
+            };
+            assert.doesNotThrow(() => showProfitsReportModal());
+            assert(shown.includes('تعذر حساب الأرباح بدقة'), invoice.id + ' must show invalid-data diagnostic');
+            assert.equal(opened, true, invoice.id + ' must open diagnostic modal');
+          }
+          console.log('Profit report guard runtime tests passed: malformed totals, quantities, prices, and item collections are rejected');
+          """
+          js = js.replace("/*INSERT_PROFIT_REPORT_GUARD*/", function_js)
+          Path("/tmp/anas-profit-report-guard-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-profit-report-guard-test.js
+          node /tmp/anas-profit-report-guard-test.js
