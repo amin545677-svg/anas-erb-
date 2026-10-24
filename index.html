@@ -4391,7 +4391,8 @@ function renderPurchasesTable() {
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
             // معاملة قابلة للتراجع: لا نترك أرصدة معدّلة في الذاكرة إذا فشل الحفظ.
-            const beforeMain=Number(p.stock)||0;
+            const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');
+            const beforeMain=p.stock;
             const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');
             const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:{};
             const transfersBefore=AppData.warehouseTransfers.slice();
@@ -4410,7 +4411,7 @@ function renderPurchasesTable() {
                 );
                 if(!saveDB())throw new Error('تعذر حفظ السند؛ تحقق من مساحة التخزين.');
             }catch(e){
-                p.stock=beforeMain;
+                if(hadMainStock)p.stock=beforeMain;else delete p.stock;
                 if(hadWarehouseStock)p.warehouseStock=beforeWarehouseStock;else delete p.warehouseStock;
                 AppData.warehouseTransfers=transfersBefore;
                 AppData.stockMovements=movementsBefore;
