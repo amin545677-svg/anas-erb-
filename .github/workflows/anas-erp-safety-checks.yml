@@ -959,3 +959,38 @@ jobs:
           PY
           node --check /tmp/anas-backup-validator-test.js
           node /tmp/anas-backup-validator-test.js
+
+      - name: Exercise POS payment guard against malformed cart values
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function openHasibModal() {")
+          end = s.find("\\n        function updatePaymentMethodFromAmount", start)
+          assert start >= 0 and end > start, "Could not isolate POS payment opener"
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_POS_PAYMENT_GUARD*/
+          const assert = require('node:assert/strict');
+          const alerts = [];
+          global.alert = message => alerts.push(String(message));
+          global.document = { getElementById() { throw new Error('invalid cart must block before touching payment UI'); } };
+          for (const cart of [
+            [{ id: 'p1', qty: ' ', price: 5 }],
+            [{ id: 'p1', qty: 1, price: true }],
+            [{ id: 'p1', qty: 0, price: 5 }],
+            [{ id: 'p1', qty: 1, price: ' ' }],
+            [{ id: 'p1', qty: 1, price: Infinity }]
+          ]) {
+            global.posCart = cart;
+            assert.doesNotThrow(() => openHasibModal(), 'invalid cart must be rejected without touching payment UI');
+          }
+          assert.equal(alerts.length, 5, 'each malformed cart should produce a warning');
+          assert(alerts.every(message => message.includes('السلة تحتوي على كمية أو سعر غير صالح')), 'warnings should explain invalid cart values');
+          console.log('POS payment guard runtime tests passed: blank, zero, boolean, non-finite cart values block payment');
+          """
+          js = js.replace("/*INSERT_POS_PAYMENT_GUARD*/", function_js)
+          Path("/tmp/anas-pos-payment-guard-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-pos-payment-guard-test.js
+          node /tmp/anas-pos-payment-guard-test.js
