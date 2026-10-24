@@ -6804,7 +6804,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     }
     const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
     if(!warehouseName)throw new Error('اسم مخزن الشاحنة مطلوب قبل الترحيل.');
-    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
+    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
     const oldPostedAt=trip.stockPostedAt;
     const oldWarehouseName=trip.warehouseName;
     const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock)?{...p.warehouseStock}:null}));
@@ -6944,7 +6944,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
       const snapshots=lines.map(line=>{
         const p=products.find(x=>String(x.id)===String(line.productId));
-        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null};
+        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)};
       });
       const movesBefore=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
       const tripBefore={settlementId:trip.settlementId,settledAt:trip.settledAt,settlementInvoiceIds:trip.settlementInvoiceIds,settlementLines:trip.settlementLines};
@@ -6973,7 +6973,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         trip.settlementInvoiceIds=linked.map(inv=>String(inv.id));trip.settlementLines=lines.map(line=>({...line}));
         if(saveDB()===false)throw new Error('فشل حفظ التسوية.');
       }catch(e){
-        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock||{};else delete old.p.warehouseStock;}
+        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock;}
         if(movesBefore===null)delete AppData.stockMovements;else AppData.stockMovements=movesBefore;
         for(const key of ['settlementId','settledAt','settlementInvoiceIds','settlementLines'])if(tripBefore[key]===undefined)delete trip[key];else trip[key]=tripBefore[key];
         throw e;
