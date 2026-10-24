@@ -4435,6 +4435,15 @@ function renderPurchasesTable() {
             reader.readAsDataURL(file);
         }
 
+        // Normalize barcode input consistently across manual entry, import, and local audits.
+        function anasNormalizeBarcode(value) {
+            return String(value ?? '').normalize('NFKC')
+                .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+                .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+                .replace(/[\\s\\u200B-\\u200D\\uFEFF]/g, '')
+                .toLocaleLowerCase('en');
+        }
+
         function saveNewProductFromModal() {
             const byId=id=>document.getElementById(id);
             const editId=byId('editProductId').value;
@@ -4465,7 +4474,8 @@ function renderPurchasesTable() {
                 if(pack<1)throw new Error('مضاعف الوحدة يجب أن يكون 1 أو أكثر.');
             }catch(e){alert(e.message||'تحقق من قيم المنتج.');return;}
             if(!Array.isArray(AppData.products))AppData.products=[];
-            const duplicateBarcode=AppData.products.find(p=>String(p.barcode||'').trim()===barcode&&String(p.id)!==String(editId));
+            const normalizedBarcode=anasNormalizeBarcode(barcode);
+            const duplicateBarcode=AppData.products.find(p=>anasNormalizeBarcode(p.barcode)===normalizedBarcode&&String(p.id)!==String(editId));
             if(duplicateBarcode){alert('هذا الباركود مستخدم بالفعل في المنتج «'+(duplicateBarcode.name||duplicateBarcode.id)+'». استخدم باركودًا مختلفًا.');return;}
             const supplierId=byId('newProdSupplierSelect').value;
             const index=editId?AppData.products.findIndex(x=>String(x.id)===String(editId)):-1;
@@ -5498,7 +5508,7 @@ function renderPurchasesTable() {
             const zero=products.filter(p=>n(p.stock)===0);
             const low=products.filter(p=>n(p.stock)>0 && p.minStock!=null && n(p.stock)<=n(p.minStock));
             const dup=(arr,key)=>{const seen=new Map(),out=[];arr.forEach(x=>{const v=String(key(x)||'').trim().toLowerCase();if(!v)return;if(seen.has(v))out.push({value:v,items:[seen.get(v),x]});else seen.set(v,x)});return out;};
-            const dupBarcode=dup(products,p=>p.barcode);
+            const dupBarcode=dup(products,p=>anasNormalizeBarcode(p.barcode));
             const dupProductName=dup(products,p=>p.name);
             const dupPhone=dup(customers,c=>c.phone);
             const badPrice=products.filter(p=>n(p.buyPrice)>0 && n(p.price1)>0 && n(p.price1)<n(p.buyPrice));
@@ -5865,8 +5875,8 @@ function renderPurchasesTable() {
                             if([buy,price1,price2,price3,stock,pack,minStock].some(n=>n<0)) throw new Error('لا يسمح بقيمة سالبة للسعر أو الكمية أو العبوة');
                             if(pack<=0) throw new Error('العبوة يجب أن تكون أكبر من صفر');
                             const barcode=val(r,'barcode');
-                            if(barcode && (AppData.products||[]).some(p=>norm(p.barcode)===norm(barcode))) throw new Error('الباركود موجود مسبقًا');
-                            if(barcode && staged.some(p=>norm(p.barcode)===norm(barcode))) throw new Error('باركود مكرر داخل الملف');
+                            if(barcode && (AppData.products||[]).some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode))) throw new Error('الباركود موجود مسبقًا');
+                            if(barcode && staged.some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode))) throw new Error('باركود مكرر داخل الملف');
                             Object.assign(rec,{id:recordId,name,unit:val(r,'unit')||'قطعة',pack,buyPrice:buy,price1,price2,price3,stock,barcode,cat:val(r,'cat')||'عام',minStock:minStock||0});
                             if(val(r,'supplier')) rec.supplier=val(r,'supplier');
                         }else if(target==='customers'){
