@@ -637,7 +637,7 @@ jobs:
             };
             vm.runInNewContext(functionSource + '\neditSalesInvoice("I1");', ctx);
             assert.equal(product.stock,5,'stock balance must roll back after failed persistence');
-            assert.deepEqual(movements,[{id:'prior-movement'}],'ledger must roll back after failed persistence');
+            assert.deepEqual(data.stockMovements,[{id:'prior-movement'}],'ledger must roll back after failed persistence');
             assert.equal(invoice.items[0].qty,2,'invoice lines must roll back');
             if (withLegacyFields) {
               assert.equal(invoice.total,20);
