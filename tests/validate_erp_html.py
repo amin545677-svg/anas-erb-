@@ -109,6 +109,11 @@ def main():
     else:
         print("PASS: backup validator rejects explicit null history and stock maps")
 
+    if "Object.prototype.hasOwnProperty.call(incoming,'warehouses')" not in source or "typeof w === 'string' && w.trim()" not in source or "typeof w.name !== 'string' || !w.name.trim()" not in source:
+        errors.append("backup validator must accept valid legacy string warehouse names and validate object warehouse records")
+    else:
+        print("PASS: backup validator supports legacy string and object warehouse entries safely")
+
     primary_stock_guard = "typeof p.stock === 'number' || typeof p.stock === 'string'"
     if primary_stock_guard not in source or "String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0" not in source:
         errors.append("backup validator must reject blank, boolean, object, non-finite, and negative primary stock values")
