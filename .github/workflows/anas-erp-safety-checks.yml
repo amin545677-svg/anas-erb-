@@ -739,6 +739,25 @@ jobs:
             assert.ok(alerts.some(x=>x.includes('حساب العميل المرتبط بتسوية الدين')),'must explain missing customer debt account');
           }
           runMissingCustomerDebtAdjustmentCase();
+          function runAmbiguousCustomerDebtAdjustmentCase() {
+            const invoice={id:'I6',items:[{id:'p1',name:'Product',qty:2,price:10}],customerObj:{id:'deleted-customer',name:'Same Name'},customer:'Same Name',total:20,paid:10,remaining:10,paymentMethod:'partial'};
+            const customer1={id:'c1',name:'Same Name',debt:10};
+            const customer2={id:'c2',name:'Same Name',debt:10};
+            const product={id:'p1',name:'Product',stock:5,warehouseStock:{}};
+            const data={invoices:[invoice],products:[product],customers:[customer1,customer2],stockMovements:[]};
+            const answers=['1','10'];
+            const alerts=[];
+            let saves=0;
+            const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
+            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I6");',ctx);
+            assert.equal(saves,0,'must not save when customer name resolves to multiple customers');
+            assert.equal(product.stock,5,'must not mutate stock when customer identity is ambiguous');
+            assert.equal(invoice.items[0].qty,2,'must preserve invoice lines when customer identity is ambiguous');
+            assert.equal(customer1.debt,10,'must not change first same-name customer debt');
+            assert.equal(customer2.debt,10,'must not change second same-name customer debt');
+            assert.ok(alerts.some(x=>x.includes('أكثر من عميل محتمل')),'must explain ambiguous customer identity');
+          }
+          runAmbiguousCustomerDebtAdjustmentCase();
           console.log('Invoice edit tests passed: rollback, absent primary stock preserved, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
