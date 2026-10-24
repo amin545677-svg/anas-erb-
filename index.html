@@ -4191,13 +4191,15 @@ function renderPurchasesTable() {
                 alert('تعذر تعديل الفاتورة: رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي.');
                 return;
             }
-            if (invoiceWarehouse !== 'المخزن الرئيسي') {
-                for (const id of stockChanges.keys()) {
-                    const p = (AppData.products || []).find(x => String(x.id) === id);
-                    if (p && Array.isArray(p.warehouseStock)) {
-                        alert('تعذر تعديل الفاتورة: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (p.name || id) + '. لم يتم تغيير المخزون أو الحسابات.');
-                        return;
-                    }
+            // Validate every touched product map, even for a main-warehouse invoice:
+            // rollback snapshots must never coerce an array/null legacy map into a plain object.
+            for (const id of stockChanges.keys()) {
+                const p = (AppData.products || []).find(x => String(x.id) === id);
+                if (!p) { alert('تعذر تعديل الفاتورة: أحد المنتجات غير موجود. لم يتم تغيير المخزون أو الحسابات.'); return; }
+                if (Object.prototype.hasOwnProperty.call(p, 'warehouseStock') &&
+                    (!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))) {
+                    alert('تعذر تعديل الفاتورة: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (p.name || id) + '. لم يتم تغيير المخزون أو الحسابات.');
+                    return;
                 }
             }
             if (Object.prototype.hasOwnProperty.call(AppData, 'stockMovements') &&
