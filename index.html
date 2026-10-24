@@ -5457,13 +5457,13 @@ function renderPurchasesTable() {
             // Do not silently erase locally populated history when an older/incomplete cloud payload omits a collection.
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
-                    if (Array.isArray(AppData[key]) && AppData[key].length)
+                    if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
                         throw new Error('النسخة السحابية تفتقد قائمة ' + key + ' التي تحتوي على سجلات محلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
                     incoming[key] = [];
                 }
             }
             if (!Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) {
-                if (Array.isArray(AppData.warehouses) && AppData.warehouses.length)
+                if (typeof AppData !== 'undefined' && Array.isArray(AppData.warehouses) && AppData.warehouses.length)
                     throw new Error('النسخة السحابية تفتقد قائمة المخازن المحلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
                 incoming.warehouses = [];
             }
