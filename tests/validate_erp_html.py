@@ -57,6 +57,23 @@ def main():
     parser.close()
     errors = []
 
+    # Customer data and imported product images must be safe at HTML output boundaries.
+    safety_guards = [
+        "anasEscapeHTML(c.phone || '-')",
+        "c.debt !== null && c.debt !== undefined && c.debt !== '' && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح'",
+        "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
+        'src="${anasEscapeHTML(safeStoredImage)}"',
+        "${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
+        "${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}",
+        "${p.stock !== null && p.stock !== undefined && p.stock !== '' && Number.isFinite(Number(p.stock)) ? Number(p.stock) : 'غير صالح'}",
+        "${esc(p.id??'—')}",
+    ]
+    for guard in safety_guards:
+        if guard not in source:
+            errors.append("customer/report/image output safety guard is missing: " + guard)
+    if not any("customer/report/image output safety guard is missing:" in error for error in errors):
+        print("PASS: customer debt, report numeric values, and stored image preview are hardened")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
