@@ -5463,7 +5463,7 @@ function renderPurchasesTable() {
                     }
                 }
             }
-            if (incoming.posScreensCarts != null && (typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة.');
+            if (Object.prototype.hasOwnProperty.call(incoming,'posScreensCarts') && (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة.');
             if (incoming.posScreensCarts) for (const [key, cart] of Object.entries(incoming.posScreensCarts)) if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة.');
             return incoming;
         }
