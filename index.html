@@ -5534,6 +5534,8 @@ function renderPurchasesTable() {
                 if (!confirm('تم التحقق من بنية البيانات. هل تؤكد استبدال بيانات هذا الهاتف بالنسخة السحابية؟')) return;
                 const previous = AppData;
                 const previousCart = posCart;
+                const previousStartupIssues = anasStartupIntegrityIssues.slice();
+                const previousFatalLoadError = anasStartupFatalLoadError;
                 AppData = incoming;
                 if (!Array.isArray(AppData.products)) AppData.products = [];
                 if (!Array.isArray(AppData.customers)) AppData.customers = [];
@@ -5545,7 +5547,15 @@ function renderPurchasesTable() {
                 if (!AppData.syncUrl) AppData.syncUrl = url;
                 const activeTab = AppData.activePosScreenTab || 1;
                 posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
-                if (!saveDB()) { AppData = previous; posCart = previousCart; throw new Error('تعذر حفظ البيانات المسترجعة على الهاتف.'); }
+                // A validated restore is the explicit repair path for a corrupt startup snapshot.
+                anasStartupIntegrityIssues = [];
+                anasStartupFatalLoadError = false;
+                if (!saveDB()) {
+                    AppData = previous; posCart = previousCart;
+                    anasStartupIntegrityIssues = previousStartupIssues;
+                    anasStartupFatalLoadError = previousFatalLoadError;
+                    throw new Error('تعذر حفظ البيانات المسترجعة على الهاتف.');
+                }
                 setSyncStatus('تم استرجاع البيانات وحفظها محليًا. راجع الأرصدة والمخزون قبل متابعة العمل.');
                 alert('تم استرجاع البيانات. راجع المخزون والديون قبل متابعة العمل.');
                 openView('dashboard');
@@ -5614,12 +5624,22 @@ function renderPurchasesTable() {
                     if (!confirm('سيتم استبدال بيانات التطبيق الحالية. تأكد من حفظ نسخة احتياطية قبل المتابعة. هل تريد الاستمرار؟')) return;
                     const previous = AppData;
                     const previousCart = posCart;
+                    const previousStartupIssues = anasStartupIntegrityIssues.slice();
+                    const previousFatalLoadError = anasStartupFatalLoadError;
                     AppData = incoming;
                     if (!AppData.posScreensCarts) AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
                     for (const key of ['invoices','purchases','expenses','users','trucks','returns']) if (!Array.isArray(AppData[key])) AppData[key] = [];
                     const activeTab = AppData.activePosScreenTab || 1;
                     posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
-                    if (!saveDB()) { AppData = previous; posCart = previousCart; throw new Error('تعذر حفظ النسخة على الهاتف؛ أُعيدت البيانات السابقة في الذاكرة.'); }
+                    // A validated restore is the explicit repair path for a corrupt startup snapshot.
+                    anasStartupIntegrityIssues = [];
+                    anasStartupFatalLoadError = false;
+                    if (!saveDB()) {
+                        AppData = previous; posCart = previousCart;
+                        anasStartupIntegrityIssues = previousStartupIssues;
+                        anasStartupFatalLoadError = previousFatalLoadError;
+                        throw new Error('تعذر حفظ النسخة على الهاتف؛ أُعيدت البيانات السابقة في الذاكرة.');
+                    }
                     alert('تم استرجاع النسخة الاحتياطية بنجاح. راجع المخزون والديون قبل متابعة العمل. ✅');
                     openView('dashboard');
                 } catch(err) { alert('خطأ في ملف النسخة: ' + err.message); }
