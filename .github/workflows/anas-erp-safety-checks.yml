@@ -414,6 +414,57 @@ jobs:
           assert "for(const item of staged) next.push(item)" in block, "Avoid spread-argument limits for large imports"
           print("Import persistence/rollback boundary checks passed")
           PY
+      - name: Exercise warehouse restore validation with legacy and corrupt data
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasValidateIncomingSyncData(incoming)")
+          end = s.find("async function syncPushNow()", start)
+          assert start >= 0 and end > start, "Could not isolate incoming sync/restore validator"
+          js = s[start:end] + r"""
+          const assert = require('node:assert/strict');
+          const base = () => ({ products: [{ id: 'p1', stock: 10, warehouseStock: { Main: 3 } }], customers: [], suppliers: [], invoices: [] });
+          const validLegacy = base();
+          validLegacy.warehouses = ['Main', { name: 'Truck A', id: 'wh-a' }];
+          validLegacy.warehouseTransfers = [];
+          validLegacy.stockMovements = [];
+          assert.equal(anasValidateIncomingSyncData(validLegacy), validLegacy, 'valid legacy string and object warehouses should be accepted');
+
+          for (const key of ['warehouseTransfers', 'stockMovements', 'warehouses']) {
+            const data = base(); data[key] = null;
+            assert.throws(() => anasValidateIncomingSyncData(data), /غير صالحة|المخازن/, key + '=null must be rejected');
+            assert.equal(data[key], null, key + ' corrupt data must not be silently replaced');
+          }
+          for (const value of [null, [], 'broken', false]) {
+            const data = base(); data.products[0].warehouseStock = value;
+            assert.throws(() => anasValidateIncomingSyncData(data), /أرصدة المخازن الفرعية غير صالحة/, 'malformed warehouseStock must be rejected');
+            assert.equal(data.products[0].warehouseStock, value, 'malformed warehouseStock must be preserved');
+          }
+          for (const [key, balance] of [['   ', 2], ['Main', ' '], ['Main', false], ['Main', -1], ['Main', 'NaN']]) {
+            const data = base(); data.products[0].warehouseStock = { [key]: balance };
+            assert.throws(() => anasValidateIncomingSyncData(data), /رصيد مخزن فرعي|المخزن الفرعي/, 'invalid warehouse key/balance must be rejected');
+            assert.equal(Object.keys(data.products[0].warehouseStock)[0], key, 'invalid warehouse key must be preserved');
+          }
+          for (const stock of [' ', false, -1, 'Infinity']) {
+            const data = base(); data.products[0].stock = stock;
+            assert.throws(() => anasValidateIncomingSyncData(data), /مخزون غير رقمي أو سالب/, 'invalid primary stock must be rejected');
+            assert.equal(data.products[0].stock, stock, 'invalid primary stock must be preserved');
+          }
+          for (const key of ['warehouseTransfers', 'stockMovements']) {
+            const data = base(); data[key] = [null];
+            assert.throws(() => anasValidateIncomingSyncData(data), /غير صالحة/, key + ' malformed entry must be rejected');
+            assert.equal(data[key].length, 1, key + ' malformed history must be preserved');
+          }
+          const absentLegacyCollections = base();
+          anasValidateIncomingSyncData(absentLegacyCollections);
+          assert.deepEqual(absentLegacyCollections.purchases, [], 'absent legacy optional purchases may initialize');
+          console.log('Warehouse restore validation passed: legacy compatibility, malformed collections/maps/keys/balances, and data preservation');
+          """
+          Path("/tmp/anas-warehouse-restore-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-warehouse-restore-test.js
+          node /tmp/anas-warehouse-restore-test.js
       - name: Check spreadsheet import safety limits
         run: |
           python - <<'PY'
