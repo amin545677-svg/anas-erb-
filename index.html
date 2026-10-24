@@ -4183,7 +4183,8 @@ function renderPurchasesTable() {
         function wtUserWarehouseName(user){return String(user&&(user.secondaryWarehouse||user.warehouseName)||'').trim();}
         function wtEnsureUserWarehouse(user){
             const name=wtUserWarehouseName(user);if(!name)return null;
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))){alert('قائمة المخازن تالفة؛ أُوقفت عملية إسناد المخزن دون استبدال البيانات.');return null;}
             let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===name);
             let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
             if(!wh)wh={id:'wh_user_'+String(user.id),name,type:/شاحنة|truck|mobile/i.test(name)?'mobile':'secondary',status:'active'};
