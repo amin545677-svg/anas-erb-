@@ -3145,7 +3145,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 oldStocks.set(id, {
                     stock:Number(p.stock),
                     hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
-                    warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null
+                    warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
                 });
             }
             const oldCaisse = Number(AppData.caisseBalance) || 0;
@@ -3193,7 +3193,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     const p = AppData.products.find(x => String(x.id) === id);
                     if (p) {
                         p.stock = stockState.stock;
-                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock||{};
+                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;
                         else delete p.warehouseStock;
                     }
                 }
@@ -4205,7 +4205,7 @@ function renderPurchasesTable() {
         function wtEnsureData(){
             if(!Array.isArray(AppData.warehouseTransfers))AppData.warehouseTransfers=[];
             if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
-            (AppData.products||[]).forEach(p=>{if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};});
+            (AppData.products||[]).forEach(p=>{if(p.warehouseStock==null||typeof p.warehouseStock!=='object')p.warehouseStock={};});
         }
         function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
         function wtInitScreen(){
@@ -4239,7 +4239,7 @@ function renderPurchasesTable() {
         }
         function wtCreateTransfer(){
             wtEnsureData();const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
-            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(from!=='المخزن الرئيسي'&&Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
+            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
