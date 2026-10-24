@@ -5607,6 +5607,9 @@ function renderPurchasesTable() {
             const ext=(file.name.split('.').pop()||'').toLowerCase();
             if(status) status.textContent='⏳ جارٍ فتح الملف: '+file.name;
             try {
+                // Bound memory use before reading CSV, Excel, or PDF bytes into the browser.
+                const maxImportBytes=20*1024*1024;
+                if(file.size>maxImportBytes) throw new Error('حجم الملف يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
                 if(ext==='pdf'){
                     const extracted=await anasExtractPdfText(file);
                     const box=document.getElementById('smartPdfExtractResults');
@@ -5637,11 +5640,17 @@ function renderPurchasesTable() {
                     });
                     const buf=await file.arrayBuffer();
                     const wb=XLSX.read(buf,{type:'array'});
+                    if(!Array.isArray(wb.SheetNames)||!wb.SheetNames.length) throw new Error('ملف Excel لا يحتوي على ورقة عمل قابلة للقراءة.');
                     const sheet=wb.Sheets[wb.SheetNames[0]];
+                    if(!sheet) throw new Error('تعذر قراءة ورقة العمل الأولى في ملف Excel.');
                     rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false});
                 } else throw new Error('نوع الملف غير مدعوم. اختر Excel أو CSV.');
                 rows=rows.filter(r=>Array.isArray(r)&&r.some(v=>String(v??'').trim()!==''));
                 if(!rows.length) throw new Error('الملف فارغ أو لم أستطع قراءة محتواه.');
+                const maxImportRows=100000, maxImportColumns=200;
+                if(rows.length>maxImportRows) throw new Error('يحتوي الملف على أكثر من 100,000 صف. قسّمه إلى ملفات أصغر ثم أعد المحاولة.');
+                const widestRow=rows.reduce((max,row)=>Math.max(max,row.length),0);
+                if(widestRow>maxImportColumns) throw new Error('يحتوي الملف على أكثر من 200 عمود. احذف الأعمدة غير اللازمة ثم أعد المحاولة.');
                 showSmartImportPreview(file.name,rows);
                 if(status) status.textContent='✅ تم فتح الملف بنجاح: '+file.name+' — '+rows.length+' صفوف. افتح المعاينة واضغط «تحليل العناوين بالذكاء الاصطناعي» للمساعدة في فهم الأعمدة قبل الاستيراد.';
             } catch(err) {
