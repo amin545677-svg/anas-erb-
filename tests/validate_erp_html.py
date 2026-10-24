@@ -5,6 +5,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 import subprocess
 import re
+import json
 import tempfile
 import sys
 
@@ -143,6 +144,74 @@ def main():
         errors.append("integrated POS payment modal must remain blocked for malformed cart values")
     if sale_fn and transfer_fn and modal_fn and "wtTryEnsureData" in sale_fn and "hasDebtField" in sale_fn and "if(!wtTryEnsureData())return;" in transfer_fn and "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" in modal_fn and "return;" in modal_fn:
         print("PASS: integrated POS payment and warehouse mutation guards remain intact")
+
+    # Startup must not silently replace present-but-corrupt persisted collections or save over unreadable data.
+    if "if (!Object.prototype.hasOwnProperty.call(AppData, k))" not in source or "anasStartupIntegrityIssues.push(k)" not in source:
+        errors.append("startup must initialize only absent collections and preserve present invalid collections")
+    else:
+        print("PASS: startup preserves present-but-invalid collections")
+
+    if "anasStartupFatalLoadError = true" not in source or "if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length)" not in source:
+        errors.append("startup must block saves after unreadable JSON or invalid persisted collection shapes")
+    else:
+        print("PASS: startup blocks writes when persisted data integrity is uncertain")
+
+    if "AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)" not in source:
+        errors.append("startup must not dereference malformed POS cart containers")
+    else:
+        print("PASS: startup safely reads the active POS cart")
+
+    # Execute the actual startup block against malformed, unreadable, and legacy-but-incomplete saved data.
+    startup_start = source.find("const ANAS_DB_KEY = 'ANAS_THE_ENTERPRISE_V11_OFFLINE';")
+    startup_end_marker = "let activeAiTab = 'all';"
+    startup_end = source.find(startup_end_marker, startup_start)
+    if startup_start < 0 or startup_end < 0:
+        errors.append("cannot locate startup block for runtime integrity smoke test")
+    else:
+        startup_js = source[startup_start:startup_end + len(startup_end_marker)]
+        harness = r"""
+const vm = require('node:vm');
+const startup = __STARTUP__;
+function boot(saved) {
+  const writes = { count: 0 };
+  const alerts = [];
+  const initialDB = { products: [], customers: [], suppliers: [], invoices: [],
+    purchaseInvoices: [], expenses: [], users: [], alerts: [], warehouseTransfers: [],
+    warehouses: [], truckTrips: [], posScreensCarts: {1: []}, activePosScreenTab: 1 };
+  const localStorage = { getItem: () => saved, setItem: () => { writes.count++; } };
+  const context = { initialDB, localStorage, setTimeout: () => {}, alert: x => alerts.push(String(x)), console };
+  vm.createContext(context);
+  vm.runInContext(startup + "\nthis.__snapshot = { products: AppData.products, issues: anasStartupIntegrityIssues.slice(), fatal: anasStartupFatalLoadError, cart: posCart, writes: localStorage.setItem ? 0 : -1 };", context);
+  return { ...context.__snapshot, alerts, writeCalls: writes.count };
+}
+const corrupt = boot(JSON.stringify({ products: null, posScreensCarts: {1: []} }));
+if (corrupt.products !== null || !corrupt.issues.includes('products') || corrupt.fatal || corrupt.cart.length !== 0)
+  throw new Error('present corrupt collection was not preserved/guarded safely');
+const unreadable = boot('{not-json');
+if (!unreadable.fatal || unreadable.writeCalls !== 0)
+  throw new Error('unreadable saved JSON did not enter fail-safe mode');
+const legacy = boot(JSON.stringify({ appName: 'Anas ERP' }));
+if (!Array.isArray(legacy.products) || legacy.issues.length || legacy.fatal)
+  throw new Error('absent legacy collections were not initialized safely');
+console.log('PASS: startup runtime smoke tests preserve corrupt data, fail safe on unreadable JSON, and initialize absent legacy collections');
+"""
+        harness = harness.replace("__STARTUP__", json.dumps(startup_js))
+        with tempfile.TemporaryDirectory(prefix="anas-startup-test-") as temp:
+            test_path = Path(temp) / "startup-smoke.js"
+            test_path.write_text(harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                errors.append("startup runtime smoke test failed: " + (result.stderr or result.stdout).strip()[:500])
+            else:
+                print(result.stdout.strip())
+
+    user_warehouse_start = source.find("function wtEnsureUserWarehouse(user)")
+    user_warehouse_end = source.find("function wtCurrentSaleWarehouse()", user_warehouse_start)
+    user_warehouse_helper = source[user_warehouse_start:user_warehouse_end] if user_warehouse_start >= 0 and user_warehouse_end > user_warehouse_start else ""
+    if "if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];" not in user_warehouse_helper or "AppData.warehouses.some(w=>" not in user_warehouse_helper or "if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];" in user_warehouse_helper:
+        errors.append("user warehouse assignment must preserve and reject malformed persisted warehouse lists")
+    else:
+        print("PASS: user warehouse assignment fails closed on malformed warehouse lists")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
