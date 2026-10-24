@@ -145,6 +145,21 @@ def main():
     if sale_fn and transfer_fn and modal_fn and "wtTryEnsureData" in sale_fn and "hasDebtField" in sale_fn and "if(!wtTryEnsureData())return;" in transfer_fn and "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" in modal_fn and "return;" in modal_fn:
         print("PASS: integrated POS payment and warehouse mutation guards remain intact")
 
+    # Editing a historical invoice must not coerce corrupt customer debt or overwrite a corrupt stock ledger.
+    edit_start = source.find("function editSalesInvoice(invoiceId)")
+    edit_end = source.find("\n        function ", edit_start)
+    edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
+    edit_guards = [
+        "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
+        "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
+        "سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة",
+        "AppData.stockMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m))",
+    ]
+    if not edit_fn or any(guard not in edit_fn for guard in edit_guards):
+        errors.append("historical invoice editing must reject corrupt debt, warehouse maps, and stock movement history before mutation")
+    else:
+        print("PASS: invoice edits fail closed on corrupt financial and inventory records")
+
     # Startup must not silently replace present-but-corrupt persisted collections or save over unreadable data.
     if "if (!Object.prototype.hasOwnProperty.call(AppData, k))" not in source or "anasStartupIntegrityIssues.push(k)" not in source:
         errors.append("startup must initialize only absent collections and preserve present invalid collections")
