@@ -607,7 +607,7 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function editSalesInvoice(invoiceId) {")
-          end = s.find("// ================= إدارة المخزون وحساب الأرباح الشاملة", start)
+          end = s.find("// ================= إدارة المخزون وحساب الأرباح =================", start)
           assert start >= 0 and end > start, "Could not isolate invoice edit function"
           function_js = s[start:end]
           js = r"""
