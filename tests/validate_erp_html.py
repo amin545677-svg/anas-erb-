@@ -52,10 +52,24 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # Report templates must coerce untrusted numeric fields instead of rendering raw values.
+    report_numeric_guards = [
+        "${Number(i.remaining)||0}",
+        "${Number(p.stock)||0}",
+        "${Number(p.minAlert)||5}",
+        "${Number(i.total)||0}",
+        "${Number(e.amt)||0}",
+    ]
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    for guard in report_numeric_guards:
+        if guard not in source:
+            errors.append("report numeric HTML guard is missing: " + guard)
+    if not any("report numeric HTML guard is missing:" in error for error in errors):
+        print("PASS: report numeric fields are coerced before HTML rendering")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
