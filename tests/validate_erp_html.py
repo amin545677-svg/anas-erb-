@@ -52,10 +52,20 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # POS cart unit labels may originate from imported or edited product data.
+    raw_pos_cart_unit = "${item.unit || ''}"
+    safe_pos_cart_unit = "${anasEscapeHTML(item.unit || '')}"
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    if raw_pos_cart_unit in source:
+        errors.append("POS cart unit label is interpolated without HTML escaping")
+    elif safe_pos_cart_unit not in source:
+        errors.append("POS cart unit escaping regression guard is missing")
+    else:
+        print("PASS: POS cart unit labels are HTML-escaped")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
