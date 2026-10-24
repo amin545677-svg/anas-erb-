@@ -16,6 +16,7 @@
     </script>
     <meta charset="UTF-8">
     <meta name="theme-color" content="#1e3a6d">
+    <link rel="manifest" href="./manifest.webmanifest">
     <meta name="description" content="Anas ERP لإدارة المبيعات والمشتريات والعملاء والمخزون والصندوق دون اتصال على هذا الجهاز">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Anas ERP v42 - إصلاح الربط السحابي</title>
@@ -7178,5 +7179,18 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 })();
 </script>
 
+
+    <!-- Register the existing app-shell worker only on secure hosted origins. -->
+    <script>
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('./sw.js').catch(function (error) {
+            console.warn('ANAS ERP offline support could not be enabled:', error);
+          });
+        });
+      })();
+    </script>
 </body>
 </html>
