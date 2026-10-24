@@ -1090,3 +1090,44 @@ jobs:
           PY
           node --check /tmp/anas-pos-sale-rollback-test.js
           node /tmp/anas-pos-sale-rollback-test.js
+
+      - name: Exercise warehouse transfer rollback when persistence fails
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function wtCreateTransfer()")
+          end = s.find("\\n        function wtRenderHistory()", start)
+          assert start >= 0 and end > start, "Could not isolate warehouse transfer transaction"
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_WAREHOUSE_TRANSFER*/
+          const assert = require('node:assert/strict');
+          const alerts = [];
+          global.alert = message => alerts.push(String(message));
+          global.confirm = () => true;
+          global.wtTryEnsureData = () => true;
+          global.wtBalance = (p, warehouse) => warehouse === 'المخزن الرئيسي' ? Number(p.stock) : Number(p.warehouseStock[warehouse] || 0);
+          global.anasEscapeHTML = value => String(value);
+          const values = { wtFrom: 'المخزن الرئيسي', wtTo: 'Branch', wtProduct: 'p1', wtQty: '2', wtNote: 'test', wtBuyPrice: '', wtSalePrice: '' };
+          global.document = { getElementById(id) { if (Object.hasOwn(values, id)) return { value: values[id] }; throw new Error('unexpected DOM access after failed transfer save: ' + id); } };
+          global.AppData = {
+            products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: { Existing: 1 } }],
+            warehouseTransfers: [{ id: 'prior' }],
+            currentUser: { name: 'Tester' }
+          };
+          const beforeMap = { Existing: 1 };
+          global.saveDB = () => false;
+          /*INSERT_WAREHOUSE_TRANSFER_FUNCTION*/
+          wtCreateTransfer();
+          assert.equal(AppData.products[0].stock, 10, 'main stock must roll back');
+          assert.deepEqual(AppData.products[0].warehouseStock, beforeMap, 'warehouse map must roll back');
+          assert.deepEqual(AppData.warehouseTransfers, [{ id: 'prior' }], 'transfer ledger must roll back');
+          assert(alerts.some(message => message.includes('أُعيدت أرصدة التحويل إلى حالتها السابقة')), 'failed transfer must explain rollback');
+          console.log('Warehouse transfer rollback tests passed: source/destination balances and transfer ledger restored after save failure');
+          """
+          js = js.replace("/*INSERT_WAREHOUSE_TRANSFER_FUNCTION*/", function_js)
+          Path("/tmp/anas-warehouse-transfer-rollback-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-warehouse-transfer-rollback-test.js
+          node /tmp/anas-warehouse-transfer-rollback-test.js
