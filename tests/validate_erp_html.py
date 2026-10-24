@@ -4,6 +4,7 @@ from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 import subprocess
+import re
 import tempfile
 import sys
 
@@ -63,17 +64,17 @@ def main():
     else:
         print(f"PASS: {len(parser.ids)} non-empty HTML IDs are unique")
 
-    # Catch common project-function calls from inline event handlers that no longer resolve.
+        # Catch common project-function calls from inline event handlers that no longer resolve.
     # This intentionally targets app-style names, not browser built-ins or arbitrary expressions.
-    defined = set(re.findall(r"\\bfunction\\s+([A-Za-z_$][\\w$]*)\\s*\\(", source))
-    defined.update(re.findall(r"\\bwindow\\.([A-Za-z_$][\\w$]*)\\s*=", source))
+    defined = set(re.findall(r"\bfunction\s+([A-Za-z_$][\w$]*)\s*\(", source))
+    defined.update(re.findall(r"\bwindow\.([A-Za-z_$][\w$]*)\s*=", source))
     defined.update(re.findall(
-        r"\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>|[A-Za-z_$][\\w$]*\\s*=>)",
+        r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)",
         source,
     ))
     app_call = re.compile(
-        r"\\b((?:anas[A-Za-z0-9_$]*|wt[A-Z][A-Za-z0-9_$]*|"
-        r"(?:open|save|render|submit|update|delete|add|edit|close|show|toggle|sync|import|export|print|quick|select|change|clear|confirm|cancel|return|switch|post|ask|trigger|apply|check|load|reset|filter|handle|collect|record|request|detect|populate|refresh|remove|preview|run|send|copy|reprint)[A-Z][A-Za-z0-9_$]*))\\s*\\("
+        r"\b((?:anas[A-Za-z0-9_$]*|wt[A-Z][A-Za-z0-9_$]*|"
+        r"(?:open|save|render|submit|update|delete|add|edit|close|show|toggle|sync|import|export|print|quick|select|change|clear|confirm|cancel|return|switch|post|ask|trigger|apply|check|load|reset|filter|handle|collect|record|request|detect|populate|refresh|remove|preview|run|send|copy|reprint)[A-Z][A-Za-z0-9_$]*))\s*\("
     )
     unresolved = sorted({
         name for handler in parser.inline_handlers for name in app_call.findall(handler)
