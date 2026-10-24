@@ -5456,7 +5456,7 @@ function renderPurchasesTable() {
                     if (typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))
                         throw new Error('بيانات أرصدة المخازن الفرعية غير صالحة للمنتج ' + String(p.id) + '.');
                     for (const [warehouse, balance] of Object.entries(p.warehouseStock)) {
-                        if (!Number.isFinite(Number(balance)) || Number(balance) < 0)
+                        if (!((typeof balance === 'number' || typeof balance === 'string') && String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0))
                             throw new Error('يوجد رصيد مخزن فرعي سالب أو غير رقمي للمنتج ' + String(p.id) + ' في ' + warehouse + '.');
                     }
                 }
