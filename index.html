@@ -2367,6 +2367,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
             } else if (!AppData.posScreensCarts || typeof AppData.posScreensCarts !== 'object' || Array.isArray(AppData.posScreensCarts)) {
                 anasStartupIntegrityIssues.push('posScreensCarts');
+            } else {
+                // A valid container can still contain a corrupt cart; never replace that cart with an empty array on save.
+                Object.keys(AppData.posScreensCarts).forEach(tab => {
+                    if (!Array.isArray(AppData.posScreensCarts[tab])) {
+                        anasStartupIntegrityIssues.push('posScreensCarts.' + tab);
+                    }
+                });
             }
             if (!AppData.activePosScreenTab) AppData.activePosScreenTab = 1;
             if (String(AppData.appName || '').trim().toLowerCase() === 'anas the') AppData.appName = 'Anas ERP';
