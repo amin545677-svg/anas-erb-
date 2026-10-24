@@ -4201,32 +4201,53 @@ function renderPurchasesTable() {
 
         function renderInventoryList() {
             const cont = document.getElementById('inventoryItemsContainer');
-            if(!cont) return;
-            cont.innerHTML = '';
-            (Array.isArray(AppData.products) ? AppData.products : []).forEach((p, idx) => {
-                const imgThumb = p.image ? `<img src="${p.image}" style="width:44px; height:44px; border-radius:8px; object-fit:cover; margin-left:10px;">` : `<div style="width:44px; height:44px; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:1.4rem; margin-left:10px;">🍵</div>`;
-                const isLow = p.stock <= (p.minAlert || 5);
-                cont.innerHTML += `
-                    <div class="menu-action-card" style="margin-bottom:8px;">
-                        <div style="display:flex; align-items:center;">
-                            ${imgThumb}
-                            <div>
-                                <strong>${anasEscapeHTML(p.name)}</strong> <small style="color:var(--mp-navy); font-weight:800;">(${p.unit || 'قطعة'})</small><br>
-                                <small style="color:#64748b;">باركود: ${p.barcode} | شراء: ${p.buyPrice} د.ج | جملة: ${p.price1} د.ج | المورد: <strong>${((Array.isArray(AppData.suppliers)?AppData.suppliers:[]).find(s=>s.id===p.supplierId)||{}).name || 'غير محدد'}</strong></small><br>
-                                <span style="font-size:0.78rem; font-weight:800; color:${isLow ? '#ef4444' : '#15803d'};">
-                                    المتوفر بالمخزن: ${p.stock} ${p.unit || ''} ${isLow ? '⚠️ (اقترب من النفاد)' : ''}
-                                </span>
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:6px;">
-                            <button class="btn-pos-hasib" style="background:#0284c7; border-color:#0284c7; padding:4px 10px; font-size:0.8rem;" onclick="editProductModal('${p.id}')">✏️ تعديل</button>
-                            <button class="btn-pos-hasib" style="background:#ef4444; border-color:#ef4444; padding:4px 8px; font-size:0.8rem;" onclick="deleteProduct('${p.id}')">🗑️</button>
+            if (!cont) return;
+            cont.replaceChildren();
+            const esc = value => typeof anasEscapeHTML === 'function'
+                ? anasEscapeHTML(String(value ?? ''))
+                : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+            const safeImage = value => {
+                const src = String(value || '');
+                return /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(src) ? src : '';
+            };
+            const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
+            products.forEach(p => {
+                const id = String(p.id ?? '');
+                const image = safeImage(p.image);
+                const imgThumb = image
+                    ? `<img src="${esc(image)}" alt="" loading="lazy" style="width:44px;height:44px;border-radius:8px;object-fit:cover;margin-left:10px;">`
+                    : `<div aria-hidden="true" style="width:44px;height:44px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-left:10px;">🍵</div>`;
+                const stock = Number(p.stock) || 0;
+                const minAlert = Number(p.minAlert) || 5;
+                const isLow = stock <= minAlert;
+                const supplier = suppliers.find(s => String(s.id) === String(p.supplierId));
+                const editArg = esc(JSON.stringify(id));
+                const deleteArg = esc(JSON.stringify(id));
+                const card = document.createElement('div');
+                card.className = 'menu-action-card';
+                card.style.marginBottom = '8px';
+                card.innerHTML = `
+                    <div style="display:flex;align-items:center;">
+                        ${imgThumb}
+                        <div>
+                            <strong>${esc(p.name)}</strong>
+                            <small style="color:var(--mp-navy);font-weight:800;">(${esc(p.unit || 'قطعة')})</small><br>
+                            <small style="color:#64748b;">باركود: ${esc(p.barcode)} | شراء: ${esc(p.buyPrice)} د.ج | جملة: ${esc(p.price1)} د.ج | المورد: <strong>${esc(supplier?.name || 'غير محدد')}</strong></small><br>
+                            <span style="font-size:0.78rem;font-weight:800;color:${isLow ? '#ef4444' : '#15803d'};">
+                                المتوفر بالمخزن: ${esc(stock)} ${esc(p.unit || '')} ${isLow ? '⚠️ (اقترب من النفاد)' : ''}
+                            </span>
                         </div>
                     </div>
-                `;
+                    <div style="display:flex;gap:6px;">
+                        <button type="button" class="btn-pos-hasib" data-action="edit" style="background:#0284c7;border-color:#0284c7;padding:4px 10px;font-size:0.8rem;">✏️ تعديل</button>
+                        <button type="button" class="btn-pos-hasib" data-action="delete" style="background:#ef4444;border-color:#ef4444;padding:4px 8px;font-size:0.8rem;">🗑️</button>
+                    </div>`;
+                card.querySelector('[data-action="edit"]').addEventListener('click', () => editProductModal(id));
+                card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteProduct(id));
+                cont.appendChild(card);
             });
         }
-
         function editProductModal(pId) {
             const p = AppData.products.find(x => x.id === pId);
             if(!p) return;
