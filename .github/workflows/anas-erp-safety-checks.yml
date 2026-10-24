@@ -693,7 +693,29 @@ jobs:
             assert.ok(alerts.some(x=>x.includes('تفاصيل الفاتورة الأصلية')),'must explain invalid historical invoice data');
           }
           runMalformedInvoiceLineCase();
-          console.log('Invoice edit tests passed: exact rollback, duplicate product IDs rejected before edits, and malformed historical lines rejected before prompts');
+          function runCommittedSaveUiFailureCase() {
+            const customer={id:'c1',name:'Customer',debt:20};
+            const invoice={id:'I4',items:[{id:'p1',name:'Product',qty:2,price:10}],customerObj:customer,customer:'Customer',total:20,paid:0,remaining:20,paymentMethod:'credit'};
+            const product={id:'p1',name:'Product',stock:5,warehouseStock:{}};
+            const movements=[];
+            const data={invoices:[invoice],products:[product],customers:[customer],stockMovements:movements};
+            const answers=['3','10'];
+            const alerts=[];
+            let saves=0;
+            const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{throw new Error('simulated render failure');},renderInventoryList:()=>{},wtAvailableStock:(p,w)=>w==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[w]??0),console,Number,String,Object,Array,Map,Math,Date};
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I4");',ctx);
+            assert.equal(saves,1,'persistence should run once');
+            assert.equal(product.stock,4,'successful save must retain stock change despite UI failure');
+            assert.equal(invoice.items[0].qty,3,'successful save must retain invoice edit despite UI failure');
+            assert.equal(invoice.total,30);
+            assert.equal(invoice.remaining,30);
+            assert.equal(customer.debt,30,'successful save must retain debt adjustment despite UI failure');
+            assert.equal(movements.length,1,'successful save must retain ledger movement despite UI failure');
+            assert.ok(alerts.some(x=>x.includes('تم حفظ تعديل الفاتورة')&&x.includes('تعذر تحديث الواجهة')),'must clearly report committed save with UI refresh failure');
+            assert.ok(!alerts.some(x=>x.includes('لم يتم حفظ التعديل')),'must not claim rollback after persistence committed');
+          }
+          runCommittedSaveUiFailureCase();
+          console.log('Invoice edit tests passed: rollback, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
