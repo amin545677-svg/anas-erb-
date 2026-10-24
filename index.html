@@ -2504,9 +2504,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #e2e8f0; font-size:12px;">
                         <div>
                             <strong>${anasEscapeHTML(c.name)}</strong><br>
-                            <small style="color:#64748b;">📞 ${c.phone || '-'}</small>
+                            <small style="color:#64748b;">📞 ${anasEscapeHTML(c.phone || '-')}</small>
                         </div>
-                        <strong style="color:#ef4444; font-size:13px;">${c.debt.toFixed(2)} د.ج</strong>
+                        <strong style="color:#ef4444; font-size:13px;">${((typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')} د.ج</strong>
                     </div>
                 `).join('');
             }
@@ -2719,7 +2719,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 const wh=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
                 const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,wh):(Number(p.stock)||0);
                 const availableLabel=Number.isFinite(available)?String(available):'بيانات غير صالحة';
-                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${availableLabel}</span></button>`;
+                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${availableLabel}</span></button>`;
             }).join('');
             results.hidden = false;
         }
@@ -2837,23 +2837,32 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
 
             let total = 0;
+            let hasInvalidCartValues = false;
             posCart.forEach((item, idx) => {
-                const sub = item.qty * item.price;
-                total += sub;
-                const imgThumb = item.image ? `<img src="${item.image}" style="width:28px; height:28px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-left:6px;">` : '';
+                const qtyNumber = (typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null;
+                const priceNumber = (typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null;
+                const valuesValid = qtyNumber !== null && priceNumber !== null;
+                const qty = qtyNumber;
+                const price = priceNumber;
+                const sub = valuesValid ? qtyNumber * priceNumber : null;
+                if (!valuesValid || !Number.isFinite(sub)) hasInvalidCartValues = true;
+                else total += sub;
+                const cartImage = String(item.image || '');
+                const safeCartImage = /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';
+                const imgThumb = safeCartImage ? `<img src="${anasEscapeHTML(safeCartImage)}" style="width:28px; height:28px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-left:6px;">` : '';
                 tb.innerHTML += `
                     <div class="invoice-table-row">
                         <div>
                             ${imgThumb}${anasEscapeHTML(item.name)}
                             <button onclick="removePosCartItem(${idx})" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:0.85rem; margin-right:4px;">✕</button>
                         </div>
-                        <div><strong style="cursor:pointer; color:#0284c7; text-decoration:underline;" onclick="editPosPrice(${idx})" title="تعديل السعر">${item.price}</strong></div>
-                        <div><div class="pos-qty-controls"><button type="button" aria-label="إنقاص الكمية" onclick="changePosQty(${idx},-1)">−</button><span class="pos-qty-number" onclick="editPosQty(${idx})" title="اضغط لإدخال كمية محددة">${item.qty}</span><button type="button" aria-label="زيادة الكمية" onclick="changePosQty(${idx},1)">+</button></div><small style="display:block;text-align:center;color:var(--text-muted,#64748b)">${item.unit || ''}</small></div>
-                        <div style="font-weight:700; color:#15803d;">${sub}</div>
+                        <div><strong style="cursor:pointer; color:#0284c7; text-decoration:underline;" onclick="editPosPrice(${idx})" title="تعديل السعر">${priceNumber===null?'غير صالح':anasEscapeHTML(priceNumber)}</strong></div>
+                        <div><div class="pos-qty-controls"><button type="button" aria-label="إنقاص الكمية" onclick="changePosQty(${idx},-1)">−</button><span class="pos-qty-number" onclick="editPosQty(${idx})" title="اضغط لإدخال كمية محددة">${qtyNumber===null?'غير صالح':anasEscapeHTML(qtyNumber)}</span><button type="button" aria-label="زيادة الكمية" onclick="changePosQty(${idx},1)">+</button></div><small style="display:block;text-align:center;color:var(--text-muted,#64748b)">${anasEscapeHTML(item.unit || '')}</small></div>
+                        <div style="font-weight:700; color:#15803d;">${sub===null||!Number.isFinite(sub)?'غير صالح':sub.toFixed(2)}</div>
                     </div>
                 `;
             });
-            document.getElementById('posTotalDisplay').innerText = total.toFixed(2) + ' د.ج';
+            document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج';
             syncHasibInvoiceTotals();
         }
 
@@ -3035,7 +3044,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!modal || !modal.classList.contains('active')) return;
             const total = posCart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
             const totalEl = document.getElementById('hasibTotalText');
-            if (totalEl) totalEl.textContent = total.toFixed(2) + ' د.ج';
+            const invalidCart = !posCart.length || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) || !Number.isFinite(total);
+            if (totalEl) totalEl.textContent = invalidCart ? 'بيانات السلة غير صالحة' : total.toFixed(2) + ' د.ج';
+            if (invalidCart) return;
             renderHasibCartEditor();
             const paidInput = document.getElementById('hasibPaidAmount');
             if (paidInput && Number(paidInput.value) > total) paidInput.value = total.toFixed(2);
@@ -3052,8 +3063,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         function openHasibModal() {
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
-            const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
-            document.getElementById('hasibTotalText').innerText = total.toFixed(2) + ' د.ج';
+            const total = posCart.reduce((a, b) => a + (Number(b.qty) * Number(b.price)), 0);
+            if (!Number.isFinite(total) || total <= 0 || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0)) {
+                alert('تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح. صحّح بيانات المنتجات أولاً.');
+                return;
+            }
+            document.getElementById('hasibTotalText').textContent = total.toFixed(2) + ' د.ج';
             document.getElementById('hasibPaidAmount').value = total;
             document.getElementById('hasibPaymentMethod').value = 'cash';
             const sel = document.getElementById('hasibCustomerSelect');
@@ -4281,7 +4296,7 @@ function renderPurchasesTable() {
             const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
-            if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
+            if(!confirm(`تأكيد تحويل ${anasEscapeHTML(qty)} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
             // معاملة قابلة للتراجع: لا نترك أرصدة معدّلة في الذاكرة إذا فشل الحفظ.
             const beforeMain=Number(p.stock)||0;
             const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');
@@ -4382,8 +4397,10 @@ function renderPurchasesTable() {
             document.getElementById('newProdSupplierSelect').value = p.supplierId || '';
             document.getElementById('newProdUnitSelect').value = p.unit || 'كغ';
             document.getElementById('newProdUnitPackInput').value = p.pack || 1;
-            currentTempProdImageBase64 = p.image || '';
-            document.getElementById('newProdImgPreview').innerHTML = p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '📷';
+            const storedImage = String(p.image || '');
+            const safeStoredImage = /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';
+            currentTempProdImageBase64 = safeStoredImage;
+            document.getElementById('newProdImgPreview').innerHTML = safeStoredImage ? `<img src="${anasEscapeHTML(safeStoredImage)}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '📷';
             document.getElementById('addProductModal').classList.add('active');
         }
 
@@ -4674,6 +4691,15 @@ function renderPurchasesTable() {
         function showProfitsReportModal() {
             const invoices = (typeof getReportInvoices === 'function' ? getReportInvoices() : (Array.isArray(AppData.invoices) ? AppData.invoices : []));
             const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));
+            const invalidPresentNumber = (record, keys) => { const key=keys.find(k=>Object.prototype.hasOwnProperty.call(record,k)&&record[k]!==undefined&&record[k]!==null); return key!==undefined&&invalidProfitNumber(record[key]); };
+            const invalidProfitData = invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv) || (Object.prototype.hasOwnProperty.call(inv,'items')&&!Array.isArray(inv.items)) || invalidPresentNumber(inv,['total','grandTotal','amount']) || (Array.isArray(inv.items)&&inv.items.some(it => !it || typeof it !== 'object' || Array.isArray(it) || invalidPresentNumber(it,['qty','quantity']) || invalidPresentNumber(it,['price','salePrice','sellingPrice']) || invalidPresentNumber(it,['total','subtotal']) || invalidPresentNumber(it,['buyPrice','costPrice','purchasePrice']))));
+            if (invalidProfitData) {
+                const body=document.getElementById('profitsReportBody');
+                if(body)body.innerHTML='<div class="profit-empty" role="alert">تعذر حساب الأرباح بدقة: توجد قيمة مالية أو كمية غير صالحة في بيانات الفواتير أو تفاصيل المنتجات. صحّح السجلات أو استعد نسخة سليمة ثم أعد المحاولة.</div>';
+                document.getElementById('profitsModal').classList.add('active');
+                return;
+            }
             const byProduct = {}, byCategory = {}, byCustomer = {}, byUser = {};
             let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0;
             const moneyFmt = n => (Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
@@ -4894,37 +4920,41 @@ function renderPurchasesTable() {
         function showReportDetails(title) {
             if(!applyReportDateRange()) return;
             const esc = value => anasEscapeHTML(String(value ?? ''));
+            const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;
+            const reportDisplay = value => { const n=reportNumber(value); return n===null?'غير صالح':n; };
             const reportInvoices=typeof getReportInvoices==='function' ? getReportInvoices() : (Array.isArray(AppData.invoices)?AppData.invoices:[]);
             const reportPurchases=typeof getReportPurchases==='function' ? getReportPurchases() : (Array.isArray(AppData.purchases)?AppData.purchases:[]);
             document.getElementById('customReportTitle').innerText = title;
             const content = document.getElementById('customReportContent');
             if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني') {
-                const totalSales = reportInvoices.reduce((a, b) => a + (Number(b.total)||0), 0);
-                const totalPurchases = reportPurchases.reduce((a, b) => a + (Number(b.total)||0), 0);
+                const totalSalesValid = reportInvoices.every(b => reportNumber(b.total) !== null);
+                const totalPurchasesValid = reportPurchases.every(b => reportNumber(b.total) !== null);
+                const totalSales = reportInvoices.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
+                const totalPurchases = reportPurchases.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
                 content.innerHTML = `
                     <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:10px;">
-                        <div>إجمالي المبيعات: <strong>${totalSales.toFixed(2)} د.ج</strong></div>
-                        <div>إجمالي المشتريات: <strong>${totalPurchases.toFixed(2)} د.ج</strong></div>
+                        <div>إجمالي المبيعات: <strong>${totalSalesValid ? totalSales.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
+                        <div>إجمالي المشتريات: <strong>${totalPurchasesValid ? totalPurchases.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
                         <div>حركات البيع: <strong>${reportInvoices.length} فواتير</strong></div>
                     </div>
                 `;
             } else if(title === 'تقرير فواتير الآجل') {
-                const creditInvoices = reportInvoices.filter(i => Number(i.remaining) > 0);
+                const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);
                 content.innerHTML = creditInvoices.length > 0 ? creditInvoices.map(i => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${esc(i.id)} - ${esc(i.customer)}</span>
-                        <strong style="color:#ef4444;">متبقي: ${i.remaining} د.ج</strong>
+                        <strong style="color:#ef4444;">متبقي: ${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'} د.ج</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#94a3b8;">لا توجد فواتير آجل مسجلة.</p>';
             } else if(title === 'تقرير الخصومات') {
-                const discounted = reportInvoices.filter(i => Number(i.discount)>0 || Number(i.discountAmount)>0 || Number(i.discount_amount)>0);
-                content.innerHTML = discounted.length ? discounted.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${Number(i.discountAmount??i.discount_amount??i.discount)||0} د.ج</strong></div>`).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
+                const discounted = reportInvoices.filter(i => { const raw=i.discountAmount??i.discount_amount??i.discount; const value=reportNumber(raw); return (value!==null&&value>0)||(raw!==null&&raw!==undefined&&raw!==''); });
+                content.innerHTML = discounted.length ? discounted.map(i=>{const value=reportNumber(i.discountAmount??i.discount_amount??i.discount);return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${value===null?'غير صالح':value} د.ج</strong></div>`;}).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
             } else if(title === 'تنبيه نقص المخزون') {
-                const lowStock = AppData.products.filter(p => p.stock <= (p.minAlert || 5));
+                const lowStock = AppData.products.filter(p => { const stock=reportNumber(p.stock); const min=reportNumber(p.minAlert); return stock===null || stock <= (min!==null&&min>0?min:5); });
                 content.innerHTML = lowStock.length > 0 ? lowStock.map(p => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${anasEscapeHTML(p.name)}</span>
-                        <strong style="color:#ef4444;">الرصيد: ${p.stock} (الحد: ${p.minAlert || 5})</strong>
+                        <strong style="color:#ef4444;">الرصيد: ${reportDisplay(p.stock)} (الحد: ${reportNumber(p.minAlert)!==null && reportNumber(p.minAlert)>0 ? reportNumber(p.minAlert) : 5})</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#16a34a;">المخزون كافٍ لجميع المنتجات.</p>';
             } else if(title === 'تقرير المبيعات') {
@@ -4933,7 +4963,7 @@ function renderPurchasesTable() {
                         <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:center;">
                             <thead><tr style="background:#f1f5f9;"><th>رقم</th><th>العميل</th><th>المبلغ</th><th>الحالة</th></tr></thead>
                             <tbody>
-                                ${reportInvoices.map(i => `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id)}</td><td>${esc(i.customer)}</td><td style="font-weight:bold; color:#16a34a;">${i.total}</td><td>${i.remaining > 0 ? 'آجل' : 'خالص'}</td></tr>`).join('')}
+                                ${reportInvoices.map(i => `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id)}</td><td>${esc(i.customer)}</td><td style="font-weight:bold; color:#16a34a;">${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}</td><td>${reportNumber(i.remaining)===null?'بيانات غير صالحة':(reportNumber(i.remaining)>0?'آجل':'خالص')}</td></tr>`).join('')}
                             </tbody>
                         </table>
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مبيعات مسجلة بعد.</p>';
@@ -4985,17 +5015,17 @@ function renderPurchasesTable() {
                   </tr></thead><tbody>${rows}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد منتجات مسجلة.</p>'}`;
             } else if(title === 'تقرير المشتريات') {
                 const purchases = reportPurchases;
-                const total = purchases.reduce((n,p)=>n+(Number(p.total)||0),0);
-                content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${p.id??'—'}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${Number(p.total)||0}</td><td>${Number(p.paid)||0}</td><td>${Number(p.remaining)||0}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
+                const purchaseTotalsValid = purchases.every(p=>reportNumber(p.total)!==null); const total = purchases.reduce((n,p)=>n+(reportNumber(p.total)??0),0);
+                content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${purchaseTotalsValid?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'غير صالح — توجد قيم ناقصة أو تالفة'} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(p.id??'—')}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
             } else if(title === 'عرض فواتير المبيعات') {
-                content.innerHTML = reportInvoices.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${reportInvoices.map(i=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id??'—')}</td><td>${esc(i.date||i.createdAt||i.invoiceDate||'—')}</td><td>${esc(i.customer||'عميل نقدي')}</td><td>${Number(i.total)||0}</td><td>${Number(i.paid)||0}</td><td>${Number(i.remaining)||0}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد فواتير ضمن الفترة المحددة.</p>';
+                content.innerHTML = reportInvoices.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${reportInvoices.map(i=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id??'—')}</td><td>${esc(i.date||i.createdAt||i.invoiceDate||'—')}</td><td>${esc(i.customer||'عميل نقدي')}</td><td>${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}</td><td>${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد فواتير ضمن الفترة المحددة.</p>';
             } else if(title === 'كشف حساب عميل') {
                 const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
-                content.innerHTML = customers.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>العميل</th><th>الهاتف</th><th>الرصيد/الدين</th></tr></thead><tbody>${customers.map(c=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(c.name||'—')}</td><td>${esc(c.phone||'—')}</td><td>${Number(c.debt)||0} د.ج</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا يوجد عملاء مسجلون.</p>';
+                content.innerHTML = customers.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>العميل</th><th>الهاتف</th><th>الرصيد/الدين</th></tr></thead><tbody>${customers.map(c=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(c.name||'—')}</td><td>${esc(c.phone||'—')}</td><td>${reportDisplay(c.debt)} د.ج</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا يوجد عملاء مسجلون.</p>';
             } else if(title === 'تقرير بالمصروفات حسب الحساب' || title === 'تقرير المصروفات حسب الحساب') {
                 content.innerHTML = (AppData.expenses && AppData.expenses.filter(e=>reportItemInRange(e)).length > 0) ? `
                     <div style="max-height:220px; overflow-y:auto;">
-                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${e.amt} د.ج</strong></div>`).join('')}
+                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${reportDisplay(e.amt)} د.ج</strong></div>`).join('')}
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مصروفات مسجلة.</p>';
             } else {
                 content.innerHTML = `<p style="text-align:center; color:#16a34a; font-weight:bold;">العمليات مسجلة ومحفوظة بنجاح.</p>`;
