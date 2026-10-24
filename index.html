@@ -7141,6 +7141,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         }
         for(const [productId,qty] of invoiced)if(qty>1e-8&&!deliveredByProduct.has(productId)){alert('الفواتير المحددة تتضمن صنفاً إضافياً غير موجود في التسوية: '+productId+'.');return;}
       }
+      // Validate every affected balance before the first settlement mutation; never coerce corrupt balances to zero.
+      for(const line of lines){
+        const p=products.find(x=>String(x.id)===String(line.productId));
+        if(!p)throw new Error('تعذر العثور على المنتج '+line.productName+' قبل التسوية.');
+        if(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw new Error('رصيد المخزن الرئيسي غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.');
+        if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.');
+        if(p.warehouseStock&&Object.prototype.hasOwnProperty.call(p.warehouseStock,warehouse)){
+          const balance=p.warehouseStock[warehouse];
+          if(!((typeof balance==='number')||(typeof balance==='string'))||String(balance).trim()===''||!Number.isFinite(Number(balance))||Number(balance)<0)throw new Error('رصيد مخزن الشاحنة غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.');
+        }
+      }
       const snapshots=lines.map(line=>{
         const p=products.find(x=>String(x.id)===String(line.productId));
         return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)};
