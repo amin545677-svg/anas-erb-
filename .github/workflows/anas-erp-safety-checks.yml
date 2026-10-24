@@ -317,6 +317,27 @@ jobs:
           PY
           node --check /tmp/anas-number-parser-test.js
           node /tmp/anas-number-parser-test.js
+      - name: Validate import persistence and UI rollback boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("// Build the next array before mutating the live one")
+          end = s.find("function clearAllSalesInvoices()", start)
+          assert start >= 0 and end > start, "Could not locate import persistence transaction"
+          block = s[start:end]
+          saved = block.find("const saved=saveDB()")
+          save_failure = block.find("if(saved===false) throw new Error")
+          restore = block.find("const restored=JSON.parse(before)")
+          ui_refresh = block.find("// Once persistence succeeds")
+          ui_catch = block.find("ANAS ERP import saved; UI refresh failed")
+          assert saved >= 0 and save_failure > saved and restore > save_failure, "Save failure must restore in-memory state"
+          assert ui_refresh > restore and ui_catch > ui_refresh, "UI refresh must be isolated after successful persistence"
+          ui_region = block[ui_refresh:]
+          assert "const restored=JSON.parse(before)" not in ui_region, "UI rendering failure must not roll memory back after storage succeeds"
+          assert "for(const item of staged) next.push(item)" in block, "Avoid spread-argument limits for large imports"
+          print("Import persistence/rollback boundary checks passed")
+          PY
       - name: Check spreadsheet import safety limits
         run: |
           python - <<'PY'
