@@ -5445,13 +5445,21 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            for (const key of ['invoices','purchases','expenses','users','trucks','returns','warehouses']) {
+            for (const key of ['invoices','purchases','expenses','users','trucks','returns','warehouses','warehouseTransfers','stockMovements']) {
                 if (incoming[key] != null && (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x))))
                     throw new Error('قائمة ' + key + ' غير صالحة.');
             }
             for (const p of incoming.products) {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ رُفض الملف لحماية المخزون.');
-                if (p.stock != null && (!Number.isFinite(Number(p.stock)) || Number(p.stock) < 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
+                if (p.stock != null && !((typeof p.stock === 'number' || typeof p.stock === 'string') && String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
+                if (p.warehouseStock != null) {
+                    if (typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))
+                        throw new Error('بيانات أرصدة المخازن الفرعية غير صالحة للمنتج ' + String(p.id) + '.');
+                    for (const [warehouse, balance] of Object.entries(p.warehouseStock)) {
+                        if (!((typeof balance === 'number' || typeof balance === 'string') && String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0))
+                            throw new Error('يوجد رصيد مخزن فرعي سالب أو غير رقمي للمنتج ' + String(p.id) + ' في ' + warehouse + '.');
+                    }
+                }
             }
             if (incoming.posScreensCarts != null && (typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة.');
             if (incoming.posScreensCarts) for (const [key, cart] of Object.entries(incoming.posScreensCarts)) if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة.');
