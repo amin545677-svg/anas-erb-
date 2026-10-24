@@ -4140,6 +4140,26 @@ function renderPurchasesTable() {
             const newRemaining = Math.max(0, newTotal - newPaid);
             const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && oldRemaining > 0));
             if (newRemaining > 0 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بالدين. لم يتم تعديل الفاتورة لحماية الحسابات.'); return; }
+            if (customer && Object.prototype.hasOwnProperty.call(customer, 'debt') &&
+                !((typeof customer.debt === 'number' || typeof customer.debt === 'string') &&
+                  String(customer.debt).trim() !== '' && Number.isFinite(Number(customer.debt)) && Number(customer.debt) >= 0)) {
+                alert('تعذر تعديل الفاتورة: رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي.');
+                return;
+            }
+            if (invoiceWarehouse !== 'المخزن الرئيسي') {
+                for (const id of stockChanges.keys()) {
+                    const p = (AppData.products || []).find(x => String(x.id) === id);
+                    if (p && Array.isArray(p.warehouseStock)) {
+                        alert('تعذر تعديل الفاتورة: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (p.name || id) + '. لم يتم تغيير المخزون أو الحسابات.');
+                        return;
+                    }
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'stockMovements') &&
+                (!Array.isArray(AppData.stockMovements) || AppData.stockMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m)))) {
+                alert('تعذر تعديل الفاتورة: سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة قبل المتابعة.');
+                return;
+            }
             if (!confirm('سيتم تحديث أصناف الفاتورة وإعادة تسوية المخزون والحسابات. هل تريد المتابعة؟')) return;
             const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined, hadStockMovements: Array.isArray(AppData.stockMovements), stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null};
             try {
