@@ -317,6 +317,43 @@ jobs:
           PY
           node --check /tmp/anas-number-parser-test.js
           node /tmp/anas-number-parser-test.js
+      - name: Exercise purchase product ID and barcode collision guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasCreateUniqueProductId(products)")
+          end = s.find("function savePurchaseItem()", start)
+          assert start >= 0 and end > start, "Could not locate purchase ID/barcode generators"
+          helpers = s[start:end]
+          norm_start = s.find("function anasNormalizeBarcode(value)")
+          norm_end = s.find("function saveNewProductFromModal()", norm_start)
+          assert norm_start >= 0 and norm_end > norm_start, "Could not locate barcode normalizer"
+          normalizer = s[norm_start:norm_end]
+          js = normalizer + helpers + """
+          const assert = require('node:assert/strict');
+          const realNow = Date.now, realRandom = Math.random;
+          try {
+            Date.now = () => 1700000012345;
+            let values = [0.1, 0.2];
+            Math.random = () => values.shift() ?? 0.3;
+            const firstId = anasCreateUniqueProductId([]);
+            values = [0.1, 0.2];
+            const nextId = anasCreateUniqueProductId([{id:firstId}]);
+            assert.notEqual(nextId, firstId, 'purchase-created product ID generator must retry collisions');
+            values = [0.1, 0.2];
+            const firstBarcode = anasCreateUniqueBarcode([]);
+            values = [0.1, 0.2];
+            const nextBarcode = anasCreateUniqueBarcode([{barcode:firstBarcode}]);
+            assert.notEqual(anasNormalizeBarcode(nextBarcode), anasNormalizeBarcode(firstBarcode), 'purchase-created barcode generator must retry collisions');
+            assert.ok(/^\\d+$/.test(nextBarcode), 'generated barcode must remain numeric for scanners');
+            console.log('Purchase ID/barcode collision tests passed');
+          } finally { Date.now = realNow; Math.random = realRandom; }
+          """
+          Path("/tmp/anas-purchase-id-barcode-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-purchase-id-barcode-test.js
+          node /tmp/anas-purchase-id-barcode-test.js
       - name: Exercise normalized barcode uniqueness
         run: |
           python - <<'PY'
