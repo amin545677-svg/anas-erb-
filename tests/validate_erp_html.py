@@ -217,6 +217,8 @@ def main():
             "Object.prototype.hasOwnProperty.call(p,'warehouseStock')",
             "String(balance).trim() !== ''",
             "!warehouse.trim()",
+            "Object.prototype.hasOwnProperty.call(incoming,'posScreensCarts')",
+            "if (!Array.isArray(cart) || cart.length > 10000)",
         ]
         for guard in required_guards:
             if guard not in validator:
