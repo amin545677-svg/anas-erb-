@@ -52,10 +52,17 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # Customer IDs are encoded before being embedded in a quoted inline handler.
+    customer_edit_handler_guard = "editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))"
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    if customer_edit_handler_guard not in source:
+        errors.append("customer edit handler does not encode its ID for inline JavaScript")
+    else:
+        print("PASS: customer edit handler safely encodes its ID")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
