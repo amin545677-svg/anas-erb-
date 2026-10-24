@@ -147,8 +147,8 @@ def main():
 
     # Existing numeric balances must be validated before legacy maps are initialized.
     numeric_balance_guards = [
-        "p.stock===null||p.stock===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
-        "value===null||value===''||!Number.isFinite(Number(value))||Number(value)<0",
+        "p.stock===null||p.stock===''||(typeof p.stock==='string'&&p.stock.trim()==='')||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
+        "value===null||value===''||(typeof value==='string'&&value.trim()==='')||!Number.isFinite(Number(value))||Number(value)<0",
         "// Initialize legacy maps only after every existing record passes validation.",
     ]
     for guard in numeric_balance_guards:
