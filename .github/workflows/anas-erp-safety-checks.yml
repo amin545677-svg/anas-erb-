@@ -63,6 +63,12 @@ jobs:
               "invoice reset handler keeps safety guard": any("تنبيه أمني" in body and "إلغاء المسح الشامل" in body for body in function_bodies("autoResetAllInvoicesNow")),
               "legacy destructive purchase handler is not active under the UI name": len(function_bodies("old_clearAllPurchaseInvoices")) == 1,
               "legacy destructive reset handler is not active under the UI name": len(function_bodies("old_autoResetAllInvoicesNow")) == 1,
+              "invoice cancellation is guarded": len(function_bodies("cancelInvoicePrompt")) == 1 and "لم تتغير أي بيانات" in function_bodies("cancelInvoicePrompt")[0],
+              "legacy destructive cancellation is renamed": len(function_bodies("old_cancelInvoicePrompt")) == 1,
+              "sales return does not falsely claim posting": len(function_bodies("returnSalePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnSalePrompt")[0],
+              "purchase return does not falsely claim posting": len(function_bodies("returnPurchasePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnPurchasePrompt")[0],
+              "legacy sales return prompt is renamed": len(function_bodies("old_returnSalePrompt")) == 1,
+              "legacy purchase return prompt is renamed": len(function_bodies("old_returnPurchasePrompt")) == 1,
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
