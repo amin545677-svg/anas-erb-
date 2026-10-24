@@ -475,7 +475,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # Historical invoice edits must reject malformed source line values and inconsistent money totals.
     edit_start = source.find("function editSalesInvoice(invoiceId)")
-    edit_end = source.find("\\n        function ", edit_start + 1)
+    edit_end = source.find("\n        function ", edit_start + 1)
     edit_invoice = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
     edit_guards = [
         "Historical invoice quantities and prices are the baseline for stock reconciliation.",
