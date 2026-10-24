@@ -743,6 +743,12 @@ jobs:
           assert.equal(AppData.products[0].stock, 10, 'corrupt warehouse list must not mutate stock');
           assert.equal(AppData.warehouses, null, 'corrupt warehouse list must be preserved');
 
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }], stockMovements: [], warehouses: [null] };
+          const corruptWarehouseEntryTrip = { id: 'TR-TEST-8', plate: 'TEST8', warehouseName: 'Truck TEST8', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptWarehouseEntryTrip), /قائمة المخازن تالفة/);
+          assert.equal(AppData.products[0].stock, 10, 'malformed warehouse entry must not mutate stock');
+          assert.deepEqual(AppData.warehouses, [null], 'malformed warehouse entry must be preserved');
+
           console.log('Truck stock tests passed: idempotency, ledger rollback, and fail-closed corruption cases');
           """
           js = js.replace("/*INSERT_TRUCK_STOCK_FUNCTION*/", function_js)
