@@ -40,6 +40,85 @@ jobs:
           assert "</html>" in s.lower(), "HTML document appears incomplete"
           print(f"Full app entry point present: {p.stat().st_size} bytes")
           PY
+      - name: Guard invoice bulk-delete safety handlers
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          app = Path("index.html").read_text(encoding="utf-8")
+          def function_bodies(name):
+              # Keep the existing simple-body checks for small safety handlers.
+              pattern = re.compile(r"function\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{")
+              bodies = []
+              for match in pattern.finditer(app):
+                  start = match.end()
+                  end = app.find("}", start)
+                  assert end >= 0, f"Unclosed function: {name}"
+                  bodies.append(app[start:end])
+              return bodies
+          def function_source(name):
+              pattern = re.compile(r"function\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{")
+              match = pattern.search(app)
+              if not match:
+                  return ""
+              end = app.find("\n        function ", match.end())
+              return app[match.start():end if end >= 0 else len(app)]
+          checks = {
+              "exactly one active purchase-invoice clear handler": len(function_bodies("clearAllPurchaseInvoices")) == 1,
+              "exactly one active invoice reset handler": len(function_bodies("autoResetAllInvoicesNow")) == 1,
+              "purchase-invoice handler keeps safety guard": any("تنبيه أمني" in body and "معطلة" in body for body in function_bodies("clearAllPurchaseInvoices")),
+              "invoice reset handler keeps safety guard": any("تنبيه أمني" in body and "إلغاء المسح الشامل" in body for body in function_bodies("autoResetAllInvoicesNow")),
+              "legacy destructive purchase handler is not active under the UI name": len(function_bodies("old_clearAllPurchaseInvoices")) == 1,
+              "legacy destructive reset handler is not active under the UI name": len(function_bodies("old_autoResetAllInvoicesNow")) == 1,
+              "invoice cancellation is guarded": len(function_bodies("cancelInvoicePrompt")) == 1 and "لم تتغير أي بيانات" in function_bodies("cancelInvoicePrompt")[0],
+              "legacy destructive cancellation is renamed": len(function_bodies("old_cancelInvoicePrompt")) == 1,
+              "sales return does not falsely claim posting": len(function_bodies("returnSalePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnSalePrompt")[0],
+              "purchase return does not falsely claim posting": len(function_bodies("returnPurchasePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnPurchasePrompt")[0],
+              "legacy sales return prompt is renamed": len(function_bodies("old_returnSalePrompt")) == 1,
+              "legacy purchase return prompt is renamed": len(function_bodies("old_returnPurchasePrompt")) == 1,
+              "only one active quick-product renderer": len(function_bodies("renderQuickProducts")) == 1,
+              "active quick-product renderer keeps category filtering": len(function_bodies("renderQuickProducts")) == 1 and "currentPosCategoryFilter" in function_bodies("renderQuickProducts")[0],
+              "legacy simple product renderer renamed": len(function_bodies("old_renderQuickProducts")) == 1,
+              "only one active quick-sale opener": len(function_bodies("openQuickSale")) == 1,
+              "active quick-sale opener uses quick-sale panel": len(function_bodies("openQuickSale")) == 1 and "quickSalePanel" in function_bodies("openQuickSale")[0],
+              "legacy quick-sale opener renamed": len(function_bodies("old_openQuickSale")) == 1,
+              "product deletion rejects nonzero stock": len(function_bodies("deleteProduct")) == 1 and "mainStock !== 0 || warehouseStock !== 0" in function_source("deleteProduct"),
+              "product deletion checks historical references": len(function_bodies("deleteProduct")) == 1 and "stockMovements" in function_source("deleteProduct") and "invoices" in function_source("deleteProduct"),
+              "product deletion requires exact name confirmation": len(function_bodies("deleteProduct")) == 1 and "typedName" in function_source("deleteProduct") and "1234" not in function_source("deleteProduct"),
+              "product deletion rolls back on explicit save failure": len(function_bodies("deleteProduct")) == 1 and "saved === false" in function_source("deleteProduct"),
+              "stocktake draft save checks explicit persistence failure": "saveDB()===false" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
+              "stocktake draft save restores previous drafts on failure": "setDrafts(previousDrafts)" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
+              "stocktake draft save returns explicit status": "return false" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")] and "return true" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
+              "warehouse transfer initializes missing per-product warehouse map": "if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};" in app[app.find("function wtCreateTransfer()"):app.find("function wtRenderHistory()")],
+              "warehouse transfer snapshots warehouse map before mutation": app.find("const beforeWarehouseStock=",app.find("function wtCreateTransfer()")) < app.find("if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};",app.find("function wtCreateTransfer()")),
+              "warehouse transfer restores absent warehouse map on rollback": "else delete p.warehouseStock;" in app[app.find("function wtCreateTransfer()"):app.find("function wtRenderHistory()")],
+              "bulk price update validates complete numeric input": "const pct=Number(raw);" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور") ] and "pct < -100" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
+              "bulk price update validates all prices before mutation": app.find("for(const p of AppData.products)",app.find("function bulkEditPricesPrompt()")) < app.find("changes.forEach(c=>{c.p[c.key]=c.newPrice;}",app.find("function bulkEditPricesPrompt()")),
+              "bulk price update rolls back on save failure": "before.forEach(c=>{c.p[c.key]=c.value;});" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
+              "category creation checks persistence and duplicate names": "AppData.productCategories" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")] and "saveDB()===false" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
+              "category suggestions are connected to product form": 'list="productCategoriesDatalist"' in app and 'id="productCategoriesDatalist"' in app and "populateProductCategorySuggestions();" in app[app.find("function openAddProductModal()"):app.find("function addNewCustomUnit()")],
+              "category suggestions include saved and existing product categories": "AppData.productCategories" in app[app.find("function populateProductCategorySuggestions()"):app.find("function addNewProductCategory()")] and "p.cat||p.category||p.categoryName" in app[app.find("function populateProductCategorySuggestions()"):app.find("function addNewProductCategory()")],
+              "category creation selects new category for current product": "input.value=name" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
+              "custom units are persisted and loaded into product form": "AppData.productUnits" in app[app.find("function populateProductUnitOptions()"):app.find("function addNewCustomUnit()")] and "populateProductUnitOptions();" in app[app.find("function openAddProductModal()"):app.find("function addNewCustomUnit()")],
+              "custom unit save checks persistence and rolls back on failure": "saveDB()===false" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")] and "AppData.productUnits=previous" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")],
+              "custom unit creation avoids duplicate values": "هذه الوحدة موجودة بالفعل" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")],
+              "truck load validates each item quantity before aggregation": "const qty=Number(item.qty)" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")] and "كل كمية في حمولة الشاحنة" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")],
+              "truck load blocks reposting when prior movements exist": "priorTripMoves.length" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")] and "لمنع تكرار خصم أو إضافة المخزون" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")],
+              "truck load rollback restores prior trip metadata": "oldPostedAt" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")] and "oldWarehouseName" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")],
+              "product save validates all numeric fields before mutation": app.find("numberField('newProdBuyCostInput'",app.find("function saveNewProductFromModal()")) < app.find("if(index>=0){",app.find("function saveNewProductFromModal()")),
+              "product save rejects negative and invalid numeric values": "n<0" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")] and "Number.isFinite(Number(raw))" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save prevents duplicate barcodes": "duplicateBarcode" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save rejects stale edit identifiers": "if(editId&&index<0)" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save uses collision-resistant new IDs": "P-'+Date.now().toString(36)" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save restores prior products when persistence fails": "saveDB()===false" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")] and "AppData.products=beforeProducts" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+          }
+          for name, passed in checks.items():
+              print(("PASS" if passed else "FAIL") + ": " + name)
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("Invoice deletion safety checks failed: " + "; ".join(failed))
+          print(f"All {len(checks)} invoice deletion safety checks passed.")
+          PY
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare/worker_firebase_snapshot.js
       - name: Check OpenAI AI Worker JavaScript syntax
@@ -211,6 +290,184 @@ jobs:
           assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
           print("Contextual AI helper presence and privacy guards passed")
           PY
+      - name: Exercise localized spreadsheet number parsing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasParseImportNumber(value,field,rowNo)")
+          end = s.find("function showSmartImportPreview(fileName,rows)", start)
+          assert start >= 0 and end > start, "Could not isolate localized number parser"
+          js = s[start:end] + r"""
+          const assert = require('node:assert/strict');
+          const parse = v => anasParseImportNumber(v, 'price', 2);
+          assert.equal(parse('1234.56'), 1234.56);
+          assert.equal(parse('1234,56'), 1234.56, 'decimal comma should be supported');
+          assert.equal(parse('1,234.56'), 1234.56, 'US grouping and decimal separators should parse');
+          assert.equal(parse('1.234,56'), 1234.56, 'European grouping and decimal separators should parse');
+          assert.equal(parse('1,234,567'), 1234567, 'repeated three-digit grouping separators should parse');
+          assert.equal(parse('١٬٢٣٤٫٥٦'), 1234.56, 'Arabic-Indic digits and Arabic separators should parse');
+          assert.equal(parse(''), 0, 'empty optional numeric cells should default to zero');
+          assert.throws(() => parse('1,234'), /ملتبسة/, 'ambiguous one-separator values must not silently change magnitude');
+          assert.throws(() => parse('1,23.456'), /تجميع الآلاف غير صحيح/, 'malformed grouping must be rejected instead of silently changing magnitude');
+          assert.throws(() => parse('12abc'), /غير صحيحة/, 'invalid numeric content must be rejected');
+          console.log('Localized numeric import tests passed');
+          """
+          Path("/tmp/anas-number-parser-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-number-parser-test.js
+          node /tmp/anas-number-parser-test.js
+      - name: Exercise purchase product ID and barcode collision guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasCreateUniqueProductId(products)")
+          end = s.find("function savePurchaseItem()", start)
+          assert start >= 0 and end > start, "Could not locate purchase ID/barcode generators"
+          helpers = s[start:end]
+          norm_start = s.find("function anasNormalizeBarcode(value)")
+          norm_end = s.find("function saveNewProductFromModal()", norm_start)
+          assert norm_start >= 0 and norm_end > norm_start, "Could not locate barcode normalizer"
+          normalizer = s[norm_start:norm_end]
+          js = normalizer + helpers + """
+          const assert = require('node:assert/strict');
+          const realNow = Date.now, realRandom = Math.random;
+          try {
+            Date.now = () => 1700000012345;
+            let values = [0.1, 0.2];
+            Math.random = () => values.shift() ?? 0.3;
+            const firstId = anasCreateUniqueProductId([]);
+            values = [0.1, 0.2];
+            const nextId = anasCreateUniqueProductId([{id:firstId}]);
+            assert.notEqual(nextId, firstId, 'purchase-created product ID generator must retry collisions');
+            values = [0.1, 0.2];
+            const firstBarcode = anasCreateUniqueBarcode([]);
+            values = [0.1, 0.2];
+            const nextBarcode = anasCreateUniqueBarcode([{barcode:firstBarcode}]);
+            assert.notEqual(anasNormalizeBarcode(nextBarcode), anasNormalizeBarcode(firstBarcode), 'purchase-created barcode generator must retry collisions');
+            assert.ok(/^\\d+$/.test(nextBarcode), 'generated barcode must remain numeric for scanners');
+            console.log('Purchase ID/barcode collision tests passed');
+          } finally { Date.now = realNow; Math.random = realRandom; }
+          """
+          Path("/tmp/anas-purchase-id-barcode-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-purchase-id-barcode-test.js
+          node /tmp/anas-purchase-id-barcode-test.js
+      - name: Exercise normalized barcode uniqueness
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasNormalizeBarcode(value)")
+          end = s.find("function saveNewProductFromModal()", start)
+          assert start >= 0 and end > start, "Could not locate barcode normalization helper"
+          helper = s[start:end]
+          js = helper + """
+          const assert = require('node:assert/strict');
+          assert.equal(anasNormalizeBarcode('ABC 123'), anasNormalizeBarcode('abc123'), 'case and ordinary spaces must not bypass uniqueness');
+          assert.equal(anasNormalizeBarcode('ＡＢＣ１２３'), anasNormalizeBarcode('abc123'), 'full-width barcode characters must normalize consistently');
+          assert.equal(anasNormalizeBarcode('١٢٣٤٥'), anasNormalizeBarcode('12345'), 'Arabic-Indic digits must normalize to Western digits');
+          assert.equal(anasNormalizeBarcode('۱۲۳۴۵'), anasNormalizeBarcode('12345'), 'Persian digits must normalize to Western digits');
+          assert.equal(anasNormalizeBarcode('AB\\u200BCD'), anasNormalizeBarcode('abcd'), 'zero-width characters must not bypass uniqueness');
+          assert.notEqual(anasNormalizeBarcode('1234'), anasNormalizeBarcode('12345'), 'different barcode values must remain distinct');
+          console.log('Normalized barcode uniqueness tests passed');
+          """
+          Path("/tmp/anas-barcode-normalization-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-barcode-normalization-test.js
+          node /tmp/anas-barcode-normalization-test.js
+      - name: Validate imported record ID uniqueness guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("const staged=[], errors=[], seenNames=new Set(), seenIds=new Set();")
+          end = s.find("if(errors.length){", start)
+          assert start >= 0 and end > start, "Could not locate import record validation"
+          block = s[start:end]
+          assert "const existingCodes=new Set(existing.map(x=>norm(x.id)))" in block, "Existing record IDs must be indexed"
+          assert "const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);" in block, "Generated IDs must preserve section-specific prefixes"
+          assert "existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId))" in block, "Supplied and generated IDs must be checked for collisions"
+          assert "seenNames.has(keyName)" in block and "seenIds.add(norm(recordId))" in block, "Name and ID duplicate tracking must be separate"
+          assert "Object.assign(rec,{id:recordId,name," in block, "The validated ID must be the one persisted"
+          print("Import record ID uniqueness guards passed")
+          PY
+      - name: Validate import persistence and UI rollback boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("// Build the next array before mutating the live one")
+          end = s.find("function clearAllSalesInvoices()", start)
+          assert start >= 0 and end > start, "Could not locate import persistence transaction"
+          block = s[start:end]
+          saved = block.find("const saved=saveDB()")
+          save_failure = block.find("if(saved===false) throw new Error")
+          restore = block.find("const restored=JSON.parse(before)")
+          ui_refresh = block.find("// Once persistence succeeds")
+          ui_catch = block.find("ANAS ERP import saved; UI refresh failed")
+          assert saved >= 0 and save_failure > saved and restore > save_failure, "Save failure must restore in-memory state"
+          assert ui_refresh > restore and ui_catch > ui_refresh, "UI refresh must be isolated after successful persistence"
+          ui_region = block[ui_refresh:]
+          assert "const restored=JSON.parse(before)" not in ui_region, "UI rendering failure must not roll memory back after storage succeeds"
+          assert "for(const item of staged) next.push(item)" in block, "Avoid spread-argument limits for large imports"
+          print("Import persistence/rollback boundary checks passed")
+          PY
+      - name: Check spreadsheet import safety limits
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("async function handleSmartAiUpload(e)")
+          end = s.find("async function anasExtractPdfText(file)", start)
+          assert start >= 0 and end > start, "Could not isolate spreadsheet upload handler"
+          js = s[start:end]
+          required = [
+              "const maxImportBytes=20*1024*1024",
+              "if(file.size>maxImportBytes)",
+              "const maxImportRows=100000, maxImportColumns=200",
+              "if(rows.length>maxImportRows)",
+              "if(widestRow>maxImportColumns)",
+              "Array.isArray(wb.SheetNames)",
+              "if(!sheet)"
+          ]
+          missing = [x for x in required if x not in js]
+          assert not missing, f"Missing spreadsheet import safeguards: {missing}"
+          Path("/tmp/anas-import-handler.js").write_text(js, encoding="utf-8")
+          print("Spreadsheet import size, row/column, and workbook-sheet guards passed")
+          PY
+          node --check /tmp/anas-import-handler.js
+      - name: Exercise CSV parser quoting and malformed input
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function parseSmartCsv(raw,delimiter)")
+          end = s.find("function showSmartImportPreview(fileName,rows)", start)
+          assert start >= 0 and end > start, "Could not isolate CSV parser"
+          js = s[start:end] + r"""
+          const assert = require('node:assert/strict');
+          assert.deepEqual(parseSmartCsv('\uFEFFname;note\r\nTea;"green; herbal"\r\nTea;"green ""herbal"" tea"',';'), [
+            ['name','note'],
+            ['Tea','green; herbal'],
+            ['Tea','green "herbal" tea']
+          ], 'BOM, CRLF, quoted delimiters, and escaped quotes should parse correctly');
+          assert.deepEqual(parseSmartCsv('name,note\nTea,"line one\nline two"',','), [
+            ['name','note'],
+            ['Tea','line one\nline two']
+          ], 'newlines inside quoted fields should remain part of the cell');
+          assert.throws(
+            () => parseSmartCsv('name;note\nTea;"unfinished',';'),
+            /غير مغلقة/,
+            'unclosed quoted fields must be rejected rather than silently importing corrupt rows'
+          );
+          console.log('CSV parser tests passed: BOM, CRLF, quoted delimiters, escaped quotes, multiline cells, and malformed quote rejection');
+          """
+          Path("/tmp/anas-csv-parser-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-csv-parser-test.js
+          node /tmp/anas-csv-parser-test.js
       - name: Check PDF extraction JavaScript syntax
         run: |
           python - <<'PY'
