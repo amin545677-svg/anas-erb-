@@ -67,12 +67,15 @@ def main():
         "${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}",
         "${p.stock !== null && p.stock !== undefined && p.stock !== '' && Number.isFinite(Number(p.stock)) ? Number(p.stock) : 'غير صالح'}",
         "${esc(p.id??'—')}",
-        "const reportNumber = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;",
+        "const reportNumber = value => value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;",
         "${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td>",
         "${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td>",
         "${reportDisplay(c.debt)} د.ج",
         "بيانات غير صالحة",
         "غير صالح — توجد قيم ناقصة أو تالفة",
+        "غير صالح — توجد قيمة فاتورة غير صالحة",
+        "value===null?'غير صالح':value",
+        "${reportDisplay(e.amt)} د.ج",
     ]
     for guard in safety_guards:
         if guard not in source:
