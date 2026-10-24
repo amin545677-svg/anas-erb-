@@ -5767,7 +5767,7 @@ function renderPurchasesTable() {
                     normalized=raw.replace(sep,'.');
                 }
             }
-            if(!/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$/.test(normalized)) throw new Error('قيمة رقمية غير صحيحة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+            if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) throw new Error('قيمة رقمية غير صحيحة في الصف '+rowNo+'، الحقل '+field+': '+raw);
             const n=Number(normalized);
             if(!Number.isFinite(n)) throw new Error('قيمة غير صالحة في الصف '+rowNo+'، الحقل '+field);
             return n;
