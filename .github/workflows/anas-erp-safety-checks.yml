@@ -47,7 +47,7 @@ jobs:
           from pathlib import Path
           app = Path("index.html").read_text(encoding="utf-8")
           def function_bodies(name):
-              # The target functions have simple bodies; this checks named declarations and their first closing brace.
+              # Keep the existing simple-body checks for small safety handlers.
               pattern = re.compile(r"function\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{")
               bodies = []
               for match in pattern.finditer(app):
@@ -56,6 +56,13 @@ jobs:
                   assert end >= 0, f"Unclosed function: {name}"
                   bodies.append(app[start:end])
               return bodies
+          def function_source(name):
+              pattern = re.compile(r"function\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{")
+              match = pattern.search(app)
+              if not match:
+                  return ""
+              end = app.find("\n        function ", match.end())
+              return app[match.start():end if end >= 0 else len(app)]
           checks = {
               "exactly one active purchase-invoice clear handler": len(function_bodies("clearAllPurchaseInvoices")) == 1,
               "exactly one active invoice reset handler": len(function_bodies("autoResetAllInvoicesNow")) == 1,
@@ -75,10 +82,10 @@ jobs:
               "only one active quick-sale opener": len(function_bodies("openQuickSale")) == 1,
               "active quick-sale opener uses quick-sale panel": len(function_bodies("openQuickSale")) == 1 and "quickSalePanel" in function_bodies("openQuickSale")[0],
               "legacy quick-sale opener renamed": len(function_bodies("old_openQuickSale")) == 1,
-              "product deletion rejects nonzero stock": len(function_bodies("deleteProduct")) == 1 and "mainStock !== 0 || warehouseStock !== 0" in function_bodies("deleteProduct")[0],
-              "product deletion checks historical references": len(function_bodies("deleteProduct")) == 1 and "stockMovements" in function_bodies("deleteProduct")[0] and "invoices" in function_bodies("deleteProduct")[0],
-              "product deletion requires exact name confirmation": len(function_bodies("deleteProduct")) == 1 and "typedName" in function_bodies("deleteProduct")[0] and "1234" not in function_bodies("deleteProduct")[0],
-              "product deletion rolls back on explicit save failure": len(function_bodies("deleteProduct")) == 1 and "saved === false" in function_bodies("deleteProduct")[0],
+              "product deletion rejects nonzero stock": len(function_bodies("deleteProduct")) == 1 and "mainStock !== 0 || warehouseStock !== 0" in function_source("deleteProduct"),
+              "product deletion checks historical references": len(function_bodies("deleteProduct")) == 1 and "stockMovements" in function_source("deleteProduct") and "invoices" in function_source("deleteProduct"),
+              "product deletion requires exact name confirmation": len(function_bodies("deleteProduct")) == 1 and "typedName" in function_source("deleteProduct") and "1234" not in function_source("deleteProduct"),
+              "product deletion rolls back on explicit save failure": len(function_bodies("deleteProduct")) == 1 and "saved === false" in function_source("deleteProduct"),
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
