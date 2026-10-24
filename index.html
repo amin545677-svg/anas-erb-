@@ -6811,6 +6811,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(trip.stockPostedAt)return true;
     const items=Array.isArray(trip.stockItems)?trip.stockItems:[];
     if(!items.length){trip.stockPostedAt=null;return true;}
+    if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw new Error('سجل حركات المخزون تالف؛ أُوقفت عملية التحميل دون استبدال السجل.');
+    if(Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة؛ أُوقفت عملية التحميل دون استبدال البيانات.');
+    if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة؛ أُوقفت عملية التحميل.');
     const existingMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements:[];
     const priorTripMoves=existingMoves.filter(m=>String(m.referenceType||'')==='truck_trip'&&String(m.referenceId||'')===String(trip.id)&&['TRUCK_LOAD_OUT','TRUCK_LOAD_IN'].includes(String(m.type||'')));
     if(priorTripMoves.length){
@@ -6826,15 +6829,16 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     }
     const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
     if(!warehouseName)throw new Error('اسم مخزن الشاحنة مطلوب قبل الترحيل.');
-    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
+    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(p.warehouseStock&&typeof p.warehouseStock==='object')for(const [name,balance] of Object.entries(p.warehouseStock)){if(!name.trim()||!((typeof balance==='number')||(typeof balance==='string'))||String(balance).trim()===''||!Number.isFinite(Number(balance))||Number(balance)<0)throw new Error('رصيد مخزن فرعي تالف للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');}if(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw new Error('رصيد المخزن الرئيسي غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(Number(p.stock)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+Number(p.stock)+'.');}
     const oldPostedAt=trip.stockPostedAt;
     const oldWarehouseName=trip.warehouseName;
     const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)}));
-    const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
+    const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');
+    const oldMoves=hadStockMovements?AppData.stockMovements.slice():null;
     const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
     try{
       if(wtEnsureMobileWarehouse(warehouseName)===null)throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');
-      if(!Array.isArray(AppData.stockMovements))throw new Error('سجل حركات المخزون غير صالح؛ أُوقفت عملية التحميل.');
+      if(!hadStockMovements)AppData.stockMovements=[];
       for(const [id,qty] of required){
         const p=products.find(x=>String(x.id)===id);
         p.stock=(Number(p.stock)||0)-qty;
