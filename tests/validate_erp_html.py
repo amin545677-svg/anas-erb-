@@ -139,9 +139,9 @@ def main():
         errors.append("integrated POS payment must retain warehouse preflight and malformed customer-debt rejection")
     if not transfer_fn or "if(!wtTryEnsureData())return;" not in transfer_fn:
         errors.append("integrated warehouse transfer must validate persisted stock data before mutation")
-    if not modal_fn or "if (invalidCart) return;" not in modal_fn:
+    if not modal_fn or "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" not in modal_fn or "return;" not in modal_fn:
         errors.append("integrated POS payment modal must remain blocked for malformed cart values")
-    if sale_fn and transfer_fn and modal_fn and "wtTryEnsureData" in sale_fn and "hasDebtField" in sale_fn and "if(!wtTryEnsureData())return;" in transfer_fn and "if (invalidCart) return;" in modal_fn:
+    if sale_fn and transfer_fn and modal_fn and "wtTryEnsureData" in sale_fn and "hasDebtField" in sale_fn and "if(!wtTryEnsureData())return;" in transfer_fn and "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" in modal_fn and "return;" in modal_fn:
         print("PASS: integrated POS payment and warehouse mutation guards remain intact")
 
     counts = Counter(parser.ids)
