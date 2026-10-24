@@ -2837,8 +2837,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             let total = 0;
             let hasInvalidCartValues = false;
             posCart.forEach((item, idx) => {
-                const qtyNumber = item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null;
-                const priceNumber = item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null;
+                const qtyNumber = (typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null;
+                const priceNumber = (typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null;
                 const valuesValid = qtyNumber !== null && priceNumber !== null;
                 const qty = qtyNumber;
                 const price = priceNumber;
@@ -3040,7 +3040,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!modal || !modal.classList.contains('active')) return;
             const total = posCart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
             const totalEl = document.getElementById('hasibTotalText');
-            const invalidCart = !posCart.length || posCart.some(item => item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) || !Number.isFinite(total);
+            const invalidCart = !posCart.length || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) || !Number.isFinite(total);
             if (totalEl) totalEl.textContent = invalidCart ? 'بيانات السلة غير صالحة' : total.toFixed(2) + ' د.ج';
             if (invalidCart) return;
             renderHasibCartEditor();
@@ -3060,7 +3060,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function openHasibModal() {
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
             const total = posCart.reduce((a, b) => a + (Number(b.qty) * Number(b.price)), 0);
-            if (!Number.isFinite(total) || total <= 0 || posCart.some(item => item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0)) {
+            if (!Number.isFinite(total) || total <= 0 || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0)) {
                 alert('تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح. صحّح بيانات المنتجات أولاً.');
                 return;
             }
