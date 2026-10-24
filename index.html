@@ -7056,8 +7056,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     box.innerHTML=truckDraftItems.length ? truckDraftItems.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--mp-border,#e2e8f0)"><span>${safe(x.productName)} × ${Number(x.qty)}</span><button type="button" class="btn-pos-hasib" style="background:#b91c1c" onclick="anasTruckRemoveDraftItem('${safe(x.productId)}')">إزالة</button></div>`).join('') : '<div style="font-size:12px;color:var(--text-muted,#64748b)">لم تُضف أصنافاً مرتبطة بالمخزون.</div>';
   }
   function postTripStock(trip){
+    // Reject malformed trip records before idempotency shortcuts or any stock mutation.
+    if(!trip||typeof trip!=='object'||Array.isArray(trip))throw new Error('سجل رحلة الشاحنة غير صالح؛ أُوقفت عملية التحميل دون تعديل المخزون.');
+    if(Object.prototype.hasOwnProperty.call(trip,'stockItems')&&!Array.isArray(trip.stockItems))throw new Error('قائمة حمولة الشاحنة غير صالحة؛ أُوقفت عملية التحميل دون تعديل المخزون.');
     if(trip.stockPostedAt)return true;
-    const items=Array.isArray(trip.stockItems)?trip.stockItems:[];
+    const items=Object.prototype.hasOwnProperty.call(trip,'stockItems')?trip.stockItems:[];
     if(!items.length){trip.stockPostedAt=null;return true;}
     if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw new Error('سجل حركات المخزون تالف؛ أُوقفت عملية التحميل دون استبدال السجل.');
     if(Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))))throw new Error('قائمة المخازن تالفة؛ أُوقفت عملية التحميل دون استبدال البيانات.');
