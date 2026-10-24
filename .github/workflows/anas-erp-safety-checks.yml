@@ -317,6 +317,28 @@ jobs:
           PY
           node --check /tmp/anas-number-parser-test.js
           node /tmp/anas-number-parser-test.js
+      - name: Exercise normalized barcode uniqueness
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasNormalizeBarcode(value)")
+          end = s.find("function saveNewProductFromModal()", start)
+          assert start >= 0 and end > start, "Could not locate barcode normalization helper"
+          helper = s[start:end]
+          js = helper + """
+          const assert = require('node:assert/strict');
+          assert.equal(anasNormalizeBarcode('ABC 123'), anasNormalizeBarcode('abc123'), 'case and ordinary spaces must not bypass uniqueness');
+          assert.equal(anasNormalizeBarcode('١٢٣٤٥'), anasNormalizeBarcode('12345'), 'Arabic-Indic digits must normalize to Western digits');
+          assert.equal(anasNormalizeBarcode('۱۲۳۴۵'), anasNormalizeBarcode('12345'), 'Persian digits must normalize to Western digits');
+          assert.equal(anasNormalizeBarcode('AB\\u200BCD'), anasNormalizeBarcode('abcd'), 'zero-width characters must not bypass uniqueness');
+          assert.notEqual(anasNormalizeBarcode('1234'), anasNormalizeBarcode('12345'), 'different barcode values must remain distinct');
+          console.log('Normalized barcode uniqueness tests passed');
+          """
+          Path("/tmp/anas-barcode-normalization-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-barcode-normalization-test.js
+          node /tmp/anas-barcode-normalization-test.js
       - name: Validate imported record ID uniqueness guards
         run: |
           python - <<'PY'
