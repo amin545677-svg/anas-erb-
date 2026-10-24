@@ -130,7 +130,7 @@ def main():
         print("PASS: truck posting rejects corrupt persisted maps/ledgers before mutation")
 
     # Truck loading must reject malformed maps before mutation; settlement rollback must preserve array shape.
-    load_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل"
+    load_guard = "Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))"
     settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
     load_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
