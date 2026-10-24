@@ -3112,6 +3112,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             for (const [id, qty] of required) {
                 const product = (AppData.products || []).find(p => String(p.id) === id);
                 if (!product) { alert('تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.'); return; }
+                if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
+                    alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
+                }
                 const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
                 if (!Number.isFinite(stock) || stock < qty) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
@@ -3142,7 +3145,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 oldStocks.set(id, {
                     stock:Number(p.stock),
                     hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
-                    warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null
+                    warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
                 });
             }
             const oldCaisse = Number(AppData.caisseBalance) || 0;
@@ -3190,7 +3193,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     const p = AppData.products.find(x => String(x.id) === id);
                     if (p) {
                         p.stock = stockState.stock;
-                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock||{};
+                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;
                         else delete p.warehouseStock;
                     }
                 }
@@ -4196,13 +4199,17 @@ function renderPurchasesTable() {
             const names=['المخزن الرئيسي'];
             (AppData.users||[]).forEach(u=>{[u.warehouse,u.secondaryWarehouse].forEach(n=>{n=String(n||'').trim();if(n&&!names.includes(n))names.push(n);});});
             (AppData.warehouses||[]).forEach(w=>{const n=typeof w==='string'?w:w.name;if(n&&!names.includes(n))names.push(n);});
-            (AppData.products||[]).forEach(p=>Object.keys(p.warehouseStock||{}).forEach(n=>{if(n&&!names.includes(n))names.push(n);}));
+            (AppData.products||[]).forEach(p=>{if(p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock))Object.keys(p.warehouseStock).forEach(n=>{if(n&&!names.includes(n))names.push(n);});});
             return names;
         }
         function wtEnsureData(){
-            if(!Array.isArray(AppData.warehouseTransfers))AppData.warehouseTransfers=[];
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
-            (AppData.products||[]).forEach(p=>{if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};});
+            // Initialize only genuinely absent collections; never overwrite malformed persisted history silently.
+            if(AppData.warehouseTransfers==null)AppData.warehouseTransfers=[];
+            else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل؛ استعد نسخة احتياطية سليمة أو أصلح البيانات أولاً.');
+            if(AppData.warehouses==null)AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
+            if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة. أُوقفت عملية المخزون دون تعديل البيانات.');
+            AppData.products.forEach(p=>{if(!p||typeof p!=='object')throw new Error('سجل منتج غير صالح. أُوقفت العملية دون تعديل البيانات.');if(p.warehouseStock==null)p.warehouseStock={};else if(typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة. أُوقفت العملية دون استبدال البيانات.');});
         }
         function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
         function wtInitScreen(){
@@ -4236,7 +4243,7 @@ function renderPurchasesTable() {
         }
         function wtCreateTransfer(){
             wtEnsureData();const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
-            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
+            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
@@ -6801,10 +6808,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     }
     const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
     if(!warehouseName)throw new Error('اسم مخزن الشاحنة مطلوب قبل الترحيل.');
-    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
+    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
     const oldPostedAt=trip.stockPostedAt;
     const oldWarehouseName=trip.warehouseName;
-    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock)?{...p.warehouseStock}:null}));
+    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)}));
     const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
     const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
     try{
@@ -6822,7 +6829,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(saveDB()===false)throw new Error('تعذر حفظ حركة التحميل.');
       return true;
     }catch(e){
-      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock||{};else delete x.p.warehouseStock;});
+      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});
       if(oldMoves===null)delete AppData.stockMovements;else AppData.stockMovements=oldMoves;
       AppData.warehouses=oldWarehouses;
       if(oldPostedAt===undefined)delete trip.stockPostedAt;else trip.stockPostedAt=oldPostedAt;
@@ -6941,7 +6948,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
       const snapshots=lines.map(line=>{
         const p=products.find(x=>String(x.id)===String(line.productId));
-        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null};
+        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)};
       });
       const movesBefore=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
       const tripBefore={settlementId:trip.settlementId,settledAt:trip.settledAt,settlementInvoiceIds:trip.settlementInvoiceIds,settlementLines:trip.settlementLines};
@@ -6950,6 +6957,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
         for(const line of lines){
           const p=products.find(x=>String(x.id)===String(line.productId));
+          if(!p)throw new Error('تعذر العثور على المنتج '+line.productName+'.');
+          if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+line.productName+'؛ لم تُعدّل الأرصدة.');
           if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
           const truckQty=Number(p.warehouseStock[warehouse])||0;
           if(truckQty+1e-8<line.returned+line.damaged+line.missing)throw new Error('رصيد الشاحنة لا يكفي للصنف '+line.productName+'.');
@@ -6968,7 +6977,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         trip.settlementInvoiceIds=linked.map(inv=>String(inv.id));trip.settlementLines=lines.map(line=>({...line}));
         if(saveDB()===false)throw new Error('فشل حفظ التسوية.');
       }catch(e){
-        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock||{};else delete old.p.warehouseStock;}
+        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock;}
         if(movesBefore===null)delete AppData.stockMovements;else AppData.stockMovements=movesBefore;
         for(const key of ['settlementId','settledAt','settlementInvoiceIds','settlementLines'])if(tripBefore[key]===undefined)delete trip[key];else trip[key]=tripBefore[key];
         throw e;

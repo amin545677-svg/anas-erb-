@@ -97,6 +97,41 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # Malformed array-shaped warehouse maps must block stock mutation, not be silently reset.
+    sale_guard = "saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)"
+    transfer_guard = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
+    settlement_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة"
+    if sale_guard not in source or transfer_guard not in source or settlement_guard not in source:
+        errors.append("POS, warehouse transfer, and truck settlement must fail closed on malformed warehouse stock maps")
+    else:
+        print("PASS: stock mutation paths fail closed on malformed warehouse maps")
+
+    # Truck loading must reject malformed maps before mutation; settlement rollback must preserve array shape.
+    load_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل"
+    settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
+    load_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    load_restore = "oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});"
+    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source or load_snapshot not in source or load_restore not in source:
+        errors.append("truck load guard or rollback preservation for malformed warehouse maps is missing")
+    else:
+        print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
+
+    # POS rollback must preserve malformed map shape, and transfers must fail closed from either side.
+    sale_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    sale_restore = "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;"
+    transfer_guard_any_direction = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
+    if sale_snapshot not in source or sale_restore not in source or transfer_guard_any_direction not in source:
+        errors.append("POS rollback must preserve malformed warehouse map shape and transfers must reject it")
+    else:
+        print("PASS: POS rollback preserves malformed maps and transfers reject them from either direction")
+
+    warehouse_names_guard = "if(p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock))Object.keys(p.warehouseStock)"
+    if warehouse_names_guard not in source:
+        errors.append("warehouse selector must ignore array-shaped warehouseStock maps")
+    else:
+        print("PASS: warehouse selector ignores malformed array-shaped maps")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
