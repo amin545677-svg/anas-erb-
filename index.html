@@ -2349,25 +2349,47 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         const ANAS_DB_KEY = 'ANAS_THE_ENTERPRISE_V11_OFFLINE';
         let AppData;
+        let anasStartupIntegrityIssues = [];
+        let anasStartupFatalLoadError = false;
         try {
             const saved = localStorage.getItem(ANAS_DB_KEY);
             AppData = saved ? JSON.parse(saved) : initialDB;
-            if (!AppData || typeof AppData !== 'object') throw new Error('invalid saved data');
-            // Ensure essential collections exist so older/incomplete saves do not crash the app.
+            if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
+            // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
             ['products','customers','suppliers','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
-                if (!Array.isArray(AppData[k])) AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
+                if (!Object.prototype.hasOwnProperty.call(AppData, k)) {
+                    AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
+                } else if (!Array.isArray(AppData[k])) {
+                    anasStartupIntegrityIssues.push(k);
+                }
             });
-            if (!AppData.posScreensCarts || typeof AppData.posScreensCarts !== 'object') AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
+            if (!Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts')) {
+                AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
+            } else if (!AppData.posScreensCarts || typeof AppData.posScreensCarts !== 'object' || Array.isArray(AppData.posScreensCarts)) {
+                anasStartupIntegrityIssues.push('posScreensCarts');
+            } else {
+                // A valid container can still contain a corrupt cart; never replace that cart with an empty array on save.
+                Object.keys(AppData.posScreensCarts).forEach(tab => {
+                    if (!Array.isArray(AppData.posScreensCarts[tab])) {
+                        anasStartupIntegrityIssues.push('posScreensCarts.' + tab);
+                    }
+                });
+            }
             if (!AppData.activePosScreenTab) AppData.activePosScreenTab = 1;
             if (String(AppData.appName || '').trim().toLowerCase() === 'anas the') AppData.appName = 'Anas ERP';
             if (AppData.storeConfig && AppData.storeConfig.footer === 'شكراً لتعاملكم مع anas the! مرحبا بكم دائماً.') {
                 AppData.storeConfig.footer = 'شكراً لتعاملكم مع Anas ERP! مرحبا بكم دائماً.';
             }
+            if (anasStartupIntegrityIssues.length) {
+                setTimeout(() => alert('تحذير سلامة البيانات: توجد مجموعات محفوظة تالفة (' + anasStartupIntegrityIssues.join(', ') + '). لم تُستبدل البيانات. تم إيقاف الحفظ حتى إصلاحها أو استعادة نسخة احتياطية سليمة.'), 300);
+            }
         } catch (e) {
+            // Keep the original localStorage value untouched; never allow a later save to overwrite unreadable data.
             AppData = initialDB;
-            setTimeout(() => alert('تعذر قراءة البيانات المحفوظة القديمة. تم فتح التطبيق ببيانات البداية فقط؛ لا تمسح بيانات المتصفح أو تعاود الحفظ قبل استرجاع نسخة احتياطية.'), 300);
+            anasStartupFatalLoadError = true;
+            setTimeout(() => alert('تعذر قراءة البيانات المحفوظة. لم تُحذف النسخة الأصلية ولم يُسمح بالحفظ فوقها. أصلح JSON أو صدّر/استعد نسخة سليمة قبل المتابعة.'), 300);
         }
-        let posCart = AppData.posScreensCarts[AppData.activePosScreenTab] || [];
+        let posCart = AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) && Array.isArray(AppData.posScreensCarts[AppData.activePosScreenTab]) ? AppData.posScreensCarts[AppData.activePosScreenTab] : [];
         let activeAiTab = 'all';
 
         
@@ -2504,15 +2526,19 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #e2e8f0; font-size:12px;">
                         <div>
                             <strong>${anasEscapeHTML(c.name)}</strong><br>
-                            <small style="color:#64748b;">📞 ${c.phone || '-'}</small>
+                            <small style="color:#64748b;">📞 ${anasEscapeHTML(c.phone || '-')}</small>
                         </div>
-                        <strong style="color:#ef4444; font-size:13px;">${c.debt.toFixed(2)} د.ج</strong>
+                        <strong style="color:#ef4444; font-size:13px;">${((typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')} د.ج</strong>
                     </div>
                 `).join('');
             }
         }
 
         function saveDB() {
+            if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length) {
+                alert('الحفظ موقوف لحماية البيانات الأصلية. أصلح البيانات التالفة أو استعد نسخة احتياطية سليمة قبل إجراء أي تغييرات.');
+                return false;
+            }
             // نجاح الحفظ يعني نجاح الكتابة إلى التخزين الدائم فقط؛ أخطاء تحديث الواجهة لا تُحوّل حفظًا ناجحًا إلى فشل وهمي.
             try {
                 AppData.posScreensCarts = AppData.posScreensCarts || {};
@@ -2718,7 +2744,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 const price = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
                 const wh=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
                 const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,wh):(Number(p.stock)||0);
-                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
+                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
             }).join('');
             results.hidden = false;
         }
@@ -2784,6 +2810,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
             const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
             const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,saleWarehouse):(Number(p.stock)||0);
+            if(!Number.isFinite(available)||available<0){alert('تعذر إضافة المنتج: رصيد المخزون غير صالح في «'+saleWarehouse+'». أصلح البيانات قبل متابعة البيع.');return;}
 
             if(ex) {
                 if(ex.qty >= available) { alert('الكمية تتجاوز الرصيد المتوفر في «'+saleWarehouse+'» (' + available + ')'); return; }
@@ -2835,23 +2862,32 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
 
             let total = 0;
+            let hasInvalidCartValues = false;
             posCart.forEach((item, idx) => {
-                const sub = item.qty * item.price;
-                total += sub;
-                const imgThumb = item.image ? `<img src="${item.image}" style="width:28px; height:28px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-left:6px;">` : '';
+                const qtyNumber = (typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null;
+                const priceNumber = (typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null;
+                const valuesValid = qtyNumber !== null && priceNumber !== null;
+                const qty = qtyNumber;
+                const price = priceNumber;
+                const sub = valuesValid ? qtyNumber * priceNumber : null;
+                if (!valuesValid || !Number.isFinite(sub)) hasInvalidCartValues = true;
+                else total += sub;
+                const cartImage = String(item.image || '');
+                const safeCartImage = /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';
+                const imgThumb = safeCartImage ? `<img src="${anasEscapeHTML(safeCartImage)}" style="width:28px; height:28px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-left:6px;">` : '';
                 tb.innerHTML += `
                     <div class="invoice-table-row">
                         <div>
                             ${imgThumb}${anasEscapeHTML(item.name)}
                             <button onclick="removePosCartItem(${idx})" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:0.85rem; margin-right:4px;">✕</button>
                         </div>
-                        <div><strong style="cursor:pointer; color:#0284c7; text-decoration:underline;" onclick="editPosPrice(${idx})" title="تعديل السعر">${item.price}</strong></div>
-                        <div><div class="pos-qty-controls"><button type="button" aria-label="إنقاص الكمية" onclick="changePosQty(${idx},-1)">−</button><span class="pos-qty-number" onclick="editPosQty(${idx})" title="اضغط لإدخال كمية محددة">${item.qty}</span><button type="button" aria-label="زيادة الكمية" onclick="changePosQty(${idx},1)">+</button></div><small style="display:block;text-align:center;color:var(--text-muted,#64748b)">${item.unit || ''}</small></div>
-                        <div style="font-weight:700; color:#15803d;">${sub}</div>
+                        <div><strong style="cursor:pointer; color:#0284c7; text-decoration:underline;" onclick="editPosPrice(${idx})" title="تعديل السعر">${priceNumber===null?'غير صالح':anasEscapeHTML(priceNumber)}</strong></div>
+                        <div><div class="pos-qty-controls"><button type="button" aria-label="إنقاص الكمية" onclick="changePosQty(${idx},-1)">−</button><span class="pos-qty-number" onclick="editPosQty(${idx})" title="اضغط لإدخال كمية محددة">${qtyNumber===null?'غير صالح':anasEscapeHTML(qtyNumber)}</span><button type="button" aria-label="زيادة الكمية" onclick="changePosQty(${idx},1)">+</button></div><small style="display:block;text-align:center;color:var(--text-muted,#64748b)">${anasEscapeHTML(item.unit || '')}</small></div>
+                        <div style="font-weight:700; color:#15803d;">${sub===null||!Number.isFinite(sub)?'غير صالح':sub.toFixed(2)}</div>
                     </div>
                 `;
             });
-            document.getElementById('posTotalDisplay').innerText = total.toFixed(2) + ' د.ج';
+            document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج';
             syncHasibInvoiceTotals();
         }
 
@@ -2878,6 +2914,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             else {
                 const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
                 const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+                if (product && (!Number.isFinite(available) || available < 0)) { alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.'); return; }
                 if (product && Number.isFinite(available) && available >= 0 && next > available && !AppData.allowNegativeStock) {
                     alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                     return;
@@ -2894,6 +2931,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!Number.isFinite(q) || q <= 0) return;
             const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
             const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+            if (product && (!Number.isFinite(available) || available < 0)) { alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.'); return; }
             if (product && Number.isFinite(available) && available >= 0 && q > available && !AppData.allowNegativeStock) {
                 alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                 return;
@@ -3031,7 +3069,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!modal || !modal.classList.contains('active')) return;
             const total = posCart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
             const totalEl = document.getElementById('hasibTotalText');
-            if (totalEl) totalEl.textContent = total.toFixed(2) + ' د.ج';
+            const invalidCart = !posCart.length || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) || !Number.isFinite(total);
+            if (totalEl) totalEl.textContent = invalidCart ? 'بيانات السلة غير صالحة' : total.toFixed(2) + ' د.ج';
+            if (invalidCart) return;
             renderHasibCartEditor();
             const paidInput = document.getElementById('hasibPaidAmount');
             if (paidInput && Number(paidInput.value) > total) paidInput.value = total.toFixed(2);
@@ -3048,7 +3088,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         function openHasibModal() {
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
-            const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
+            const total = posCart.reduce((a, b) => a + (Number(b.qty) * Number(b.price)), 0);
+            if (!Number.isFinite(total) || total <= 0 || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0)) {
+                alert('تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح. صحّح بيانات المنتجات أولاً.');
+                return;
+            }
             document.getElementById('hasibTotalText').innerText = total.toFixed(2) + ' د.ج';
             document.getElementById('hasibPaidAmount').value = total;
             document.getElementById('hasibPaymentMethod').value = 'cash';
@@ -3091,6 +3135,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
         function confirmHasibPayment() {
+            if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
             const total = cart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
             if (!cart.length || !Number.isFinite(total) || total <= 0) {
@@ -3112,6 +3157,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             for (const [id, qty] of required) {
                 const product = (AppData.products || []).find(p => String(p.id) === id);
                 if (!product) { alert('تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.'); return; }
+                if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
+                    alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
+                }
                 const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
                 if (!Number.isFinite(stock) || stock < qty) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
@@ -3127,13 +3175,36 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             const paid = rawPaid;
             const remaining = Math.max(0, total - paid);
+            // Reject malformed financial collections/balances before any stock, debt, or cash mutation.
+            if (Object.prototype.hasOwnProperty.call(AppData, 'customers') &&
+                (!Array.isArray(AppData.customers) || AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c)))) {
+                alert('تعذر تأكيد البيع: سجل العملاء تالف. لم يتم تغيير المخزون أو الحسابات.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'invoices') &&
+                (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
+                alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
+                 String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)) || Number(AppData.caisseBalance) < 0)) {
+                alert('تعذر تأكيد البيع: رصيد الصندوق غير صالح. لم يتم تسجيل أي حركة مالية أو مخزنية.');
+                return;
+            }
             const customers = Array.isArray(AppData.customers) ? AppData.customers : (AppData.customers = []);
             if (remaining > 0 && !cId) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
             const selectedCustomer = cId ? customers.find(c => String(c.id) === cId) : null;
             if (remaining > 0 && !selectedCustomer) { alert('الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.'); return; }
             const cust = selectedCustomer || { name: 'عميل نقدي عابر', debt: 0 };
             const registeredCustomer = Boolean(selectedCustomer);
-            const oldDebt = Number(cust.debt) || 0;
+            const hasDebtField = Object.prototype.hasOwnProperty.call(cust,'debt');
+            const rawDebt = cust.debt;
+            if (registeredCustomer && hasDebtField && !((typeof rawDebt === 'number' || typeof rawDebt === 'string') && String(rawDebt).trim() !== '' && Number.isFinite(Number(rawDebt)) && Number(rawDebt) >= 0)) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل غير صالح. صحّح سجل العميل قبل تسجيل أي حركة مالية.');
+                return;
+            }
+            const oldDebt = hasDebtField ? Number(rawDebt) : 0;
 
             // نسخة تراجع دقيقة للحقول التي ستتغير، قبل لمس الحسابات والمخزون.
             const oldStocks = new Map();
@@ -3142,7 +3213,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 oldStocks.set(id, {
                     stock:Number(p.stock),
                     hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
-                    warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null
+                    warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
                 });
             }
             const oldCaisse = Number(AppData.caisseBalance) || 0;
@@ -3190,7 +3261,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     const p = AppData.products.find(x => String(x.id) === id);
                     if (p) {
                         p.stock = stockState.stock;
-                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock||{};
+                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;
                         else delete p.warehouseStock;
                     }
                 }
@@ -4057,9 +4128,22 @@ function renderPurchasesTable() {
             const newTotal = editedItems.reduce((sum, x) => sum + Number(x.qty) * Number(x.price), 0);
             if (!Number.isFinite(newTotal) || newTotal < 0) { alert('تعذر حساب إجمالي الفاتورة.'); return; }
             const oldItems = inv.items;
+            // Historical invoice quantities and prices are the baseline for stock reconciliation.
+            // Never coerce malformed legacy values to zero: that would create a false stock adjustment.
+            for (const item of oldItems) {
+                if (!item || typeof item !== 'object' || item.id === undefined || item.id === null ||
+                    String(item.id).trim() === '' ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
+                    String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
+                    !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
+                    String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
+                    alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
+                    return;
+                }
+            }
             const stockChanges = new Map();
-            for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty || 0));
-            for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty || 0));
+            for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty));
+            for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty));
             // تسوية المخزن الذي صدرت منه الفاتورة، لا المخزن الرئيسي افتراضياً.
             const invoiceWarehouse = String(inv.warehouseName || inv.warehouse || 'المخزن الرئيسي').trim() || 'المخزن الرئيسي';
             for (const [id, delta] of stockChanges) {
@@ -4069,13 +4153,28 @@ function renderPurchasesTable() {
                     ? wtAvailableStock(p, invoiceWarehouse)
                     : (Number(p.stock) || 0);
                 if (!Number.isFinite(available) || available + delta < -0.000001) {
-                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 0) + '.');
+                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 'بيانات غير صالحة') + '.');
                     return;
                 }
             }
-            const oldTotal = Number(inv.total) || 0;
-            const oldPaid = Number(inv.paid) || 0;
-            const oldRemaining = Number(inv.remaining) || Math.max(0, oldTotal - oldPaid);
+            const validMoneyField = value =>
+                ((typeof value === 'number') || (typeof value === 'string')) &&
+                String(value).trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
+            if ((Object.prototype.hasOwnProperty.call(inv, 'total') && !validMoneyField(inv.total)) ||
+                (Object.prototype.hasOwnProperty.call(inv, 'paid') && !validMoneyField(inv.paid)) ||
+                (Object.prototype.hasOwnProperty.call(inv, 'remaining') && !validMoneyField(inv.remaining))) {
+                alert('تعذر تعديل الفاتورة: إجماليها أو المبلغ المحصّل أو المتبقي يحتوي قيمة مالية غير صالحة. لم يتم تغيير المخزون أو الحسابات.');
+                return;
+            }
+            const oldTotal = Object.prototype.hasOwnProperty.call(inv, 'total') ? Number(inv.total) : oldItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0);
+            const oldPaid = Object.prototype.hasOwnProperty.call(inv, 'paid') ? Number(inv.paid) : 0;
+            const oldRemaining = Object.prototype.hasOwnProperty.call(inv, 'remaining') ? Number(inv.remaining) : Math.max(0, oldTotal - oldPaid);
+            if (!Number.isFinite(oldTotal) || !Number.isFinite(oldPaid) || !Number.isFinite(oldRemaining) ||
+                oldPaid > oldTotal + 0.000001 || oldRemaining > oldTotal + 0.000001 ||
+                Math.abs(oldRemaining - Math.max(0, oldTotal - oldPaid)) > 0.01) {
+                alert('تعذر تعديل الفاتورة: إجماليها والمدفوع والمتبقي غير متطابقة. راجع الحسابات أو صحّح الفاتورة قبل التسوية.');
+                return;
+            }
             // Do not silently rewrite historic cash when an edited invoice total falls below money already collected.
             // Refunds must be recorded as a separate cash movement so the audit trail remains accurate.
             if (newTotal + 0.000001 < oldPaid) {
@@ -4086,6 +4185,28 @@ function renderPurchasesTable() {
             const newRemaining = Math.max(0, newTotal - newPaid);
             const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && oldRemaining > 0));
             if (newRemaining > 0 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بالدين. لم يتم تعديل الفاتورة لحماية الحسابات.'); return; }
+            if (customer && Object.prototype.hasOwnProperty.call(customer, 'debt') &&
+                !((typeof customer.debt === 'number' || typeof customer.debt === 'string') &&
+                  String(customer.debt).trim() !== '' && Number.isFinite(Number(customer.debt)) && Number(customer.debt) >= 0)) {
+                alert('تعذر تعديل الفاتورة: رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي.');
+                return;
+            }
+            // Validate every touched product map, even for a main-warehouse invoice:
+            // rollback snapshots must never coerce an array/null legacy map into a plain object.
+            for (const id of stockChanges.keys()) {
+                const p = (AppData.products || []).find(x => String(x.id) === id);
+                if (!p) { alert('تعذر تعديل الفاتورة: أحد المنتجات غير موجود. لم يتم تغيير المخزون أو الحسابات.'); return; }
+                if (Object.prototype.hasOwnProperty.call(p, 'warehouseStock') &&
+                    (!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))) {
+                    alert('تعذر تعديل الفاتورة: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (p.name || id) + '. لم يتم تغيير المخزون أو الحسابات.');
+                    return;
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'stockMovements') &&
+                (!Array.isArray(AppData.stockMovements) || AppData.stockMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m)))) {
+                alert('تعذر تعديل الفاتورة: سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة قبل المتابعة.');
+                return;
+            }
             if (!confirm('سيتم تحديث أصناف الفاتورة وإعادة تسوية المخزون والحسابات. هل تريد المتابعة؟')) return;
             const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined, hadStockMovements: Array.isArray(AppData.stockMovements), stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null};
             try {
@@ -4164,7 +4285,8 @@ function renderPurchasesTable() {
         function wtUserWarehouseName(user){return String(user&&(user.secondaryWarehouse||user.warehouseName)||'').trim();}
         function wtEnsureUserWarehouse(user){
             const name=wtUserWarehouseName(user);if(!name)return null;
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))){alert('قائمة المخازن تالفة؛ أُوقفت عملية إسناد المخزن دون استبدال البيانات.');return null;}
             let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===name);
             let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
             if(!wh)wh={id:'wh_user_'+String(user.id),name,type:/شاحنة|truck|mobile/i.test(name)?'mobile':'secondary',status:'active'};
@@ -4177,14 +4299,27 @@ function renderPurchasesTable() {
             const assigned=wtUserWarehouseName(user);
             return assigned||'المخزن الرئيسي';
         }
-        function wtAvailableStock(product,warehouse){
-            if(!product)return 0;
-            if(!warehouse||warehouse==='المخزن الرئيسي')return Number(product.stock)||0;
-            return Number((product.warehouseStock||{})[warehouse])||0;
+        function wtReadStockBalance(product,warehouse){
+            if(!product||typeof product!=='object'||Array.isArray(product))return NaN;
+            let raw;
+            if(!warehouse||warehouse==='المخزن الرئيسي'){
+                if(!Object.prototype.hasOwnProperty.call(product,'stock'))return 0;
+                raw=product.stock;
+            }else{
+                if(!Object.prototype.hasOwnProperty.call(product,'warehouseStock'))return 0;
+                const map=product.warehouseStock;
+                if(!map||typeof map!=='object'||Array.isArray(map))return NaN;
+                if(!Object.prototype.hasOwnProperty.call(map,warehouse))return 0;
+                raw=map[warehouse];
+            }
+            if(!((typeof raw==='number')||(typeof raw==='string'))||(typeof raw==='string'&&raw.trim()==='')||!Number.isFinite(Number(raw))||Number(raw)<0)return NaN;
+            return Number(raw);
         }
+        function wtAvailableStock(product,warehouse){return wtReadStockBalance(product,warehouse);}
         function wtEnsureMobileWarehouse(name){
             const label=String(name||'').trim();if(!label)return null;
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}
             let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===label);
             let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
             if(!wh)wh={id:'wh_mobile_'+label.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g,'_'),name:label,type:'mobile',status:'active'};
@@ -4196,29 +4331,44 @@ function renderPurchasesTable() {
             const names=['المخزن الرئيسي'];
             (AppData.users||[]).forEach(u=>{[u.warehouse,u.secondaryWarehouse].forEach(n=>{n=String(n||'').trim();if(n&&!names.includes(n))names.push(n);});});
             (AppData.warehouses||[]).forEach(w=>{const n=typeof w==='string'?w:w.name;if(n&&!names.includes(n))names.push(n);});
-            (AppData.products||[]).forEach(p=>Object.keys(p.warehouseStock||{}).forEach(n=>{if(n&&!names.includes(n))names.push(n);}));
+            (AppData.products||[]).forEach(p=>{if(p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock))Object.keys(p.warehouseStock).forEach(n=>{if(n&&!names.includes(n))names.push(n);});});
             return names;
         }
         function wtEnsureData(){
-            if(!Array.isArray(AppData.warehouseTransfers))AppData.warehouseTransfers=[];
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
-            (AppData.products||[]).forEach(p=>{if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};});
+            // Initialize only genuinely absent collections; never overwrite malformed persisted history silently.
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouseTransfers'))AppData.warehouseTransfers=[];
+            else if(!Array.isArray(AppData.warehouseTransfers)||AppData.warehouseTransfers.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل تحويلات المخازن تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل؛ استعد نسخة احتياطية سليمة أو أصلح البيانات أولاً.');
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
+            if(!Object.prototype.hasOwnProperty.call(AppData,'stockMovements'))AppData.stockMovements=[];
+            else if(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل حركات المخزون تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل.');
+            if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة. أُوقفت عملية المخزون دون تعديل البيانات.');
+            AppData.products.forEach(p=>{
+                if(!p||typeof p!=='object'||Array.isArray(p))throw new Error('سجل منتج غير صالح. أُوقفت العملية دون تعديل البيانات.');
+                if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن غير صالحة. أُوقفت العملية دون استبدال البيانات.');
+                if(Object.prototype.hasOwnProperty.call(p,'stock')&&((!((typeof p.stock==='number')||(typeof p.stock==='string')))||p.stock===null||p.stock===''||(typeof p.stock==='string'&&p.stock.trim()==='')||!Number.isFinite(Number(p.stock))||Number(p.stock)<0))throw new Error('رصيد المخزن الرئيسي غير صالح للمنتج '+(p.name||p.id||'غير معروف')+'؛ أُوقفت العملية دون تعديل الأرصدة.');
+                if(p.warehouseStock&&typeof p.warehouseStock==='object')Object.entries(p.warehouseStock).forEach(([name,value])=>{if(!name.trim()||!((typeof value==='number')||(typeof value==='string'))||value===null||value===''||(typeof value==='string'&&value.trim()==='')||!Number.isFinite(Number(value))||Number(value)<0)throw new Error('رصيد مخزن فرعي غير صالح للمنتج '+(p.name||p.id||'غير معروف')+'؛ أُوقفت العملية دون تعديل الأرصدة.');});
+            });
+            // Initialize legacy maps only after every existing record passes validation.
+            AppData.products.forEach(p=>{if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock'))p.warehouseStock={};});
         }
-        function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
+        function wtTryEnsureData(){try{wtEnsureData();return true;}catch(e){alert((e&&e.message)||'بيانات المخازن غير صالحة. أُوقفت العملية دون تعديل الأرصدة.');return false;}}
+        function wtBalance(p,warehouse){return wtReadStockBalance(p,warehouse);}
+        function wtBalanceLabel(p,warehouse){const balance=wtBalance(p,warehouse);return Number.isFinite(balance)?String(balance):'بيانات غير صالحة';}
         function wtInitScreen(){
-            wtEnsureData(); const from=document.getElementById('wtFrom'),to=document.getElementById('wtTo'),prod=document.getElementById('wtProduct'); if(!from||!to||!prod)return;
+            if(!wtTryEnsureData())return; const from=document.getElementById('wtFrom'),to=document.getElementById('wtTo'),prod=document.getElementById('wtProduct'); if(!from||!to||!prod)return;
             const wh=wtWarehouses(),oldFrom=from.value,oldTo=to.value,oldProd=prod.value;
             from.innerHTML=wh.map(n=>`<option value="${wtEsc(n)}">${wtEsc(n)}</option>`).join('');
             to.innerHTML=wh.map(n=>`<option value="${wtEsc(n)}">${wtEsc(n)}</option>`).join('');
             from.value=wh.includes(oldFrom)?oldFrom:'المخزن الرئيسي';to.value=wh.includes(oldTo)&&oldTo!==from.value?oldTo:(wh.find(n=>n!==from.value)||from.value);
-            prod.innerHTML=(AppData.products||[]).map(p=>`<option value="${wtEsc(p.id)}">${wtEsc(p.name)} — الرصيد: ${wtBalance(p,from.value)} ${wtEsc(p.unit||'')} — شراء: ${wtMoney(p.buyPrice)} د.ج — بيع: ${wtMoney(wtSalePriceOf(p))} د.ج</option>`).join('');
+            prod.innerHTML=(AppData.products||[]).map(p=>`<option value="${wtEsc(p.id)}">${wtEsc(p.name)} — الرصيد: ${wtBalanceLabel(p,from.value)} ${wtEsc(p.unit||'')} — شراء: ${wtMoney(p.buyPrice)} د.ج — بيع: ${wtMoney(wtSalePriceOf(p))} د.ج</option>`).join('');
             if((AppData.products||[]).some(p=>String(p.id)===String(oldProd)))prod.value=oldProd;
             wtUpdateAvailability();wtFillProductPrices();wtRenderHistory();
         }
         function wtUpdateAvailability(){
             const from=document.getElementById('wtFrom'),to=document.getElementById('wtTo'),prod=document.getElementById('wtProduct'),out=document.getElementById('wtAvailable');if(!from||!prod||!out)return;
             const p=(AppData.products||[]).find(x=>String(x.id)===String(prod.value));const bal=wtBalance(p,from.value);
-            out.textContent=p?`الرصيد المتاح في ${from.value}: ${bal} ${p.unit||''}`:'لا توجد منتجات؛ أضف المنتجات أولاً.';
+            out.textContent=p?`الرصيد المتاح في ${from.value}: ${Number.isFinite(bal)?bal:'بيانات غير صالحة'} ${p.unit||''}`:'لا توجد منتجات؛ أضف المنتجات أولاً.';
             if(to && to.value===from.value)out.textContent+=' — ⚠️ يجب اختيار مخزن وجهة مختلف.';
             wtUpdatePriceTotals();
         }
@@ -4235,16 +4385,18 @@ function renderPurchasesTable() {
         function wtUpdatePriceTotals(){const q=Number(document.getElementById('wtQty')?.value)||0,b=document.getElementById('wtBuyPrice')?.value,s=document.getElementById('wtSalePrice')?.value,box=document.getElementById('wtPriceTotals');if(!box)return;const bt=b===''?'غير محدد':wtMoney(Number(b)*q)+' د.ج',st=s===''?'غير محدد':wtMoney(Number(s)*q)+' د.ج';box.textContent=`إجمالي الشراء: ${q?bt:'—'}  |  إجمالي البيع: ${q?st:'—'}`;
         }
         function wtCreateTransfer(){
-            wtEnsureData();const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
-            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
+            if(!wtTryEnsureData())return;const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
+            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
             // معاملة قابلة للتراجع: لا نترك أرصدة معدّلة في الذاكرة إذا فشل الحفظ.
-            const beforeMain=Number(p.stock)||0;
+            const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');
+            const beforeMain=p.stock;
             const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');
             const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:{};
             const transfersBefore=AppData.warehouseTransfers.slice();
+            const movementsBefore=AppData.stockMovements.slice();
             try{
                 // المنتجات القديمة قد لا تحتوي warehouseStock؛ أنشئ الخريطة قبل أي حركة فرعية.
                 if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
@@ -4252,12 +4404,18 @@ function renderPurchasesTable() {
                 if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
                 const seq=Date.now();const doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
                 AppData.warehouseTransfers.unshift(doc);
+                // Keep the general stock ledger in sync with the transfer document: one source and one destination leg.
+                AppData.stockMovements.unshift(
+                    {id:doc.id+'-OUT',productId:p.id,productName:p.name||p.title||String(p.id),qty:-qty,type:'WAREHOUSE_TRANSFER_OUT',referenceType:'warehouse_transfer',referenceId:doc.id,warehouse:from,fromWarehouse:from,toWarehouse:to,date:doc.date,note:'خروج تحويل مخزني '+doc.number},
+                    {id:doc.id+'-IN',productId:p.id,productName:p.name||p.title||String(p.id),qty:qty,type:'WAREHOUSE_TRANSFER_IN',referenceType:'warehouse_transfer',referenceId:doc.id,warehouse:to,fromWarehouse:from,toWarehouse:to,date:doc.date,note:'دخول تحويل مخزني '+doc.number}
+                );
                 if(!saveDB())throw new Error('تعذر حفظ السند؛ تحقق من مساحة التخزين.');
             }catch(e){
-                p.stock=beforeMain;
+                if(hadMainStock)p.stock=beforeMain;else delete p.stock;
                 if(hadWarehouseStock)p.warehouseStock=beforeWarehouseStock;else delete p.warehouseStock;
                 AppData.warehouseTransfers=transfersBefore;
-                alert((e.message||'تعذر حفظ سند التحويل')+' أُعيدت أرصدة التحويل إلى حالتها السابقة.');
+                AppData.stockMovements=movementsBefore;
+                alert((e.message||'تعذر حفظ سند التحويل')+' أُعيدت الأرصدة وسجل الحركات إلى حالتهما السابقة.');
                 return;
             }
             document.getElementById('wtQty').value='';document.getElementById('wtNote').value='';wtInitScreen();renderInventoryList();
@@ -4269,8 +4427,8 @@ function renderPurchasesTable() {
             box.innerHTML=arr.slice(0,100).map(d=>`<div style="border:1px solid #cbd5e1;border-radius:10px;padding:11px;margin:8px 0;"><strong>${wtEsc(d.number||d.id)}</strong> · ${wtEsc(new Date(d.date).toLocaleString('ar-DZ'))}<br><b>${wtEsc(d.productName)}</b> — ${Number(d.quantity)||0} ${wtEsc(d.unit||'')}<br><small>سعر الشراء: ${d.buyPrice==null?'غير محدد':wtMoney(d.buyPrice)+' د.ج'} (الإجمالي: ${d.buyTotal==null?'—':wtMoney(d.buyTotal)+' د.ج'}) · سعر البيع: ${d.salePrice==null?'غير محدد':wtMoney(d.salePrice)+' د.ج'} (الإجمالي: ${d.saleTotal==null?'—':wtMoney(d.saleTotal)+' د.ج'})</small><br><small>من: ${wtEsc(d.from)} ← إلى: ${wtEsc(d.to)}</small><br><small>المستخدم: ${wtEsc(d.user||'')} ${d.note?'· '+wtEsc(d.note):''}</small><div style="margin-top:8px;"><button class="btn-pos-hasib" onclick="wtPrintVoucher('${wtEsc(d.id)}')">🖨️ طباعة السند</button></div></div>`).join('');
         }
         function wtPrintVoucher(id){const d=(AppData.warehouseTransfers||[]).find(x=>String(x.id)===String(id));if(!d){alert('السند غير موجود.');return;}const w=window.open('','_blank');if(!w){alert('اسمح بفتح نافذة الطباعة من إعدادات المتصفح.');return;}w.document.write(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>سند تحويل ${wtEsc(d.number)}</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#111}h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{border:1px solid #444;padding:12px;text-align:right}.sign{display:flex;justify-content:space-between;margin-top:60px}</style><h2>سند تحويل بين المخازن</h2><p>رقم السند: ${wtEsc(d.number)}</p><p>التاريخ: ${wtEsc(new Date(d.date).toLocaleString('ar-DZ'))}</p><table><tr><th>المخزن المصدر</th><td>${wtEsc(d.from)}</td></tr><tr><th>المخزن الوجهة</th><td>${wtEsc(d.to)}</td></tr><tr><th>المنتج</th><td>${wtEsc(d.productName)}</td></tr><tr><th>الكمية</th><td>${Number(d.quantity)} ${wtEsc(d.unit)}</td></tr><tr><th>سعر الشراء للوحدة</th><td>${d.buyPrice==null?'غير محدد':wtMoney(d.buyPrice)+' د.ج'}</td></tr><tr><th>إجمالي الشراء</th><td>${d.buyTotal==null?'غير محدد':wtMoney(d.buyTotal)+' د.ج'}</td></tr><tr><th>سعر البيع للوحدة</th><td>${d.salePrice==null?'غير محدد':wtMoney(d.salePrice)+' د.ج'}</td></tr><tr><th>إجمالي البيع</th><td>${d.saleTotal==null?'غير محدد':wtMoney(d.saleTotal)+' د.ج'}</td></tr><tr><th>المسؤول</th><td>${wtEsc(d.user)}</td></tr><tr><th>ملاحظة</th><td>${wtEsc(d.note||'—')}</td></tr></table><div class="sign"><span>توقيع المسلم: __________</span><span>توقيع المستلم: __________</span></div><script>window.onload=()=>window.print()<\/script></html>`);w.document.close();}
-        function wtInitStockScreen(){wtEnsureData();const sel=document.getElementById('wsWarehouse');if(!sel)return;const old=sel.value,wh=wtWarehouses();sel.innerHTML=wh.map(n=>`<option value="${wtEsc(n)}">${wtEsc(n)}</option>`).join('');if(wh.includes(old))sel.value=old;wtRenderWarehouseStock();}
-        function wtRenderWarehouseStock(){const sel=document.getElementById('wsWarehouse'),box=document.getElementById('wsList');if(!sel||!box)return;const wh=sel.value;box.innerHTML=(AppData.products||[]).map(p=>`<div class="menu-action-card" style="margin:7px 0;"><strong>${wtEsc(p.name)}</strong><br><span>الرصيد في ${wtEsc(wh)}: <b>${wtBalance(p,wh)} ${wtEsc(p.unit||'')}</b></span></div>`).join('')||'<p>لا توجد منتجات.</p>';}
+        function wtInitStockScreen(){if(!wtTryEnsureData())return;const sel=document.getElementById('wsWarehouse');if(!sel)return;const old=sel.value,wh=wtWarehouses();sel.innerHTML=wh.map(n=>`<option value="${wtEsc(n)}">${wtEsc(n)}</option>`).join('');if(wh.includes(old))sel.value=old;wtRenderWarehouseStock();}
+        function wtRenderWarehouseStock(){const sel=document.getElementById('wsWarehouse'),box=document.getElementById('wsList');if(!sel||!box)return;const wh=sel.value;box.innerHTML=(AppData.products||[]).map(p=>`<div class="menu-action-card" style="margin:7px 0;"><strong>${wtEsc(p.name)}</strong><br><span>الرصيد في ${wtEsc(wh)}: <b>${wtBalanceLabel(p,wh)} ${wtEsc(p.unit||'')}</b></span></div>`).join('')||'<p>لا توجد منتجات.</p>';}
 
         function renderInventoryList() {
             const cont = document.getElementById('inventoryItemsContainer');
@@ -4340,8 +4498,10 @@ function renderPurchasesTable() {
             document.getElementById('newProdSupplierSelect').value = p.supplierId || '';
             document.getElementById('newProdUnitSelect').value = p.unit || 'كغ';
             document.getElementById('newProdUnitPackInput').value = p.pack || 1;
-            currentTempProdImageBase64 = p.image || '';
-            document.getElementById('newProdImgPreview').innerHTML = p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '📷';
+            const storedImage = String(p.image || '');
+            const safeStoredImage = /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';
+            currentTempProdImageBase64 = safeStoredImage;
+            document.getElementById('newProdImgPreview').innerHTML = safeStoredImage ? `<img src="${anasEscapeHTML(safeStoredImage)}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '📷';
             document.getElementById('addProductModal').classList.add('active');
         }
 
@@ -4632,6 +4792,15 @@ function renderPurchasesTable() {
         function showProfitsReportModal() {
             const invoices = (typeof getReportInvoices === 'function' ? getReportInvoices() : (Array.isArray(AppData.invoices) ? AppData.invoices : []));
             const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));
+            const invalidPresentNumber = (record, keys) => { const key=keys.find(k=>Object.prototype.hasOwnProperty.call(record,k)&&record[k]!==undefined&&record[k]!==null); return key!==undefined&&invalidProfitNumber(record[key]); };
+            const invalidProfitData = invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv) || (Object.prototype.hasOwnProperty.call(inv,'items')&&!Array.isArray(inv.items)) || invalidPresentNumber(inv,['total','grandTotal','amount']) || (Array.isArray(inv.items)&&inv.items.some(it => !it || typeof it !== 'object' || Array.isArray(it) || invalidPresentNumber(it,['qty','quantity']) || invalidPresentNumber(it,['price','salePrice','sellingPrice']) || invalidPresentNumber(it,['total','subtotal']) || invalidPresentNumber(it,['buyPrice','costPrice','purchasePrice']))));
+            if (invalidProfitData) {
+                const body=document.getElementById('profitsReportBody');
+                if(body)body.innerHTML='<div class="profit-empty" role="alert">تعذر حساب الأرباح بدقة: توجد قيمة مالية أو كمية غير صالحة في بيانات الفواتير أو تفاصيل المنتجات. صحّح السجلات أو استعد نسخة سليمة ثم أعد المحاولة.</div>';
+                document.getElementById('profitsModal').classList.add('active');
+                return;
+            }
             const byProduct = {}, byCategory = {}, byCustomer = {}, byUser = {};
             let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0;
             const moneyFmt = n => (Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
@@ -4852,37 +5021,41 @@ function renderPurchasesTable() {
         function showReportDetails(title) {
             if(!applyReportDateRange()) return;
             const esc = value => anasEscapeHTML(String(value ?? ''));
+            const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;
+            const reportDisplay = value => { const n=reportNumber(value); return n===null?'غير صالح':n; };
             const reportInvoices=typeof getReportInvoices==='function' ? getReportInvoices() : (Array.isArray(AppData.invoices)?AppData.invoices:[]);
             const reportPurchases=typeof getReportPurchases==='function' ? getReportPurchases() : (Array.isArray(AppData.purchases)?AppData.purchases:[]);
             document.getElementById('customReportTitle').innerText = title;
             const content = document.getElementById('customReportContent');
             if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني') {
-                const totalSales = reportInvoices.reduce((a, b) => a + (Number(b.total)||0), 0);
-                const totalPurchases = reportPurchases.reduce((a, b) => a + (Number(b.total)||0), 0);
+                const totalSalesValid = reportInvoices.every(b => reportNumber(b.total) !== null);
+                const totalPurchasesValid = reportPurchases.every(b => reportNumber(b.total) !== null);
+                const totalSales = reportInvoices.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
+                const totalPurchases = reportPurchases.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
                 content.innerHTML = `
                     <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:10px;">
-                        <div>إجمالي المبيعات: <strong>${totalSales.toFixed(2)} د.ج</strong></div>
-                        <div>إجمالي المشتريات: <strong>${totalPurchases.toFixed(2)} د.ج</strong></div>
+                        <div>إجمالي المبيعات: <strong>${totalSalesValid ? totalSales.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
+                        <div>إجمالي المشتريات: <strong>${totalPurchasesValid ? totalPurchases.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
                         <div>حركات البيع: <strong>${reportInvoices.length} فواتير</strong></div>
                     </div>
                 `;
             } else if(title === 'تقرير فواتير الآجل') {
-                const creditInvoices = reportInvoices.filter(i => Number(i.remaining) > 0);
+                const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);
                 content.innerHTML = creditInvoices.length > 0 ? creditInvoices.map(i => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${esc(i.id)} - ${esc(i.customer)}</span>
-                        <strong style="color:#ef4444;">متبقي: ${i.remaining} د.ج</strong>
+                        <strong style="color:#ef4444;">متبقي: ${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'} د.ج</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#94a3b8;">لا توجد فواتير آجل مسجلة.</p>';
             } else if(title === 'تقرير الخصومات') {
-                const discounted = reportInvoices.filter(i => Number(i.discount)>0 || Number(i.discountAmount)>0 || Number(i.discount_amount)>0);
-                content.innerHTML = discounted.length ? discounted.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${Number(i.discountAmount??i.discount_amount??i.discount)||0} د.ج</strong></div>`).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
+                const discounted = reportInvoices.filter(i => { const raw=i.discountAmount??i.discount_amount??i.discount; const value=reportNumber(raw); return (value!==null&&value>0)||(raw!==null&&raw!==undefined&&raw!==''); });
+                content.innerHTML = discounted.length ? discounted.map(i=>{const value=reportNumber(i.discountAmount??i.discount_amount??i.discount);return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${value===null?'غير صالح':value} د.ج</strong></div>`;}).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
             } else if(title === 'تنبيه نقص المخزون') {
-                const lowStock = AppData.products.filter(p => p.stock <= (p.minAlert || 5));
+                const lowStock = AppData.products.filter(p => { const stock=reportNumber(p.stock); const min=reportNumber(p.minAlert); return stock===null || stock <= (min!==null&&min>0?min:5); });
                 content.innerHTML = lowStock.length > 0 ? lowStock.map(p => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${anasEscapeHTML(p.name)}</span>
-                        <strong style="color:#ef4444;">الرصيد: ${p.stock} (الحد: ${p.minAlert || 5})</strong>
+                        <strong style="color:#ef4444;">الرصيد: ${reportDisplay(p.stock)} (الحد: ${reportNumber(p.minAlert)!==null && reportNumber(p.minAlert)>0 ? reportNumber(p.minAlert) : 5})</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#16a34a;">المخزون كافٍ لجميع المنتجات.</p>';
             } else if(title === 'تقرير المبيعات') {
@@ -4891,7 +5064,7 @@ function renderPurchasesTable() {
                         <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:center;">
                             <thead><tr style="background:#f1f5f9;"><th>رقم</th><th>العميل</th><th>المبلغ</th><th>الحالة</th></tr></thead>
                             <tbody>
-                                ${reportInvoices.map(i => `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id)}</td><td>${esc(i.customer)}</td><td style="font-weight:bold; color:#16a34a;">${i.total}</td><td>${i.remaining > 0 ? 'آجل' : 'خالص'}</td></tr>`).join('')}
+                                ${reportInvoices.map(i => `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id)}</td><td>${esc(i.customer)}</td><td style="font-weight:bold; color:#16a34a;">${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}</td><td>${reportNumber(i.remaining)===null?'بيانات غير صالحة':(reportNumber(i.remaining)>0?'آجل':'خالص')}</td></tr>`).join('')}
                             </tbody>
                         </table>
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مبيعات مسجلة بعد.</p>';
@@ -4943,17 +5116,17 @@ function renderPurchasesTable() {
                   </tr></thead><tbody>${rows}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد منتجات مسجلة.</p>'}`;
             } else if(title === 'تقرير المشتريات') {
                 const purchases = reportPurchases;
-                const total = purchases.reduce((n,p)=>n+(Number(p.total)||0),0);
-                content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${p.id??'—'}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${Number(p.total)||0}</td><td>${Number(p.paid)||0}</td><td>${Number(p.remaining)||0}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
+                const purchaseTotalsValid = purchases.every(p=>reportNumber(p.total)!==null); const total = purchases.reduce((n,p)=>n+(reportNumber(p.total)??0),0);
+                content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${purchaseTotalsValid?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'غير صالح — توجد قيم ناقصة أو تالفة'} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(p.id??'—')}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
             } else if(title === 'عرض فواتير المبيعات') {
-                content.innerHTML = reportInvoices.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${reportInvoices.map(i=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id??'—')}</td><td>${esc(i.date||i.createdAt||i.invoiceDate||'—')}</td><td>${esc(i.customer||'عميل نقدي')}</td><td>${Number(i.total)||0}</td><td>${Number(i.paid)||0}</td><td>${Number(i.remaining)||0}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد فواتير ضمن الفترة المحددة.</p>';
+                content.innerHTML = reportInvoices.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${reportInvoices.map(i=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id??'—')}</td><td>${esc(i.date||i.createdAt||i.invoiceDate||'—')}</td><td>${esc(i.customer||'عميل نقدي')}</td><td>${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}</td><td>${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد فواتير ضمن الفترة المحددة.</p>';
             } else if(title === 'كشف حساب عميل') {
                 const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
-                content.innerHTML = customers.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>العميل</th><th>الهاتف</th><th>الرصيد/الدين</th></tr></thead><tbody>${customers.map(c=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(c.name||'—')}</td><td>${esc(c.phone||'—')}</td><td>${Number(c.debt)||0} د.ج</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا يوجد عملاء مسجلون.</p>';
+                content.innerHTML = customers.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>العميل</th><th>الهاتف</th><th>الرصيد/الدين</th></tr></thead><tbody>${customers.map(c=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(c.name||'—')}</td><td>${esc(c.phone||'—')}</td><td>${reportDisplay(c.debt)} د.ج</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا يوجد عملاء مسجلون.</p>';
             } else if(title === 'تقرير بالمصروفات حسب الحساب' || title === 'تقرير المصروفات حسب الحساب') {
                 content.innerHTML = (AppData.expenses && AppData.expenses.filter(e=>reportItemInRange(e)).length > 0) ? `
                     <div style="max-height:220px; overflow-y:auto;">
-                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${e.amt} د.ج</strong></div>`).join('')}
+                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${reportDisplay(e.amt)} د.ج</strong></div>`).join('')}
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مصروفات مسجلة.</p>';
             } else {
                 content.innerHTML = `<p style="text-align:center; color:#16a34a; font-weight:bold;">العمليات مسجلة ومحفوظة بنجاح.</p>`;
@@ -5323,18 +5496,69 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            for (const key of ['purchases', 'expenses', 'users', 'trucks', 'returns']) {
-                if (incoming[key] == null) incoming[key] = [];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips'];
+            for (const key of optionalArrays) {
+                if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 ||
                     incoming[key].some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
                     throw new Error('قائمة ' + key + ' غير صالحة.');
                 }
             }
+            if (Object.prototype.hasOwnProperty.call(incoming, 'warehouses') &&
+                (!Array.isArray(incoming.warehouses) || incoming.warehouses.length > 200000 ||
+                incoming.warehouses.some(w => !(typeof w === 'string' && w.trim()) &&
+                    (!w || typeof w !== 'object' || Array.isArray(w) || typeof w.name !== 'string' || !w.name.trim())))) {
+                throw new Error('قائمة المخازن غير صالحة.');
+            }
+            if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
+                if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
+                    throw new Error('بيانات سلال نقاط البيع السحابية غير صالحة.');
+                for (const [key, cart] of Object.entries(incoming.posScreensCarts))
+                    if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع السحابية ' + key + ' غير صالحة.');
+                if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
+                    typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)) {
+                    for (const [key, currentCart] of Object.entries(AppData.posScreensCarts)) {
+                        if (Array.isArray(currentCart) && currentCart.length &&
+                            !Object.prototype.hasOwnProperty.call(incoming.posScreensCarts, key))
+                            throw new Error('النسخة السحابية تفتقد سلة نقطة البيع ' + key + ' التي تحتوي على أصناف؛ أُلغي الاسترجاع لمنع فقدانها.');
+                    }
+                }
+            } else if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
+                typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) &&
+                Object.values(AppData.posScreensCarts).some(cart => Array.isArray(cart) && cart.length)) {
+                throw new Error('النسخة السحابية تفتقد سلال نقاط البيع التي تحتوي على أصناف؛ أُلغي الاسترجاع لمنع فقدانها.');
+            }
             for (const p of incoming.products) {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ أُلغِي الاسترجاع لحماية البيانات.');
-                if (p.stock != null && (!Number.isFinite(Number(p.stock)) || Number(p.stock) < 0)) {
+                if (Object.prototype.hasOwnProperty.call(p, 'stock') &&
+                    !((typeof p.stock === 'number' || typeof p.stock === 'string') &&
+                    String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0)) {
                     throw new Error('يوجد مخزون غير رقمي أو سالب في بيانات الخادم.');
                 }
+                if (Object.prototype.hasOwnProperty.call(p, 'warehouseStock')) {
+                    if (!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock)) {
+                        throw new Error('خريطة أرصدة المخازن الفرعية غير صالحة للمنتج ' + String(p.id) + '.');
+                    }
+                    for (const [warehouse, balance] of Object.entries(p.warehouseStock)) {
+                        if (!warehouse.trim() || !((typeof balance === 'number' || typeof balance === 'string') &&
+                            String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0)) {
+                            throw new Error('يوجد رصيد مخزن فرعي غير صالح للمنتج ' + String(p.id) + '.');
+                        }
+                    }
+                }
+            }
+            // Do not silently erase locally populated history when an older/incomplete cloud payload omits a collection.
+            for (const key of optionalArrays) {
+                if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
+                    if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
+                        throw new Error('النسخة السحابية تفتقد قائمة ' + key + ' التي تحتوي على سجلات محلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
+                    incoming[key] = [];
+                }
+            }
+            if (!Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) {
+                if (typeof AppData !== 'undefined' && Array.isArray(AppData.warehouses) && AppData.warehouses.length)
+                    throw new Error('النسخة السحابية تفتقد قائمة المخازن المحلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
+                incoming.warehouses = [];
             }
             for (const inv of incoming.invoices) {
                 if (inv.total != null && (!Number.isFinite(Number(inv.total)) || Number(inv.total) < 0)) {
@@ -5379,7 +5603,7 @@ function renderPurchasesTable() {
             catch (e) { setSyncStatus(e.message, true); alert(e.message); return; }
             if (!navigator.onLine) { setSyncStatus('لا يوجد اتصال بالإنترنت. بياناتك المحلية لم تتغير.', true); return; }
             if (!confirm('سيتم استبدال بيانات هذا الهاتف بالنسخة التي يعيدها الخادم. أنشئ نسخة احتياطية أولاً. هل تريد المتابعة؟')) return;
-            exportDataBackup();
+            if (!exportDataBackup()) { setSyncStatus('تعذر إنشاء نسخة احتياطية محلية؛ أُلغي الاسترجاع دون تغيير البيانات.', true); return; }
             setSyncStatus('جارٍ جلب البيانات من الخادم…');
             try {
                 const controller = new AbortController();
@@ -5403,6 +5627,8 @@ function renderPurchasesTable() {
                 if (!confirm('تم التحقق من بنية البيانات. هل تؤكد استبدال بيانات هذا الهاتف بالنسخة السحابية؟')) return;
                 const previous = AppData;
                 const previousCart = posCart;
+                const previousStartupIssues = anasStartupIntegrityIssues.slice();
+                const previousFatalLoadError = anasStartupFatalLoadError;
                 AppData = incoming;
                 if (!Array.isArray(AppData.products)) AppData.products = [];
                 if (!Array.isArray(AppData.customers)) AppData.customers = [];
@@ -5414,7 +5640,15 @@ function renderPurchasesTable() {
                 if (!AppData.syncUrl) AppData.syncUrl = url;
                 const activeTab = AppData.activePosScreenTab || 1;
                 posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
-                if (!saveDB()) { AppData = previous; posCart = previousCart; throw new Error('تعذر حفظ البيانات المسترجعة على الهاتف.'); }
+                // A validated restore is the explicit repair path for a corrupt startup snapshot.
+                anasStartupIntegrityIssues = [];
+                anasStartupFatalLoadError = false;
+                if (!saveDB()) {
+                    AppData = previous; posCart = previousCart;
+                    anasStartupIntegrityIssues = previousStartupIssues;
+                    anasStartupFatalLoadError = previousFatalLoadError;
+                    throw new Error('تعذر حفظ البيانات المسترجعة على الهاتف.');
+                }
                 setSyncStatus('تم استرجاع البيانات وحفظها محليًا. راجع الأرصدة والمخزون قبل متابعة العمل.');
                 alert('تم استرجاع البيانات. راجع المخزون والديون قبل متابعة العمل.');
                 openView('dashboard');
@@ -5445,16 +5679,45 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            for (const key of ['invoices','purchases','expenses','users','trucks','returns','warehouses']) {
-                if (incoming[key] != null && (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x))))
-                    throw new Error('قائمة ' + key + ' غير صالحة.');
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','alerts','truckTrips'];
+            for (const key of optionalArrays) {
+                if (Object.prototype.hasOwnProperty.call(incoming, key)) {
+                    if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
+                        throw new Error('قائمة ' + key + ' غير صالحة.');
+                } else if (Array.isArray(AppData[key]) && AppData[key].length) {
+                    throw new Error('النسخة تفتقد قائمة ' + key + ' الموجودة في البيانات الحالية؛ رُفض الاسترجاع لمنع فقدان السجلات.');
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) {
+                if (!Array.isArray(incoming.warehouses) || incoming.warehouses.length > 200000 ||
+                    incoming.warehouses.some(w => !(typeof w === 'string' && w.trim()) &&
+                        (!w || typeof w !== 'object' || Array.isArray(w) || typeof w.name !== 'string' || !w.name.trim())))
+                    throw new Error('قائمة المخازن غير صالحة.');
+            } else if (Array.isArray(AppData.warehouses) && AppData.warehouses.length) {
+                throw new Error('النسخة تفتقد قائمة المخازن الموجودة حاليًا؛ رُفض الاسترجاع لمنع فقدانها.');
             }
             for (const p of incoming.products) {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ رُفض الملف لحماية المخزون.');
                 if (p.stock != null && (!Number.isFinite(Number(p.stock)) || Number(p.stock) < 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
             }
-            if (incoming.posScreensCarts != null && (typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة.');
-            if (incoming.posScreensCarts) for (const [key, cart] of Object.entries(incoming.posScreensCarts)) if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة.');
+            if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
+                if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
+                    throw new Error('بيانات سلال نقاط البيع غير صالحة.');
+                for (const [key, cart] of Object.entries(incoming.posScreensCarts))
+                    if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة.');
+                if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
+                    typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)) {
+                    for (const [key, currentCart] of Object.entries(AppData.posScreensCarts)) {
+                        if (Array.isArray(currentCart) && currentCart.length &&
+                            !Object.prototype.hasOwnProperty.call(incoming.posScreensCarts, key))
+                            throw new Error('النسخة تفتقد سلة نقطة البيع ' + key + ' التي تحتوي على أصناف؛ رُفض الاسترجاع لمنع فقدانها.');
+                    }
+                }
+            } else if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
+                typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) &&
+                Object.values(AppData.posScreensCarts).some(cart => Array.isArray(cart) && cart.length)) {
+                throw new Error('النسخة تفتقد سلال نقاط البيع التي تحتوي على أصناف؛ رُفض الاسترجاع لمنع فقدانها.');
+            }
             return incoming;
         }
 
@@ -5470,12 +5733,22 @@ function renderPurchasesTable() {
                     if (!confirm('سيتم استبدال بيانات التطبيق الحالية. تأكد من حفظ نسخة احتياطية قبل المتابعة. هل تريد الاستمرار؟')) return;
                     const previous = AppData;
                     const previousCart = posCart;
+                    const previousStartupIssues = anasStartupIntegrityIssues.slice();
+                    const previousFatalLoadError = anasStartupFatalLoadError;
                     AppData = incoming;
                     if (!AppData.posScreensCarts) AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
                     for (const key of ['invoices','purchases','expenses','users','trucks','returns']) if (!Array.isArray(AppData[key])) AppData[key] = [];
                     const activeTab = AppData.activePosScreenTab || 1;
                     posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
-                    if (!saveDB()) { AppData = previous; posCart = previousCart; throw new Error('تعذر حفظ النسخة على الهاتف؛ أُعيدت البيانات السابقة في الذاكرة.'); }
+                    // A validated restore is the explicit repair path for a corrupt startup snapshot.
+                    anasStartupIntegrityIssues = [];
+                    anasStartupFatalLoadError = false;
+                    if (!saveDB()) {
+                        AppData = previous; posCart = previousCart;
+                        anasStartupIntegrityIssues = previousStartupIssues;
+                        anasStartupFatalLoadError = previousFatalLoadError;
+                        throw new Error('تعذر حفظ النسخة على الهاتف؛ أُعيدت البيانات السابقة في الذاكرة.');
+                    }
                     alert('تم استرجاع النسخة الاحتياطية بنجاح. راجع المخزون والديون قبل متابعة العمل. ✅');
                     openView('dashboard');
                 } catch(err) { alert('خطأ في ملف النسخة: ' + err.message); }
@@ -6783,9 +7056,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     box.innerHTML=truckDraftItems.length ? truckDraftItems.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--mp-border,#e2e8f0)"><span>${safe(x.productName)} × ${Number(x.qty)}</span><button type="button" class="btn-pos-hasib" style="background:#b91c1c" onclick="anasTruckRemoveDraftItem('${safe(x.productId)}')">إزالة</button></div>`).join('') : '<div style="font-size:12px;color:var(--text-muted,#64748b)">لم تُضف أصنافاً مرتبطة بالمخزون.</div>';
   }
   function postTripStock(trip){
+    // Reject malformed trip records before idempotency shortcuts or any stock mutation.
+    if(!trip||typeof trip!=='object'||Array.isArray(trip))throw new Error('سجل رحلة الشاحنة غير صالح؛ أُوقفت عملية التحميل دون تعديل المخزون.');
+    if(Object.prototype.hasOwnProperty.call(trip,'stockItems')&&!Array.isArray(trip.stockItems))throw new Error('قائمة حمولة الشاحنة غير صالحة؛ أُوقفت عملية التحميل دون تعديل المخزون.');
     if(trip.stockPostedAt)return true;
-    const items=Array.isArray(trip.stockItems)?trip.stockItems:[];
+    const items=Object.prototype.hasOwnProperty.call(trip,'stockItems')?trip.stockItems:[];
     if(!items.length){trip.stockPostedAt=null;return true;}
+    if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw new Error('سجل حركات المخزون تالف؛ أُوقفت عملية التحميل دون استبدال السجل.');
+    if(Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))))throw new Error('قائمة المخازن تالفة؛ أُوقفت عملية التحميل دون استبدال البيانات.');
+    if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة؛ أُوقفت عملية التحميل.');
     const existingMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements:[];
     const priorTripMoves=existingMoves.filter(m=>String(m.referenceType||'')==='truck_trip'&&String(m.referenceId||'')===String(trip.id)&&['TRUCK_LOAD_OUT','TRUCK_LOAD_IN'].includes(String(m.type||'')));
     if(priorTripMoves.length){
@@ -6801,15 +7080,16 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     }
     const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
     if(!warehouseName)throw new Error('اسم مخزن الشاحنة مطلوب قبل الترحيل.');
-    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
+    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(p.warehouseStock&&typeof p.warehouseStock==='object')for(const [name,balance] of Object.entries(p.warehouseStock)){if(!name.trim()||!((typeof balance==='number')||(typeof balance==='string'))||String(balance).trim()===''||!Number.isFinite(Number(balance))||Number(balance)<0)throw new Error('رصيد مخزن فرعي تالف للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');}if(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw new Error('رصيد المخزن الرئيسي غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(Number(p.stock)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+Number(p.stock)+'.');}
     const oldPostedAt=trip.stockPostedAt;
     const oldWarehouseName=trip.warehouseName;
-    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock)?{...p.warehouseStock}:null}));
-    const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
+    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)}));
+    const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');
+    const oldMoves=hadStockMovements?AppData.stockMovements.slice():null;
     const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
     try{
-      wtEnsureMobileWarehouse(warehouseName);
-      if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
+      if(wtEnsureMobileWarehouse(warehouseName)===null)throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');
+      if(!hadStockMovements)AppData.stockMovements=[];
       for(const [id,qty] of required){
         const p=products.find(x=>String(x.id)===id);
         p.stock=(Number(p.stock)||0)-qty;
@@ -6822,7 +7102,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(saveDB()===false)throw new Error('تعذر حفظ حركة التحميل.');
       return true;
     }catch(e){
-      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock||{};else delete x.p.warehouseStock;});
+      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});
       if(oldMoves===null)delete AppData.stockMovements;else AppData.stockMovements=oldMoves;
       AppData.warehouses=oldWarehouses;
       if(oldPostedAt===undefined)delete trip.stockPostedAt;else trip.stockPostedAt=oldPostedAt;
@@ -6845,7 +7125,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(rawDate && Number.isNaN(new Date(rawDate).getTime())){alert('تاريخ ووقت الرحلة غير صالحين.');return;}
       const tripId='TR-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
       const initialStatus=$('truckStatus').value; if((initialStatus==='delivered'||initialStatus==='in_transit')&&truckDraftItems.length){alert('أنشئ الرحلة بحالة «مخططة» أولاً، ثم اعتمد «في الطريق» لتحويل البضاعة إلى مخزن الشاحنة مرة واحدة.');return;} const warehouseName='شاحنة '+plate; const trip={id:tripId,plate,driver,origin,destination,warehouseName,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
-      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));wtEnsureMobileWarehouse(warehouseName);
+      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));if(wtEnsureMobileWarehouse(warehouseName)===null){alert('تعذر إنشاء الرحلة لأن قائمة المخازن غير صالحة. أصلح البيانات أو استعد نسخة سليمة أولاً.');return;}
       AppData.truckTrips.unshift(trip);
       let persisted=true;
       try { if(typeof saveDB==='function' && saveDB()===false) persisted=false; }
@@ -6939,17 +7219,32 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         }
         for(const [productId,qty] of invoiced)if(qty>1e-8&&!deliveredByProduct.has(productId)){alert('الفواتير المحددة تتضمن صنفاً إضافياً غير موجود في التسوية: '+productId+'.');return;}
       }
+      // Validate every affected balance before the first settlement mutation; never coerce corrupt balances to zero.
+      for(const line of lines){
+        const p=products.find(x=>String(x.id)===String(line.productId));
+        if(!p)throw new Error('تعذر العثور على المنتج '+line.productName+' قبل التسوية.');
+        if(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw new Error('رصيد المخزن الرئيسي غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.');
+        if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.');
+        if(p.warehouseStock&&Object.prototype.hasOwnProperty.call(p.warehouseStock,warehouse)){
+          const balance=p.warehouseStock[warehouse];
+          if(!((typeof balance==='number')||(typeof balance==='string'))||String(balance).trim()===''||!Number.isFinite(Number(balance))||Number(balance)<0)throw new Error('رصيد مخزن الشاحنة غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.');
+        }
+      }
       const snapshots=lines.map(line=>{
         const p=products.find(x=>String(x.id)===String(line.productId));
-        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:null};
+        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)};
       });
       const movesBefore=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
       const tripBefore={settlementId:trip.settlementId,settledAt:trip.settledAt,settlementInvoiceIds:trip.settlementInvoiceIds,settlementLines:trip.settlementLines};
       const settlementId='TR-SETTLE-'+String(trip.id);
+      if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw new Error('سجل حركات المخزون تالف؛ أُوقفت التسوية دون استبدال السجل.');
+      if(Array.isArray(AppData.stockMovements)&&AppData.stockMovements.some(m=>String(m.referenceType||'')==='truck_settlement'&&String(m.referenceId||'')===settlementId))throw new Error('عُثر على حركات تسوية سابقة لهذه الرحلة دون علامة تسوية موثوقة. أُوقفت العملية لمنع تكرار حركة المخزون؛ راجع سجل الحركات قبل المتابعة.');
       try{
         if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
         for(const line of lines){
           const p=products.find(x=>String(x.id)===String(line.productId));
+          if(!p)throw new Error('تعذر العثور على المنتج '+line.productName+'.');
+          if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+line.productName+'؛ لم تُعدّل الأرصدة.');
           if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
           const truckQty=Number(p.warehouseStock[warehouse])||0;
           if(truckQty+1e-8<line.returned+line.damaged+line.missing)throw new Error('رصيد الشاحنة لا يكفي للصنف '+line.productName+'.');
@@ -6968,7 +7263,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         trip.settlementInvoiceIds=linked.map(inv=>String(inv.id));trip.settlementLines=lines.map(line=>({...line}));
         if(saveDB()===false)throw new Error('فشل حفظ التسوية.');
       }catch(e){
-        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock||{};else delete old.p.warehouseStock;}
+        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock;}
         if(movesBefore===null)delete AppData.stockMovements;else AppData.stockMovements=movesBefore;
         for(const key of ['settlementId','settledAt','settlementInvoiceIds','settlementLines'])if(tripBefore[key]===undefined)delete trip[key];else trip[key]=tripBefore[key];
         throw e;

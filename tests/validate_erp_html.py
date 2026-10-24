@@ -5,6 +5,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 import subprocess
 import re
+import json
 import tempfile
 import sys
 
@@ -57,6 +58,234 @@ def main():
     parser.close()
     errors = []
 
+    # POS search IDs and cart images must remain safe with imported product data.
+    pos_safety_guards = [
+        "selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))",
+        "const safeCartImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';",
+        'src="${anasEscapeHTML(safeCartImage)}"',
+        "${anasEscapeHTML(item.unit || '')}",
+        "(typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
+        "(typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
+        "hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج'",
+        "if (invalidCart) return;",
+        "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح",
+        "${sub===null||!Number.isFinite(sub)?'غير صالح':sub.toFixed(2)}",
+    ]
+
+    for guard in pos_safety_guards:
+        if guard not in source:
+            errors.append("POS search/cart HTML safety guard is missing: " + guard)
+    if not any("POS search/cart HTML safety guard is missing:" in error for error in errors):
+        print("PASS: POS search ID and cart image HTML guards exist")
+
+    # Normalized POS cart price and quantity remain escaped at the HTML output boundary.
+    pos_cart_numeric_escape_guards = [
+        "${priceNumber===null?'غير صالح':anasEscapeHTML(priceNumber)}",
+        "${qtyNumber===null?'غير صالح':anasEscapeHTML(qtyNumber)}",
+        "(typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
+        "(typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
+        "${anasEscapeHTML(item.unit || '')}",
+    ]
+    for guard in pos_cart_numeric_escape_guards:
+        if guard not in source:
+            errors.append("POS cart numeric normalization/escaping guard is missing: " + guard)
+    if not any("POS cart numeric normalization/escaping guard is missing:" in error for error in errors):
+        print("PASS: POS cart price, quantity, and unit are normalized/escaped safely")
+
+
+    # Customer data and imported product images must be safe at HTML output boundaries.
+    safety_guards = [
+        "anasEscapeHTML(c.phone || '-')",
+        "(typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح'",
+        "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
+        'src="${anasEscapeHTML(safeStoredImage)}"',
+        "${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
+        "${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}",
+        "${reportDisplay(p.stock)}",
+        "${esc(p.id??'—')}",
+        "const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;",
+        "${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td>",
+        "${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td>",
+        "${reportDisplay(c.debt)} د.ج",
+        "بيانات غير صالحة",
+        "غير صالح — توجد قيم ناقصة أو تالفة",
+        "غير صالح — توجد قيمة فاتورة غير صالحة",
+        "const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));",
+        "const invalidPresentNumber = (record, keys) =>",
+        "if (invalidProfitData)",
+        "تعذر حساب الأرباح بدقة: توجد قيمة مالية أو كمية غير صالحة",
+        "const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);",
+        "const lowStock = AppData.products.filter(p => { const stock=reportNumber(p.stock); const min=reportNumber(p.minAlert); return stock===null || stock <= (min!==null&&min>0?min:5); });",
+        "${reportDisplay(p.stock)} (الحد: ${reportNumber(p.minAlert)!==null && reportNumber(p.minAlert)>0 ? reportNumber(p.minAlert) : 5})",
+        "value===null?'غير صالح':value",
+        "${reportDisplay(e.amt)} د.ج",
+    ]
+    for guard in safety_guards:
+        if guard not in source:
+            errors.append("customer/report/image output safety guard is missing: " + guard)
+    if not any("customer/report/image output safety guard is missing:" in error for error in errors):
+        print("PASS: customer debt, report numeric values, and stored image preview are hardened")
+
+    # Combined POS/warehouse integration must retain the warehouse preflight and payment guards.
+    sale_start = source.find("function confirmHasibPayment()")
+    sale_end = source.find("\n        function ", sale_start)
+    sale_fn = source[sale_start:sale_end] if sale_start >= 0 and sale_end > sale_start else ""
+    transfer_start = source.find("function wtCreateTransfer()")
+    transfer_end = source.find("\n        function ", transfer_start)
+    transfer_fn = source[transfer_start:transfer_end] if transfer_start >= 0 and transfer_end > transfer_start else ""
+    modal_start = source.find("function openHasibModal()")
+    modal_end = source.find("\n        function ", modal_start)
+    modal_fn = source[modal_start:modal_end] if modal_start >= 0 and modal_end > modal_start else ""
+    if not sale_fn or "wtTryEnsureData" not in sale_fn or "hasDebtField" not in sale_fn:
+        errors.append("integrated POS payment must retain warehouse preflight and malformed customer-debt rejection")
+    if not transfer_fn or "if(!wtTryEnsureData())return;" not in transfer_fn:
+        errors.append("integrated warehouse transfer must validate persisted stock data before mutation")
+    if not transfer_fn or "WAREHOUSE_TRANSFER_OUT" not in transfer_fn or "WAREHOUSE_TRANSFER_IN" not in transfer_fn or "const movementsBefore=AppData.stockMovements.slice();" not in transfer_fn or "AppData.stockMovements=movementsBefore;" not in transfer_fn:
+        errors.append("warehouse transfers must write balanced source/destination stock-ledger entries and roll them back on save failure")
+    if not transfer_fn or "const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');" not in transfer_fn or "if(hadMainStock)p.stock=beforeMain;else delete p.stock;" not in transfer_fn:
+        errors.append("warehouse transfer rollback must preserve whether the main stock property originally existed")
+    if not modal_fn or "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" not in modal_fn or "return;" not in modal_fn:
+        errors.append("integrated POS payment modal must remain blocked for malformed cart values")
+    if sale_fn and transfer_fn and modal_fn and "wtTryEnsureData" in sale_fn and "hasDebtField" in sale_fn and "if(!wtTryEnsureData())return;" in transfer_fn and "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" in modal_fn and "return;" in modal_fn:
+        print("PASS: integrated POS payment and warehouse mutation guards remain intact")
+
+    # Editing a historical invoice must not coerce corrupt customer debt or overwrite a corrupt stock ledger.
+    edit_start = source.find("function editSalesInvoice(invoiceId)")
+    edit_end = source.find("\n        function ", edit_start)
+    edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
+    edit_guards = [
+        "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
+        "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
+        "سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة",
+        "AppData.stockMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m))",
+    ]
+    if not edit_fn or any(guard not in edit_fn for guard in edit_guards):
+        errors.append("historical invoice editing must reject corrupt debt, warehouse maps, and stock movement history before mutation")
+    else:
+        print("PASS: invoice edits fail closed on corrupt financial and inventory records")
+
+    # Startup must not silently replace present-but-corrupt persisted collections or save over unreadable data.
+    if "if (!Object.prototype.hasOwnProperty.call(AppData, k))" not in source or "anasStartupIntegrityIssues.push(k)" not in source:
+        errors.append("startup must initialize only absent collections and preserve present invalid collections")
+    else:
+        print("PASS: startup preserves present-but-invalid collections")
+
+    if "anasStartupFatalLoadError = true" not in source or "if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length)" not in source:
+        errors.append("startup must block saves after unreadable JSON or invalid persisted collection shapes")
+    else:
+        print("PASS: startup blocks writes when persisted data integrity is uncertain")
+
+    if "AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)" not in source:
+        errors.append("startup must not dereference malformed POS cart containers")
+    else:
+        print("PASS: startup safely reads the active POS cart")
+
+    # Execute the actual startup block against malformed, unreadable, and legacy-but-incomplete saved data.
+    startup_start = source.find("const ANAS_DB_KEY = 'ANAS_THE_ENTERPRISE_V11_OFFLINE';")
+    startup_end_marker = "let activeAiTab = 'all';"
+    startup_end = source.find(startup_end_marker, startup_start)
+    if startup_start < 0 or startup_end < 0:
+        errors.append("cannot locate startup block for runtime integrity smoke test")
+    else:
+        startup_js = source[startup_start:startup_end + len(startup_end_marker)]
+        harness = r"""
+const vm = require('node:vm');
+const startup = __STARTUP__;
+function boot(saved) {
+  const writes = { count: 0 };
+  const alerts = [];
+  const initialDB = { products: [], customers: [], suppliers: [], invoices: [],
+    purchaseInvoices: [], expenses: [], users: [], alerts: [], warehouseTransfers: [],
+    warehouses: [], truckTrips: [], posScreensCarts: {1: []}, activePosScreenTab: 1 };
+  const localStorage = { getItem: () => saved, setItem: () => { writes.count++; } };
+  const context = { initialDB, localStorage, setTimeout: () => {}, alert: x => alerts.push(String(x)), console };
+  vm.createContext(context);
+  vm.runInContext(startup + "\nthis.__snapshot = { products: AppData.products, issues: anasStartupIntegrityIssues.slice(), fatal: anasStartupFatalLoadError, cart: posCart, writes: localStorage.setItem ? 0 : -1 };", context);
+  return { ...context.__snapshot, alerts, writeCalls: writes.count };
+}
+const corrupt = boot(JSON.stringify({ products: null, posScreensCarts: {1: []} }));
+if (corrupt.products !== null || !corrupt.issues.includes('products') || corrupt.fatal || corrupt.cart.length !== 0)
+  throw new Error('present corrupt collection was not preserved/guarded safely');
+const unreadable = boot('{not-json');
+if (!unreadable.fatal || unreadable.writeCalls !== 0)
+  throw new Error('unreadable saved JSON did not enter fail-safe mode');
+const legacy = boot(JSON.stringify({ appName: 'Anas ERP' }));
+if (!Array.isArray(legacy.products) || legacy.issues.length || legacy.fatal)
+  throw new Error('absent legacy collections were not initialized safely');
+const corruptCartSlot = boot(JSON.stringify({ products: [], posScreensCarts: {1: 'corrupt-cart'}, activePosScreenTab: 1 }));
+if (!corruptCartSlot.issues.includes('posScreensCarts.1') || corruptCartSlot.cart.length !== 0)
+  throw new Error('malformed POS cart slot was not preserved and blocked for safe handling');
+console.log('PASS: startup runtime smoke tests preserve corrupt data, fail safe on unreadable JSON, initialize absent legacy collections, and detect malformed POS cart slots');
+"""
+        harness = harness.replace("__STARTUP__", json.dumps(startup_js))
+        with tempfile.TemporaryDirectory(prefix="anas-startup-test-") as temp:
+            test_path = Path(temp) / "startup-smoke.js"
+            test_path.write_text(harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                errors.append("startup runtime smoke test failed: " + (result.stderr or result.stdout).strip()[:500])
+            else:
+                print(result.stdout.strip())
+
+    # Execute the real saveDB function to prove corrupt startup state blocks persistent writes.
+    save_start = source.find("function saveDB() {")
+    save_end = source.find("function openDrawer()", save_start)
+    if save_start < 0 or save_end < 0:
+        errors.append("cannot locate saveDB function for startup write-block runtime test")
+    else:
+        save_js = source[save_start:save_end]
+        save_harness = r"""
+const vm = require('node:vm');
+const saveFunction = __SAVE_FUNCTION__;
+function attempt(fatal, issues) {
+  let writes = 0;
+  const alerts = [];
+  const context = {
+    anasStartupFatalLoadError: fatal,
+    anasStartupIntegrityIssues: issues,
+    alert: message => alerts.push(String(message)),
+    console,
+    AppData: { posScreensCarts: {1: []}, activePosScreenTab: 1 },
+    posCart: [],
+    ANAS_DB_KEY: 'test-key',
+    localStorage: { setItem: () => { writes++; } },
+    updateUIState: () => {},
+    checkSystemAlerts: () => {},
+    updateDashboardStats: () => {}
+  };
+  vm.createContext(context);
+  vm.runInContext(saveFunction + '\nthis.__save = saveDB();', context);
+  return { result: context.__save, writes, alerts };
+}
+const unreadable = attempt(true, []);
+if (unreadable.result !== false || unreadable.writes !== 0 || !unreadable.alerts.length)
+  throw new Error('saveDB must refuse writes after unreadable persisted JSON');
+const malformed = attempt(false, ['products']);
+if (malformed.result !== false || malformed.writes !== 0 || !malformed.alerts.length)
+  throw new Error('saveDB must refuse writes when persisted collections are malformed');
+const healthy = attempt(false, []);
+if (healthy.result !== true || healthy.writes !== 1)
+  throw new Error('saveDB must continue to persist valid state exactly once');
+console.log('PASS: saveDB runtime tests block writes for corrupt startup state and preserve normal saves');
+"""
+        save_harness = save_harness.replace("__SAVE_FUNCTION__", json.dumps(save_js))
+        with tempfile.TemporaryDirectory(prefix="anas-save-guard-test-") as temp:
+            test_path = Path(temp) / "save-guard-smoke.js"
+            test_path.write_text(save_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                errors.append("saveDB runtime guard test failed: " + (result.stderr or result.stdout).strip()[:500])
+            else:
+                print(result.stdout.strip())
+
+    user_warehouse_start = source.find("function wtEnsureUserWarehouse(user)")
+    user_warehouse_end = source.find("function wtCurrentSaleWarehouse()", user_warehouse_start)
+    user_warehouse_helper = source[user_warehouse_start:user_warehouse_end] if user_warehouse_start >= 0 and user_warehouse_end > user_warehouse_start else ""
+    if "if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];" not in user_warehouse_helper or "AppData.warehouses.some(w=>" not in user_warehouse_helper or "if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];" in user_warehouse_helper:
+        errors.append("user warehouse assignment must preserve and reject malformed persisted warehouse lists")
+    else:
+        print("PASS: user warehouse assignment fails closed on malformed warehouse lists")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
@@ -96,6 +325,246 @@ def main():
         errors.append("manifest.webmanifest is linked but missing")
     else:
         print("PASS: PWA manifest is linked and file exists")
+
+    # POS sale must validate all warehouse balances and customer debt before financial mutation.
+    if "if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;" not in source:
+        errors.append("POS sale must run warehouse preflight before mutating stock")
+    if "Object.prototype.hasOwnProperty.call(cust,'debt')" not in source or "رصيد دين العميل غير صالح" not in source:
+        errors.append("POS sale must reject malformed stored customer debt instead of coercing it to zero")
+    if not any("POS sale must validate" in error or "POS sale must run" in error for error in errors):
+        print("PASS: POS sale validates warehouse balances and customer debt before mutation")
+
+    # POS sale must fail closed on malformed customer/invoice collections and cash balance.
+    sale_start = source.find("function confirmHasibPayment()")
+    sale_end = source.find("\n        function printLastConfirmedInvoice", sale_start)
+    sale_source = source[sale_start:sale_end] if sale_start >= 0 and sale_end > sale_start else ""
+    sale_integrity_guards = [
+        "Object.prototype.hasOwnProperty.call(AppData, 'customers')",
+        "AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c))",
+        "Object.prototype.hasOwnProperty.call(AppData, 'invoices')",
+        "AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv))",
+        "Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance')",
+        "Number(AppData.caisseBalance) < 0",
+        "رصيد الصندوق غير صالح",
+    ]
+    if not sale_source or any(guard not in sale_source for guard in sale_integrity_guards):
+        errors.append("POS sale must reject malformed customer/invoice collections and invalid cash balance before mutation")
+    else:
+        print("PASS: POS sale rejects malformed financial collections and invalid cash balance before mutation")
+
+    # Malformed array-shaped warehouse maps must block stock mutation, not be silently reset.
+    sale_guard = "saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)"
+    transfer_guard = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
+    settlement_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة"
+    if sale_guard not in source or transfer_guard not in source or settlement_guard not in source:
+        errors.append("POS, warehouse transfer, and truck settlement must fail closed on malformed warehouse stock maps")
+    else:
+        print("PASS: stock mutation paths fail closed on malformed warehouse maps")
+
+    # Truck stock posting must validate all persisted data before mutation and preserve corrupt ledgers.
+    truck_preflight_guards = [
+        "Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))",
+        "Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))",
+        "Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))",
+        "!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
+        "const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');",
+        "if(!hadStockMovements)AppData.stockMovements=[];",
+    ]
+    for guard in truck_preflight_guards:
+        if guard not in source:
+            errors.append("truck stock posting preflight is missing: " + guard)
+    if not any("truck stock posting preflight is missing:" in error for error in errors):
+        print("PASS: truck posting rejects corrupt persisted maps/ledgers before mutation")
+
+    # Truck loading must reject malformed maps before mutation; settlement rollback must preserve array shape.
+    load_guard = "Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))"
+    settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
+    load_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    load_restore = "oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});"
+    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source or load_snapshot not in source or load_restore not in source:
+        errors.append("truck load guard or rollback preservation for malformed warehouse maps is missing")
+    else:
+        print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
+
+    # Mobile warehouse creation and truck movement history must fail closed too.
+    if "else if(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل حركات المخزون تالف" not in source:
+        errors.append("warehouse preflight must reject malformed stock movement history")
+    if "else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}" not in source:
+        errors.append("truck warehouse creation must not replace malformed warehouse data")
+    if "if(wtEnsureMobileWarehouse(warehouseName)===null)throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');" not in source:
+        errors.append("truck loading must abort when mobile warehouse creation fails")
+    if not any("warehouse preflight must reject malformed stock movement history" in error or "truck warehouse creation must not replace malformed warehouse data" in error or "truck loading must abort when mobile warehouse creation fails" in error for error in errors):
+        print("PASS: truck operations preserve malformed warehouse and movement histories")
+
+    # Truck settlement must detect orphaned ledger entries before applying stock changes again.
+    settlement_ledger_guards = [
+        "Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))",
+        "String(m.referenceType||'')==='truck_settlement'&&String(m.referenceId||'')===settlementId",
+        "عُثر على حركات تسوية سابقة لهذه الرحلة دون علامة تسوية موثوقة",
+    ]
+    for guard in settlement_ledger_guards:
+        if guard not in source:
+            errors.append("truck settlement idempotency guard is missing: " + guard)
+    if not any("truck settlement idempotency guard is missing:" in error for error in errors):
+        print("PASS: truck settlement rejects orphaned prior ledger entries and malformed movement history")
+
+    # Settlement must reject invalid main/truck balances before it mutates any product.
+    settlement_balance_guards = [
+        "رصيد المخزن الرئيسي غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
+        "رصيد مخزن الشاحنة غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
+        "if(p.warehouseStock&&Object.prototype.hasOwnProperty.call(p.warehouseStock,warehouse)){",
+    ]
+    for guard in settlement_balance_guards:
+        if guard not in source:
+            errors.append("truck settlement balance preflight is missing: " + guard)
+    if not any("truck settlement balance preflight is missing:" in error for error in errors):
+        print("PASS: truck settlement validates main and truck balances before stock mutation")
+
+    # Existing malformed history must fail closed rather than being silently replaced with empty arrays.
+    history_guard = "else if(!Array.isArray(AppData.warehouseTransfers)||AppData.warehouseTransfers.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل تحويلات المخازن تالف"
+    warehouses_guard = "else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))throw new Error('قائمة المخازن تالفة"
+    warehouse_record_guard = "AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))"
+    products_guard = "if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة"
+    product_record_guard = "if(!p||typeof p!=='object'||Array.isArray(p))throw new Error('سجل منتج غير صالح"
+    map_guard = "if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن غير صالحة"
+    if history_guard not in source or warehouses_guard not in source or warehouse_record_guard not in source or products_guard not in source or product_record_guard not in source or map_guard not in source:
+        errors.append("warehouse initialization must preserve malformed history and reject invalid product/map shapes")
+    else:
+        print("PASS: warehouse initialization fails closed without silently replacing malformed history")
+
+    # Missing maps may be initialized for legacy products, but explicit null/invalid maps must not be erased.
+    missing_only_guard = "AppData.products.forEach(p=>{if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock'))p.warehouseStock={};});"
+    guarded_ui_calls = [
+        "function wtTryEnsureData(){try{wtEnsureData();return true;}catch(e){alert((e&&e.message)||'بيانات المخازن غير صالحة. أُوقفت العملية دون تعديل الأرصدة.');return false;}}",
+        "if(!wtTryEnsureData())return; const from=document.getElementById('wtFrom')",
+        "if(!wtTryEnsureData())return;const from=document.getElementById('wtFrom').value",
+        "function wtInitStockScreen(){if(!wtTryEnsureData())return;",
+    ]
+    if missing_only_guard not in source or map_guard not in source:
+        errors.append("warehouseStock initialization must preserve explicit null/malformed values instead of silently replacing them")
+    else:
+        print("PASS: only absent warehouseStock maps are initialized; explicit malformed maps fail closed")
+    for guard in guarded_ui_calls:
+        if guard not in source:
+            errors.append("warehouse validation UI handling is missing: " + guard)
+    if not any("warehouse validation UI handling is missing:" in error for error in errors):
+        print("PASS: warehouse screen, transfer, and stock screen surface validation errors safely")
+
+    # Existing numeric balances must be validated before legacy maps are initialized.
+    numeric_balance_guards = [
+        "(!((typeof p.stock==='number')||(typeof p.stock==='string')))||p.stock===null||p.stock===''||(typeof p.stock==='string'&&p.stock.trim()==='')||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
+        "!((typeof value==='number')||(typeof value==='string'))||value===null||value===''||(typeof value==='string'&&value.trim()==='')||!Number.isFinite(Number(value))||Number(value)<0",
+        "// Initialize legacy maps only after every existing record passes validation.",
+    ]
+    for guard in numeric_balance_guards:
+        if guard not in source:
+            errors.append("warehouse numeric balance preflight guard is missing: " + guard)
+    if not any("warehouse numeric balance preflight guard is missing:" in error for error in errors):
+        print("PASS: invalid numeric stock balances fail closed before legacy-map initialization")
+
+    # POS rollback must preserve malformed map shape, and transfers must fail closed from either side.
+    sale_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    sale_restore = "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;"
+    transfer_guard_any_direction = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
+    if sale_snapshot not in source or sale_restore not in source or transfer_guard_any_direction not in source:
+        errors.append("POS rollback must preserve malformed warehouse map shape and transfers must reject it")
+    else:
+        print("PASS: POS rollback preserves malformed maps and transfers reject them from either direction")
+
+    warehouse_names_guard = "if(p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock))Object.keys(p.warehouseStock)"
+    if warehouse_names_guard not in source:
+        errors.append("warehouse selector must ignore array-shaped warehouseStock maps")
+    else:
+        print("PASS: warehouse selector ignores malformed array-shaped maps")
+
+    # Cloud restore must reject explicitly malformed warehouse history and stock maps.
+    sync_validator_start = source.find("function anasValidateIncomingSyncData(incoming)")
+    sync_validator_end = source.find("\n        async function syncPushNow()", sync_validator_start)
+    sync_validator = source[sync_validator_start:sync_validator_end] if sync_validator_start >= 0 and sync_validator_end > sync_validator_start else ""
+    sync_guards = [
+        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips']",
+        "Object.prototype.hasOwnProperty.call(incoming, key)",
+        "Object.prototype.hasOwnProperty.call(incoming, 'warehouses')",
+        "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
+        "!warehouse.trim()",
+        "String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0",
+    ]
+    if not sync_validator or any(guard not in sync_validator for guard in sync_guards):
+        errors.append("cloud restore must reject explicitly null/malformed warehouse history, blank warehouse keys, and invalid stock balances")
+    else:
+        print("PASS: cloud restore rejects malformed warehouse history and stock balances")
+
+    # Historical invoice edits must reject malformed source line values and inconsistent money totals.
+    edit_start = source.find("function editSalesInvoice(invoiceId)")
+    edit_end = source.find("\n        function ", edit_start + 1)
+    edit_invoice = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
+    edit_guards = [
+        "Historical invoice quantities and prices are the baseline for stock reconciliation.",
+        "Number(item.qty) <= 0",
+        "Number(item.price) < 0",
+        "Validate every touched product map, even for a main-warehouse invoice:",
+        "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
+        "(!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))",
+        "validMoneyField = value =>",
+        "oldPaid > oldTotal + 0.000001",
+        "oldRemaining - Math.max(0, oldTotal - oldPaid)",
+    ]
+    if not edit_invoice or any(guard not in edit_invoice for guard in edit_guards):
+        errors.append("historical invoice edits must reject invalid source quantities/prices and inconsistent totals before stock/account mutation")
+    else:
+        print("PASS: historical invoice edits reject corrupt source lines and inconsistent financial totals")
+
+    # Backup and cloud restore must not silently replace populated local history with empty lists.
+    backup_start = source.find("function anasValidateBackupData(incoming)")
+    backup_end = source.find("\n        function importDataBackup(e)", backup_start)
+    backup_validator = source[backup_start:backup_end] if backup_start >= 0 and backup_end > backup_start else ""
+    restore_start = source.find("async function syncPullNow()")
+    restore_end = source.find("\n        function exportDataBackup()", restore_start)
+    cloud_restore = source[restore_start:restore_end] if restore_start >= 0 and restore_end > restore_start else ""
+    backup_guards = [
+        "Array.isArray(AppData[key]) && AppData[key].length",
+        "النسخة تفتقد قائمة المخازن الموجودة حاليًا",
+        "warehouseTransfers", "stockMovements", "purchaseInvoices", "truckTrips",
+        "Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')",
+        "النسخة تفتقد سلال نقاط البيع التي تحتوي على أصناف",
+        "for (const [key, currentCart] of Object.entries(AppData.posScreensCarts))",
+        "النسخة تفتقد سلة نقطة البيع ",
+    ]
+    if not backup_validator or any(guard not in backup_validator for guard in backup_guards):
+        errors.append("file restore must reject missing history collections when local records exist")
+    else:
+        print("PASS: file restore blocks incomplete backups that would erase populated local history")
+    sync_guards = [
+        "Array.isArray(AppData[key]) && AppData[key].length",
+        "النسخة السحابية تفتقد قائمة المخازن المحلية",
+        "purchaseInvoices", "truckTrips",
+        "Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')",
+        "النسخة السحابية تفتقد سلال نقاط البيع التي تحتوي على أصناف",
+        "for (const [key, currentCart] of Object.entries(AppData.posScreensCarts))",
+        "النسخة السحابية تفتقد سلة نقطة البيع ",
+    ]
+    if not cloud_restore or "if (!exportDataBackup())" not in cloud_restore or not sync_validator or any(guard not in sync_validator for guard in sync_guards):
+        errors.append("cloud restore must require a successful local backup and block loss of omitted history")
+    else:
+        print("PASS: cloud restore requires a local backup and preserves omitted local history")
+    file_restore_start = source.find("function importDataBackup(e)")
+    file_restore_end = source.find("// ================= مركز الإكسل", file_restore_start)
+    file_restore = source[file_restore_start:file_restore_end] if file_restore_start >= 0 and file_restore_end > file_restore_start else ""
+    repair_guards = [
+        "const previousStartupIssues = anasStartupIntegrityIssues.slice()",
+        "const previousFatalLoadError = anasStartupFatalLoadError",
+        "anasStartupIntegrityIssues = []",
+        "anasStartupFatalLoadError = false",
+        "anasStartupIntegrityIssues = previousStartupIssues",
+        "anasStartupFatalLoadError = previousFatalLoadError",
+    ]
+    if not file_restore or any(guard not in file_restore for guard in repair_guards):
+        errors.append("file restore must clear startup fail-safe only for a validated save and restore guards on failure")
+    if not cloud_restore or any(guard not in cloud_restore for guard in repair_guards):
+        errors.append("cloud restore must clear startup fail-safe only for a validated save and restore guards on failure")
+    if file_restore and cloud_restore and all(guard in file_restore for guard in repair_guards) and all(guard in cloud_restore for guard in repair_guards):
+        print("PASS: validated restore can repair corrupt startup state and restores fail-safe guards if persistence fails")
 
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")

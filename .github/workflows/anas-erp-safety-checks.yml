@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "index.html"
+      - "tests/**"
       - "cloudflare/**"
       - "firebase/**"
       - ".github/workflows/anas-erp-safety-checks.yml"
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "tests/**"
       - "cloudflare/**"
       - "firebase/**"
       - ".github/workflows/anas-erp-safety-checks.yml"
@@ -673,6 +675,15 @@ jobs:
             stockMovements: [],
             warehouses: []
           };
+          // Malformed trip/cart payloads must fail closed before even an idempotency shortcut.
+          assert.throws(() => postTripStock(null), /سجل رحلة الشاحنة غير صالح/);
+          assert.throws(() => postTripStock([]), /سجل رحلة الشاحنة غير صالح/);
+          assert.throws(() => postTripStock({ id: 'TR-BAD-1', stockItems: null }), /قائمة حمولة الشاحنة غير صالحة/);
+          assert.throws(() => postTripStock({ id: 'TR-BAD-2', stockItems: {}, stockPostedAt: 'already-posted' }), /قائمة حمولة الشاحنة غير صالحة/);
+          assert.equal(AppData.products[0].stock, 10, 'malformed trip records must not change main stock');
+          assert.deepEqual(AppData.products[0].warehouseStock, {}, 'malformed trip records must not create warehouse balances');
+          assert.deepEqual(AppData.stockMovements, [], 'malformed trip records must not create ledger entries');
+          assert.deepEqual(AppData.warehouses, [], 'malformed trip records must not create warehouses');
           global.wtEnsureMobileWarehouse = name => {
             if (!AppData.warehouses.includes(name)) AppData.warehouses.push(name);
           };
@@ -711,7 +722,51 @@ jobs:
           assert.deepEqual(AppData.stockMovements, [{ id: 'old' }], 'failed save restores prior movement ledger');
           assert.deepEqual(AppData.warehouses, ['Existing'], 'failed save restores prior warehouse list');
           assert.equal(Object.hasOwn(failedTrip, 'stockPostedAt'), false, 'failed save removes posted marker');
-          console.log('Truck stock tests passed: one-time load, movement ledger, and rollback on failed save');
+
+          // Corrupt persisted history must be rejected without deletion or stock mutation.
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }], stockMovements: null, warehouses: [] };
+          const corruptLedgerTrip = { id: 'TR-TEST-3', plate: 'TEST3', warehouseName: 'Truck TEST3', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptLedgerTrip), /سجل حركات المخزون تالف/);
+          assert.equal(AppData.products[0].stock, 10, 'corrupt ledger must not mutate main stock');
+          assert.equal(AppData.stockMovements, null, 'corrupt ledger must be preserved, not deleted');
+          assert.equal(Object.hasOwn(corruptLedgerTrip, 'stockPostedAt'), false);
+
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: [] }], stockMovements: [], warehouses: [] };
+          const corruptMapTrip = { id: 'TR-TEST-4', plate: 'TEST4', warehouseName: 'Truck TEST4', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptMapTrip), /خريطة أرصدة المخازن الفرعية تالفة/);
+          assert.equal(AppData.products[0].stock, 10, 'corrupt map must not mutate main stock');
+          assert.deepEqual(AppData.products[0].warehouseStock, [], 'corrupt map must be preserved');
+
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: { Existing: ' ' } }], stockMovements: [], warehouses: [] };
+          const corruptBalanceTrip = { id: 'TR-TEST-5', plate: 'TEST5', warehouseName: 'Truck TEST5', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptBalanceTrip), /رصيد مخزن فرعي تالف/);
+          assert.equal(AppData.products[0].stock, 10, 'blank warehouse balance must not mutate main stock');
+          assert.equal(AppData.products[0].warehouseStock.Existing, ' ', 'blank balance must be preserved');
+
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: { '   ': 2 } }], stockMovements: [], warehouses: [] };
+          const corruptBlankWarehouseKeyTrip = { id: 'TR-TEST-5A', plate: 'TEST5A', warehouseName: 'Truck TEST5A', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptBlankWarehouseKeyTrip), /رصيد مخزن فرعي تالف/);
+          assert.equal(AppData.products[0].stock, 10, 'blank warehouse key must not mutate main stock');
+          assert.equal(AppData.products[0].warehouseStock['   '], 2, 'blank warehouse key must be preserved');
+
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: ' ', warehouseStock: {} }], stockMovements: [], warehouses: [] };
+          const corruptMainStockTrip = { id: 'TR-TEST-6', plate: 'TEST6', warehouseName: 'Truck TEST6', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptMainStockTrip), /رصيد المخزن الرئيسي غير صالح/);
+          assert.equal(AppData.products[0].stock, ' ', 'blank main balance must be preserved');
+
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }], stockMovements: [], warehouses: null };
+          const corruptWarehousesTrip = { id: 'TR-TEST-7', plate: 'TEST7', warehouseName: 'Truck TEST7', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptWarehousesTrip), /قائمة المخازن تالفة/);
+          assert.equal(AppData.products[0].stock, 10, 'corrupt warehouse list must not mutate stock');
+          assert.equal(AppData.warehouses, null, 'corrupt warehouse list must be preserved');
+
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }], stockMovements: [], warehouses: [null] };
+          const corruptWarehouseEntryTrip = { id: 'TR-TEST-8', plate: 'TEST8', warehouseName: 'Truck TEST8', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptWarehouseEntryTrip), /قائمة المخازن تالفة/);
+          assert.equal(AppData.products[0].stock, 10, 'malformed warehouse entry must not mutate stock');
+          assert.deepEqual(AppData.warehouses, [null], 'malformed warehouse entry must be preserved');
+
+          console.log('Truck stock tests passed: idempotency, ledger rollback, and fail-closed corruption cases');
           """
           js = js.replace("/*INSERT_TRUCK_STOCK_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-stock-test.js").write_text(js, encoding="utf-8")
@@ -839,3 +894,84 @@ jobs:
           PY
           node --check /tmp/anas-truck-settlement-test.js
           node /tmp/anas-truck-settlement-test.js
+      - name: Verify stock reads preserve malformed values as invalid
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function wtReadStockBalance(")
+          end = s.find("        function wtEnsureMobileWarehouse(", start)
+          assert start >= 0 and end > start, "Could not isolate stock balance reader"
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_STOCK_READER*/
+          const assert = require('node:assert/strict');
+          const main = (stock) => wtReadStockBalance({stock}, 'المخزن الرئيسي');
+          assert.equal(main(12), 12);
+          assert.equal(main(' 12 '), 12);
+          assert.equal(main(undefined), NaN, 'explicit undefined must not be coerced to zero');
+          assert.equal(main('   '), NaN, 'blank primary balance must remain invalid');
+          assert.equal(main(null), NaN, 'null primary balance must remain invalid');
+          assert.equal(main(true), NaN, 'boolean primary balance must remain invalid');
+          assert.equal(main(-1), NaN, 'negative primary balance must remain invalid');
+          assert.equal(wtReadStockBalance({}, 'المخزن الرئيسي'), 0, 'absent legacy primary stock retains zero default');
+          assert.equal(wtReadStockBalance({stock:10,warehouseStock:{A:' '}}, 'A'), NaN, 'blank secondary balance must remain invalid');
+          assert.equal(wtReadStockBalance({stock:10,warehouseStock:{A:true}}, 'A'), NaN, 'boolean secondary balance must remain invalid');
+          assert.equal(wtReadStockBalance({stock:10,warehouseStock:{A:3}}, 'A'), 3);
+          assert.equal(wtReadStockBalance({stock:10,warehouseStock:{}}, 'B'), 0, 'absent secondary warehouse balance is zero');
+          assert.equal(wtReadStockBalance({stock:10,warehouseStock:[]}, 'A'), NaN, 'malformed stock map must remain invalid');
+          console.log('Stock balance reader tests passed: valid, legacy-absent, blank, null, boolean, negative, and malformed map cases');
+          """
+          js = js.replace("/*INSERT_STOCK_READER*/", function_js)
+          Path("/tmp/anas-stock-reader-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-stock-reader-test.js
+          node /tmp/anas-stock-reader-test.js
+      - name: Execute cloud restore validator corruption tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          app = Path("index.html").read_text(encoding="utf-8")
+          start = app.find("        function anasValidateIncomingSyncData(incoming) {")
+          end = app.find("async function syncPushNow()", start)
+          assert start >= 0 and end > start, "Could not isolate cloud restore validator"
+          function_js = app[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          /*INSERT_SYNC_VALIDATOR*/
+          const base = () => ({products:[{id:'p1',stock:8,warehouseStock:{'Legacy':3}}],customers:[],suppliers:[],invoices:[]});
+          const valid = base();
+          valid.warehouses = ['Legacy'];
+          assert.equal(anasValidateIncomingSyncData(valid), valid, 'valid legacy warehouse names must remain supported');
+          assert.deepEqual(valid.stockMovements, [], 'absent legacy movement ledger should be initialized');
+          assert.deepEqual(valid.warehouseTransfers, [], 'absent legacy transfer history should be initialized');
+          for (const key of ['stockMovements','warehouseTransfers','purchases','expenses','users','trucks','returns']) {
+            const bad = base(); bad[key] = null;
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, key + ' explicit null must be rejected');
+          }
+          for (const warehouses of [null, {}, [null], ['   '], [{name:'   '}], [{name:[]} ]]) {
+            const bad = base(); bad.warehouses = warehouses;
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouses must be rejected');
+          }
+          for (const stock of [' ', null, true, {}, [], -1, Infinity]) {
+            const bad = base(); bad.products[0].stock = stock;
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed primary stock must be rejected');
+          }
+          for (const warehouseStock of [null, [], 'invalid']) {
+            const bad = base(); bad.products[0].warehouseStock = warehouseStock;
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouse stock map must be rejected');
+          }
+          for (const warehouseStock of [{'   ':2}, {Legacy:' '}, {Legacy:true}, {Legacy:-1}, {Legacy:Infinity}]) {
+            const bad = base(); bad.products[0].warehouseStock = warehouseStock;
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouse key/balance must be rejected');
+          }
+          const missingCollections = base();
+          delete missingCollections.products[0].warehouseStock;
+          assert.equal(anasValidateIncomingSyncData(missingCollections), missingCollections, 'absent legacy warehouse stock map remains compatible');
+          console.log('Cloud restore validator tests passed: valid legacy data, explicit null history, malformed warehouse lists/maps, and invalid balances');
+          """
+          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", function_js)
+          Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-cloud-restore-validator-test.js
+          node /tmp/anas-cloud-restore-validator-test.js
