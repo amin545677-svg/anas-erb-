@@ -4199,7 +4199,7 @@ function renderPurchasesTable() {
             const names=['المخزن الرئيسي'];
             (AppData.users||[]).forEach(u=>{[u.warehouse,u.secondaryWarehouse].forEach(n=>{n=String(n||'').trim();if(n&&!names.includes(n))names.push(n);});});
             (AppData.warehouses||[]).forEach(w=>{const n=typeof w==='string'?w:w.name;if(n&&!names.includes(n))names.push(n);});
-            (AppData.products||[]).forEach(p=>Object.keys(p.warehouseStock||{}).forEach(n=>{if(n&&!names.includes(n))names.push(n);}));
+            (AppData.products||[]).forEach(p=>{if(p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock))Object.keys(p.warehouseStock).forEach(n=>{if(n&&!names.includes(n))names.push(n);});});
             return names;
         }
         function wtEnsureData(){
