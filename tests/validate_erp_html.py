@@ -207,6 +207,25 @@ def main():
     else:
         print("PASS: warehouse selector ignores malformed array-shaped maps")
 
+    # Backup and cloud restore must reject explicitly corrupt history/maps rather than normalize them away.
+    backup_validator = source[source.find("function anasValidateBackupData"):source.find("function importDataBackup")]
+    cloud_validator = source[source.find("function anasValidateIncomingSyncData"):source.find("async function syncPushNow")]
+    for label, validator in (("backup", backup_validator), ("cloud restore", cloud_validator)):
+        required_guards = [
+            "Object.prototype.hasOwnProperty.call(incoming,key)",
+            "Object.prototype.hasOwnProperty.call(incoming,'warehouses')",
+            "Object.prototype.hasOwnProperty.call(p,'warehouseStock')",
+            "String(balance).trim() !== ''",
+            "!warehouse.trim()",
+        ]
+        for guard in required_guards:
+            if guard not in validator:
+                errors.append(label + " validator missing malformed-data guard: " + guard)
+        if "warehouseTransfers" not in validator or "stockMovements" not in validator:
+            errors.append(label + " validator must validate warehouse transfer and stock movement histories")
+    if not any("validator missing malformed-data guard:" in error or "must validate warehouse transfer" in error for error in errors):
+        print("PASS: backup/cloud restore reject malformed histories, stock maps, and blank warehouse keys")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
