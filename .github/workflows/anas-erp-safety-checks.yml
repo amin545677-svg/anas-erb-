@@ -916,3 +916,51 @@ jobs:
           PY
           node --check /tmp/anas-stock-reader-test.js
           node /tmp/anas-stock-reader-test.js
+      - name: Execute cloud restore validator corruption tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          app = Path("index.html").read_text(encoding="utf-8")
+          start = app.find("        function anasValidateIncomingSyncData(incoming) {")
+          end = app.find("\\n        async function syncPushNow()", start)
+          assert start >= 0 and end > start, "Could not isolate cloud restore validator"
+          function_js = app[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          /*INSERT_SYNC_VALIDATOR*/
+          const base = () => ({products:[{id:'p1',stock:8,warehouseStock:{'Legacy':3}}],customers:[],suppliers:[],invoices:[]});
+          const valid = base();
+          valid.warehouses = ['Legacy'];
+          assert.equal(anasValidateIncomingSyncData(valid), valid, 'valid legacy warehouse names must remain supported');
+          assert.deepEqual(valid.stockMovements, [], 'absent legacy movement ledger should be initialized');
+          assert.deepEqual(valid.warehouseTransfers, [], 'absent legacy transfer history should be initialized');
+          for (const key of ['stockMovements','warehouseTransfers','purchases','expenses','users','trucks','returns']) {
+            const bad = base(); bad[key] = null;
+            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, key + ' explicit null must be rejected');
+          }
+          for (const warehouses of [null, {}, [null], ['   '], [{name:'   '}], [{name:[]} ]]) {
+            const bad = base(); bad.warehouses = warehouses;
+            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed warehouses must be rejected');
+          }
+          for (const stock of [' ', null, true, {}, [], -1, Infinity]) {
+            const bad = base(); bad.products[0].stock = stock;
+            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed primary stock must be rejected');
+          }
+          for (const warehouseStock of [null, [], 'invalid']) {
+            const bad = base(); bad.products[0].warehouseStock = warehouseStock;
+            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed warehouse stock map must be rejected');
+          }
+          for (const warehouseStock of [{'   ':2}, {Legacy:' '}, {Legacy:true}, {Legacy:-1}, {Legacy:Infinity}]) {
+            const bad = base(); bad.products[0].warehouseStock = warehouseStock;
+            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed warehouse key/balance must be rejected');
+          }
+          const missingCollections = base();
+          delete missingCollections.products[0].warehouseStock;
+          assert.equal(anasValidateIncomingSyncData(missingCollections), missingCollections, 'absent legacy warehouse stock map remains compatible');
+          console.log('Cloud restore validator tests passed: valid legacy data, explicit null history, malformed warehouse lists/maps, and invalid balances');
+          """
+          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", function_js)
+          Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-cloud-restore-validator-test.js
+          node /tmp/anas-cloud-restore-validator-test.js
