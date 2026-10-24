@@ -4871,7 +4871,7 @@ function renderPurchasesTable() {
                 content.innerHTML = creditInvoices.length > 0 ? creditInvoices.map(i => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${esc(i.id)} - ${esc(i.customer)}</span>
-                        <strong style="color:#ef4444;">متبقي: ${i.remaining} د.ج</strong>
+                        <strong style="color:#ef4444;">متبقي: ${Number(i.remaining)||0} د.ج</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#94a3b8;">لا توجد فواتير آجل مسجلة.</p>';
             } else if(title === 'تقرير الخصومات') {
@@ -4882,7 +4882,7 @@ function renderPurchasesTable() {
                 content.innerHTML = lowStock.length > 0 ? lowStock.map(p => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${anasEscapeHTML(p.name)}</span>
-                        <strong style="color:#ef4444;">الرصيد: ${p.stock} (الحد: ${p.minAlert || 5})</strong>
+                        <strong style="color:#ef4444;">الرصيد: ${Number(p.stock)||0} (الحد: ${Number(p.minAlert)||5})</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#16a34a;">المخزون كافٍ لجميع المنتجات.</p>';
             } else if(title === 'تقرير المبيعات') {
@@ -4891,7 +4891,7 @@ function renderPurchasesTable() {
                         <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:center;">
                             <thead><tr style="background:#f1f5f9;"><th>رقم</th><th>العميل</th><th>المبلغ</th><th>الحالة</th></tr></thead>
                             <tbody>
-                                ${reportInvoices.map(i => `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id)}</td><td>${esc(i.customer)}</td><td style="font-weight:bold; color:#16a34a;">${i.total}</td><td>${i.remaining > 0 ? 'آجل' : 'خالص'}</td></tr>`).join('')}
+                                ${reportInvoices.map(i => `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id)}</td><td>${esc(i.customer)}</td><td style="font-weight:bold; color:#16a34a;">${Number(i.total)||0}</td><td>${i.remaining > 0 ? 'آجل' : 'خالص'}</td></tr>`).join('')}
                             </tbody>
                         </table>
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مبيعات مسجلة بعد.</p>';
@@ -4953,7 +4953,7 @@ function renderPurchasesTable() {
             } else if(title === 'تقرير بالمصروفات حسب الحساب' || title === 'تقرير المصروفات حسب الحساب') {
                 content.innerHTML = (AppData.expenses && AppData.expenses.filter(e=>reportItemInRange(e)).length > 0) ? `
                     <div style="max-height:220px; overflow-y:auto;">
-                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${e.amt} د.ج</strong></div>`).join('')}
+                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${Number(e.amt)||0} د.ج</strong></div>`).join('')}
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مصروفات مسجلة.</p>';
             } else {
                 content.innerHTML = `<p style="text-align:center; color:#16a34a; font-weight:bold;">العمليات مسجلة ومحفوظة بنجاح.</p>`;
