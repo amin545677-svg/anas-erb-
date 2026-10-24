@@ -916,3 +916,46 @@ jobs:
           PY
           node --check /tmp/anas-stock-reader-test.js
           node /tmp/anas-stock-reader-test.js
+
+      - name: Exercise backup import validator with valid and corrupt data
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function anasValidateBackupData(incoming) {")
+          end = s.find("\\n        function importDataBackup", start)
+          assert start >= 0 and end > start, "Could not isolate backup validator"
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_BACKUP_VALIDATOR*/
+          const assert = require('node:assert/strict');
+          const validBackup = (extra = {}) => ({
+            products: [{ id: 'p1', stock: 4, warehouseStock: { Branch: 2 } }],
+            customers: [],
+            suppliers: [],
+            ...extra
+          });
+          assert.doesNotThrow(() => anasValidateBackupData(validBackup()), 'valid backup should pass');
+          assert.doesNotThrow(() => anasValidateBackupData(validBackup({ warehouses: ['Main', 'Branch'] })), 'legacy string warehouse names should pass');
+          for (const [label, data] of [
+            ['null transfer history', validBackup({ warehouseTransfers: null })],
+            ['null stock movement history', validBackup({ stockMovements: null })],
+            ['null warehouses', validBackup({ warehouses: null })],
+            ['invalid warehouse entry', validBackup({ warehouses: [null] })],
+            ['blank main stock', validBackup({ products: [{ id: 'p1', stock: ' ' }] })],
+            ['null warehouse stock map', validBackup({ products: [{ id: 'p1', stock: 4, warehouseStock: null }] })],
+            ['array warehouse stock map', validBackup({ products: [{ id: 'p1', stock: 4, warehouseStock: [] }] })],
+            ['blank warehouse key', validBackup({ products: [{ id: 'p1', stock: 4, warehouseStock: { '   ': 1 } }] })],
+            ['null POS cart collection', validBackup({ posScreensCarts: null })],
+            ['array POS cart collection', validBackup({ posScreensCarts: [] })],
+            ['invalid POS cart row', validBackup({ posScreensCarts: { tab1: null } })]
+          ]) {
+            assert.throws(() => anasValidateBackupData(data), undefined, label + ' must be rejected');
+          }
+          console.log('Backup validator runtime tests passed: valid legacy data accepted; malformed histories, stock maps, and POS carts rejected');
+          """
+          js = js.replace("/*INSERT_BACKUP_VALIDATOR*/", function_js)
+          Path("/tmp/anas-backup-validator-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-backup-validator-test.js
+          node /tmp/anas-backup-validator-test.js
