@@ -117,7 +117,7 @@ def main():
     # Truck stock posting must validate all persisted data before mutation and preserve corrupt ledgers.
     truck_preflight_guards = [
         "Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))",
-        "Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&!Array.isArray(AppData.warehouses)",
+        "Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))",
         "Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))",
         "!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
         "const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');",
