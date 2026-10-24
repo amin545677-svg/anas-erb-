@@ -5762,7 +5762,7 @@ function renderPurchasesTable() {
             }
         }
 
-        function clearAllPurchaseInvoices() {
+        function old_clearAllPurchaseInvoices() {
             if(confirm('هل تريد بالتأكيد حذف ومسح جميع فواتير المشتريات نهائياً؟')) {
                 AppData.purchases = [];
                 saveDB();
@@ -5771,7 +5771,7 @@ function renderPurchasesTable() {
             }
         }
 
-        function autoResetAllInvoicesNow() {
+        function old_autoResetAllInvoicesNow() {
             if(confirm('هل تريد تصفية ومسح كافة فواتير المبيعات والمشتريات دفعة واحدة؟')) {
                 AppData.invoices = [];
                 AppData.purchases = [];
