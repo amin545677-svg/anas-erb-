@@ -4291,24 +4291,56 @@ function renderPurchasesTable() {
         }
 
         function addNewProductCategory() {
-            const cat = prompt('ادخل اسم التصنيف الجديد (مثال: شاي أعشاب، توابل، بقوليات):');
-            if(cat && cat.trim()) alert('تم حفظ التصنيف: ' + cat.trim());
+            const cat = prompt('أدخل اسم التصنيف الجديد (مثال: شاي أعشاب، توابل، بقوليات):');
+            if(cat===null)return;
+            const name=cat.trim();
+            if(!name){alert('اسم التصنيف مطلوب. لم يتم حفظ أي تغيير.');return;}
+            if(!Array.isArray(AppData.productCategories))AppData.productCategories=[];
+            if(AppData.productCategories.some(x=>String(x).trim().toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar'))){alert('هذا التصنيف موجود مسبقًا.');return;}
+            const previous=AppData.productCategories.slice();
+            AppData.productCategories.push(name);
+            try{
+                if(typeof saveDB==='function'&&saveDB()===false){AppData.productCategories=previous;alert('تعذر حفظ التصنيف؛ أُعيدت القائمة السابقة ولم يتم تأكيد الإضافة.');return;}
+                alert('تم حفظ التصنيف في قاعدة بيانات التطبيق: '+name+'\\nملاحظة: بطاقة المنتج لا تحتوي حاليًا على حقل ربط تلقائي بهذا التصنيف.');
+            }catch(e){AppData.productCategories=previous;console.error('Category save failed',e);alert('تعذر حفظ التصنيف: '+(e.message||e));}
         }
 
         function bulkEditPricesPrompt() {
-            const pct = prompt('ادخل نسبة الزيادة أو التخفيض المئوية لجميع الأسعار (مثال: 5 للزيادة 5%، أو -5 للخصم):');
-            if(pct && !isNaN(parseFloat(pct))) {
-                const val = parseFloat(pct) / 100;
-                AppData.products.forEach(p => {
-                    p.price1 = Math.round(p.price1 * (1 + val));
-                    if(p.price2) p.price2 = Math.round(p.price2 * (1 + val));
-                    if(p.price3) p.price3 = Math.round(p.price3 * (1 + val));
-                });
-                saveDB();
-                renderQuickProducts();
-                renderInventoryList();
-                alert('تم تحديث أسعار المنتجات بنجاح ✅');
+            const pctText=prompt('أدخل نسبة الزيادة أو التخفيض لجميع الأسعار (مثال: 5 أو -5). لا يمكن تخفيض السعر بأكثر من 100%.');
+            if(pctText===null)return;
+            const raw=pctText.trim();
+            if(!raw){alert('لم تدخل نسبة؛ لم تتغير الأسعار.');return;}
+            const pct=Number(raw);
+            if(!Number.isFinite(pct)||pct < -100){alert('النسبة غير صالحة. أدخل رقمًا صحيحًا لا يقل عن -100%. لم تتغير الأسعار.');return;}
+            if(!Array.isArray(AppData.products)||!AppData.products.length){alert('لا توجد منتجات لتعديل أسعارها.');return;}
+            const factor=1+pct/100;
+            const priceKeys=['price1','price2','price3'];
+            const changes=[];
+            for(const p of AppData.products){
+                for(const key of priceKeys){
+                    if(p[key]===undefined||p[key]===null||p[key]==='')continue;
+                    const oldPrice=Number(p[key]);
+                    if(!Number.isFinite(oldPrice)||oldPrice<0){alert('تعذر التعديل لأن سعرًا غير صالح موجود في المنتج «'+(p.name||p.id||'غير معروف')+'» ('+key+'). لم يتم تعديل أي سعر.');return;}
+                    const newPrice=Math.round(oldPrice*factor);
+                    if(!Number.isFinite(newPrice)||newPrice<0){alert('النسبة ستنتج سعرًا غير صالح. لم يتم تعديل أي سعر.');return;}
+                    changes.push({p,key,oldPrice,newPrice});
+                }
             }
+            if(!changes.length){alert('لم يُعثر على أسعار مسجلة قابلة للتعديل.');return;}
+            if(!confirm('سيتم تعديل '+changes.length+' حقل سعر بنسبة '+pct+'%. ستُحفظ الأسعار الحالية أولًا في الذاكرة للتمكن من التراجع إذا فشل الحفظ. متابعة؟'))return;
+            const before=changes.map(c=>({p:c.p,key:c.key,value:c.p[c.key]}));
+            try{
+                changes.forEach(c=>{c.p[c.key]=c.newPrice;});
+                if(typeof saveDB==='function'&&saveDB()===false)throw new Error('فشل حفظ قاعدة البيانات');
+            }catch(e){
+                before.forEach(c=>{c.p[c.key]=c.value;});
+                console.error('Bulk price update failed',e);
+                alert('فشل تحديث الأسعار وتمت استعادة القيم السابقة في الذاكرة. لم يتم اعتماد التعديل؛ تحقق من التخزين قبل إعادة المحاولة.');
+                return;
+            }
+            try{if(typeof renderQuickProducts==='function')renderQuickProducts();}catch(e){console.error('Quick products refresh failed',e);}
+            try{if(typeof renderInventoryList==='function')renderInventoryList();}catch(e){console.error('Inventory refresh failed',e);}
+            alert('تم تحديث '+changes.length+' حقل سعر وحفظه بنجاح.'); 
         }
 
         // ================= بطاقة المنتج والوحدة والصور =================
