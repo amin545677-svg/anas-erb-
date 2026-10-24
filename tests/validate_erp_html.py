@@ -148,7 +148,7 @@ def main():
         "thermal receipt escapes item unit and customer registration fields":
             "anasEscapeHTML(it.unit" in thermal and "anasEscapeHTML(custInfo.nif)" in thermal and "anasEscapeHTML(custInfo.rc" in thermal,
         "A4 invoice escapes store, customer, invoice, and item text":
-            all(token in legal_a4 for token in ("anasEscapeHTML(sc.name)", "anasEscapeHTML(sc.address)", "anasEscapeHTML(inv.id)", "anasEscapeHTML(inv.date)", "anasEscapeHTML(cust.name", "anasEscapeHTML(cust.address", "anasEscapeHTML(cust.phone", "anasEscapeHTML(it.name)", "anasEscapeHTML(it.unit)")),
+            all(token in legal_a4 for token in ("anasEscapeHTML(sc.name)", "anasEscapeHTML(sc.address)", "anasEscapeHTML(inv.id)", "anasEscapeHTML(inv.date)", "anasEscapeHTML(cust.name", "anasEscapeHTML(cust.address", "anasEscapeHTML(cust.phone", "anasEscapeHTML(it.name)", "anasEscapeHTML(it.unit ||")),
         "invoice print functions contain no raw high-risk text interpolations":
             not any(token in thermal + legal_a4 for token in ("${sc.name}", "${sc.address}", "${inv.id}", "${inv.date}", "${inv.customer}", "${it.name}", "${it.unit}")),
         "alert product and customer names are HTML-escaped":
