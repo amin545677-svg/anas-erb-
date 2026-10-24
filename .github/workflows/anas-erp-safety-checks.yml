@@ -922,7 +922,7 @@ jobs:
           from pathlib import Path
           app = Path("index.html").read_text(encoding="utf-8")
           start = app.find("        function anasValidateIncomingSyncData(incoming) {")
-          end = app.find("\\n        async function syncPushNow()", start)
+          end = app.find("async function syncPushNow()", start)
           assert start >= 0 and end > start, "Could not isolate cloud restore validator"
           function_js = app[start:end]
           js = r"""
