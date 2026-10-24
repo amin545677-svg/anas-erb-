@@ -1,0 +1,25 @@
+name: AI Worker Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/worker_openai_ai.js'
+      - 'tests/worker_openai_ai.test.mjs'
+      - '.github/workflows/ai-worker-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ai-worker-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run AI Worker tests
+        run: node --test tests/worker_openai_ai.test.mjs
