@@ -5421,7 +5421,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 ||
@@ -5454,9 +5454,19 @@ function renderPurchasesTable() {
                     }
                 }
             }
-            // Missing optional collections remain backward-compatible; explicit null or malformed collections are rejected.
-            for (const key of optionalArrays) if (!Object.prototype.hasOwnProperty.call(incoming, key)) incoming[key] = [];
-            if (!Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) incoming.warehouses = [];
+            // Do not silently erase locally populated history when an older/incomplete cloud payload omits a collection.
+            for (const key of optionalArrays) {
+                if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
+                    if (Array.isArray(AppData[key]) && AppData[key].length)
+                        throw new Error('النسخة السحابية تفتقد قائمة ' + key + ' التي تحتوي على سجلات محلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
+                    incoming[key] = [];
+                }
+            }
+            if (!Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) {
+                if (Array.isArray(AppData.warehouses) && AppData.warehouses.length)
+                    throw new Error('النسخة السحابية تفتقد قائمة المخازن المحلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
+                incoming.warehouses = [];
+            }
             for (const inv of incoming.invoices) {
                 if (inv.total != null && (!Number.isFinite(Number(inv.total)) || Number(inv.total) < 0)) {
                     throw new Error('توجد فاتورة بقيمة غير صالحة في النسخة السحابية.');
@@ -5500,7 +5510,7 @@ function renderPurchasesTable() {
             catch (e) { setSyncStatus(e.message, true); alert(e.message); return; }
             if (!navigator.onLine) { setSyncStatus('لا يوجد اتصال بالإنترنت. بياناتك المحلية لم تتغير.', true); return; }
             if (!confirm('سيتم استبدال بيانات هذا الهاتف بالنسخة التي يعيدها الخادم. أنشئ نسخة احتياطية أولاً. هل تريد المتابعة؟')) return;
-            exportDataBackup();
+            if (!exportDataBackup()) { setSyncStatus('تعذر إنشاء نسخة احتياطية محلية؛ أُلغي الاسترجاع دون تغيير البيانات.', true); return; }
             setSyncStatus('جارٍ جلب البيانات من الخادم…');
             try {
                 const controller = new AbortController();
@@ -5566,9 +5576,22 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            for (const key of ['invoices','purchases','expenses','users','trucks','returns','warehouses']) {
-                if (incoming[key] != null && (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x))))
-                    throw new Error('قائمة ' + key + ' غير صالحة.');
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','alerts','truckTrips'];
+            for (const key of optionalArrays) {
+                if (Object.prototype.hasOwnProperty.call(incoming, key)) {
+                    if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
+                        throw new Error('قائمة ' + key + ' غير صالحة.');
+                } else if (Array.isArray(AppData[key]) && AppData[key].length) {
+                    throw new Error('النسخة تفتقد قائمة ' + key + ' الموجودة في البيانات الحالية؛ رُفض الاسترجاع لمنع فقدان السجلات.');
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) {
+                if (!Array.isArray(incoming.warehouses) || incoming.warehouses.length > 200000 ||
+                    incoming.warehouses.some(w => !(typeof w === 'string' && w.trim()) &&
+                        (!w || typeof w !== 'object' || Array.isArray(w) || typeof w.name !== 'string' || !w.name.trim())))
+                    throw new Error('قائمة المخازن غير صالحة.');
+            } else if (Array.isArray(AppData.warehouses) && AppData.warehouses.length) {
+                throw new Error('النسخة تفتقد قائمة المخازن الموجودة حاليًا؛ رُفض الاسترجاع لمنع فقدانها.');
             }
             for (const p of incoming.products) {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ رُفض الملف لحماية المخزون.');
