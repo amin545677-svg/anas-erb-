@@ -145,6 +145,18 @@ def main():
     if not any("warehouse validation UI handling is missing:" in error for error in errors):
         print("PASS: warehouse screen, transfer, and stock screen surface validation errors safely")
 
+    # Existing numeric balances must be validated before legacy maps are initialized.
+    numeric_balance_guards = [
+        "p.stock===null||p.stock===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
+        "value===null||value===''||!Number.isFinite(Number(value))||Number(value)<0",
+        "// Initialize legacy maps only after every existing record passes validation.",
+    ]
+    for guard in numeric_balance_guards:
+        if guard not in source:
+            errors.append("warehouse numeric balance preflight guard is missing: " + guard)
+    if not any("warehouse numeric balance preflight guard is missing:" in error for error in errors):
+        print("PASS: invalid numeric stock balances fail closed before legacy-map initialization")
+
     # POS rollback must preserve malformed map shape, and transfers must fail closed from either side.
     sale_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     sale_restore = "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;"
