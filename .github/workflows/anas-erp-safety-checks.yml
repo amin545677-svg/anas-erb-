@@ -290,6 +290,36 @@ jobs:
           assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
           print("Contextual AI helper presence and privacy guards passed")
           PY
+      - name: Exercise CSV parser quoting and malformed input
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function parseSmartCsv(raw,delimiter)")
+          end = s.find("function showSmartImportPreview(fileName,rows)", start)
+          assert start >= 0 and end > start, "Could not isolate CSV parser"
+          js = s[start:end] + r"""
+          const assert = require('node:assert/strict');
+          assert.deepEqual(parseSmartCsv('\\uFEFFname;note\\r\\nTea;"green; herbal"\\r\\nTea;"green ""herbal"" tea"',';'), [
+            ['name','note'],
+            ['Tea','green; herbal'],
+            ['Tea','green "herbal" tea']
+          ], 'BOM, CRLF, quoted delimiters, and escaped quotes should parse correctly');
+          assert.deepEqual(parseSmartCsv('name,note\\nTea,"line one\\nline two"',' ,'.trim()), [
+            ['name','note'],
+            ['Tea','line one\\nline two']
+          ], 'newlines inside quoted fields should remain part of the cell');
+          assert.throws(
+            () => parseSmartCsv('name;note\\nTea;"unfinished',';'),
+            /غير مغلقة/,
+            'unclosed quoted fields must be rejected rather than silently importing corrupt rows'
+          );
+          console.log('CSV parser tests passed: BOM, CRLF, quoted delimiters, escaped quotes, multiline cells, and malformed quote rejection');
+          """
+          Path("/tmp/anas-csv-parser-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-csv-parser-test.js
+          node /tmp/anas-csv-parser-test.js
       - name: Check PDF extraction JavaScript syntax
         run: |
           python - <<'PY'
