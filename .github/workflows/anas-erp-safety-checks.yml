@@ -676,7 +676,7 @@ jobs:
             assert.equal(products[0].stock,5);
             assert.equal(products[1].stock,8);
             assert.equal(invoice.items[0].qty,1);
-            assert.ok(alerts.some(x=>x.includes('معرّف المنتج')&&x.includes('مكرر')),'must explain the duplicate ID integrity problem');
+            assert.ok(alerts.some(x=>(x.includes('معرّف المنتج')&&x.includes('مكرر'))||(x.includes('أكثر من سجل منتج')&&x.includes('المعرّف نفسه'))),'must explain the duplicate ID integrity problem');
           }
           runDuplicateProductIdCase();
           function runMalformedInvoiceLineCase() {
