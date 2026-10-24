@@ -117,6 +117,15 @@ def main():
     else:
         print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
 
+    # POS rollback must preserve malformed map shape, and transfers must fail closed from either side.
+    sale_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    sale_restore = "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;"
+    transfer_guard_any_direction = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
+    if sale_snapshot not in source or sale_restore not in source or transfer_guard_any_direction not in source:
+        errors.append("POS rollback must preserve malformed warehouse map shape and transfers must reject it")
+    else:
+        print("PASS: POS rollback preserves malformed maps and transfers reject them from either direction")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
