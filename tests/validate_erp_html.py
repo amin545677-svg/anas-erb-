@@ -97,6 +97,34 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # Warehouse balances must be actual finite non-negative numbers or non-empty numeric strings.
+    warehouse_balance_guard = "String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0"
+    if warehouse_balance_guard not in source or "typeof balance === 'number' || typeof balance === 'string'" not in source:
+        errors.append("backup validator must reject blank, boolean, object, non-finite, and negative warehouse balances")
+    else:
+        print("PASS: backup validator rejects blank and non-numeric warehouse balances")
+
+    if "Object.prototype.hasOwnProperty.call(incoming,key)" not in source or "Object.prototype.hasOwnProperty.call(p,'warehouseStock')" not in source or "!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock)" not in source:
+        errors.append("backup validator must reject explicit null history arrays and explicit null/invalid warehouseStock maps")
+    else:
+        print("PASS: backup validator rejects explicit null history and stock maps")
+
+    if "Object.prototype.hasOwnProperty.call(incoming,'warehouses')" not in source or "typeof w === 'string' && w.trim()" not in source or "typeof w.name !== 'string' || !w.name.trim()" not in source:
+        errors.append("backup validator must accept valid legacy string warehouse names and validate object warehouse records")
+    else:
+        print("PASS: backup validator supports legacy string and object warehouse entries safely")
+
+    primary_stock_guard = "typeof p.stock === 'number' || typeof p.stock === 'string'"
+    if primary_stock_guard not in source or "String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0" not in source:
+        errors.append("backup validator must reject blank, boolean, object, non-finite, and negative primary stock values")
+    else:
+        print("PASS: backup validator rejects malformed primary stock values")
+
+    if "Object.prototype.hasOwnProperty.call(incoming,'posScreensCarts')" not in source or "!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts)" not in source:
+        errors.append("backup validator must reject explicitly present null/invalid POS cart collections")
+    else:
+        print("PASS: backup validator rejects explicit null POS cart collections")
+
     # POS sale must validate all warehouse balances and customer debt before financial mutation.
     if "if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;" not in source:
         errors.append("POS sale must run warehouse preflight before mutating stock")
