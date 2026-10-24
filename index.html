@@ -6807,7 +6807,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(!Number.isFinite(Number(p.stock))||(Number(p.stock)||0)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+(Number(p.stock)||0)+'.');}
     const oldPostedAt=trip.stockPostedAt;
     const oldWarehouseName=trip.warehouseName;
-    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock)?{...p.warehouseStock}:null}));
+    const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)}));
     const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
     const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
     try{
@@ -6825,7 +6825,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(saveDB()===false)throw new Error('تعذر حفظ حركة التحميل.');
       return true;
     }catch(e){
-      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock||{};else delete x.p.warehouseStock;});
+      oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});
       if(oldMoves===null)delete AppData.stockMovements;else AppData.stockMovements=oldMoves;
       AppData.warehouses=oldWarehouses;
       if(oldPostedAt===undefined)delete trip.stockPostedAt;else trip.stockPostedAt=oldPostedAt;
