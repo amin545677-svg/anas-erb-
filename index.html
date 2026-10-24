@@ -2171,7 +2171,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                 <div class="field-group">
                     <label>التصنيف:</label>
-                    <input type="text" id="newProdCatInput" class="field-input" value="شاي أخضر">
+                    <input type="text" id="newProdCatInput" class="field-input" list="productCategoriesDatalist" value="شاي أخضر" autocomplete="off"><datalist id="productCategoriesDatalist"></datalist>
                 </div>
                 <div class="field-group">
                     <label>المورد المعتمد / الأساسي:</label>
@@ -4290,8 +4290,16 @@ function renderPurchasesTable() {
             alert('تم حذف المنتج بعد التحقق من الرصيد والمراجع.');
         }
 
+        function populateProductCategorySuggestions() {
+            const list=document.getElementById('productCategoriesDatalist');
+            if(!list)return;
+            const names=new Set((Array.isArray(AppData.productCategories)?AppData.productCategories:[]).map(x=>String(x||'').trim()).filter(Boolean));
+            (Array.isArray(AppData.products)?AppData.products:[]).forEach(p=>{const n=String(p.cat||p.category||p.categoryName||'').trim();if(n)names.add(n);});
+            list.innerHTML=Array.from(names).sort((a,b)=>a.localeCompare(b,'ar')).map(n=>'<option value="'+anasEscapeHTML(n)+'"></option>').join('');
+        }
+
         function addNewProductCategory() {
-            const cat = prompt('أدخل اسم التصنيف الجديد (مثال: شاي أعشاب، توابل، بقوليات):');
+            const cat=prompt('أدخل اسم التصنيف الجديد (مثال: شاي أعشاب، توابل، بقوليات):');
             if(cat===null)return;
             const name=cat.trim();
             if(!name){alert('اسم التصنيف مطلوب. لم يتم حفظ أي تغيير.');return;}
@@ -4301,7 +4309,10 @@ function renderPurchasesTable() {
             AppData.productCategories.push(name);
             try{
                 if(typeof saveDB==='function'&&saveDB()===false){AppData.productCategories=previous;alert('تعذر حفظ التصنيف؛ أُعيدت القائمة السابقة ولم يتم تأكيد الإضافة.');return;}
-                alert('تم حفظ التصنيف في قاعدة بيانات التطبيق: '+name+'\\nملاحظة: بطاقة المنتج لا تحتوي حاليًا على حقل ربط تلقائي بهذا التصنيف.');
+                populateProductCategorySuggestions();
+                const input=document.getElementById('newProdCatInput');
+                if(input){input.value=name;input.focus();}
+                alert('تم حفظ التصنيف وإتاحته للاختيار في بطاقة المنتج: '+name);
             }catch(e){AppData.productCategories=previous;console.error('Category save failed',e);alert('تعذر حفظ التصنيف: '+(e.message||e));}
         }
 
@@ -4348,6 +4359,7 @@ function renderPurchasesTable() {
 
         function openAddProductModal() {
             populateSuppliersDropdowns();
+            populateProductCategorySuggestions();
             document.getElementById('editProductId').value = '';
             document.getElementById('productModalTitle').innerText = '➕ بطاقة المنتج المتكاملة';
             currentTempProdImageBase64 = "";
