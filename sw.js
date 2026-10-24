@@ -1,4 +1,5 @@
 const CACHE = 'anas-erp-v54-25';
+const LEGACY_CACHES = new Set(['anas-erp-v1']);
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg'];
 const CORE_URLS = new Set(CORE.map(path => new URL(path, self.location.href).href));
 
@@ -9,7 +10,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key.startsWith('anas-erp-') && key !== CACHE).map(key => caches.delete(key))))
+      .then(keys => Promise.all(keys.filter(key => LEGACY_CACHES.has(key)).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
