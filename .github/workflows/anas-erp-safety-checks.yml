@@ -749,7 +749,7 @@ jobs:
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I6");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I6");',ctx);
             assert.equal(saves,0,'must not save when customer name resolves to multiple customers');
             assert.equal(product.stock,5,'must not mutate stock when customer identity is ambiguous');
             assert.equal(invoice.items[0].qty,2,'must preserve invoice lines when customer identity is ambiguous');
