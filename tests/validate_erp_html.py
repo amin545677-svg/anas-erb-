@@ -65,7 +65,7 @@ def main():
         'src="${anasEscapeHTML(safeStoredImage)}"',
         "${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
         "${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}",
-        "${p.stock !== null && p.stock !== undefined && p.stock !== '' && Number.isFinite(Number(p.stock)) ? Number(p.stock) : 'غير صالح'}",
+        "${reportDisplay(p.stock)}",
         "${esc(p.id??'—')}",
         "const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;",
         "${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td>",
