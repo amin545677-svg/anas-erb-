@@ -671,7 +671,7 @@ jobs:
               wtAvailableStock:p=>p.stock,
               console, Number, String, Object, Array, Map, Math, Date
             };
-            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I2");', ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I2");', ctx);
             assert.equal(prompts,0,'must reject duplicate product IDs before asking for edits');
             assert.equal(products[0].stock,5);
             assert.equal(products[1].stock,8);
