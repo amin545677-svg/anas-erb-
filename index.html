@@ -5365,19 +5365,42 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            for (const key of ['purchases', 'expenses', 'users', 'trucks', 'returns']) {
-                if (incoming[key] == null) incoming[key] = [];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements'];
+            for (const key of optionalArrays) {
+                if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 ||
                     incoming[key].some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
                     throw new Error('قائمة ' + key + ' غير صالحة.');
                 }
             }
+            if (Object.prototype.hasOwnProperty.call(incoming, 'warehouses') &&
+                (!Array.isArray(incoming.warehouses) || incoming.warehouses.length > 200000 ||
+                incoming.warehouses.some(w => !(typeof w === 'string' && w.trim()) &&
+                    (!w || typeof w !== 'object' || Array.isArray(w) || typeof w.name !== 'string' || !w.name.trim())))) {
+                throw new Error('قائمة المخازن غير صالحة.');
+            }
             for (const p of incoming.products) {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ أُلغِي الاسترجاع لحماية البيانات.');
-                if (p.stock != null && (!Number.isFinite(Number(p.stock)) || Number(p.stock) < 0)) {
+                if (Object.prototype.hasOwnProperty.call(p, 'stock') &&
+                    !((typeof p.stock === 'number' || typeof p.stock === 'string') &&
+                    String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0)) {
                     throw new Error('يوجد مخزون غير رقمي أو سالب في بيانات الخادم.');
                 }
+                if (Object.prototype.hasOwnProperty.call(p, 'warehouseStock')) {
+                    if (!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock)) {
+                        throw new Error('خريطة أرصدة المخازن الفرعية غير صالحة للمنتج ' + String(p.id) + '.');
+                    }
+                    for (const [warehouse, balance] of Object.entries(p.warehouseStock)) {
+                        if (!warehouse.trim() || !((typeof balance === 'number' || typeof balance === 'string') &&
+                            String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0)) {
+                            throw new Error('يوجد رصيد مخزن فرعي غير صالح للمنتج ' + String(p.id) + '.');
+                        }
+                    }
+                }
             }
+            // Missing optional collections remain backward-compatible; explicit null or malformed collections are rejected.
+            for (const key of optionalArrays) if (!Object.prototype.hasOwnProperty.call(incoming, key)) incoming[key] = [];
+            if (!Object.prototype.hasOwnProperty.call(incoming, 'warehouses')) incoming.warehouses = [];
             for (const inv of incoming.invoices) {
                 if (inv.total != null && (!Number.isFinite(Number(inv.total)) || Number(inv.total) < 0)) {
                     throw new Error('توجد فاتورة بقيمة غير صالحة في النسخة السحابية.');
