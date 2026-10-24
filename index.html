@@ -6315,11 +6315,27 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     anasRenderStocktake();
   };
   window.anasSaveStocktakeDraft=function(){
-    const s=current(); if(!s){alert('أنشئ جلسة جرد أولاً.');return;}
-    const drafts=getDrafts(); const i=drafts.findIndex(x=>x.id===s.id);
-    if(i>=0)drafts[i]=s;else drafts.push(s);
-    try{setDrafts(drafts); if(typeof saveDB==='function')saveDB(); if(typeof anasNotify==='function')anasNotify('تم حفظ مسودة الجرد محليًا.',false);}
-    catch(e){console.error('Stocktake draft save failed',e);alert('تعذر حفظ مسودة الجرد: '+(e.message||e));}
+    const s=current(); if(!s){alert('أنشئ جلسة جرد أولاً.');return false;}
+    let previousDrafts=[];
+    try{
+      previousDrafts=getDrafts();
+      const drafts=previousDrafts.slice();
+      const i=drafts.findIndex(x=>x.id===s.id);
+      if(i>=0)drafts[i]=JSON.parse(JSON.stringify(s));else drafts.push(JSON.parse(JSON.stringify(s)));
+      setDrafts(drafts);
+      if(typeof saveDB==='function' && saveDB()===false){
+        setDrafts(previousDrafts);
+        alert('تعذر حفظ مسودة الجرد في قاعدة البيانات؛ أُعيدت قائمة المسودات السابقة. لم يتم تأكيد الحفظ.');
+        return false;
+      }
+      if(typeof anasNotify==='function')anasNotify('تم حفظ مسودة الجرد محليًا.',false);
+      return true;
+    }catch(e){
+      try{setDrafts(previousDrafts);}catch(rollbackError){console.error('Stocktake draft rollback failed',rollbackError);}
+      console.error('Stocktake draft save failed',e);
+      alert('تعذر حفظ مسودة الجرد: '+(e.message||e)+'؛ أُعيدت قائمة المسودات السابقة قدر الإمكان.');
+      return false;
+    }
   };
   window.anasExportStocktake=function(){
     const s=current();if(!s){alert('لا توجد جلسة جرد للتصدير.');return;}
