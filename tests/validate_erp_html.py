@@ -114,6 +114,21 @@ def main():
     else:
         print("PASS: stock mutation paths fail closed on malformed warehouse maps")
 
+    # Truck stock posting must validate all persisted data before mutation and preserve corrupt ledgers.
+    truck_preflight_guards = [
+        "Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))",
+        "Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&!Array.isArray(AppData.warehouses)",
+        "Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))",
+        "!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0",
+        "const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');",
+        "if(!hadStockMovements)AppData.stockMovements=[];",
+    ]
+    for guard in truck_preflight_guards:
+        if guard not in source:
+            errors.append("truck stock posting preflight is missing: " + guard)
+    if not any("truck stock posting preflight is missing:" in error for error in errors):
+        print("PASS: truck posting rejects corrupt persisted maps/ledgers before mutation")
+
     # Truck loading must reject malformed maps before mutation; settlement rollback must preserve array shape.
     load_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل"
     settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
