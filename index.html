@@ -4212,10 +4212,10 @@ function renderPurchasesTable() {
         }
         function wtEnsureData(){
             // Initialize only genuinely absent collections; never overwrite malformed persisted history silently.
-            if(AppData.warehouseTransfers==null)AppData.warehouseTransfers=[];
-            else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل؛ استعد نسخة احتياطية سليمة أو أصلح البيانات أولاً.');
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouseTransfers'))AppData.warehouseTransfers=[];
+            else if(!Array.isArray(AppData.warehouseTransfers)||AppData.warehouseTransfers.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل تحويلات المخازن تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل؛ استعد نسخة احتياطية سليمة أو أصلح البيانات أولاً.');
             if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
-            else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
+            else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
             if(!Object.prototype.hasOwnProperty.call(AppData,'stockMovements'))AppData.stockMovements=[];
             else if(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل حركات المخزون تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل.');
             if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة. أُوقفت عملية المخزون دون تعديل البيانات.');
