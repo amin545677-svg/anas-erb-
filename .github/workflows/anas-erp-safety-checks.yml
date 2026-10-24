@@ -657,7 +657,29 @@ jobs:
           }
           runCase(false);
           runCase(true);
-          console.log('Invoice edit rollback tests passed: legacy absent fields and existing invoice/customer audit metadata are restored exactly');
+          function runDuplicateProductIdCase() {
+            const invoice = {id:'I2',items:[{id:'dup',name:'Ambiguous product',qty:1,price:10}],total:10,paid:0,remaining:10};
+            const products = [{id:'dup',name:'Product A',stock:5},{id:'dup',name:'Product B',stock:8}];
+            const alerts = [];
+            let prompts = 0;
+            const ctx = {
+              AppData:{invoices:[invoice],products,customers:[],stockMovements:[]},
+              prompt:()=>{prompts++;return '1';},
+              confirm:()=>true,
+              alert:m=>alerts.push(String(m)),
+              saveDB:()=>{throw new Error('saveDB must not run for ambiguous product IDs');},
+              wtAvailableStock:p=>p.stock,
+              console, Number, String, Object, Array, Map, Math, Date
+            };
+            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I2");', ctx);
+            assert.equal(prompts,0,'must reject duplicate product IDs before asking for edits');
+            assert.equal(products[0].stock,5);
+            assert.equal(products[1].stock,8);
+            assert.equal(invoice.items[0].qty,1);
+            assert.ok(alerts.some(x=>x.includes('معرّف المنتج')&&x.includes('مكرر')),'must explain the duplicate ID integrity problem');
+          }
+          runDuplicateProductIdCase();
+          console.log('Invoice edit tests passed: rollback metadata is exact and duplicate product IDs are rejected before edits');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
