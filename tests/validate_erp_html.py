@@ -125,6 +125,16 @@ def main():
     else:
         print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
 
+    # Mobile warehouse creation and truck movement history must fail closed too.
+    if "else if(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل حركات المخزون تالف" not in source:
+        errors.append("warehouse preflight must reject malformed stock movement history")
+    if "else if(!Array.isArray(AppData.warehouses)){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}" not in source:
+        errors.append("truck warehouse creation must not replace malformed warehouse data")
+    if "if(!wtEnsureMobileWarehouse(warehouseName))throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');" not in source:
+        errors.append("truck loading must abort when mobile warehouse creation fails")
+    if not any("warehouse preflight must reject malformed stock movement history" in error or "truck warehouse creation must not replace malformed warehouse data" in error or "truck loading must abort when mobile warehouse creation fails" in error for error in errors):
+        print("PASS: truck operations preserve malformed warehouse and movement histories")
+
     # Existing malformed history must fail closed rather than being silently replaced with empty arrays.
     history_guard = "else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف"
     warehouses_guard = "else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة"
