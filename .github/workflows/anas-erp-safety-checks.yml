@@ -40,6 +40,37 @@ jobs:
           assert "</html>" in s.lower(), "HTML document appears incomplete"
           print(f"Full app entry point present: {p.stat().st_size} bytes")
           PY
+      - name: Guard invoice bulk-delete safety handlers
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          app = Path("index.html").read_text(encoding="utf-8")
+          def function_bodies(name):
+              # The target functions have simple bodies; this checks named declarations and their first closing brace.
+              pattern = re.compile(r"function\\s+" + re.escape(name) + r"\\s*\\([^)]*\\)\\s*\\{")
+              bodies = []
+              for match in pattern.finditer(app):
+                  start = match.end()
+                  end = app.find("}", start)
+                  assert end >= 0, f"Unclosed function: {name}"
+                  bodies.append(app[start:end])
+              return bodies
+          checks = {
+              "exactly one active purchase-invoice clear handler": len(function_bodies("clearAllPurchaseInvoices")) == 1,
+              "exactly one active invoice reset handler": len(function_bodies("autoResetAllInvoicesNow")) == 1,
+              "purchase-invoice handler keeps safety guard": any("تنبيه أمني" in body and "معطلة" in body for body in function_bodies("clearAllPurchaseInvoices")),
+              "invoice reset handler keeps safety guard": any("تنبيه أمني" in body and "إلغاء المسح الشامل" in body for body in function_bodies("autoResetAllInvoicesNow")),
+              "legacy destructive purchase handler is not active under the UI name": len(function_bodies("old_clearAllPurchaseInvoices")) == 1,
+              "legacy destructive reset handler is not active under the UI name": len(function_bodies("old_autoResetAllInvoicesNow")) == 1,
+          }
+          for name, passed in checks.items():
+              print(("PASS" if passed else "FAIL") + ": " + name)
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("Invoice deletion safety checks failed: " + "; ".join(failed))
+          print(f"All {len(checks)} invoice deletion safety checks passed.")
+          PY
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare/worker_firebase_snapshot.js
       - name: Check OpenAI AI Worker JavaScript syntax
