@@ -57,6 +57,17 @@ def main():
     parser.close()
     errors = []
 
+    # All user/restored-data fields in POS cart rows must be HTML-escaped.
+    pos_cart_raw = ["${item.price}", "${item.qty}", "${item.unit || ''}"]
+    pos_cart_safe = ["${anasEscapeHTML(item.price)}", "${anasEscapeHTML(item.qty)}", "${anasEscapeHTML(item.unit || '')}"]
+    for raw_value, safe_value, field in zip(pos_cart_raw, pos_cart_safe, ["price", "quantity", "unit"]):
+        if raw_value in source:
+            errors.append("POS cart " + field + " is interpolated without HTML escaping")
+        elif safe_value not in source:
+            errors.append("POS cart " + field + " escaping regression guard is missing")
+    if not any(error.startswith("POS cart ") for error in errors):
+        print("PASS: POS cart price, quantity, and unit are HTML-escaped")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
