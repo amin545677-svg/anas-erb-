@@ -290,6 +290,32 @@ jobs:
           assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
           print("Contextual AI helper presence and privacy guards passed")
           PY
+      - name: Exercise localized spreadsheet number parsing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasParseImportNumber(value,field,rowNo)")
+          end = s.find("function showSmartImportPreview(fileName,rows)", start)
+          assert start >= 0 and end > start, "Could not isolate localized number parser"
+          js = s[start:end] + r"""
+          const assert = require('node:assert/strict');
+          const parse = v => anasParseImportNumber(v, 'price', 2);
+          assert.equal(parse('1234.56'), 1234.56);
+          assert.equal(parse('1234,56'), 1234.56, 'decimal comma should be supported');
+          assert.equal(parse('1,234.56'), 1234.56, 'US grouping and decimal separators should parse');
+          assert.equal(parse('1.234,56'), 1234.56, 'European grouping and decimal separators should parse');
+          assert.equal(parse('1,234,567'), 1234567, 'repeated three-digit grouping separators should parse');
+          assert.equal(parse('١٬٢٣٤٫٥٦'), 1234.56, 'Arabic-Indic digits and Arabic separators should parse');
+          assert.equal(parse(''), 0, 'empty optional numeric cells should default to zero');
+          assert.throws(() => parse('1,234'), /ملتبسة/, 'ambiguous one-separator values must not silently change magnitude');
+          assert.throws(() => parse('12abc'), /غير صحيحة/, 'invalid numeric content must be rejected');
+          console.log('Localized numeric import tests passed');
+          """
+          Path("/tmp/anas-number-parser-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-number-parser-test.js
+          node /tmp/anas-number-parser-test.js
       - name: Check spreadsheet import safety limits
         run: |
           python - <<'PY'
