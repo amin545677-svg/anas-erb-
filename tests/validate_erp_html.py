@@ -205,6 +205,57 @@ console.log('PASS: startup runtime smoke tests preserve corrupt data, fail safe 
             else:
                 print(result.stdout.strip())
 
+    # Execute the real saveDB function to prove corrupt startup state blocks persistent writes.
+    save_start = source.find("function saveDB() {")
+    save_end = source.find("function openDrawer()", save_start)
+    if save_start < 0 or save_end < 0:
+        errors.append("cannot locate saveDB function for startup write-block runtime test")
+    else:
+        save_js = source[save_start:save_end]
+        save_harness = r"""
+const vm = require('node:vm');
+const saveFunction = __SAVE_FUNCTION__;
+function attempt(fatal, issues) {
+  let writes = 0;
+  const alerts = [];
+  const context = {
+    anasStartupFatalLoadError: fatal,
+    anasStartupIntegrityIssues: issues,
+    alert: message => alerts.push(String(message)),
+    console,
+    AppData: { posScreensCarts: {1: []}, activePosScreenTab: 1 },
+    posCart: [],
+    ANAS_DB_KEY: 'test-key',
+    localStorage: { setItem: () => { writes++; } },
+    updateUIState: () => {},
+    checkSystemAlerts: () => {},
+    updateDashboardStats: () => {}
+  };
+  vm.createContext(context);
+  vm.runInContext(saveFunction + '\nthis.__save = saveDB();', context);
+  return { result: context.__save, writes, alerts };
+}
+const unreadable = attempt(true, []);
+if (unreadable.result !== false || unreadable.writes !== 0 || !unreadable.alerts.length)
+  throw new Error('saveDB must refuse writes after unreadable persisted JSON');
+const malformed = attempt(false, ['products']);
+if (malformed.result !== false || malformed.writes !== 0 || !malformed.alerts.length)
+  throw new Error('saveDB must refuse writes when persisted collections are malformed');
+const healthy = attempt(false, []);
+if (healthy.result !== true || healthy.writes !== 1)
+  throw new Error('saveDB must continue to persist valid state exactly once');
+console.log('PASS: saveDB runtime tests block writes for corrupt startup state and preserve normal saves');
+"""
+        save_harness = save_harness.replace("__SAVE_FUNCTION__", json.dumps(save_js))
+        with tempfile.TemporaryDirectory(prefix="anas-save-guard-test-") as temp:
+            test_path = Path(temp) / "save-guard-smoke.js"
+            test_path.write_text(save_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                errors.append("saveDB runtime guard test failed: " + (result.stderr or result.stdout).strip()[:500])
+            else:
+                print(result.stdout.strip())
+
     user_warehouse_start = source.find("function wtEnsureUserWarehouse(user)")
     user_warehouse_end = source.find("function wtCurrentSaleWarehouse()", user_warehouse_start)
     user_warehouse_helper = source[user_warehouse_start:user_warehouse_end] if user_warehouse_start >= 0 and user_warehouse_end > user_warehouse_start else ""
