@@ -4113,8 +4113,14 @@ function renderPurchasesTable() {
             if (!Array.isArray(inv.items) || !inv.items.length) { alert('هذه الفاتورة لا تحتوي على تفاصيل أصناف قابلة للتعديل.'); return; }
             const editedItems = [];
             for (const oldItem of inv.items) {
-                const product = (AppData.products || []).find(p => String(p.id) === String(oldItem.id));
-                if (!product) { alert('الصنف ' + (oldItem.name || oldItem.id) + ' غير موجود بالمخزون؛ لم يتم تغيير الفاتورة.'); return; }
+                const productMatches = (AppData.products || []).filter(p => p && String(p.id) === String(oldItem.id));
+                if (productMatches.length !== 1) {
+                    alert(productMatches.length === 0
+                        ? 'الصنف ' + (oldItem.name || oldItem.id) + ' غير موجود بالمخزون؛ لم يتم تغيير الفاتورة.'
+                        : 'تعذر تعديل الفاتورة: معرّف المنتج ' + String(oldItem.id) + ' مكرر في قائمة المنتجات. صحّح تكرار المعرّفات قبل المتابعة.');
+                    return;
+                }
+                const product = productMatches[0];
                 const qtyText = prompt('تعديل كمية: ' + (oldItem.name || product.name) + '\nالكمية الحالية: ' + oldItem.qty, String(oldItem.qty));
                 if (qtyText === null) return;
                 const qty = Number(qtyText);
