@@ -317,6 +317,22 @@ jobs:
           PY
           node --check /tmp/anas-number-parser-test.js
           node /tmp/anas-number-parser-test.js
+      - name: Validate imported record ID uniqueness guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("const staged=[], errors=[], seenNames=new Set(), seenIds=new Set();")
+          end = s.find("if(errors.length){", start)
+          assert start >= 0 and end > start, "Could not locate import record validation"
+          block = s[start:end]
+          assert "const existingCodes=new Set(existing.map(x=>norm(x.id)))" in block, "Existing record IDs must be indexed"
+          assert "const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);" in block, "Generated IDs must preserve section-specific prefixes"
+          assert "existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId))" in block, "Supplied and generated IDs must be checked for collisions"
+          assert "seenNames.has(keyName)" in block and "seenIds.add(norm(recordId))" in block, "Name and ID duplicate tracking must be separate"
+          assert "Object.assign(rec,{id:recordId,name," in block, "The validated ID must be the one persisted"
+          print("Import record ID uniqueness guards passed")
+          PY
       - name: Validate import persistence and UI rollback boundary
         run: |
           python - <<'PY'
