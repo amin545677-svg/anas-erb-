@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 // Load the real Worker source without changing the app's package/module settings.
 const source = await readFile(resolve("cloudflare/worker_openai_ai.js"), "utf8");
