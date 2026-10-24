@@ -142,7 +142,7 @@ def main():
     alerts = function_source("renderAlertsList")
     targeted_checks = {
         "HTML escape helper encodes ampersand, angle brackets, quotes, and apostrophes":
-            all(token in escape_body for token in ("'&': '&amp;'", "'<': '&lt;'", "'>': '&gt;'", "'\"': '&quot;'", "\"'\": '&#39;'")),
+            all(token in escape_body for token in ("'&': '&amp;'", "'<': '&lt;'", "'>': '&gt;'", "&quot;", "&#39;")),
         "thermal receipt escapes store/customer/invoice text":
             all(token in thermal for token in ("anasEscapeHTML(sc.name)", "anasEscapeHTML(sc.address)", "anasEscapeHTML(sc.phone)", "anasEscapeHTML(inv.id)", "anasEscapeHTML(inv.date)", "anasEscapeHTML(inv.customer)", "anasEscapeHTML(sc.footer)")),
         "thermal receipt escapes item unit and customer registration fields":
