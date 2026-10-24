@@ -372,6 +372,18 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if not any("truck settlement idempotency guard is missing:" in error for error in errors):
         print("PASS: truck settlement rejects orphaned prior ledger entries and malformed movement history")
 
+    # Settlement must reject invalid main/truck balances before it mutates any product.
+    settlement_balance_guards = [
+        "رصيد المخزن الرئيسي غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
+        "رصيد مخزن الشاحنة غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
+        "if(p.warehouseStock&&Object.prototype.hasOwnProperty.call(p.warehouseStock,warehouse)){",
+    ]
+    for guard in settlement_balance_guards:
+        if guard not in source:
+            errors.append("truck settlement balance preflight is missing: " + guard)
+    if not any("truck settlement balance preflight is missing:" in error for error in errors):
+        print("PASS: truck settlement validates main and truck balances before stock mutation")
+
     # Existing malformed history must fail closed rather than being silently replaced with empty arrays.
     history_guard = "else if(!Array.isArray(AppData.warehouseTransfers)||AppData.warehouseTransfers.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل تحويلات المخازن تالف"
     warehouses_guard = "else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))throw new Error('قائمة المخازن تالفة"
