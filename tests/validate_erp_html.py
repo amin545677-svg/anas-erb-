@@ -159,6 +159,13 @@ def main():
         "backup validator requires core lists and rejects invalid or negative product stock":
             "['products', 'customers', 'suppliers']" in backup_validate
             and "p.stock) < 0" in backup_validate and "رُفض الملف لحماية المخزون" in backup_validate,
+        "backup validator rejects malformed or negative per-warehouse balances":
+            "p.warehouseStock != null" in backup_validate
+            and "Array.isArray(p.warehouseStock)" in backup_validate
+            and "Object.entries(p.warehouseStock)" in backup_validate
+            and "Number(balance) < 0" in backup_validate,
+        "backup validator checks transfer and stock-movement history lists":
+            "'warehouseTransfers','stockMovements'" in backup_validate,
         "backup import restores the previous in-memory state if persistence fails":
             "if (!saveDB())" in backup_import and "AppData = previous" in backup_import
             and "posCart = previousCart" in backup_import,
