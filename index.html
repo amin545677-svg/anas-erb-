@@ -3054,7 +3054,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             document.getElementById('hasibPaymentMethod').value = 'cash';
             const sel = document.getElementById('hasibCustomerSelect');
             sel.innerHTML = '<option value="">عميل نقدي عابر (Passager)</option>';
-            AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${c.debt} د.ج)</option>`; });
+            AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${Number.isFinite(Number(c.debt)) ? Number(c.debt) : 0} د.ج)</option>`; });
             updatePaymentMethodFromAmount();
             document.getElementById('hasibModal').classList.add('active');
             renderHasibCartEditor();
@@ -4340,8 +4340,10 @@ function renderPurchasesTable() {
             document.getElementById('newProdSupplierSelect').value = p.supplierId || '';
             document.getElementById('newProdUnitSelect').value = p.unit || 'كغ';
             document.getElementById('newProdUnitPackInput').value = p.pack || 1;
-            currentTempProdImageBase64 = p.image || '';
-            document.getElementById('newProdImgPreview').innerHTML = p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '📷';
+            const storedImage = String(p.image || '');
+            const safeStoredImage = /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';
+            currentTempProdImageBase64 = safeStoredImage;
+            document.getElementById('newProdImgPreview').innerHTML = safeStoredImage ? `<img src="${anasEscapeHTML(safeStoredImage)}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '📷';
             document.getElementById('addProductModal').classList.add('active');
         }
 
