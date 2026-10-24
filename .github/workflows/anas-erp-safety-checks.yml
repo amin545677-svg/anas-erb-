@@ -982,9 +982,7 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function wtCreateTransfer(){")
-          end = s.find("\\n        function wtRenderHistory", start)
-          if end < 0:
-              end = s.find("\\n        function wtInitScreen", start)
+          end = s.find("\n        function ", start + 1)
           assert start >= 0 and end > start, "Could not isolate warehouse transfer function"
           function_js = s[start:end]
           assert "if(!Number.isFinite(available))" in function_js, "Invalid source balance guard missing"
@@ -1025,7 +1023,7 @@ jobs:
               saveDB:()=>true, wtInitScreen:()=>{}, renderInventoryList:()=>{},
               console, Date, Math, Number, String, Object, Array
             };
-            vm.runInNewContext(function_js + '\\nwtCreateTransfer();', ctx);
+            vm.runInNewContext(function_js + '\nwtCreateTransfer();', ctx);
             return {data,alerts,movements,transfers,elements};
           }
           let r=runCase({id:'p',name:'P',stock:' ',warehouseStock:{A:5}},'المخزن الرئيسي','A');
