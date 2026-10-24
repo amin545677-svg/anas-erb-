@@ -4360,6 +4360,7 @@ function renderPurchasesTable() {
         function openAddProductModal() {
             populateSuppliersDropdowns();
             populateProductCategorySuggestions();
+            populateProductUnitOptions();
             document.getElementById('editProductId').value = '';
             document.getElementById('productModalTitle').innerText = '➕ بطاقة المنتج المتكاملة';
             currentTempProdImageBase64 = "";
@@ -4377,17 +4378,38 @@ function renderPurchasesTable() {
             document.getElementById('addProductModal').classList.add('active');
         }
 
+        function populateProductUnitOptions() {
+            const sel=document.getElementById('newProdUnitSelect');
+            if(!sel)return;
+            const previous=sel.value;
+            const builtIn=new Set(Array.from(sel.options).filter(o=>o.dataset.customUnit!=='true').map(o=>o.value));
+            Array.from(sel.options).filter(o=>o.dataset.customUnit==='true').forEach(o=>o.remove());
+            const custom=Array.isArray(AppData.productUnits)?AppData.productUnits:[];
+            custom.forEach(value=>{
+                const name=String(value||'').trim();
+                if(!name||builtIn.has(name))return;
+                const opt=document.createElement('option');opt.value=name;opt.textContent=name;opt.dataset.customUnit='true';sel.add(opt);
+            });
+            if(Array.from(sel.options).some(o=>o.value===previous))sel.value=previous;
+        }
+
         function addNewCustomUnit() {
-            const u = prompt('اكتب اسم الوحدة الجديدة (مثال: طرد، برميل، صفيحة):');
-            if(u && u.trim() !== '') {
-                const sel = document.getElementById('newProdUnitSelect');
-                const opt = document.createElement('option');
-                opt.value = u.trim();
-                opt.text = u.trim();
-                opt.selected = true;
-                sel.add(opt);
-                alert('تمت إضافة الوحدة: ' + u.trim());
-            }
+            const raw=prompt('اكتب اسم الوحدة الجديدة (مثال: طرد، برميل، صفيحة):');
+            if(raw===null)return;
+            const name=raw.trim();
+            if(!name){alert('اسم الوحدة مطلوب.');return;}
+            const sel=document.getElementById('newProdUnitSelect');
+            if(!sel)return;
+            if(Array.from(sel.options).some(o=>o.value.trim().toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar'))){sel.value=Array.from(sel.options).find(o=>o.value.trim().toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar')).value;alert('هذه الوحدة موجودة بالفعل وتم اختيارها.');return;}
+            if(!Array.isArray(AppData.productUnits))AppData.productUnits=[];
+            if(AppData.productUnits.some(x=>String(x).trim().toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar'))){populateProductUnitOptions();sel.value=name;alert('تم اختيار الوحدة المحفوظة: '+name);return;}
+            const previous=AppData.productUnits.slice();
+            AppData.productUnits.push(name);
+            try{
+                if(typeof saveDB==='function'&&saveDB()===false){AppData.productUnits=previous;alert('تعذر حفظ الوحدة؛ أُعيدت القائمة السابقة.');return;}
+                populateProductUnitOptions();sel.value=name;
+                alert('تم حفظ الوحدة وإتاحتها للاستخدام لاحقًا: '+name);
+            }catch(e){AppData.productUnits=previous;console.error('Custom unit save failed',e);alert('تعذر حفظ الوحدة: '+(e.message||e));}
         }
 
         function previewAndCompressProductImage(e) {
