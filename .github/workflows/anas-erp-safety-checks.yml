@@ -92,6 +92,11 @@ jobs:
               "warehouse transfer initializes missing per-product warehouse map": "if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};" in app[app.find("function wtCreateTransfer()"):app.find("function wtRenderHistory()")],
               "warehouse transfer snapshots warehouse map before mutation": app.find("const beforeWarehouseStock=",app.find("function wtCreateTransfer()")) < app.find("if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};",app.find("function wtCreateTransfer()")),
               "warehouse transfer restores absent warehouse map on rollback": "else delete p.warehouseStock;" in app[app.find("function wtCreateTransfer()"):app.find("function wtRenderHistory()")],
+              "bulk price update validates complete numeric input": "const pct=Number(raw);" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور") ] and "pct < -100" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
+              "bulk price update validates all prices before mutation": app.find("for(const p of AppData.products)",app.find("function bulkEditPricesPrompt()")) < app.find("changes.forEach(c=>{c.p[c.key]=c.newPrice;}",app.find("function bulkEditPricesPrompt()")),
+              "bulk price update rolls back on save failure": "before.forEach(c=>{c.p[c.key]=c.value;});" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
+              "category creation checks persistence and duplicate names": "AppData.productCategories" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")] and "saveDB()===false" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
+              "category creation does not claim product-form integration": "لا تحتوي حاليًا على حقل ربط تلقائي" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
