@@ -57,6 +57,74 @@ def main():
     parser.close()
     errors = []
 
+    # POS search IDs and cart images must remain safe with imported product data.
+    pos_safety_guards = [
+        "selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))",
+        "const safeCartImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';",
+        'src="${anasEscapeHTML(safeCartImage)}"',
+        "${anasEscapeHTML(item.unit || '')}",
+        "(typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
+        "(typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
+        "hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج'",
+        "if (invalidCart) return;",
+        "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح",
+        "${sub===null||!Number.isFinite(sub)?'غير صالح':sub.toFixed(2)}",
+    ]
+
+    for guard in pos_safety_guards:
+        if guard not in source:
+            errors.append("POS search/cart HTML safety guard is missing: " + guard)
+    if not any("POS search/cart HTML safety guard is missing:" in error for error in errors):
+        print("PASS: POS search ID and cart image HTML guards exist")
+
+    # Normalized POS cart price and quantity remain escaped at the HTML output boundary.
+    pos_cart_numeric_escape_guards = [
+        "${priceNumber===null?'غير صالح':anasEscapeHTML(priceNumber)}",
+        "${qtyNumber===null?'غير صالح':anasEscapeHTML(qtyNumber)}",
+        "(typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
+        "(typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
+        "${anasEscapeHTML(item.unit || '')}",
+    ]
+    for guard in pos_cart_numeric_escape_guards:
+        if guard not in source:
+            errors.append("POS cart numeric normalization/escaping guard is missing: " + guard)
+    if not any("POS cart numeric normalization/escaping guard is missing:" in error for error in errors):
+        print("PASS: POS cart price, quantity, and unit are normalized/escaped safely")
+
+
+    # Customer data and imported product images must be safe at HTML output boundaries.
+    safety_guards = [
+        "anasEscapeHTML(c.phone || '-')",
+        "(typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح'",
+        "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
+        'src="${anasEscapeHTML(safeStoredImage)}"',
+        "${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
+        "${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}",
+        "${reportDisplay(p.stock)}",
+        "${esc(p.id??'—')}",
+        "const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;",
+        "${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td>",
+        "${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td>",
+        "${reportDisplay(c.debt)} د.ج",
+        "بيانات غير صالحة",
+        "غير صالح — توجد قيم ناقصة أو تالفة",
+        "غير صالح — توجد قيمة فاتورة غير صالحة",
+        "const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));",
+        "const invalidPresentNumber = (record, keys) =>",
+        "if (invalidProfitData)",
+        "تعذر حساب الأرباح بدقة: توجد قيمة مالية أو كمية غير صالحة",
+        "const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);",
+        "const lowStock = AppData.products.filter(p => { const stock=reportNumber(p.stock); const min=reportNumber(p.minAlert); return stock===null || stock <= (min!==null&&min>0?min:5); });",
+        "${reportDisplay(p.stock)} (الحد: ${reportNumber(p.minAlert)!==null && reportNumber(p.minAlert)>0 ? reportNumber(p.minAlert) : 5})",
+        "value===null?'غير صالح':value",
+        "${reportDisplay(e.amt)} د.ج",
+    ]
+    for guard in safety_guards:
+        if guard not in source:
+            errors.append("customer/report/image output safety guard is missing: " + guard)
+    if not any("customer/report/image output safety guard is missing:" in error for error in errors):
+        print("PASS: customer debt, report numeric values, and stored image preview are hardened")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
