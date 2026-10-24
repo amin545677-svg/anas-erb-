@@ -5726,6 +5726,7 @@ function renderPurchasesTable() {
                 else if((ch==='\n'||ch==='\r')&&!quoted){if(ch==='\r'&&raw[i+1]==='\n')i++;row.push(cell.trim());if(row.some(v=>v!==''))rows.push(row);row=[];cell='';}
                 else cell+=ch;
             }
+            if(quoted) throw new Error('ملف CSV يحتوي على علامة اقتباس غير مغلقة في نهاية الملف.');
             row.push(cell.trim());if(row.some(v=>v!==''))rows.push(row);return rows;
         }
         function showSmartImportPreview(fileName,rows) {
