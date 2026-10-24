@@ -5888,19 +5888,32 @@ function renderPurchasesTable() {
                 const arr=target==='products'?AppData.products:target==='customers'?AppData.customers:AppData.suppliers;
                 const before=JSON.stringify(arr||[]);
                 try{
-                    arr.push(...staged);
+                    // Build the next array before mutating the live one; avoid argument-count limits on large imports.
+                    const next=JSON.parse(before);
+                    for(const item of staged) next.push(item);
+                    if(target==='products') AppData.products=next;
+                    else if(target==='customers') AppData.customers=next;
+                    else AppData.suppliers=next;
                     const saved=saveDB();
                     if(saved===false) throw new Error('فشل حفظ قاعدة البيانات');
-                    if(target==='products'){if(typeof renderInventoryList==='function')renderInventoryList();if(typeof renderQuickProducts==='function')renderQuickProducts();}
-                    if(target==='customers'&&typeof renderCustomersDebts==='function')renderCustomersDebts();
-                    if(target==='suppliers'&&typeof populateSuppliersDropdowns==='function')populateSuppliersDropdowns();
-                    box.remove();
-                    alert('نجح الاستيراد: '+staged.length+' سجل إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'. لم يتم دمج أو استبدال أي سجل موجود.');
                 }catch(err){
                     const restored=JSON.parse(before);
                     if(target==='products')AppData.products=restored;else if(target==='customers')AppData.customers=restored;else AppData.suppliers=restored;
-                    validation.textContent='❌ فشل الحفظ، أُلغيت الإضافة في الذاكرة. لا تغلق النافذة قبل التأكد من حالة قاعدة البيانات. السبب: '+(err.message||err);
+                    validation.textContent='❌ فشل الحفظ، أُلغيت الإضافة في الذاكرة. لم يُعلن نجاح الاستيراد. السبب: '+(err.message||err);
+                    return;
                 }
+                // Once persistence succeeds, a rendering error must not roll memory back while storage still contains the imported rows.
+                let refreshWarning='';
+                try{
+                    if(target==='products'){if(typeof renderInventoryList==='function')renderInventoryList();if(typeof renderQuickProducts==='function')renderQuickProducts();}
+                    if(target==='customers'&&typeof renderCustomersDebts==='function')renderCustomersDebts();
+                    if(target==='suppliers'&&typeof populateSuppliersDropdowns==='function')populateSuppliersDropdowns();
+                }catch(err){
+                    console.error('ANAS ERP import saved; UI refresh failed:',err);
+                    refreshWarning=' تم حفظ البيانات، لكن تعذّر تحديث إحدى الواجهات. أعد تحميل التطبيق للتحقق من العرض.';
+                }
+                box.remove();
+                alert('نجح الاستيراد: '+staged.length+' سجل إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'. لم يتم دمج أو استبدال أي سجل موجود.'+refreshWarning);
             };
         }
         function clearAllSalesInvoices() {
