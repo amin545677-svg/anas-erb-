@@ -3176,7 +3176,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     const p = AppData.products.find(x => String(x.id) === id);
                     if(saleWarehouse==='المخزن الرئيسي') p.stock = (Number(p.stock)||0)-qty;
                     else {
-                        if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
+                        if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
                         p.warehouseStock[saleWarehouse]=(Number(p.warehouseStock[saleWarehouse])||0)-qty;
                     }
                 }
