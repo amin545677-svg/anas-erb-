@@ -4854,19 +4854,21 @@ function renderPurchasesTable() {
         function showReportDetails(title) {
             if(!applyReportDateRange()) return;
             const esc = value => anasEscapeHTML(String(value ?? ''));
-            const reportNumber = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
+            const reportNumber = value => value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;
             const reportDisplay = value => { const n=reportNumber(value); return n===null?'غير صالح':n; };
             const reportInvoices=typeof getReportInvoices==='function' ? getReportInvoices() : (Array.isArray(AppData.invoices)?AppData.invoices:[]);
             const reportPurchases=typeof getReportPurchases==='function' ? getReportPurchases() : (Array.isArray(AppData.purchases)?AppData.purchases:[]);
             document.getElementById('customReportTitle').innerText = title;
             const content = document.getElementById('customReportContent');
             if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني') {
-                const totalSales = reportInvoices.reduce((a, b) => a + (Number(b.total)||0), 0);
-                const totalPurchases = reportPurchases.reduce((a, b) => a + (Number(b.total)||0), 0);
+                const totalSalesValid = reportInvoices.every(b => reportNumber(b.total) !== null);
+                const totalPurchasesValid = reportPurchases.every(b => reportNumber(b.total) !== null);
+                const totalSales = reportInvoices.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
+                const totalPurchases = reportPurchases.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
                 content.innerHTML = `
                     <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:10px;">
-                        <div>إجمالي المبيعات: <strong>${totalSales.toFixed(2)} د.ج</strong></div>
-                        <div>إجمالي المشتريات: <strong>${totalPurchases.toFixed(2)} د.ج</strong></div>
+                        <div>إجمالي المبيعات: <strong>${totalSalesValid ? totalSales.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
+                        <div>إجمالي المشتريات: <strong>${totalPurchasesValid ? totalPurchases.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
                         <div>حركات البيع: <strong>${reportInvoices.length} فواتير</strong></div>
                     </div>
                 `;
@@ -4879,8 +4881,8 @@ function renderPurchasesTable() {
                     </div>
                 `).join('') : '<p style="text-align:center; color:#94a3b8;">لا توجد فواتير آجل مسجلة.</p>';
             } else if(title === 'تقرير الخصومات') {
-                const discounted = reportInvoices.filter(i => Number(i.discount)>0 || Number(i.discountAmount)>0 || Number(i.discount_amount)>0);
-                content.innerHTML = discounted.length ? discounted.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${Number(i.discountAmount??i.discount_amount??i.discount)||0} د.ج</strong></div>`).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
+                const discounted = reportInvoices.filter(i => { const raw=i.discountAmount??i.discount_amount??i.discount; const value=reportNumber(raw); return (value!==null&&value>0)||(raw!==null&&raw!==undefined&&raw!==''); });
+                content.innerHTML = discounted.length ? discounted.map(i=>{const value=reportNumber(i.discountAmount??i.discount_amount??i.discount);return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${value===null?'غير صالح':value} د.ج</strong></div>`;}).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
             } else if(title === 'تنبيه نقص المخزون') {
                 const lowStock = AppData.products.filter(p => p.stock <= (p.minAlert || 5));
                 content.innerHTML = lowStock.length > 0 ? lowStock.map(p => `
@@ -4957,7 +4959,7 @@ function renderPurchasesTable() {
             } else if(title === 'تقرير بالمصروفات حسب الحساب' || title === 'تقرير المصروفات حسب الحساب') {
                 content.innerHTML = (AppData.expenses && AppData.expenses.filter(e=>reportItemInRange(e)).length > 0) ? `
                     <div style="max-height:220px; overflow-y:auto;">
-                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${e.amt} د.ج</strong></div>`).join('')}
+                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${reportDisplay(e.amt)} د.ج</strong></div>`).join('')}
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مصروفات مسجلة.</p>';
             } else {
                 content.innerHTML = `<p style="text-align:center; color:#16a34a; font-weight:bold;">العمليات مسجلة ومحفوظة بنجاح.</p>`;
