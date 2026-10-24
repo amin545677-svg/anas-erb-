@@ -120,6 +120,11 @@ def main():
     else:
         print("PASS: backup validator rejects malformed primary stock values")
 
+    if "Object.prototype.hasOwnProperty.call(incoming,'posScreensCarts')" not in source or "!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts)" not in source:
+        errors.append("backup validator must reject explicitly present null/invalid POS cart collections")
+    else:
+        print("PASS: backup validator rejects explicit null POS cart collections")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
