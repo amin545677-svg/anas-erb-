@@ -127,6 +127,33 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+    # Regressions for POS cart image URLs and unit labels.
+    pos_start = source.find("function renderPosTable()")
+    pos_end = source.find("\n        function ", pos_start + 1)
+    pos_source = source[pos_start:pos_end if pos_end >= 0 else len(source)]
+    pos_checks = {
+        "POS cart validates image URLs before using them in img src": "const safeImage = value => {" in pos_source and "const imageSrc = safeImage(item.image);" in pos_source and 'src="${imageSrc}"' in pos_source,
+        "POS cart escapes item unit labels": "anasEscapeHTML(item.unit || '')" in pos_source,
+        "POS cart no longer interpolates raw image data": ('src="' + "$" + "{item.image}" + '"') not in pos_source,
+    }
+    for label, passed in pos_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("POS cart regression: " + label)
+
+    # Regressions for dynamic text in the Z report and user badge.
+    targeted_checks = {
+        "Z report escapes the configured business name": "anasEscapeHTML(AppData.appName || '')" in source,
+        "Z report escapes both date-range values": all(token in source for token in ('anasEscapeHTML(getReportRange().from || "—")', 'anasEscapeHTML(getReportRange().to || "—")')),
+        "quick user badge uses textContent": "getElementById('topUserQuickBadge').textContent" in source and "getElementById('topUserQuickBadge').innerHTML = '👑 ' + cur.name" not in source,
+        "drawer user name uses textContent": "getElementById('drawerUserName').textContent" in source and "getElementById('drawerUserName').innerText = cur.name" not in source,
+    }
+    for label, passed in targeted_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("dynamic text regression: " + label)
     if errors:
         for error in errors:
             print("FAIL:", error)
