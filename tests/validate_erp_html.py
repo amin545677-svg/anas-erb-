@@ -52,10 +52,22 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # Customer balances and stored product images must not be interpolated unsafely into HTML.
+    safety_guards = [
+        "${Number.isFinite(Number(c.debt)) ? Number(c.debt) : 0}",
+        "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
+        'src="${anasEscapeHTML(safeStoredImage)}"',
+    ]
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    for guard in safety_guards:
+        if guard not in source:
+            errors.append("product image/customer debt HTML safety guard is missing: " + guard)
+    if not any("product image/customer debt HTML safety guard is missing:" in error for error in errors):
+        print("PASS: customer debt and product image preview HTML guards exist")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
