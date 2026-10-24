@@ -309,6 +309,7 @@ jobs:
           assert.equal(parse('١٬٢٣٤٫٥٦'), 1234.56, 'Arabic-Indic digits and Arabic separators should parse');
           assert.equal(parse(''), 0, 'empty optional numeric cells should default to zero');
           assert.throws(() => parse('1,234'), /ملتبسة/, 'ambiguous one-separator values must not silently change magnitude');
+          assert.throws(() => parse('1,23.456'), /تجميع الآلاف غير صحيح/, 'malformed grouping must be rejected instead of silently changing magnitude');
           assert.throws(() => parse('12abc'), /غير صحيحة/, 'invalid numeric content must be rejected');
           console.log('Localized numeric import tests passed');
           """
