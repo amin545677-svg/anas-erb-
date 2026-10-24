@@ -48,7 +48,7 @@ jobs:
           app = Path("index.html").read_text(encoding="utf-8")
           def function_bodies(name):
               # The target functions have simple bodies; this checks named declarations and their first closing brace.
-              pattern = re.compile(r"function\\s+" + re.escape(name) + r"\\s*\\([^)]*\\)\\s*\\{")
+              pattern = re.compile(r"function\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{")
               bodies = []
               for match in pattern.finditer(app):
                   start = match.end()
