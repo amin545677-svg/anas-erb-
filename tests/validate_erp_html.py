@@ -473,6 +473,23 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: cloud restore rejects malformed warehouse history and stock balances")
 
+    # Historical invoice edits must reject malformed source line values and inconsistent money totals.
+    edit_start = source.find("function editSalesInvoice(invoiceId)")
+    edit_end = source.find("\\n        function ", edit_start + 1)
+    edit_invoice = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
+    edit_guards = [
+        "Historical invoice quantities and prices are the baseline for stock reconciliation.",
+        "Number(item.qty) <= 0",
+        "Number(item.price) < 0",
+        "validMoneyField = value =>",
+        "oldPaid > oldTotal + 0.000001",
+        "oldRemaining - Math.max(0, oldTotal - oldPaid)",
+    ]
+    if not edit_invoice or any(guard not in edit_invoice for guard in edit_guards):
+        errors.append("historical invoice edits must reject invalid source quantities/prices and inconsistent totals before stock/account mutation")
+    else:
+        print("PASS: historical invoice edits reject corrupt source lines and inconsistent financial totals")
+
     # Backup and cloud restore must not silently replace populated local history with empty lists.
     backup_start = source.find("function anasValidateBackupData(incoming)")
     backup_end = source.find("\n        function importDataBackup(e)", backup_start)
