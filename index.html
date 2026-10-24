@@ -4634,6 +4634,15 @@ function renderPurchasesTable() {
         function showProfitsReportModal() {
             const invoices = (typeof getReportInvoices === 'function' ? getReportInvoices() : (Array.isArray(AppData.invoices) ? AppData.invoices : []));
             const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));
+            const invalidPresentNumber = (record, keys) => { const key=keys.find(k=>Object.prototype.hasOwnProperty.call(record,k)&&record[k]!==undefined&&record[k]!==null); return key!==undefined&&invalidProfitNumber(record[key]); };
+            const invalidProfitData = invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv) || (Object.prototype.hasOwnProperty.call(inv,'items')&&!Array.isArray(inv.items)) || invalidPresentNumber(inv,['total','grandTotal','amount']) || (Array.isArray(inv.items)&&inv.items.some(it => !it || typeof it !== 'object' || Array.isArray(it) || invalidPresentNumber(it,['qty','quantity']) || invalidPresentNumber(it,['price','salePrice','sellingPrice']) || invalidPresentNumber(it,['total','subtotal']) || invalidPresentNumber(it,['buyPrice','costPrice','purchasePrice']))));
+            if (invalidProfitData) {
+                const body=document.getElementById('profitsReportBody');
+                if(body)body.innerHTML='<div class="profit-empty" role="alert">تعذر حساب الأرباح بدقة: توجد قيمة مالية أو كمية غير صالحة في بيانات الفواتير أو تفاصيل المنتجات. صحّح السجلات أو استعد نسخة سليمة ثم أعد المحاولة.</div>';
+                document.getElementById('profitsModal').classList.add('active');
+                return;
+            }
             const byProduct = {}, byCategory = {}, byCustomer = {}, byUser = {};
             let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0;
             const moneyFmt = n => (Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
