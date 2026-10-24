@@ -1034,3 +1034,59 @@ jobs:
           PY
           node --check /tmp/anas-profit-report-guard-test.js
           node /tmp/anas-profit-report-guard-test.js
+
+      - name: Exercise POS sale rollback when persistence fails
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function confirmHasibPayment() {")
+          end = s.find("\\n        function ", start + 15)
+          assert start >= 0 and end > start, "Could not isolate POS sale transaction"
+          function_js = s[start:end]
+          js = r"""
+          /*INSERT_POS_SALE_TRANSACTION*/
+          const assert = require('node:assert/strict');
+          const alerts = [];
+          global.alert = message => alerts.push(String(message));
+          console.error = () => {};
+          global.wtTryEnsureData = () => true;
+          global.wtCurrentSaleWarehouse = () => 'المخزن الرئيسي';
+          global.wtAvailableStock = (product, warehouse) => Number(product.stock);
+          global.AppData = {
+            products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: { Branch: 3 } }],
+            customers: [{ id: 'c1', name: 'Customer', debt: 5 }],
+            invoices: [],
+            caisseBalance: 100,
+            activePosScreenTab: 1,
+            posScreensCarts: { 1: [{ id: 'p1', qty: 2, price: 5 }] },
+            currentUser: { id: 'u1', name: 'Tester', role: 'admin' }
+          };
+          const originalCart = [{ id: 'p1', name: 'Product', price: 5, qty: 2, unit: 'piece' }];
+          global.posCart = originalCart.map(item => ({ ...item }));
+          global.document = {
+            getElementById(id) {
+              if (id === 'hasibCustomerSelect') return { value: 'c1' };
+              if (id === 'hasibPaidAmount') return { value: '5' };
+              throw new Error('unexpected DOM access after failed save: ' + id);
+            }
+          };
+          global.saveDB = () => false;
+          /*INSERT_POS_SALE_FUNCTION*/
+          confirmHasibPayment();
+          assert.equal(AppData.products[0].stock, 10, 'main stock must roll back');
+          assert.deepEqual(AppData.products[0].warehouseStock, { Branch: 3 }, 'warehouse stock map must be restored');
+          assert.equal(AppData.customers[0].debt, 5, 'customer debt must roll back');
+          assert.equal(Object.hasOwn(AppData.customers[0], 'debtDate'), false, 'new debt date must be removed on rollback');
+          assert.equal(AppData.caisseBalance, 100, 'cash balance must roll back');
+          assert.deepEqual(AppData.invoices, [], 'failed sale must not leave an invoice');
+          assert.deepEqual(global.posCart, originalCart, 'cart must be restored');
+          assert.deepEqual(AppData.posScreensCarts[1], [{ id: 'p1', qty: 2, price: 5 }], 'saved cart must be restored');
+          assert(alerts.some(message => message.includes('لم يتم تأكيد البيع لأن الحفظ فشل')), 'failed save must be clearly reported');
+          console.log('POS sale rollback tests passed: stock, customer debt, cash, invoice list, and cart restored after save failure');
+          """
+          js = js.replace("/*INSERT_POS_SALE_TRANSACTION*/", function_js)
+          Path("/tmp/anas-pos-sale-rollback-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-pos-sale-rollback-test.js
+          node /tmp/anas-pos-sale-rollback-test.js
