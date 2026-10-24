@@ -451,12 +451,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: file restore blocks incomplete backups that would erase populated local history")
     sync_guards = [
-        "if (!exportDataBackup())",
         "Array.isArray(AppData[key]) && AppData[key].length",
         "النسخة السحابية تفتقد قائمة المخازن المحلية",
         "purchaseInvoices", "truckTrips",
     ]
-    if not cloud_restore or any(guard not in cloud_restore for guard in sync_guards):
+    if not cloud_restore or "if (!exportDataBackup())" not in cloud_restore or not sync_validator or any(guard not in sync_validator for guard in sync_guards):
         errors.append("cloud restore must require a successful local backup and block loss of omitted history")
     else:
         print("PASS: cloud restore requires a local backup and preserves omitted local history")
