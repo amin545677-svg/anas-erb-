@@ -140,6 +140,21 @@ def main():
     sale = function_source("confirmHasibPayment")
     purchase = function_source("savePurchaseItem")
     transfer = function_source("wtCreateTransfer")
+    transaction_checks = {
+        "sale validates cart items and aggregates repeated product quantities":
+            "required.set(id, (required.get(id) || 0) + qty)" in sale
+            and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
+        "sale rolls back stock, debt, cash, invoices, and cart if persistence fails":
+            "if (!saveDB()) throw" in sale and "p.stock = stockState.stock" in sale
+            and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
+            and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale,
+        "purchase validates positive safe integer quantity and restores state on save failure":
+            "Number.isSafeInteger(qty)" in purchase and "saveDB() === false" in purchase
+            and "AppData = previous" in purchase,
+        "warehouse transfer rejects insufficient stock and restores balances on failure":
+            "qty>available" in transfer and "if(!saveDB())throw" in transfer
+            and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
+    }
     for label, passed in transaction_checks.items():
         if passed:
             print("PASS:", label)
