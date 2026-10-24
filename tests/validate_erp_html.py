@@ -127,6 +127,22 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+    # Critical stock mutation paths must reject array-shaped warehouse maps.
+    sale_start = source.find("function confirmHasibPayment()")
+    sale_end = source.find("function ", sale_start + 10)
+    sale_body = source[sale_start:sale_end] if sale_start >= 0 and sale_end >= 0 else ""
+    if "Array.isArray(p.warehouseStock)" in sale_body:
+        print("PASS: POS sale normalizes malformed warehouse stock maps")
+    else:
+        errors.append("POS sale path does not normalize array-shaped warehouseStock")
+    trip_settlement_start = source.find("const settlementId='TR-SETTLE-'")
+    trip_settlement_end = source.find("catch(e)", trip_settlement_start)
+    trip_settlement_body = source[trip_settlement_start:trip_settlement_end] if trip_settlement_start >= 0 and trip_settlement_end >= 0 else ""
+    if "Array.isArray(p.warehouseStock)" in trip_settlement_body:
+        print("PASS: truck settlement normalizes malformed warehouse stock maps")
+    else:
+        errors.append("truck settlement does not normalize array-shaped warehouseStock")
+
     if errors:
         for error in errors:
             print("FAIL:", error)
