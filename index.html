@@ -4202,7 +4202,7 @@ function renderPurchasesTable() {
         function wtEnsureData(){
             if(!Array.isArray(AppData.warehouseTransfers))AppData.warehouseTransfers=[];
             if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
-            (AppData.products||[]).forEach(p=>{if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};});
+            (AppData.products||[]).forEach(p=>{if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};});
         }
         function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
         function wtInitScreen(){
@@ -6950,7 +6950,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
         for(const line of lines){
           const p=products.find(x=>String(x.id)===String(line.productId));
-          if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
+          if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
           const truckQty=Number(p.warehouseStock[warehouse])||0;
           if(truckQty+1e-8<line.returned+line.damaged+line.missing)throw new Error('رصيد الشاحنة لا يكفي للصنف '+line.productName+'.');
           if(line.returned>0){
