@@ -615,11 +615,12 @@ jobs:
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
           const functionSource = /*INSERT_INVOICE_EDIT_FUNCTION*/;
-          function runCase(withLegacyFields) {
+          function runCase(withLegacyFields, secondaryMissingMain = false) {
             const customer = withLegacyFields ? {id:'c1',name:'Customer',debt:20} : {id:'c1',name:'Customer'};
             const invoice = {id:'I1',items:[{id:'p1',name:'Product',qty:2,price:10}],customerObj:customer,customer:'Customer'};
+            if (secondaryMissingMain) invoice.warehouseName = 'W1';
             if (withLegacyFields) Object.assign(invoice,{total:20,paid:0,remaining:20,paymentMethod:'credit',editedAt:'before-edit'});
-            const product = {id:'p1',name:'Product',stock:5,warehouseStock:{}};
+            const product = secondaryMissingMain ? {id:'p1',name:'Product',warehouseStock:{W1:5}} : {id:'p1',name:'Product',stock:5,warehouseStock:{}};
             const movements = [{id:'prior-movement'}];
             const data = {invoices:[invoice],products:[product],customers:[customer],stockMovements:movements};
             const answers = ['3','10'];
@@ -636,7 +637,12 @@ jobs:
               console, Number, String, Object, Array, Map, Math, Date
             };
             vm.runInNewContext(functionSource + '\neditSalesInvoice("I1");', ctx);
-            assert.equal(product.stock,5,'stock balance must roll back after failed persistence');
+            if (secondaryMissingMain) {
+              assert.equal(Object.hasOwn(product,'stock'),false,'rollback must not create an absent primary stock field');
+              assert.equal(product.warehouseStock.W1,5,'secondary warehouse balance must roll back');
+            } else {
+              assert.equal(product.stock,5,'stock balance must roll back after failed persistence');
+            }
             assert.deepEqual(data.stockMovements,[{id:'prior-movement'}],'ledger must roll back after failed persistence');
             assert.equal(invoice.items[0].qty,2,'invoice lines must roll back');
             if (withLegacyFields) {
@@ -657,6 +663,7 @@ jobs:
           }
           runCase(false);
           runCase(true);
+          runCase(true, true);
           function runDuplicateProductIdCase() {
             const invoice = {id:'I2',items:[{id:'dup',name:'Ambiguous product',qty:1,price:10}],total:10,paid:0,remaining:10};
             const products = [{id:'dup',name:'Product A',stock:5},{id:'dup',name:'Product B',stock:8}];
@@ -715,7 +722,7 @@ jobs:
             assert.ok(!alerts.some(x=>x.includes('لم يتم حفظ التعديل')),'must not claim rollback after persistence committed');
           }
           runCommittedSaveUiFailureCase();
-          console.log('Invoice edit tests passed: rollback, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
+          console.log('Invoice edit tests passed: rollback, absent primary stock preserved, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
