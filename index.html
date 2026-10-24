@@ -3398,7 +3398,25 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         // ================= المشتريات =================
-                function savePurchaseItem() {
+                function anasCreateUniqueProductId(products) {
+            const list = Array.isArray(products) ? products : [];
+            let id;
+            do {
+                id = 'P-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+            } while (list.some(p => String(p && p.id) === id));
+            return id;
+        }
+
+        function anasCreateUniqueBarcode(products) {
+            const list = Array.isArray(products) ? products : [];
+            let barcode;
+            do {
+                barcode = '613' + Date.now().toString().slice(-8) + String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+            } while (list.some(p => anasNormalizeBarcode(p && p.barcode) === anasNormalizeBarcode(barcode)));
+            return barcode;
+        }
+
+        function savePurchaseItem() {
             const nameInput = document.getElementById('purProductName');
             const costInput = document.getElementById('purBuyCost');
             const qtyInput = document.getElementById('purBuyQty');
@@ -3433,7 +3451,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     product.buyPrice = cost;
                     if (suppId) product.supplierId = suppId;
                 } else {
-                    AppData.products.push({ id: 'P-' + Date.now(), name, buyPrice: cost, price1: cost * 1.2, stock: qty, barcode: '613' + Date.now().toString().slice(-5), unit: 'قطعة', supplierId: suppId });
+                    AppData.products.push({ id: anasCreateUniqueProductId(AppData.products), name, buyPrice: cost, price1: cost * 1.2, stock: qty, barcode: anasCreateUniqueBarcode(AppData.products), unit: 'قطعة', supplierId: suppId });
                 }
                 if (typeof saveDB !== 'function' || saveDB() === false) {
                     AppData = previous;
