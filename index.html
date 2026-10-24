@@ -5752,7 +5752,7 @@ function renderPurchasesTable() {
                 const decimal=raw.lastIndexOf('.')>raw.lastIndexOf(',')?'.':',';
                 const grouping=decimal==='.'?',':'.';
                 normalized=raw.split(grouping).join('');
-                if((normalized.match(new RegExp('\\\\'+decimal,'g'))||[]).length>1) throw new Error('فواصل رقمية ملتبسة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+                if(normalized.split(decimal).length>2) throw new Error('فواصل رقمية ملتبسة في الصف '+rowNo+'، الحقل '+field+': '+raw);
                 normalized=normalized.replace(decimal,'.');
             } else {
                 const sep=dots?'.':commas?',':'';
