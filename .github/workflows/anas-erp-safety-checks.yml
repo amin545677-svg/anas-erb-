@@ -300,17 +300,17 @@ jobs:
           assert start >= 0 and end > start, "Could not isolate CSV parser"
           js = s[start:end] + r"""
           const assert = require('node:assert/strict');
-          assert.deepEqual(parseSmartCsv('\\uFEFFname;note\\r\\nTea;"green; herbal"\\r\\nTea;"green ""herbal"" tea"',';'), [
+          assert.deepEqual(parseSmartCsv('\uFEFFname;note\r\nTea;"green; herbal"\r\nTea;"green ""herbal"" tea"',';'), [
             ['name','note'],
             ['Tea','green; herbal'],
             ['Tea','green "herbal" tea']
           ], 'BOM, CRLF, quoted delimiters, and escaped quotes should parse correctly');
-          assert.deepEqual(parseSmartCsv('name,note\\nTea,"line one\\nline two"',','), [
+          assert.deepEqual(parseSmartCsv('name,note\nTea,"line one\nline two"',','), [
             ['name','note'],
-            ['Tea','line one\\nline two']
+            ['Tea','line one\nline two']
           ], 'newlines inside quoted fields should remain part of the cell');
           assert.throws(
-            () => parseSmartCsv('name;note\\nTea;"unfinished',';'),
+            () => parseSmartCsv('name;note\nTea;"unfinished',';'),
             /غير مغلقة/,
             'unclosed quoted fields must be rejected rather than silently importing corrupt rows'
           );
