@@ -975,3 +975,81 @@ jobs:
           PY
           node --check /tmp/anas-cloud-restore-validator-test.js
           node /tmp/anas-cloud-restore-validator-test.js
+
+      - name: Exercise warehouse transfer invalid-balance guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function wtCreateTransfer(){")
+          end = s.find("\\n        function wtRenderHistory", start)
+          if end < 0:
+              end = s.find("\\n        function wtInitScreen", start)
+          assert start >= 0 and end > start, "Could not isolate warehouse transfer function"
+          function_js = s[start:end]
+          assert "if(!Number.isFinite(available))" in function_js, "Invalid source balance guard missing"
+          assert "if(!Number.isFinite(destinationBalance))" in function_js, "Invalid destination balance guard missing"
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          /*INSERT_TRANSFER_FUNCTION*/
+          function runCase(product, from, to, qty='2') {
+            const alerts = [];
+            const movements = [];
+            const transfers = [];
+            const data = {products:[product],warehouseTransfers:transfers,stockMovements:movements};
+            const elements = {
+              wtFrom:{value:from}, wtTo:{value:to}, wtProduct:{value:String(product.id)},
+              wtQty:{value:qty}, wtNote:{value:''}, wtBuyPrice:{value:''}, wtSalePrice:{value:''}
+            };
+            const ctx = {
+              AppData:data,
+              document:{getElementById:(id)=>elements[id]||null},
+              alert:(m)=>alerts.push(String(m)),
+              confirm:()=>true,
+              wtTryEnsureData:()=>true,
+              wtBalance:(p,w)=>{
+                if(!p || typeof p!=='object') return NaN;
+                if(w==='المخزن الرئيسي') {
+                  if(!Object.prototype.hasOwnProperty.call(p,'stock')) return 0;
+                  const v=p.stock;
+                  return ((typeof v==='number'||typeof v==='string') && String(v).trim()!=='' && Number.isFinite(Number(v)) && Number(v)>=0) ? Number(v) : NaN;
+                }
+                if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock')) return 0;
+                const m=p.warehouseStock;
+                if(!m || typeof m!=='object' || Array.isArray(m)) return NaN;
+                if(!Object.prototype.hasOwnProperty.call(m,w)) return 0;
+                const v=m[w];
+                return ((typeof v==='number'||typeof v==='string') && String(v).trim()!=='' && Number.isFinite(Number(v)) && Number(v)>=0) ? Number(v) : NaN;
+              },
+              saveDB:()=>true, wtInitScreen:()=>{}, renderInventoryList:()=>{},
+              console, Date, Math, Number, String, Object, Array
+            };
+            vm.runInNewContext(function_js + '\\nwtCreateTransfer();', ctx);
+            return {data,alerts,movements,transfers,elements};
+          }
+          let r=runCase({id:'p',name:'P',stock:' ',warehouseStock:{A:5}},'المخزن الرئيسي','A');
+          assert.equal(r.data.products[0].stock,' ','invalid source balance preserved');
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/المصدر/);
+          r=runCase({id:'p',name:'P',stock:' ',warehouseStock:{A:5}},'A','المخزن الرئيسي');
+          assert.equal(r.data.products[0].stock,' ','invalid destination balance preserved');
+          assert.equal(r.data.products[0].warehouseStock.A,5);
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/الوجهة/);
+          r=runCase({id:'p',name:'P',stock:10,warehouseStock:{A:5,B:' '}},'A','B');
+          assert.equal(r.data.products[0].warehouseStock.B,' ','invalid destination subwarehouse balance preserved');
+          assert.equal(r.data.products[0].warehouseStock.A,5);
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/الوجهة/);
+          r=runCase({id:'p',name:'P',stock:10,warehouseStock:{A:5,B:1}},'A','B');
+          assert.equal(r.data.products[0].warehouseStock.A,3);
+          assert.equal(r.data.products[0].warehouseStock.B,3);
+          assert.equal(r.transfers.length,1); assert.equal(r.movements.length,2);
+          console.log('Warehouse transfer tests passed: invalid source/destination balances fail closed; valid transfer remains functional');
+          """
+          js = js.replace("/*INSERT_TRANSFER_FUNCTION*/", function_js)
+          Path("/tmp/anas-warehouse-transfer-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-warehouse-transfer-test.js
+          node /tmp/anas-warehouse-transfer-test.js
