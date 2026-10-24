@@ -100,7 +100,7 @@ def main():
     # POS sale must validate all warehouse balances and customer debt before financial mutation.
     if "if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;" not in source:
         errors.append("POS sale must run warehouse preflight before mutating stock")
-    if "Object.prototype.hasOwnProperty.call(cust,'debt')" not in source or "رصد دين العميل غير صالح" not in source:
+    if "Object.prototype.hasOwnProperty.call(cust,'debt')" not in source or "رصيد دين العميل غير صالح" not in source:
         errors.append("POS sale must reject malformed stored customer debt instead of coercing it to zero")
     if not any("POS sale must validate" in error or "POS sale must run" in error for error in errors):
         print("PASS: POS sale validates warehouse balances and customer debt before mutation")
@@ -130,7 +130,7 @@ def main():
         errors.append("warehouse preflight must reject malformed stock movement history")
     if "else if(!Array.isArray(AppData.warehouses)){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}" not in source:
         errors.append("truck warehouse creation must not replace malformed warehouse data")
-    if "if(!wtEnsureMobileWarehouse(warehouseName))throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');" not in source:
+    if "if(wtEnsureMobileWarehouse(warehouseName)===null)throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');" not in source:
         errors.append("truck loading must abort when mobile warehouse creation fails")
     if not any("warehouse preflight must reject malformed stock movement history" in error or "truck warehouse creation must not replace malformed warehouse data" in error or "truck loading must abort when mobile warehouse creation fails" in error for error in errors):
         print("PASS: truck operations preserve malformed warehouse and movement histories")
