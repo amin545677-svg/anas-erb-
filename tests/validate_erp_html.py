@@ -127,6 +127,24 @@ def main():
     else:
         print("PASS: warehouse initialization fails closed without silently replacing malformed history")
 
+    # Missing maps may be initialized for legacy products, but explicit null/invalid maps must not be erased.
+    missing_only_guard = "if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock'))p.warehouseStock={};else if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة"
+    guarded_ui_calls = [
+        "function wtTryEnsureData(){try{wtEnsureData();return true;}catch(e){alert((e&&e.message)||'بيانات المخازن غير صالحة. أُوقفت العملية دون تعديل الأرصدة.');return false;}}",
+        "if(!wtTryEnsureData())return; const from=document.getElementById('wtFrom')",
+        "if(!wtTryEnsureData())return;const from=document.getElementById('wtFrom').value",
+        "function wtInitStockScreen(){if(!wtTryEnsureData())return;",
+    ]
+    if missing_only_guard not in source:
+        errors.append("warehouseStock initialization must preserve explicit null/malformed values instead of silently replacing them")
+    else:
+        print("PASS: only absent warehouseStock maps are initialized; explicit malformed maps fail closed")
+    for guard in guarded_ui_calls:
+        if guard not in source:
+            errors.append("warehouse validation UI handling is missing: " + guard)
+    if not any("warehouse validation UI handling is missing:" in error for error in errors):
+        print("PASS: warehouse screen, transfer, and stock screen surface validation errors safely")
+
     # POS rollback must preserve malformed map shape, and transfers must fail closed from either side.
     sale_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     sale_restore = "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;"
