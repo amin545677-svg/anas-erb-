@@ -305,7 +305,7 @@ jobs:
             ['Tea','green; herbal'],
             ['Tea','green "herbal" tea']
           ], 'BOM, CRLF, quoted delimiters, and escaped quotes should parse correctly');
-          assert.deepEqual(parseSmartCsv('name,note\\nTea,"line one\\nline two"',' ,'.trim()), [
+          assert.deepEqual(parseSmartCsv('name,note\\nTea,"line one\\nline two"',','), [
             ['name','note'],
             ['Tea','line one\\nline two']
           ], 'newlines inside quoted fields should remain part of the cell');
