@@ -2349,25 +2349,40 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         const ANAS_DB_KEY = 'ANAS_THE_ENTERPRISE_V11_OFFLINE';
         let AppData;
+        let anasStartupIntegrityIssues = [];
+        let anasStartupFatalLoadError = false;
         try {
             const saved = localStorage.getItem(ANAS_DB_KEY);
             AppData = saved ? JSON.parse(saved) : initialDB;
-            if (!AppData || typeof AppData !== 'object') throw new Error('invalid saved data');
-            // Ensure essential collections exist so older/incomplete saves do not crash the app.
+            if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
+            // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
             ['products','customers','suppliers','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
-                if (!Array.isArray(AppData[k])) AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
+                if (!Object.prototype.hasOwnProperty.call(AppData, k)) {
+                    AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
+                } else if (!Array.isArray(AppData[k])) {
+                    anasStartupIntegrityIssues.push(k);
+                }
             });
-            if (!AppData.posScreensCarts || typeof AppData.posScreensCarts !== 'object') AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
+            if (!Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts')) {
+                AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
+            } else if (!AppData.posScreensCarts || typeof AppData.posScreensCarts !== 'object' || Array.isArray(AppData.posScreensCarts)) {
+                anasStartupIntegrityIssues.push('posScreensCarts');
+            }
             if (!AppData.activePosScreenTab) AppData.activePosScreenTab = 1;
             if (String(AppData.appName || '').trim().toLowerCase() === 'anas the') AppData.appName = 'Anas ERP';
             if (AppData.storeConfig && AppData.storeConfig.footer === 'شكراً لتعاملكم مع anas the! مرحبا بكم دائماً.') {
                 AppData.storeConfig.footer = 'شكراً لتعاملكم مع Anas ERP! مرحبا بكم دائماً.';
             }
+            if (anasStartupIntegrityIssues.length) {
+                setTimeout(() => alert('تحذير سلامة البيانات: توجد مجموعات محفوظة تالفة (' + anasStartupIntegrityIssues.join(', ') + '). لم تُستبدل البيانات. تم إيقاف الحفظ حتى إصلاحها أو استعادة نسخة احتياطية سليمة.'), 300);
+            }
         } catch (e) {
+            // Keep the original localStorage value untouched; never allow a later save to overwrite unreadable data.
             AppData = initialDB;
-            setTimeout(() => alert('تعذر قراءة البيانات المحفوظة القديمة. تم فتح التطبيق ببيانات البداية فقط؛ لا تمسح بيانات المتصفح أو تعاود الحفظ قبل استرجاع نسخة احتياطية.'), 300);
+            anasStartupFatalLoadError = true;
+            setTimeout(() => alert('تعذر قراءة البيانات المحفوظة. لم تُحذف النسخة الأصلية ولم يُسمح بالحفظ فوقها. أصلح JSON أو صدّر/استعد نسخة سليمة قبل المتابعة.'), 300);
         }
-        let posCart = AppData.posScreensCarts[AppData.activePosScreenTab] || [];
+        let posCart = AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) && Array.isArray(AppData.posScreensCarts[AppData.activePosScreenTab]) ? AppData.posScreensCarts[AppData.activePosScreenTab] : [];
         let activeAiTab = 'all';
 
         
@@ -2513,6 +2528,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         function saveDB() {
+            if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length) {
+                alert('الحفظ موقوف لحماية البيانات الأصلية. أصلح البيانات التالفة أو استعد نسخة احتياطية سليمة قبل إجراء أي تغييرات.');
+                return false;
+            }
             // نجاح الحفظ يعني نجاح الكتابة إلى التخزين الدائم فقط؛ أخطاء تحديث الواجهة لا تُحوّل حفظًا ناجحًا إلى فشل وهمي.
             try {
                 AppData.posScreensCarts = AppData.posScreensCarts || {};
