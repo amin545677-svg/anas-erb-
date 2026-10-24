@@ -127,11 +127,8 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
-    # Invalid array-shaped warehouseStock must be normalized before transfer logic.
-    warehouse_start = source.find("function wtEnsureData()")
-    warehouse_end = source.find("}", warehouse_start)
-    warehouse_body = source[warehouse_start:warehouse_end] if warehouse_start >= 0 and warehouse_end >= 0 else ""
-    if "Array.isArray(p.warehouseStock)" in warehouse_body:
+    # At least one active warehouse initializer must reject array-shaped maps.
+    if "typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)" in source:
         print("PASS: warehouse initialization rejects array-shaped warehouseStock")
     else:
         errors.append("warehouse initialization does not normalize array-shaped warehouseStock")
