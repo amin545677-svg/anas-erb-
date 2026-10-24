@@ -4249,6 +4249,7 @@ function renderPurchasesTable() {
                     const p = AppData.products.find(x => String(x.id) === id);
                     snapshot.stocks.set(id, {
                         stock: p.stock,
+                        hadStock: Object.prototype.hasOwnProperty.call(p, 'stock'),
                         hadWarehouseStock: Object.prototype.hasOwnProperty.call(p, 'warehouseStock'),
                         warehouseStock: p.warehouseStock && typeof p.warehouseStock === 'object' ? {...p.warehouseStock} : null
                     });
@@ -4296,7 +4297,8 @@ function renderPurchasesTable() {
                 for (const [id, state] of snapshot.stocks) {
                     const p = AppData.products.find(x => String(x.id) === id);
                     if (p) {
-                        p.stock = state.stock;
+                        if (state.hadStock) p.stock = state.stock;
+                        else delete p.stock;
                         if (state.hadWarehouseStock) p.warehouseStock = state.warehouseStock || {};
                         else delete p.warehouseStock;
                     }
