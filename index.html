@@ -4195,7 +4195,7 @@ function renderPurchasesTable() {
         function wtEnsureMobileWarehouse(name){
             const label=String(name||'').trim();if(!label)return null;
             if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
-            else if(!Array.isArray(AppData.warehouses)){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}
+            else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}
             let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===label);
             let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
             if(!wh)wh={id:'wh_mobile_'+label.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g,'_'),name:label,type:'mobile',status:'active'};
@@ -6812,7 +6812,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     const items=Array.isArray(trip.stockItems)?trip.stockItems:[];
     if(!items.length){trip.stockPostedAt=null;return true;}
     if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw new Error('سجل حركات المخزون تالف؛ أُوقفت عملية التحميل دون استبدال السجل.');
-    if(Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة؛ أُوقفت عملية التحميل دون استبدال البيانات.');
+    if(Object.prototype.hasOwnProperty.call(AppData,'warehouses')&&(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))))throw new Error('قائمة المخازن تالفة؛ أُوقفت عملية التحميل دون استبدال البيانات.');
     if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة؛ أُوقفت عملية التحميل.');
     const existingMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements:[];
     const priorTripMoves=existingMoves.filter(m=>String(m.referenceType||'')==='truck_trip'&&String(m.referenceId||'')===String(trip.id)&&['TRUCK_LOAD_OUT','TRUCK_LOAD_IN'].includes(String(m.type||'')));
