@@ -6833,7 +6833,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
     const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
     try{
-      if(!wtEnsureMobileWarehouse(warehouseName))throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');
+      if(wtEnsureMobileWarehouse(warehouseName)===null)throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');
       if(!Array.isArray(AppData.stockMovements))throw new Error('سجل حركات المخزون غير صالح؛ أُوقفت عملية التحميل.');
       for(const [id,qty] of required){
         const p=products.find(x=>String(x.id)===id);
@@ -6870,7 +6870,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(rawDate && Number.isNaN(new Date(rawDate).getTime())){alert('تاريخ ووقت الرحلة غير صالحين.');return;}
       const tripId='TR-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
       const initialStatus=$('truckStatus').value; if((initialStatus==='delivered'||initialStatus==='in_transit')&&truckDraftItems.length){alert('أنشئ الرحلة بحالة «مخططة» أولاً، ثم اعتمد «في الطريق» لتحويل البضاعة إلى مخزن الشاحنة مرة واحدة.');return;} const warehouseName='شاحنة '+plate; const trip={id:tripId,plate,driver,origin,destination,warehouseName,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
-      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));if(!wtEnsureMobileWarehouse(warehouseName)){alert('تعذر إنشاء الرحلة لأن قائمة المخازن غير صالحة. أصلح البيانات أو استعد نسخة سليمة أولاً.');return;}
+      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));if(wtEnsureMobileWarehouse(warehouseName)===null){alert('تعذر إنشاء الرحلة لأن قائمة المخازن غير صالحة. أصلح البيانات أو استعد نسخة سليمة أولاً.');return;}
       AppData.truckTrips.unshift(trip);
       let persisted=true;
       try { if(typeof saveDB==='function' && saveDB()===false) persisted=false; }
