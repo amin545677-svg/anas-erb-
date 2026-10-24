@@ -5388,6 +5388,8 @@ function renderPurchasesTable() {
                     }
                 }
             }
+            if (Object.prototype.hasOwnProperty.call(incoming,'posScreensCarts') && (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة في بيانات الخادم.');
+            if (incoming.posScreensCarts) for (const [key, cart] of Object.entries(incoming.posScreensCarts)) if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة في بيانات الخادم.');
             for (const inv of incoming.invoices) {
                 if (inv.total != null && (!Number.isFinite(Number(inv.total)) || Number(inv.total) < 0)) {
                     throw new Error('توجد فاتورة بقيمة غير صالحة في النسخة السحابية.');
@@ -5515,7 +5517,7 @@ function renderPurchasesTable() {
                     }
                 }
             }
-            if (incoming.posScreensCarts != null && (typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة.');
+            if (Object.prototype.hasOwnProperty.call(incoming,'posScreensCarts') && (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))) throw new Error('بيانات سلال نقاط البيع غير صالحة.');
             if (incoming.posScreensCarts) for (const [key, cart] of Object.entries(incoming.posScreensCarts)) if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة.');
             return incoming;
         }
