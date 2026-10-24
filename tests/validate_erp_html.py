@@ -52,21 +52,40 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # POS search IDs and cart images must remain safe with imported product data.
+    pos_safety_guards = [
+        "selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))",
+        "const safeCartImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';",
+        'src="${anasEscapeHTML(safeCartImage)}"',
+        "${anasEscapeHTML(item.unit || '')}",
+        "const qty = Number.isFinite(Number(item.qty)) ? Number(item.qty) : 0;",
+        "const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;",
+        "${sub.toFixed(2)}",
+    ]
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
 
-    # All user/restored-data fields in POS cart rows must be HTML-escaped.
-    pos_cart_raw = ["${item.price}", "${item.qty}", "${item.unit || ''}"]
-    pos_cart_safe = ["${anasEscapeHTML(item.price)}", "${anasEscapeHTML(item.qty)}", "${anasEscapeHTML(item.unit || '')}"]
-    for raw_value, safe_value, field in zip(pos_cart_raw, pos_cart_safe, ["price", "quantity", "unit"]):
-        if raw_value in source:
-            errors.append("POS cart " + field + " is interpolated without HTML escaping")
-        elif safe_value not in source:
-            errors.append("POS cart " + field + " escaping regression guard is missing")
-    if not any(error.startswith("POS cart ") for error in errors):
-        print("PASS: POS cart price, quantity, and unit are HTML-escaped")
+    for guard in pos_safety_guards:
+        if guard not in source:
+            errors.append("POS search/cart HTML safety guard is missing: " + guard)
+    if not any("POS search/cart HTML safety guard is missing:" in error for error in errors):
+        print("PASS: POS search ID and cart image HTML guards exist")
+
+    # Normalized POS cart price and quantity remain escaped at the HTML output boundary.
+    pos_cart_numeric_escape_guards = [
+        "${anasEscapeHTML(price)}",
+        "${anasEscapeHTML(qty)}",
+        "const qty = Number.isFinite(Number(item.qty)) ? Number(item.qty) : 0;",
+        "const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;",
+        "${anasEscapeHTML(item.unit || '')}",
+    ]
+    for guard in pos_cart_numeric_escape_guards:
+        if guard not in source:
+            errors.append("POS cart numeric normalization/escaping guard is missing: " + guard)
+    if not any("POS cart numeric normalization/escaping guard is missing:" in error for error in errors):
+        print("PASS: POS cart price, quantity, and unit are normalized/escaped safely")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
