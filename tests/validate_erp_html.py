@@ -193,7 +193,10 @@ if (!unreadable.fatal || unreadable.writeCalls !== 0)
 const legacy = boot(JSON.stringify({ appName: 'Anas ERP' }));
 if (!Array.isArray(legacy.products) || legacy.issues.length || legacy.fatal)
   throw new Error('absent legacy collections were not initialized safely');
-console.log('PASS: startup runtime smoke tests preserve corrupt data, fail safe on unreadable JSON, and initialize absent legacy collections');
+const corruptCartSlot = boot(JSON.stringify({ products: [], posScreensCarts: {1: 'corrupt-cart'}, activePosScreenTab: 1 }));
+if (!corruptCartSlot.issues.includes('posScreensCarts.1') || corruptCartSlot.cart.length !== 0)
+  throw new Error('malformed POS cart slot was not preserved and blocked for safe handling');
+console.log('PASS: startup runtime smoke tests preserve corrupt data, fail safe on unreadable JSON, initialize absent legacy collections, and detect malformed POS cart slots');
 """
         harness = harness.replace("__STARTUP__", json.dumps(startup_js))
         with tempfile.TemporaryDirectory(prefix="anas-startup-test-") as temp:
