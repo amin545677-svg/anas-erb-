@@ -132,7 +132,7 @@ def main():
     pos_end = source.find("\n        function ", pos_start + 1)
     pos_source = source[pos_start:pos_end if pos_end >= 0 else len(source)]
     pos_checks = {
-        "POS cart validates image URLs before using them in img src": "const imageSrc = safeImage(item.image);" in pos_source and "data:image/(?:png|jpeg|jpg|gif|webp);base64," in pos_source,
+        "POS cart validates image URLs before using them in img src": "const imageSrc = safeImage(item.image);" in pos_source and "return /^(https:" in pos_source and ";base64,)/i.test(src)" in pos_source,
         "POS cart escapes item unit labels": "anasEscapeHTML(item.unit || '')" in pos_source,
         "POS cart no longer interpolates raw image data": ('src="' + "$" + "{item.image}" + '"') not in pos_source,
     }
