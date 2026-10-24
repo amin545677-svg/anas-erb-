@@ -3091,6 +3091,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
         function confirmHasibPayment() {
+            if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
             const total = cart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
             if (!cart.length || !Number.isFinite(total) || total <= 0) {
@@ -3136,7 +3137,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (remaining > 0 && !selectedCustomer) { alert('الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.'); return; }
             const cust = selectedCustomer || { name: 'عميل نقدي عابر', debt: 0 };
             const registeredCustomer = Boolean(selectedCustomer);
-            const oldDebt = Number(cust.debt) || 0;
+            const hasDebtField = Object.prototype.hasOwnProperty.call(cust,'debt');
+            const rawDebt = cust.debt;
+            if (registeredCustomer && hasDebtField && !((typeof rawDebt === 'number' || typeof rawDebt === 'string') && String(rawDebt).trim() !== '' && Number.isFinite(Number(rawDebt)) && Number(rawDebt) >= 0)) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل غير صالح. صحّح سجل العميل قبل تسجيل أي حركة مالية.');
+                return;
+            }
+            const oldDebt = hasDebtField ? Number(rawDebt) : 0;
 
             // نسخة تراجع دقيقة للحقول التي ستتغير، قبل لمس الحسابات والمخزون.
             const oldStocks = new Map();
