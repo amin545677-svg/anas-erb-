@@ -703,7 +703,7 @@ jobs:
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{throw new Error('simulated render failure');},renderInventoryList:()=>{},wtAvailableStock:(p,w)=>w==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[w]??0),console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I4");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I4");',ctx);
             assert.equal(saves,1,'persistence should run once');
             assert.equal(product.stock,4,'successful save must retain stock change despite UI failure');
             assert.equal(invoice.items[0].qty,3,'successful save must retain invoice edit despite UI failure');
