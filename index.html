@@ -4208,7 +4208,17 @@ function renderPurchasesTable() {
                 return;
             }
             if (!confirm('سيتم تحديث أصناف الفاتورة وإعادة تسوية المخزون والحسابات. هل تريد المتابعة؟')) return;
-            const snapshot = {items: inv.items, total: inv.total, paid: inv.paid, remaining: inv.remaining, method: inv.paymentMethod, stocks: new Map(), caisse: AppData.caisseBalance, debt: customer ? customer.debt : undefined, hadStockMovements: Array.isArray(AppData.stockMovements), stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null};
+            const invoiceFields = ['items','total','paid','remaining','paymentMethod','editedAt'];
+            const snapshot = {
+                invoiceFields: Object.fromEntries(invoiceFields.map(key => [key, {hadOwn: Object.prototype.hasOwnProperty.call(inv, key), value: inv[key]}])),
+                stocks: new Map(),
+                hadCaisseBalance: Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance'),
+                caisse: AppData.caisseBalance,
+                hadCustomerDebt: !!customer && Object.prototype.hasOwnProperty.call(customer, 'debt'),
+                debt: customer ? customer.debt : undefined,
+                hadStockMovements: Array.isArray(AppData.stockMovements),
+                stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null
+            };
             try {
                 for (const [id, delta] of stockChanges) {
                     const p = AppData.products.find(x => String(x.id) === id);
@@ -4248,7 +4258,10 @@ function renderPurchasesTable() {
                 if (typeof renderInventoryList === 'function') renderInventoryList();
                 alert('تم تعديل الفاتورة وتسوية المخزون والحسابات بنجاح.');
             } catch (e) {
-                inv.items = snapshot.items; inv.total = snapshot.total; inv.paid = snapshot.paid; inv.remaining = snapshot.remaining; inv.paymentMethod = snapshot.method;
+                for (const [key, state] of Object.entries(snapshot.invoiceFields)) {
+                    if (state.hadOwn) inv[key] = state.value;
+                    else delete inv[key];
+                }
                 for (const [id, state] of snapshot.stocks) {
                     const p = AppData.products.find(x => String(x.id) === id);
                     if (p) {
@@ -4257,8 +4270,12 @@ function renderPurchasesTable() {
                         else delete p.warehouseStock;
                     }
                 }
-                AppData.caisseBalance = snapshot.caisse;
-                if (customer) customer.debt = snapshot.debt;
+                if (snapshot.hadCaisseBalance) AppData.caisseBalance = snapshot.caisse;
+                else delete AppData.caisseBalance;
+                if (customer) {
+                    if (snapshot.hadCustomerDebt) customer.debt = snapshot.debt;
+                    else delete customer.debt;
+                }
                 if (snapshot.hadStockMovements) AppData.stockMovements = snapshot.stockMovements || [];
                 else delete AppData.stockMovements;
                 alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة بما فيها سجل حركات المخزون. تحقق من مساحة التخزين ثم أعد المحاولة.');

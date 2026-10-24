@@ -601,6 +601,69 @@ jobs:
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
+      - name: Exercise invoice edit rollback metadata with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function editSalesInvoice(invoiceId) {")
+          end = s.find("// ================= إدارة المخزون وحساب الأرباح =================", start)
+          assert start >= 0 and end > start, "Could not isolate invoice edit function"
+          function_js = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const functionSource = /*INSERT_INVOICE_EDIT_FUNCTION*/;
+          function runCase(withLegacyFields) {
+            const customer = withLegacyFields ? {id:'c1',name:'Customer',debt:20} : {id:'c1',name:'Customer'};
+            const invoice = {id:'I1',items:[{id:'p1',name:'Product',qty:2,price:10}],customerObj:customer,customer:'Customer'};
+            if (withLegacyFields) Object.assign(invoice,{total:20,paid:0,remaining:20,paymentMethod:'credit',editedAt:'before-edit'});
+            const product = {id:'p1',name:'Product',stock:5,warehouseStock:{}};
+            const movements = [{id:'prior-movement'}];
+            const data = {invoices:[invoice],products:[product],customers:[customer],stockMovements:movements};
+            const answers = ['3','10'];
+            const alerts = [];
+            const ctx = {
+              AppData:data,
+              prompt:()=>answers.shift(),
+              confirm:()=>true,
+              alert:(m)=>alerts.push(String(m)),
+              saveDB:()=>false,
+              renderInvoicesList:()=>{},
+              renderInventoryList:()=>{},
+              wtAvailableStock:(p,warehouse)=>warehouse==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[warehouse]??0),
+              console, Number, String, Object, Array, Map, Math, Date
+            };
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I1");', ctx);
+            assert.equal(product.stock,5,'stock balance must roll back after failed persistence');
+            assert.deepEqual(data.stockMovements,[{id:'prior-movement'}],'ledger must roll back after failed persistence');
+            assert.equal(invoice.items[0].qty,2,'invoice lines must roll back');
+            if (withLegacyFields) {
+              assert.equal(invoice.total,20);
+              assert.equal(invoice.paid,0);
+              assert.equal(invoice.remaining,20);
+              assert.equal(invoice.paymentMethod,'credit');
+              assert.equal(invoice.editedAt,'before-edit','existing audit metadata must be restored');
+              assert.equal(customer.debt,20);
+            } else {
+              for (const key of ['total','paid','remaining','paymentMethod','editedAt']) {
+                assert.equal(Object.hasOwn(invoice,key),false,'rollback must not create absent legacy invoice field '+key);
+              }
+              assert.equal(Object.hasOwn(customer,'debt'),false,'rollback must not create an absent legacy debt field');
+              assert.equal(Object.hasOwn(data,'caisseBalance'),false,'rollback must preserve absent cash balance field');
+            }
+            assert.ok(alerts.some(x=>x.includes('لم يتم حفظ التعديل')),'save failure should be reported');
+          }
+          runCase(false);
+          runCase(true);
+          console.log('Invoice edit rollback tests passed: legacy absent fields and existing invoice/customer audit metadata are restored exactly');
+          """
+          js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
+          Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-invoice-edit-rollback-test.js
+          node /tmp/anas-invoice-edit-rollback-test.js
       - name: Exercise truck trip status transition guards
         run: |
           python - <<'PY'
