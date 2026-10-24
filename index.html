@@ -3257,11 +3257,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <tbody>${rows}</tbody>
                 </table>
                 <div style="border-top:2px dashed #000; padding-top:7px; font-size:12px; line-height:1.7;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الإجمالي:</span><span>${inv.total} د.ج</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المدفوع:</span><span>${inv.paid} د.ج</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المتبقي:</span><span>${inv.remaining} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الإجمالي:</span><span>${Number(inv.total)||0} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span>المدفوع:</span><span>${Number(inv.paid)||0} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span>المتبقي:</span><span>${Number(inv.remaining)||0} د.ج</span></div>
                     <hr style="border:0; border-top:1px dashed #000; margin:3px 0;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>دين العميل الكلي:</span><span>${inv.newDebt} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>دين العميل الكلي:</span><span>${Number(inv.newDebt)||0} د.ج</span></div>
                 </div>
                 <div style="text-align:center; margin-top:8px; font-size:10px;">${anasEscapeHTML(sc.footer)}</div>
             `;
@@ -3285,8 +3285,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                         <td style="padding:8px; text-align:center;">${index + 1}</td>
                         <td style="padding:8px; text-align:right; font-weight:bold;">${anasEscapeHTML(it.name)}</td>
                         <td style="padding:8px; text-align:center;">${anasEscapeHTML(it.unit || 'قطعة')}</td>
-                        <td style="padding:8px; text-align:center;">${it.qty}</td>
-                        <td style="padding:8px; text-align:left;">${it.price.toFixed(2)}</td>
+                        <td style="padding:8px; text-align:center;">${Number(it.qty)||0}</td>
+                        <td style="padding:8px; text-align:left;">${(Number(it.price)||0).toFixed(2)}</td>
                         <td style="padding:8px; text-align:left; font-weight:bold;">${sub.toFixed(2)}</td>
                     </tr>
                 `;
@@ -3344,17 +3344,17 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:stretch; margin:14px 0;">
                         <div style="flex:1 1 280px; box-sizing:border-box; font-size:12px; padding:12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px;">
                             <p style="margin:0 0 4px; font-weight:bold;">المبلغ الإجمالي بالحروف:</p>
-                            <p style="margin:0; font-style:italic; color:#1e3a8a;">أوقفت هذه الفاتورة عند المبلغ الإجمالي الصافي: <strong>${inv.total.toFixed(2)} دينار جزائري</strong> لا غير.</p>
+                            <p style="margin:0; font-style:italic; color:#1e3a8a;">أوقفت هذه الفاتورة عند المبلغ الإجمالي الصافي: <strong>${(Number(inv.total)||0).toFixed(2)} دينار جزائري</strong> لا غير.</p>
                         </div>
 
                         <div style="flex:1 1 220px; box-sizing:border-box; font-size:13px; line-height:1.9;">
                             <div style="display:flex; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding:2px 0;">
                                 <span>المجموع الإجمالي:</span>
-                                <strong>${inv.total.toFixed(2)} د.ج</strong>
+                                <strong>${(Number(inv.total)||0).toFixed(2)} د.ج</strong>
                             </div>
                             <div style="display:flex; justify-content:space-between; background:#dbeafe; padding:6px 8px; border-radius:6px; font-weight:900; color:#1e3a8a; margin-top:4px;">
                                 <span>الصافي للدفع (TTC):</span>
-                                <span>${inv.total.toFixed(2)} د.ج</span>
+                                <span>${(Number(inv.total)||0).toFixed(2)} د.ج</span>
                             </div>
                         </div>
                     </div>
@@ -5077,13 +5077,13 @@ function renderPurchasesTable() {
             const esc = value => anasEscapeHTML(String(value ?? ''));
             AppData.products.forEach(p => {
                 if(p.stock <= (p.minAlert || 5)) {
-                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${esc(p.name)}] متبقي منها ${p.stock} فقط.`);
+                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${esc(p.name)}] متبقي منها ${Number(p.stock)||0} فقط.`);
                 }
             });
             AppData.customers.forEach(c => {
                 const days = getDebtAgeDays(c.debtDate);
                 if(c.debt > 0 && days > 30) {
-                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${esc(c.name)}] عليه ${c.debt} د.ج منذ ${days} يوم.`);
+                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${esc(c.name)}] عليه ${Number(c.debt)||0} د.ج منذ ${days} يوم.`);
                 }
             });
 
