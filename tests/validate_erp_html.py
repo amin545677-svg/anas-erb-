@@ -126,6 +126,12 @@ def main():
     else:
         print("PASS: POS rollback preserves malformed maps and transfers reject them from either direction")
 
+    warehouse_names_guard = "if(p.warehouseStock&&typeof p.warehouseStock==='object'&&!Array.isArray(p.warehouseStock))Object.keys(p.warehouseStock)"
+    if warehouse_names_guard not in source:
+        errors.append("warehouse selector must ignore array-shaped warehouseStock maps")
+    else:
+        print("PASS: warehouse selector ignores malformed array-shaped maps")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
