@@ -4208,8 +4208,25 @@ function renderPurchasesTable() {
             }
             const newPaid = oldPaid;
             const newRemaining = Math.max(0, newTotal - newPaid);
-            const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && (oldRemaining > 0 || newRemaining > 0)));
-            if (Math.abs(newRemaining - oldRemaining) > 0.000001 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بتسوية الدين. لم يتم تعديل الفاتورة أو المخزون حتى لا يبقى رصيد الدين غير متطابق.'); return; }
+            const customerRecords = Array.isArray(AppData.customers) ? AppData.customers.filter(c => c && typeof c === 'object' && !Array.isArray(c)) : [];
+            let customer = null;
+            let customerResolutionAmbiguous = false;
+            if (inv.customerObj && typeof inv.customerObj === 'object' && !Array.isArray(inv.customerObj)) {
+                const identityMatches = customerRecords.filter(c => c === inv.customerObj);
+                if (identityMatches.length === 1) customer = identityMatches[0];
+                else if (inv.customerObj.id !== undefined && inv.customerObj.id !== null && String(inv.customerObj.id).trim() !== '') {
+                    const idMatches = customerRecords.filter(c => c.id !== undefined && c.id !== null && String(c.id) === String(inv.customerObj.id));
+                    if (idMatches.length === 1) customer = idMatches[0];
+                    else if (idMatches.length > 1) customerResolutionAmbiguous = true;
+                }
+            }
+            if (!customer && !customerResolutionAmbiguous && (oldRemaining > 0 || newRemaining > 0) && String(inv.customer || '').trim()) {
+                const nameMatches = customerRecords.filter(c => String(c.name || '').trim() === String(inv.customer).trim());
+                if (nameMatches.length === 1) customer = nameMatches[0];
+                else if (nameMatches.length > 1) customerResolutionAmbiguous = true;
+            }
+            const debtChanges = Math.abs(newRemaining - oldRemaining) > 0.000001;
+            if (debtChanges && (!customer || customerResolutionAmbiguous)) { alert(customerResolutionAmbiguous ? 'تعذر تحديد حساب العميل بدقة: يوجد أكثر من عميل محتمل بالاسم أو المعرّف نفسه. صحّح سجل العملاء قبل تعديل الفاتورة.' : 'تعذر تحديد حساب العميل المرتبط بتسوية الدين. لم يتم تعديل الفاتورة أو المخزون حتى لا يبقى رصيد الدين غير متطابق.'); return; }
             if (customer && Object.prototype.hasOwnProperty.call(customer, 'debt') &&
                 !((typeof customer.debt === 'number' || typeof customer.debt === 'string') &&
                   String(customer.debt).trim() !== '' && Number.isFinite(Number(customer.debt)) && Number(customer.debt) >= 0)) {
