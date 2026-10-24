@@ -5446,17 +5446,17 @@ function renderPurchasesTable() {
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
             for (const key of ['invoices','purchases','expenses','users','trucks','returns','warehouses','warehouseTransfers','stockMovements']) {
-                if (incoming[key] != null && (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x))))
+                if (Object.prototype.hasOwnProperty.call(incoming,key) && (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x))))
                     throw new Error('قائمة ' + key + ' غير صالحة.');
             }
             for (const p of incoming.products) {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ رُفض الملف لحماية المخزون.');
-                if (p.stock != null && !((typeof p.stock === 'number' || typeof p.stock === 'string') && String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
-                if (p.warehouseStock != null) {
-                    if (typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))
+                if (Object.prototype.hasOwnProperty.call(p,'stock') && !((typeof p.stock === 'number' || typeof p.stock === 'string') && String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
+                if (Object.prototype.hasOwnProperty.call(p,'warehouseStock')) {
+                    if (!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))
                         throw new Error('بيانات أرصدة المخازن الفرعية غير صالحة للمنتج ' + String(p.id) + '.');
                     for (const [warehouse, balance] of Object.entries(p.warehouseStock)) {
-                        if (!((typeof balance === 'number' || typeof balance === 'string') && String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0))
+                        if (!warehouse.trim() || !((typeof balance === 'number' || typeof balance === 'string') && String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0))
                             throw new Error('يوجد رصيد مخزن فرعي سالب أو غير رقمي للمنتج ' + String(p.id) + ' في ' + warehouse + '.');
                     }
                 }
