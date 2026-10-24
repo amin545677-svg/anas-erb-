@@ -60,12 +60,12 @@ def main():
     # Customer data and imported product images must be safe at HTML output boundaries.
     safety_guards = [
         "anasEscapeHTML(c.phone || '-')",
-        "(Number.isFinite(Number(c.debt)) ? Number(c.debt) : 0).toFixed(2)",
+        "(Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')",
         "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
         'src="${anasEscapeHTML(safeStoredImage)}"',
-        "${Number(i.remaining)||0}",
-        "${Number(i.total)||0}",
-        "${Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0}",
+        "${Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
+        "${Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}",
+        "${Number.isFinite(Number(p.stock)) ? Number(p.stock) : 'غير صالح'}",
         "${esc(p.id??'—')}",
     ]
     for guard in safety_guards:
