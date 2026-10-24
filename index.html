@@ -4194,7 +4194,8 @@ function renderPurchasesTable() {
         }
         function wtEnsureMobileWarehouse(name){
             const label=String(name||'').trim();if(!label)return null;
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses)){alert('قائمة المخازن تالفة؛ أُوقفت عملية الشاحنة دون استبدال البيانات.');return null;}
             let idx=AppData.warehouses.findIndex(w=>String(typeof w==='string'?w:(w&&w.name)||'').trim()===label);
             let wh=idx>=0&&typeof AppData.warehouses[idx]==='object'?AppData.warehouses[idx]:null;
             if(!wh)wh={id:'wh_mobile_'+label.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g,'_'),name:label,type:'mobile',status:'active'};
@@ -4213,8 +4214,10 @@ function renderPurchasesTable() {
             // Initialize only genuinely absent collections; never overwrite malformed persisted history silently.
             if(AppData.warehouseTransfers==null)AppData.warehouseTransfers=[];
             else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل؛ استعد نسخة احتياطية سليمة أو أصلح البيانات أولاً.');
-            if(AppData.warehouses==null)AppData.warehouses=[];
+            if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
             else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
+            if(!Object.prototype.hasOwnProperty.call(AppData,'stockMovements'))AppData.stockMovements=[];
+            else if(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل حركات المخزون تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل.');
             if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة. أُوقفت عملية المخزون دون تعديل البيانات.');
             AppData.products.forEach(p=>{
                 if(!p||typeof p!=='object')throw new Error('سجل منتج غير صالح. أُوقفت العملية دون تعديل البيانات.');
@@ -6830,8 +6833,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     const oldMoves=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
     const oldWarehouses=JSON.parse(JSON.stringify(AppData.warehouses||[]));
     try{
-      wtEnsureMobileWarehouse(warehouseName);
-      if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
+      if(!wtEnsureMobileWarehouse(warehouseName))throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');
+      if(!Array.isArray(AppData.stockMovements))throw new Error('سجل حركات المخزون غير صالح؛ أُوقفت عملية التحميل.');
       for(const [id,qty] of required){
         const p=products.find(x=>String(x.id)===id);
         p.stock=(Number(p.stock)||0)-qty;
@@ -6867,7 +6870,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(rawDate && Number.isNaN(new Date(rawDate).getTime())){alert('تاريخ ووقت الرحلة غير صالحين.');return;}
       const tripId='TR-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
       const initialStatus=$('truckStatus').value; if((initialStatus==='delivered'||initialStatus==='in_transit')&&truckDraftItems.length){alert('أنشئ الرحلة بحالة «مخططة» أولاً، ثم اعتمد «في الطريق» لتحويل البضاعة إلى مخزن الشاحنة مرة واحدة.');return;} const warehouseName='شاحنة '+plate; const trip={id:tripId,plate,driver,origin,destination,warehouseName,cargo:($('truckCargo').value||'').trim(),weight,cost,stockItems:truckDraftItems.map(x=>({...x})),status:initialStatus,date:rawDate||new Date().toISOString().slice(0,16),notes:($('truckNotes').value||'').trim(),createdAt:new Date().toISOString()};
-      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));wtEnsureMobileWarehouse(warehouseName);
+      const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));if(!wtEnsureMobileWarehouse(warehouseName)){alert('تعذر إنشاء الرحلة لأن قائمة المخازن غير صالحة. أصلح البيانات أو استعد نسخة سليمة أولاً.');return;}
       AppData.truckTrips.unshift(trip);
       let persisted=true;
       try { if(typeof saveDB==='function' && saveDB()===false) persisted=false; }
