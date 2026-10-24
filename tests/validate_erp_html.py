@@ -436,10 +436,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # Backup and cloud restore must not silently replace populated local history with empty lists.
     backup_start = source.find("function anasValidateBackupData(incoming)")
-    backup_end = source.find("\\n        function importDataBackup(e)", backup_start)
+    backup_end = source.find("\n        function importDataBackup(e)", backup_start)
     backup_validator = source[backup_start:backup_end] if backup_start >= 0 and backup_end > backup_start else ""
     restore_start = source.find("async function syncPullNow()")
-    restore_end = source.find("\\n        function exportDataBackup()", restore_start)
+    restore_end = source.find("\n        function exportDataBackup()", restore_start)
     cloud_restore = source[restore_start:restore_end] if restore_start >= 0 and restore_end > restore_start else ""
     backup_guards = [
         "Array.isArray(AppData[key]) && AppData[key].length",
