@@ -329,6 +329,7 @@ jobs:
           js = helper + """
           const assert = require('node:assert/strict');
           assert.equal(anasNormalizeBarcode('ABC 123'), anasNormalizeBarcode('abc123'), 'case and ordinary spaces must not bypass uniqueness');
+          assert.equal(anasNormalizeBarcode('ＡＢＣ１２３'), anasNormalizeBarcode('abc123'), 'full-width barcode characters must normalize consistently');
           assert.equal(anasNormalizeBarcode('١٢٣٤٥'), anasNormalizeBarcode('12345'), 'Arabic-Indic digits must normalize to Western digits');
           assert.equal(anasNormalizeBarcode('۱۲۳۴۵'), anasNormalizeBarcode('12345'), 'Persian digits must normalize to Western digits');
           assert.equal(anasNormalizeBarcode('AB\\u200BCD'), anasNormalizeBarcode('abcd'), 'zero-width characters must not bypass uniqueness');
