@@ -38,3 +38,17 @@
 
 ## حالة العمل
 هذه الوثيقة تسجل نتائج مقارنة أولية وخطة منع فقد الوظائف. لا تحتوي على تعديل للتطبيق ولا تعني أن مشكلة اختلاف الإصدار قد أُغلقت.
+
+## نتائج إعادة الفحص المحلي للمرشح المصحح
+- تم فحص الملف المحلي `ANAS_ERP_V54_25_RELEASE_CANDIDATE/index.html` بعد تصحيح العنوان ومرجع manifest.
+- العنوان: `ANAS ERP V54.25 - Release Candidate`.
+- الحجم: 569,723 بايت؛ SHA-256: `926da94cb26a650c68d10dabe9fc2dffdb2244920b41c6f0c7dd0088c9597056`.
+- 12 كتلة JavaScript مضمنة: صفر أخطاء `node --check`.
+- 267 معرّف HTML: لا توجد معرّفات مكررة.
+- يشير HTML إلى `manifest.webmanifest` ولا يشير إلى `manifest.json`؛ وتوجد الملفات `manifest.webmanifest` و`sw.js` و`icons/icon.svg` في حزمة المرشح المصحح.
+- هذه فحوص ثابتة محلية فقط. لم يتم تشغيل المتصفح الفعلي، أو اختبار جميع الوظائف، أو اختبار HTTPS/Google/Firebase/Workers، أو نشر هذا المرشح.
+
+## سجل العمل المرتبط
+- سجل التسليم المحدث: https://github.com/amin545677-svg/anas-erb-/blob/audit/anas-erp-v54-25-handover/ANAS_ERP_V54_25_HANDOVER_AR.md
+- اختبارات AI Worker في PR #15: https://github.com/amin545677-svg/anas-erb-/pull/15 (لا تُعد ناجحة حتى تظهر نتائج CI الفعلية).
+- هذا PR #16 توثيقي فقط؛ لا يغير التطبيق ولا يغلق مشكلة توحيد النسخ.
