@@ -459,6 +459,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         errors.append("cloud restore must require a successful local backup and block loss of omitted history")
     else:
         print("PASS: cloud restore requires a local backup and preserves omitted local history")
+    file_restore_start = source.find("function importDataBackup(e)")
+    file_restore_end = source.find("// ================= مركز الإكسل", file_restore_start)
+    file_restore = source[file_restore_start:file_restore_end] if file_restore_start >= 0 and file_restore_end > file_restore_start else ""
     repair_guards = [
         "const previousStartupIssues = anasStartupIntegrityIssues.slice()",
         "const previousFatalLoadError = anasStartupFatalLoadError",
@@ -467,11 +470,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "anasStartupIntegrityIssues = previousStartupIssues",
         "anasStartupFatalLoadError = previousFatalLoadError",
     ]
-    if not backup_validator or any(guard not in backup_validator for guard in repair_guards):
+    if not file_restore or any(guard not in file_restore for guard in repair_guards):
         errors.append("file restore must clear startup fail-safe only for a validated save and restore guards on failure")
     if not cloud_restore or any(guard not in cloud_restore for guard in repair_guards):
         errors.append("cloud restore must clear startup fail-safe only for a validated save and restore guards on failure")
-    if backup_validator and cloud_restore and all(guard in backup_validator for guard in repair_guards) and all(guard in cloud_restore for guard in repair_guards):
+    if file_restore and cloud_restore and all(guard in file_restore for guard in repair_guards) and all(guard in cloud_restore for guard in repair_guards):
         print("PASS: validated restore can repair corrupt startup state and restores fail-safe guards if persistence fails")
 
     if "serviceWorker.register" not in source:
