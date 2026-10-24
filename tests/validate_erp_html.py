@@ -445,6 +445,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Array.isArray(AppData[key]) && AppData[key].length",
         "النسخة تفتقد قائمة المخازن الموجودة حاليًا",
         "warehouseTransfers", "stockMovements", "purchaseInvoices", "truckTrips",
+        "Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')",
+        "النسخة تفتقد سلال نقاط البيع التي تحتوي على أصناف",
     ]
     if not backup_validator or any(guard not in backup_validator for guard in backup_guards):
         errors.append("file restore must reject missing history collections when local records exist")
@@ -454,6 +456,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Array.isArray(AppData[key]) && AppData[key].length",
         "النسخة السحابية تفتقد قائمة المخازن المحلية",
         "purchaseInvoices", "truckTrips",
+        "Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')",
+        "النسخة السحابية تفتقد سلال نقاط البيع التي تحتوي على أصناف",
     ]
     if not cloud_restore or "if (!exportDataBackup())" not in cloud_restore or not sync_validator or any(guard not in sync_validator for guard in sync_guards):
         errors.append("cloud restore must require a successful local backup and block loss of omitted history")
