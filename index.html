@@ -4208,8 +4208,8 @@ function renderPurchasesTable() {
             }
             const newPaid = oldPaid;
             const newRemaining = Math.max(0, newTotal - newPaid);
-            const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && oldRemaining > 0));
-            if (newRemaining > 0 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بالدين. لم يتم تعديل الفاتورة لحماية الحسابات.'); return; }
+            const customer = (AppData.customers || []).find(c => c === inv.customerObj || (inv.customerObj && String(c.id) === String(inv.customerObj.id)) || (String(c.name) === String(inv.customer) && (oldRemaining > 0 || newRemaining > 0)));
+            if (Math.abs(newRemaining - oldRemaining) > 0.000001 && !customer) { alert('تعذر تحديد حساب العميل المرتبط بتسوية الدين. لم يتم تعديل الفاتورة أو المخزون حتى لا يبقى رصيد الدين غير متطابق.'); return; }
             if (customer && Object.prototype.hasOwnProperty.call(customer, 'debt') &&
                 !((typeof customer.debt === 'number' || typeof customer.debt === 'string') &&
                   String(customer.debt).trim() !== '' && Number.isFinite(Number(customer.debt)) && Number(customer.debt) >= 0)) {
