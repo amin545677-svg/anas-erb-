@@ -3175,6 +3175,23 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             const paid = rawPaid;
             const remaining = Math.max(0, total - paid);
+            // Reject malformed financial collections/balances before any stock, debt, or cash mutation.
+            if (Object.prototype.hasOwnProperty.call(AppData, 'customers') &&
+                (!Array.isArray(AppData.customers) || AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c)))) {
+                alert('تعذر تأكيد البيع: سجل العملاء تالف. لم يتم تغيير المخزون أو الحسابات.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'invoices') &&
+                (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
+                alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
+                 String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)) || Number(AppData.caisseBalance) < 0)) {
+                alert('تعذر تأكيد البيع: رصيد الصندوق غير صالح. لم يتم تسجيل أي حركة مالية أو مخزنية.');
+                return;
+            }
             const customers = Array.isArray(AppData.customers) ? AppData.customers : (AppData.customers = []);
             if (remaining > 0 && !cId) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
             const selectedCustomer = cId ? customers.find(c => String(c.id) === cId) : null;
