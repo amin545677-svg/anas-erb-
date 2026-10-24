@@ -136,7 +136,7 @@ def main():
     else:
         errors.append("POS sale path does not normalize array-shaped warehouseStock")
     trip_settlement_start = source.find("const settlementId='TR-SETTLE-'")
-    trip_settlement_end = source.find("\\n    function ", trip_settlement_start + 1)
+    trip_settlement_end = source.find("if(line.returned>0)", trip_settlement_start)
     trip_settlement_body = source[trip_settlement_start:trip_settlement_end] if trip_settlement_start >= 0 and trip_settlement_end >= 0 else ""
     if "Array.isArray(p.warehouseStock)" in trip_settlement_body:
         print("PASS: truck settlement normalizes malformed warehouse stock maps")
