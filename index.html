@@ -4397,12 +4397,13 @@ function renderPurchasesTable() {
             const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:{};
             const transfersBefore=AppData.warehouseTransfers.slice();
             const movementsBefore=AppData.stockMovements.slice();
+            let doc;
             try{
                 // المنتجات القديمة قد لا تحتوي warehouseStock؛ أنشئ الخريطة قبل أي حركة فرعية.
                 if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
                 if(from==='المخزن الرئيسي')p.stock=available-qty;else p.warehouseStock[from]=available-qty;
                 if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
-                const seq=Date.now();const doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
+                const seq=Date.now();doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
                 AppData.warehouseTransfers.unshift(doc);
                 // Keep the general stock ledger in sync with the transfer document: one source and one destination leg.
                 AppData.stockMovements.unshift(
