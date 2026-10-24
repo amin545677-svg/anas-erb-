@@ -5841,7 +5841,7 @@ function renderPurchasesTable() {
                 if(!compatible){validation.textContent='❌ عناوين الملف لا تبدو مطابقة لقسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'. استخدم القالب الخاص بالقسم ولا تتابع بملف مختلف.';return;}
                 const num=(v,field,rowNo)=>anasParseImportNumber(v,field,rowNo);
                 const val=(r,k)=>indexes[k]>=0?String(r[indexes[k]]??'').trim():'';
-                const staged=[], errors=[], seen=new Set();
+                const staged=[], errors=[], seenNames=new Set(), seenIds=new Set();
                 const existing=target==='products'?(AppData.products||[]):target==='customers'?(AppData.customers||[]):(AppData.suppliers||[]);
                 const existingNames=new Set(existing.map(x=>norm(x.name)));
                 const existingCodes=new Set(existing.map(x=>norm(x.id)));
@@ -5854,9 +5854,10 @@ function renderPurchasesTable() {
                         if(name.length>180) throw new Error('الاسم أطول من الحد المسموح');
                         const id=val(r,'id');
                         const keyName=norm(name);
-                        if(seen.has(keyName)) throw new Error('اسم مكرر داخل الملف');
+                        if(seenNames.has(keyName)) throw new Error('اسم مكرر داخل الملف');
                         if(existingNames.has(keyName)) throw new Error('الاسم موجود مسبقًا في النظام؛ لم يتم دمجه تلقائيًا');
-                        if(id && (existingCodes.has(norm(id)) || seen.has('id:'+norm(id)))) throw new Error('رقم/كود مكرر');
+                        const recordId=id||(target==='products'?'P-IMP-':'')+(Date.now())+'-'+ix;
+                        if(existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل موجود مسبقًا أو مكرر داخل الملف');
                         const rec={};
                         if(target==='products'){
                             const buy=num(val(r,'buy'),'سعر الشراء',rowNo), price1=num(val(r,'price1'),'سعر البيع',rowNo), stock=num(val(r,'stock'),'المخزون',rowNo), pack=num(val(r,'pack')||'1','العبوة',rowNo);
@@ -5866,17 +5867,17 @@ function renderPurchasesTable() {
                             const barcode=val(r,'barcode');
                             if(barcode && (AppData.products||[]).some(p=>norm(p.barcode)===norm(barcode))) throw new Error('الباركود موجود مسبقًا');
                             if(barcode && staged.some(p=>norm(p.barcode)===norm(barcode))) throw new Error('باركود مكرر داخل الملف');
-                            Object.assign(rec,{id:id||('P-IMP-'+Date.now()+'-'+ix),name,unit:val(r,'unit')||'قطعة',pack,buyPrice:buy,price1,price2,price3,stock,barcode,cat:val(r,'cat')||'عام',minStock:minStock||0});
+                            Object.assign(rec,{id:recordId,name,unit:val(r,'unit')||'قطعة',pack,buyPrice:buy,price1,price2,price3,stock,barcode,cat:val(r,'cat')||'عام',minStock:minStock||0});
                             if(val(r,'supplier')) rec.supplier=val(r,'supplier');
                         }else if(target==='customers'){
                             const debt=num(val(r,'debt'),'الدين',rowNo); if(debt<0) throw new Error('الدين لا يمكن أن يكون سالبًا');
                             const phone=val(r,'phone'); if(phone && (existingPhones.has(norm(phone))||staged.some(c=>norm(c.phone)===norm(phone)))) throw new Error('رقم الهاتف موجود مسبقًا');
-                            Object.assign(rec,{id:id||('CUST-IMP-'+Date.now()+'-'+ix),name,phone,address:val(r,'address'),rc:val(r,'rc'),nif:val(r,'nif'),nis:val(r,'nis'),art:val(r,'art'),location:val(r,'location'),debt,debtDate:val(r,'debtDate')});
+                            Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),rc:val(r,'rc'),nif:val(r,'nif'),nis:val(r,'nis'),art:val(r,'art'),location:val(r,'location'),debt,debtDate:val(r,'debtDate')});
                         }else{
                             const phone=val(r,'phone'); if(phone && (existingPhones.has(norm(phone))||staged.some(s=>norm(s.phone)===norm(phone)))) throw new Error('رقم الهاتف موجود مسبقًا');
-                            Object.assign(rec,{id:id||('SUP-IMP-'+Date.now()+'-'+ix),name,phone,address:val(r,'address'),email:val(r,'email'),nif:val(r,'nif'),nis:val(r,'nis'),rc:val(r,'rc')});
+                            Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),email:val(r,'email'),nif:val(r,'nif'),nis:val(r,'nis'),rc:val(r,'rc')});
                         }
-                        seen.add(keyName); if(id)seen.add('id:'+norm(id)); staged.push(rec);
+                        seenNames.add(keyName); seenIds.add(norm(recordId)); staged.push(rec);
                     }catch(err){errors.push('الصف '+rowNo+': '+(err.message||'خطأ غير معروف'));}
                 });
                 if(errors.length){
