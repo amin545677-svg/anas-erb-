@@ -4231,18 +4231,61 @@ function renderPurchasesTable() {
         }
 
         function deleteProduct(pId) {
-            const p = AppData.products.find(x => x.id === pId);
-            if(!p) return;
-            const code = prompt('⚠️ تحذير أمني لمنع الحذف بالخطأ:\nلحذف سلعة [' + p.name + '] نهائياً، يرجى كتابة الرقم (1234):');
-            if(code === '1234') {
-                AppData.products = AppData.products.filter(x => x.id !== pId);
-                saveDB();
-                renderInventoryList();
-                renderQuickProducts();
-                alert('تم حذف السلعة بنجاح ✅');
-            } else if(code !== null) {
-                alert('❌ رمز التأكيد غير صحيح، تم إلغاء عملية الحذف للحفاظ على بياناتك.');
+            const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const p = products.find(x => String(x.id) === String(pId));
+            if(!p) { alert('تعذر العثور على المنتج؛ لم يتم حذف أي بيانات.'); return; }
+
+            // Never delete a product that still has stock or is referenced by historical transactions.
+            const mainStock = Number(p.stock) || 0;
+            const warehouseStock = p.warehouseStock && typeof p.warehouseStock === 'object'
+                ? Object.values(p.warehouseStock).reduce((sum, value) => sum + (Number(value) || 0), 0) : 0;
+            if(mainStock !== 0 || warehouseStock !== 0) {
+                alert('لا يمكن حذف منتج له رصيد مخزون. صفّر الأرصدة عبر حركة مخزون موثقة أو عطّل المنتج بدلاً من حذفه.');
+                return;
             }
+            const productId = String(p.id);
+            const references = [];
+            const scan = (value, path, seen = new Set()) => {
+                if(!value || typeof value !== 'object' || seen.has(value)) return;
+                seen.add(value);
+                if(Array.isArray(value)) {
+                    value.forEach((item, index) => scan(item, path + '[' + index + ']', seen));
+                    return;
+                }
+                for(const [key, child] of Object.entries(value)) {
+                    const normalizedKey = key.toLowerCase();
+                    const explicitProductRef = ['productid','product_id','productkey','product_key','pid'].includes(normalizedKey);
+                    const lineItemRef = ['items','lines','details','products'].includes(normalizedKey) && Array.isArray(child);
+                    if(explicitProductRef && child != null && String(child) === productId) references.push(path + '.' + key);
+                    if(lineItemRef && child.some(item => item && typeof item === 'object' &&
+                        [item.productId,item.product_id,item.pid,item.id].some(v => v != null && String(v) === productId))) references.push(path + '.' + key);
+                    scan(child, path + '.' + key, seen);
+                }
+            };
+            for(const key of ['invoices','purchases','salesReturns','purchaseReturns','stockMovements','warehouseTransfers','truckTrips','inventoryAdjustments']) {
+                if(Array.isArray(AppData[key])) scan(AppData[key], key);
+            }
+            if(references.length) {
+                alert('لا يمكن حذف هذا المنتج لأنه مرتبط بسجلات أو حركات تاريخية. احتفظ به للحفاظ على دقة التقارير والمراجعة.');
+                return;
+            }
+            const typedName = prompt('لتأكيد حذف المنتج غير المرتبط بسجلات، اكتب اسمه بالكامل كما يظهر:\n' + String(p.name || ''));
+            if(typedName === null) return;
+            if(String(typedName).trim() !== String(p.name || '').trim()) {
+                alert('الاسم غير مطابق؛ تم إلغاء الحذف ولم تتغير البيانات.');
+                return;
+            }
+            const previousProducts = products.slice();
+            AppData.products = products.filter(x => String(x.id) !== productId);
+            const saved = saveDB();
+            if(saved === false) {
+                AppData.products = previousProducts;
+                alert('تعذر حفظ التغيير؛ تمت استعادة قائمة المنتجات في الذاكرة.');
+                return;
+            }
+            renderInventoryList();
+            renderQuickProducts();
+            alert('تم حذف المنتج بعد التحقق من الرصيد والمراجع.');
         }
 
         function addNewProductCategory() {
