@@ -36,3 +36,10 @@ jobs:
       - name: Run unit tests
         working-directory: android
         run: gradle testDebugUnitTest
+      - name: Upload debug APK only after successful build and tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: anas-erp-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
