@@ -883,3 +883,38 @@ jobs:
           PY
           node --check /tmp/anas-truck-settlement-test.js
           node /tmp/anas-truck-settlement-test.js
+      - name: Exercise backup import validation with legacy and corrupted stock data
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const source = fs.readFileSync('index.html', 'utf8');
+          const start = source.indexOf('function anasValidateBackupData(');
+          const end = source.indexOf('function importDataBackup(', start);
+          assert.ok(start >= 0 && end > start, 'backup validator must be extractable for executable tests');
+          const validatorSource = source.slice(start, end);
+          const validate = new Function(validatorSource + '\\nreturn anasValidateBackupData;')();
+          const base = () => ({products:[{id:'p1',stock:5,warehouseStock:{Main:5}}],customers:[],suppliers:[]});
+          assert.doesNotThrow(() => validate({...base(),warehouses:['Legacy warehouse'],warehouseTransfers:[],stockMovements:[]}), 'valid legacy string warehouse names must remain supported');
+          assert.doesNotThrow(() => validate({...base()}), 'omitted optional legacy collections must remain supported');
+          const badCases = [
+            ['explicit null warehouseTransfers', d => { d.warehouseTransfers = null; }],
+            ['explicit null stockMovements', d => { d.stockMovements = null; }],
+            ['explicit null warehouses', d => { d.warehouses = null; }],
+            ['warehouseStock null', d => { d.products[0].warehouseStock = null; }],
+            ['warehouseStock array', d => { d.products[0].warehouseStock = []; }],
+            ['blank main stock', d => { d.products[0].stock = '   '; }],
+            ['boolean main stock', d => { d.products[0].stock = true; }],
+            ['blank warehouse key', d => { d.products[0].warehouseStock = {'   ': 2}; }],
+            ['blank warehouse balance', d => { d.products[0].warehouseStock = {Main: '  '}; }],
+            ['boolean warehouse balance', d => { d.products[0].warehouseStock = {Main: false}; }],
+            ['negative warehouse balance', d => { d.products[0].warehouseStock = {Main: -1}; }],
+            ['null warehouse history entry', d => { d.stockMovements = [null]; }],
+          ];
+          for (const [name, corrupt] of badCases) {
+            const data = base();
+            corrupt(data);
+            assert.throws(() => validate(data), undefined, name + ' must be rejected');
+          }
+          console.log('Backup import runtime tests passed: valid legacy compatibility and 12 malformed-data rejection cases');
+          NODE
