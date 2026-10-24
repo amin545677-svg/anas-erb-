@@ -52,6 +52,19 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+
+    # Imported or edited purchase invoice IDs must never be interpolated raw into report HTML.
+    raw_purchase_report_id = "${p.id??'—'}"
+    safe_purchase_report_id = "${esc(p.id??'—')}"
+    if raw_purchase_report_id in source:
+        errors = []
+        errors.append("purchase report invoice ID is interpolated without HTML escaping")
+    elif safe_purchase_report_id not in source:
+        errors = []
+        errors.append("purchase report invoice ID escaping regression guard is missing")
+    else:
+        errors = []
+        print("PASS: purchase report invoice IDs are HTML-escaped")
     parser = ERPParser()
     parser.feed(source)
     parser.close()
