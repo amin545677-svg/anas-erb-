@@ -57,6 +57,22 @@ def main():
     parser.close()
     errors = []
 
+    # Startup must not silently replace present-but-corrupt persisted collections or save over unreadable data.
+    if "if (!Object.prototype.hasOwnProperty.call(AppData, k))" not in source or "anasStartupIntegrityIssues.push(k)" not in source:
+        errors.append("startup must initialize only absent collections and preserve present invalid collections")
+    else:
+        print("PASS: startup preserves present-but-invalid collections")
+
+    if "anasStartupFatalLoadError = true" not in source or "if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length)" not in source:
+        errors.append("startup must block saves after unreadable JSON or invalid persisted collection shapes")
+    else:
+        print("PASS: startup blocks writes when persisted data integrity is uncertain")
+
+    if "AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)" not in source:
+        errors.append("startup must not dereference malformed POS cart containers")
+    else:
+        print("PASS: startup safely reads the active POS cart")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
