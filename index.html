@@ -4203,9 +4203,13 @@ function renderPurchasesTable() {
             return names;
         }
         function wtEnsureData(){
-            if(!Array.isArray(AppData.warehouseTransfers))AppData.warehouseTransfers=[];
-            if(!Array.isArray(AppData.warehouses))AppData.warehouses=[];
-            (AppData.products||[]).forEach(p=>{if(p.warehouseStock==null||typeof p.warehouseStock!=='object')p.warehouseStock={};});
+            // Initialize only genuinely absent collections; never overwrite malformed persisted history silently.
+            if(AppData.warehouseTransfers==null)AppData.warehouseTransfers=[];
+            else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف أو غير قابل للقراءة. أُوقفت العملية دون استبدال السجل؛ استعد نسخة احتياطية سليمة أو أصلح البيانات أولاً.');
+            if(AppData.warehouses==null)AppData.warehouses=[];
+            else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة أو غير قابلة للقراءة. أُوقفت العملية دون استبدال البيانات؛ استعد نسخة احتياطية سليمة أو أصلحها أولاً.');
+            if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة. أُوقفت عملية المخزون دون تعديل البيانات.');
+            AppData.products.forEach(p=>{if(!p||typeof p!=='object')throw new Error('سجل منتج غير صالح. أُوقفت العملية دون تعديل البيانات.');if(p.warehouseStock==null)p.warehouseStock={};else if(typeof p.warehouseStock!=='object')throw new Error('نوع خريطة أرصدة المخازن غير صالح. أُوقفت العملية دون استبدال البيانات.');});
         }
         function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
         function wtInitScreen(){
