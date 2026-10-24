@@ -5782,7 +5782,23 @@ function renderPurchasesTable() {
             }
         }
 
+        // Safe guard: invoice cancellation must reverse stock, cash, debt and audit records atomically.
+        // Until a complete reversal workflow is implemented, refuse destructive cancellation.
         function cancelInvoicePrompt() {
+            alert('تنبيه أمني: إلغاء الفاتورة غير متاح مؤقتًا؛ حذف السجل وحده قد يفسد المخزون والحسابات. لم تتغير أي بيانات.');
+        }
+
+        // These legacy prompts did not perform a real return or update inventory/accounting.
+        // Avoid claiming a return was posted when no return transaction exists.
+        function returnSalePrompt() {
+            alert('إرجاع المبيعات غير متاح بعد كعملية محاسبية كاملة. لم يتم تعديل الفاتورة أو المخزون أو الحسابات.');
+        }
+
+        function returnPurchasePrompt() {
+            alert('إرجاع المشتريات غير متاح بعد كعملية محاسبية كاملة. لم يتم تعديل الفاتورة أو المخزون أو الحسابات.');
+        }
+
+        function old_cancelInvoicePrompt() {
             const id = prompt('ادخل رقم الفاتورة المراد إلغاؤها (مثال: INV-1001):');
             if(id) {
                 AppData.invoices = AppData.invoices.filter(x => x.id !== id.trim());
@@ -5792,12 +5808,12 @@ function renderPurchasesTable() {
             }
         }
 
-        function returnSalePrompt() {
+        function old_returnSalePrompt() {
             prompt('ادخل رقم فاتورة المبيعات المراد إرجاعها:');
             alert('تم فتح واجهة الإرجاع وقيد السلع في المرتجعات ✅');
         }
 
-        function returnPurchasePrompt() {
+        function old_returnPurchasePrompt() {
             prompt('ادخل رقم فاتورة المشتريات المراد إرجاعها:');
             alert('تم فتح واجهة إرجاع المشتريات للمورد ✅');
         }
