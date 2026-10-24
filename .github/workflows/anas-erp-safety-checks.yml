@@ -732,6 +732,12 @@ jobs:
           assert.equal(AppData.products[0].stock, 10, 'blank warehouse balance must not mutate main stock');
           assert.equal(AppData.products[0].warehouseStock.Existing, ' ', 'blank balance must be preserved');
 
+          global.AppData = { products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: { '   ': 2 } }], stockMovements: [], warehouses: [] };
+          const corruptBlankWarehouseKeyTrip = { id: 'TR-TEST-5A', plate: 'TEST5A', warehouseName: 'Truck TEST5A', stockItems: [{ productId: 'p1', qty: 2 }] };
+          assert.throws(() => postTripStock(corruptBlankWarehouseKeyTrip), /رصيد مخزن فرعي تالف/);
+          assert.equal(AppData.products[0].stock, 10, 'blank warehouse key must not mutate main stock');
+          assert.equal(AppData.products[0].warehouseStock['   '], 2, 'blank warehouse key must be preserved');
+
           global.AppData = { products: [{ id: 'p1', name: 'Product', stock: ' ', warehouseStock: {} }], stockMovements: [], warehouses: [] };
           const corruptMainStockTrip = { id: 'TR-TEST-6', plate: 'TEST6', warehouseName: 'Truck TEST6', stockItems: [{ productId: 'p1', qty: 2 }] };
           assert.throws(() => postTripStock(corruptMainStockTrip), /رصيد المخزن الرئيسي غير صالح/);
