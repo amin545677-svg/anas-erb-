@@ -86,6 +86,9 @@ jobs:
               "product deletion checks historical references": len(function_bodies("deleteProduct")) == 1 and "stockMovements" in function_source("deleteProduct") and "invoices" in function_source("deleteProduct"),
               "product deletion requires exact name confirmation": len(function_bodies("deleteProduct")) == 1 and "typedName" in function_source("deleteProduct") and "1234" not in function_source("deleteProduct"),
               "product deletion rolls back on explicit save failure": len(function_bodies("deleteProduct")) == 1 and "saved === false" in function_source("deleteProduct"),
+              "stocktake draft save checks explicit persistence failure": "saveDB()===false" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
+              "stocktake draft save restores previous drafts on failure": "setDrafts(previousDrafts)" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
+              "stocktake draft save returns explicit status": "return false" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")] and "return true" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
