@@ -676,10 +676,24 @@ jobs:
             assert.equal(products[0].stock,5);
             assert.equal(products[1].stock,8);
             assert.equal(invoice.items[0].qty,1);
-            assert.ok(alerts.some(x=>x.includes('معرّف المنتج')&&x.includes('مكرر')),'must explain the duplicate ID integrity problem');
+            assert.ok(alerts.some(x=>(x.includes('معرّف المنتج')&&x.includes('مكرر'))||(x.includes('أكثر من سجل منتج')&&x.includes('المعرّف نفسه'))),'must explain the duplicate ID integrity problem');
           }
           runDuplicateProductIdCase();
-          console.log('Invoice edit tests passed: rollback metadata is exact and duplicate product IDs are rejected before edits');
+          function runMalformedInvoiceLineCase() {
+            const invoice = {id:'I3',items:[null]};
+            const product = {id:'p1',name:'Product',stock:5};
+            const data = {invoices:[invoice],products:[product],stockMovements:[]};
+            let prompts=0,saves=0;
+            const alerts=[];
+            const ctx={AppData:data,prompt:()=>{prompts++;return '1';},confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I3");',ctx);
+            assert.equal(prompts,0,'malformed historical lines must be rejected before prompting');
+            assert.equal(saves,0,'malformed historical lines must not be saved');
+            assert.equal(product.stock,5,'malformed historical lines must not mutate stock');
+            assert.ok(alerts.some(x=>x.includes('تفاصيل الفاتورة الأصلية')),'must explain invalid historical invoice data');
+          }
+          runMalformedInvoiceLineCase();
+          console.log('Invoice edit tests passed: exact rollback, duplicate product IDs rejected before edits, and malformed historical lines rejected before prompts');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
