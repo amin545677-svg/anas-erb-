@@ -97,6 +97,12 @@ jobs:
               "bulk price update rolls back on save failure": "before.forEach(c=>{c.p[c.key]=c.value;});" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
               "category creation checks persistence and duplicate names": "AppData.productCategories" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")] and "saveDB()===false" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
               "category creation does not claim product-form integration": "لا تحتوي حاليًا على حقل ربط تلقائي" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
+              "product save validates all numeric fields before mutation": app.find("numberField('newProdBuyCostInput'",app.find("function saveNewProductFromModal()")) < app.find("if(index>=0){",app.find("function saveNewProductFromModal()")),
+              "product save rejects negative and invalid numeric values": "n<0" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")] and "Number.isFinite(Number(raw))" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save prevents duplicate barcodes": "duplicateBarcode" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save rejects stale edit identifiers": "if(editId&&index<0)" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save uses collision-resistant new IDs": "P-'+Date.now().toString(36)" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save restores prior products when persistence fails": "saveDB()===false" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")] and "AppData.products=beforeProducts" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
