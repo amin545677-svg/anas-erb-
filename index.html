@@ -3112,6 +3112,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             for (const [id, qty] of required) {
                 const product = (AppData.products || []).find(p => String(p.id) === id);
                 if (!product) { alert('تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.'); return; }
+                if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
+                    alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
+                }
                 const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
                 if (!Number.isFinite(stock) || stock < qty) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
@@ -4236,7 +4239,7 @@ function renderPurchasesTable() {
         }
         function wtCreateTransfer(){
             wtEnsureData();const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
-            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
+            const p=(AppData.products||[]).find(x=>String(x.id)===String(pid));if(!p){alert('اختر منتجاً صحيحاً.');return;}if(from!=='المخزن الرئيسي'&&Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}if(!from||!to||from===to){alert('يجب اختيار مخزنين مختلفين.');return;}if(!Number.isFinite(qty)||qty<=0){alert('أدخل كمية أكبر من صفر.');return;}
             if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0))){alert('أدخل سعراً صحيحاً أو اترك حقل السعر فارغاً.');return;}
             const available=wtBalance(p,from);if(qty>available){alert(`الكمية غير كافية في ${from}. الرصيد المتاح: ${available} ${p.unit||''}`);return;}
             if(!confirm(`تأكيد تحويل ${qty} ${p.unit||''} من «${from}» إلى «${to}»؟\nسيتم خصم الكمية من المصدر وإضافتها إلى الوجهة وحفظ سند مرجعي.`))return;
@@ -6950,6 +6953,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
         for(const line of lines){
           const p=products.find(x=>String(x.id)===String(line.productId));
+          if(!p)throw new Error('تعذر العثور على المنتج '+line.productName+'.');
+          if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+line.productName+'؛ لم تُعدّل الأرصدة.');
           if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
           const truckQty=Number(p.warehouseStock[warehouse])||0;
           if(truckQty+1e-8<line.returned+line.damaged+line.missing)throw new Error('رصيد الشاحنة لا يكفي للصنف '+line.productName+'.');
