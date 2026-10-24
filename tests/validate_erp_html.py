@@ -60,7 +60,7 @@ def main():
     # Customer data and imported product images must be safe at HTML output boundaries.
     safety_guards = [
         "anasEscapeHTML(c.phone || '-')",
-        "c.debt !== null && c.debt !== undefined && c.debt !== '' && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح'",
+        "(typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح'",
         "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
         'src="${anasEscapeHTML(safeStoredImage)}"',
         "${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
@@ -74,6 +74,9 @@ def main():
         "بيانات غير صالحة",
         "غير صالح — توجد قيم ناقصة أو تالفة",
         "غير صالح — توجد قيمة فاتورة غير صالحة",
+        "const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);",
+        "const lowStock = AppData.products.filter(p => { const stock=reportNumber(p.stock); const min=reportNumber(p.minAlert); return stock===null || stock <= (min!==null&&min>0?min:5); });",
+        "${reportDisplay(p.stock)} (الحد: ${reportNumber(p.minAlert)!==null && reportNumber(p.minAlert)>0 ? reportNumber(p.minAlert) : 5})",
         "value===null?'غير صالح':value",
         "${reportDisplay(e.amt)} د.ج",
     ]
