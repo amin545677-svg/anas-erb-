@@ -52,3 +52,7 @@
 - سجل التسليم المحدث: https://github.com/amin545677-svg/anas-erb-/blob/audit/anas-erp-v54-25-handover/ANAS_ERP_V54_25_HANDOVER_AR.md
 - اختبارات AI Worker في PR #15: https://github.com/amin545677-svg/anas-erb-/pull/15 (لا تُعد ناجحة حتى تظهر نتائج CI الفعلية).
 - هذا PR #16 توثيقي فقط؛ لا يغير التطبيق ولا يغلق مشكلة توحيد النسخ.
+
+## فرق إضافي في PWA يجب التحقق منه
+- فحص نص `main/index.html` لم يعثر على وسم `<link ... manifest ...>` أو تسجيل صريح عبر `navigator.serviceWorker`؛ بينما مرشح V54.25 المصحح يشير إلى `manifest.webmanifest` وتضم الحزمة `sw.js` و`icons/icon.svg`.
+- هذا مؤشر على اختلاف في إعدادات PWA بين الأصلين، وليس حكمًا نهائيًا على السلوك وقت التشغيل؛ يجب فحص التسجيل الديناميكي وسير عمل Pages ومسارات الملفات على الموقع الفعلي قبل تقرير طريقة الدمج.
