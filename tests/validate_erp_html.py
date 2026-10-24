@@ -121,7 +121,7 @@ def main():
     history_guard = "else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف"
     warehouses_guard = "else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة"
     products_guard = "if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة"
-    map_guard = "else if(typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة"
+    map_guard = "else if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة"
     if history_guard not in source or warehouses_guard not in source or products_guard not in source or map_guard not in source:
         errors.append("warehouse initialization must preserve malformed history and reject invalid product/map shapes")
     else:
