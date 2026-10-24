@@ -52,10 +52,26 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # POS cart rows can contain stale or malformed values from restored local data.
+    raw_pos_cart_price = "${item.price}"
+    safe_pos_cart_price = "${anasEscapeHTML(item.price)}"
+    raw_pos_cart_quantity = "${item.qty}"
+    safe_pos_cart_quantity = "${anasEscapeHTML(item.qty)}"
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    for raw_value, safe_value, label in [
+        (raw_pos_cart_price, safe_pos_cart_price, "price"),
+        (raw_pos_cart_quantity, safe_pos_cart_quantity, "quantity"),
+    ]:
+        if raw_value in source:
+            errors.append("POS cart " + label + " is interpolated without HTML escaping")
+        elif safe_value not in source:
+            errors.append("POS cart " + label + " escaping regression guard is missing")
+    if not any(error.startswith("POS cart ") for error in errors):
+        print("PASS: POS cart price and quantity are HTML-escaped")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
