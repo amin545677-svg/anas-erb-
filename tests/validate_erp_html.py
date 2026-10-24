@@ -52,10 +52,26 @@ def main():
     if not HTML.exists():
         return 1 if fail("index.html is missing") else 0
     source = HTML.read_text(encoding="utf-8")
+    # POS search IDs and cart images must remain safe with imported product data.
+    pos_safety_guards = [
+        "selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))",
+        "const safeCartImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';",
+        'src="${anasEscapeHTML(safeCartImage)}"',
+        "${anasEscapeHTML(item.unit || '')}",
+        "const qty = Number.isFinite(Number(item.qty)) ? Number(item.qty) : 0;",
+        "const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;",
+        "${sub.toFixed(2)}",
+    ]
     parser = ERPParser()
     parser.feed(source)
     parser.close()
     errors = []
+
+    for guard in pos_safety_guards:
+        if guard not in source:
+            errors.append("POS search/cart HTML safety guard is missing: " + guard)
+    if not any("POS search/cart HTML safety guard is missing:" in error for error in errors):
+        print("PASS: POS search ID and cart image HTML guards exist")
 
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
