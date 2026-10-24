@@ -4854,7 +4854,7 @@ function renderPurchasesTable() {
         function showReportDetails(title) {
             if(!applyReportDateRange()) return;
             const esc = value => anasEscapeHTML(String(value ?? ''));
-            const reportNumber = value => value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;
+            const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;
             const reportDisplay = value => { const n=reportNumber(value); return n===null?'غير صالح':n; };
             const reportInvoices=typeof getReportInvoices==='function' ? getReportInvoices() : (Array.isArray(AppData.invoices)?AppData.invoices:[]);
             const reportPurchases=typeof getReportPurchases==='function' ? getReportPurchases() : (Array.isArray(AppData.purchases)?AppData.purchases:[]);
