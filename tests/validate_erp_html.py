@@ -110,10 +110,12 @@ def main():
     load_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل"
     settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
-    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source:
-        errors.append("truck load guard or settlement rollback preservation is missing")
+    load_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
+    load_restore = "oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});"
+    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source or load_snapshot not in source or load_restore not in source:
+        errors.append("truck load guard or rollback preservation for malformed warehouse maps is missing")
     else:
-        print("PASS: truck load blocks malformed maps and settlement rollback preserves them")
+        print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
 
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
