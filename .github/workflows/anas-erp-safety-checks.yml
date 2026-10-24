@@ -980,6 +980,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function wtCreateTransfer(){")
           end = s.find("\n        function ", start + 1)
@@ -990,7 +991,7 @@ jobs:
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
-          /*INSERT_TRANSFER_FUNCTION*/
+          /*INSERT_TRANSFER_FUNCTION_SOURCE*/
           function runCase(product, from, to, qty='2') {
             const alerts = [];
             const movements = [];
@@ -1023,7 +1024,7 @@ jobs:
               saveDB:()=>true, wtInitScreen:()=>{}, renderInventoryList:()=>{},
               console, Date, Math, Number, String, Object, Array
             };
-            vm.runInNewContext(function_js + '\nwtCreateTransfer();', ctx);
+            vm.runInNewContext(functionSource + '\nwtCreateTransfer();', ctx);
             return {data,alerts,movements,transfers,elements};
           }
           let r=runCase({id:'p',name:'P',stock:' ',warehouseStock:{A:5}},'المخزن الرئيسي','A');
@@ -1046,7 +1047,7 @@ jobs:
           assert.equal(r.transfers.length,1); assert.equal(r.movements.length,2);
           console.log('Warehouse transfer tests passed: invalid source/destination balances fail closed; valid transfer remains functional');
           """
-          js = js.replace("/*INSERT_TRANSFER_FUNCTION*/", function_js)
+          js = js.replace("/*INSERT_TRANSFER_FUNCTION_SOURCE*/", "const functionSource = " + json.dumps(function_js) + ";")
           Path("/tmp/anas-warehouse-transfer-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-warehouse-transfer-test.js
