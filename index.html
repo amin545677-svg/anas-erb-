@@ -3325,10 +3325,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; flex:1 1 280px; box-sizing:border-box;">
                             <h3 style="margin:0 0 4px; font-size:14px; color:#334155;">بيانات الزبون (Client)</h3>
                             <div style="font-size:12px;"><strong>السيد / المحل:</strong> ${esc(cust.name || inv.customer)}</div>
-                            <div style="font-size:12px;"><strong>العنوان:</strong> ${cust.address || 'غير محدد'}</div>
-                            <div style="font-size:12px;"><strong>الهاتف:</strong> ${cust.phone || '-'}</div>
+                            <div style="font-size:12px;"><strong>العنوان:</strong> ${esc(cust.address || 'غير محدد')}</div>
+                            <div style="font-size:12px;"><strong>الهاتف:</strong> ${esc(cust.phone || '-')}</div>
                             <div style="font-size:11px; color:#64748b; margin-top:2px;">
-                                RC: ${cust.rc || '-'} | NIF: ${cust.nif || '-'} | Art: ${cust.art || '-'}
+                                RC: ${esc(cust.rc || '-')} | NIF: ${esc(cust.nif || '-')} | Art: ${esc(cust.art || '-')}
                             </div>
                         </div>
                     </div>
@@ -3350,17 +3350,17 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:stretch; margin:14px 0;">
                         <div style="flex:1 1 280px; box-sizing:border-box; font-size:12px; padding:12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px;">
                             <p style="margin:0 0 4px; font-weight:bold;">المبلغ الإجمالي بالحروف:</p>
-                            <p style="margin:0; font-style:italic; color:#1e3a8a;">أوقفت هذه الفاتورة عند المبلغ الإجمالي الصافي: <strong>${inv.total.toFixed(2)} دينار جزائري</strong> لا غير.</p>
+                            <p style="margin:0; font-style:italic; color:#1e3a8a;">أوقفت هذه الفاتورة عند المبلغ الإجمالي الصافي: <strong>${money(inv.total)} دينار جزائري</strong> لا غير.</p>
                         </div>
 
                         <div style="flex:1 1 220px; box-sizing:border-box; font-size:13px; line-height:1.9;">
                             <div style="display:flex; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding:2px 0;">
                                 <span>المجموع الإجمالي:</span>
-                                <strong>${inv.total.toFixed(2)} د.ج</strong>
+                                <strong>${money(inv.total)} د.ج</strong>
                             </div>
                             <div style="display:flex; justify-content:space-between; background:#dbeafe; padding:6px 8px; border-radius:6px; font-weight:900; color:#1e3a8a; margin-top:4px;">
                                 <span>الصافي للدفع (TTC):</span>
-                                <span>${inv.total.toFixed(2)} د.ج</span>
+                                <span>${money(inv.total)} د.ج</span>
                             </div>
                         </div>
                     </div>
