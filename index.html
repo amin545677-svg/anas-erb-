@@ -4111,6 +4111,28 @@ function renderPurchasesTable() {
             const inv = invoices.find(x => String(x.id) === String(invoiceId));
             if (!inv) { alert('لم يتم العثور على الفاتورة المطلوبة.'); return; }
             if (!Array.isArray(inv.items) || !inv.items.length) { alert('هذه الفاتورة لا تحتوي على تفاصيل أصناف قابلة للتعديل.'); return; }
+            // Validate historical lines and the referenced product identities before prompting or touching any state.
+            const productCatalog = Array.isArray(AppData.products) ? AppData.products : [];
+            const productIds = new Set();
+            for (const item of inv.items) {
+                if (!item || typeof item !== 'object' || Array.isArray(item) ||
+                    item.id === undefined || item.id === null || String(item.id).trim() === '' ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
+                    String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
+                    !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
+                    String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
+                    alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
+                    return;
+                }
+                const id = String(item.id);
+                if (productIds.has(id)) continue;
+                productIds.add(id);
+                const matches = productCatalog.filter(p => p && typeof p === 'object' && !Array.isArray(p) && String(p.id) === id);
+                if (matches.length !== 1) {
+                    alert(matches.length ? 'تعذر تعديل الفاتورة: يوجد أكثر من سجل منتج بالمعرّف نفسه (' + id + '). أصلح تكرار المعرّفات قبل المتابعة.' : 'الصنف ' + (item.name || id) + ' غير موجود بالمخزون؛ لم يتم تغيير الفاتورة.');
+                    return;
+                }
+            }
             const editedItems = [];
             for (const oldItem of inv.items) {
                 const product = (AppData.products || []).find(p => String(p.id) === String(oldItem.id));
@@ -4128,19 +4150,7 @@ function renderPurchasesTable() {
             const newTotal = editedItems.reduce((sum, x) => sum + Number(x.qty) * Number(x.price), 0);
             if (!Number.isFinite(newTotal) || newTotal < 0) { alert('تعذر حساب إجمالي الفاتورة.'); return; }
             const oldItems = inv.items;
-            // Historical invoice quantities and prices are the baseline for stock reconciliation.
-            // Never coerce malformed legacy values to zero: that would create a false stock adjustment.
-            for (const item of oldItems) {
-                if (!item || typeof item !== 'object' || item.id === undefined || item.id === null ||
-                    String(item.id).trim() === '' ||
-                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
-                    String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
-                    !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
-                    String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
-                    alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
-                    return;
-                }
-            }
+            // Historical invoice lines were validated before any user prompts.
             const stockChanges = new Map();
             for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty));
             for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty));
