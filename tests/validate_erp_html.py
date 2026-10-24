@@ -97,6 +97,15 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # Alert list interpolates user-controlled product/customer names into HTML.
+    alert_start = source.find("function renderAlertsList()")
+    alert_end = source.find("// ================= إدارة المستخدمين", alert_start)
+    alert_body = source[alert_start:alert_end] if alert_start >= 0 and alert_end >= 0 else ""
+    if "anasEscapeHTML(p.name)" not in alert_body or "anasEscapeHTML(c.name)" not in alert_body:
+        errors.append("alert list must HTML-escape product and customer names")
+    else:
+        print("PASS: alert list escapes product and customer names before HTML rendering")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
