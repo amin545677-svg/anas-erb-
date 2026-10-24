@@ -7148,6 +7148,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const movesBefore=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
       const tripBefore={settlementId:trip.settlementId,settledAt:trip.settledAt,settlementInvoiceIds:trip.settlementInvoiceIds,settlementLines:trip.settlementLines};
       const settlementId='TR-SETTLE-'+String(trip.id);
+      if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw new Error('سجل حركات المخزون تالف؛ أُوقفت التسوية دون استبدال السجل.');
+      if(Array.isArray(AppData.stockMovements)&&AppData.stockMovements.some(m=>String(m.referenceType||'')==='truck_settlement'&&String(m.referenceId||'')===settlementId))throw new Error('عُثر على حركات تسوية سابقة لهذه الرحلة دون علامة تسوية موثوقة. أُوقفت العملية لمنع تكرار حركة المخزون؛ راجع سجل الحركات قبل المتابعة.');
       try{
         if(!Array.isArray(AppData.stockMovements))AppData.stockMovements=[];
         for(const line of lines){
