@@ -5738,6 +5738,40 @@ function renderPurchasesTable() {
             if(quoted) throw new Error('ملف CSV يحتوي على علامة اقتباس غير مغلقة في نهاية الملف.');
             row.push(cell.trim());if(row.some(v=>v!==''))rows.push(row);return rows;
         }
+        // Parse localized spreadsheet numbers without silently changing thousands into decimals.
+        function anasParseImportNumber(value,field,rowNo) {
+            let raw=String(value??'').trim();
+            if(raw==='') return 0;
+            raw=raw.replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+                   .replace(/٫/g,'.').replace(/٬/g,',')
+                   .replace(/[\s\u00a0\u202f']/g,'');
+            if(!/^[+-]?[0-9.,]+$/.test(raw)) throw new Error('قيمة رقمية غير صحيحة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+            const dots=(raw.match(/\./g)||[]).length, commas=(raw.match(/,/g)||[]).length;
+            let normalized=raw;
+            if(dots && commas) {
+                const decimal=raw.lastIndexOf('.')>raw.lastIndexOf(',')?'.':',';
+                const grouping=decimal==='.'?',':'.';
+                normalized=raw.split(grouping).join('');
+                if((normalized.match(new RegExp('\\\\'+decimal,'g'))||[]).length>1) throw new Error('فواصل رقمية ملتبسة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+                normalized=normalized.replace(decimal,'.');
+            } else {
+                const sep=dots?'.':commas?',':'';
+                const count=dots||commas;
+                if(sep && count>1) {
+                    const groups=raw.replace(/^[+-]/,'').split(sep);
+                    if(groups.slice(1).every(g=>g.length===3)) normalized=raw.split(sep).join('');
+                    else throw new Error('فواصل رقمية ملتبسة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+                } else if(sep) {
+                    const tail=raw.split(sep)[1]||'';
+                    if(tail.length===3) throw new Error('القيمة '+raw+' ملتبسة: هل الفاصل للآلاف أم للكسور؟ صححها في الملف (مثال 1234 أو 1,25).');
+                    normalized=raw.replace(sep,'.');
+                }
+            }
+            if(!/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$/.test(normalized)) throw new Error('قيمة رقمية غير صحيحة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+            const n=Number(normalized);
+            if(!Number.isFinite(n)) throw new Error('قيمة غير صالحة في الصف '+rowNo+'، الحقل '+field);
+            return n;
+        }
         function showSmartImportPreview(fileName,rows) {
             const old=document.getElementById('smartImportPreviewModal'); if(old)old.remove();
             const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -5802,12 +5836,7 @@ function renderPurchasesTable() {
                     target==='customers' ? (has('name') && (has('phone')||has('address')||has('debt')||has('nif'))) :
                     (has('name') && (has('phone')||has('address')||has('email')||has('nif')));
                 if(!compatible){validation.textContent='❌ عناوين الملف لا تبدو مطابقة لقسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'. استخدم القالب الخاص بالقسم ولا تتابع بملف مختلف.';return;}
-                const num=(v,field,rowNo)=>{
-                    const s=String(v??'').trim().replace(/\s/g,'').replace(/٫/g,'.').replace(/٬/g,'').replace(/,/g,'.');
-                    if(s==='') return 0;
-                    if(!/^-?\d+(?:\.\d+)?$/.test(s)) throw new Error('قيمة رقمية غير صحيحة في الصف '+rowNo+'، الحقل '+field+': '+s);
-                    const n=Number(s); if(!Number.isFinite(n)) throw new Error('قيمة غير صالحة في الصف '+rowNo); return n;
-                };
+                const num=(v,field,rowNo)=>anasParseImportNumber(v,field,rowNo);
                 const val=(r,k)=>indexes[k]>=0?String(r[indexes[k]]??'').trim():'';
                 const staged=[], errors=[], seen=new Set();
                 const existing=target==='products'?(AppData.products||[]):target==='customers'?(AppData.customers||[]):(AppData.suppliers||[]);
