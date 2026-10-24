@@ -330,6 +330,24 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if not any("POS sale must validate" in error or "POS sale must run" in error for error in errors):
         print("PASS: POS sale validates warehouse balances and customer debt before mutation")
 
+    # POS sale must fail closed on malformed customer/invoice collections and cash balance.
+    sale_start = source.find("function confirmHasibPayment()")
+    sale_end = source.find("\\n        function printLastConfirmedInvoice", sale_start)
+    sale_source = source[sale_start:sale_end] if sale_start >= 0 and sale_end > sale_start else ""
+    sale_integrity_guards = [
+        "Object.prototype.hasOwnProperty.call(AppData, 'customers')",
+        "AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c))",
+        "Object.prototype.hasOwnProperty.call(AppData, 'invoices')",
+        "AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv))",
+        "Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance')",
+        "Number(AppData.caisseBalance) < 0",
+        "رصيد الصندوق غير صالح",
+    ]
+    if not sale_source or any(guard not in sale_source for guard in sale_integrity_guards):
+        errors.append("POS sale must reject malformed customer/invoice collections and invalid cash balance before mutation")
+    else:
+        print("PASS: POS sale rejects malformed financial collections and invalid cash balance before mutation")
+
     # Malformed array-shaped warehouse maps must block stock mutation, not be silently reset.
     sale_guard = "saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)"
     transfer_guard = "if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}"
