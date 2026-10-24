@@ -65,6 +65,8 @@ def main():
         'src="${anasEscapeHTML(safeStoredImage)}"',
         "${Number(i.remaining)||0}",
         "${Number(i.total)||0}",
+        "${Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0}",
+        "${esc(p.id??'—')}",
     ]
     for guard in safety_guards:
         if guard not in source:
