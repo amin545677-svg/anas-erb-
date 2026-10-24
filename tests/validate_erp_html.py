@@ -97,6 +97,15 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # Malformed array-shaped warehouse maps must block stock mutation, not be silently reset.
+    sale_guard = "saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)"
+    transfer_guard = "from!=='المخزن الرئيسي'&&Array.isArray(p.warehouseStock)"
+    settlement_guard = "if(Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن الفرعية تالفة"
+    if sale_guard not in source or transfer_guard not in source or settlement_guard not in source:
+        errors.append("POS, warehouse transfer, and truck settlement must fail closed on malformed warehouse stock maps")
+    else:
+        print("PASS: stock mutation paths fail closed on malformed warehouse maps")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
