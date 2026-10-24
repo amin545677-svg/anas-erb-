@@ -117,6 +117,16 @@ def main():
     else:
         print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
 
+    # Existing malformed history must fail closed rather than being silently replaced with empty arrays.
+    history_guard = "else if(!Array.isArray(AppData.warehouseTransfers))throw new Error('سجل تحويلات المخازن تالف"
+    warehouses_guard = "else if(!Array.isArray(AppData.warehouses))throw new Error('قائمة المخازن تالفة"
+    products_guard = "if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة"
+    map_guard = "else if(typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))throw new Error('خريطة أرصدة المخازن غير صالحة"
+    if history_guard not in source or warehouses_guard not in source or products_guard not in source or map_guard not in source:
+        errors.append("warehouse initialization must preserve malformed history and reject invalid product/map shapes")
+    else:
+        print("PASS: warehouse initialization fails closed without silently replacing malformed history")
+
     # POS rollback must preserve malformed map shape, and transfers must fail closed from either side.
     sale_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     sale_restore = "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;"
