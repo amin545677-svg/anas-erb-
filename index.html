@@ -5751,9 +5751,12 @@ function renderPurchasesTable() {
             if(dots && commas) {
                 const decimal=raw.lastIndexOf('.')>raw.lastIndexOf(',')?'.':',';
                 const grouping=decimal==='.'?',':'.';
-                normalized=raw.split(grouping).join('');
-                if(normalized.split(decimal).length>2) throw new Error('فواصل رقمية ملتبسة في الصف '+rowNo+'، الحقل '+field+': '+raw);
-                normalized=normalized.replace(decimal,'.');
+                const parts=raw.split(decimal);
+                if(parts.length!==2 || !/^\d+$/.test(parts[1])) throw new Error('فواصل رقمية ملتبسة في الصف '+rowNo+'، الحقل '+field+': '+raw);
+                const integer=parts[0], unsignedInteger=integer.replace(/^[+-]/,'');
+                const groups=unsignedInteger.split(grouping);
+                if(groups.length>1 && (!/^\d{1,3}$/.test(groups[0]) || !groups.slice(1).every(g=>/^\d{3}$/.test(g)))) throw new Error('تجميع الآلاف غير صحيح في الصف '+rowNo+'، الحقل '+field+': '+raw);
+                normalized=integer.split(grouping).join('')+'.'+parts[1];
             } else {
                 const sep=dots?'.':commas?',':'';
                 const count=dots||commas;
