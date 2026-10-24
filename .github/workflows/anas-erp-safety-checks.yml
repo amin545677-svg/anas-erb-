@@ -936,23 +936,23 @@ jobs:
           assert.deepEqual(valid.warehouseTransfers, [], 'absent legacy transfer history should be initialized');
           for (const key of ['stockMovements','warehouseTransfers','purchases','expenses','users','trucks','returns']) {
             const bad = base(); bad[key] = null;
-            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, key + ' explicit null must be rejected');
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, key + ' explicit null must be rejected');
           }
           for (const warehouses of [null, {}, [null], ['   '], [{name:'   '}], [{name:[]} ]]) {
             const bad = base(); bad.warehouses = warehouses;
-            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed warehouses must be rejected');
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouses must be rejected');
           }
           for (const stock of [' ', null, true, {}, [], -1, Infinity]) {
             const bad = base(); bad.products[0].stock = stock;
-            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed primary stock must be rejected');
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed primary stock must be rejected');
           }
           for (const warehouseStock of [null, [], 'invalid']) {
             const bad = base(); bad.products[0].warehouseStock = warehouseStock;
-            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed warehouse stock map must be rejected');
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouse stock map must be rejected');
           }
           for (const warehouseStock of [{'   ':2}, {Legacy:' '}, {Legacy:true}, {Legacy:-1}, {Legacy:Infinity}]) {
             const bad = base(); bad.products[0].warehouseStock = warehouseStock;
-            assert.throws(() => anasValidateIncomingSyncData(bad), undefined, 'malformed warehouse key/balance must be rejected');
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouse key/balance must be rejected');
           }
           const missingCollections = base();
           delete missingCollections.products[0].warehouseStock;
