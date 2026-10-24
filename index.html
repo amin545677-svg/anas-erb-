@@ -2718,7 +2718,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 const price = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
                 const wh=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
                 const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,wh):(Number(p.stock)||0);
-                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
+                const availableLabel=Number.isFinite(available)?String(available):'بيانات غير صالحة';
+                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(${JSON.stringify(String(p.id))})"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${availableLabel}</span></button>`;
             }).join('');
             results.hidden = false;
         }
@@ -2784,6 +2785,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
             const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
             const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,saleWarehouse):(Number(p.stock)||0);
+            if(!Number.isFinite(available)||available<0){alert('تعذر إضافة المنتج: رصيد المخزون غير صالح في «'+saleWarehouse+'». أصلح البيانات قبل متابعة البيع.');return;}
 
             if(ex) {
                 if(ex.qty >= available) { alert('الكمية تتجاوز الرصيد المتوفر في «'+saleWarehouse+'» (' + available + ')'); return; }
@@ -2878,6 +2880,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             else {
                 const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
                 const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+                if (product && (!Number.isFinite(available) || available < 0)) { alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.'); return; }
                 if (product && Number.isFinite(available) && available >= 0 && next > available && !AppData.allowNegativeStock) {
                     alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                     return;
@@ -2894,6 +2897,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!Number.isFinite(q) || q <= 0) return;
             const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
             const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
+            if (product && (!Number.isFinite(available) || available < 0)) { alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.'); return; }
             if (product && Number.isFinite(available) && available >= 0 && q > available && !AppData.allowNegativeStock) {
                 alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
                 return;
@@ -4079,7 +4083,7 @@ function renderPurchasesTable() {
                     ? wtAvailableStock(p, invoiceWarehouse)
                     : (Number(p.stock) || 0);
                 if (!Number.isFinite(available) || available + delta < -0.000001) {
-                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 0) + '.');
+                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 'بيانات غير صالحة') + '.');
                     return;
                 }
             }
@@ -4187,11 +4191,23 @@ function renderPurchasesTable() {
             const assigned=wtUserWarehouseName(user);
             return assigned||'المخزن الرئيسي';
         }
-        function wtAvailableStock(product,warehouse){
-            if(!product)return 0;
-            if(!warehouse||warehouse==='المخزن الرئيسي')return Number(product.stock)||0;
-            return Number((product.warehouseStock||{})[warehouse])||0;
+        function wtReadStockBalance(product,warehouse){
+            if(!product||typeof product!=='object'||Array.isArray(product))return NaN;
+            let raw;
+            if(!warehouse||warehouse==='المخزن الرئيسي'){
+                if(!Object.prototype.hasOwnProperty.call(product,'stock'))return 0;
+                raw=product.stock;
+            }else{
+                if(!Object.prototype.hasOwnProperty.call(product,'warehouseStock'))return 0;
+                const map=product.warehouseStock;
+                if(!map||typeof map!=='object'||Array.isArray(map))return NaN;
+                if(!Object.prototype.hasOwnProperty.call(map,warehouse))return 0;
+                raw=map[warehouse];
+            }
+            if(!((typeof raw==='number')||(typeof raw==='string'))||(typeof raw==='string'&&raw.trim()==='')||!Number.isFinite(Number(raw))||Number(raw)<0)return NaN;
+            return Number(raw);
         }
+        function wtAvailableStock(product,warehouse){return wtReadStockBalance(product,warehouse);}
         function wtEnsureMobileWarehouse(name){
             const label=String(name||'').trim();if(!label)return null;
             if(!Object.prototype.hasOwnProperty.call(AppData,'warehouses'))AppData.warehouses=[];
@@ -4229,7 +4245,7 @@ function renderPurchasesTable() {
             AppData.products.forEach(p=>{if(!Object.prototype.hasOwnProperty.call(p,'warehouseStock'))p.warehouseStock={};});
         }
         function wtTryEnsureData(){try{wtEnsureData();return true;}catch(e){alert((e&&e.message)||'بيانات المخازن غير صالحة. أُوقفت العملية دون تعديل الأرصدة.');return false;}}
-        function wtBalance(p,warehouse){if(!p)return 0;if(warehouse==='المخزن الرئيسي')return Number(p.stock)||0;return Number((p.warehouseStock||{})[warehouse])||0;}
+        function wtBalance(p,warehouse){return wtReadStockBalance(p,warehouse);}
         function wtInitScreen(){
             if(!wtTryEnsureData())return; const from=document.getElementById('wtFrom'),to=document.getElementById('wtTo'),prod=document.getElementById('wtProduct'); if(!from||!to||!prod)return;
             const wh=wtWarehouses(),oldFrom=from.value,oldTo=to.value,oldProd=prod.value;
