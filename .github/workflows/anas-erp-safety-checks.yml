@@ -605,6 +605,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function editSalesInvoice(invoiceId) {")
           end = s.find("// ================= إدارة المخزون وحساب الأرباح =================", start)
@@ -613,7 +614,7 @@ jobs:
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
-          /*INSERT_INVOICE_EDIT_FUNCTION*/
+          const functionSource = /*INSERT_INVOICE_EDIT_FUNCTION*/;
           function runCase(withLegacyFields) {
             const customer = withLegacyFields ? {id:'c1',name:'Customer',debt:20} : {id:'c1',name:'Customer'};
             const invoice = {id:'I1',items:[{id:'p1',name:'Product',qty:2,price:10}],customerObj:customer,customer:'Customer'};
@@ -658,7 +659,7 @@ jobs:
           runCase(true);
           console.log('Invoice edit rollback tests passed: legacy absent fields and existing invoice/customer audit metadata are restored exactly');
           """
-          js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", function_js)
+          js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-invoice-edit-rollback-test.js
