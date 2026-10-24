@@ -2372,25 +2372,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         
         function populateSuppliersDropdowns() {
-            const pSel = document.getElementById('newProdSupplierSelect');
-            const purSel = document.getElementById('purSupplierSelect');
-            if(pSel) {
-                pSel.innerHTML = '<option value="">بدون مورد محدد</option>';
-                AppData.suppliers.forEach(s => {
-                    pSel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+            const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
+            const fill = (select, placeholder) => {
+                if (!select) return;
+                select.replaceChildren();
+                const first = document.createElement('option');
+                first.value = '';
+                first.textContent = placeholder;
+                select.appendChild(first);
+                suppliers.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = String(s.id ?? '');
+                    option.textContent = String(s.name ?? 'مورد بلا اسم');
+                    select.appendChild(option);
                 });
-            }
-            if(purSel) {
-                purSel.innerHTML = '<option value="">اختر المورد...</option>';
-                AppData.suppliers.forEach(s => {
-                    purSel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-                });
-            }
+            };
+            fill(document.getElementById('newProdSupplierSelect'), 'بدون مورد محدد');
+            fill(document.getElementById('purSupplierSelect'), 'اختر المورد...');
         }
-
-        
-        let currentPosCategoryFilter = 'الكل';
-
         function filterPosProductsByCategory(cat, btn) {
             currentPosCategoryFilter = cat;
             if(btn) {
@@ -2403,29 +2402,30 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         // تحديث دالة renderQuickProducts لتدعم فلترة الفئات وشارات الرصيد الملونة
         function renderQuickProducts() {
             const cont = document.getElementById('quickProductsContainer');
-            if(!cont) return;
-            cont.innerHTML = '';
-            
-            const filtered = AppData.products.filter(p => {
-                if(currentPosCategoryFilter === 'الكل') return true;
-                return (p.cat || 'عام') === currentPosCategoryFilter;
-            });
-
+            if (!cont) return;
+            cont.replaceChildren();
+            const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const filtered = products.filter(p => currentPosCategoryFilter === 'الكل' || (p.cat || 'عام') === currentPosCategoryFilter);
             filtered.forEach(p => {
                 const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
-                const isOut = p.stock <= 0;
-                const isLow = p.stock <= (p.minAlert || 5);
-                const btn = document.createElement('div');
+                const stock = Number(p.stock) || 0;
+                const isOut = stock <= 0;
+                const isLow = stock <= (Number(p.minAlert) || 5);
+                const btn = document.createElement('button');
+                btn.type = 'button';
                 btn.className = 'quick-product-btn';
                 btn.style.borderLeft = isOut ? '4px solid #ef4444' : (isLow ? '4px solid #f59e0b' : '4px solid #16a34a');
-                btn.innerHTML = `<div>${anasEscapeHTML(p.name)}</div><small style="font-size:10px; color:${isOut ? '#ef4444' : '#64748b'};">${p.stock} ${p.unit||''} | ${pr} د.ج</small>`;
-                btn.title = p.name + ' - ' + pr + ' د.ج';
-                btn.onclick = () => addItemToPosCart(p.id);
+                const name = document.createElement('div');
+                name.textContent = String(p.name ?? '');
+                const detail = document.createElement('small');
+                detail.style.cssText = 'font-size:10px;color:' + (isOut ? '#ef4444' : '#64748b') + ';';
+                detail.textContent = String(stock) + ' ' + String(p.unit || '') + ' | ' + String(Number(pr) || 0) + ' د.ج';
+                btn.append(name, detail);
+                btn.title = String(p.name ?? '') + ' - ' + String(Number(pr) || 0) + ' د.ج';
+                btn.addEventListener('click', () => addItemToPosCart(p.id));
                 cont.appendChild(btn);
             });
         }
-
-        // تحديث أرقام الكروت السريعة في الواجهة الرئيسية
         function updateDashboardStats() {
             const today = new Date();
             const sameLocalDay = (value) => {
@@ -2930,26 +2930,64 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         function openProductPickerModal() {
             const list = document.getElementById('productPickerList');
-            list.innerHTML = '';
-            AppData.products.forEach(p => {
+            if (!list) return;
+            list.replaceChildren();
+            const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const safeImage = value => {
+                const src = String(value || '');
+                return /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(src) ? src : '';
+            };
+            products.forEach(p => {
                 const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
-                const imgThumb = p.image ? `<img src="${p.image}" style="width:40px; height:40px; border-radius:8px; object-fit:cover; margin-left:10px;">` : `<div style="width:40px; height:40px; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:1.3rem; margin-left:10px;">🍵</div>`;
-                list.innerHTML += `
-                    <div class="menu-action-card" style="margin-bottom:8px;" onclick="addItemToPosCart('${p.id}'); closeModal('productPickerModal'); if(window.__returnToHasibAfterProductPick){window.__returnToHasibAfterProductPick=false;document.getElementById('hasibModal').classList.add('active');renderHasibCartEditor();syncHasibInvoiceTotals();}">
-                        <div style="display:flex; align-items:center;">
-                            ${imgThumb}
-                            <div>
-                                <strong>${anasEscapeHTML(p.name)}</strong><br>
-                                <small style="color:#64748b;">رصيد ${(typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي')}: ${(typeof wtAvailableStock==='function'?wtAvailableStock(p,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(p.stock)||0)} ${p.unit || ''} | سعر: ${pr} د.ج</small>
-                            </div>
-                        </div>
-                        <span style="color:#15803d; font-weight:800;">+ أضف</span>
-                    </div>
-                `;
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'menu-action-card';
+                card.style.cssText = 'width:100%;margin-bottom:8px;text-align:inherit;cursor:pointer;';
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;';
+                const imageSrc = safeImage(p.image);
+                if (imageSrc) {
+                    const img = document.createElement('img');
+                    img.src = imageSrc;
+                    img.alt = '';
+                    img.loading = 'lazy';
+                    img.style.cssText = 'width:40px;height:40px;border-radius:8px;object-fit:cover;margin-left:10px;';
+                    row.appendChild(img);
+                } else {
+                    const placeholder = document.createElement('div');
+                    placeholder.textContent = '🍵';
+                    placeholder.setAttribute('aria-hidden', 'true');
+                    placeholder.style.cssText = 'width:40px;height:40px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-left:10px;';
+                    row.appendChild(placeholder);
+                }
+                const info = document.createElement('div');
+                const name = document.createElement('strong');
+                name.textContent = String(p.name ?? '');
+                const detail = document.createElement('small');
+                detail.style.color = '#64748b';
+                const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+                const available = typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (Number(p.stock) || 0);
+                detail.textContent = 'رصيد ' + warehouse + ': ' + String(available) + ' ' + String(p.unit || '') + ' | سعر: ' + String(Number(pr) || 0) + ' د.ج';
+                info.append(name, document.createElement('br'), detail);
+                row.appendChild(info);
+                const add = document.createElement('span');
+                add.textContent = '+ أضف';
+                add.style.cssText = 'color:#15803d;font-weight:800;margin-inline-start:auto;';
+                card.append(row, add);
+                card.addEventListener('click', () => {
+                    addItemToPosCart(p.id);
+                    closeModal('productPickerModal');
+                    if (window.__returnToHasibAfterProductPick) {
+                        window.__returnToHasibAfterProductPick = false;
+                        document.getElementById('hasibModal')?.classList.add('active');
+                        renderHasibCartEditor();
+                        syncHasibInvoiceTotals();
+                    }
+                });
+                list.appendChild(card);
             });
-            document.getElementById('productPickerModal').classList.add('active');
+            document.getElementById('productPickerModal')?.classList.add('active');
         }
-
         function renderHasibCartEditor() {
             const host = document.getElementById('hasibCartItems');
             if (!host) return;
