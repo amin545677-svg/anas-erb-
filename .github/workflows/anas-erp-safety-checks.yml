@@ -826,6 +826,24 @@ jobs:
           window.anasTruckSettle('T1');
           assert.equal(AppData.stockMovements.length, moves, 'repeat settlement must not duplicate movements');
 
+          // Duplicate product IDs collide deterministic ledger movement IDs and must be rejected before prompting or mutation.
+          let duplicatePromptCalls = 0;
+          let duplicateSaveCalled = false;
+          global.prompt = () => { duplicatePromptCalls++; return '0'; };
+          global.saveDB = () => { duplicateSaveCalled = true; return true; };
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [{id:'TDUP',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:2},{productId:'p1',productName:'Product',qty:3}]}],
+            invoices: [], stockMovements: []
+          };
+          window.anasTruckSettle('TDUP');
+          assert.equal(duplicatePromptCalls, 0, 'duplicate product IDs must be rejected before collecting settlement quantities');
+          assert.equal(duplicateSaveCalled, false, 'duplicate product IDs must not be persisted');
+          assert.equal(AppData.products[0].stock, 5, 'duplicate product IDs must not change main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'duplicate product IDs must not change truck stock');
+          assert.equal(AppData.stockMovements.length, 0, 'duplicate product IDs must not create colliding ledger movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'duplicate product IDs must not mark trip settled');
+
           // Reject invoices from another warehouse before any stock or ledger mutation.
           global.prompt = (() => {
             const answers = ['6','1','1','2','INV-WRONG'];

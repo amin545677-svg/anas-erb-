@@ -7165,6 +7165,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(!trip){alert('لم يتم العثور على الرحلة.');return;}
       if(trip.status!=='delivered'){alert('يجب أن تكون الرحلة في حالة «تم التسليم» قبل التسوية.');return;}
       if(!trip.stockPostedAt||!Array.isArray(trip.stockItems)||!trip.stockItems.length){alert('لا توجد عهدة مخزنية محمّلة لهذه الرحلة.');return;}
+      // A settlement line is keyed by product ID in the ledger; duplicates would collide movement IDs and apply balances twice.
+      const settlementProductIds=new Set();
+      for(const item of trip.stockItems){
+        const productId=item&&item.productId;
+        if(productId===undefined||productId===null||String(productId).trim()===''){alert('تحتوي عهدة الرحلة على صنف دون معرّف صالح؛ أُلغيت التسوية.');return;}
+        const key=String(productId);
+        if(settlementProductIds.has(key)){alert('تحتوي عهدة الرحلة على صنف مكرر ('+key+'). صحّح الحمولة قبل التسوية لمنع تكرار حركات المخزون.');return;}
+        settlementProductIds.add(key);
+      }
       if(trip.settlementId||trip.settledAt){alert('هذه الرحلة مسوّاة سابقاً؛ يمنع تكرار التسوية.');return;}
       const products=Array.isArray(AppData.products)?AppData.products:[];
       const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
