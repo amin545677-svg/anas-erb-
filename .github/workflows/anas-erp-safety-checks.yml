@@ -883,3 +883,36 @@ jobs:
           PY
           node --check /tmp/anas-truck-settlement-test.js
           node /tmp/anas-truck-settlement-test.js
+  - name: Verify stock reads preserve malformed values as invalid
+    run: |
+      python - <<'PY'
+      from pathlib import Path
+      s = Path("index.html").read_text(encoding="utf-8")
+      start = s.find("        function wtReadStockBalance(")
+      end = s.find("        function wtEnsureMobileWarehouse(", start)
+      assert start >= 0 and end > start, "Could not isolate stock balance reader"
+      function_js = s[start:end]
+      js = r"""
+      /*INSERT_STOCK_READER*/
+      const assert = require('node:assert/strict');
+      const main = (stock) => wtReadStockBalance({stock}, 'المخزن الرئيسي');
+      assert.equal(main(12), 12);
+      assert.equal(main(' 12 '), 12);
+      assert.equal(main(undefined), NaN, 'explicit undefined must not be coerced to zero');
+      assert.equal(main('   '), NaN, 'blank primary balance must remain invalid');
+      assert.equal(main(null), NaN, 'null primary balance must remain invalid');
+      assert.equal(main(true), NaN, 'boolean primary balance must remain invalid');
+      assert.equal(main(-1), NaN, 'negative primary balance must remain invalid');
+      assert.equal(wtReadStockBalance({}, 'المخزن الرئيسي'), 0, 'absent legacy primary stock retains zero default');
+      assert.equal(wtReadStockBalance({stock:10,warehouseStock:{A:' '}}, 'A'), NaN, 'blank secondary balance must remain invalid');
+      assert.equal(wtReadStockBalance({stock:10,warehouseStock:{A:true}}, 'A'), NaN, 'boolean secondary balance must remain invalid');
+      assert.equal(wtReadStockBalance({stock:10,warehouseStock:{A:3}}, 'A'), 3);
+      assert.equal(wtReadStockBalance({stock:10,warehouseStock:{}}, 'B'), 0, 'absent secondary warehouse balance is zero');
+      assert.equal(wtReadStockBalance({stock:10,warehouseStock:[]}, 'A'), NaN, 'malformed stock map must remain invalid');
+      console.log('Stock balance reader tests passed: valid, legacy-absent, blank, null, boolean, negative, and malformed map cases');
+      """
+      js = js.replace("/*INSERT_STOCK_READER*/", function_js)
+      Path("/tmp/anas-stock-reader-test.js").write_text(js, encoding="utf-8")
+      PY
+      node --check /tmp/anas-stock-reader-test.js
+      node /tmp/anas-stock-reader-test.js
