@@ -722,6 +722,23 @@ jobs:
             assert.ok(!alerts.some(x=>x.includes('لم يتم حفظ التعديل')),'must not claim rollback after persistence committed');
           }
           runCommittedSaveUiFailureCase();
+          function runMissingCustomerDebtAdjustmentCase() {
+            const invoice={id:'I5',items:[{id:'p1',name:'Product',qty:2,price:10}],customerObj:{id:'missing',name:'Former Customer'},customer:'Former Customer',total:20,paid:10,remaining:10,paymentMethod:'partial'};
+            const product={id:'p1',name:'Product',stock:5,warehouseStock:{}};
+            const data={invoices:[invoice],products:[product],customers:[],stockMovements:[]};
+            const answers=['1','10'];
+            const alerts=[];
+            let saves=0;
+            const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
+            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I5");',ctx);
+            assert.equal(saves,0,'must not save invoice if customer debt cannot be reconciled');
+            assert.equal(product.stock,5,'must not change stock when debt reconciliation is blocked');
+            assert.equal(invoice.items[0].qty,2,'must preserve original invoice lines');
+            assert.equal(invoice.total,20);
+            assert.equal(invoice.remaining,10);
+            assert.ok(alerts.some(x=>x.includes('حساب العميل المرتبط بتسوية الدين')),'must explain missing customer debt account');
+          }
+          runMissingCustomerDebtAdjustmentCase();
           console.log('Invoice edit tests passed: rollback, absent primary stock preserved, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
