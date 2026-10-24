@@ -675,6 +675,15 @@ jobs:
             stockMovements: [],
             warehouses: []
           };
+          // Malformed trip/cart payloads must fail closed before even an idempotency shortcut.
+          assert.throws(() => postTripStock(null), /سجل رحلة الشاحنة غير صالح/);
+          assert.throws(() => postTripStock([]), /سجل رحلة الشاحنة غير صالح/);
+          assert.throws(() => postTripStock({ id: 'TR-BAD-1', stockItems: null }), /قائمة حمولة الشاحنة غير صالحة/);
+          assert.throws(() => postTripStock({ id: 'TR-BAD-2', stockItems: {}, stockPostedAt: 'already-posted' }), /قائمة حمولة الشاحنة غير صالحة/);
+          assert.equal(AppData.products[0].stock, 10, 'malformed trip records must not change main stock');
+          assert.deepEqual(AppData.products[0].warehouseStock, {}, 'malformed trip records must not create warehouse balances');
+          assert.deepEqual(AppData.stockMovements, [], 'malformed trip records must not create ledger entries');
+          assert.deepEqual(AppData.warehouses, [], 'malformed trip records must not create warehouses');
           global.wtEnsureMobileWarehouse = name => {
             if (!AppData.warehouses.includes(name)) AppData.warehouses.push(name);
           };
