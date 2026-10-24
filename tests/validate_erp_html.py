@@ -127,6 +127,18 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+    # Regressions for dynamic text in the Z report and user badge.
+    targeted_checks = {
+        "Z report escapes the configured business name": "anasEscapeHTML(AppData.appName || '')" in source,
+        "Z report escapes both date-range values": all(token in source for token in ('anasEscapeHTML(getReportRange().from || "—")', 'anasEscapeHTML(getReportRange().to || "—")')),
+        "quick user badge uses textContent": "getElementById('topUserQuickBadge').textContent" in source and "getElementById('topUserQuickBadge').innerHTML = '👑 ' + cur.name" not in source,
+        "drawer user name uses textContent": "getElementById('drawerUserName').textContent" in source and "getElementById('drawerUserName').innerText = cur.name" not in source,
+    }
+    for label, passed in targeted_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("dynamic text regression: " + label)
     if errors:
         for error in errors:
             print("FAIL:", error)
