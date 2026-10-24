@@ -4111,6 +4111,25 @@ function renderPurchasesTable() {
             const inv = invoices.find(x => String(x.id) === String(invoiceId));
             if (!inv) { alert('لم يتم العثور على الفاتورة المطلوبة.'); return; }
             if (!Array.isArray(inv.items) || !inv.items.length) { alert('هذه الفاتورة لا تحتوي على تفاصيل أصناف قابلة للتعديل.'); return; }
+            // Validate historical invoice lines before asking the user to edit them.
+            const productCatalog = Array.isArray(AppData.products) ? AppData.products : [];
+            const seenInvoiceProductIds = new Set();
+            for (const item of inv.items) {
+                if (!item || typeof item !== 'object' || Array.isArray(item) || item.id === undefined || item.id === null || String(item.id).trim() === '' ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
+                    !((typeof item.price === 'number') || (typeof item.price === 'string')) || String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
+                    alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
+                    return;
+                }
+                const id = String(item.id);
+                if (seenInvoiceProductIds.has(id)) continue;
+                seenInvoiceProductIds.add(id);
+                const matches = productCatalog.filter(p => p && typeof p === 'object' && !Array.isArray(p) && p.id !== undefined && p.id !== null && String(p.id).trim() !== '' && String(p.id) === id);
+                if (matches.length !== 1) {
+                    alert(matches.length ? 'تعذر تعديل الفاتورة: يوجد أكثر من سجل منتج بالمعرّف نفسه (' + id + '). أصلح تكرار المعرّفات قبل المتابعة.' : 'الصنف ' + (item.name || id) + ' غير موجود بالمخزون؛ لم يتم تغيير الفاتورة.');
+                    return;
+                }
+            }
             const editedItems = [];
             for (const oldItem of inv.items) {
                 const productMatches = (AppData.products || []).filter(p => p && String(p.id) === String(oldItem.id));
