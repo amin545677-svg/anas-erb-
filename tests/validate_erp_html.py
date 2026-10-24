@@ -127,6 +127,13 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+    # Invalid array-shaped warehouseStock must be normalized before transfer logic.
+    warehouse_match = re.search(r"function\\s+wtEnsureData\\s*\\(\\)\\s*\\{([^}]*)\\}", source)
+    if warehouse_match and "Array.isArray(p.warehouseStock)" in warehouse_match.group(1):
+        print("PASS: warehouse initialization rejects array-shaped warehouseStock")
+    else:
+        errors.append("warehouse initialization does not normalize array-shaped warehouseStock")
+
     if errors:
         for error in errors:
             print("FAIL:", error)
