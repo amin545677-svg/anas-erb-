@@ -69,6 +69,12 @@ jobs:
               "purchase return does not falsely claim posting": len(function_bodies("returnPurchasePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnPurchasePrompt")[0],
               "legacy sales return prompt is renamed": len(function_bodies("old_returnSalePrompt")) == 1,
               "legacy purchase return prompt is renamed": len(function_bodies("old_returnPurchasePrompt")) == 1,
+              "only one active quick-product renderer": len(function_bodies("renderQuickProducts")) == 1,
+              "active quick-product renderer keeps category filtering": len(function_bodies("renderQuickProducts")) == 1 and "currentPosCategoryFilter" in function_bodies("renderQuickProducts")[0],
+              "legacy simple product renderer renamed": len(function_bodies("old_renderQuickProducts")) == 1,
+              "only one active quick-sale opener": len(function_bodies("openQuickSale")) == 1,
+              "active quick-sale opener uses quick-sale panel": len(function_bodies("openQuickSale")) == 1 and "quickSalePanel" in function_bodies("openQuickSale")[0],
+              "legacy quick-sale opener renamed": len(function_bodies("old_openQuickSale")) == 1,
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
