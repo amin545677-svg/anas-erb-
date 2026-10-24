@@ -133,7 +133,7 @@ def main():
         start = source.find(marker)
         if start < 0:
             return ""
-        candidates = [pos for pos in (source.find("\\n        function ", start + len(marker)), source.find("\\nfunction ", start + len(marker))) if pos >= 0]
+        candidates = [pos for pos in (source.find("\n        function ", start + len(marker)), source.find("\nfunction ", start + len(marker))) if pos >= 0]
         end = min(candidates) if candidates else len(source)
         return source[start:end]
 
