@@ -2506,7 +2506,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                             <strong>${anasEscapeHTML(c.name)}</strong><br>
                             <small style="color:#64748b;">📞 ${anasEscapeHTML(c.phone || '-')}</small>
                         </div>
-                        <strong style="color:#ef4444; font-size:13px;">${(c.debt !== null && c.debt !== undefined && c.debt !== '' && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')} د.ج</strong>
+                        <strong style="color:#ef4444; font-size:13px;">${((typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')} د.ج</strong>
                     </div>
                 `).join('');
             }
@@ -3054,7 +3054,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             document.getElementById('hasibPaymentMethod').value = 'cash';
             const sel = document.getElementById('hasibCustomerSelect');
             sel.innerHTML = '<option value="">عميل نقدي عابر (Passager)</option>';
-            AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${c.debt !== null && c.debt !== undefined && c.debt !== '' && Number.isFinite(Number(c.debt)) ? Number(c.debt) : 'غير صالح'} د.ج)</option>`; });
+            AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${(typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt) : 'غير صالح'} د.ج)</option>`; });
             updatePaymentMethodFromAmount();
             document.getElementById('hasibModal').classList.add('active');
             renderHasibCartEditor();
@@ -4873,7 +4873,7 @@ function renderPurchasesTable() {
                     </div>
                 `;
             } else if(title === 'تقرير فواتير الآجل') {
-                const creditInvoices = reportInvoices.filter(i => Number(i.remaining) > 0);
+                const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);
                 content.innerHTML = creditInvoices.length > 0 ? creditInvoices.map(i => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${esc(i.id)} - ${esc(i.customer)}</span>
@@ -4884,11 +4884,11 @@ function renderPurchasesTable() {
                 const discounted = reportInvoices.filter(i => { const raw=i.discountAmount??i.discount_amount??i.discount; const value=reportNumber(raw); return (value!==null&&value>0)||(raw!==null&&raw!==undefined&&raw!==''); });
                 content.innerHTML = discounted.length ? discounted.map(i=>{const value=reportNumber(i.discountAmount??i.discount_amount??i.discount);return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${esc(i.id??'—')} - ${esc(i.customer||'عميل نقدي')}</span><strong style="color:#b45309;">${value===null?'غير صالح':value} د.ج</strong></div>`;}).join('') : '<p style="text-align:center;color:#94a3b8;">لا توجد خصومات مسجلة ضمن الفترة المحددة.</p>';
             } else if(title === 'تنبيه نقص المخزون') {
-                const lowStock = AppData.products.filter(p => p.stock <= (p.minAlert || 5));
+                const lowStock = AppData.products.filter(p => { const stock=reportNumber(p.stock); const min=reportNumber(p.minAlert); return stock===null || stock <= (min!==null&&min>0?min:5); });
                 content.innerHTML = lowStock.length > 0 ? lowStock.map(p => `
                     <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9;">
                         <span>${anasEscapeHTML(p.name)}</span>
-                        <strong style="color:#ef4444;">الرصيد: ${p.stock !== null && p.stock !== undefined && p.stock !== '' && Number.isFinite(Number(p.stock)) ? Number(p.stock) : 'غير صالح'} (الحد: ${Number.isFinite(Number(p.minAlert)) && Number(p.minAlert) > 0 ? Number(p.minAlert) : 5})</strong>
+                        <strong style="color:#ef4444;">الرصيد: ${reportDisplay(p.stock)} (الحد: ${reportNumber(p.minAlert)!==null && reportNumber(p.minAlert)>0 ? reportNumber(p.minAlert) : 5})</strong>
                     </div>
                 `).join('') : '<p style="text-align:center; color:#16a34a;">المخزون كافٍ لجميع المنتجات.</p>';
             } else if(title === 'تقرير المبيعات') {
