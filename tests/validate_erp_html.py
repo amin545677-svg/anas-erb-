@@ -434,6 +434,33 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: cloud restore rejects malformed warehouse history and stock balances")
 
+    # Backup and cloud restore must not silently replace populated local history with empty lists.
+    backup_start = source.find("function anasValidateBackupData(incoming)")
+    backup_end = source.find("\\n        function importDataBackup(e)", backup_start)
+    backup_validator = source[backup_start:backup_end] if backup_start >= 0 and backup_end > backup_start else ""
+    restore_start = source.find("async function syncPullNow()")
+    restore_end = source.find("\\n        function exportDataBackup()", restore_start)
+    cloud_restore = source[restore_start:restore_end] if restore_start >= 0 and restore_end > restore_start else ""
+    backup_guards = [
+        "Array.isArray(AppData[key]) && AppData[key].length",
+        "النسخة تفتقد قائمة المخازن الموجودة حاليًا",
+        "warehouseTransfers", "stockMovements", "purchaseInvoices", "truckTrips",
+    ]
+    if not backup_validator or any(guard not in backup_validator for guard in backup_guards):
+        errors.append("file restore must reject missing history collections when local records exist")
+    else:
+        print("PASS: file restore blocks incomplete backups that would erase populated local history")
+    sync_guards = [
+        "if (!exportDataBackup())",
+        "Array.isArray(AppData[key]) && AppData[key].length",
+        "النسخة السحابية تفتقد قائمة المخازن المحلية",
+        "purchaseInvoices", "truckTrips",
+    ]
+    if not cloud_restore or any(guard not in cloud_restore for guard in sync_guards):
+        errors.append("cloud restore must require a successful local backup and block loss of omitted history")
+    else:
+        print("PASS: cloud restore requires a local backup and preserves omitted local history")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
