@@ -360,6 +360,18 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if not any("warehouse preflight must reject malformed stock movement history" in error or "truck warehouse creation must not replace malformed warehouse data" in error or "truck loading must abort when mobile warehouse creation fails" in error for error in errors):
         print("PASS: truck operations preserve malformed warehouse and movement histories")
 
+    # Truck settlement must detect orphaned ledger entries before applying stock changes again.
+    settlement_ledger_guards = [
+        "Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))",
+        "String(m.referenceType||'')==='truck_settlement'&&String(m.referenceId||'')===settlementId",
+        "عُثر على حركات تسوية سابقة لهذه الرحلة دون علامة تسوية موثوقة",
+    ]
+    for guard in settlement_ledger_guards:
+        if guard not in source:
+            errors.append("truck settlement idempotency guard is missing: " + guard)
+    if not any("truck settlement idempotency guard is missing:" in error for error in errors):
+        print("PASS: truck settlement rejects orphaned prior ledger entries and malformed movement history")
+
     # Existing malformed history must fail closed rather than being silently replaced with empty arrays.
     history_guard = "else if(!Array.isArray(AppData.warehouseTransfers)||AppData.warehouseTransfers.some(x=>!x||typeof x!=='object'||Array.isArray(x)))throw new Error('سجل تحويلات المخازن تالف"
     warehouses_guard = "else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))throw new Error('قائمة المخازن تالفة"
