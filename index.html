@@ -4111,9 +4111,22 @@ function renderPurchasesTable() {
             const newTotal = editedItems.reduce((sum, x) => sum + Number(x.qty) * Number(x.price), 0);
             if (!Number.isFinite(newTotal) || newTotal < 0) { alert('تعذر حساب إجمالي الفاتورة.'); return; }
             const oldItems = inv.items;
+            // Historical invoice quantities and prices are the baseline for stock reconciliation.
+            // Never coerce malformed legacy values to zero: that would create a false stock adjustment.
+            for (const item of oldItems) {
+                if (!item || typeof item !== 'object' || item.id === undefined || item.id === null ||
+                    String(item.id).trim() === '' ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
+                    String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
+                    !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
+                    String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
+                    alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
+                    return;
+                }
+            }
             const stockChanges = new Map();
-            for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty || 0));
-            for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty || 0));
+            for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty));
+            for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty));
             // تسوية المخزن الذي صدرت منه الفاتورة، لا المخزن الرئيسي افتراضياً.
             const invoiceWarehouse = String(inv.warehouseName || inv.warehouse || 'المخزن الرئيسي').trim() || 'المخزن الرئيسي';
             for (const [id, delta] of stockChanges) {
@@ -4127,9 +4140,24 @@ function renderPurchasesTable() {
                     return;
                 }
             }
-            const oldTotal = Number(inv.total) || 0;
-            const oldPaid = Number(inv.paid) || 0;
-            const oldRemaining = Number(inv.remaining) || Math.max(0, oldTotal - oldPaid);
+            const validMoneyField = value =>
+                ((typeof value === 'number') || (typeof value === 'string')) &&
+                String(value).trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
+            if ((Object.prototype.hasOwnProperty.call(inv, 'total') && !validMoneyField(inv.total)) ||
+                (Object.prototype.hasOwnProperty.call(inv, 'paid') && !validMoneyField(inv.paid)) ||
+                (Object.prototype.hasOwnProperty.call(inv, 'remaining') && !validMoneyField(inv.remaining))) {
+                alert('تعذر تعديل الفاتورة: إجماليها أو المبلغ المحصّل أو المتبقي يحتوي قيمة مالية غير صالحة. لم يتم تغيير المخزون أو الحسابات.');
+                return;
+            }
+            const oldTotal = Object.prototype.hasOwnProperty.call(inv, 'total') ? Number(inv.total) : oldItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0);
+            const oldPaid = Object.prototype.hasOwnProperty.call(inv, 'paid') ? Number(inv.paid) : 0;
+            const oldRemaining = Object.prototype.hasOwnProperty.call(inv, 'remaining') ? Number(inv.remaining) : Math.max(0, oldTotal - oldPaid);
+            if (!Number.isFinite(oldTotal) || !Number.isFinite(oldPaid) || !Number.isFinite(oldRemaining) ||
+                oldPaid > oldTotal + 0.000001 || oldRemaining > oldTotal + 0.000001 ||
+                Math.abs(oldRemaining - Math.max(0, oldTotal - oldPaid)) > 0.01) {
+                alert('تعذر تعديل الفاتورة: إجماليها والمدفوع والمتبقي غير متطابقة. راجع الحسابات أو صحّح الفاتورة قبل التسوية.');
+                return;
+            }
             // Do not silently rewrite historic cash when an edited invoice total falls below money already collected.
             // Refunds must be recorded as a separate cash movement so the audit trail remains accurate.
             if (newTotal + 0.000001 < oldPaid) {
