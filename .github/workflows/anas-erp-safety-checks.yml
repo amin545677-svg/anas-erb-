@@ -730,7 +730,7 @@ jobs:
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I5");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I5");',ctx);
             assert.equal(saves,0,'must not save invoice if customer debt cannot be reconciled');
             assert.equal(product.stock,5,'must not change stock when debt reconciliation is blocked');
             assert.equal(invoice.items[0].qty,2,'must preserve original invoice lines');
