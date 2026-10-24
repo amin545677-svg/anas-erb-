@@ -893,7 +893,7 @@ jobs:
           const end = source.indexOf('function importDataBackup(', start);
           assert.ok(start >= 0 && end > start, 'backup validator must be extractable for executable tests');
           const validatorSource = source.slice(start, end);
-          const validate = new Function(validatorSource + '\\nreturn anasValidateBackupData;')();
+          const validate = new Function(validatorSource + String.fromCharCode(10) + 'return anasValidateBackupData;')();
           const base = () => ({products:[{id:'p1',stock:5,warehouseStock:{Main:5}}],customers:[],suppliers:[]});
           assert.doesNotThrow(() => validate({...base(),warehouses:['Legacy warehouse'],warehouseTransfers:[],stockMovements:[]}), 'valid legacy string warehouse names must remain supported');
           assert.doesNotThrow(() => validate({...base()}), 'omitted optional legacy collections must remain supported');
