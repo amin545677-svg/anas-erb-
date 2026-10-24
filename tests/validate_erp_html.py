@@ -104,6 +104,11 @@ def main():
     else:
         print("PASS: backup validator rejects blank and non-numeric warehouse balances")
 
+    if "Object.prototype.hasOwnProperty.call(incoming,key)" not in source or "Object.prototype.hasOwnProperty.call(p,'warehouseStock')" not in source or "!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock)" not in source:
+        errors.append("backup validator must reject explicit null history arrays and explicit null/invalid warehouseStock maps")
+    else:
+        print("PASS: backup validator rejects explicit null history and stock maps")
+
     primary_stock_guard = "typeof p.stock === 'number' || typeof p.stock === 'string'"
     if primary_stock_guard not in source or "String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0" not in source:
         errors.append("backup validator must reject blank, boolean, object, non-finite, and negative primary stock values")
