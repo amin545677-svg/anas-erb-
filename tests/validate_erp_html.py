@@ -58,9 +58,12 @@ def main():
         "const safeCartImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';",
         'src="${anasEscapeHTML(safeCartImage)}"',
         "${anasEscapeHTML(item.unit || '')}",
-        "const qty = Number.isFinite(Number(item.qty)) ? Number(item.qty) : 0;",
-        "const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;",
-        "${sub.toFixed(2)}",
+        "item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
+        "item.price !== null && item.price !== undefined && item.price !== '' && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
+        "hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج'",
+        "if (invalidCart) return;",
+        "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح",
+        "${sub===null||!Number.isFinite(sub)?'غير صالح':sub.toFixed(2)}",
     ]
     parser = ERPParser()
     parser.feed(source)
@@ -77,8 +80,8 @@ def main():
     pos_cart_numeric_escape_guards = [
         "${anasEscapeHTML(price)}",
         "${anasEscapeHTML(qty)}",
-        "const qty = Number.isFinite(Number(item.qty)) ? Number(item.qty) : 0;",
-        "const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;",
+        "item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
+        "item.price !== null && item.price !== undefined && item.price !== '' && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
         "${anasEscapeHTML(item.unit || '')}",
     ]
     for guard in pos_cart_numeric_escape_guards:
