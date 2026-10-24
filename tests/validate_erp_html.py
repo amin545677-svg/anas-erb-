@@ -127,7 +127,7 @@ def main():
 
     # Cloud restore must reject explicitly malformed warehouse history and stock maps.
     sync_validator_start = source.find("function anasValidateIncomingSyncData(incoming)")
-    sync_validator_end = source.find("\\n        async function syncPushNow()", sync_validator_start)
+    sync_validator_end = source.find("\n        async function syncPushNow()", sync_validator_start)
     sync_validator = source[sync_validator_start:sync_validator_end] if sync_validator_start >= 0 and sync_validator_end > sync_validator_start else ""
     sync_guards = [
         "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements']",
