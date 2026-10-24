@@ -6780,7 +6780,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   window.anasTruckRemoveDraftItem=function(productId){truckDraftItems=truckDraftItems.filter(x=>String(x.productId)!==String(productId));renderDraftItems();};
   function renderDraftItems(){
     const box=$('truckDraftItems'); if(!box)return;
-    box.innerHTML=truckDraftItems.length ? truckDraftItems.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--mp-border,#e2e8f0)"><span>${safe(x.productName)} × ${Number(x.qty)}</span><button type="button" class="btn-pos-hasib" style="background:#b91c1c" onclick="anasTruckRemoveDraftItem('${safe(x.productId)}')">إزالة</button></div>`).join('') : '<div style="font-size:12px;color:var(--text-muted,#64748b)">لم تُضف أصنافاً مرتبطة بالمخزون.</div>';
+    box.innerHTML=truckDraftItems.length ? truckDraftItems.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--mp-border,#e2e8f0)"><span>${safe(x.productName)} × ${Number(x.qty)}</span><button type="button" class="btn-pos-hasib" style="background:#b91c1c" onclick="anasTruckRemoveDraftItem(decodeURIComponent('${encodeURIComponent(String(x.productId)).replace(/'/g,'%27')}'))">إزالة</button></div>`).join('') : '<div style="font-size:12px;color:var(--text-muted,#64748b)">لم تُضف أصنافاً مرتبطة بالمخزون.</div>';
   }
   function postTripStock(trip){
     if(trip.stockPostedAt)return true;

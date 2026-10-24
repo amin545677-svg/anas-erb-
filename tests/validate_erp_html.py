@@ -97,6 +97,12 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # Truck draft IDs are passed through an inline JS handler; encode them for the JS string context.
+    if "decodeURIComponent('${encodeURIComponent(String(x.productId)).replace(/'/g,'%27')}')" not in source:
+        errors.append("truck draft removal handler must encode product IDs for inline JavaScript")
+    else:
+        print("PASS: truck draft removal handler safely encodes product IDs")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
