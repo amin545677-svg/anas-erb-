@@ -81,7 +81,7 @@ def main():
         "${priceNumber===null?'غير صالح':anasEscapeHTML(priceNumber)}",
         "${qtyNumber===null?'غير صالح':anasEscapeHTML(qtyNumber)}",
         "item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
-        "item.price !== null && item.price !== undefined && item.price !== '' && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
+        "item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
         "${anasEscapeHTML(item.unit || '')}",
     ]
     for guard in pos_cart_numeric_escape_guards:
