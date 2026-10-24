@@ -127,13 +127,13 @@ def main():
 
     # Combined POS/warehouse integration must retain the warehouse preflight and payment guards.
     sale_start = source.find("function confirmHasibPayment()")
-    sale_end = source.find("\\n        function ", sale_start)
+    sale_end = source.find("\n        function ", sale_start)
     sale_fn = source[sale_start:sale_end] if sale_start >= 0 and sale_end > sale_start else ""
     transfer_start = source.find("function wtCreateTransfer()")
-    transfer_end = source.find("\\n        function ", transfer_start)
+    transfer_end = source.find("\n        function ", transfer_start)
     transfer_fn = source[transfer_start:transfer_end] if transfer_start >= 0 and transfer_end > transfer_start else ""
     modal_start = source.find("function openHasibModal()")
-    modal_end = source.find("\\n        function ", modal_start)
+    modal_end = source.find("\n        function ", modal_start)
     modal_fn = source[modal_start:modal_end] if modal_start >= 0 and modal_end > modal_start else ""
     if not sale_fn or "wtTryEnsureData" not in sale_fn or "hasDebtField" not in sale_fn:
         errors.append("integrated POS payment must retain warehouse preflight and malformed customer-debt rejection")
