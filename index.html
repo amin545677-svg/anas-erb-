@@ -2528,6 +2528,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         function saveDB() {
+            if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length) {
+                alert('الحفظ موقوف لحماية البيانات الأصلية. أصلح البيانات التالفة أو استعد نسخة احتياطية سليمة قبل إجراء أي تغييرات.');
+                return false;
+            }
             // نجاح الحفظ يعني نجاح الكتابة إلى التخزين الدائم فقط؛ أخطاء تحديث الواجهة لا تُحوّل حفظًا ناجحًا إلى فشل وهمي.
             try {
                 AppData.posScreensCarts = AppData.posScreensCarts || {};
