@@ -3633,50 +3633,74 @@ function renderPurchasesTable() {
 
         function renderCustomersDebts() {
             const cont = document.getElementById('custDebtsContainer');
-            if(!cont) return;
-            cont.innerHTML = '';
+            if (!cont) return;
+            cont.replaceChildren();
             const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
-            if (!customers.length) { cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا يوجد عملاء مسجلون بعد. استخدم «إضافة عميل جديد» أولاً.</div>'; return; }
+            if (!customers.length) {
+                cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا يوجد عملاء مسجلون بعد. استخدم «إضافة عميل جديد» أولاً.</div>';
+                return;
+            }
+            const esc = value => anasEscapeHTML(String(value ?? ''));
             customers.forEach((c, idx) => {
                 const days = getDebtAgeDays(c.debtDate);
-                const isOverdue = days > 30 && c.debt > 0;
+                const debt = Number(c.debt) || 0;
+                const isOverdue = days > 30 && debt > 0;
                 const detailsId = 'cust-details-' + idx;
-                cont.innerHTML += `
-                    <div class="menu-action-card" style="margin-bottom:8px; flex-direction:column; align-items:stretch; gap:4px; cursor:pointer;" onclick="toggleCustomerDetails('${detailsId}')">
-                        <!-- الشريط الأساسي المختصر: الاسم ورقم الهاتف والمبلغ فقط -->
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <strong style="font-size:1rem; color:var(--mp-navy);">${anasEscapeHTML(c.name)}</strong><br>
-                                <span style="color:#0284c7; font-size:0.85rem; font-weight:700;">📞 ${c.phone || 'بدون هاتف'} ${c.phone2 ? ' | ' + c.phone2 : ''}</span>
-                            </div>
-                            <div style="text-align:left;">
-                                <strong style="color:${c.debt > 0 ? '#ef4444' : '#15803d'}; font-size:1.05rem;">${c.debt > 0 ? c.debt.toLocaleString() + ' د.ج' : 'خالص ✅'}</strong>
-                                ${c.debt > 0 ? `<br><small style="color:${isOverdue ? '#ef4444' : '#64748b'}; font-weight:800;">(منذ ${days} يوم)</small>` : ''}
-                            </div>
-                        </div>
-
-                        <!-- التفاصيل المخفية افتراضياً: لا تظهر إلا عند الضغط على كارت الزبون -->
-                        <div id="${detailsId}" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed #cbd5e1; animation:fadeIn 0.2s ease-in-out;" onclick="event.stopPropagation()">
-                            <div style="font-size:0.78rem; color:#64748b; line-height:1.6; margin-bottom:8px;">
-                                <div><strong>RC :</strong> ${c.rc || '-'} | <strong>NIF :</strong> ${c.nif || '-'}</div>
-                                <div><strong>NIS :</strong> ${c.nis || '-'} | <strong>Art :</strong> ${c.art || '-'}</div>
-                                <div>📍 <strong>العنوان :</strong> ${c.address || 'غير محدد'}</div>
-                            </div>
-                            
-                            <!-- أزرار الإجراءات والقبض والتواصل -->
-                            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                                ${c.debt > 0 ? `<button class="btn-pos-hasib" style="padding:5px 14px; font-size:0.82rem;" onclick="collectCustDebt('${c.id}')">💵 قبض سند</button>` : ''}
-                                ${c.location ? `<button class="pill-select-btn" style="padding:5px 10px; font-size:0.8rem;" onclick="openGoogleMaps('${c.location}')">🗺️ الخريطة</button>` : ''}
-                                <button class="pill-select-btn" style="padding:5px 10px; font-size:0.8rem; color:#16a34a; border-color:#86efac;" onclick="sendSocialMsg('${c.id}', 'whatsapp')">💬 واتساب</button>
-                                <button class="pill-select-btn" style="padding:5px 10px; font-size:0.8rem; color:#0284c7; border-color:#93c5fd;" onclick="sendSocialMsg('${c.id}', 'messenger')">⚡ مسنجر</button>
-                                <button class="pill-select-btn" style="padding:5px 10px; font-size:0.8rem; color:#475569;" onclick="sendSocialMsg('${c.id}', 'sms')">✉️ SMS</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                const card = document.createElement('article');
+                card.className = 'menu-action-card';
+                card.style.cssText = 'margin-bottom:8px;flex-direction:column;align-items:stretch;gap:4px;cursor:pointer;';
+                const top = document.createElement('div');
+                top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;';
+                const identity = document.createElement('div');
+                const name = document.createElement('strong');
+                name.style.cssText = 'font-size:1rem;color:var(--mp-navy);';
+                name.textContent = String(c.name || 'عميل بدون اسم');
+                const phone = document.createElement('span');
+                phone.style.cssText = 'color:#0284c7;font-size:0.85rem;font-weight:700;';
+                phone.textContent = '📞 ' + String(c.phone || 'بدون هاتف') + (c.phone2 ? ' | ' + String(c.phone2) : '');
+                identity.append(name, document.createElement('br'), phone);
+                const balance = document.createElement('div');
+                balance.style.textAlign = 'left';
+                const amount = document.createElement('strong');
+                amount.style.cssText = 'font-size:1.05rem;color:' + (debt > 0 ? '#ef4444' : '#15803d') + ';';
+                amount.textContent = debt > 0 ? debt.toLocaleString() + ' د.ج' : 'خالص ✅';
+                balance.appendChild(amount);
+                if (debt > 0) {
+                    const age = document.createElement('small');
+                    age.style.cssText = 'color:' + (isOverdue ? '#ef4444' : '#64748b') + ';font-weight:800;';
+                    age.textContent = '(منذ ' + days + ' يوم)';
+                    balance.append(document.createElement('br'), age);
+                }
+                top.append(identity, balance);
+                const details = document.createElement('div');
+                details.id = detailsId;
+                details.style.cssText = 'display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #cbd5e1;animation:fadeIn 0.2s ease-in-out;';
+                details.addEventListener('click', event => event.stopPropagation());
+                const admin = document.createElement('div');
+                admin.style.cssText = 'font-size:0.78rem;color:#64748b;line-height:1.6;margin-bottom:8px;';
+                admin.textContent = 'RC: ' + String(c.rc || '-') + ' | NIF: ' + String(c.nif || '-') + ' | NIS: ' + String(c.nis || '-') + ' | Art: ' + String(c.art || '-') + ' | العنوان: ' + String(c.address || 'غير محدد');
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center;';
+                const addAction = (label, handler, style='') => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'pill-select-btn';
+                    button.style.cssText = 'padding:5px 10px;font-size:0.8rem;' + style;
+                    button.textContent = label;
+                    button.addEventListener('click', event => { event.stopPropagation(); handler(); });
+                    actions.appendChild(button);
+                };
+                if (debt > 0) addAction('💵 قبض سند', () => collectCustDebt(c.id), 'padding:5px 14px;');
+                if (c.location) addAction('🗺️ الخريطة', () => openGoogleMaps(String(c.location)));
+                addAction('💬 واتساب', () => sendSocialMsg(c.id, 'whatsapp'), 'color:#16a34a;border-color:#86efac;');
+                addAction('⚡ مسنجر', () => sendSocialMsg(c.id, 'messenger'), 'color:#0284c7;border-color:#93c5fd;');
+                addAction('✉️ SMS', () => sendSocialMsg(c.id, 'sms'), 'color:#475569;');
+                details.append(admin, actions);
+                card.append(top, details);
+                card.addEventListener('click', () => { details.style.display = details.style.display === 'none' ? 'block' : 'none'; });
+                cont.appendChild(card);
             });
         }
-
         function getDebtAgeDays(debtDate) {
             if(!debtDate) return 0;
             const diff = new Date() - new Date(debtDate);
@@ -3894,25 +3918,36 @@ function renderPurchasesTable() {
 
         function renderSuppliersDebts() {
             const cont = document.getElementById('suppDebtsContainer');
-            cont.innerHTML = '';
-            AppData.suppliers.forEach(s => {
-                cont.innerHTML += `
-                    <div class="menu-action-card" style="margin-bottom:8px; flex-direction:column; align-items:stretch; gap:6px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <strong>${s.name}</strong><br>
-                                <small style="color:#64748b;">📞 ${s.phone} ${s.phone2 ? ' | ' + s.phone2 : ''}</small><br>
-                                <small style="color:#64748b; font-size:0.75rem;">RC: ${s.rc || '-'} | NIF: ${s.nif || '-'} | Art: ${s.art || '-'}</small><br>
-                                <small style="color:#0284c7;">📍 ${s.address || 'العنوان غير محدد'}</small>
-                            </div>
-                            <strong style="color:#ef4444;">مستحقات: ${s.balance} د.ج</strong>
-                        </div>
-                    </div>
-                `;
+            if (!cont) return;
+            cont.replaceChildren();
+            const suppliers = Array.isArray(AppData?.suppliers) ? AppData.suppliers : [];
+            suppliers.forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'menu-action-card';
+                card.style.cssText = 'margin-bottom:8px;flex-direction:column;align-items:stretch;gap:6px;';
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;';
+                const details = document.createElement('div');
+                const addLine = (value, style='') => {
+                    const line = document.createElement('div');
+                    line.style.cssText = style;
+                    line.textContent = String(value ?? '');
+                    details.appendChild(line);
+                };
+                const name = document.createElement('strong');
+                name.textContent = String(s.name || 'مورد بلا اسم');
+                details.appendChild(name);
+                addLine('📞 ' + String(s.phone || '') + (s.phone2 ? ' | ' + String(s.phone2) : ''), 'color:#64748b;');
+                addLine('RC: ' + String(s.rc || '-') + ' | NIF: ' + String(s.nif || '-') + ' | Art: ' + String(s.art || '-'), 'color:#64748b;font-size:0.75rem;');
+                addLine('📍 ' + String(s.address || 'العنوان غير محدد'), 'color:#0284c7;');
+                const balance = document.createElement('strong');
+                balance.style.color = '#ef4444';
+                balance.textContent = 'مستحقات: ' + String(Number(s.balance) || 0) + ' د.ج';
+                row.append(details, balance);
+                card.appendChild(row);
+                cont.appendChild(card);
             });
         }
-
-        
         function openAddSupplierModal() { 
             document.getElementById('newSuppNameInput').value = '';
             document.getElementById('newSuppPhoneInput').value = '';
