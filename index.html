@@ -5440,6 +5440,14 @@ function renderPurchasesTable() {
                     throw new Error('بيانات سلال نقاط البيع السحابية غير صالحة.');
                 for (const [key, cart] of Object.entries(incoming.posScreensCarts))
                     if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع السحابية ' + key + ' غير صالحة.');
+                if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
+                    typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)) {
+                    for (const [key, currentCart] of Object.entries(AppData.posScreensCarts)) {
+                        if (Array.isArray(currentCart) && currentCart.length &&
+                            !Object.prototype.hasOwnProperty.call(incoming.posScreensCarts, key))
+                            throw new Error('النسخة السحابية تفتقد سلة نقطة البيع ' + key + ' التي تحتوي على أصناف؛ أُلغي الاسترجاع لمنع فقدانها.');
+                    }
+                }
             } else if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
                 typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) &&
                 Object.values(AppData.posScreensCarts).some(cart => Array.isArray(cart) && cart.length)) {
@@ -5622,6 +5630,14 @@ function renderPurchasesTable() {
                     throw new Error('بيانات سلال نقاط البيع غير صالحة.');
                 for (const [key, cart] of Object.entries(incoming.posScreensCarts))
                     if (!Array.isArray(cart) || cart.length > 10000) throw new Error('سلة نقطة البيع ' + key + ' غير صالحة.');
+                if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
+                    typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts)) {
+                    for (const [key, currentCart] of Object.entries(AppData.posScreensCarts)) {
+                        if (Array.isArray(currentCart) && currentCart.length &&
+                            !Object.prototype.hasOwnProperty.call(incoming.posScreensCarts, key))
+                            throw new Error('النسخة تفتقد سلة نقطة البيع ' + key + ' التي تحتوي على أصناف؛ رُفض الاسترجاع لمنع فقدانها.');
+                    }
+                }
             } else if (typeof AppData !== 'undefined' && AppData.posScreensCarts &&
                 typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) &&
                 Object.values(AppData.posScreensCarts).some(cart => Array.isArray(cart) && cart.length)) {
