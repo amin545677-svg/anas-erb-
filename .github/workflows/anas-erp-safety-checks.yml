@@ -657,7 +657,31 @@ jobs:
           }
           runCase(false);
           runCase(true);
-          console.log('Invoice edit rollback tests passed: legacy absent fields and existing invoice/customer audit metadata are restored exactly');
+          function runPreflightCase(items, products, expectedAlert) {
+            const invoice = {id:'I2',items};
+            const data = {invoices:[invoice],products,stockMovements:[]};
+            let prompts = 0, saves = 0;
+            const alerts = [];
+            const ctx = {
+              AppData:data,
+              prompt:()=>{prompts++;return '1';},
+              confirm:()=>true,
+              alert:m=>alerts.push(String(m)),
+              saveDB:()=>{saves++;return true;},
+              renderInvoicesList:()=>{},
+              renderInventoryList:()=>{},
+              wtAvailableStock:p=>p.stock,
+              console, Number, String, Object, Array, Map, Math, Date
+            };
+            vm.runInNewContext(functionSource + '\\neditSalesInvoice("I2");',ctx);
+            assert.equal(prompts,0,'invalid legacy data must be rejected before prompting');
+            assert.equal(saves,0,'invalid legacy data must not persist');
+            assert.ok(alerts.some(x=>x.includes(expectedAlert)),'expected preflight validation alert');
+            assert.equal(invoice.items,items,'preflight must not replace invoice lines');
+          }
+          runPreflightCase([null],[{id:'p1',name:'Product',stock:4}],'تفاصيل الفاتورة الأصلية');
+          runPreflightCase([{id:'p1',qty:1,price:5}],[{id:'p1',name:'P1',stock:4},{id:'p1',name:'Duplicate P1',stock:8}],'أكثر من سجل منتج');
+          console.log('Invoice edit tests passed: exact rollback after save failure, malformed historical lines rejected before prompts, duplicate product IDs rejected before mutation');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
