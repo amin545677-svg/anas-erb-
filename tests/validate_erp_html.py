@@ -97,6 +97,19 @@ def main():
     else:
         print("PASS: PWA manifest is linked and file exists")
 
+    # IDs interpolated into inventory/truck inline JavaScript handlers must be encoded for the JS string context.
+    for handler in [
+        "wtPrintVoucher(decodeURIComponent('${encodeURIComponent(String(d.id)).replace(/'/g,'%27')}'))",
+        "anasTruckSetStatus(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'),this.value)",
+        "anasTruckSettle(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'))",
+        "anasTruckRecordExpense(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'))",
+        "anasTruckDelete(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'))",
+    ]:
+        if handler not in source:
+            errors.append("unsafe inventory/truck inline ID handler or missing encoding: " + handler.split("(")[0])
+    if not any("unsafe inventory/truck inline ID handler" in e for e in errors):
+        print("PASS: inventory transfer and truck trip IDs are encoded in inline JavaScript handlers")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
