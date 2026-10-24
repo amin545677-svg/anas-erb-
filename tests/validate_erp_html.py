@@ -207,6 +207,29 @@ def main():
     else:
         print("PASS: warehouse selector ignores malformed array-shaped maps")
 
+    # Restore/sync validation must share the runtime warehouse corruption policy.
+    sync_validator_start = source.find("function anasValidateIncomingSyncData(incoming)")
+    sync_validator_end = source.find("async function syncPushNow()", sync_validator_start)
+    if sync_validator_start < 0 or sync_validator_end <= sync_validator_start:
+        errors.append("warehouse restore validator is missing or cannot be isolated")
+    else:
+        sync_validator = source[sync_validator_start:sync_validator_end]
+        required_guards = [
+            "Object.prototype.hasOwnProperty.call(incoming, key)",
+            "Object.prototype.hasOwnProperty.call(incoming, 'warehouseTransfers')",
+            "Object.prototype.hasOwnProperty.call(incoming, 'stockMovements')",
+            "Object.prototype.hasOwnProperty.call(incoming, 'warehouses')",
+            "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
+            "!warehouse.trim()",
+            "String(balance).trim() !== ''",
+            "String(p.stock).trim() !== ''"
+        ]
+        missing_guards = [guard for guard in required_guards if guard not in sync_validator]
+        if missing_guards:
+            errors.append(f"warehouse restore validator is missing fail-closed guards: {missing_guards}")
+        else:
+            print("PASS: restore validation rejects corrupt warehouse collections, maps, keys, and balances")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
