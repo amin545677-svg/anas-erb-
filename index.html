@@ -5076,13 +5076,13 @@ function renderPurchasesTable() {
             let alerts = [];
             AppData.products.forEach(p => {
                 if(p.stock <= (p.minAlert || 5)) {
-                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${p.name}] متبقي منها ${p.stock} فقط.`);
+                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${anasEscapeHTML(p.name)}] متبقي منها ${anasEscapeHTML(p.stock)} فقط.`);
                 }
             });
             AppData.customers.forEach(c => {
                 const days = getDebtAgeDays(c.debtDate);
                 if(c.debt > 0 && days > 30) {
-                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${c.name}] عليه ${c.debt} د.ج منذ ${days} يوم.`);
+                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${anasEscapeHTML(c.name)}] عليه ${anasEscapeHTML(c.debt)} د.ج منذ ${days} يوم.`);
                 }
             });
 
