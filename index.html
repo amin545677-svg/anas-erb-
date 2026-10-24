@@ -4111,7 +4111,7 @@ function renderPurchasesTable() {
             const inv = invoices.find(x => String(x.id) === String(invoiceId));
             if (!inv) { alert('لم يتم العثور على الفاتورة المطلوبة.'); return; }
             if (!Array.isArray(inv.items) || !inv.items.length) { alert('هذه الفاتورة لا تحتوي على تفاصيل أصناف قابلة للتعديل.'); return; }
-            // Validate historical lines and the referenced product identities before prompting or touching any state.
+            // Historical invoice quantities and prices are the baseline for stock reconciliation. Validate them and referenced product identities before prompting or touching any state.
             const productCatalog = Array.isArray(AppData.products) ? AppData.products : [];
             const productIds = new Set();
             for (const item of inv.items) {
