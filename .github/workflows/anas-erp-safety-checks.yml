@@ -1041,7 +1041,7 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("        function confirmHasibPayment() {")
-          end = s.find("\\n        function ", start + 15)
+          end = s.find("\n        function ", start + 15)
           assert start >= 0 and end > start, "Could not isolate POS sale transaction"
           function_js = s[start:end]
           js = r"""
