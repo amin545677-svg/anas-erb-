@@ -128,8 +128,10 @@ def main():
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
     # Invalid array-shaped warehouseStock must be normalized before transfer logic.
-    warehouse_match = re.search(r"function\\s+wtEnsureData\\s*\\(\\)\\s*\\{([^}]*)\\}", source)
-    if warehouse_match and "Array.isArray(p.warehouseStock)" in warehouse_match.group(1):
+    warehouse_start = source.find("function wtEnsureData()")
+    warehouse_end = source.find("}", warehouse_start)
+    warehouse_body = source[warehouse_start:warehouse_end] if warehouse_start >= 0 and warehouse_end >= 0 else ""
+    if "Array.isArray(p.warehouseStock)" in warehouse_body:
         print("PASS: warehouse initialization rejects array-shaped warehouseStock")
     else:
         errors.append("warehouse initialization does not normalize array-shaped warehouseStock")
