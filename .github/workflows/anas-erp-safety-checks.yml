@@ -290,6 +290,30 @@ jobs:
           assert not missing, f"Missing contextual AI helper/privacy markers: {missing}"
           print("Contextual AI helper presence and privacy guards passed")
           PY
+      - name: Check spreadsheet import safety limits
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("async function handleSmartAiUpload(e)")
+          end = s.find("async function anasExtractPdfText(file)", start)
+          assert start >= 0 and end > start, "Could not isolate spreadsheet upload handler"
+          js = s[start:end]
+          required = [
+              "const maxImportBytes=20*1024*1024",
+              "if(file.size>maxImportBytes)",
+              "const maxImportRows=100000, maxImportColumns=200",
+              "if(rows.length>maxImportRows)",
+              "if(widestRow>maxImportColumns)",
+              "Array.isArray(wb.SheetNames)",
+              "if(!sheet)"
+          ]
+          missing = [x for x in required if x not in js]
+          assert not missing, f"Missing spreadsheet import safeguards: {missing}"
+          Path("/tmp/anas-import-handler.js").write_text(js, encoding="utf-8")
+          print("Spreadsheet import size, row/column, and workbook-sheet guards passed")
+          PY
+          node --check /tmp/anas-import-handler.js
       - name: Exercise CSV parser quoting and malformed input
         run: |
           python - <<'PY'
