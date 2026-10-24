@@ -155,8 +155,9 @@ def main():
     warehouses_guard = "else if(!Array.isArray(AppData.warehouses)||AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim())))throw new Error('قائمة المخازن تالفة"
     warehouse_record_guard = "AppData.warehouses.some(w=>!(typeof w==='string'&&w.trim())&&(!w||typeof w!=='object'||Array.isArray(w)||typeof w.name!=='string'||!w.name.trim()))"
     products_guard = "if(!Array.isArray(AppData.products))throw new Error('قائمة المنتجات غير صالحة"
+    product_record_guard = "if(!p||typeof p!=='object'||Array.isArray(p))throw new Error('سجل منتج غير صالح"
     map_guard = "if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن غير صالحة"
-    if history_guard not in source or warehouses_guard not in source or warehouse_record_guard not in source or products_guard not in source or map_guard not in source:
+    if history_guard not in source or warehouses_guard not in source or warehouse_record_guard not in source or products_guard not in source or product_record_guard not in source or map_guard not in source:
         errors.append("warehouse initialization must preserve malformed history and reject invalid product/map shapes")
     else:
         print("PASS: warehouse initialization fails closed without silently replacing malformed history")
