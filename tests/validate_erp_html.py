@@ -127,6 +127,21 @@ def main():
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+    # Regressions for POS cart image URLs and unit labels.
+    pos_start = source.find("function renderPosTable()")
+    pos_end = source.find("\n        function ", pos_start + 1)
+    pos_source = source[pos_start:pos_end if pos_end >= 0 else len(source)]
+    pos_checks = {
+        "POS cart validates image URLs before using them in img src": "const imageSrc = safeImage(item.image);" in pos_source and "data:image/(?:png|jpeg|jpg|webp);base64," in pos_source,
+        "POS cart escapes item unit labels": "anasEscapeHTML(item.unit || '')" in pos_source,
+        "POS cart no longer interpolates raw image data": 'src="\${item.image}"' not in pos_source,
+    }
+    for label, passed in pos_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("POS cart regression: " + label)
+
     # Regressions for dynamic text in the Z report and user badge.
     targeted_checks = {
         "Z report escapes the configured business name": "anasEscapeHTML(AppData.appName || '')" in source,
