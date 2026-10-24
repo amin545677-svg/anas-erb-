@@ -4402,57 +4402,66 @@ function renderPurchasesTable() {
         }
 
         function saveNewProductFromModal() {
-            const editId = document.getElementById('editProductId').value;
-            const name = document.getElementById('newProdNameInput').value.trim();
-            if(!name) { alert('ادخل اسم المنتج'); return; }
-            const barcode = document.getElementById('newProdBarcodeInput').value.trim() || ('23101' + Date.now().toString().slice(-6));
-            const desc = document.getElementById('newProdDescInput').value.trim();
-            const cat = document.getElementById('newProdCatInput').value.trim() || 'عام';
-            const unit = document.getElementById('newProdUnitSelect').value;
-            const pack = parseInt(document.getElementById('newProdUnitPackInput').value) || 1;
-            const buyCost = parseFloat(document.getElementById('newProdBuyCostInput').value) || 0;
-            const p1 = parseFloat(document.getElementById('newProdPrice1Input').value) || 0;
-            const p2 = parseFloat(document.getElementById('newProdPrice2Input').value) || 0;
-            const p3 = parseFloat(document.getElementById('newProdPrice3Input').value) || 0;
-            const stock = parseInt(document.getElementById('newProdStockInput').value) || 0;
-            const minAlert = parseInt(document.getElementById('newProdMinAlertInput').value) || 5;
-            const supplierId = document.getElementById('newProdSupplierSelect').value;
-
-            if(editId) {
-                const p = AppData.products.find(x => x.id === editId);
-                if(p) {
-                    p.name = name; p.barcode = barcode; p.desc = desc; p.cat = cat;
-                    p.unit = unit; p.pack = pack; p.buyPrice = buyCost;
-                    p.price1 = p1; p.price2 = p2; p.price3 = p3;
-                    p.stock = stock; p.minAlert = minAlert; p.supplierId = supplierId;
-                    if(currentTempProdImageBase64) p.image = currentTempProdImageBase64;
+            const byId=id=>document.getElementById(id);
+            const editId=byId('editProductId').value;
+            const name=byId('newProdNameInput').value.trim();
+            if(!name){alert('اسم المنتج مطلوب.');return;}
+            const barcode=byId('newProdBarcodeInput').value.trim()||('23101'+Date.now().toString().slice(-6));
+            const desc=byId('newProdDescInput').value.trim();
+            const cat=byId('newProdCatInput').value.trim()||'عام';
+            const unit=byId('newProdUnitSelect').value;
+            const numberField=(id,label,{integer=false,defaultValue=null}={})=>{
+                const raw=byId(id).value.trim();
+                if(raw===''&&defaultValue!==null)return defaultValue;
+                if(raw===''||!Number.isFinite(Number(raw)))throw new Error(label+' يجب أن يكون رقمًا صالحًا.');
+                const n=Number(raw);
+                if(n<0)throw new Error(label+' لا يمكن أن يكون سالبًا.');
+                if(integer&&!Number.isInteger(n))throw new Error(label+' يجب أن يكون عددًا صحيحًا.');
+                return n;
+            };
+            let pack,buyCost,p1,p2,p3,stock,minAlert;
+            try{
+                pack=numberField('newProdUnitPackInput','مضاعف الوحدة',{integer:true,defaultValue:1});
+                buyCost=numberField('newProdBuyCostInput','تكلفة الشراء',{defaultValue:0});
+                p1=numberField('newProdPrice1Input','سعر البيع الأول',{defaultValue:0});
+                p2=numberField('newProdPrice2Input','سعر البيع الثاني',{defaultValue:0});
+                p3=numberField('newProdPrice3Input','سعر البيع الثالث',{defaultValue:0});
+                stock=numberField('newProdStockInput','رصيد المخزون',{defaultValue:0});
+                minAlert=numberField('newProdMinAlertInput','حد التنبيه',{integer:true,defaultValue:5});
+                if(pack<1)throw new Error('مضاعف الوحدة يجب أن يكون 1 أو أكثر.');
+            }catch(e){alert(e.message||'تحقق من قيم المنتج.');return;}
+            if(!Array.isArray(AppData.products))AppData.products=[];
+            const duplicateBarcode=AppData.products.find(p=>String(p.barcode||'').trim()===barcode&&String(p.id)!==String(editId));
+            if(duplicateBarcode){alert('هذا الباركود مستخدم بالفعل في المنتج «'+(duplicateBarcode.name||duplicateBarcode.id)+'». استخدم باركودًا مختلفًا.');return;}
+            const supplierId=byId('newProdSupplierSelect').value;
+            const index=editId?AppData.products.findIndex(x=>String(x.id)===String(editId)):-1;
+            if(editId&&index<0){alert('لم يتم العثور على المنتج المراد تعديله. لم تتغير أي بيانات.');return;}
+            const beforeProducts=AppData.products.slice();
+            const beforeProduct=index>=0?{...AppData.products[index]}:null;
+            try{
+                if(index>=0){
+                    const p=AppData.products[index];
+                    p.name=name;p.barcode=barcode;p.desc=desc;p.cat=cat;p.unit=unit;p.pack=pack;p.buyPrice=buyCost;
+                    p.price1=p1;p.price2=p2;p.price3=p3;p.stock=stock;p.minAlert=minAlert;p.supplierId=supplierId;
+                    if(currentTempProdImageBase64)p.image=currentTempProdImageBase64;
+                }else{
+                    let id;
+                    do{id='P-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8).toUpperCase();}while(AppData.products.some(p=>String(p.id)===id));
+                    AppData.products.push({id,name,barcode,desc,cat,unit,pack,buyPrice:buyCost,price1:p1,price2:p2,price3:p3,stock,minAlert,supplierId,image:currentTempProdImageBase64||''});
                 }
-            } else {
-                AppData.products.push({
-                    id: 'P' + (AppData.products.length + 1),
-                    name: name,
-                    barcode: barcode,
-                    desc: desc,
-                    cat: cat,
-                    unit: unit,
-                    pack: pack,
-                    buyPrice: buyCost,
-                    price1: p1,
-                    price2: p2,
-                    price3: p3,
-                    stock: stock,
-                    minAlert: minAlert,
-                    supplierId: supplierId,
-                    image: currentTempProdImageBase64 || ""
-                });
+                if(typeof saveDB==='function'&&saveDB()===false)throw new Error('تعذر حفظ قاعدة البيانات. أُعيدت بيانات المنتج السابقة.');
+            }catch(e){
+                AppData.products=beforeProducts;
+                if(index>=0)AppData.products[index]=beforeProduct;
+                console.error('Product save failed',e);
+                alert((e.message||'فشل حفظ المنتج')+' لم يتم تأكيد العملية؛ تحقق من التخزين قبل إعادة المحاولة.');
+                return;
             }
-
-            saveDB();
             closeModal('addProductModal');
-            alert('تم حفظ المنتج بكافة التفاصيل والوحدة والصورة بنجاح ✅');
-            renderQuickProducts();
-            renderInventoryList();
-            if(document.getElementById('view-pos').classList.contains('active')) renderPosTable();
+            alert(index>=0?'تم حفظ تعديلات المنتج بنجاح.':'تم حفظ المنتج بكافة التفاصيل والوحدة والصورة بنجاح.');
+            try{renderQuickProducts();}catch(e){console.error('Quick products refresh failed',e);}
+            try{renderInventoryList();}catch(e){console.error('Inventory refresh failed',e);}
+            const posView=byId('view-pos');if(posView&&posView.classList.contains('active'))try{renderPosTable();}catch(e){console.error('POS refresh failed',e);}
         }
 
         // ================= تقارير الأرباح الشاملة - نسخة واضحة ومفصلة =================
