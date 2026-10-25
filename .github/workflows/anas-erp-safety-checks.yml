@@ -1865,3 +1865,69 @@ jobs:
           PY
           node --check /tmp/anas-save-db-persistence-test.js
           node /tmp/anas-save-db-persistence-test.js
+      - name: Exercise POS and settings rollback on persistence failure
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          def extract(name):
+              start = s.find("function " + name + "(")
+              end = s.find("\n        function ", start + 10)
+              assert start >= 0 and end > start, "Could not isolate " + name
+              return s[start:end]
+          names = ["switchPosScreen", "clearAllPosScreens", "setPosPriceTier", "saveAppSettings"]
+          functions = {name:extract(name) for name in names}
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const sources = /*INSERT_FUNCTIONS*/;
+          function run(name, extra={}) {
+            const alerts=[];
+            const oldCart=[{id:'p',price:12}];
+            const carts={1:oldCart,2:[{id:'other',price:4}],3:[],4:[],quote:[]};
+            const oldConfig={name:'Old Store'};
+            const fields={
+              cfgAppName:{value:'New App'},cfgStoreName:{value:'New Store'},
+              cfgStoreRC:{value:'rc'},cfgStoreNIF:{value:'nif'},cfgStoreNIS:{value:'nis'},
+              cfgStoreArt:{value:'art'},cfgStorePhone:{value:'phone'},cfgStorePhone2:{value:'phone2'},
+              cfgStoreAddress:{value:'address'},cfgStoreLocation:{value:'location'},
+              cfgPrinterWidth:{value:'58mm'},cfgReceiptFooter:{value:'footer'}
+            };
+            const ctx={
+              AppData:{activePosScreenTab:1,posScreensCarts:carts,activePriceTier:1,
+                products:[{id:'p',price1:10,price2:20,price3:30}],appName:'Old App',storeConfig:oldConfig},
+              posCart:oldCart,confirm:()=>true,saveDB:()=>false,alert:m=>alerts.push(String(m)),
+              console:{error:()=>{}},closeModal:()=>{},renderPosTable:()=>{},
+              document:{getElementById:id=>fields[id]||null},
+              openView:()=>{throw new Error('must not navigate after failed save');},
+              ...extra
+            };
+            vm.runInNewContext(sources[name]+'\nthis.invoke='+name+';',ctx);
+            ctx.invoke(name==='switchPosScreen'?'2':name==='setPosPriceTier'?2:undefined);
+            return {ctx,alerts,oldCart,carts,oldConfig};
+          }
+          let r=run('switchPosScreen');
+          assert.equal(r.ctx.AppData.activePosScreenTab,1,'failed screen switch restores active tab');
+          assert.equal(r.ctx.posCart,r.oldCart,'failed screen switch restores active cart');
+          assert.equal(r.ctx.AppData.posScreensCarts,r.carts,'failed screen switch restores cart map');
+          assert.ok(r.alerts.some(x=>x.includes('تعذر حفظ تبديل شاشة البيع')));
+          r=run('clearAllPosScreens');
+          assert.equal(r.ctx.AppData.posScreensCarts,r.carts,'failed clear restores original cart map');
+          assert.equal(r.ctx.posCart,r.oldCart,'failed clear restores active cart');
+          assert.ok(r.alerts.some(x=>x.includes('تعذر حفظ مسح شاشات البيع')));
+          r=run('setPosPriceTier');
+          assert.equal(r.ctx.AppData.activePriceTier,1,'failed tier update restores old tier');
+          assert.equal(r.ctx.posCart[0].price,12,'failed tier update restores cart price');
+          assert.ok(r.alerts.some(x=>x.includes('تعذر حفظ مستوى سعر البيع')));
+          r=run('saveAppSettings');
+          assert.equal(r.ctx.AppData.appName,'Old App','failed settings save restores app name');
+          assert.equal(r.ctx.AppData.storeConfig,r.oldConfig,'failed settings save restores store configuration');
+          assert.ok(r.alerts.some(x=>x.includes('تعذر حفظ الإعدادات')));
+          console.log('POS screen, cart clear, price tier, and settings rollback tests passed');
+          """
+          js = js.replace("/*INSERT_FUNCTIONS*/", json.dumps(functions))
+          Path("/tmp/anas-pos-settings-rollback-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-pos-settings-rollback-test.js
+          node /tmp/anas-pos-settings-rollback-test.js

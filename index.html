@@ -2663,23 +2663,52 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function openMultiScreenModal() { document.getElementById('multiScreenModal').classList.add('active'); }
 
         function switchPosScreen(scrNum) {
-            AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
+            const previousTab = AppData.activePosScreenTab;
+            const previousCart = posCart;
+            const previousCarts = AppData.posScreensCarts;
+            const previousCartsSnapshot = previousCarts && typeof previousCarts === 'object' && !Array.isArray(previousCarts)
+                ? Object.assign({}, previousCarts) : previousCarts;
+            if (String(scrNum) === String(previousTab)) {
+                closeModal('multiScreenModal');
+                renderPosTable();
+                return;
+            }
+            AppData.posScreensCarts = Object.assign({}, previousCartsSnapshot || {});
+            AppData.posScreensCarts[previousTab] = previousCart;
             AppData.activePosScreenTab = scrNum;
-            posCart = AppData.posScreensCarts[scrNum] || [];
-            saveDB();
+            posCart = Array.isArray(AppData.posScreensCarts[scrNum]) ? AppData.posScreensCarts[scrNum] : [];
+            let saved = false;
+            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS POS screen switch save failed:', err); }
+            if (!saved) {
+                AppData.posScreensCarts = previousCarts;
+                AppData.activePosScreenTab = previousTab;
+                posCart = previousCart;
+                renderPosTable();
+                alert('تعذر حفظ تبديل شاشة البيع؛ بقيت الشاشة والسلة السابقتان كما هما.');
+                return;
+            }
             closeModal('multiScreenModal');
             renderPosTable();
             alert('تم الانتقال إلى شاشة البيع: ' + (scrNum === 'quote' ? 'عرض سعر' : 'رقم ' + scrNum));
         }
 
         function clearAllPosScreens() {
-            if(confirm('هل تريد تصفية ومسح جميع شاشات البيع؟')) {
-                AppData.posScreensCarts = { 1: [], 2: [], 3: [], 4: [], 'quote': [] };
-                posCart = [];
-                saveDB();
-                closeModal('multiScreenModal');
+            if (!confirm('هل تريد تصفية ومسح جميع شاشات البيع؟')) return;
+            const previousCarts = AppData.posScreensCarts;
+            const previousCart = posCart;
+            AppData.posScreensCarts = { 1: [], 2: [], 3: [], 4: [], 'quote': [] };
+            posCart = [];
+            let saved = false;
+            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS clear POS screens save failed:', err); }
+            if (!saved) {
+                AppData.posScreensCarts = previousCarts;
+                posCart = previousCart;
                 renderPosTable();
+                alert('تعذر حفظ مسح شاشات البيع؛ أُعيدت السلال السابقة ولم يتم تأكيد المسح.');
+                return;
             }
+            closeModal('multiScreenModal');
+            renderPosTable();
         }
 
         function togglePosDropdown(e) {
@@ -2692,12 +2721,23 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         });
 
         function setPosPriceTier(tier) {
+            const previousTier = AppData.activePriceTier;
+            const previousCart = posCart.map(item => Object.assign({}, item));
             AppData.activePriceTier = tier;
-            saveDB();
             posCart.forEach(item => {
                 const p = AppData.products.find(x => x.id === item.id);
-                if(p) item.price = (tier === 2 ? (p.price2 || p.price1) : (tier === 3 ? (p.price3 || p.price1) : p.price1));
+                if (p) item.price = (tier === 2 ? (p.price2 || p.price1) : (tier === 3 ? (p.price3 || p.price1) : p.price1));
             });
+            let saved = false;
+            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS POS price tier save failed:', err); }
+            if (!saved) {
+                AppData.activePriceTier = previousTier;
+                posCart = previousCart;
+                AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
+                renderPosTable();
+                alert('تعذر حفظ مستوى سعر البيع؛ أُعيد المستوى والسلة السابقان.');
+                return;
+            }
             renderPosTable();
             alert('تم تثبيت سعر البيع ' + tier + ' بنجاح ✅');
         }
@@ -5677,6 +5717,8 @@ function renderPurchasesTable() {
         }
 
         function saveAppSettings() {
+            const previousAppName = AppData.appName;
+            const previousStoreConfig = AppData.storeConfig;
             AppData.appName = document.getElementById('cfgAppName').value.trim() || "Anas ERP";
             AppData.storeConfig = {
                 name: document.getElementById('cfgStoreName').value.trim(),
@@ -5691,7 +5733,14 @@ function renderPurchasesTable() {
                 printerWidth: document.getElementById('cfgPrinterWidth').value,
                 footer: document.getElementById('cfgReceiptFooter').value.trim()
             };
-            saveDB();
+            let saved = false;
+            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS settings save failed:', err); }
+            if (!saved) {
+                if (previousAppName === undefined) delete AppData.appName; else AppData.appName = previousAppName;
+                if (previousStoreConfig === undefined) delete AppData.storeConfig; else AppData.storeConfig = previousStoreConfig;
+                alert('تعذر حفظ الإعدادات؛ أُعيدت القيم السابقة ولم يتم تأكيد الحفظ.');
+                return;
+            }
             const aboutName = document.getElementById('aboutAppName'); if (aboutName) aboutName.textContent = document.getElementById('cfgAppName')?.value || 'Anas ERP';
             alert('تم حفظ الإعدادات والبيانات الجبائية والموقع بنجاح ✅');
             openView('dashboard');
