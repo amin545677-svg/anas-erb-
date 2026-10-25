@@ -624,6 +624,8 @@ jobs:
             ['boolean invoice total', d => d.invoices[0].total = true],
             ['array invoice paid amount', d => d.invoices[0].paid = [5]],
             ['malformed invoice remaining amount', d => d.invoices[0].remaining = '15oops'],
+            ['invoice paid amount exceeds total', d => d.invoices[0].paid = 21],
+            ['invoice remaining amount disagrees with total and paid', d => d.invoices[0].remaining = 14],
             ['boolean invoice line quantity', d => d.invoices[0].items[0].qty = false],
             ['array invoice line price', d => d.invoices[0].items[0].price = [10]],
             ['malformed purchase cost', d => d.purchases[0].cost = '5abc'],
