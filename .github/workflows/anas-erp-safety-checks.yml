@@ -1768,14 +1768,14 @@ jobs:
           PY
           node --check /tmp/anas-warehouse-transfer-test.js
           node /tmp/anas-warehouse-transfer-test.js
-- name: Exercise backup restore rollback when persistence returns false
+      - name: Exercise backup restore rollback when persistence returns false
         run: |
           python - <<'PY'
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
-          end = s.find("\\n        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
           js = r"""
@@ -1801,7 +1801,7 @@ jobs:
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(functionSource+'\\nimportDataBackup({target:input});',ctx);
+          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'false save result must restore original data object');
           assert.equal(ctx.posCart,oldCart,'false save result must restore active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues.length,1,'false save result must restore startup diagnostics');
