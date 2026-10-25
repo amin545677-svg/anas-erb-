@@ -1,0 +1,88 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
+const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+const { default: worker } = await import(moduleUrl);
+const allowedOrigin = "https://amin545677-svg.github.io";
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
+
+function request(path, { method = "GET", body, auth = true } = {}) {
+  const headers = new Headers({ Origin: allowedOrigin });
+  if (auth) headers.set("Authorization", "Bearer firebase-test-token");
+  if (body !== undefined) headers.set("Content-Type", "application/json");
+  return new Request("https://worker.test" + path, {
+    method, headers,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+}
+
+function mockFirebaseLookup() {
+  return new Response(JSON.stringify({ users: [{ localId: "test-user" }] }), { status: 200 });
+}
+
+test("metadata GET returns the Firestore updateTime without returning business data", async () => {
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    assert.match(String(url), /documents\/users\/test-user\/snapshots\/latest$/);
+    return new Response(JSON.stringify({
+      updateTime: "2026-10-25T12:00:00.000000Z",
+      fields: { payload: { stringValue: JSON.stringify({ products: [] }) } }
+    }), { status: 200 });
+  };
+  try {
+    const response = await worker.fetch(request("/snapshot?metadata=1"), env);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      ok: true, exists: true, revision: "2026-10-25T12:00:00.000000Z"
+    });
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("stale revision is rejected instead of overwriting a newer snapshot", async () => {
+  const oldFetch = globalThis.fetch;
+  let patchUrl = "";
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    patchUrl = String(url);
+    assert.equal(init.method, "PATCH");
+    return new Response(JSON.stringify({
+      error: { status: "FAILED_PRECONDITION", message: "The update time precondition failed." }
+    }), { status: 400 });
+  };
+  try {
+    const response = await worker.fetch(request("/snapshot", {
+      method: "POST",
+      body: { data: JSON.stringify({ products: [], customers: [] }), revision: "2026-10-25T12:00:00.000000Z" }
+    }), env);
+    assert.equal(new URL(patchUrl).searchParams.get("currentDocument.updateTime"), "2026-10-25T12:00:00.000000Z");
+    assert.equal(response.status, 409);
+    const result = await response.json();
+    assert.equal(result.conflict, true);
+    assert.match(result.error, /changed after it was read/i);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("first snapshot upload uses an atomic create-only precondition", async () => {
+  const oldFetch = globalThis.fetch;
+  let patchUrl = "";
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    patchUrl = String(url);
+    assert.equal(init.method, "PATCH");
+    return new Response(JSON.stringify({ updateTime: "2026-10-25T13:00:00.000000Z" }), { status: 200 });
+  };
+  try {
+    const response = await worker.fetch(request("/snapshot", {
+      method: "POST", body: { data: JSON.stringify({ products: [], customers: [] }), revision: null }
+    }), env);
+    assert.equal(new URL(patchUrl).searchParams.get("currentDocument.exists"), "false");
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.saved, true);
+    assert.equal(result.revision, "2026-10-25T13:00:00.000000Z");
+  } finally { globalThis.fetch = oldFetch; }
+});

@@ -1,0 +1,26 @@
+name: Firebase Snapshot Worker Tests
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/worker_firebase_snapshot.js'
+      - 'tests/worker_firebase_snapshot.test.mjs'
+      - '.github/workflows/snapshot-worker-tests.yml'
+      - 'index.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-worker-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Firebase snapshot Worker tests
+        run: node --test tests/worker_firebase_snapshot.test.mjs
