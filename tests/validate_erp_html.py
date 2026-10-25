@@ -185,6 +185,8 @@ def main():
     edit_end = source.find("\n        function ", edit_start)
     edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
     edit_guards = [
+        "Number(item.qty) > Number.MAX_SAFE_INTEGER",
+        "qty > Number.MAX_SAFE_INTEGER",
         "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
         "available + delta > Number.MAX_SAFE_INTEGER",
         "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
