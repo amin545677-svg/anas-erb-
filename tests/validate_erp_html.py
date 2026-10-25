@@ -684,7 +684,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         start = source.find(marker)
         if start < 0:
             return ""
-        candidates = [pos for pos in (source.find("\\n        function ", start + len(marker)), source.find("\\nfunction ", start + len(marker))) if pos >= 0]
+        candidates = [pos for pos in (source.find("\n        function ", start + len(marker)), source.find("\nfunction ", start + len(marker))) if pos >= 0]
         end = min(candidates) if candidates else len(source)
         if end_marker:
             marker_end = source.find(end_marker, start)
@@ -696,6 +696,28 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     purchase = function_source("savePurchaseItem")
     transfer = function_source("wtCreateTransfer")
     backup_import = function_source("importDataBackup", "// ================= مركز الإكسل")
+    stock_edit = function_source("editPosQty")
+    stock_balance = function_source("wtReadStockBalance")
+    stock_transfer = function_source("wtCreateTransfer")
+    stock_balance_checks = {
+        "POS quantity edit rejects invalid or negative assigned-warehouse balances":
+            "(!Number.isFinite(available) || available < 0)" in stock_edit
+            and "q > available" in stock_edit,
+        "warehouse balance reader rejects negative, non-finite, and malformed stock":
+            "Number(raw) < 0" in stock_balance
+            and "Number.isFinite(Number(raw))" in stock_balance
+            and "return NaN" in stock_balance,
+        "warehouse transfer validates both source and destination balances before mutation":
+            "Number.isFinite(available)" in stock_transfer
+            and "Number.isFinite(destinationBalance)" in stock_transfer
+            and "destinationBalance=wtBalance(p,to)" in stock_transfer,
+    }
+    for label, passed in stock_balance_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("stock-balance regression: " + label)
+
     transaction_checks = {
         "sale aggregates repeated product quantities and validates numeric inputs":
             "required.set(id, (required.get(id) || 0) + qty)" in sale
