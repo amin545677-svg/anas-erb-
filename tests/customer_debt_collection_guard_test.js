@@ -97,3 +97,38 @@ console.log('PASS: failed persistence rolls back customer debt, cash and ledger'
   assert.ok(supplierSave.includes('debt > Number.MAX_SAFE_INTEGER'), 'supplier balance must reject values beyond safe financial range');
 }
 console.log('PASS: customer and supplier opening balances reject values beyond the safe financial range');
+
+function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidValue) {
+  const start = html.indexOf('function ' + handlerName + '()');
+  const end = html.indexOf('\n        function ', start + 10);
+  assert.ok(start >= 0 && end > start, handlerName + ' must be isolatable');
+  const handler = html.slice(start, end);
+  const fields = {};
+  const ids = handlerName === 'saveNewCustomerMpos'
+    ? ['newCustNameInput','newCustPhoneInput','newCustPhone2Input','newCustRCInput','newCustNIFInput','newCustNISInput','newCustArtInput','newCustAddressInput','newCustLocationInput','newCustDebtInput']
+    : ['newSuppNameInput','newSuppPhoneInput','newSuppRCInput','newSuppNIFInput','newSuppArtInput','newSuppAddressInput','newSuppDebtInput'];
+  for (const id of ids) fields[id] = { value: id === (fieldId) ? invalidValue : (id.endsWith('NameInput') ? 'Test name' : '0'), focus() {} };
+  const existing = [{ id: 'EXISTING', name: 'Existing record', debt: 10, balance: 10 }];
+  const appData = { [collectionName]: existing };
+  const alerts = [];
+  let saves = 0;
+  const context = {
+    AppData: appData, editingCustomerId: null,
+    document: { getElementById: id => fields[id] || null },
+    alert: message => alerts.push(String(message)),
+    saveDB: () => { saves++; return true; },
+    Number, String, Object, Array, Date, Math, JSON,
+    console, closeModal() {}, renderCustomersDebts() {}, renderCustomerDirectory() {},
+    renderSuppliersDebts() {}
+  };
+  vm.createContext(context);
+  vm.runInContext(handler + '\n' + handlerName + '();', context);
+  assert.equal(saves, 0, handlerName + ' must not persist invalid opening balance ' + invalidValue);
+  assert.equal(appData[collectionName].length, 1, handlerName + ' must not mutate records for invalid balance ' + invalidValue);
+  assert.ok(alerts.some(message => message.includes('المجال المالي الآمن')), handlerName + ' must explain the safe financial range');
+}
+for (const invalidValue of ['9007199254740992', '1e309', '-1']) {
+  runOpeningBalanceGuard('saveNewCustomerMpos', 'newCustDebtInput', 'customers', invalidValue);
+  runOpeningBalanceGuard('saveNewSupplierMpos', 'newSuppDebtInput', 'suppliers', invalidValue);
+}
+console.log('PASS: runtime customer and supplier handlers reject unsafe, infinite, and negative opening balances before persistence');
