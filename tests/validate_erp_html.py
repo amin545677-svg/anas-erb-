@@ -158,7 +158,7 @@ def main():
         print("PASS: customer debt, report numeric values, and stored image preview are hardened")
 
     debt_start = source.find("function collectCustDebt(cId)")
-    debt_end = source.find("\\n        function ", debt_start)
+    debt_end = source.find("\n        function ", debt_start)
     debt_fn = source[debt_start:debt_end] if debt_start >= 0 and debt_end > debt_start else ""
     if not debt_fn or "previousDebt > Number.MAX_SAFE_INTEGER" not in debt_fn:
         errors.append("customer debt collection must reject unsafe existing debt balances before mutating cash or debt")
