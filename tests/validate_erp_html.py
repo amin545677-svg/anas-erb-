@@ -857,13 +857,17 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "customerMatches = cId ? customers.filter(" in sale
             and "customerMatches.length !== 1" in sale
             and "const selectedCustomer = cId ? customerMatches[0] : null" in sale,
-        "sale restores exact stock state and leaves the atomic POS cart map untouched on persistence failure":
+        "sale restores exact stock, debt, debt-date, cash, invoice, and cart state after persistence failure":
             "if (!saveDB()) throw" in sale
             and "hadStock:Object.prototype.hasOwnProperty.call(p,'stock')" in sale
             and "if(stockState.hadStock)p.stock=stockState.stock;" in sale
             and "else delete p.stock;" in sale
             and "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;" in sale
-            and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
+            and "if (hasDebtField) cust.debt = rawDebt; else delete cust.debt;" in sale
+            and "hadDebtDate = Object.prototype.hasOwnProperty.call(cust, 'debtDate')" in sale
+            and "if (hadDebtDate) cust.debtDate = oldDebtDate; else delete cust.debtDate;" in sale
+            and "const rawCaisseBalance = AppData.caisseBalance;" in sale
+            and "if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;" in sale
             and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale
             and "AppData.posScreensCarts" not in sale,
         "purchase validates safe integer quantity and restores AppData on failed persistence":
