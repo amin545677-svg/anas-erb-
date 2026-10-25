@@ -605,6 +605,31 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if file_restore and cloud_restore and all(guard in file_restore for guard in repair_guards) and all(guard in cloud_restore for guard in repair_guards):
         print("PASS: validated restore can repair corrupt startup state and restores fail-safe guards if persistence fails")
 
+    # Sales invoice print templates must escape imported/store/customer/item values before HTML insertion.
+    thermal_start = source.find("function printThermalReceipt(inv) {")
+    thermal_end = source.find("function printLegalA4Invoice(inv", thermal_start)
+    a4_start = thermal_end
+    a4_end = source.find("function openInvoicePreview(title, html, printAction)", a4_start)
+    thermal_source = source[thermal_start:thermal_end] if thermal_start >= 0 and thermal_end > thermal_start else ""
+    a4_source = source[a4_start:a4_end] if a4_start >= 0 and a4_end > a4_start else ""
+    print_escape_guards = [
+        (thermal_source, "${anasEscapeHTML(sc.name)}"),
+        (thermal_source, "${anasEscapeHTML(sc.footer)}"),
+        (thermal_source, "${anasEscapeHTML(inv.customer)}"),
+        (thermal_source, "${anasEscapeHTML(inv.total)}"),
+        (thermal_source, "${anasEscapeHTML(it.unit || '')}"),
+        (a4_source, "${anasEscapeHTML(sc.name)}"),
+        (a4_source, "${anasEscapeHTML(inv.id)}"),
+        (a4_source, "${anasEscapeHTML(cust.name || inv.customer)}"),
+        (a4_source, "${anasEscapeHTML(cust.address || 'غير محدد')}"),
+        (a4_source, "${anasEscapeHTML(it.name)}"),
+        (a4_source, "${anasEscapeHTML(it.unit || 'قطعة')}"),
+    ]
+    if not thermal_source or not a4_source or any(guard not in part for part, guard in print_escape_guards):
+        errors.append("thermal/A4 sales invoice templates must HTML-escape dynamic store, customer, invoice, and item fields")
+    else:
+        print("PASS: thermal and A4 sales invoice templates escape dynamic text fields")
+
     if "serviceWorker.register" not in source:
         errors.append("service worker registration is missing")
     elif not (ROOT / "sw.js").exists():
