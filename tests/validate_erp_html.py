@@ -169,6 +169,17 @@ def main():
     if not any("customer/report/image output safety guard is missing:" in error for error in errors):
         print("PASS: customer debt, report numeric values, and stored image preview are hardened")
 
+    cloud_validator_start = source.find("function anasValidateIncomingSyncData(incoming) {")
+    cloud_validator_end = source.find("async function syncPushNow()", cloud_validator_start)
+    cloud_validator = source[cloud_validator_start:cloud_validator_end] if cloud_validator_start >= 0 and cloud_validator_end > cloud_validator_start else ""
+    if ("['products', incoming.products, true]" not in cloud_validator
+        or "['invoices', incoming.invoices, false]" not in cloud_validator
+        or "['truckTrips', incoming.truckTrips || [], false]" not in cloud_validator
+        or "معرّف مكرر في قائمة" not in cloud_validator):
+        errors.append("cloud restore must reject duplicate product, invoice, and truck trip IDs")
+    else:
+        print("PASS: cloud restore rejects duplicate operational record IDs")
+
     backup_validator_start = source.find("function anasValidateBackupData(incoming)")
     backup_validator_end = source.find("function importDataBackup", backup_validator_start)
     backup_validator = source[backup_validator_start:backup_validator_end] if backup_validator_start >= 0 and backup_validator_end > backup_validator_start else ""
