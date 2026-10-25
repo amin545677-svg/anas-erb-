@@ -5824,6 +5824,13 @@ function renderPurchasesTable() {
                     !Number.isFinite(Number(raw)) || Number(raw) < 0 || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ') بالنسخة السحابية؛ أُلغي الاسترجاع لحماية الحسابات.');
             };
+            if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
+                validateCloudMoney(incoming, 'caisseBalance', 'رصيد الصندوق');
+            } else if (typeof AppData !== 'undefined' &&
+                Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                Number.isFinite(Number(AppData.caisseBalance)) && Number(AppData.caisseBalance) > 0) {
+                throw new Error('النسخة السحابية تفتقد رصيد الصندوق المحلي غير الصفري؛ أُلغي الاسترجاع لمنع فقدان الرصيد.');
+            }
             for (const customer of incoming.customers) validateCloudMoney(customer, 'debt', 'ديون العملاء');
             for (const supplier of incoming.suppliers) validateCloudMoney(supplier, 'balance', 'أرصدة الموردين');
             for (const expense of (incoming.expenses || [])) {
