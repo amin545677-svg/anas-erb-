@@ -6178,6 +6178,8 @@ function renderPurchasesTable() {
             // Warehouse transfer vouchers are persisted accounting records too. Validate numeric values
             // during restore so malformed legacy/imported vouchers cannot bypass the transfer UI guards.
             for (const transfer of (incoming.warehouseTransfers || [])) {
+                if (!Object.prototype.hasOwnProperty.call(transfer, 'quantity'))
+                    throw new Error('قيمة مالية غير صالحة في كميات التحويل المخزني (quantity)؛ رُفض الاسترجاع لحماية المخزون والحسابات.');
                 validateMoneyField(transfer, 'quantity', 'كميات التحويل المخزني', false);
                 for (const field of ['buyPrice', 'salePrice', 'buyTotal', 'saleTotal']) {
                     if (Object.prototype.hasOwnProperty.call(transfer, field) && transfer[field] !== null)
