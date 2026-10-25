@@ -6175,6 +6175,15 @@ function renderPurchasesTable() {
                 validateMoneyField(purchase, 'qty', 'كميات المشتريات', false);
                 validateMoneyField(purchase, 'total', 'إجمالي المشتريات', false);
             }
+            // Warehouse transfer vouchers are persisted accounting records too. Validate numeric values
+            // during restore so malformed legacy/imported vouchers cannot bypass the transfer UI guards.
+            for (const transfer of (incoming.warehouseTransfers || [])) {
+                validateMoneyField(transfer, 'quantity', 'كميات التحويل المخزني', false);
+                for (const field of ['buyPrice', 'salePrice', 'buyTotal', 'saleTotal']) {
+                    if (Object.prototype.hasOwnProperty.call(transfer, field) && transfer[field] !== null)
+                        validateMoneyField(transfer, field, 'قيم سندات التحويل المخزني');
+                }
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
                 if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
                     throw new Error('بيانات سلال نقاط البيع غير صالحة.');
