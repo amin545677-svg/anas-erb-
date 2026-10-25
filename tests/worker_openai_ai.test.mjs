@@ -102,3 +102,31 @@ test("oversized request body is rejected", async () => {
   }), { OPENAI_API_KEY: "test-secret" });
   assert.equal(response.status, 413);
 });
+
+test("oversized request stream is cancelled as soon as it crosses the byte limit", async () => {
+  const oldFetch = globalThis.fetch;
+  let cancelled = false;
+  let pulled = 0;
+  globalThis.fetch = async () => { throw new Error("OpenAI must not be called for an oversized request"); };
+  const body = new ReadableStream({
+    pull(controller) {
+      pulled++;
+      controller.enqueue(new Uint8Array(120 * 1024 + 1));
+    },
+    cancel() { cancelled = true; }
+  });
+  try {
+    const response = await worker.fetch(new Request("https://worker.test/", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, "Content-Type": "application/json" },
+      body,
+      duplex: "half"
+    }), { OPENAI_API_KEY: "test-secret" });
+    assert.equal(response.status, 413);
+    assert.match((await response.json()).error, /too large/i);
+    assert.equal(cancelled, true, "request body stream must be cancelled at the limit");
+    assert.equal(pulled, 1, "the worker must stop reading once the limit is crossed");
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
