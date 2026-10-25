@@ -3681,15 +3681,40 @@ function renderPurchasesTable() {
         }
 
         function submitCashOperation() {
-            const amt = parseFloat(document.getElementById('cashAmountInput').value) || 0;
-            const desc = document.getElementById('cashDescInput').value.trim() || 'حركة نقدية';
+            const amountInput = document.getElementById('cashAmountInput');
+            const rawAmount = amountInput ? String(amountInput.value).trim() : '';
+            const parsedAmount = Number(rawAmount.replace(',', '.'));
+            const amt = Math.round(parsedAmount * 100) / 100;
+            const descInput = document.getElementById('cashDescInput');
+            const desc = (descInput ? String(descInput.value || '').trim() : '') || 'حركة نقدية';
             const isAdd = document.getElementById('optAddCash').classList.contains('active');
-            if(!Number.isFinite(amt) || amt <= 0) { document.getElementById('cashAmountInput').focus(); alert('أدخل مبلغاً أكبر من صفر.'); return; }
-            const previousBalance = Number(AppData.caisseBalance) || 0;
+            if (!Number.isFinite(amt) || amt <= 0) {
+                if (amountInput && typeof amountInput.focus === 'function') amountInput.focus();
+                alert('أدخل مبلغاً صالحاً أكبر من صفر، باستخدام أرقام فقط.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                (AppData.caisseBalance === null || AppData.caisseBalance === '' ||
+                 (typeof AppData.caisseBalance === 'string' && AppData.caisseBalance.trim() === '') ||
+                 !Number.isFinite(Number(AppData.caisseBalance)))) {
+                alert('رصيد الصندوق المخزن غير صالح؛ أُوقفت الحركة لحماية الحسابات.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'cashMovements') &&
+                (!Array.isArray(AppData.cashMovements) || AppData.cashMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m)))) {
+                alert('سجل حركات الصندوق تالف؛ أُوقفت الحركة دون استبدال السجل.');
+                return;
+            }
+            const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
+            const nextBalance = previousBalance + (isAdd ? amt : -amt);
+            if (!Number.isFinite(nextBalance)) {
+                alert('تتجاوز الحركة الحد العددي الآمن لرصيد الصندوق؛ لم يتم تسجيلها.');
+                return;
+            }
+            if (!isAdd && previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
             const hadMovements = Array.isArray(AppData.cashMovements);
             const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
-            if(!isAdd && previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
-            AppData.caisseBalance = previousBalance + (isAdd ? amt : -amt);
+            AppData.caisseBalance = nextBalance;
             if (!hadMovements) AppData.cashMovements = [];
             AppData.cashMovements.push({
                 id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
@@ -3715,12 +3740,37 @@ function renderPurchasesTable() {
         }
 
         function submitExpenseOperation() {
-            const amt = parseFloat(document.getElementById('expAmountInput').value) || 0;
-            const desc = document.getElementById('expDescInput').value.trim() || 'مصروف عام';
-            const acc = document.getElementById('expAccountInput').value.trim() || 'مصاريف عامة';
-            if(!Number.isFinite(amt) || amt <= 0) { document.getElementById('expAmountInput').focus(); alert('أدخل مبلغاً أكبر من صفر.'); return; }
-            const previousBalance = Number(AppData.caisseBalance) || 0;
-            if(previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
+            const amountInput = document.getElementById('expAmountInput');
+            const rawAmount = amountInput ? String(amountInput.value).trim() : '';
+            const parsedAmount = Number(rawAmount.replace(',', '.'));
+            const amt = Math.round(parsedAmount * 100) / 100;
+            const descInput = document.getElementById('expDescInput');
+            const desc = (descInput ? String(descInput.value || '').trim() : '') || 'مصروف عام';
+            const accountInput = document.getElementById('expAccountInput');
+            const acc = (accountInput ? String(accountInput.value || '').trim() : '') || 'مصاريف عامة';
+            if (!Number.isFinite(amt) || amt <= 0) {
+                if (amountInput && typeof amountInput.focus === 'function') amountInput.focus();
+                alert('أدخل مبلغاً صالحاً أكبر من صفر، باستخدام أرقام فقط.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                (AppData.caisseBalance === null || AppData.caisseBalance === '' ||
+                 (typeof AppData.caisseBalance === 'string' && AppData.caisseBalance.trim() === '') ||
+                 !Number.isFinite(Number(AppData.caisseBalance)))) {
+                alert('رصيد الصندوق المخزن غير صالح؛ أُوقف تسجيل المصروف لحماية الحسابات.');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'expenses') &&
+                (!Array.isArray(AppData.expenses) || AppData.expenses.some(x => !x || typeof x !== 'object' || Array.isArray(x)))) {
+                alert('سجل المصروفات تالف؛ أُوقف التسجيل دون استبدال السجل.');
+                return;
+            }
+            const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
+            if (!Number.isFinite(previousBalance - amt)) {
+                alert('تتجاوز العملية الحد العددي الآمن لرصيد الصندوق؛ لم يتم تسجيل المصروف.');
+                return;
+            }
+            if (previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
             const hadExpenses = Array.isArray(AppData.expenses);
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
             AppData.caisseBalance = previousBalance - amt;
@@ -3739,14 +3789,13 @@ function renderPurchasesTable() {
                 AppData.caisseBalance = previousBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 updateCashUI();
-                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وقائمة المصروفات إلى حالتهما السابقة.');
+                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وسجل المصروفات إلى حالتهما السابقة.');
                 return;
             }
-            alert('تم تسجيل المصروف وخصمه من الصندوق بنجاح ✅');
-            promptExitToHome();
+            updateCashUI();
+            alert('تم تسجيل المصروف بنجاح ✅');
+            renderExpenses();
         }
-
-        // ================= العملاء والموردين ووسائل التواصل الاجتماعي والـ GPS =================
         function toggleCustomerDetails(cardId) {
             const el = document.getElementById(cardId);
             if(el) {
