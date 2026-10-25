@@ -941,7 +941,7 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveUserRecord()")
-          end = s.find("\\n        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveUserRecord"
           fn = s[start:end]
           js = r"""
@@ -964,7 +964,7 @@ jobs:
             closeModal:()=>{throw new Error('must not close form after failed save');},renderUsers:()=>{},
             console:{error:()=>{}},JSON,Object,Array,String,Number,Date,Math
           };
-          vm.runInNewContext(fn+'\\nthis.invoke=saveUserRecord;',ctx);
+          vm.runInNewContext(fn+'\nthis.invoke=saveUserRecord;',ctx);
           ctx.invoke();
           assert.equal(user.name,'Old User','failed edit must restore prior name');
           assert.equal(user.phone,'111','failed edit must restore prior phone');
