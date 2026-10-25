@@ -5999,6 +5999,10 @@ function renderPurchasesTable() {
                 validateCloudMoney(purchase, 'qty', 'كميات المشتريات', false);
                 validateCloudMoney(purchase, 'total', 'إجمالي المشتريات', false);
             }
+            for (const trip of (incoming.truckTrips || [])) {
+                validateCloudMoney(trip, 'cost', 'تكلفة الرحلات');
+                validateCloudMoney(trip, 'weight', 'وزن الرحلات');
+            }
             return incoming;
         }
 
@@ -6246,6 +6250,10 @@ function renderPurchasesTable() {
                 validateMoneyField(purchase, 'cost', 'تكلفة المشتريات', false);
                 validateMoneyField(purchase, 'qty', 'كميات المشتريات', false);
                 validateMoneyField(purchase, 'total', 'إجمالي المشتريات', false);
+            }
+            for (const trip of (incoming.truckTrips || [])) {
+                validateMoneyField(trip, 'cost', 'تكلفة الرحلات');
+                validateMoneyField(trip, 'weight', 'وزن الرحلات');
             }
             // Warehouse transfer vouchers are persisted accounting records too. Validate numeric values
             // during restore so malformed legacy/imported vouchers cannot bypass the transfer UI guards.

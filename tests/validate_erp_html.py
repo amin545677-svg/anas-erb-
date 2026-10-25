@@ -169,6 +169,15 @@ def main():
     if not any("customer/report/image output safety guard is missing:" in error for error in errors):
         print("PASS: customer debt, report numeric values, and stored image preview are hardened")
 
+    backup_trip_values_start = source.find("function anasValidateBackupData(incoming)")
+    backup_trip_values_end = source.find("function importDataBackup", backup_trip_values_start)
+    backup_trip_values = source[backup_trip_values_start:backup_trip_values_end] if backup_trip_values_start >= 0 and backup_trip_values_end > backup_trip_values_start else ""
+    if ("validateMoneyField(trip, 'cost', 'تكلفة الرحلات')" not in backup_trip_values
+        or "validateMoneyField(trip, 'weight', 'وزن الرحلات')" not in backup_trip_values):
+        errors.append("backup restore must validate persisted truck trip cost and weight")
+    else:
+        print("PASS: backup restore validates truck trip cost and weight")
+
     cloud_validator_start = source.find("function anasValidateIncomingSyncData(incoming) {")
     cloud_validator_end = source.find("async function syncPushNow()", cloud_validator_start)
     cloud_validator = source[cloud_validator_start:cloud_validator_end] if cloud_validator_start >= 0 and cloud_validator_end > cloud_validator_start else ""
@@ -179,6 +188,12 @@ def main():
         errors.append("cloud restore must reject duplicate product, invoice, and truck trip IDs")
     else:
         print("PASS: cloud restore rejects duplicate operational record IDs")
+
+    if ("validateCloudMoney(trip, 'cost', 'تكلفة الرحلات')" not in cloud_validator
+        or "validateCloudMoney(trip, 'weight', 'وزن الرحلات')" not in cloud_validator):
+        errors.append("cloud restore must validate persisted truck trip cost and weight")
+    else:
+        print("PASS: cloud restore validates truck trip cost and weight")
 
     backup_validator_start = source.find("function anasValidateBackupData(incoming)")
     backup_validator_end = source.find("function importDataBackup", backup_validator_start)

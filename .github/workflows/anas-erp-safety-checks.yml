@@ -563,6 +563,14 @@ jobs:
           expectReject(make([{id:'p1',stock:1},{id:'p1',stock:2}]),'duplicate product IDs must be rejected');
           expectReject(make([{id:'p1',stock:1}],[{id:'c1'},{id:'c1'}]),'duplicate customer IDs must be rejected');
           expectReject(make([{id:'p1',stock:1}],[],[{id:'s1'},{id:'s1'}]),'duplicate supplier IDs must be rejected');
+          for (const field of ['cost','weight']) {
+            for (const badValue of [true, [], '', '   ', -1, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+              const bad = make([{id:'p1',stock:1}]);
+              bad.truckTrips = [{id:'TR-1',[field]:badValue}];
+              assert.throws(() => ctx.validateBackup(bad), Error, 'backup restore must reject malformed trip '+field);
+            }
+          }
+
           const duplicateInvoices = make([{id:'p1',stock:1}]);
           duplicateInvoices.invoices = [{id:'INV-1'},{id:'INV-1'}];
           expectReject(duplicateInvoices,'duplicate invoice IDs must be rejected');
@@ -1996,6 +2004,13 @@ jobs:
             if (key === 'invoices') bad.invoices = [{id:'INV-DUP'},{id:'INV-DUP'}];
             if (key === 'truckTrips') bad.truckTrips = [{id:'TR-DUP'},{id:'TR-DUP'}];
             assert.throws(() => anasValidateIncomingSyncData(bad), /معرّف مكرر في قائمة/, 'cloud restore must reject duplicate ' + key + ' IDs');
+          }
+          for (const field of ['cost','weight']) {
+            for (const badValue of [true, [], '', '   ', -1, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+              const bad = base();
+              bad.truckTrips = [{id:'TR-1',[field]:badValue}];
+              assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'cloud restore must reject malformed trip '+field);
+            }
           }
           const validAccounting = () => ({
             products:[{id:'p1',stock:8}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],
