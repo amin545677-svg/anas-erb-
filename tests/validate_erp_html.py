@@ -57,6 +57,23 @@ def main():
     parser.feed(source)
     parser.close()
     errors = []
+    # Inline handlers must encode persisted identifiers for the JavaScript string context.
+    inline_id_safety_guards = [
+        "editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))",
+        "wtPrintVoucher(decodeURIComponent('${encodeURIComponent(String(d.id)).replace(/'/g,'%27')}'))",
+        "anasTruckRemoveDraftItem(decodeURIComponent('${encodeURIComponent(String(x.productId)).replace(/'/g,'%27')}'))",
+        "anasTruckSetStatus(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'),this.value)",
+        "anasTruckSettle(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'))",
+        "anasTruckRecordExpense(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'))",
+        "anasTruckDelete(decodeURIComponent('${encodeURIComponent(String(t.id)).replace(/'/g,'%27')}'))",
+        "<td>${safeNum(i.systemQty)}</td>",
+    ]
+    for guard in inline_id_safety_guards:
+        if guard not in source:
+            errors.append("inline ID or stocktake rendering safety guard is missing: " + guard)
+    if not any("inline ID or stocktake rendering safety guard is missing:" in error for error in errors):
+        print("PASS: customer, warehouse, truck IDs and stocktake quantities are safely rendered")
+
 
     # POS search IDs and cart images must remain safe with imported product data.
     pos_safety_guards = [
