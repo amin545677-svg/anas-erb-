@@ -1,4 +1,5 @@
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -8,7 +9,7 @@ SOURCE = (ROOT / "sw.js").read_text(encoding="utf-8")
 
 class ServiceWorkerCacheRegressionTests(unittest.TestCase):
     def test_cache_version_is_bumped_to_force_worker_install(self):
-        match = re.search(r"const CACHE = ['\"]([^'\"]+)['\"]", SOURCE)
+        match = re.search(r"const CACHE = ['\\\"]([^'\\\"]+)['\\\"]", SOURCE)
         self.assertIsNotNone(match, "service worker cache version must be explicit")
         self.assertNotEqual(match.group(1), "anas-erp-v54-25", "old cache name would not force an app-shell refresh")
 
@@ -31,6 +32,13 @@ class ServiceWorkerCacheRegressionTests(unittest.TestCase):
     def test_non_get_and_cross_origin_requests_are_not_intercepted(self):
         self.assertIn("if (request.method !== 'GET') return;", SOURCE)
         self.assertIn("if (url.origin !== self.location.origin) return;", SOURCE)
+
+    def test_runtime_cache_and_offline_behavior(self):
+        subprocess.run(
+            ["node", str(ROOT / "tests" / "service_worker_runtime_test.js")],
+            cwd=ROOT,
+            check=True,
+        )
 
 
 if __name__ == "__main__":
