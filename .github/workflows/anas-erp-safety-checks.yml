@@ -2521,7 +2521,7 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{duplicateSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-COST');
             assert.equal(duplicateSaves,0,'duplicate trip IDs must not persist expense');
             assert.deepEqual(ctx.AppData.expenses,[],'duplicate trip IDs must not append expense');
