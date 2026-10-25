@@ -1865,8 +1865,7 @@ jobs:
           PY
           node --check /tmp/anas-save-db-persistence-test.js
           node /tmp/anas-save-db-persistence-test.js
-
-            - name: Exercise POS and settings rollback on persistence failure
+      - name: Exercise POS and settings rollback on persistence failure
         run: |
           python - <<'PY'
           from pathlib import Path
