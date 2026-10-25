@@ -1135,6 +1135,8 @@ jobs:
           node --check /tmp/anas-user-edit-rollback-test.js
           node /tmp/anas-user-edit-rollback-test.js
 
+      - name: Test expense ledger ID integrity
+        run: node tests/expense_ledger_id_integrity_test.js
       - name: Exercise cash operation and expense integrity with mocks
         run: |
           python - <<'PY'

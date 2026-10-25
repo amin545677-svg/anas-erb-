@@ -3872,6 +3872,16 @@ function renderPurchasesTable() {
                 alert('سجل المصروفات تالف؛ أُوقف التسجيل دون استبدال السجل.');
                 return;
             }
+            const expenseIds = new Set();
+            for (const expense of (Array.isArray(AppData.expenses) ? AppData.expenses : [])) {
+                if (expense.id === undefined || expense.id === null || String(expense.id).trim() === '') continue;
+                const expenseId = String(expense.id);
+                if (expenseIds.has(expenseId)) {
+                    alert('سجل المصروفات يحتوي على معرّفات مكررة؛ أُوقف التسجيل لحماية التدقيق المالي. أصلح السجل قبل المتابعة.');
+                    return;
+                }
+                expenseIds.add(expenseId);
+            }
             const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const previousCashBalance = AppData.caisseBalance;
             const previousBalance = hadCashBalance ? Number(previousCashBalance) : 0;
@@ -3885,8 +3895,12 @@ function renderPurchasesTable() {
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
             AppData.caisseBalance = previousBalance - amt;
             if (!hadExpenses) AppData.expenses = [];
+            const baseExpenseId = 'EXP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+            let expenseId = baseExpenseId;
+            let expenseSuffix = 1;
+            while (expenseIds.has(expenseId)) expenseId = baseExpenseId + '-' + (expenseSuffix++);
             AppData.expenses.push({
-                id: 'EXP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                id: expenseId,
                 account: acc, desc: desc, amt: amt, date: new Date().toISOString(),
                 paymentMethod: 'cash',
                 userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
