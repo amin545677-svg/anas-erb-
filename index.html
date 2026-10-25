@@ -7639,7 +7639,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if(productMatches.length!==1){alert(productMatches.length?'يوجد أكثر من سجل منتج بالمعرّف نفسه ('+String(item.productId)+'). أصلح تكرار المعرّفات قبل التسوية.':'المنتج غير موجود: '+String(item.productId));return;}
         const p=productMatches[0];
         const loaded=Number(item.qty);
-        if(!Number.isFinite(loaded)||loaded<=0){alert('بيانات الصنف أو الكمية غير صالحة؛ أُلغيت التسوية.');return;}
+        if(!Number.isFinite(loaded)||loaded<=0||loaded>Number.MAX_SAFE_INTEGER){alert('بيانات الصنف أو الكمية غير صالحة أو تتجاوز المجال الرقمي الآمن؛ أُلغيت التسوية.');return;}
         const ask=(label)=>prompt(label+' — '+(item.productName||p.name||item.productId)+' (المحمّل '+loaded+')','0');
         const deliveredRaw=ask('الكمية المسلّمة فعلياً');if(deliveredRaw===null)return;
         const delivered=Number(deliveredRaw);
