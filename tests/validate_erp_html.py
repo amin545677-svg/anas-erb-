@@ -253,6 +253,57 @@ def main():
     else:
         print("PASS: customer debt collection rejects unsafe debt balances")
 
+    # Restore must validate truck expense links, not only the truck UI action.
+    if ("function anasValidateTruckExpenseLinks(incoming)" not in source
+        or "anasValidateTruckExpenseLinks(incoming);" not in source
+        or "matchingForTrip.length > 1" not in source
+        or "matches[0].sourceType !== 'truck_trip'" not in source
+        or "amount !== cost" not in source):
+        errors.append("cloud and backup restore must reject stale, duplicate, mismatched truck expense links")
+    else:
+        print("PASS: restore validates truck expense links against trip and expense ledgers")
+
+    # Execute the shared truck-expense restore validator against valid and corrupt ledger relationships.
+    truck_link_start = source.find("function anasValidateTruckExpenseLinks(incoming) {")
+    truck_link_end = source.find("\n        function anasValidateIncomingSyncData", truck_link_start)
+    truck_link_fn = source[truck_link_start:truck_link_end] if truck_link_start >= 0 and truck_link_end > truck_link_start else ""
+    if not truck_link_fn:
+        errors.append("cannot locate truck expense link validator for runtime regression tests")
+    else:
+        truck_link_harness = r"""
+const vm = require('node:vm');
+const validator = __VALIDATOR__;
+const context = {};
+vm.createContext(context);
+vm.runInContext(validator + '\nthis.validate = anasValidateTruckExpenseLinks;', context);
+const validate = context.validate;
+const good = {truckTrips:[{id:'T-1',cost:125,expenseId:'E-1'}],expenses:[{id:'E-1',amt:125,sourceType:'truck_trip',sourceId:'T-1'}]};
+validate(good);
+validate({truckTrips:[{id:'T-2',cost:10}],expenses:[]});
+const rejects = [
+  {truckTrips:[{id:'T-1',cost:125}],expenses:[{id:'E-1',amt:125,sourceType:'truck_trip',sourceId:'missing'}]},
+  {truckTrips:[{id:'T-1',cost:125}],expenses:[{id:'E-1',amt:125,sourceType:'truck_trip',sourceId:'T-1'},{id:'E-2',amt:125,sourceType:'truck_trip',sourceId:'T-1'}]},
+  {truckTrips:[{id:'T-1',cost:125}],expenses:[{id:'E-1',amt:124,sourceType:'truck_trip',sourceId:'T-1'}]},
+  {truckTrips:[{id:'T-1',cost:125,expenseId:'missing'}],expenses:[]},
+  {truckTrips:[{id:'T-1',cost:125}],expenses:[{id:'E-1',amt:125,sourceType:'truck_trip',sourceId:'T-1'},{id:'E-1',amt:125,account:'other'}]}
+];
+for (const sample of rejects) {
+  let rejected = false;
+  try { validate(sample); } catch (_) { rejected = true; }
+  if (!rejected) throw new Error('corrupt truck expense link was accepted: ' + JSON.stringify(sample));
+}
+console.log('PASS: truck expense link runtime tests accept valid/legacy-unlinked trips and reject orphaned, duplicate, stale, or mismatched links');
+"""
+        truck_link_harness = truck_link_harness.replace("__VALIDATOR__", json.dumps(truck_link_fn))
+        with tempfile.TemporaryDirectory(prefix="anas-truck-expense-test-") as temp:
+            test_path = Path(temp) / "truck-expense-links.js"
+            test_path.write_text(truck_link_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                errors.append("truck expense link runtime test failed: " + (result.stderr or result.stdout).strip()[:500])
+            else:
+                print(result.stdout.strip())
+
     # Combined POS/warehouse integration must retain the warehouse preflight and payment guards.
     sale_start = source.find("function confirmHasibPayment()")
     sale_end = source.find("\n        function ", sale_start)

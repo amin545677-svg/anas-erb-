@@ -5873,6 +5873,54 @@ function renderPurchasesTable() {
             return parsed.href;
         }
 
+        // Restore must preserve the same trip-to-expense ledger invariants enforced by the truck UI.
+        function anasValidateTruckExpenseLinks(incoming) {
+            const trips = Array.isArray(incoming.truckTrips) ? incoming.truckTrips : [];
+            const expenses = Array.isArray(incoming.expenses) ? incoming.expenses : [];
+            const tripById = new Map();
+            for (const trip of trips) {
+                const id = trip && trip.id != null ? String(trip.id).trim() : '';
+                if (id) {
+                    if (tripById.has(id)) throw new Error('معرّف رحلة مكرر؛ تعذر التحقق من ربط مصروفات الشاحنات.');
+                    tripById.set(id, trip);
+                }
+            }
+            const truckExpensesByTrip = new Map();
+            for (const expense of expenses) {
+                if (!expense || expense.sourceType !== 'truck_trip') continue;
+                const sourceId = expense.sourceId == null ? '' : String(expense.sourceId).trim();
+                const expenseId = expense.id == null ? '' : String(expense.id).trim();
+                if (!sourceId || !expenseId)
+                    throw new Error('مصروف شاحنة يفتقد معرّف الرحلة أو المصروف؛ رُفض الاسترجاع لحماية الحسابات.');
+                const trip = tripById.get(sourceId);
+                if (!trip)
+                    throw new Error('يوجد مصروف شاحنة مرتبط برحلة غير موجودة؛ رُفض الاسترجاع لحماية الحسابات.');
+                const matchingForTrip = truckExpensesByTrip.get(sourceId) || [];
+                matchingForTrip.push(expense);
+                truckExpensesByTrip.set(sourceId, matchingForTrip);
+                if (matchingForTrip.length > 1)
+                    throw new Error('توجد مصروفات متعددة مرتبطة برحلة شاحنة واحدة؛ رُفض الاسترجاع لمنع التكرار المالي.');
+                const duplicateExpenseIds = expenses.filter(item => item && String(item.id ?? '').trim() === expenseId);
+                if (duplicateExpenseIds.length !== 1)
+                    throw new Error('معرّف مصروف الشاحنة مكرر؛ رُفض الاسترجاع لحماية دفتر الحسابات.');
+                const amount = (typeof expense.amt === 'number' || typeof expense.amt === 'string') && String(expense.amt).trim() !== '' ? Number(expense.amt) : NaN;
+                const cost = (typeof trip.cost === 'number' || typeof trip.cost === 'string') && String(trip.cost).trim() !== '' ? Number(trip.cost) : NaN;
+                if (!Number.isFinite(amount) || amount < 0 || amount > Number.MAX_SAFE_INTEGER ||
+                    !Number.isFinite(cost) || cost < 0 || cost > Number.MAX_SAFE_INTEGER || amount !== cost)
+                    throw new Error('قيمة مصروف الشاحنة لا تطابق تكلفة الرحلة؛ رُفض الاسترجاع لحماية الحسابات.');
+                if (trip.expenseId != null && String(trip.expenseId).trim() !== '' && String(trip.expenseId) !== String(expense.id))
+                    throw new Error('معرّف المصروف في الرحلة لا يطابق سجل المصروفات؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+            for (const trip of trips) {
+                if (trip.expenseId == null || String(trip.expenseId).trim() === '') continue;
+                const tripId = trip.id == null ? '' : String(trip.id).trim();
+                if (!tripId) throw new Error('رحلة مرتبطة بمصروف تفتقد المعرّف؛ رُفض الاسترجاع لحماية الحسابات.');
+                const matches = expenses.filter(expense => expense && String(expense.id ?? '') === String(trip.expenseId));
+                if (matches.length !== 1 || matches[0].sourceType !== 'truck_trip' || String(matches[0].sourceId ?? '') !== tripId)
+                    throw new Error('رابط مصروف الرحلة يشير إلى سجل مفقود أو غير مطابق؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+        }
+
         function anasValidateIncomingSyncData(incoming) {
             if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
                 throw new Error('استجابة الخادم ليست كائن بيانات صالحًا.');
@@ -6098,6 +6146,7 @@ function renderPurchasesTable() {
                     }
                 }
             }
+            anasValidateTruckExpenseLinks(incoming);
             return incoming;
         }
 
@@ -6410,6 +6459,7 @@ function renderPurchasesTable() {
                     }
                 }
             }
+            anasValidateTruckExpenseLinks(incoming);
             // Warehouse transfer vouchers are persisted accounting records too. Validate numeric values
             // during restore so malformed legacy/imported vouchers cannot bypass the transfer UI guards.
             for (const transfer of (incoming.warehouseTransfers || [])) {
