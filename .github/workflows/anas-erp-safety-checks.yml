@@ -1654,6 +1654,26 @@ jobs:
           assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'overflow guard must not mark trip settled');
 
 
+          // A persisted malformed loaded quantity must be rejected before prompting, even when Number() could coerce it.
+          for (const malformedLoadedQty of [true, [1]]) {
+            let malformedLoadedPromptCalls = 0;
+            let malformedLoadedSaveCalled = false;
+            global.prompt = () => { malformedLoadedPromptCalls++; return '0'; };
+            global.saveDB = () => { malformedLoadedSaveCalled = true; return true; };
+            global.AppData = {
+              products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+              truckTrips: [{id:'T-BAD-LOADED',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:malformedLoadedQty}]}],
+              invoices: [], stockMovements: []
+            };
+            window.anasTruckSettle('T-BAD-LOADED');
+            assert.equal(malformedLoadedPromptCalls, 0, 'malformed loaded quantity must be rejected before prompting');
+            assert.equal(malformedLoadedSaveCalled, false, 'malformed loaded quantity must not persist settlement');
+            assert.equal(AppData.products[0].stock, 5, 'malformed loaded quantity must preserve main stock');
+            assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'malformed loaded quantity must preserve truck stock');
+            assert.equal(AppData.stockMovements.length, 0, 'malformed loaded quantity must not create movements');
+            assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'malformed loaded quantity must not settle trip');
+          }
+
           // Duplicate product IDs collide deterministic ledger movement IDs and must be rejected before prompting or mutation.
           let duplicatePromptCalls = 0;
           let duplicateSaveCalled = false;
