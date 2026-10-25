@@ -112,7 +112,7 @@ def main():
 
     # saveDB must persist a detached cart snapshot before changing live cart state.
     save_db_start = source.find("function saveDB()")
-    save_db_end = source.find("\\n        function openDrawer()", save_db_start)
+    save_db_end = source.find("\n        function openDrawer()", save_db_start)
     save_db_source = source[save_db_start:save_db_end] if save_db_start >= 0 and save_db_end > save_db_start else ""
     if not (
         "const snapshot = { ...AppData, posScreensCarts: nextCarts };" in save_db_source
