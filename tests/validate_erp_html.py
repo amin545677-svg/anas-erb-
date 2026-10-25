@@ -301,6 +301,19 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if not any("alert/user-badge safety guard is missing:" in error for error in errors):
         print("PASS: alert names are escaped and user badge is rendered as text")
 
+    # Z report output is an HTML sink; escape configurable metadata and normalize cash before rendering.
+    z_report_guards = [
+        "anasEscapeHTML(AppData.appName || '')",
+        'anasEscapeHTML(getReportRange().from || "—")',
+        'anasEscapeHTML(getReportRange().to || "—")',
+        "Number.isFinite(Number(AppData.caisseBalance)) ? Number(AppData.caisseBalance).toLocaleString() : 'غير صالح'",
+    ]
+    for guard in z_report_guards:
+        if guard not in source:
+            errors.append("Z report safety guard is missing: " + guard)
+    if not any("Z report safety guard is missing:" in error for error in errors):
+        print("PASS: Z report metadata is escaped and cash balance is normalized")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
