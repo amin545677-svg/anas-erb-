@@ -5890,8 +5890,27 @@ function renderPurchasesTable() {
             } else if (Array.isArray(AppData.warehouses) && AppData.warehouses.length) {
                 throw new Error('النسخة تفتقد قائمة المخازن الموجودة حاليًا؛ رُفض الاسترجاع لمنع فقدانها.');
             }
+            const idCollections = [
+                ['products', incoming.products, true],
+                ['customers', incoming.customers, false],
+                ['suppliers', incoming.suppliers, false]
+            ];
+            for (const [key, records, requireId] of idCollections) {
+                const seenIds = new Set();
+                for (const record of records) {
+                    if (key === 'products' && (record.id == null || String(record.id).trim() === ''))
+                        throw new Error('يوجد منتج بلا معرّف؛ رُفض الملف لحماية المخزون.');
+                    if (record.id == null || String(record.id).trim() === '') {
+                        if (requireId) throw new Error('يوجد سجل بلا معرّف في ' + key + '.');
+                        continue;
+                    }
+                    const recordId = String(record.id).trim();
+                    if (seenIds.has(recordId))
+                        throw new Error('معرّف مكرر في قائمة ' + key + ': ' + recordId + '؛ رُفض الاسترجاع لمنع ربط العمليات بسجل خاطئ.');
+                    seenIds.add(recordId);
+                }
+            }
             for (const p of incoming.products) {
-                if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ رُفض الملف لحماية المخزون.');
                 if (p.stock != null && (!Number.isFinite(Number(p.stock)) || Number(p.stock) < 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
             }
             if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
