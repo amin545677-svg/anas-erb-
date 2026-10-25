@@ -3771,7 +3771,9 @@ function renderPurchasesTable() {
                 alert('سجل حركات الصندوق تالف؛ أُوقفت الحركة دون استبدال السجل.');
                 return;
             }
-            const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
+            const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const previousCashBalance = AppData.caisseBalance;
+            const previousBalance = hadCashBalance ? Number(previousCashBalance) : 0;
             const nextBalance = previousBalance + (isAdd ? amt : -amt);
             if (!Number.isFinite(nextBalance) || previousBalance < 0 ||
                 previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(nextBalance) > Number.MAX_SAFE_INTEGER) {
@@ -3796,7 +3798,7 @@ function renderPurchasesTable() {
             try { cashSaved = saveDB() === true; }
             catch (err) { console.error('ANAS cash movement save failed', err); }
             if (!cashSaved) {
-                AppData.caisseBalance = previousBalance;
+                if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;
                 if (hadMovements) AppData.cashMovements = previousMovements; else delete AppData.cashMovements;
                 updateCashUI();
                 alert('تعذر حفظ حركة الصندوق؛ أُعيد الرصيد والحركة إلى حالتهما السابقة.');
@@ -3833,7 +3835,9 @@ function renderPurchasesTable() {
                 alert('سجل المصروفات تالف؛ أُوقف التسجيل دون استبدال السجل.');
                 return;
             }
-            const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
+            const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const previousCashBalance = AppData.caisseBalance;
+            const previousBalance = hadCashBalance ? Number(previousCashBalance) : 0;
             if (!Number.isFinite(previousBalance - amt) || previousBalance < 0 ||
                 previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(previousBalance - amt) > Number.MAX_SAFE_INTEGER) {
                 alert('رصيد الصندوق أو نتيجة المصروف خارج المجال المالي الآمن؛ لم يتم تسجيل المصروف.');
@@ -3855,7 +3859,7 @@ function renderPurchasesTable() {
             try { expenseSaved = saveDB() === true; }
             catch (err) { console.error('ANAS expense save failed', err); }
             if (!expenseSaved) {
-                AppData.caisseBalance = previousBalance;
+                if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 updateCashUI();
                 alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وسجل المصروفات إلى حالتهما السابقة.');
