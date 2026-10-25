@@ -6160,6 +6160,14 @@ function renderPurchasesTable() {
             // Legacy records may omit newer fields; validate only fields that are actually present.
             for (const invoice of (incoming.invoices || [])) {
                 for (const field of ['total', 'paid', 'remaining']) validateMoneyField(invoice, field, 'فواتير البيع');
+                const hasInvoiceTotal = Object.prototype.hasOwnProperty.call(invoice, 'total');
+                const hasInvoicePaid = Object.prototype.hasOwnProperty.call(invoice, 'paid');
+                const hasInvoiceRemaining = Object.prototype.hasOwnProperty.call(invoice, 'remaining');
+                if (hasInvoiceTotal && hasInvoicePaid && Number(invoice.paid) > Number(invoice.total) + 0.000001)
+                    throw new Error('المبلغ المدفوع في إحدى فواتير البيع يتجاوز إجمالي الفاتورة؛ رُفض الاسترجاع لحماية الحسابات.');
+                if (hasInvoiceTotal && hasInvoicePaid && hasInvoiceRemaining &&
+                    Math.abs(Number(invoice.remaining) - Math.max(0, Number(invoice.total) - Number(invoice.paid))) > 0.01)
+                    throw new Error('إجمالي الفاتورة والمدفوع والمتبقي غير متطابقة حسابيًا؛ رُفض الاسترجاع لحماية الحسابات.');
                 if (Object.prototype.hasOwnProperty.call(invoice, 'items')) {
                     if (!Array.isArray(invoice.items) || invoice.items.length > 10000 ||
                         invoice.items.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
