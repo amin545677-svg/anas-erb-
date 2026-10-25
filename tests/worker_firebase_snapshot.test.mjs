@@ -86,3 +86,23 @@ test("first snapshot upload uses an atomic create-only precondition", async () =
     assert.equal(result.revision, "2026-10-25T13:00:00.000000Z");
   } finally { globalThis.fetch = oldFetch; }
 });
+
+
+test("missing Firebase bearer token is rejected before any external request", async () => {
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("unexpected external request"); };
+  try {
+    const response = await worker.fetch(request("/snapshot", { auth: false }), env);
+    assert.equal(response.status, 401);
+    assert.match((await response.json()).error, /Missing Firebase bearer token/i);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("disallowed origins cannot use CORS preflight", async () => {
+  const headers = new Headers({ Origin: "https://attacker.example" });
+  const response = await worker.fetch(new Request("https://worker.test/snapshot", {
+    method: "OPTIONS", headers
+  }), env);
+  assert.equal(response.status, 403);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+});
