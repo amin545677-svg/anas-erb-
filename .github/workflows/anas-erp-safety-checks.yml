@@ -2453,3 +2453,52 @@ jobs:
           PY
           node --check /tmp/anas-explicit-save-success-test.js
           node /tmp/anas-explicit-save-success-test.js
+      - name: Reject malformed truck expense amounts before mutation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("window.anasTruckRecordExpense = function(id){")
+          end = s.find("\n  window.anasTruckExportCSV", start)
+          assert start >= 0 and end > start, "Could not isolate truck expense integration"
+          fn = s[start:end]
+          js = "const fn = " + json.dumps(fn) + r"""
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const invalidAmounts = [true, [5], '', '   '];
+          for (const invalidAmount of invalidAmounts) {
+            let saves = 0;
+            const trip = {id:'T-BAD-COST', cost:invalidAmount};
+            const ctx = {
+              window:{}, AppData:{truckTrips:[trip], expenses:[]},
+              ensure:()=>{}, alert:()=>{}, confirm:()=>true, money:String,
+              anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
+              Number,String,Object,Array,Date,console
+            };
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            ctx.runExpense('T-BAD-COST');
+            assert.equal(saves, 0, 'malformed trip cost must not persist: ' + JSON.stringify(invalidAmount));
+            assert.deepEqual(ctx.AppData.expenses, [], 'malformed trip cost must not append expense');
+            assert.equal(Object.hasOwn(trip,'expenseId'), false, 'malformed trip cost must not link expense');
+          }
+          let saves = 0;
+          const trip = {id:'T-VALID-COST', cost:'12.5', plate:'T', origin:'A', destination:'B'};
+          const ctx = {
+            window:{}, AppData:{truckTrips:[trip], expenses:[]},
+            ensure:()=>{}, alert:()=>{}, confirm:()=>true, money:String,
+            anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
+            Number,String,Object,Array,Date,console
+          };
+          vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+          ctx.runExpense('T-VALID-COST');
+          assert.equal(saves,1,'valid numeric string should persist');
+          assert.equal(ctx.AppData.expenses.length,1);
+          assert.equal(ctx.AppData.expenses[0].amt,12.5);
+          assert.equal(trip.expenseId,'TRUCK-EXP-T-VALID-COST');
+          console.log('Truck expense strict numeric validation tests passed');
+          """
+          Path("/tmp/anas-truck-expense-strict-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-truck-expense-strict-test.js
+          node /tmp/anas-truck-expense-strict-test.js
