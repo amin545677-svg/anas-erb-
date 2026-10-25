@@ -5878,7 +5878,7 @@ function renderPurchasesTable() {
             const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
-                    if (Array.isArray(AppData[key]) && AppData[key].length)
+                    if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
                         throw new Error('النسخة السحابية تفتقد قائمة ' + key + ' الموجودة في البيانات الحالية؛ أُلغي الاسترجاع لمنع فقدان السجلات.');
                     continue;
                 }
