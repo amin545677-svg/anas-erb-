@@ -450,7 +450,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # POS cart +/- actions must not normalize malformed persisted quantities through Number(value || 0).
     pos_quantity_edit_start = source.find("function changePosQty(idx, delta)")
-    pos_quantity_edit_end = source.find("\\n        function ", pos_quantity_edit_start)
+    pos_quantity_edit_end = source.find("\n        function ", pos_quantity_edit_start)
     pos_quantity_edit = source[pos_quantity_edit_start:pos_quantity_edit_end] if pos_quantity_edit_start >= 0 and pos_quantity_edit_end > pos_quantity_edit_start else ""
     if ("typeof rawQty === 'number'" not in pos_quantity_edit or
         "rawQty.trim() === ''" not in pos_quantity_edit or
