@@ -7353,6 +7353,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     const productMap=new Map(products().map(p=>[productId(p),p]));
     const missing=s.items.filter(i=>!productMap.has(String(i.productId)));
     if(missing.length){alert('تعذر الاعتماد لأن بعض المنتجات حُذفت أو تغيرت معرفاتها: '+missing.map(i=>i.productName).join('، '));return;}
+    // A saved draft can be stale or manually altered; validate every counted quantity and current balance before any ledger or stock mutation.
+    for(const item of s.items){
+      const actual=Number(item.physicalQty),system=Number(item.systemQty),p=productMap.get(String(item.productId)),current=Number(p&&p.stock);
+      if(!Number.isFinite(actual)||actual<0||actual>Number.MAX_SAFE_INTEGER||!Number.isFinite(system)||system<0||system>Number.MAX_SAFE_INTEGER||!Number.isFinite(current)||current<0||current>Number.MAX_SAFE_INTEGER||!Number.isFinite(actual-current)){
+        alert('تعذر اعتماد الجرد: توجد كمية فعلية أو أرصدة تتجاوز المجال الرقمي الآمن أو تحتوي قيمة غير صالحة. لم تُعدّل الأرصدة أو الحركات.');
+        return;
+      }
+    }
     const before=JSON.stringify({products:AppData.products,stockMovements:AppData.stockMovements,stocktakeRecords:AppData.stocktakeRecords});
     const previousSessionState={status:s.status,approvedAt:s.approvedAt,approvedBy:s.approvedBy,varianceCount:s.varianceCount};
     const previousDrafts=getDrafts();
