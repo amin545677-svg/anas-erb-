@@ -746,7 +746,31 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("truck product identity regression: " + label)
 
+    cash_operation = function_source("submitCashOperation")
+    expense_operation = function_source("submitExpenseOperation")
+    pos_cart_change = function_source("savePosCartChange")
+    pos_screen_switch = function_source("switchPosScreen")
+    pos_clear_screens = function_source("clearAllPosScreens")
+    pos_price_tier = function_source("setPosPriceTier")
+    truck_create_start = source.find("window.anasTruckSaveTrip = function(){")
+    truck_create_end = source.find("\n  window.anasTruckSetStatus", truck_create_start)
+    truck_create = source[truck_create_start:truck_create_end] if truck_create_start >= 0 and truck_create_end > truck_create_start else ""
+    truck_expense_start = source.find("window.anasTruckRecordExpense = function(id){")
+    truck_expense_end = source.find("\n  window.anasTruckExportCSV", truck_expense_start)
+    truck_expense = source[truck_expense_start:truck_expense_end] if truck_expense_start >= 0 and truck_expense_end > truck_expense_start else ""
+
     transaction_checks = {
+        "cash movements and expenses require explicit saveDB true before success":
+            "cashSaved = saveDB() === true" in cash_operation
+            and "expenseSaved = saveDB() === true" in expense_operation,
+        "POS cart and screen operations reject false, undefined, and missing persistence":
+            "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_change
+            and "saved = saveDB() === true" in pos_screen_switch
+            and "saved = saveDB() === true" in pos_clear_screens
+            and "saved = saveDB() === true" in pos_price_tier,
+        "truck trip creation and expense linking require explicit persistence success":
+            "typeof saveDB!=='function' || saveDB()!==true" in truck_create
+            and "typeof saveDB!=='function'||saveDB()!==true" in truck_expense,
         "sale aggregates repeated product quantities and validates numeric inputs":
             "aggregateQty = (required.get(id) || 0) + qty" in sale
             and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,

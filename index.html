@@ -2678,7 +2678,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             AppData.activePosScreenTab = scrNum;
             posCart = Array.isArray(AppData.posScreensCarts[scrNum]) ? AppData.posScreensCarts[scrNum] : [];
             let saved = false;
-            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS POS screen switch save failed:', err); }
+            try { saved = saveDB() === true; } catch (err) { console.error('ANAS POS screen switch save failed:', err); }
             if (!saved) {
                 AppData.posScreensCarts = previousCarts;
                 AppData.activePosScreenTab = previousTab;
@@ -2699,7 +2699,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             AppData.posScreensCarts = { 1: [], 2: [], 3: [], 4: [], 'quote': [] };
             posCart = [];
             let saved = false;
-            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS clear POS screens save failed:', err); }
+            try { saved = saveDB() === true; } catch (err) { console.error('ANAS clear POS screens save failed:', err); }
             if (!saved) {
                 AppData.posScreensCarts = previousCarts;
                 posCart = previousCart;
@@ -2729,7 +2729,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (p) item.price = (tier === 2 ? (p.price2 || p.price1) : (tier === 3 ? (p.price3 || p.price1) : p.price1));
             });
             let saved = false;
-            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS POS price tier save failed:', err); }
+            try { saved = saveDB() === true; } catch (err) { console.error('ANAS POS price tier save failed:', err); }
             if (!saved) {
                 AppData.activePriceTier = previousTier;
                 posCart = previousCart;
@@ -2934,7 +2934,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function savePosCartChange(rollback) {
             AppData.posScreensCarts = AppData.posScreensCarts || {};
             AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB === 'function' && saveDB() === false) {
+            if (typeof saveDB !== 'function' || saveDB() !== true) {
                 if (typeof rollback === 'function') rollback();
                 AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
                 renderPosTable();
@@ -3768,7 +3768,7 @@ function renderPurchasesTable() {
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
             });
             let cashSaved = false;
-            try { cashSaved = saveDB() !== false; }
+            try { cashSaved = saveDB() === true; }
             catch (err) { console.error('ANAS cash movement save failed', err); }
             if (!cashSaved) {
                 AppData.caisseBalance = previousBalance;
@@ -3827,7 +3827,7 @@ function renderPurchasesTable() {
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
             });
             let expenseSaved = false;
-            try { expenseSaved = saveDB() !== false; }
+            try { expenseSaved = saveDB() === true; }
             catch (err) { console.error('ANAS expense save failed', err); }
             if (!expenseSaved) {
                 AppData.caisseBalance = previousBalance;
@@ -3995,7 +3995,7 @@ function renderPurchasesTable() {
             });
 
             let saved = false;
-            try { saved = saveDB() !== false; }
+            try { saved = saveDB() === true; }
             catch (err) { console.error('ANAS customer debt collection save failed', err); }
             if (!saved) {
                 c.debt = previousDebt;
@@ -4111,7 +4111,7 @@ function renderPurchasesTable() {
 
             let saved = false;
             let saveError = null;
-            try { saved = saveDB() !== false; }
+            try { saved = saveDB() === true; }
             catch (err) { saveError = err; }
             if (!saved) {
                 if (existing && previousExisting) Object.assign(existing, previousExisting);
@@ -4266,7 +4266,7 @@ function renderPurchasesTable() {
 
             let saved = false;
             let saveError = null;
-            try { saved = saveDB() !== false; }
+            try { saved = saveDB() === true; }
             catch (err) { saveError = err; }
             if (!saved) {
                 AppData.suppliers = previousSuppliers;
@@ -5734,7 +5734,7 @@ function renderPurchasesTable() {
                 footer: document.getElementById('cfgReceiptFooter').value.trim()
             };
             let saved = false;
-            try { saved = saveDB() !== false; } catch (err) { console.error('ANAS settings save failed:', err); }
+            try { saved = saveDB() === true; } catch (err) { console.error('ANAS settings save failed:', err); }
             if (!saved) {
                 if (previousAppName === undefined) delete AppData.appName; else AppData.appName = previousAppName;
                 if (previousStoreConfig === undefined) delete AppData.storeConfig; else AppData.storeConfig = previousStoreConfig;
@@ -5772,7 +5772,7 @@ function renderPurchasesTable() {
             const previous = AppData.syncUrl;
             AppData.syncUrl = value;
             let saved = false;
-            try { saved = saveDB() !== false; }
+            try { saved = saveDB() === true; }
             catch (err) { console.error('ANAS sync URL save failed:', err); }
             if (!saved) {
                 if (hadPrevious) AppData.syncUrl = previous;
@@ -7577,7 +7577,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));if(wtEnsureMobileWarehouse(warehouseName)===null){alert('تعذر إنشاء الرحلة لأن قائمة المخازن غير صالحة. أصلح البيانات أو استعد نسخة سليمة أولاً.');return;}
       AppData.truckTrips.unshift(trip);
       let persisted=true;
-      try { if(typeof saveDB==='function' && saveDB()===false) persisted=false; }
+      try { if(typeof saveDB!=='function' || saveDB()!==true) persisted=false; }
       catch(saveError){ persisted=false; console.error('ANAS truck persistence failed',saveError); }
       if(!persisted){AppData.truckTrips=AppData.truckTrips.filter(t=>t.id!==trip.id);AppData.warehouses=warehousesBefore;alert('تعذر حفظ الرحلة في التخزين المحلي؛ لم تُعتمد العملية.');return;}
       ['truckPlate','truckDriver','truckOrigin','truckDestination','truckCargo','truckNotes'].forEach(id=>$(id).value=''); truckDraftItems=[]; renderDraftItems();
@@ -7778,13 +7778,13 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const existingExpense=AppData.expenses.find(e=>String(e.sourceId||'')===String(trip.id)&&e.sourceType==='truck_trip');
       if(existingExpense){
         trip.expenseId=existingExpense.id;
-        let linked=true;try{if(saveDB()===false)linked=false;}catch(e){linked=false;console.error(e);}
+        let linked=true;try{if(typeof saveDB!=='function'||saveDB()!==true)linked=false;}catch(e){linked=false;console.error(e);}
         if(!linked){if(previousExpenseId===undefined)delete trip.expenseId;else trip.expenseId=previousExpenseId;alert('وجد مصروف مرتبط بهذه الرحلة، لكن تعذر حفظ الربط.');return;}
         alert('يوجد مصروف مرتبط بهذه الرحلة بالفعل؛ لم تتم إضافة مصروف جديد.');anasTruckRender();return;
       }
       const expense={id:expenseId,account:'النقل والشاحنات',desc:'تكلفة رحلة '+trip.id+' — الشاحنة '+trip.plate+' — '+trip.origin+' إلى '+trip.destination,amt:amount,date:new Date().toLocaleDateString('ar-DZ'),sourceType:'truck_trip',sourceId:trip.id,createdAt:new Date().toISOString()};
       AppData.expenses.unshift(expense);trip.expenseId=expenseId;
-      let persisted=true;try{if(saveDB()===false)persisted=false;}catch(e){persisted=false;console.error(e);}
+      let persisted=true;try{if(typeof saveDB!=='function'||saveDB()!==true)persisted=false;}catch(e){persisted=false;console.error(e);}
       if(!persisted){AppData.expenses=previousExpenses;if(!hadExpensesArray)delete AppData.expenses;if(previousExpenseId===undefined)delete trip.expenseId;else trip.expenseId=previousExpenseId;alert('تعذر حفظ المصروف؛ أُعيدت قائمة المصروفات وربط الرحلة إلى ما كانا عليه.');return;}
       anasTruckRender();alert('تم تسجيل تكلفة الرحلة كمصروف بنجاح. لم يتغير رصيد الصندوق.');
     } catch(e){console.error('ANAS truck expense integration failed',e);alert('تعذر تسجيل المصروف: '+(e.message||e));}
