@@ -4157,6 +4157,22 @@ function renderPurchasesTable() {
                 return;
             }
 
+            const customerIds = new Set();
+            for (const record of AppData.customers) {
+                if (!record || typeof record !== 'object' || Array.isArray(record)) {
+                    alert('سجل العملاء يحتوي على عنصر تالف؛ أُوقف الحفظ لحماية البيانات.');
+                    return;
+                }
+                if (record.id !== undefined && record.id !== null && String(record.id).trim() !== '') {
+                    const recordId = String(record.id);
+                    if (customerIds.has(recordId)) {
+                        alert('سجل العملاء يحتوي على معرّفات مكررة؛ أصلح السجل قبل إضافة أو تعديل عميل.');
+                        return;
+                    }
+                    customerIds.add(recordId);
+                }
+            }
+
             const editing = editingCustomerId !== null && editingCustomerId !== undefined && String(editingCustomerId) !== '';
             const matches = editing ? AppData.customers.filter(c => c && c.id != null && String(c.id) === String(editingCustomerId)) : [];
             if (editing && matches.length !== 1) {
@@ -4322,6 +4338,22 @@ function renderPurchasesTable() {
             if (!Array.isArray(AppData.suppliers)) {
                 alert('سجل الموردين غير صالح؛ لم يتم حفظ أي تغييرات.');
                 return;
+            }
+
+            const supplierIds = new Set();
+            for (const record of AppData.suppliers) {
+                if (!record || typeof record !== 'object' || Array.isArray(record)) {
+                    alert('سجل الموردين يحتوي على عنصر تالف؛ أُوقف الحفظ لحماية البيانات.');
+                    return;
+                }
+                if (record.id !== undefined && record.id !== null && String(record.id).trim() !== '') {
+                    const recordId = String(record.id);
+                    if (supplierIds.has(recordId)) {
+                        alert('سجل الموردين يحتوي على معرّفات مكررة؛ أصلح السجل قبل إضافة مورد.');
+                        return;
+                    }
+                    supplierIds.add(recordId);
+                }
             }
 
             const previousSuppliers = AppData.suppliers.slice();
