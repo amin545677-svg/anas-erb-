@@ -487,6 +487,38 @@ jobs:
           PY
           node --check /tmp/anas-backup-restore-throw-test.js
           node /tmp/anas-backup-restore-throw-test.js
+      - name: Exercise backup restore duplicate record ID rejection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasValidateBackupData(incoming)")
+          end = s.find("\n        function importDataBackup(e)", start)
+          assert start >= 0 and end > start, "Could not isolate backup validator"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const validatorSource = /*INSERT_VALIDATOR*/;
+          const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
+          vm.runInNewContext(validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
+          const expectReject = (data,label) => {
+            assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
+          };
+          expectReject(make([{id:'p1',stock:1},{id:'p1',stock:2}]),'duplicate product IDs must be rejected');
+          expectReject(make([{id:'p1',stock:1}],[{id:'c1'},{id:'c1'}]),'duplicate customer IDs must be rejected');
+          expectReject(make([{id:'p1',stock:1}],[],[{id:'s1'},{id:'s1'}]),'duplicate supplier IDs must be rejected');
+          assert.equal(ctx.validateBackup(make([{id:'p1',stock:1}],[{name:'legacy customer'}])).products.length,1,
+            'legacy customer records without IDs remain importable');
+          console.log('Backup restore duplicate record ID tests passed');
+          """
+          js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
+          Path("/tmp/anas-backup-duplicate-ids-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-backup-duplicate-ids-test.js
+          node /tmp/anas-backup-duplicate-ids-test.js
       - name: Validate import persistence and UI rollback boundary
         run: |
           python - <<'PY'
