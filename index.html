@@ -5928,7 +5928,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','alerts','truckTrips'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','alerts','truckTrips','cashMovements'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
