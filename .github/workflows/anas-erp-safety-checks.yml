@@ -2557,7 +2557,7 @@ jobs:
           end = s.find("window.anasTruckRender = function(){", start)
           assert start >= 0 and end > start, "Could not isolate truck deletion function"
           fn = s[start:end]
-          js = "global.window = {}; const window = global.window;\\n" + "/*INSERT_DELETE_FUNCTION*/"
+          js = "global.window = {}; const window = global.window; " + "/*INSERT_DELETE_FUNCTION*/"
           js += r"""
           const assert = require('node:assert/strict');
           const alerts = [];
