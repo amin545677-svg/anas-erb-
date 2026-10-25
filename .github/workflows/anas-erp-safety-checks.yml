@@ -173,7 +173,7 @@ jobs:
           required = [
               "verifyFirebaseToken", "Access-Control-Allow-Origin",
               "request.method === \"GET\"", "request.method === \"POST\"",
-              "Array.isArray(appData.products)", "Array.isArray(appData.customers)",
+              "Array.isArray(data.products)", "Array.isArray(data.customers)", "validateSnapshotData(appData)",
               "MAX_BODY_BYTES", "FIREBASE_PROJECT_ID", "ALLOWED_ORIGINS"
           ]
           missing = [x for x in required if x not in s]
