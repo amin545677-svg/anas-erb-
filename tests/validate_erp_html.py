@@ -765,6 +765,15 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "purchase validates safe integer quantity and restores AppData on failed persistence":
             "Number.isSafeInteger(qty)" in purchase and "saveDB() === false" in purchase
             and "AppData = previous" in purchase,
+        "purchase rejects duplicate product names and invalid or overflowing stock before mutation":
+            "productMatches.length > 1" in purchase
+            and "existingProduct && !((typeof existingStock === 'number' || typeof existingStock === 'string')" in purchase
+            and "Number(existingStock) + qty > Number.MAX_SAFE_INTEGER" in purchase
+            and "let product = existingProduct" in purchase,
+        "purchase preserves malformed product and purchase collections instead of replacing them":
+            "Object.prototype.hasOwnProperty.call(AppData, 'products')" in purchase
+            and "Object.prototype.hasOwnProperty.call(AppData, 'purchases')" in purchase
+            and "سجل المشتريات تالف" in purchase,
         "warehouse transfer rejects insufficient stock and restores inventory/transfer records on failure":
             "qty>available" in transfer and "if(!saveDB())throw" in transfer
             and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
