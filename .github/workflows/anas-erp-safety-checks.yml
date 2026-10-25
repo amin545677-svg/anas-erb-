@@ -608,7 +608,7 @@ jobs:
             ['boolean product stock', d => d.products[0].stock = false]
           ]) {
             const data = valid(); mutate(data);
-            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
+            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية|يتجاوز إجمالي|متطابقة حسابيًا/, label);
           }
           const accepted = ctx.validateBackup(valid());
           assert.equal(accepted.caisseBalance,100,'valid financial backup remains importable');
