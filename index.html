@@ -4863,8 +4863,14 @@ function renderPurchasesTable() {
 
         function deleteProduct(pId) {
             const products = Array.isArray(AppData.products) ? AppData.products : [];
-            const p = products.find(x => String(x.id) === String(pId));
-            if(!p) { alert('تعذر العثور على المنتج؛ لم يتم حذف أي بيانات.'); return; }
+            const matchingProducts = products.filter(x => x && String(x.id) === String(pId));
+            if(matchingProducts.length !== 1) {
+                alert(matchingProducts.length > 1
+                    ? 'لا يمكن حذف المنتج لأن معرّفه مكرر في قائمة المنتجات. أصلح المعرّفات المكررة أولًا؛ لم يتم حذف أي سجل.'
+                    : 'تعذر العثور على المنتج؛ لم يتم حذف أي بيانات.');
+                return;
+            }
+            const p = matchingProducts[0];
 
             // Never delete a product that still has stock or is referenced by historical transactions.
             const mainStock = Number(p.stock) || 0;
