@@ -688,7 +688,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     sync_guards = [
         "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
         "Object.prototype.hasOwnProperty.call(incoming, key)",
-        "if (Array.isArray(AppData[key]) && AppData[key].length)",
+        "if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)",
         "النسخة السحابية تفتقد قائمة ",
         "continue;",
         "Object.prototype.hasOwnProperty.call(incoming, 'warehouses')",
