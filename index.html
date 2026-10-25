@@ -4748,7 +4748,17 @@ function renderPurchasesTable() {
                 if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
                 if(from==='المخزن الرئيسي')p.stock=available-qty;else p.warehouseStock[from]=available-qty;
                 if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=(Number(p.warehouseStock[to])||0)+qty;
-                const seq=Date.now();doc={id:'TR-'+seq,number:'TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6),date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
+                const seq=Date.now();
+                const usedTransferIds=new Set((AppData.warehouseTransfers||[]).map(x=>String(x&&x.id!=null?x.id:'')));
+                const usedTransferNumbers=new Set((AppData.warehouseTransfers||[]).map(x=>String(x&&x.number!=null?x.number:'')));
+                const usedMovementIds=new Set((AppData.stockMovements||[]).map(x=>String(x&&x.id!=null?x.id:'')));
+                let transferId;
+                do { transferId='TR-'+Date.now()+'-'+Math.random().toString(36).slice(2,9).toUpperCase(); }
+                while(usedTransferIds.has(transferId)||usedMovementIds.has(transferId+'-OUT')||usedMovementIds.has(transferId+'-IN'));
+                const numberBase='TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6);
+                let transferNumber=numberBase, numberSuffix=2;
+                while(usedTransferNumbers.has(transferNumber))transferNumber=numberBase+'-'+numberSuffix++;
+                doc={id:transferId,number:transferNumber,date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
                 AppData.warehouseTransfers.unshift(doc);
                 // Keep the general stock ledger in sync with the transfer document: one source and one destination leg.
                 AppData.stockMovements.unshift(
