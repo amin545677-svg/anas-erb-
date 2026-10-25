@@ -2016,6 +2016,10 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           app = Path("index.html").read_text(encoding="utf-8")
+          helper_start = app.find("function anasValidateTruckExpenseLinks(incoming)")
+          helper_end = app.find("\n        function anasValidateIncomingSyncData", helper_start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
+          truck_links = app[helper_start:helper_end]
           start = app.find("        function anasValidateIncomingSyncData(incoming) {")
           end = app.find("async function syncPushNow()", start)
           assert start >= 0 and end > start, "Could not isolate cloud restore validator"
@@ -2175,7 +2179,7 @@ jobs:
           assert.deepEqual(missingCashHistory.cashMovements,[]);
           console.log('Cloud restore validator tests passed: malformed accounting fields are rejected before local replacement');
           """
-          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", function_js)
+          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "\\n" + function_js)
           Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-cloud-restore-validator-test.js
