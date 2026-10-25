@@ -458,6 +458,19 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: stock mutation paths fail closed on malformed warehouse maps")
 
+    # Truck settlement must reject aggregate quantity overflow before any stock or invoice mutation.
+    settlement_aggregate_guards = [
+        "let deliveredTotal=0;",
+        "productDelivered>Number.MAX_SAFE_INTEGER",
+        "deliveredTotal>Number.MAX_SAFE_INTEGER",
+        "const nextInvoiced=(invoiced.get(key)||0)+qty;",
+        "nextInvoiced>Number.MAX_SAFE_INTEGER",
+    ]
+    if not all(guard in source for guard in settlement_aggregate_guards):
+        errors.append("truck settlement must reject per-product and total delivered/invoiced quantity overflow")
+    else:
+        print("PASS: truck settlement rejects unsafe aggregate quantities")
+
     # Truck stock posting must validate all persisted data before mutation and preserve corrupt ledgers.
     truck_preflight_guards = [
         "Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))",
