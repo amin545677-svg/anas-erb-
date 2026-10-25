@@ -672,6 +672,27 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if file_restore and cloud_restore and all(guard in file_restore for guard in repair_guards) and all(guard in cloud_restore for guard in repair_guards):
         print("PASS: validated restore can repair corrupt startup state and restores fail-safe guards if persistence fails")
 
+    # The legacy Firebase pull button must use the same safe backup validator and transactional local save.
+    firebase_pull_start = source.find("window.anasFirebasePull=async function()")
+    firebase_pull_end = source.find("  };", firebase_pull_start)
+    firebase_pull = source[firebase_pull_start:firebase_pull_end] if firebase_pull_start >= 0 and firebase_pull_end > firebase_pull_start else ""
+    firebase_pull_guards = [
+        "if(typeof exportDataBackup!=='function'||!exportDataBackup())",
+        "if(typeof anasValidateBackupData!=='function')",
+        "anasValidateBackupData(restored)",
+        "const previousStartupIssues=anasStartupIntegrityIssues.slice()",
+        "const previousFatalLoadError=anasStartupFatalLoadError",
+        "anasStartupIntegrityIssues=[]",
+        "anasStartupFatalLoadError=false",
+        "if(!saved)",
+        "anasStartupIntegrityIssues=previousStartupIssues",
+        "anasStartupFatalLoadError=previousFatalLoadError",
+    ]
+    if not firebase_pull or any(guard not in firebase_pull for guard in firebase_pull_guards):
+        errors.append("legacy Firebase pull must validate the cloud backup, create a local backup, and roll back failed persistence")
+    else:
+        print("PASS: legacy Firebase pull validates and transactionally saves cloud backups")
+
     # Sales invoice print templates must escape imported/store/customer/item values before HTML insertion.
     thermal_start = source.find("function printThermalReceipt(inv) {")
     thermal_end = source.find("function printLegalA4Invoice(inv", thermal_start)

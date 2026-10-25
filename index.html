@@ -7981,7 +7981,38 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   async function workerRequest(method,body){if(!user)throw Error('سجّل الدخول أولاً إلى Firebase Authentication');const input=urlInput();const base=(input?.value||'').trim().replace(/\/$/,'');if(!base)throw Error('أدخل رابط Cloudflare Worker أولاً');let token;try{token=await user.getIdToken(true);}catch(e){throw Error('تعذر تحديث جلسة Firebase: '+(e.message||e));}let response;try{response=await fetch(base+'/snapshot',{method,headers:{'Authorization':'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),cache:'no-store'});}catch(e){throw Error('تعذر الوصول إلى Worker. تحقق من الرابط والنشر والإنترنت وCORS. التفاصيل: '+(e.message||e));}let result={};const raw=await response.text();try{result=raw?JSON.parse(raw):{};}catch(_){result={error:raw.slice(0,300)||'استجابة غير مفهومة من الخادم'};}if(!response.ok){const hints={401:'401: جلسة Firebase مفقودة أو غير صالحة. سجّل الدخول من جديد.',403:'403: UID المدير لا يطابق ADMIN_UID أو قواعد Firestore تمنع الوصول.',404:'404: مسار Worker أو النسخة السحابية غير موجودة.',413:'413: حجم النسخة أكبر من الحد المسموح.',500:'500: خطأ داخل Worker أو رفض من Firestore؛ راجع رسالة التفاصيل.'};throw Error((hints[response.status]||('HTTP '+response.status))+((result.error)?' — '+result.error:''));}return result;}
   window.anasTestWorker=async function(){const input=urlInput();const raw=(input?.value||'').trim();if(!raw){alert('الصق رابط Cloudflare Worker المنشور كاملًا أولًا.');return;}let parsed;try{parsed=new URL(raw);}catch(_){alert('الرابط غير مكتمل أو غير صالح.');return;}if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.search||parsed.hash){alert('يجب أن يكون الرابط HTTPS صالحًا دون اسم مستخدم أو كلمة مرور أو معاملات إضافية.');return;}const base=parsed.href.replace(/\/$/,'');localStorage.setItem('ANAS_ERP_WORKER_URL',base);const statusEl=document.getElementById('anasFirebaseAuthStatus');if(statusEl)statusEl.textContent='جارٍ اختبار اتصال الخادم…';try{let r;try{r=await fetch(base+'/health',{method:'GET',headers:{'Accept':'application/json'},cache:'no-store'});}catch(e){throw Error('تعذر الوصول إلى الخادم. تحقق من الرابط المنشور والإنترنت وCORS. '+(e.message||e));}const t=await r.text();let data;try{data=JSON.parse(t);}catch(_){data={raw:t.slice(0,250)};}if(!r.ok)throw Error('HTTP '+r.status+' — '+(data.error||data.raw||'استجابة غير صالحة'));if(data.ok!==true)throw Error('الخادم ردّ لكنه لم يرجع ok:true. الاستجابة: '+t.slice(0,250));if(statusEl){statusEl.textContent='نجح اختبار Worker: الخادم يستجيب. هذا لا يؤكد بعد صلاحيات Firestore.';statusEl.style.color='#15803d';}alert('نجح اختبار الاتصال الأساسي بالخادم. الخطوة التالية اختبار تسجيل الدخول وصلاحيات Firestore.');}catch(e){console.error('Anas ERP Worker health check:',e);if(statusEl)statusEl.textContent='فشل اختبار الخادم: '+(e.message||e);alert('فشل اختبار الخادم:\n'+(e.message||e)+'\nلم يتم رفع أو تغيير أي بيانات.');}};
   window.anasFirebasePush=async function(){if(!confirm('سيتم رفع نسخة من بيانات Anas ERP الحالية إلى السحابة. لن تُحذف البيانات المحلية. هل تريد المتابعة؟'))return;try{if(typeof AppData==='undefined')throw Error('بيانات التطبيق غير متاحة');const json=JSON.stringify(AppData);const result=await workerRequest('POST',{data:json});status('تم رفع نسخة احتياطية عبر Worker ('+result.parts+' أجزاء).',true);alert('تم رفع النسخة الاحتياطية. هذا ليس تزامنًا تلقائيًا؛ اختبر الاستعادة على جهاز آخر.');}catch(e){console.error(e);status('فشل الرفع: '+(e.message||e));alert('فشل رفع البيانات: '+(e.message||e)+'\nتحقق من رابط Worker وتسجيل الدخول وقواعد Firestore.');}};
-  window.anasFirebasePull=async function(){if(!confirm('سيتم استبدال بيانات التطبيق الحالية بالنسخة السحابية. صدّر نسخة احتياطية محلية أولاً. هل تريد المتابعة؟'))return;try{const result=await workerRequest('GET');const restored=JSON.parse(result.data||'');if(!restored||typeof restored!=='object'||!Array.isArray(restored.products)||!Array.isArray(restored.customers))throw Error('بنية النسخة السحابية غير صالحة');if(typeof ANAS_DB_KEY==='undefined')throw Error('مفتاح التخزين المحلي غير متاح');localStorage.setItem(ANAS_DB_KEY,JSON.stringify(restored));alert('تم استرجاع النسخة. سيُعاد تحميل التطبيق الآن.');location.reload();}catch(e){console.error(e);status('فشل الاسترجاع: '+(e.message||e));alert('فشل استرجاع البيانات: '+(e.message||e)+'\nلم يتم اعتماد الاسترجاع.');}};
+  window.anasFirebasePull=async function(){
+    if(!confirm('سيتم استبدال بيانات التطبيق الحالية بالنسخة السحابية. أنشئ نسخة احتياطية محلية أولاً. هل تريد المتابعة؟'))return;
+    if(typeof exportDataBackup!=='function'||!exportDataBackup()){alert('تعذر إنشاء نسخة احتياطية محلية؛ أُلغي الاسترجاع دون تغيير البيانات.');return;}
+    try{
+      const result=await workerRequest('GET');
+      const raw=JSON.parse(result.data||'');
+      const restored=JSON.parse(JSON.stringify(raw));
+      if(typeof anasValidateBackupData!=='function')throw Error('مدقق النسخ الاحتياطية غير متاح؛ رُفض الاسترجاع الآمن.');
+      anasValidateBackupData(restored);
+      if(!confirm('تم التحقق من بنية النسخة السحابية وسلامة الحقول الأساسية. هل تؤكد استبدال بيانات هذا الجهاز؟'))return;
+      const previous=AppData,previousCart=posCart;
+      const previousStartupIssues=anasStartupIntegrityIssues.slice();
+      const previousFatalLoadError=anasStartupFatalLoadError;
+      AppData=restored;
+      if(!AppData.posScreensCarts)AppData.posScreensCarts={1:[],2:[],3:[],4:[]};
+      for(const key of ['invoices','purchases','expenses','users','trucks','returns'])if(!Array.isArray(AppData[key]))AppData[key]=[];
+      const activeTab=AppData.activePosScreenTab||1;
+      posCart=Array.isArray(AppData.posScreensCarts[activeTab])?AppData.posScreensCarts[activeTab]:[];
+      anasStartupIntegrityIssues=[];
+      anasStartupFatalLoadError=false;
+      let saved=false;
+      try{saved=typeof saveDB==='function'&&saveDB()===true;}catch(saveError){console.error('ANAS Firebase restore save failed',saveError);}
+      if(!saved){
+        AppData=previous;posCart=previousCart;
+        anasStartupIntegrityIssues=previousStartupIssues;
+        anasStartupFatalLoadError=previousFatalLoadError;
+        throw Error('تعذر حفظ النسخة المسترجعة محليًا؛ أُعيدت حالة التطبيق السابقة.');
+      }
+      alert('تم التحقق من النسخة السحابية وحفظها محليًا. سيُعاد تحميل التطبيق الآن.');
+      location.reload();
+    }catch(e){console.error(e);status('فشل الاسترجاع: '+(e.message||e));alert('فشل استرجاع البيانات: '+(e.message||e)+'\nلم يتم اعتماد بيانات غير صالحة.');}
+  };
 })();
 </script>
 
