@@ -675,6 +675,7 @@ jobs:
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
           cash_fn = s[start:mid]
           expense_fn = s[mid:end]
+          assert "renderExpenses()" not in expense_fn, "Expense save must not call an undefined renderer after committing data"
           js = r"""
           /*INSERT_CASH_FUNCTION*/
           /*INSERT_EXPENSE_FUNCTION*/
