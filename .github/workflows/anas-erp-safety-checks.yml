@@ -1143,8 +1143,8 @@ jobs:
           runCase(true);
           runCase(true, true);
           function runStockAdditionOverflowCase() {
-            const invoice = {id:'I-OVERFLOW',items:[{id:'p1',name:'Product',qty:1e308,price:0}],total:0,paid:0,remaining:0};
-            const product = {id:'p1',name:'Product',stock:1e308};
+            const invoice = {id:'I-OVERFLOW',items:[{id:'p1',name:'Product',qty:2,price:0}],total:0,paid:0,remaining:0};
+            const product = {id:'p1',name:'Product',stock:Number.MAX_SAFE_INTEGER};
             const alerts = [];
             let prompts=0, confirms=0, saves=0;
             const answers=['1','0'];
@@ -1162,8 +1162,8 @@ jobs:
             assert.equal(prompts,2,'test should reach quantity and price edits');
             assert.equal(confirms,0,'overflowing resulting stock must be rejected before confirmation');
             assert.equal(saves,0,'overflowing resulting stock must not persist');
-            assert.equal(product.stock,1e308,'overflow guard must preserve original stock');
-            assert.equal(invoice.items[0].qty,1e308,'overflow guard must preserve original invoice');
+            assert.equal(product.stock,Number.MAX_SAFE_INTEGER,'overflow guard must preserve original stock');
+            assert.equal(invoice.items[0].qty,2,'overflow guard must preserve original invoice');
             assert.equal(ctx.AppData.stockMovements.length,0,'overflow guard must not create ledger movements');
             assert.ok(alerts.some(x=>x.includes('الرصيد الحالي')),'overflow should be reported as invalid resulting stock');
           }
