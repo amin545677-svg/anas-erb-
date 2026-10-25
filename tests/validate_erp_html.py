@@ -158,7 +158,7 @@ def main():
         print("PASS: customer debt, report numeric values, and stored image preview are hardened")
 
     backup_start = source.find("function anasValidateBackupData(incoming)")
-    backup_end = source.find("\\n        function importDataBackup", backup_start)
+    backup_end = source.find("\n        function importDataBackup", backup_start)
     backup_fn = source[backup_start:backup_end] if backup_start >= 0 and backup_end > backup_start else ""
     if not backup_fn or "Number(raw) > Number.MAX_SAFE_INTEGER" not in backup_fn:
         errors.append("backup restore must reject unsafe financial magnitudes in every validated money field")
