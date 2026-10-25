@@ -763,7 +763,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "matches.length!==1" in truck_load
             and "const p=matches[0]" in truck_load,
         "truck settlement rejects unsafe loaded quantities before prompting or mutation":
-            "loaded>Number.MAX_SAFE_INTEGER" in function_source("anasTruckSettle"),
+            "loaded>Number.MAX_SAFE_INTEGER" in truck_settlement,
         "truck settlement rejects missing or duplicate product IDs before prompting or mutation":
             "productMatches=products.filter(" in truck_settlement
             and "productMatches.length!==1" in truck_settlement
