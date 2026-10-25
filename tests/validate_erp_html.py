@@ -784,7 +784,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
         "backup import validates before replacing state and restores prior data on save failure":
             "anasValidateBackupData(JSON.parse(evt.target.result))" in backup_import
-            and "const previous = AppData" in backup_import and "if (!saveDB())" in backup_import
+            and "const previous = AppData" in backup_import and "try { restoreSaved = saveDB() !== false; }" in backup_import
+            and "catch (saveErr) { restoreSaveError = saveErr; }" in backup_import
             and "AppData = previous; posCart = previousCart" in backup_import,
     }
     for label, passed in transaction_checks.items():
