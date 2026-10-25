@@ -2682,6 +2682,66 @@ jobs:
               assert.equal(Object.hasOwn(trip,'expenseId'),false,'malformed expense history must not link trip');
             }
           }
+          // A stale trip.expenseId must not be accepted without one matching ledger record.
+          {
+            let staleSaves = 0;
+            const trip = {id:'T-STALE-EXPENSE-LINK',cost:'12.5',expenseId:'E-MISSING'};
+            const alerts = [];
+            const expenses = [];
+            const ctx = {
+              window:{}, AppData:{truckTrips:[trip],expenses},
+              ensure:()=>{}, alert:m=>alerts.push(String(m)), confirm:()=>true, money:String,
+              anasTruckRender:()=>{}, saveDB:()=>{staleSaves++;return true;},
+              Number,String,Object,Array,Date,console
+            };
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            ctx.runExpense('T-STALE-EXPENSE-LINK');
+            assert.equal(staleSaves,0,'stale trip expenseId must not be accepted');
+            assert.equal(expenses.length,0,'stale link must not fabricate ledger records');
+            assert.equal(trip.expenseId,'E-MISSING','stale link must remain untouched for audit');
+            assert.ok(alerts.some(x=>x.includes('رابط مصروف الرحلة')),'stale link must explain the integrity mismatch');
+          }
+          // A single source-linked expense with the wrong amount must not be linked as if it were valid.
+          {
+            let mismatchSaves = 0;
+            const trip = {id:'T-EXPENSE-AMOUNT-MISMATCH',cost:'12.5'};
+            const expenses = [{id:'E-MISMATCH',sourceType:'truck_trip',sourceId:'T-EXPENSE-AMOUNT-MISMATCH',amt:15}];
+            const alerts = [];
+            const ctx = {
+              window:{}, AppData:{truckTrips:[trip],expenses},
+              ensure:()=>{}, alert:m=>alerts.push(String(m)), confirm:()=>true, money:String,
+              anasTruckRender:()=>{}, saveDB:()=>{mismatchSaves++;return true;},
+              Number,String,Object,Array,Date,console
+            };
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            ctx.runExpense('T-EXPENSE-AMOUNT-MISMATCH');
+            assert.equal(mismatchSaves,0,'mismatched expense amount must not be linked');
+            assert.equal(trip.expenseId,undefined,'mismatched expense must not create a trip link');
+            assert.equal(expenses[0].amt,15,'existing mismatched financial evidence must remain unchanged');
+            assert.ok(alerts.some(x=>x.includes('لا تطابق تكلفة الرحلة')),'amount mismatch must be explained');
+          }
+          // An existing expense ID reused by another record is ambiguous and must not be linked.
+          {
+            let duplicateIdSaves = 0;
+            const trip = {id:'T-DUP-EXPENSE-ID',cost:'12.5'};
+            const expenses = [
+              {id:'E-REUSED',sourceType:'truck_trip',sourceId:'T-DUP-EXPENSE-ID',amt:12.5},
+              {id:'E-REUSED',sourceType:'manual',sourceId:'OTHER',amt:7}
+            ];
+            const alerts = [];
+            const ctx = {
+              window:{}, AppData:{truckTrips:[trip],expenses},
+              ensure:()=>{}, alert:m=>alerts.push(String(m)), confirm:()=>true, money:String,
+              anasTruckRender:()=>{}, saveDB:()=>{duplicateIdSaves++;return true;},
+              Number,String,Object,Array,Date,console
+            };
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            ctx.runExpense('T-DUP-EXPENSE-ID');
+            assert.equal(duplicateIdSaves,0,'duplicate expense IDs must not be linked');
+            assert.equal(trip.expenseId,undefined,'ambiguous expense ID must not create a trip link');
+            assert.equal(expenses.length,2,'duplicate expense records must remain for audit');
+            assert.ok(alerts.some(x=>x.includes('معرّف مكرر')),'duplicate expense ID must be explained');
+          }
           let saves = 0;
           const trip = {id:'T-VALID-COST', cost:'12.5', plate:'T', origin:'A', destination:'B'};
           const ctx = {

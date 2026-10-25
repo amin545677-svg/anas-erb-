@@ -8009,7 +8009,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const tripMatches=AppData.truckTrips.filter(t=>t&&typeof t==='object'&&!Array.isArray(t)&&String(t.id)===String(id));
       if(tripMatches.length!==1){alert(tripMatches.length?'يوجد أكثر من سجل رحلة بالمعرّف نفسه. أصلح التكرار قبل تسجيل المصروف.':'لم يتم العثور على الرحلة.');return;}
       const trip=tripMatches[0];
-      if(trip.expenseId){alert('تم تسجيل تكلفة هذه الرحلة كمصروف من قبل.');return;}
+      if(Object.prototype.hasOwnProperty.call(AppData,'expenses')&&(!Array.isArray(AppData.expenses)||AppData.expenses.some(e=>!e||typeof e!=='object'||Array.isArray(e))))throw new Error('قائمة المصروفات الموجودة تالفة؛ أُوقفت العملية دون استبدال السجل. أصلح البيانات أو استعد نسخة احتياطية قبل المتابعة.');
+      const priorExpenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
+      const priorLinkedExpenses=priorExpenses.filter(e=>String(e.sourceId||'')===String(trip.id)&&e.sourceType==='truck_trip');
+      if(priorLinkedExpenses.length>1){alert('يوجد أكثر من مصروف مرتبط بهذه الرحلة؛ أُوقفت العملية لمنع اعتماد سجل مالي ملتبس. راجع المصروفات قبل المتابعة.');return;}
       const rawAmount=trip.cost;
       if(!((typeof rawAmount==='number')||(typeof rawAmount==='string'))||String(rawAmount).trim()===''){
         alert('قيمة تكلفة الرحلة غير صالحة؛ يجب أن تكون رقماً صريحاً وليس قيمة فارغة أو نوعاً آخر.');
@@ -8018,8 +8021,18 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const amount=Number(rawAmount);
       if(!Number.isFinite(amount)||amount<0||amount>Number.MAX_SAFE_INTEGER){alert('قيمة تكلفة الرحلة غير صالحة أو تتجاوز المجال المالي الآمن.');return;}
       if(amount===0){alert('تكلفة الرحلة صفر؛ لا حاجة لإنشاء مصروف.');return;}
+      if(trip.expenseId){
+        const linkedId=String(trip.expenseId);
+        const idMatches=priorExpenses.filter(e=>String(e.id??'')===linkedId);
+        const linkedExpense=priorLinkedExpenses[0];
+        const linkedAmount=linkedExpense&&((typeof linkedExpense.amt==='number')||(typeof linkedExpense.amt==='string'))&&String(linkedExpense.amt).trim()!==''?Number(linkedExpense.amt):NaN;
+        if(idMatches.length!==1||!linkedExpense||String(linkedExpense.id??'')!==linkedId||idMatches[0].sourceType!=='truck_trip'||String(idMatches[0].sourceId??'')!==String(trip.id)||!Number.isFinite(linkedAmount)||linkedAmount<0||linkedAmount>Number.MAX_SAFE_INTEGER||linkedAmount!==amount){
+          alert('رابط مصروف الرحلة لا يطابق سجل المصروفات أو قيمته؛ أُوقفت العملية دون تعديل السجلات. راجع الربط المالي يدوياً.');
+          return;
+        }
+        alert('تم تسجيل تكلفة هذه الرحلة كمصروف من قبل.');return;
+      }
       if(!confirm('سيُضاف مبلغ '+money(amount)+' إلى قائمة المصروفات تحت بند نقل الشاحنات. لن يتم خصم المبلغ من رصيد الصندوق تلقائياً. هل تريد المتابعة؟'))return;
-      if(Object.prototype.hasOwnProperty.call(AppData,'expenses')&&(!Array.isArray(AppData.expenses)||AppData.expenses.some(e=>!e||typeof e!=='object'||Array.isArray(e))))throw new Error('قائمة المصروفات الموجودة تالفة؛ أُوقفت العملية دون استبدال السجل. أصلح البيانات أو استعد نسخة احتياطية قبل المتابعة.');
       const hadExpensesArray=Array.isArray(AppData.expenses);
       if(!hadExpensesArray)AppData.expenses=[];
       const previousExpenses=AppData.expenses.slice();
@@ -8029,6 +8042,13 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(existingExpenses.length>1){alert('يوجد أكثر من مصروف مرتبط بهذه الرحلة؛ أُوقفت العملية لمنع اعتماد سجل مالي ملتبس. راجع المصروفات قبل المتابعة.');return;}
       const existingExpense=existingExpenses[0];
       if(existingExpense){
+        const existingId=String(existingExpense.id??'').trim();
+        const existingIdMatches=AppData.expenses.filter(e=>String(e.id??'')===existingId);
+        const existingAmount=((typeof existingExpense.amt==='number')||(typeof existingExpense.amt==='string'))&&String(existingExpense.amt).trim()!==''?Number(existingExpense.amt):NaN;
+        if(!existingId||existingIdMatches.length!==1||!Number.isFinite(existingAmount)||existingAmount<0||existingAmount>Number.MAX_SAFE_INTEGER||existingAmount!==amount){
+          alert('المصروف المرتبط بالرحلة له معرّف مكرر أو قيمة لا تطابق تكلفة الرحلة؛ أُوقفت العملية دون تعديل السجلات. راجع المصروفات يدوياً.');
+          return;
+        }
         trip.expenseId=existingExpense.id;
         let linked=true;try{if(typeof saveDB!=='function'||saveDB()!==true)linked=false;}catch(e){linked=false;console.error(e);}
         if(!linked){if(previousExpenseId===undefined)delete trip.expenseId;else trip.expenseId=previousExpenseId;alert('وجد مصروف مرتبط بهذه الرحلة، لكن تعذر حفظ الربط.');return;}
