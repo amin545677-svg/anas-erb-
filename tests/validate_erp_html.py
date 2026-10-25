@@ -306,7 +306,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "anasEscapeHTML(AppData.appName || '')",
         'anasEscapeHTML(getReportRange().from || "—")',
         'anasEscapeHTML(getReportRange().to || "—")',
-        "Number.isFinite(Number(AppData.caisseBalance)) ? Number(AppData.caisseBalance).toLocaleString() : 'غير صالح'",
+        "function anasFormatZReportCashBalance(value)",
+        "anasFormatZReportCashBalance(AppData.caisseBalance)",
+        "typeof value === 'number' || typeof value === 'string'",
+        "String(value).trim() !== '' && Number.isFinite(Number(value))",
     ]
     for guard in z_report_guards:
         if guard not in source:

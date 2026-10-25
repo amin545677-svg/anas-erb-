@@ -6463,6 +6463,14 @@ function renderPurchasesTable() {
             alert('تم فتح واجهة إرجاع المشتريات للمورد ✅');
         }
 
+        function anasFormatZReportCashBalance(value) {
+            if (!((typeof value === 'number' || typeof value === 'string') &&
+                  String(value).trim() !== '' && Number.isFinite(Number(value)))) {
+                return 'غير صالح';
+            }
+            return Number(value).toLocaleString();
+        }
+
         function printZReport() {
             if(typeof applyReportDateRange==='function' && !applyReportDateRange()) return;
             const reportInvoices = typeof getReportInvoices==='function' ? getReportInvoices() : AppData.invoices;
@@ -6483,7 +6491,7 @@ function renderPurchasesTable() {
                     <div style="display:flex; justify-content:space-between;"><span>مبيعات كريدي:</span><strong>${totRem} د.ج</strong></div>
                     <hr style="border-top:1px dashed #000; margin:4px 0;">
                     <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px;">
-                        <span>رصيد الصندوق الفعلي:</span><span>${Number.isFinite(Number(AppData.caisseBalance)) ? Number(AppData.caisseBalance).toLocaleString() : 'غير صالح'} د.ج</span>
+                        <span>رصيد الصندوق الفعلي:</span><span>${anasFormatZReportCashBalance(AppData.caisseBalance)} د.ج</span>
                     </div>
                 </div>
             `;
