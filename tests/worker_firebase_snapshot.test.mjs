@@ -7,6 +7,7 @@ const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"),
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
 const allowedOrigin = "https://amin545677-svg.github.io";
+const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
 const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
 
 function request(path, { method = "GET", body, auth = true } = {}) {
@@ -171,6 +172,41 @@ test("duplicate expense and stock ledger IDs are rejected before Firestore write
       assert.match((await response.json()).error, /integrity validation/i);
     }
     assert.equal(firestoreCalls, 0, "duplicate ledger IDs must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+
+test("oversized snapshot bodies are cancelled at the streaming limit", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  let cancelled = false;
+  let pulls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("oversized snapshot must not reach Firestore");
+  };
+  const body = new ReadableStream({
+    pull(controller) {
+      pulls++;
+      controller.enqueue(new Uint8Array(MAX_BODY_BYTES_FOR_TEST + 1));
+    },
+    cancel() { cancelled = true; }
+  });
+  try {
+    const headers = new Headers({
+      Origin: allowedOrigin,
+      Authorization: "Bearer firebase-test-token",
+      "Content-Type": "application/json"
+    });
+    const response = await worker.fetch(new Request("https://worker.test/snapshot", {
+      method: "POST", headers, body, duplex: "half"
+    }), env);
+    assert.equal(response.status, 413);
+    assert.match((await response.json()).error, /700 KiB limit/i);
+    assert.equal(cancelled, true, "request stream must be cancelled when the limit is exceeded");
+    assert.equal(pulls, 1, "worker must stop consuming chunks once the limit is exceeded");
+    assert.equal(firestoreCalls, 0, "oversized bodies must never be persisted");
   } finally { globalThis.fetch = oldFetch; }
 });
 
