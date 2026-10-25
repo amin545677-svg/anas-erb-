@@ -2868,7 +2868,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             AppData.posScreensCarts = AppData.posScreensCarts || {};
             AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB === 'function' && !saveDB()) {
+            if (typeof saveDB !== 'function' || saveDB() !== true) {
                 // لا نُبقي تغيير السلة غير المحفوظ في الذاكرة إذا فشل الحفظ.
                 if (ex) ex.qty--;
                 else posCart.pop();
@@ -2883,7 +2883,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const removed = posCart.splice(idx, 1)[0];
             AppData.posScreensCarts = AppData.posScreensCarts || {};
             AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB === 'function' && !saveDB()) {
+            if (typeof saveDB !== 'function' || saveDB() !== true) {
                 posCart.splice(idx, 0, removed);
                 renderPosTable();
                 return;
@@ -2998,7 +2998,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             posCart = [];
             AppData.posScreensCarts = AppData.posScreensCarts || {};
             AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB === 'function' && !saveDB()) {
+            if (typeof saveDB !== 'function' || saveDB() !== true) {
                 posCart = previous;
                 renderPosTable();
                 return;
@@ -4844,7 +4844,7 @@ function renderPurchasesTable() {
             const previousProducts = products.slice();
             AppData.products = products.filter(x => String(x.id) !== productId);
             const saved = saveDB();
-            if(saved === false) {
+            if(saved !== true) {
                 AppData.products = previousProducts;
                 alert('تعذر حفظ التغيير؛ تمت استعادة قائمة المنتجات في الذاكرة.');
                 return;
@@ -4872,7 +4872,7 @@ function renderPurchasesTable() {
             const previous=AppData.productCategories.slice();
             AppData.productCategories.push(name);
             try{
-                if(typeof saveDB==='function'&&saveDB()===false){AppData.productCategories=previous;alert('تعذر حفظ التصنيف؛ أُعيدت القائمة السابقة ولم يتم تأكيد الإضافة.');return;}
+                if(typeof saveDB!=='function'||saveDB()!==true){AppData.productCategories=previous;alert('تعذر حفظ التصنيف؛ أُعيدت القائمة السابقة ولم يتم تأكيد الإضافة.');return;}
                 populateProductCategorySuggestions();
                 const input=document.getElementById('newProdCatInput');
                 if(input){input.value=name;input.focus();}
@@ -4906,7 +4906,7 @@ function renderPurchasesTable() {
             const before=changes.map(c=>({p:c.p,key:c.key,value:c.p[c.key]}));
             try{
                 changes.forEach(c=>{c.p[c.key]=c.newPrice;});
-                if(typeof saveDB==='function'&&saveDB()===false)throw new Error('فشل حفظ قاعدة البيانات');
+                if(typeof saveDB!=='function'||saveDB()!==true)throw new Error('فشل حفظ قاعدة البيانات');
             }catch(e){
                 before.forEach(c=>{c.p[c.key]=c.value;});
                 console.error('Bulk price update failed',e);
@@ -4970,7 +4970,7 @@ function renderPurchasesTable() {
             const previous=AppData.productUnits.slice();
             AppData.productUnits.push(name);
             try{
-                if(typeof saveDB==='function'&&saveDB()===false){AppData.productUnits=previous;alert('تعذر حفظ الوحدة؛ أُعيدت القائمة السابقة.');return;}
+                if(typeof saveDB!=='function'||saveDB()!==true){AppData.productUnits=previous;alert('تعذر حفظ الوحدة؛ أُعيدت القائمة السابقة.');return;}
                 populateProductUnitOptions();sel.value=name;
                 alert('تم حفظ الوحدة وإتاحتها للاستخدام لاحقًا: '+name);
             }catch(e){AppData.productUnits=previous;console.error('Custom unit save failed',e);alert('تعذر حفظ الوحدة: '+(e.message||e));}
@@ -5057,7 +5057,7 @@ function renderPurchasesTable() {
                     do{id='P-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8).toUpperCase();}while(AppData.products.some(p=>String(p.id)===id));
                     AppData.products.push({id,name,barcode,desc,cat,unit,pack,buyPrice:buyCost,price1:p1,price2:p2,price3:p3,stock,minAlert,supplierId,image:currentTempProdImageBase64||''});
                 }
-                if(typeof saveDB==='function'&&saveDB()===false)throw new Error('تعذر حفظ قاعدة البيانات. أُعيدت بيانات المنتج السابقة.');
+                if(typeof saveDB!=='function'||saveDB()!==true)throw new Error('تعذر حفظ قاعدة البيانات. أُعيدت بيانات المنتج السابقة.');
             }catch(e){
                 AppData.products=beforeProducts;
                 if(index>=0)AppData.products[index]=beforeProduct;
@@ -5608,7 +5608,7 @@ function renderPurchasesTable() {
             if(!u) return alert('لم يتم العثور على المستخدم.');
             const previous = AppData.currentUser;
             AppData.currentUser = u;
-            if(!saveDB()) { AppData.currentUser = previous; return alert('لم يُحفظ التبديل؛ بقي المستخدم السابق نشطًا.'); }
+            if(saveDB()!==true) { AppData.currentUser = previous; return alert('لم يُحفظ التبديل؛ بقي المستخدم السابق نشطًا.'); }
             renderUsers();
             alert('تم التبديل إلى المستخدم: ' + u.name + ' (هذا تبديل محلي للواجهة وليس تسجيل دخول آمنًا).');
         }
@@ -5621,7 +5621,7 @@ function renderPurchasesTable() {
             if(!confirm('هل تريد حذف المستخدم «' + u.name + '»؟ لن تُحذف الفواتير أو الحركات السابقة المرتبطة باسمه.')) return;
             const before = users.slice();
             AppData.users = users.filter(x => String(x.id) !== String(userId));
-            if(!saveDB()) { AppData.users = before; renderUsers(); return alert('فشل الحفظ؛ أُعيدت قائمة المستخدمين كما كانت.'); }
+            if(saveDB()!==true) { AppData.users = before; renderUsers(); return alert('فشل الحفظ؛ أُعيدت قائمة المستخدمين كما كانت.'); }
             renderUsers();
             alert('تم حذف سجل المستخدم. ملاحظة: هذا لا يلغي جلسات دخول خارجية أو حسابات Firebase.');
         }
@@ -5687,7 +5687,7 @@ function renderPurchasesTable() {
             const warehousesBefore=JSON.parse(JSON.stringify(AppData.warehouses||[]));
             (AppData.warehouses||[]).forEach(w=>{if(w&&typeof w==='object'&&String(w.assigned_user_id||'')===String(u.id)&&String(w.name||'').trim()!==secondaryWarehouse)delete w.assigned_user_id;});
             if(secondaryWarehouse)wtEnsureUserWarehouse(u);
-            if(!saveDB()) {
+            if(saveDB()!==true) {
                 AppData.warehouses=warehousesBefore;
                 if(id) { /* بيانات التعديل بقيت في الذاكرة؛ لا نغلق النموذج كي لا تضيع على المستخدم. */ }
                 else { AppData.users = (AppData.users || []).filter(x => x !== u); }
@@ -6163,7 +6163,7 @@ function renderPurchasesTable() {
                     anasStartupFatalLoadError = false;
                     let restoreSaved = false;
                     let restoreSaveError = null;
-                    try { restoreSaved = saveDB() !== false; }
+                    try { restoreSaved = saveDB() === true; }
                     catch (saveErr) { restoreSaveError = saveErr; }
                     if (!restoreSaved) {
                         AppData = previous; posCart = previousCart;
@@ -7302,7 +7302,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const i=drafts.findIndex(x=>x.id===s.id);
       if(i>=0)drafts[i]=JSON.parse(JSON.stringify(s));else drafts.push(JSON.parse(JSON.stringify(s)));
       setDrafts(drafts);
-      if(typeof saveDB==='function' && saveDB()===false){
+      if(typeof saveDB!=='function' || saveDB()!==true){
         setDrafts(previousDrafts);
         alert('تعذر حفظ مسودة الجرد في قاعدة البيانات؛ أُعيدت قائمة المسودات السابقة. لم يتم تأكيد الحفظ.');
         return false;
@@ -7349,8 +7349,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       s.status='approved';s.approvedAt=now;s.approvedBy=currentUser();s.varianceCount=diffs.length;
       records.push(JSON.parse(JSON.stringify(s)));
       const drafts=getDrafts().filter(x=>x.id!==s.id);setDrafts(drafts);
-      const saved=typeof saveDB==='function'?saveDB():true;
-      if(saved===false)throw new Error('فشل حفظ قاعدة البيانات');
+      const saved=typeof saveDB==='function'?saveDB():false;
+      if(saved!==true)throw new Error('فشل حفظ قاعدة البيانات');
       anasRenderStocktake();alert(`تم اعتماد الجرد بنجاح. عدد التسويات: ${diffs.length}. تم تسجيل الحركات وربطها بمحضر الجرد.`);
     }catch(e){
       try{
