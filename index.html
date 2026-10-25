@@ -6108,7 +6108,17 @@ function renderPurchasesTable() {
                 if (p.stock != null && ((typeof p.stock !== 'number' && typeof p.stock !== 'string') ||
                     (typeof p.stock === 'string' && p.stock.trim() === '') ||
                     !Number.isFinite(Number(p.stock)) || Number(p.stock) < 0 || Number(p.stock) > Number.MAX_SAFE_INTEGER))
-                    throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
+                    throw new Error('يوجد رصيد مخزون سالب أو غير رقمي أو يتجاوز المجال الرقمي الآمن.');
+                if (Object.prototype.hasOwnProperty.call(p, 'warehouseStock')) {
+                    if (!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))
+                        throw new Error('خريطة أرصدة المخازن الفرعية غير صالحة؛ رُفض الاسترجاع لحماية المخزون.');
+                    for (const [warehouseName, rawBalance] of Object.entries(p.warehouseStock)) {
+                        if (!warehouseName.trim() || (typeof rawBalance !== 'number' && typeof rawBalance !== 'string') ||
+                            (typeof rawBalance === 'string' && rawBalance.trim() === '') ||
+                            !Number.isFinite(Number(rawBalance)) || Number(rawBalance) < 0 || Number(rawBalance) > Number.MAX_SAFE_INTEGER)
+                            throw new Error('رصيد مخزن فرعي غير صالح أو يتجاوز المجال الرقمي الآمن؛ رُفض الاسترجاع لحماية المخزون.');
+                    }
+                }
             }
             // Reject malformed financial fields before a backup can replace valid live accounting data.
             const validateMoneyField = (record, field, label, allowZero = true) => {
