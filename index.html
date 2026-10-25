@@ -8395,16 +8395,29 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(window.firebase){
       const app=window.firebase.apps.length?window.firebase.app():window.firebase.initializeApp(firebaseConfig);
       auth=window.firebase.auth(app);
-      auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL).catch(e=>console.warn('Firebase persistence:',e));
-      auth.onAuthStateChanged(u=>{
-        user=u||null;
-        status(u?('تم تسجيل الدخول: '+(u.email||u.uid)+' — الجلسة نشطة على هذا الجهاز.'):'لا توجد جلسة دخول نشطة إلى Firebase.');
-        // A saved Worker URL is checked automatically; this checks reachability only, never uploads/restores data.
-        if(saved&&!window.__anasWorkerAutoHealthChecked){
-          window.__anasWorkerAutoHealthChecked=true;
-          window.anasTestWorker();
-        }
-      });
+      // Restore Firebase's persisted state before subscribing to the first auth-state event.
+      // If persistence setup fails, still attach the observer so sign-in remains usable and report the issue.
+      const observeFirebaseAuth=()=>{
+        auth.onAuthStateChanged(u=>{
+          user=u||null;
+          status(u?('تم تسجيل الدخول: '+(u.email||u.uid)+' — الجلسة نشطة على هذا الجهاز.'):'لا توجد جلسة دخول نشطة إلى Firebase.');
+          // A saved Worker URL is checked automatically; this checks reachability only, never uploads/restores data.
+          if(saved&&!window.__anasWorkerAutoHealthChecked){
+            window.__anasWorkerAutoHealthChecked=true;
+            window.anasTestWorker();
+          }
+        },e=>{
+          console.error('Firebase auth-state observer:',e);
+          status('تعذر استعادة حالة جلسة Firebase: '+(e.message||e));
+        });
+      };
+      auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
+        .then(observeFirebaseAuth)
+        .catch(e=>{
+          console.warn('Firebase LOCAL persistence could not be initialized:',e);
+          status('تعذر تهيئة حفظ جلسة Firebase: '+(e.message||e));
+          observeFirebaseAuth();
+        });
     }else{status('تعذر تحميل مكتبات Firebase. تحقق من اتصال الإنترنت.');}
     if(urlInput()){
       const persistWorkerUrl=()=>{
