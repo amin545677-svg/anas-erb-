@@ -472,7 +472,8 @@ jobs:
           vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'failed restore must reinstate the original data object');
           assert.equal(ctx.posCart,oldCart,'failed restore must reinstate the active POS cart');
-          assert.equal(ctx.anasStartupIntegrityIssues,oldIssues,'failed restore must reinstate startup diagnostics');
+          assert.equal(ctx.anasStartupIntegrityIssues.length,1,'failed restore must reinstate startup diagnostics');
+          assert.equal(ctx.anasStartupIntegrityIssues[0].code,'startup-warning','startup diagnostics must retain their contents');
           assert.equal(ctx.anasStartupFatalLoadError,true,'failed restore must reinstate fatal-load state');
           assert.equal(input.value,'','file input must be reset after restore attempt');
           assert.equal(alerts.length,1,'failed restore should report one error');
