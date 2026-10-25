@@ -536,6 +536,13 @@ jobs:
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
           vm.runInNewContext(validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
+          ctx.AppData = {caisseBalance:75};
+          const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
+          assert.throws(() => ctx.validateBackup(missingCashBalance), /تفتقد رصيد الصندوق/, 'backup missing a non-zero live cash balance must be rejected');
+          ctx.AppData = {caisseBalance:0};
+          const legacyWithoutBalance = valid(); delete legacyWithoutBalance.caisseBalance;
+          assert.equal(ctx.validateBackup(legacyWithoutBalance).products.length,1,'legacy backup without cash balance remains compatible when current balance is zero');
+          ctx.AppData = {};
           for (const [label, mutate] of [
             ['invalid cash balance', d => d.caisseBalance = '12abc'],
             ['negative cash balance', d => d.caisseBalance = -1],
