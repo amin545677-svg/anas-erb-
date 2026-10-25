@@ -2539,17 +2539,31 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 alert('الحفظ موقوف لحماية البيانات الأصلية. أصلح البيانات التالفة أو استعد نسخة احتياطية سليمة قبل إجراء أي تغييرات.');
                 return false;
             }
-            // نجاح الحفظ يعني نجاح الكتابة إلى التخزين الدائم فقط؛ أخطاء تحديث الواجهة لا تُحوّل حفظًا ناجحًا إلى فشل وهمي.
+            // جهّز لقطة مستقلة لسلة البيع؛ لا تعدّل الحالة الحية قبل نجاح الكتابة الدائمة.
+            let nextCarts;
+            let serialized;
             try {
-                AppData.posScreensCarts = AppData.posScreensCarts || {};
-                AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-                const serialized = JSON.stringify(AppData);
+                const currentCarts = AppData.posScreensCarts;
+                if (currentCarts !== undefined && currentCarts !== null &&
+                    (typeof currentCarts !== 'object' || Array.isArray(currentCarts))) {
+                    const invalidCarts = new Error('خريطة سلال البيع غير صالحة؛ أُوقف الحفظ دون استبدال البيانات.');
+                    invalidCarts.code = 'ANAS_INVALID_POS_CARTS';
+                    throw invalidCarts;
+                }
+                nextCarts = currentCarts ? { ...currentCarts } : {};
+                nextCarts[AppData.activePosScreenTab] = posCart;
+                const snapshot = { ...AppData, posScreensCarts: nextCarts };
+                serialized = JSON.stringify(snapshot);
                 localStorage.setItem(ANAS_DB_KEY, serialized);
             } catch (e) {
-                alert('تعذر حفظ البيانات على الهاتف. قد تكون مساحة التخزين ممتلئة. صدّر نسخة احتياطية قبل إعادة المحاولة.');
+                alert(e && e.code === 'ANAS_INVALID_POS_CARTS'
+                    ? e.message
+                    : 'تعذر حفظ البيانات على الهاتف. قد تكون مساحة التخزين ممتلئة. صدّر نسخة احتياطية قبل إعادة المحاولة.');
                 console.error('Anas ERP persistent save failed:', e);
                 return false;
             }
+            // حدّث الذاكرة بعد الكتابة فقط؛ عند فشل التخزين تبقى خريطة السلال كما كانت.
+            AppData.posScreensCarts = nextCarts;
             // التحديثات البصرية ثانوية؛ لا ينبغي أن تتسبب في تراجع وهمي بعد كتابة البيانات بنجاح.
             try { updateUIState(); } catch (e) { console.error('Anas ERP UI refresh failed:', e); }
             try { checkSystemAlerts(); } catch (e) { console.error('Anas ERP alerts refresh failed:', e); }

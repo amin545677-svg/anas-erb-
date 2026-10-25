@@ -110,6 +110,20 @@ def main():
         print("PASS: POS cart price, quantity, and unit are normalized/escaped safely")
 
 
+    # saveDB must persist a detached cart snapshot before changing live cart state.
+    save_db_start = source.find("function saveDB()")
+    save_db_end = source.find("\n        function openDrawer()", save_db_start)
+    save_db_source = source[save_db_start:save_db_end] if save_db_start >= 0 and save_db_end > save_db_start else ""
+    if not (
+        "const snapshot = { ...AppData, posScreensCarts: nextCarts };" in save_db_source
+        and "localStorage.setItem(ANAS_DB_KEY, serialized);" in save_db_source
+        and save_db_source.find("localStorage.setItem(ANAS_DB_KEY, serialized);") < save_db_source.find("AppData.posScreensCarts = nextCarts;")
+        and "invalidCarts.code = 'ANAS_INVALID_POS_CARTS';" in save_db_source
+    ):
+        errors.append("saveDB must persist a detached cart snapshot before updating memory and reject malformed cart maps")
+    else:
+        print("PASS: saveDB keeps POS cart-map state atomic across persistence failures")
+
     # Customer data and imported product images must be safe at HTML output boundaries.
     safety_guards = [
         "anasEscapeHTML(c.phone || '-')",
