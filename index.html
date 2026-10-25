@@ -2995,11 +2995,26 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function clearPosCart() {
             if (!confirm('هل تريد مسح المنتجات من الفاتورة؟')) return;
             const previous = posCart;
+            const previousCarts = AppData.posScreensCarts;
+            const hadCarts = Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts');
+            const activeTab = AppData.activePosScreenTab;
+            const hadPreviousTabCart = !!previousCarts && typeof previousCarts === 'object' &&
+                !Array.isArray(previousCarts) && Object.prototype.hasOwnProperty.call(previousCarts, activeTab);
+            const previousTabCart = hadPreviousTabCart ? previousCarts[activeTab] : undefined;
             posCart = [];
             AppData.posScreensCarts = AppData.posScreensCarts || {};
-            AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
+            AppData.posScreensCarts[activeTab] = posCart;
             if (typeof saveDB !== 'function' || saveDB() !== true) {
                 posCart = previous;
+                if (hadCarts) {
+                    AppData.posScreensCarts = previousCarts;
+                    if (previousCarts && typeof previousCarts === 'object' && !Array.isArray(previousCarts)) {
+                        if (hadPreviousTabCart) previousCarts[activeTab] = previousTabCart;
+                        else delete previousCarts[activeTab];
+                    }
+                } else {
+                    delete AppData.posScreensCarts;
+                }
                 renderPosTable();
                 return;
             }
