@@ -435,6 +435,54 @@ jobs:
           assert "Object.assign(rec,{id:recordId,name," in block, "The validated ID must be the one persisted"
           print("Import record ID uniqueness guards passed")
           PY
+      - name: Reject unsafe financial magnitudes in backup restore
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasValidateBackupData(incoming)")
+          end = s.find("\\n        function importDataBackup", start)
+          assert start >= 0 and end > start, "Could not isolate backup validator"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const validator = /*INSERT_VALIDATOR*/;
+          const base = {
+            products:[{id:'p',stock:1}], customers:[{id:'c',debt:0}],
+            suppliers:[{id:'s',balance:0}], invoices:[], purchases:[], expenses:[],
+            users:[], trucks:[], returns:[], warehouseTransfers:[], stockMovements:[],
+            purchaseInvoices:[], alerts:[], truckTrips:[], cashMovements:[], warehouses:[],
+            posScreensCarts:{}, caisseBalance:0
+          };
+          const cases = [
+            ['customer debt', d => { d.customers[0].debt = 1e16; }],
+            ['supplier balance', d => { d.suppliers[0].balance = 1e16; }],
+            ['expense amount', d => { d.expenses = [{amt:1e16}]; }],
+            ['cash movement amount', d => { d.cashMovements = [{amount:1e16}]; }],
+            ['sales invoice total', d => { d.invoices = [{total:1e16}]; }],
+            ['purchase cost', d => { d.purchases = [{cost:1e16}]; }],
+            ['sales item quantity', d => { d.invoices = [{items:[{qty:1e16,price:1}]}]; }]
+          ];
+          for (const [label, mutate] of cases) {
+            const data = JSON.parse(JSON.stringify(base));
+            mutate(data);
+            const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
+            vm.runInNewContext(validator + '\\nthis.validate = anasValidateBackupData;', ctx);
+            assert.throws(() => ctx.validate(data), /قيمة مالية غير صالحة/, label + ' above the safe numeric range must be rejected');
+          }
+          const valid = JSON.parse(JSON.stringify(base));
+          const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
+          vm.runInNewContext(validator + '\\nthis.validate = anasValidateBackupData;', ctx);
+          assert.equal(ctx.validate(valid), valid, 'ordinary backup values must remain accepted');
+          console.log('Backup validator safe financial magnitude tests passed');
+          """
+          js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
+          Path("/tmp/anas-backup-financial-safe-range-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-backup-financial-safe-range-test.js
+          node /tmp/anas-backup-financial-safe-range-test.js
       - name: Exercise backup restore rollback when persistence throws
         run: |
           python - <<'PY'
