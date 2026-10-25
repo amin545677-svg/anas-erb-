@@ -3313,6 +3313,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
                 });
             }
+            const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const oldCaisseValue = AppData.caisseBalance;
             const oldCaisse = Number(AppData.caisseBalance) || 0;
             const oldCart = cart.map(it => ({...it}));
             const activeTab = AppData.activePosScreenTab;
@@ -3364,10 +3366,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     }
                 }
                 if (registeredCustomer) {
-                    cust.debt = oldDebt;
+                    if (hasDebtField) cust.debt = rawDebt;
+                    else delete cust.debt;
                     if (oldDebtDate === undefined) delete cust.debtDate; else cust.debtDate = oldDebtDate;
                 }
-                AppData.caisseBalance = oldCaisse;
+                if (hadCaisseBalance) AppData.caisseBalance = oldCaisseValue;
+                else delete AppData.caisseBalance;
                 AppData.invoices = invoicesBefore;
                 posCart = oldCart;
                 if (AppData.posScreensCarts) {
