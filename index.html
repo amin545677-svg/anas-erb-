@@ -5970,6 +5970,22 @@ function renderPurchasesTable() {
                     !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ') بالنسخة السحابية؛ أُلغي الاسترجاع لحماية الحسابات.');
             };
+            // Validate stock movement numbers before replacing the local inventory ledger.
+            const validateCloudStockMovementValue = (record, field, label, allowNegative) => {
+                if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+                const raw = record[field];
+                const value = Number(raw);
+                if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null ||
+                    (typeof raw === 'string' && raw.trim() === '') || !Number.isFinite(value) ||
+                    (!allowNegative && value < 0) || Math.abs(value) > Number.MAX_SAFE_INTEGER)
+                    throw new Error('قيمة كمية غير صالحة في ' + label + ' (' + field + ') بالنسخة السحابية؛ أُلغي الاسترجاع لحماية سجل المخزون.');
+            };
+            for (const movement of (incoming.stockMovements || [])) {
+                for (const field of ['qty', 'quantity', 'delta'])
+                    validateCloudStockMovementValue(movement, field, 'حركات المخزون', true);
+                for (const field of ['previousStock', 'newStock', 'stockBefore', 'stockAfter'])
+                    validateCloudStockMovementValue(movement, field, 'أرصدة حركات المخزون', false);
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
                 validateCloudMoney(incoming, 'caisseBalance', 'رصيد الصندوق');
             } else if (typeof AppData !== 'undefined' &&
@@ -6232,6 +6248,22 @@ function renderPurchasesTable() {
                     !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
             };
+            // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
+            const validateStockMovementValue = (record, field, label, allowNegative) => {
+                if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+                const raw = record[field];
+                const value = Number(raw);
+                if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null ||
+                    (typeof raw === 'string' && raw.trim() === '') || !Number.isFinite(value) ||
+                    (!allowNegative && value < 0) || Math.abs(value) > Number.MAX_SAFE_INTEGER)
+                    throw new Error('قيمة كمية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية سجل المخزون.');
+            };
+            for (const movement of (incoming.stockMovements || [])) {
+                for (const field of ['qty', 'quantity', 'delta'])
+                    validateStockMovementValue(movement, field, 'حركات المخزون', true);
+                for (const field of ['previousStock', 'newStock', 'stockBefore', 'stockAfter'])
+                    validateStockMovementValue(movement, field, 'أرصدة حركات المخزون', false);
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
                 const raw = incoming.caisseBalance;
                 if ((typeof raw !== 'number' && typeof raw !== 'string') ||

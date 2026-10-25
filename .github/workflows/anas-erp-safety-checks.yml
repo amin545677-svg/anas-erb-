@@ -638,6 +638,24 @@ jobs:
             const data = valid(); mutate(data);
             assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية|يتجاوز إجمالي|متطابقة حسابيًا/, label);
           }
+          const validStockLedger = valid();
+          validStockLedger.stockMovements = [{id:'M-1',qty:-2,previousStock:5,newStock:3}];
+          assert.equal(ctx.validateBackup(validStockLedger).stockMovements[0].qty,-2,
+            'signed stock movement deltas and non-negative balances must remain valid');
+          for (const field of ['qty','quantity','delta']) {
+            for (const badValue of [true, [], '', '   ', Infinity, Number.MAX_SAFE_INTEGER + 1, -(Number.MAX_SAFE_INTEGER + 1)]) {
+              const bad = valid(); bad.stockMovements = [{id:'M-BAD', [field]:badValue}];
+              assert.throws(() => ctx.validateBackup(bad), Error,
+                'backup restore must reject malformed stock movement '+field+' '+JSON.stringify(badValue));
+            }
+          }
+          for (const field of ['previousStock','newStock','stockBefore','stockAfter']) {
+            for (const badValue of [true, [], '', '   ', -1, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+              const bad = valid(); bad.stockMovements = [{id:'M-BAD', [field]:badValue}];
+              assert.throws(() => ctx.validateBackup(bad), Error,
+                'backup restore must reject malformed stock movement balance '+field+' '+JSON.stringify(badValue));
+            }
+          }
           const accepted = ctx.validateBackup(valid());
           assert.equal(accepted.caisseBalance,100,'valid financial backup remains importable');
           assert.equal(accepted.customers[0].debt,0,'zero customer debt remains valid');
@@ -2039,6 +2057,24 @@ jobs:
             bad.truckTrips = [{id:'TR-LOAD-BAD',stockItems:badItems}];
             assert.throws(() => anasValidateIncomingSyncData(bad), Error,
               'cloud restore must reject malformed or duplicate truck stock items: '+JSON.stringify(badItems));
+          }
+          const validCloudStockLedger = base();
+          validCloudStockLedger.stockMovements = [{id:'M-1',qty:-2,previousStock:5,newStock:3}];
+          assert.equal(anasValidateIncomingSyncData(validCloudStockLedger).stockMovements[0].qty,-2,
+            'signed cloud stock movement deltas and non-negative balances must remain valid');
+          for (const field of ['qty','quantity','delta']) {
+            for (const badValue of [true, [], '', '   ', Infinity, Number.MAX_SAFE_INTEGER + 1, -(Number.MAX_SAFE_INTEGER + 1)]) {
+              const bad = base(); bad.stockMovements = [{id:'M-BAD', [field]:badValue}];
+              assert.throws(() => anasValidateIncomingSyncData(bad), Error,
+                'cloud restore must reject malformed stock movement '+field+' '+JSON.stringify(badValue));
+            }
+          }
+          for (const field of ['previousStock','newStock','stockBefore','stockAfter']) {
+            for (const badValue of [true, [], '', '   ', -1, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+              const bad = base(); bad.stockMovements = [{id:'M-BAD', [field]:badValue}];
+              assert.throws(() => anasValidateIncomingSyncData(bad), Error,
+                'cloud restore must reject malformed stock movement balance '+field+' '+JSON.stringify(badValue));
+            }
           }
           const validCloudTransfer = base();
           validCloudTransfer.warehouseTransfers = [{id:'WT-1',quantity:2,buyPrice:5,salePrice:7,buyTotal:10,saleTotal:14}];
