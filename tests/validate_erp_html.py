@@ -170,7 +170,7 @@ def main():
         print("PASS: customer debt, report numeric values, and stored image preview are hardened")
 
     backup_validator_start = source.find("function anasValidateBackupData(incoming)")
-    backup_validator_end = source.find("\\n        function importDataBackup", backup_validator_start)
+    backup_validator_end = source.find("function importDataBackup", backup_validator_start)
     backup_validator = source[backup_validator_start:backup_validator_end] if backup_validator_start >= 0 and backup_validator_end > backup_validator_start else ""
     if ("['invoices', incoming.invoices || [], false]" not in backup_validator
         or "['truckTrips', incoming.truckTrips || [], false]" not in backup_validator):
