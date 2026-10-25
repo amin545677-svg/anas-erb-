@@ -785,6 +785,17 @@ jobs:
           assert.equal(malformedBalanceSave, false, 'malformed cash balance must block debt collection');
           assert.equal(AppData.customers[0].debt, 100);
 
+          for (const invalidBalance of [true, [5]]) {
+            global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: invalidBalance, cashMovements: [] };
+            let coercedBalanceSave = false;
+            global.saveDB = () => { coercedBalanceSave = true; return true; };
+            collectCustDebt('c1');
+            assert.equal(coercedBalanceSave, false, 'boolean/array cash balances must block debt collection');
+            assert.equal(AppData.customers[0].debt, 100, 'invalid cash balance must not change customer debt');
+            assert.deepEqual(AppData.cashMovements, [], 'invalid cash balance must not create a ledger entry');
+            assert.deepEqual(AppData.caisseBalance, invalidBalance, 'invalid cash balance must remain untouched');
+          }
+
           global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 5, cashMovements: [{ id: 'legacy' }, null] };
           let malformedLedgerSave = false;
           global.saveDB = () => { malformedLedgerSave = true; return true; };
@@ -938,6 +949,15 @@ jobs:
           assert.equal(saves,1,'corrupt balance must block cash movement');
           assert.equal(AppData.caisseBalance,'corrupt');
 
+          for (const invalidBalance of [true, [5]]) {
+            global.AppData={caisseBalance:invalidBalance,cashMovements:[]};
+            const movementsBefore=AppData.cashMovements.slice();
+            submitCashOperation();
+            assert.equal(saves,1,'boolean/array cash balances must be rejected before persistence');
+            assert.deepEqual(AppData.cashMovements,movementsBefore,'invalid cash balance must not alter ledger');
+            assert.deepEqual(AppData.caisseBalance,invalidBalance,'invalid cash balance must remain untouched');
+          }
+
           global.AppData={caisseBalance:20,cashMovements:{bad:true}};
           submitCashOperation();
           assert.equal(saves,1,'malformed cash ledger must block mutation');
@@ -954,6 +974,14 @@ jobs:
           submitExpenseOperation();
           assert.equal(saves,2,'malformed expense amount must not be accepted');
           assert.equal(AppData.caisseBalance,10);
+
+          for (const invalidBalance of [true, [5]]) {
+            global.AppData={caisseBalance:invalidBalance,expenses:[]};
+            submitExpenseOperation();
+            assert.equal(saves,2,'boolean/array cash balances must block expense persistence');
+            assert.deepEqual(AppData.expenses,[],'invalid balance must not append expense');
+            assert.deepEqual(AppData.caisseBalance,invalidBalance,'invalid balance must remain untouched');
+          }
 
           global.AppData={caisseBalance:20,expenses:{bad:true}};
           submitExpenseOperation();
