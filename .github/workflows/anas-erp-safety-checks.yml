@@ -2021,7 +2021,7 @@ jobs:
             const ctx={
               AppData:{products:[{id:'P1',name:'Product',stock:10,warehouseStock:{}}],stockMovements:[],warehouses:[]},
               saveDB:()=>undefined,
-              wtEnsureMobileWarehouse:name=>{if(!AppData.warehouses.includes(name))AppData.warehouses.push(name);},
+              wtEnsureMobileWarehouse:name=>{if(!ctx.AppData.warehouses.includes(name))ctx.AppData.warehouses.push(name);},
               Number,String,Object,Array,Map,Date,JSON,Error
             };
             vm.runInNewContext(truck+'\nthis.runLoad=postTripStock;',ctx);
