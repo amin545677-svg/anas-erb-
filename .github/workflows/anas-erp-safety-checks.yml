@@ -1801,6 +1801,11 @@ jobs:
           assert.equal(r.data.products[0].warehouseStock.A,5);
           assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
           assert.match(r.alerts[0],/الوجهة/);
+          r=runCase({id:'p',name:'P',stock:1e16,warehouseStock:{A:0}},'المخزن الرئيسي','A','2');
+          assert.equal(r.data.products[0].stock,1e16,'unsafe source balance must not be mutated');
+          assert.equal(r.data.products[0].warehouseStock.A,0,'unsafe source balance must not be credited to destination');
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/رصيد المخزن المصدر/);
           r=runCase({id:'p',name:'P',stock:10,warehouseStock:{A:5,B:1}},'A','B');
           assert.equal(r.data.products[0].warehouseStock.A,3);
           assert.equal(r.data.products[0].warehouseStock.B,3);
