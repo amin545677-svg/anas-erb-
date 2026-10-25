@@ -5690,9 +5690,14 @@ function renderPurchasesTable() {
             const duplicate = (AppData.users || []).find(x => String(x.id) !== String(id || '') && phone && String(x.phone || '').replace(/\s/g,'') === phone.replace(/\s/g,''));
             if(duplicate) return alert('رقم الهاتف مستخدم بالفعل لحساب «' + duplicate.name + '».');
             let u;
+            let previousUser = null;
+            let previousUserKeys = [];
+            const previousCurrentUser = AppData.currentUser;
             if(id) {
                 u = AppData.users.find(x=>String(x.id)===String(id));
                 if(!u) return alert('تعذر العثور على المستخدم المطلوب تعديله');
+                previousUser = Object.assign({}, u);
+                previousUserKeys = Object.keys(u);
                 Object.assign(u,{name,phone,address,role,warehouse,secondaryWarehouse,permissions});
                 if(AppData.currentUser && String(AppData.currentUser.id)===String(id)) AppData.currentUser = u;
             } else {
@@ -5704,8 +5709,13 @@ function renderPurchasesTable() {
             if(secondaryWarehouse)wtEnsureUserWarehouse(u);
             if(saveDB()!==true) {
                 AppData.warehouses=warehousesBefore;
-                if(id) { /* بيانات التعديل بقيت في الذاكرة؛ لا نغلق النموذج كي لا تضيع على المستخدم. */ }
-                else { AppData.users = (AppData.users || []).filter(x => x !== u); }
+                if(id) {
+                    Object.keys(u).forEach(key => { if (!previousUserKeys.includes(key)) delete u[key]; });
+                    Object.assign(u, previousUser);
+                    AppData.currentUser = previousCurrentUser;
+                } else {
+                    AppData.users = (AppData.users || []).filter(x => x !== u);
+                }
                 return alert('تعذر حفظ المستخدم في التخزين المحلي. بقي النموذج مفتوحًا؛ صدّر نسخة احتياطية وتحقق من مساحة الهاتف.');
             }
             closeModal('addUserModal');
