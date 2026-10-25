@@ -21,6 +21,8 @@ class ServiceWorkerCacheRegressionTests(unittest.TestCase):
         nav = SOURCE.split("if (request.mode === 'navigate')", 1)[1].split("return;", 1)[0]
         self.assertIn("fetch(request)", nav)
         self.assertIn(".catch(() => caches.open(CACHE).then(cache => cache.match('./index.html')))", nav)
+        self.assertIn("cache.match('./index.html')).then(cached => cached || response)", nav,
+                      "HTTP error responses must fall back to the current cached shell")
         self.assertNotIn("caches.match('./index.html')", nav, "global cache lookup can return a stale prior app shell")
 
     def test_core_assets_are_network_first_not_cache_first(self):
