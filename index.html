@@ -4872,10 +4872,30 @@ function renderPurchasesTable() {
             }
             const p = matchingProducts[0];
 
-            // Never delete a product that still has stock or is referenced by historical transactions.
-            const mainStock = Number(p.stock) || 0;
-            const warehouseStock = p.warehouseStock && typeof p.warehouseStock === 'object'
-                ? Object.values(p.warehouseStock).reduce((sum, value) => sum + (Number(value) || 0), 0) : 0;
+            // Stock data must be valid before deletion; malformed balances are not equivalent to zero.
+            const isValidStockValue = value => (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number.isFinite(Number(value));
+            if(p.stock != null && !isValidStockValue(p.stock)) {
+                alert('لا يمكن حذف المنتج لأن رصيد المخزون الرئيسي غير صالح أو تالف. أصلح الرصيد أولًا؛ لم يتم حذف أي بيانات.');
+                return;
+            }
+            const mainStock = p.stock == null ? 0 : Number(p.stock);
+            let warehouseStock = 0;
+            if(p.warehouseStock != null) {
+                if(typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock)) {
+                    alert('لا يمكن حذف المنتج لأن خريطة أرصدة المستودعات غير صالحة. أصلح بيانات المخزون أولًا؛ لم يتم حذف أي بيانات.');
+                    return;
+                }
+                const balances = Object.values(p.warehouseStock);
+                if(balances.some(value => !isValidStockValue(value))) {
+                    alert('لا يمكن حذف المنتج لأن أحد أرصدة المستودعات غير صالح أو تالف. أصلح الأرصدة أولًا؛ لم يتم حذف أي بيانات.');
+                    return;
+                }
+                warehouseStock = balances.reduce((sum, value) => sum + Number(value), 0);
+                if(!Number.isFinite(warehouseStock)) {
+                    alert('لا يمكن حذف المنتج لأن مجموع أرصدة المستودعات غير صالح. أصلح بيانات المخزون أولًا؛ لم يتم حذف أي بيانات.');
+                    return;
+                }
+            }
             if(mainStock !== 0 || warehouseStock !== 0) {
                 alert('لا يمكن حذف منتج له رصيد مخزون. صفّر الأرصدة عبر حركة مخزون موثقة أو عطّل المنتج بدلاً من حذفه.');
                 return;
