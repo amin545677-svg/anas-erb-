@@ -1797,6 +1797,54 @@ jobs:
             assert.equal(AppData.stockMovements.length, 0, 'malformed invoice quantity must not create movements');
             assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'malformed invoice quantity must not settle trip');
           }
+          // Aggregate invoice quantities must not overflow even when each persisted line is individually in range.
+          let aggregatePromptIndex = 0;
+          const maxSafe = Number.MAX_SAFE_INTEGER;
+          global.prompt = (() => {
+            const answers = [String(maxSafe), '0', '0', '0', 'INV-OVERFLOW'];
+            return () => { aggregatePromptIndex++; return answers.shift(); };
+          })();
+          let aggregateSaveCalled = false;
+          global.saveDB = () => { aggregateSaveCalled = true; return true; };
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [{id:'T-INV-AGG-OVERFLOW',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:maxSafe}]}],
+            invoices: [{id:'INV-OVERFLOW',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:maxSafe},{id:'p1',qty:1}]}],
+            stockMovements: []
+          };
+          window.anasTruckSettle('T-INV-AGG-OVERFLOW');
+          assert.equal(aggregateSaveCalled, false, 'invoice aggregate overflow must not save settlement');
+          assert.equal(AppData.products[0].stock, 5, 'invoice aggregate overflow must preserve main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, 'invoice aggregate overflow must preserve truck stock');
+          assert.equal(AppData.stockMovements.length, 0, 'invoice aggregate overflow must not create movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'invoice aggregate overflow must not settle trip');
+
+          // Total delivered quantity across distinct products must also remain in the safe numeric range.
+          let totalOverflowPromptIndex = 0;
+          global.prompt = (() => {
+            const answers = [String(maxSafe), '0', '0', '0', String(maxSafe), '0', '0', '0'];
+            return () => { totalOverflowPromptIndex++; return answers.shift(); };
+          })();
+          let totalOverflowSaveCalled = false;
+          global.saveDB = () => { totalOverflowSaveCalled = true; return true; };
+          global.AppData = {
+            products: [
+              {id:'p1',name:'Product 1',stock:5,warehouseStock:{'Truck T':4}},
+              {id:'p2',name:'Product 2',stock:5,warehouseStock:{'Truck T':4}}
+            ],
+            truckTrips: [{id:'T-TOTAL-OVERFLOW',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[
+              {productId:'p1',productName:'Product 1',qty:maxSafe},
+              {productId:'p2',productName:'Product 2',qty:maxSafe}
+            ]}],
+            invoices: [], stockMovements: []
+          };
+          window.anasTruckSettle('T-TOTAL-OVERFLOW');
+          assert.equal(totalOverflowSaveCalled, false, 'total delivered quantity overflow must not save settlement');
+          assert.equal(totalOverflowPromptIndex, 8, 'total delivered quantity overflow must stop before invoice prompt');
+          assert.equal(AppData.products[0].stock, 5, 'total overflow must preserve first product stock');
+          assert.equal(AppData.products[1].stock, 5, 'total overflow must preserve second product stock');
+          assert.equal(AppData.stockMovements.length, 0, 'total delivered quantity overflow must not create movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'total delivered quantity overflow must not settle trip');
           console.log('Truck settlement mock tests passed: invoice identity and quantity validation, stock partition, idempotency, rollback, and malformed invoice details');
           """
           js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
