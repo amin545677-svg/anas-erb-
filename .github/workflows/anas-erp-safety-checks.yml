@@ -2694,7 +2694,7 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{staleSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-STALE-EXPENSE-LINK');
             assert.equal(staleSaves,0,'stale trip expenseId must not be accepted');
             assert.equal(expenses.length,0,'stale link must not fabricate ledger records');
@@ -2713,7 +2713,7 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{mismatchSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-EXPENSE-AMOUNT-MISMATCH');
             assert.equal(mismatchSaves,0,'mismatched expense amount must not be linked');
             assert.equal(trip.expenseId,undefined,'mismatched expense must not create a trip link');
@@ -2735,7 +2735,7 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{duplicateIdSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-EXPENSE-ID');
             assert.equal(duplicateIdSaves,0,'duplicate expense IDs must not be linked');
             assert.equal(trip.expenseId,undefined,'ambiguous expense ID must not create a trip link');
