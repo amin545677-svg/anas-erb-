@@ -2961,9 +2961,21 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function changePosQty(idx, delta) {
             const item = posCart[idx];
             if (!item) return;
+            const rawQty = item.qty;
+            if (!((typeof rawQty === 'number') || (typeof rawQty === 'string')) ||
+                (typeof rawQty === 'string' && rawQty.trim() === '') ||
+                !Number.isFinite(Number(rawQty)) || Number(rawQty) <= 0 || Number(rawQty) > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تعديل السلة: الكمية الحالية غير صالحة. أصلح بيانات السلة قبل المتابعة.');
+                return;
+            }
+            const step = Number(delta);
+            if (!Number.isFinite(step) || Math.abs(step) > Number.MAX_SAFE_INTEGER) return;
+            const next = Number(rawQty) + step;
+            if (!Number.isFinite(next) || next > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تعديل السلة: الكمية الناتجة تتجاوز المجال الرقمي الآمن.');
+                return;
+            }
             const oldCart = posCart.map(row => ({...row}));
-            const next = Number(item.qty || 0) + Number(delta || 0);
-            if (!Number.isFinite(next)) return;
             if (next <= 0) { posCart.splice(idx, 1); }
             else {
                 const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
