@@ -549,7 +549,10 @@ jobs:
             ['malformed customer debt', d => d.customers[0].debt = '8abc'],
             ['negative supplier balance', d => d.suppliers[0].balance = -2],
             ['zero expense amount', d => d.expenses[0].amt = 0],
-            ['malformed cash movement amount', d => d.cashMovements[0].amount = '4oops']
+            ['malformed cash movement amount', d => d.cashMovements[0].amount = '4oops'],
+            ['boolean customer debt', d => d.customers[0].debt = false],
+            ['array supplier balance', d => d.suppliers[0].balance = [5]],
+            ['boolean product stock', d => d.products[0].stock = false]
           ]) {
             const data = valid(); mutate(data);
             assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
