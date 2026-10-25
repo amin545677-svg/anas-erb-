@@ -5920,7 +5920,7 @@ function renderPurchasesTable() {
                 const raw = record[field];
                 if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null || raw === '' ||
                     (typeof raw === 'string' && raw.trim() === '') ||
-                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || (!allowZero && Number(raw) === 0))
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ') بالنسخة السحابية؛ أُلغي الاسترجاع لحماية الحسابات.');
             };
             if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
@@ -6107,7 +6107,7 @@ function renderPurchasesTable() {
             for (const p of incoming.products) {
                 if (p.stock != null && ((typeof p.stock !== 'number' && typeof p.stock !== 'string') ||
                     (typeof p.stock === 'string' && p.stock.trim() === '') ||
-                    !Number.isFinite(Number(p.stock)) || Number(p.stock) < 0))
+                    !Number.isFinite(Number(p.stock)) || Number(p.stock) < 0 || Number(p.stock) > Number.MAX_SAFE_INTEGER))
                     throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
             }
             // Reject malformed financial fields before a backup can replace valid live accounting data.
@@ -6123,7 +6123,7 @@ function renderPurchasesTable() {
                 const raw = incoming.caisseBalance;
                 if ((typeof raw !== 'number' && typeof raw !== 'string') ||
                     raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
-                    !Number.isFinite(Number(raw)) || Number(raw) < 0)
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER)
                     throw new Error('رصيد الصندوق في النسخة غير صالح؛ رُفض الاسترجاع لحماية الحسابات.');
             } else if (typeof AppData !== 'undefined' &&
                 Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
