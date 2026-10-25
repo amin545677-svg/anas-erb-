@@ -1818,14 +1818,14 @@ jobs:
           PY
           node --check /tmp/anas-backup-restore-false-test.js
           node /tmp/anas-backup-restore-false-test.js
-- name: Exercise saveDB persistent storage failure handling
+      - name: Exercise saveDB persistent storage failure handling
         run: |
           python - <<'PY'
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveDB()")
-          end = s.find("\\n        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveDB"
           fn = s[start:end]
           js = r"""
@@ -1845,7 +1845,7 @@ jobs:
               updateDashboardStats:()=>calls.ui++,
               JSON,Object,Array,Number,String,Error
             };
-            vm.runInNewContext(fn+'\\nthis.result=saveDB();',ctx);
+            vm.runInNewContext(fn+'\nthis.result=saveDB();',ctx);
             return {result:ctx.result,calls,data};
           }
           let r=run({throwOnWrite:true});
