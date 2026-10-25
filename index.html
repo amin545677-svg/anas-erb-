@@ -5931,7 +5931,8 @@ function renderPurchasesTable() {
                 if (p.id == null || String(p.id).trim() === '') throw new Error('يوجد منتج بلا معرّف؛ أُلغِي الاسترجاع لحماية البيانات.');
                 if (Object.prototype.hasOwnProperty.call(p, 'stock') &&
                     !((typeof p.stock === 'number' || typeof p.stock === 'string') &&
-                    String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0)) {
+                    String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0 &&
+                    Number(p.stock) <= Number.MAX_SAFE_INTEGER)) {
                     throw new Error('يوجد مخزون غير رقمي أو سالب في بيانات الخادم.');
                 }
                 if (Object.prototype.hasOwnProperty.call(p, 'warehouseStock')) {
@@ -5940,7 +5941,8 @@ function renderPurchasesTable() {
                     }
                     for (const [warehouse, balance] of Object.entries(p.warehouseStock)) {
                         if (!warehouse.trim() || !((typeof balance === 'number' || typeof balance === 'string') &&
-                            String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0)) {
+                            String(balance).trim() !== '' && Number.isFinite(Number(balance)) && Number(balance) >= 0 &&
+                            Number(balance) <= Number.MAX_SAFE_INTEGER)) {
                             throw new Error('يوجد رصيد مخزن فرعي غير صالح للمنتج ' + String(p.id) + '.');
                         }
                     }
