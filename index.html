@@ -8391,7 +8391,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     // Keep the separately configured AI gateway and Firebase backup Worker distinct.
     const aiInput=document.getElementById('anasAiGateway');
     const aiSaved=localStorage.getItem('ANAS_ERP_AI_GATEWAY_URL');
-    if(aiSaved&&aiInput&&!aiInput.value)aiInput.value=aiSaved;
+    // Migrate the legacy AI gateway setting to the key used by the AI UI, without overwriting a newer value.
+    const aiCanonicalKey='anasErpAiGatewayUrlV1';
+    const aiCanonicalSaved=localStorage.getItem(aiCanonicalKey);
+    if(aiSaved&&!aiCanonicalSaved)localStorage.setItem(aiCanonicalKey,aiSaved);
+    if(aiSaved&&aiInput&&!aiInput.value)aiInput.value=aiCanonicalSaved||aiSaved;
     if(window.firebase){
       const app=window.firebase.apps.length?window.firebase.app():window.firebase.initializeApp(firebaseConfig);
       auth=window.firebase.auth(app);
