@@ -1112,6 +1112,26 @@ jobs:
             stockMovements: []
           };
           /*INSERT_TRUCK_SETTLEMENT_FUNCTION*/
+          // A finite main-stock balance plus a finite return quantity can overflow; reject before any mutation.
+          global.prompt = (() => {
+            const answers = ['6','1','1','2','INV-OVERFLOW'];
+            return () => answers.shift();
+          })();
+          let overflowSaveCalled = false;
+          global.saveDB = () => { overflowSaveCalled = true; return true; };
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:1e308,warehouseStock:{'Truck T':10}}],
+            truckTrips: [{id:'T-OVERFLOW',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+            invoices: [{id:'INV-OVERFLOW',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:6}]}],
+            stockMovements: []
+          };
+          window.anasTruckSettle('T-OVERFLOW');
+          assert.equal(overflowSaveCalled, false, 'overflowing returned-stock addition must not persist');
+          assert.equal(AppData.products[0].stock, 1e308, 'overflow guard must preserve main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 10, 'overflow guard must preserve truck stock');
+          assert.equal(AppData.stockMovements.length, 0, 'overflow guard must not create movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'overflow guard must not mark trip settled');
+
           window.anasTruckSettle('T1');
           window.anasTruckSettle('T1');
           assert.equal(AppData.products[0].stock, 6, 'one returned unit goes back to main stock');
