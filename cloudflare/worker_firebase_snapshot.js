@@ -50,6 +50,34 @@ function firestoreUrl(env, uid) {
     "/databases/(default)/documents/" + doc;
 }
 
+async function readLimitedRequestBody(request, maxBytes) {
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 function isRecord(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -211,8 +239,8 @@ async function handleSnapshot(request, env, origin) {
   }
 
   if (request.method === "POST") {
-    const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
+    const text = await readLimitedRequestBody(request, MAX_BODY_BYTES);
+    if (text === null) {
       return json({ error: "Snapshot exceeds 700 KiB limit" }, 413, origin);
     }
     let body;
