@@ -1021,6 +1021,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "truck trip creation and expense linking require explicit persistence success":
             "typeof saveDB!=='function' || saveDB()!==true" in truck_create
             and "typeof saveDB!=='function'||saveDB()!==true" in truck_expense,
+        "truck expense rejects malformed and blank persisted cost values":
+            "const rawAmount=trip.cost;" in truck_expense
+            and "typeof rawAmount==='number'||typeof rawAmount==='string'" in truck_expense
+            and "String(rawAmount).trim()===''" in truck_expense,
         "truck expense refuses to replace a malformed existing expense ledger":
             "Object.prototype.hasOwnProperty.call(AppData,'expenses')&&!Array.isArray(AppData.expenses)" in truck_expense
             and "دون استبدال السجل" in truck_expense,
