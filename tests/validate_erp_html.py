@@ -759,7 +759,37 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     truck_expense_end = source.find("\n  window.anasTruckExportCSV", truck_expense_start)
     truck_expense = source[truck_expense_start:truck_expense_end] if truck_expense_start >= 0 and truck_expense_end > truck_expense_start else ""
 
+    pos_cart_add = function_source("addItemToPosCart")
+    pos_cart_remove = function_source("removePosCartItem")
+    pos_cart_clear = function_source("clearPosCart")
+    product_delete = function_source("deleteProduct")
+    category_create = function_source("addNewProductCategory")
+    bulk_price_update = function_source("bulkEditPricesPrompt")
+    custom_unit_create = function_source("addNewCustomUnit")
+    product_save = function_source("saveNewProductFromModal")
+    user_switch = function_source("switchActiveUser")
+    user_delete = function_source("deleteUserRecord")
+    user_save = function_source("saveUserRecord")
+    stocktake_start = source.find("window.anasSaveStocktakeDraft=function(){")
+    stocktake_end = source.find("  window.anasExportStocktake=", stocktake_start)
+    stocktake_draft = source[stocktake_start:stocktake_end] if stocktake_start >= 0 and stocktake_end > stocktake_start else ""
+    stocktake_approve_start = source.find("window.anasApproveStocktake=function(){")
+    stocktake_approve_end = source.find("})();", stocktake_approve_start)
+    stocktake_approve = source[stocktake_approve_start:stocktake_approve_end] if stocktake_approve_start >= 0 and stocktake_approve_end > stocktake_approve_start else ""
     transaction_checks = {
+        "POS add/remove/clear cart reject missing or implicit persistence success":
+            "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_add
+            and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_remove
+            and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_clear,
+        "catalog and user mutations require explicit save success with rollback":
+            "saved !== true" in product_delete and "saveDB()!==true" in category_create
+            and "saveDB()!==true" in bulk_price_update and "saveDB()!==true" in custom_unit_create
+            and "saveDB()!==true" in product_save and "saveDB()!==true" in user_switch
+            and "saveDB()!==true" in user_delete and "saveDB()!==true" in user_save,
+        "stocktake draft and approval require explicit save success":
+            "saveDB()!==true" in stocktake_draft
+            and "const saved=typeof saveDB==='function'?saveDB():false;" in stocktake_approve
+            and "if(saved!==true)throw" in stocktake_approve,
         "cash movements and expenses require explicit saveDB true before success":
             "cashSaved = saveDB() === true" in cash_operation
             and "expenseSaved = saveDB() === true" in expense_operation,
@@ -809,7 +839,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
         "backup import validates before replacing state and restores prior data on save failure":
             "anasValidateBackupData(JSON.parse(evt.target.result))" in backup_import
-            and "const previous = AppData" in backup_import and "try { restoreSaved = saveDB() !== false; }" in backup_import
+            and "const previous = AppData" in backup_import and "try { restoreSaved = saveDB() === true; }" in backup_import
             and "catch (saveErr) { restoreSaveError = saveErr; }" in backup_import
             and "AppData = previous; posCart = previousCart" in backup_import,
     }
