@@ -5899,6 +5899,8 @@ function renderPurchasesTable() {
                 ['suppliers', incoming.suppliers, false],
                 ['invoices', incoming.invoices, false],
                 ['truckTrips', incoming.truckTrips || [], false],
+                ['warehouseTransfers', incoming.warehouseTransfers || [], false],
+                ['stockMovements', incoming.stockMovements || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
@@ -6212,6 +6214,8 @@ function renderPurchasesTable() {
                 ['suppliers', incoming.suppliers, false],
                 ['invoices', incoming.invoices || [], false],
                 ['truckTrips', incoming.truckTrips || [], false],
+                ['warehouseTransfers', incoming.warehouseTransfers || [], false],
+                ['stockMovements', incoming.stockMovements || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {

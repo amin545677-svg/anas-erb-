@@ -695,6 +695,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
         "!warehouse.trim()",
         "String(p.stock).trim() !== '' && Number.isFinite(Number(p.stock)) && Number(p.stock) >= 0",
+        "['warehouseTransfers', incoming.warehouseTransfers || [], false]",
+        "['stockMovements', incoming.stockMovements || [], false]",
     ]
     if not sync_validator or any(guard not in sync_validator for guard in sync_guards):
         errors.append("cloud restore must reject explicitly null/malformed warehouse history, blank warehouse keys, and invalid stock balances")
@@ -738,6 +740,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "النسخة تفتقد سلة نقطة البيع ",
         "idCollections", "seenIds", "معرّف مكرر في قائمة",
         "['stocktakeRecords', incoming.stocktakeRecords || [], true]",
+        "['warehouseTransfers', incoming.warehouseTransfers || [], false]",
+        "['stockMovements', incoming.stockMovements || [], false]",
     ]
     if not backup_validator or any(guard not in backup_validator for guard in backup_guards):
         errors.append("file restore must reject missing history collections when local records exist")
