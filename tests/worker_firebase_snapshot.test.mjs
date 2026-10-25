@@ -88,6 +88,59 @@ test("first snapshot upload uses an atomic create-only precondition", async () =
 });
 
 
+test("malformed stock magnitudes are rejected before any Firestore write", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid snapshot must not reach Firestore");
+  };
+  try {
+    const response = await worker.fetch(request("/snapshot", {
+      method: "POST",
+      body: { data: JSON.stringify({
+        products: [{ id: "p1", stock: Number.MAX_SAFE_INTEGER + 1 }],
+        customers: []
+      }) }
+    }), env);
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /integrity validation/i);
+    assert.equal(firestoreCalls, 0, "invalid stock magnitudes must not be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("malformed truck loads and warehouse transfers are rejected before persistence", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid operational snapshot must not reach Firestore");
+  };
+  try {
+    const badSnapshots = [
+      { products: [{ id: "p1", stock: 1 }], customers: [], truckTrips: [
+        { id: "T1", stockItems: [{ productId: "p1", qty: true }] }
+      ] },
+      { products: [{ id: "p1", stock: 1 }], customers: [], truckTrips: [
+        { id: "T1", stockItems: [{ productId: "p1", qty: 1 }, { productId: "p1", qty: 2 }] }
+      ] },
+      { products: [{ id: "p1", stock: 1 }], customers: [], warehouseTransfers: [
+        { id: "WT1", quantity: 0 }
+      ] }
+    ];
+    for (const data of badSnapshots) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST", body: { data: JSON.stringify(data) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "invalid truck/transfer records must not be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("missing Firebase bearer token is rejected before any external request", async () => {
   const oldFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error("unexpected external request"); };
