@@ -7178,7 +7178,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     }
     const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
     if(!warehouseName)throw new Error('اسم مخزن الشاحنة مطلوب قبل الترحيل.');
-    for(const [id,qty] of required){const p=products.find(x=>String(x.id)===id);if(!p)throw new Error('المنتج غير موجود: '+id);if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(p.warehouseStock&&typeof p.warehouseStock==='object')for(const [name,balance] of Object.entries(p.warehouseStock)){if(!name.trim()||!((typeof balance==='number')||(typeof balance==='string'))||String(balance).trim()===''||!Number.isFinite(Number(balance))||Number(balance)<0)throw new Error('رصيد مخزن فرعي تالف للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');}if(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw new Error('رصيد المخزن الرئيسي غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(Number(p.stock)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+Number(p.stock)+'.');}
+    for(const [id,qty] of required){const matches=products.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined&&x.id!==null&&String(x.id)===id);if(matches.length!==1)throw new Error(matches.length?'يوجد أكثر من سجل منتج بالمعرّف نفسه ('+id+'). أصلح تكرار المعرّفات قبل تحميل الشاحنة.':'المنتج غير موجود: '+id);const p=matches[0];if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw new Error('خريطة أرصدة المخازن الفرعية تالفة للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');if(p.warehouseStock&&typeof p.warehouseStock==='object')for(const [name,balance] of Object.entries(p.warehouseStock)){if(!name.trim()||!((typeof balance==='number')||(typeof balance==='string'))||String(balance).trim()===''||!Number.isFinite(Number(balance))||Number(balance)<0)throw new Error('رصيد مخزن فرعي تالف للمنتج '+(p.name||id)+'؛ أُوقف التحميل دون تعديل الأرصدة.');}if(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw new Error('رصيد المخزن الرئيسي غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'.');if(!Number.isFinite(qty)||qty<=0)throw new Error('كمية مجمعة غير صالحة لأحد الأصناف.');if(Number(p.stock)<qty)throw new Error('المخزون غير كافٍ أو غير صالح للتحميل إلى '+warehouseName+' للمنتج '+(p.name||id)+'. المتاح '+Number(p.stock)+'.');}
     const oldPostedAt=trip.stockPostedAt;
     const oldWarehouseName=trip.warehouseName;
     const oldStocks=products.map(p=>({p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)}));
@@ -7189,7 +7189,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(wtEnsureMobileWarehouse(warehouseName)===null)throw new Error('تعذر إنشاء مخزن الشاحنة بسبب فساد قائمة المخازن.');
       if(!hadStockMovements)AppData.stockMovements=[];
       for(const [id,qty] of required){
-        const p=products.find(x=>String(x.id)===id);
+        const matches=products.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined&&x.id!==null&&String(x.id)===id);if(matches.length!==1)throw new Error(matches.length?'يوجد أكثر من سجل منتج بالمعرّف نفسه ('+id+'). أُوقفت عملية التحميل.':'المنتج غير موجود: '+id);const p=matches[0];
         p.stock=(Number(p.stock)||0)-qty;
         if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
         p.warehouseStock[warehouseName]=(Number(p.warehouseStock[warehouseName])||0)+qty;
@@ -7277,9 +7277,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const warehouse=String(trip.warehouseName||('شاحنة '+trip.plate));
       const lines=[];
       for(const item of trip.stockItems){
-        const p=products.find(x=>String(x.id)===String(item.productId));
+        const productMatches=products.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined&&x.id!==null&&String(x.id)===String(item.productId));
+        if(productMatches.length!==1){alert(productMatches.length?'يوجد أكثر من سجل منتج بالمعرّف نفسه ('+String(item.productId)+'). أصلح تكرار المعرّفات قبل التسوية.':'المنتج غير موجود: '+String(item.productId));return;}
+        const p=productMatches[0];
         const loaded=Number(item.qty);
-        if(!p||!Number.isFinite(loaded)||loaded<=0){alert('بيانات الصنف أو الكمية غير صالحة؛ أُلغيت التسوية.');return;}
+        if(!Number.isFinite(loaded)||loaded<=0){alert('بيانات الصنف أو الكمية غير صالحة؛ أُلغيت التسوية.');return;}
         const ask=(label)=>prompt(label+' — '+(item.productName||p.name||item.productId)+' (المحمّل '+loaded+')','0');
         const deliveredRaw=ask('الكمية المسلّمة فعلياً');if(deliveredRaw===null)return;
         const delivered=Number(deliveredRaw);
