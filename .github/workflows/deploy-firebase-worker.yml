@@ -14,6 +14,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Firebase snapshot Worker before deployment
+        run: node --test tests/worker_firebase_snapshot.test.mjs
+
       # Firebase web API keys are public client configuration, already present
       # in index.html. Prefer an explicit repository secret if supplied, but
       # safely derive the same key from the app config when it is absent.
