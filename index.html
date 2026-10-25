@@ -3994,7 +3994,7 @@ function renderPurchasesTable() {
             }
             const previousDebt = Number(c.debt);
             if (c.debt === null || c.debt === '' || (typeof c.debt === 'string' && c.debt.trim() === '') ||
-                !Number.isFinite(previousDebt) || previousDebt <= 0) { alert('لا يوجد دين صالح للتحصيل لهذا العميل.'); return; }
+                !Number.isFinite(previousDebt) || previousDebt <= 0 || previousDebt > Number.MAX_SAFE_INTEGER) { alert('لا يوجد دين صالح للتحصيل لهذا العميل، أو أن رصيد الدين يتجاوز المجال الرقمي الآمن. أصلح الرصيد قبل تسجيل القبض.'); return; }
             const rawAmount = prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + previousDebt + '):', String(previousDebt));
             if (rawAmount === null) return;
             const parsedAmount = Number(String(rawAmount).trim().replace(',', '.'));
