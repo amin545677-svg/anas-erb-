@@ -563,6 +563,12 @@ jobs:
           expectReject(make([{id:'p1',stock:1},{id:'p1',stock:2}]),'duplicate product IDs must be rejected');
           expectReject(make([{id:'p1',stock:1}],[{id:'c1'},{id:'c1'}]),'duplicate customer IDs must be rejected');
           expectReject(make([{id:'p1',stock:1}],[],[{id:'s1'},{id:'s1'}]),'duplicate supplier IDs must be rejected');
+          const duplicateInvoices = make([{id:'p1',stock:1}]);
+          duplicateInvoices.invoices = [{id:'INV-1'},{id:'INV-1'}];
+          expectReject(duplicateInvoices,'duplicate invoice IDs must be rejected');
+          const duplicateTrips = make([{id:'p1',stock:1}]);
+          duplicateTrips.truckTrips = [{id:'TR-1'},{id:'TR-1'}];
+          expectReject(duplicateTrips,'duplicate truck trip IDs must be rejected');
           assert.equal(ctx.validateBackup(make([{id:'p1',stock:1}],[{name:'legacy customer'}])).products.length,1,
             'legacy customer records without IDs remain importable');
           console.log('Backup restore duplicate record ID tests passed');
