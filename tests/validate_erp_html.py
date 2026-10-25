@@ -164,6 +164,10 @@ def main():
         errors.append("backup restore must reject unsafe financial magnitudes in every validated money field")
     else:
         print("PASS: backup restore rejects unsafe financial magnitudes")
+    if not backup_fn or "for (const transfer of (incoming.warehouseTransfers || []))" not in backup_fn or "كميات التحويل المخزني" not in backup_fn or "قيم سندات التحويل المخزني" not in backup_fn:
+        errors.append("backup restore must validate warehouse transfer quantities, prices, and totals")
+    else:
+        print("PASS: backup restore validates warehouse transfer financial fields")
 
     debt_start = source.find("function collectCustDebt(cId)")
     debt_end = source.find("\n        function ", debt_start)
