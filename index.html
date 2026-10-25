@@ -7747,8 +7747,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         const ids=[...new Set(raw.split(',').map(x=>x.trim()).filter(Boolean))];
         if(!ids.length){alert('لا يمكن اعتماد كمية مسلّمة دون فواتير.');return;}
         for(const invoiceId of ids){
-          const inv=invoices.find(x=>String(x.id)===invoiceId);
-          if(!inv){alert('الفاتورة غير موجودة: '+invoiceId);return;}
+          const invoiceMatches=invoices.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined&&x.id!==null&&String(x.id)===invoiceId);
+          if(invoiceMatches.length!==1){alert(invoiceMatches.length?'يوجد أكثر من سجل فاتورة بالمعرّف نفسه ('+invoiceId+'). أصلح تكرار المعرّفات قبل التسوية.':'الفاتورة غير موجودة: '+invoiceId);return;}
+          const inv=invoiceMatches[0];
           if(String(inv.warehouseName||inv.warehouse||'المخزن الرئيسي')!==warehouse){alert('الفاتورة '+invoiceId+' ليست من مخزن هذه الشاحنة.');return;}
           if(AppData.truckTrips.some(other=>String(other.id)!==String(trip.id)&&Array.isArray(other.settlementInvoiceIds)&&other.settlementInvoiceIds.includes(invoiceId))){alert('الفاتورة '+invoiceId+' مرتبطة بتسوية رحلة أخرى.');return;}
           linked.push(inv);

@@ -822,6 +822,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "productMatches=products.filter(" in truck_settlement
             and "productMatches.length!==1" in truck_settlement
             and "const p=productMatches[0]" in truck_settlement,
+        "truck settlement rejects missing or duplicate invoice IDs before mutating stock":
+            "invoiceMatches=invoices.filter(" in truck_settlement
+            and "invoiceMatches.length!==1" in truck_settlement
+            and "const inv=invoiceMatches[0]" in truck_settlement,
     }
     for label, passed in truck_identity_checks.items():
         if passed:
