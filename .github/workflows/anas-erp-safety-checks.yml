@@ -1880,13 +1880,14 @@ jobs:
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
           const fn = /*INSERT_SAVE_FUNCTION*/;
-          function run({fatal=false,issues=[],throwOnWrite=false}={}) {
-            const calls={writes:0,ui:0,alerts:[],errors:[]};
-            const data={activePosScreenTab:1,posScreensCarts:{}};
+          function run({fatal=false,issues=[],throwOnWrite=false,initialCarts={}}={}) {
+            const calls={writes:0,ui:0,alerts:[],errors:[],persisted:null};
+            const data={activePosScreenTab:1,posScreensCarts:initialCarts};
+            const originalCarts=data.posScreensCarts;
             const ctx={
               AppData:data,posCart:[{id:'cart'}],ANAS_DB_KEY:'anas-test',
               anasStartupFatalLoadError:fatal,anasStartupIntegrityIssues:issues,
-              localStorage:{setItem(){calls.writes++;if(throwOnWrite)throw new Error('quota exceeded');}},
+              localStorage:{setItem(key,value){calls.writes++;calls.persisted=value;if(throwOnWrite)throw new Error('quota exceeded');}},
               alert:m=>calls.alerts.push(String(m)),
               console:{error:(...a)=>calls.errors.push(a)},
               updateUIState:()=>calls.ui++,checkSystemAlerts:()=>calls.ui++,
@@ -1894,14 +1895,26 @@ jobs:
               JSON,Object,Array,Number,String,Error
             };
             vm.runInNewContext(fn+'\nthis.result=saveDB();',ctx);
-            return {result:ctx.result,calls,data};
+            return {result:ctx.result,calls,data,originalCarts};
           }
-          let r=run({throwOnWrite:true});
+          let r=run({throwOnWrite:true,initialCarts:{other:[{id:'keep'}]}});
           assert.equal(r.result,false,'storage exceptions must return false');
           assert.equal(r.calls.writes,1,'persistent write must be attempted once');
           assert.equal(r.calls.ui,0,'UI refresh must not run after failed persistence');
+          assert.equal(r.data.posScreensCarts,r.originalCarts,'failed write must preserve original cart-map identity');
+          assert.equal(Object.prototype.hasOwnProperty.call(r.data.posScreensCarts,'1'),false,'failed write must not inject the active cart into the original map');
           assert.ok(r.calls.alerts.some(x=>x.includes('تعذر حفظ البيانات')),'storage failure must be reported');
           assert.ok(r.calls.errors.length>0,'storage exception should be logged');
+          r=run({initialCarts:{other:[{id:'keep'}]}});
+          assert.equal(r.result,true,'successful write must return true');
+          assert.equal(r.data.posScreensCarts['1'],undefined,'existing map is not mutated in place');
+          assert.deepEqual(JSON.parse(r.calls.persisted).posScreensCarts['1'],[{id:'cart'}],'saved snapshot must include active cart');
+          assert.deepEqual(r.data.posScreensCarts['other'],[{id:'keep'}],'successful save retains unrelated carts');
+          assert.ok(r.data.posScreensCarts!==r.originalCarts,'cart map updates only after successful persistence');
+          r=run({initialCarts:[]});
+          assert.equal(r.result,false,'malformed cart-map arrays must fail closed');
+          assert.equal(r.calls.writes,0,'malformed cart-map must not touch persistent storage');
+          assert.equal(r.data.posScreensCarts,r.originalCarts,'malformed cart-map must remain untouched');
           r=run({fatal:true,issues:[{code:'corrupt'}]});
           assert.equal(r.result,false,'startup integrity guard must stop saving');
           assert.equal(r.calls.writes,0,'integrity guard must not touch persistent storage');
