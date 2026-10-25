@@ -822,7 +822,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "qty>Number.MAX_SAFE_INTEGER" in truck_load
             and "aggregateQty>Number.MAX_SAFE_INTEGER" in truck_load,
         "truck settlement rejects unsafe loaded quantities before prompting or mutation":
-            "loaded>Number.MAX_SAFE_INTEGER" in truck_settlement,
+            "loaded>Number.MAX_SAFE_INTEGER" in truck_settlement
+            and "typeof item.qty==='number'" in truck_settlement
+            and "typeof item.qty==='string'" in truck_settlement
+            and "String(item.qty).trim()===''" in truck_settlement,
         "truck settlement rejects missing or duplicate product IDs before prompting or mutation":
             "productMatches=products.filter(" in truck_settlement
             and "productMatches.length!==1" in truck_settlement
