@@ -570,6 +570,20 @@ jobs:
               assert.throws(() => ctx.validateBackup(bad), Error, 'backup restore must reject malformed trip '+field);
             }
           }
+          const validTripLoad = make([{id:'p1',stock:1}]);
+          validTripLoad.truckTrips = [{id:'TR-LOAD',stockItems:[{productId:'p1',qty:2}]}];
+          assert.equal(ctx.validateBackup(validTripLoad).truckTrips[0].stockItems[0].qty,2,
+            'valid persisted truck load must remain restorable');
+          for (const badItems of [null, {}, [null], [{productId:'p1'}], [{qty:1}], [{productId:'p1',qty:true}],
+            [{productId:'p1',qty:[]}], [{productId:'p1',qty:''}], [{productId:'p1',qty:'   '}],
+            [{productId:'p1',qty:0}], [{productId:'p1',qty:-1}], [{productId:'p1',qty:Infinity}],
+            [{productId:'p1',qty:Number.MAX_SAFE_INTEGER+1}],
+            [{productId:'p1',qty:1},{productId:'p1',qty:2}]]) {
+            const bad = make([{id:'p1',stock:1}]);
+            bad.truckTrips = [{id:'TR-LOAD-BAD',stockItems:badItems}];
+            assert.throws(() => ctx.validateBackup(bad), Error,
+              'backup restore must reject malformed or duplicate truck stock items: '+JSON.stringify(badItems));
+          }
 
           const duplicateInvoices = make([{id:'p1',stock:1}]);
           duplicateInvoices.invoices = [{id:'INV-1'},{id:'INV-1'}];
@@ -2011,6 +2025,20 @@ jobs:
               bad.truckTrips = [{id:'TR-1',[field]:badValue}];
               assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'cloud restore must reject malformed trip '+field);
             }
+          }
+          const validCloudTripLoad = base();
+          validCloudTripLoad.truckTrips = [{id:'TR-LOAD',stockItems:[{productId:'p1',qty:2}]}];
+          assert.equal(anasValidateIncomingSyncData(validCloudTripLoad).truckTrips[0].stockItems[0].qty,2,
+            'valid persisted cloud truck load must remain restorable');
+          for (const badItems of [null, {}, [null], [{productId:'p1'}], [{qty:1}], [{productId:'p1',qty:true}],
+            [{productId:'p1',qty:[]}], [{productId:'p1',qty:''}], [{productId:'p1',qty:'   '}],
+            [{productId:'p1',qty:0}], [{productId:'p1',qty:-1}], [{productId:'p1',qty:Infinity}],
+            [{productId:'p1',qty:Number.MAX_SAFE_INTEGER+1}],
+            [{productId:'p1',qty:1},{productId:'p1',qty:2}]]) {
+            const bad = base();
+            bad.truckTrips = [{id:'TR-LOAD-BAD',stockItems:badItems}];
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error,
+              'cloud restore must reject malformed or duplicate truck stock items: '+JSON.stringify(badItems));
           }
           const validAccounting = () => ({
             products:[{id:'p1',stock:8}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],
