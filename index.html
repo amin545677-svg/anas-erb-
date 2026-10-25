@@ -6133,7 +6133,7 @@ function renderPurchasesTable() {
                 const raw = record[field];
                 if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null || raw === '' ||
                     (typeof raw === 'string' && raw.trim() === '') ||
-                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || (!allowZero && Number(raw) === 0))
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
             };
             if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
