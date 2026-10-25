@@ -823,6 +823,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if all(guard_call in function_source(name) and "saveDB(" not in function_source(name) for name, guard_call in legacy_destructive_guards.items()):
         print("PASS: legacy destructive invoice actions delegate to safe guards")
 
+    if "actual>Number.MAX_SAFE_INTEGER" not in stocktake_approve or "current>Number.MAX_SAFE_INTEGER" not in stocktake_approve:
+        errors.append("stocktake approval must reject unsafe counted and current stock balances before mutation")
+    else:
+        print("PASS: stocktake approval validates safe numeric bounds before mutation")
+
     transaction_checks = {
         "clearing POS cart restores both active cart and persisted cart map on save failure":
             "const previousCarts = AppData.posScreensCarts" in function_source("clearPosCart")
