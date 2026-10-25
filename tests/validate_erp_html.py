@@ -443,6 +443,20 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if not any("POS sale must validate" in error or "POS sale must run" in error for error in errors):
         print("PASS: POS sale validates warehouse balances and customer debt before mutation")
 
+    # POS sale must not coerce malformed persisted cart quantities/prices (e.g. true or [1]) into numbers.
+    pos_strict_cart_guards = [
+        "typeof item.qty === 'number' || (typeof item.qty === 'string')",
+        "typeof item.qty === 'string' && item.qty.trim() === ''",
+        "qty > Number.MAX_SAFE_INTEGER",
+        "typeof item.price === 'number' || (typeof item.price === 'string')",
+        "typeof item.price === 'string' && item.price.trim() === ''",
+        "price > Number.MAX_SAFE_INTEGER",
+    ]
+    if not all(guard in sale_source for guard in pos_strict_cart_guards):
+        errors.append("POS sale must reject coerced or unsafe cart quantities and prices before stock mutation")
+    else:
+        print("PASS: POS sale rejects malformed and unsafe cart values")
+
     # POS sale must fail closed on malformed customer/invoice collections and cash balance.
     sale_start = source.find("function confirmHasibPayment()")
     sale_end = source.find("\n        function printLastConfirmedInvoice", sale_start)
