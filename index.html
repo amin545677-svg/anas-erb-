@@ -3694,7 +3694,8 @@ function renderPurchasesTable() {
                 return;
             }
             if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
-                (AppData.caisseBalance === null || AppData.caisseBalance === '' ||
+                ((typeof AppData.caisseBalance !== 'number' && typeof AppData.caisseBalance !== 'string') ||
+                 AppData.caisseBalance === null || AppData.caisseBalance === '' ||
                  (typeof AppData.caisseBalance === 'string' && AppData.caisseBalance.trim() === '') ||
                  !Number.isFinite(Number(AppData.caisseBalance)))) {
                 alert('رصيد الصندوق المخزن غير صالح؛ أُوقفت الحركة لحماية الحسابات.');
@@ -3755,7 +3756,8 @@ function renderPurchasesTable() {
                 return;
             }
             if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
-                (AppData.caisseBalance === null || AppData.caisseBalance === '' ||
+                ((typeof AppData.caisseBalance !== 'number' && typeof AppData.caisseBalance !== 'string') ||
+                 AppData.caisseBalance === null || AppData.caisseBalance === '' ||
                  (typeof AppData.caisseBalance === 'string' && AppData.caisseBalance.trim() === '') ||
                  !Number.isFinite(Number(AppData.caisseBalance)))) {
                 alert('رصيد الصندوق المخزن غير صالح؛ أُوقف تسجيل المصروف لحماية الحسابات.');
@@ -3905,7 +3907,8 @@ function renderPurchasesTable() {
             }
             const c = customerMatches[0];
             if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
-                (AppData.caisseBalance === null || AppData.caisseBalance === '' ||
+                ((typeof AppData.caisseBalance !== 'number' && typeof AppData.caisseBalance !== 'string') ||
+                 AppData.caisseBalance === null || AppData.caisseBalance === '' ||
                  (typeof AppData.caisseBalance === 'string' && AppData.caisseBalance.trim() === '') ||
                  !Number.isFinite(Number(AppData.caisseBalance)))) {
                 alert('رصيد الصندوق المخزن غير صالح؛ أُوقف القبض لحماية الحسابات.');
