@@ -5316,14 +5316,18 @@ function renderPurchasesTable() {
             const cont = document.getElementById('alertModalMessageList');
             let alerts = [];
             AppData.products.forEach(p => {
-                if(p.stock <= (p.minAlert || 5)) {
-                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${p.name}] متبقي منها ${p.stock} فقط.`);
+                const stockValue = Number(p.stock);
+                if(Number.isFinite(stockValue) && stockValue <= (Number(p.minAlert) || 5)) {
+                    const productName = anasEscapeHTML(String(p.name || 'منتج بدون اسم'));
+                    alerts.push(`⚠️ <strong>نقص مخزون:</strong> سلعة [${productName}] متبقي منها ${stockValue} فقط.`);
                 }
             });
             AppData.customers.forEach(c => {
                 const days = getDebtAgeDays(c.debtDate);
-                if(c.debt > 0 && days > 30) {
-                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${c.name}] عليه ${c.debt} د.ج منذ ${days} يوم.`);
+                const debt = Number(c.debt);
+                if(Number.isFinite(debt) && debt > 0 && days > 30) {
+                    const customerName = anasEscapeHTML(String(c.name || 'عميل بدون اسم'));
+                    alerts.push(`⏳ <strong>دين متأخر:</strong> [${customerName}] عليه ${debt} د.ج منذ ${Number(days) || 0} يوم.`);
                 }
             });
 
@@ -6488,8 +6492,8 @@ function renderPurchasesTable() {
 
         function updateUIState() {
             const cur = AppData.currentUser || AppData.users[0];
-            document.getElementById('topUserQuickBadge').innerHTML = '👑 ' + cur.name;
-            document.getElementById('drawerUserName').innerText = cur.name;
+            document.getElementById('topUserQuickBadge').textContent = '👑 ' + String(cur?.name ?? '');
+            document.getElementById('drawerUserName').textContent = String(cur?.name ?? '');
         }
 
         // إحصائيات الاستعلامات: تُقرأ من بيانات التطبيق الحالية دون تعديلها.
