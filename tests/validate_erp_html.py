@@ -167,7 +167,7 @@ def main():
     modal_start = source.find("function openHasibModal()")
     modal_end = source.find("\n        function ", modal_start)
     modal_fn = source[modal_start:modal_end] if modal_start >= 0 and modal_end > modal_start else ""
-    if not sale_fn or "wtTryEnsureData" not in sale_fn or "hasDebtField" not in sale_fn:
+    if not sale_fn or "wtTryEnsureData" not in sale_fn or "hasDebtField" not in sale_fn or "stock > Number.MAX_SAFE_INTEGER" not in sale_fn or "رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن" not in sale_fn:
         errors.append("integrated POS payment must retain warehouse preflight and malformed customer-debt rejection")
     if not transfer_fn or "if(!wtTryEnsureData())return;" not in transfer_fn:
         errors.append("integrated warehouse transfer must validate persisted stock data before mutation")
