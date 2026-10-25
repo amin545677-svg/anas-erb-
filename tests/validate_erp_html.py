@@ -730,8 +730,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "productMatches=(AppData.products||[]).filter(" in stock_transfer
             and "productMatches.length!==1" in stock_transfer
             and "Number.isFinite(destinationBalance+qty)" in stock_transfer,
-        "truck load rejects destination stock overflow before mutation":
-            "Number.isFinite(truckBalance+qty)" in function_source("postTripStock"),
+        "truck load rejects unsafe source and destination stock bounds before mutation":
+            "Number(p.stock)>Number.MAX_SAFE_INTEGER" in function_source("postTripStock")
+            and "Number.isFinite(truckBalance+qty)" in function_source("postTripStock")
+            and "truckBalance+qty>Number.MAX_SAFE_INTEGER" in function_source("postTripStock"),
     }
     for label, passed in stock_balance_checks.items():
         if passed:
