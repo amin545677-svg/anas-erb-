@@ -5937,11 +5937,16 @@ function renderPurchasesTable() {
                     // A validated restore is the explicit repair path for a corrupt startup snapshot.
                     anasStartupIntegrityIssues = [];
                     anasStartupFatalLoadError = false;
-                    if (!saveDB()) {
+                    let restoreSaved = false;
+                    let restoreSaveError = null;
+                    try { restoreSaved = saveDB() !== false; }
+                    catch (saveErr) { restoreSaveError = saveErr; }
+                    if (!restoreSaved) {
                         AppData = previous; posCart = previousCart;
                         anasStartupIntegrityIssues = previousStartupIssues;
                         anasStartupFatalLoadError = previousFatalLoadError;
-                        throw new Error('تعذر حفظ النسخة على الهاتف؛ أُعيدت البيانات السابقة في الذاكرة.');
+                        const reason = restoreSaveError && restoreSaveError.message ? ' (' + restoreSaveError.message + ')' : '';
+                        throw new Error('تعذر حفظ النسخة على الهاتف' + reason + '؛ أُعيدت البيانات السابقة في الذاكرة.');
                     }
                     alert('تم استرجاع النسخة الاحتياطية بنجاح. راجع المخزون والديون قبل متابعة العمل. ✅');
                     openView('dashboard');
