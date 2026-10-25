@@ -1907,9 +1907,9 @@ jobs:
           assert.ok(r.calls.errors.length>0,'storage exception should be logged');
           r=run({initialCarts:{other:[{id:'keep'}]}});
           assert.equal(r.result,true,'successful write must return true');
-          assert.equal(r.data.posScreensCarts['1'],undefined,'existing map is not mutated in place');
+          assert.equal(JSON.stringify(r.data.posScreensCarts['1']),JSON.stringify([{id:'cart'}]),'active cart is included after successful save');
           assert.deepEqual(JSON.parse(r.calls.persisted).posScreensCarts['1'],[{id:'cart'}],'saved snapshot must include active cart');
-          assert.deepEqual(r.data.posScreensCarts['other'],[{id:'keep'}],'successful save retains unrelated carts');
+          assert.equal(JSON.stringify(r.data.posScreensCarts['other']),JSON.stringify([{id:'keep'}]),'successful save retains unrelated carts');
           assert.ok(r.data.posScreensCarts!==r.originalCarts,'cart map updates only after successful persistence');
           r=run({initialCarts:[]});
           assert.equal(r.result,false,'malformed cart-map arrays must fail closed');
