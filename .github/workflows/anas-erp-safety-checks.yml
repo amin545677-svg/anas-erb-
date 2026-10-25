@@ -1818,3 +1818,50 @@ jobs:
           PY
           node --check /tmp/anas-backup-restore-false-test.js
           node /tmp/anas-backup-restore-false-test.js
+      - name: Exercise saveDB persistent storage failure handling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function saveDB()")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate saveDB"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const fn = /*INSERT_SAVE_FUNCTION*/;
+          function run({fatal=false,issues=[],throwOnWrite=false}={}) {
+            const calls={writes:0,ui:0,alerts:[],errors:[]};
+            const data={activePosScreenTab:1,posScreensCarts:{}};
+            const ctx={
+              AppData:data,posCart:[{id:'cart'}],ANAS_DB_KEY:'anas-test',
+              anasStartupFatalLoadError:fatal,anasStartupIntegrityIssues:issues,
+              localStorage:{setItem(){calls.writes++;if(throwOnWrite)throw new Error('quota exceeded');}},
+              alert:m=>calls.alerts.push(String(m)),
+              console:{error:(...a)=>calls.errors.push(a)},
+              updateUIState:()=>calls.ui++,checkSystemAlerts:()=>calls.ui++,
+              updateDashboardStats:()=>calls.ui++,
+              JSON,Object,Array,Number,String,Error
+            };
+            vm.runInNewContext(fn+'\nthis.result=saveDB();',ctx);
+            return {result:ctx.result,calls,data};
+          }
+          let r=run({throwOnWrite:true});
+          assert.equal(r.result,false,'storage exceptions must return false');
+          assert.equal(r.calls.writes,1,'persistent write must be attempted once');
+          assert.equal(r.calls.ui,0,'UI refresh must not run after failed persistence');
+          assert.ok(r.calls.alerts.some(x=>x.includes('تعذر حفظ البيانات')),'storage failure must be reported');
+          assert.ok(r.calls.errors.length>0,'storage exception should be logged');
+          r=run({fatal:true,issues:[{code:'corrupt'}]});
+          assert.equal(r.result,false,'startup integrity guard must stop saving');
+          assert.equal(r.calls.writes,0,'integrity guard must not touch persistent storage');
+          assert.equal(r.calls.ui,0,'integrity guard must not refresh UI');
+          console.log('saveDB persistence failure and startup guard tests passed');
+          """
+          js = js.replace("/*INSERT_SAVE_FUNCTION*/", json.dumps(fn))
+          Path("/tmp/anas-save-db-persistence-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-save-db-persistence-test.js
+          node /tmp/anas-save-db-persistence-test.js
