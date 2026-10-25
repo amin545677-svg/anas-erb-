@@ -2657,7 +2657,7 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{duplicateLinkSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-LINK');
             assert.equal(duplicateLinkSaves,0,'duplicate linked expenses must not persist a chosen link');
             assert.equal(ctx.AppData.expenses.length,2,'duplicate expense records must remain untouched for audit');
@@ -2675,7 +2675,7 @@ jobs:
                 anasTruckRender:()=>{}, saveDB:()=>{badEntrySaves++;return true;},
                 Number,String,Object,Array,Date,console
               };
-              vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+              vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
               ctx.runExpense('T-BAD-EXPENSE-HISTORY');
               assert.equal(badEntrySaves,0,'malformed expense history must not persist');
               assert.equal(ctx.AppData.expenses.length,1,'malformed expense history must remain unchanged');
