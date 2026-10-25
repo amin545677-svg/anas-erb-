@@ -64,14 +64,17 @@ async function handleSnapshot(request, env, origin) {
 
   if (request.method === "GET") {
     const res = await fetch(url, { headers: { "Authorization": headers.Authorization }, cache: "no-store" });
-    if (res.status === 404) return json({ ok: true, exists: false }, 200, origin);
+    if (res.status === 404) return json({ ok: true, exists: false, revision: null }, 200, origin);
     const raw = await res.text();
     if (!res.ok) return json({ error: "Firestore read failed", details: raw.slice(0, 500) }, res.status, origin);
     let doc;
     try { doc = JSON.parse(raw); } catch (_) { return json({ error: "Invalid Firestore response" }, 502, origin); }
     const payload = doc.fields && doc.fields.payload && doc.fields.payload.stringValue;
-    if (!payload) return json({ ok: true, exists: false, data: "" }, 200, origin);
-    return json({ ok: true, exists: true, data: payload, parts: 1 }, 200, origin);
+    if (new URL(request.url).searchParams.get("metadata") === "1") {
+      return json({ ok: true, exists: !!payload, revision: doc.updateTime || null }, 200, origin);
+    }
+    if (!payload) return json({ ok: true, exists: false, data: "", revision: doc.updateTime || null }, 200, origin);
+    return json({ ok: true, exists: true, data: payload, parts: 1, revision: doc.updateTime || null }, 200, origin);
   }
 
   if (request.method === "POST") {
@@ -93,6 +96,13 @@ async function handleSnapshot(request, env, origin) {
     const qs = new URLSearchParams();
     qs.append("updateMask.fieldPaths", "payload");
     qs.append("updateMask.fieldPaths", "updatedAt");
+    // New clients provide the updateTime they observed before preparing this upload.
+    // Firestore enforces this precondition atomically, preventing stale snapshots from overwriting newer ones.
+    if (Object.prototype.hasOwnProperty.call(body, "revision")) {
+      if (body.revision === null) qs.set("currentDocument.exists", "false");
+      else if (typeof body.revision === "string" && body.revision.trim()) qs.set("currentDocument.updateTime", body.revision);
+      else return json({ error: "Invalid snapshot revision; refresh the cloud snapshot metadata and retry." }, 400, origin);
+    }
     const res = await fetch(url + "?" + qs.toString(), {
       method: "PATCH",
       headers,
@@ -102,8 +112,19 @@ async function handleSnapshot(request, env, origin) {
       } })
     });
     const raw = await res.text();
-    if (!res.ok) return json({ error: "Firestore write failed. Check Firestore rules and database setup.", details: raw.slice(0, 500) }, res.status, origin);
-    return json({ ok: true, saved: true, uid, parts: 1, updatedAt: new Date().toISOString() }, 200, origin);
+    if (!res.ok) {
+      let failure = {};
+      try { failure = JSON.parse(raw); } catch (_) {}
+      const reason = failure.error && (failure.error.status || failure.error.message) || "";
+      if (Object.prototype.hasOwnProperty.call(body, "revision") &&
+          (res.status === 409 || /FAILED_PRECONDITION|update time|precondition/i.test(String(reason)))) {
+        return json({ error: "Snapshot conflict: the cloud copy changed after it was read. Download the latest copy and retry.", conflict: true }, 409, origin);
+      }
+      return json({ error: "Firestore write failed. Check Firestore rules and database setup.", details: raw.slice(0, 500) }, res.status, origin);
+    }
+    let savedDoc = {};
+    try { savedDoc = JSON.parse(raw); } catch (_) {}
+    return json({ ok: true, saved: true, uid, parts: 1, updatedAt: new Date().toISOString(), revision: savedDoc.updateTime || null }, 200, origin);
   }
 
   return json({ error: "Method not allowed" }, 405, origin);
