@@ -547,6 +547,8 @@ jobs:
             ['invalid cash balance', d => d.caisseBalance = '12abc'],
             ['negative cash balance', d => d.caisseBalance = -1],
             ['malformed customer debt', d => d.customers[0].debt = '8abc'],
+            ['boolean customer debt', d => d.customers[0].debt = true],
+            ['array supplier balance', d => d.suppliers[0].balance = [4]],
             ['negative supplier balance', d => d.suppliers[0].balance = -2],
             ['zero expense amount', d => d.expenses[0].amt = 0],
             ['malformed cash movement amount', d => d.cashMovements[0].amount = '4oops']
