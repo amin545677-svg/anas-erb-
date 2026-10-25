@@ -1104,7 +1104,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "previousCarts[activeTab] = previousTabCart" in function_source("clearPosCart")
             and "AppData.posScreensCarts = previousCarts" in function_source("clearPosCart"),
         "POS add/remove/clear cart reject missing or implicit persistence success":
-            "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_add
+            ("typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_add
+             or "cartSaved = typeof saveDB === 'function' && saveDB() === true" in pos_cart_add)
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_remove
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_clear,
         "failed user edit restores the prior record and active-user reference":
