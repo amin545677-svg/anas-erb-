@@ -1866,6 +1866,52 @@ jobs:
           PY
           node --check /tmp/anas-backup-restore-false-test.js
           node /tmp/anas-backup-restore-false-test.js
+      - name: Exercise legacy invoice actions against safe guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          names = [
+              "old_clearAllSalesInvoices", "old_clearAllPurchaseInvoices", "old_autoResetAllInvoicesNow",
+              "old_cancelInvoicePrompt", "old_returnSalePrompt", "old_returnPurchasePrompt",
+              "clearAllSalesInvoices", "clearAllPurchaseInvoices", "autoResetAllInvoicesNow",
+              "cancelInvoicePrompt", "returnSalePrompt", "returnPurchasePrompt"
+          ]
+          functions = {}
+          for name in names:
+              start = s.find("function " + name + "(")
+              end = s.find("\n        function ", start + 10)
+              assert start >= 0 and end > start, "Could not isolate " + name
+              functions[name] = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const sources = /*INSERT_LEGACY_FUNCTIONS*/;
+          const alerts=[];
+          let saves=0, renders=0;
+          const data={invoices:[{id:'INV-1',total:100}],purchases:[{id:'PUR-1',total:50}]};
+          const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
+            saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
+            document:{getElementById:()=>({classList:{contains:()=>true}})}};
+          vm.runInNewContext(Object.values(sources).join('\n')+
+            '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
+          for(const action of ctx.actions) action();
+          assert.equal(data.invoices.length,1,'legacy calls must not erase sales invoices');
+          assert.equal(data.purchases.length,1,'legacy calls must not erase purchase invoices');
+          assert.equal(data.invoices[0].total,100);
+          assert.equal(data.purchases[0].total,50);
+          assert.equal(saves,0,'legacy calls must not persist destructive mutations');
+          assert.equal(renders,0,'legacy calls must not refresh as though a transaction committed');
+          assert.equal(alerts.length,6,'each legacy action must route to a visible safe guard');
+          console.log('Legacy invoice action safety tests passed');
+          """
+          js = js.replace("/*INSERT_LEGACY_FUNCTIONS*/", json.dumps(functions))
+          Path("/tmp/anas-legacy-invoice-guards.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-legacy-invoice-guards.js
+          node /tmp/anas-legacy-invoice-guards.js
+
       - name: Exercise saveDB persistent storage failure handling
         run: |
           python - <<'PY'
