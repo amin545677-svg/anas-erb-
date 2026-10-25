@@ -734,6 +734,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "Number(p.stock)>Number.MAX_SAFE_INTEGER" in function_source("postTripStock")
             and "Number.isFinite(truckBalance+qty)" in function_source("postTripStock")
             and "truckBalance+qty>Number.MAX_SAFE_INTEGER" in function_source("postTripStock"),
+        "failed truck load rollback preserves stock property presence exactly":
+            "hadStock:Object.prototype.hasOwnProperty.call(p,'stock')" in function_source("postTripStock")
+            and "if(x.hadStock)x.p.stock=x.stock;else delete x.p.stock;" in function_source("postTripStock"),
     }
     for label, passed in stock_balance_checks.items():
         if passed:
