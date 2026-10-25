@@ -6473,8 +6473,8 @@ function renderPurchasesTable() {
             area.innerHTML = `
                 <div style="text-align:center; border-bottom:2px dashed #000; padding-bottom:8px; margin-bottom:8px; line-height:1.5; overflow-wrap:anywhere;">
                     <h2 style="margin:0; font-size:16px;">تقرير إغلاق اليومية (Z-Report)</h2>
-                    <p style="margin:2px 0;">${AppData.appName}</p>
-                    <p style="margin:2px 0; font-size:11px;">الفترة: ${getReportRange().from || "—"} إلى ${getReportRange().to || "—"}</p>
+                    <p style="margin:2px 0;">${anasEscapeHTML(AppData.appName || '')}</p>
+                    <p style="margin:2px 0; font-size:11px;">الفترة: ${anasEscapeHTML(getReportRange().from || "—")} إلى ${anasEscapeHTML(getReportRange().to || "—")}</p>
                 </div>
                 <div style="font-size:12px; line-height:1.7;">
                     <div style="display:flex; justify-content:space-between;"><span>عدد الفواتير:</span><strong>${reportInvoices.length}</strong></div>
@@ -6483,7 +6483,7 @@ function renderPurchasesTable() {
                     <div style="display:flex; justify-content:space-between;"><span>مبيعات كريدي:</span><strong>${totRem} د.ج</strong></div>
                     <hr style="border-top:1px dashed #000; margin:4px 0;">
                     <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px;">
-                        <span>رصيد الصندوق الفعلي:</span><span>${(AppData.caisseBalance || 0).toLocaleString()} د.ج</span>
+                        <span>رصيد الصندوق الفعلي:</span><span>${Number.isFinite(Number(AppData.caisseBalance)) ? Number(AppData.caisseBalance).toLocaleString() : 'غير صالح'} د.ج</span>
                     </div>
                 </div>
             `;
