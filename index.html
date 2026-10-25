@@ -7742,7 +7742,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
       if(!confirm('هل تريد حذف سجل هذه الرحلة؟ لا يمكن التراجع عن الحذف.'))return;
       AppData.truckTrips=previous.filter(t=>String(t.id)!==String(id));
-      try{if(typeof saveDB==='function'&&saveDB()===false)throw new Error('تعذر حفظ الحذف.');}
+      try{if(typeof saveDB!=='function'||saveDB()!==true)throw new Error('تعذر حفظ الحذف.');}
       catch(saveError){AppData.truckTrips=previous;try{saveDB();}catch(restoreError){console.error('تعذر حفظ الاستعادة بعد فشل حذف الرحلة',restoreError);}anasTruckRender();alert('لم يتم اعتماد الحذف؛ أُعيد سجل الرحلة في الذاكرة. '+(saveError.message||saveError));return;}
       anasTruckRender();
     } catch(e){console.error(e);alert('تعذر حذف الرحلة. '+(e.message||e));}
