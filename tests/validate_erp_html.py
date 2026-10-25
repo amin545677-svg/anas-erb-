@@ -251,6 +251,8 @@ def main():
         errors.append("integrated warehouse transfer must validate persisted stock data before mutation")
     if not transfer_fn or "WAREHOUSE_TRANSFER_OUT" not in transfer_fn or "WAREHOUSE_TRANSFER_IN" not in transfer_fn or "const movementsBefore=AppData.stockMovements.slice();" not in transfer_fn or "AppData.stockMovements=movementsBefore;" not in transfer_fn:
         errors.append("warehouse transfers must write balanced source/destination stock-ledger entries and roll them back on save failure")
+    if not transfer_fn or "usedTransferIds" not in transfer_fn or "usedMovementIds" not in transfer_fn or "usedTransferNumbers" not in transfer_fn or "while(usedTransferNumbers.has(transferNumber))" not in transfer_fn:
+        errors.append("warehouse transfer creation must prevent ID, ledger-leg ID, and voucher number collisions")
     if not transfer_fn or "const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');" not in transfer_fn or "if(hadMainStock)p.stock=beforeMain;else delete p.stock;" not in transfer_fn:
         errors.append("warehouse transfer rollback must preserve whether the main stock property originally existed")
     if not modal_fn or "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح" not in modal_fn or "return;" not in modal_fn:
