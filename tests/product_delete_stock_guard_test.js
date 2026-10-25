@@ -58,3 +58,6 @@ for (const [label, product] of [
 }
 
 console.log('Product deletion runtime regression tests passed: malformed balances fail closed; valid zero-stock deletion and save rollback behave correctly.');
+
+// Run the adjacent financial-ledger runtime regression in the same CI entry point.
+require('./customer_debt_collection_guard_test.js');
