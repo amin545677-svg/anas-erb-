@@ -737,6 +737,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "for (const [key, currentCart] of Object.entries(AppData.posScreensCarts))",
         "النسخة تفتقد سلة نقطة البيع ",
         "idCollections", "seenIds", "معرّف مكرر في قائمة",
+        "['stocktakeRecords', incoming.stocktakeRecords || [], true]",
     ]
     if not backup_validator or any(guard not in backup_validator for guard in backup_guards):
         errors.append("file restore must reject missing history collections when local records exist")
