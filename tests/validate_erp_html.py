@@ -450,9 +450,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     load_guard = "Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))"
     settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
+    settlement_stock_presence_restore = "if(old.hadStock)old.p.stock=old.stock;else delete old.p.stock"
     load_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     load_restore = "oldStocks.forEach(x=>{if(x.hadStock)x.p.stock=x.stock;else delete x.p.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});"
-    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source or load_snapshot not in source or load_restore not in source:
+    if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source or settlement_stock_presence_restore not in source or load_snapshot not in source or load_restore not in source:
         errors.append("truck load guard or rollback preservation for malformed warehouse maps is missing")
     else:
         print("PASS: truck loading blocks malformed maps and rollback preserves original map shape")
