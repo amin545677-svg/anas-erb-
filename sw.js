@@ -28,7 +28,10 @@ self.addEventListener('fetch', event => {
       fetch(request).then(response => {
         if (response && response.ok) {
           return caches.open(CACHE).then(cache => {
-            return cache.put(new URL('./index.html', self.location.href).href, response.clone()).then(() => response);
+            // Cache is an optimization: quota/storage failures must not break a successful online navigation.
+            return cache.put(new URL('./index.html', self.location.href).href, response.clone())
+              .catch(() => undefined)
+              .then(() => response);
           });
         }
         return response;
@@ -42,7 +45,12 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(request).then(response => {
       if (response && response.ok) {
-        return caches.open(CACHE).then(cache => cache.put(request, response.clone()).then(() => response));
+        return caches.open(CACHE).then(cache => {
+          // Cache-write failure must not turn a valid network response into an application failure.
+          return cache.put(request, response.clone())
+            .catch(() => undefined)
+            .then(() => response);
+        });
       }
       return response;
     }).catch(() => caches.open(CACHE).then(cache => cache.match(request)))
