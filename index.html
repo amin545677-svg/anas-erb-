@@ -5968,6 +5968,29 @@ function renderPurchasesTable() {
             for (const p of incoming.products) {
                 if (p.stock != null && (!Number.isFinite(Number(p.stock)) || Number(p.stock) < 0)) throw new Error('يوجد رصيد مخزون سالب أو غير رقمي.');
             }
+            // Reject malformed financial fields before a backup can replace valid live accounting data.
+            const validateMoneyField = (record, field, label, allowZero = true) => {
+                if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+                const raw = record[field];
+                if (raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || (!allowZero && Number(raw) === 0))
+                    throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
+            };
+            if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
+                const raw = incoming.caisseBalance;
+                if (raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0)
+                    throw new Error('رصيد الصندوق في النسخة غير صالح؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+            for (const customer of incoming.customers) validateMoneyField(customer, 'debt', 'ديون العملاء');
+            for (const supplier of incoming.suppliers) validateMoneyField(supplier, 'balance', 'أرصدة الموردين');
+            for (const expense of (incoming.expenses || [])) {
+                validateMoneyField(expense, 'amt', 'المصروفات', false);
+                validateMoneyField(expense, 'amount', 'المصروفات', false);
+            }
+            for (const movement of (incoming.cashMovements || [])) {
+                validateMoneyField(movement, 'amount', 'حركات الصندوق', false);
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
                 if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
                     throw new Error('بيانات سلال نقاط البيع غير صالحة.');
