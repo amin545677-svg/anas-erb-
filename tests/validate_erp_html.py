@@ -737,7 +737,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "warehouse transfer rejects duplicate product IDs and destination overflow":
             "productMatches=(AppData.products||[]).filter(" in stock_transfer
             and "productMatches.length!==1" in stock_transfer
-            and "Number.isFinite(destinationBalance+qty)" in stock_transfer,
+            and "Number.isFinite(destinationBalance+qty)" in stock_transfer
+            and "destinationBalance+qty>Number.MAX_SAFE_INTEGER" in stock_transfer,
         "truck load rejects unsafe source and destination stock bounds before mutation":
             "Number(p.stock)>Number.MAX_SAFE_INTEGER" in function_source("postTripStock")
             and "Number.isFinite(truckBalance+qty)" in function_source("postTripStock")

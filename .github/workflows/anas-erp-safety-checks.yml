@@ -1805,8 +1805,17 @@ jobs:
           assert.equal(r.data.products[0].warehouseStock.A,3);
           assert.equal(r.data.products[0].warehouseStock.B,3);
           assert.equal(r.transfers.length,1); assert.equal(r.movements.length,2);
+          r=runCase({id:'p',name:'P',stock:5,warehouseStock:{B:Number.MAX_SAFE_INTEGER-1}},'المخزن الرئيسي','B','2');
+          assert.equal(r.data.products[0].stock,5,'unsafe destination balance must not mutate source stock');
+          assert.equal(r.data.products[0].warehouseStock.B,Number.MAX_SAFE_INTEGER-1,'unsafe destination balance must remain unchanged');
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/الرصيد الناتج/);
           r=runCase({id:'p',name:'P',stock:1e308,warehouseStock:{}},'المخزن الرئيسي','A','1e308','1e308','');
-          assert.equal(r.data.products[0].stock,1e308,'overflowing transfer value must not mutate source stock');
+          assert.equal(r.data.products[0].stock,1e308,'unsafe destination balance must not mutate source stock');
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/الرصيد الناتج/);
+          r=runCase({id:'p',name:'P',stock:10,warehouseStock:{}},'المخزن الرئيسي','A','2','1e308','');
+          assert.equal(r.data.products[0].stock,10,'overflowing transfer value must not mutate source stock');
           assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
           assert.match(r.alerts[0],/إجمالي قيمة/);
           console.log('Warehouse transfer tests passed: invalid source/destination balances fail closed; valid transfer remains functional');
