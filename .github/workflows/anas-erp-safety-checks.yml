@@ -1768,3 +1768,53 @@ jobs:
           PY
           node --check /tmp/anas-warehouse-transfer-test.js
           node /tmp/anas-warehouse-transfer-test.js
+      - name: Exercise backup restore rollback when persistence returns false
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function importDataBackup(e)")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate backup restore function"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const functionSource = /*INSERT_RESTORE_FUNCTION*/;
+          const oldData = {products:[{id:'old',stock:4}],customers:[],suppliers:[],custom:'keep'};
+          const oldCart = [{id:'old-cart'}];
+          const oldIssues = [{code:'startup-warning'}];
+          const incoming = {products:[{id:'new',stock:1}],customers:[],suppliers:[]};
+          const alerts = [];
+          const input = {files:[{size:100}],value:'chosen.json'};
+          class MockFileReader {
+            readAsText() { this.onload({target:{result:JSON.stringify(incoming)}}); }
+          }
+          const ctx = {
+            AppData:oldData, posCart:oldCart, input,
+            anasStartupIntegrityIssues:oldIssues, anasStartupFatalLoadError:true,
+            FileReader:MockFileReader, JSON, Object, Array, Number, String, Error,
+            confirm:()=>true, alert:m=>alerts.push(String(m)),
+            saveDB:()=>false,
+            anasValidateBackupData:data=>data,
+            openView:()=>{throw new Error('must not navigate after failed save');},
+            console
+          };
+          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
+          assert.equal(ctx.AppData,oldData,'false save result must restore original data object');
+          assert.equal(ctx.posCart,oldCart,'false save result must restore active POS cart');
+          assert.equal(ctx.anasStartupIntegrityIssues.length,1,'false save result must restore startup diagnostics');
+          assert.equal(ctx.anasStartupIntegrityIssues[0].code,'startup-warning');
+          assert.equal(ctx.anasStartupFatalLoadError,true,'false save result must restore fatal-load state');
+          assert.equal(input.value,'','file input must reset after restore attempt');
+          assert.equal(alerts.length,1,'failed restore should report one error');
+          assert.ok(alerts[0].includes('تعذر حفظ النسخة على الهاتف'),'false save result must be reported as persistence failure');
+          assert.ok(!alerts.some(x=>x.includes('بنجاح')),'failed restore must never report success');
+          console.log('Backup restore false-return rollback test passed');
+          """
+          js = js.replace("/*INSERT_RESTORE_FUNCTION*/", json.dumps(fn))
+          Path("/tmp/anas-backup-restore-false-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-backup-restore-false-test.js
+          node /tmp/anas-backup-restore-false-test.js
