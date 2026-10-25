@@ -774,7 +774,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     stocktake_end = source.find("  window.anasExportStocktake=", stocktake_start)
     stocktake_draft = source[stocktake_start:stocktake_end] if stocktake_start >= 0 and stocktake_end > stocktake_start else ""
     stocktake_approve_start = source.find("window.anasApproveStocktake=function(){")
-    stocktake_approve_end = source.find("\\n  };\\n  // Restore last unapproved draft", stocktake_approve_start)
+    stocktake_approve_end = source.find("})();", stocktake_approve_start)
     stocktake_approve = source[stocktake_approve_start:stocktake_approve_end] if stocktake_approve_start >= 0 and stocktake_approve_end > stocktake_approve_start else ""
     transaction_checks = {
         "POS add/remove/clear cart reject missing or implicit persistence success":
