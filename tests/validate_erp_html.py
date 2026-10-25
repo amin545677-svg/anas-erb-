@@ -880,6 +880,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: stocktake approval validates safe numeric bounds before mutation")
 
+    if "if(current!==system)" not in stocktake_approve or "تغير رصيد المنتج" not in stocktake_approve:
+        errors.append("stocktake approval must reject stale stock snapshots before mutating inventory")
+    else:
+        print("PASS: stocktake approval rejects stock changed since count began")
+
     if ("Object.prototype.hasOwnProperty.call(AppData,'stockMovements')" not in stocktake_approve
         or "AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))" not in stocktake_approve
         or "Object.prototype.hasOwnProperty.call(AppData,'stocktakeRecords')" not in stocktake_approve
