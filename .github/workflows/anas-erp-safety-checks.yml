@@ -438,6 +438,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
           end = s.find("\n        function ", start + 10)
@@ -448,7 +449,7 @@ jobs:
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
-          /*INSERT_RESTORE_FUNCTION*/
+          const functionSource = /*INSERT_RESTORE_FUNCTION*/;
           const oldData = {products:[{id:'old',stock:4}],customers:[],suppliers:[],custom:'keep'};
           const oldCart = [{id:'old-cart'}];
           const oldIssues = [{code:'startup-warning'}];
@@ -468,7 +469,7 @@ jobs:
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(fn+'\nimportDataBackup({target:input});',ctx);
+          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'failed restore must reinstate the original data object');
           assert.equal(ctx.posCart,oldCart,'failed restore must reinstate the active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues,oldIssues,'failed restore must reinstate startup diagnostics');
@@ -480,7 +481,7 @@ jobs:
           assert.ok(!alerts.some(x=>x.includes('بنجاح')),'failed restore must never report success');
           console.log('Backup restore exception rollback test passed');
           """
-          js = js.replace("/*INSERT_RESTORE_FUNCTION*/", fn)
+          js = js.replace("/*INSERT_RESTORE_FUNCTION*/", json.dumps(fn))
           Path("/tmp/anas-backup-restore-throw-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-restore-throw-test.js
