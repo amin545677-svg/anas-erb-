@@ -560,6 +560,32 @@ jobs:
           const accepted = ctx.validateBackup(valid());
           assert.equal(accepted.caisseBalance,100,'valid financial backup remains importable');
           assert.equal(accepted.customers[0].debt,0,'zero customer debt remains valid');
+
+          const validSalesAndPurchases = () => ({
+            products:[{id:'p1',stock:2}], customers:[{id:'c1',debt:0}], suppliers:[{id:'s1',balance:0}],
+            caisseBalance:100, invoices:[{id:'i1',total:20,paid:5,remaining:15,items:[{id:'p1',qty:2,price:10}]}],
+            purchases:[{name:'Product',cost:5,qty:2,total:10}]
+          });
+          assert.equal(ctx.validateBackup(validSalesAndPurchases()).invoices[0].total,20,'valid sales invoice totals remain importable');
+          const malformedInvoiceCases = [
+            ['boolean invoice total', d => d.invoices[0].total = true],
+            ['array invoice paid amount', d => d.invoices[0].paid = [5]],
+            ['malformed invoice remaining amount', d => d.invoices[0].remaining = '15oops'],
+            ['boolean invoice line quantity', d => d.invoices[0].items[0].qty = false],
+            ['array invoice line price', d => d.invoices[0].items[0].price = [10]],
+            ['malformed purchase cost', d => d.purchases[0].cost = '5abc'],
+            ['boolean purchase quantity', d => d.purchases[0].qty = true],
+            ['array purchase total', d => d.purchases[0].total = [10]],
+            ['non-array invoice items', d => d.invoices[0].items = {qty:2,price:10}],
+            ['malformed invoice line object', d => d.invoices[0].items = [null]]
+          ];
+          for (const [label, mutate] of malformedInvoiceCases) {
+            const data = validSalesAndPurchases();
+            mutate(data);
+            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
+          }
+          const legacyInvoice = {products:[{id:'p1',stock:2}],customers:[],suppliers:[],invoices:[{number:'legacy',items:[{name:'Old line'}]}]};
+          assert.equal(ctx.validateBackup(legacyInvoice).invoices.length,1,'legacy records with omitted optional numeric fields remain importable');
           console.log('Backup financial-value validation tests passed');
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
