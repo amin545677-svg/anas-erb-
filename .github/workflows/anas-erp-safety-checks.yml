@@ -466,7 +466,8 @@ jobs:
             ['sales item quantity', d => { d.invoices = [{items:[{qty:1e16,price:1}]}]; }],
             ['warehouse transfer quantity', d => { d.warehouseTransfers = [{quantity:1e16,buyPrice:1,salePrice:2,buyTotal:1e16,saleTotal:2e16}]; }],
             ['warehouse transfer purchase total', d => { d.warehouseTransfers = [{quantity:1,buyPrice:1,salePrice:2,buyTotal:1e16,saleTotal:2}]; }],
-            ['warehouse transfer sale price negative', d => { d.warehouseTransfers = [{quantity:1,buyPrice:1,salePrice:-1,buyTotal:1,saleTotal:0}]; }]
+            ['warehouse transfer sale price negative', d => { d.warehouseTransfers = [{quantity:1,buyPrice:1,salePrice:-1,buyTotal:1,saleTotal:0}]; }],
+            ['warehouse transfer missing quantity', d => { d.warehouseTransfers = [{buyPrice:1,salePrice:2,buyTotal:1,saleTotal:2}]; }]
           ];
           for (const [label, mutate] of cases) {
             const data = JSON.parse(JSON.stringify(base));
