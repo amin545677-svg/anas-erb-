@@ -121,6 +121,32 @@ jobs:
               raise SystemExit("Invoice deletion safety checks failed: " + "; ".join(failed))
           print(f"All {len(checks)} invoice deletion safety checks passed.")
           PY
+      - name: Test strict Z-report cash balance normalization
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("        function anasFormatZReportCashBalance(value) {")
+          end = s.find("\n        function printZReport()", start)
+          assert start >= 0 and end > start, "Could not isolate Z-report cash formatter"
+          function_js = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          /*INSERT_FORMATTER*/
+          for (const value of [null, undefined, '', '   ', false, true, {}, [], 'abc', Infinity, -Infinity, NaN]) {
+            assert.equal(anasFormatZReportCashBalance(value), 'غير صالح', 'invalid cash balance must not appear as zero: ' + String(value));
+          }
+          assert.equal(anasFormatZReportCashBalance(0), '0');
+          assert.equal(anasFormatZReportCashBalance(1250), (1250).toLocaleString());
+          assert.equal(anasFormatZReportCashBalance('1250'), (1250).toLocaleString());
+          console.log('Z-report cash formatter tests passed: invalid/missing values rejected; numeric balances preserved');
+          """
+          js = js.replace("/*INSERT_FORMATTER*/", function_js)
+          Path("/tmp/anas-z-report-cash-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-z-report-cash-test.js
+          node /tmp/anas-z-report-cash-test.js
+
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare/worker_firebase_snapshot.js
       - name: Check OpenAI AI Worker JavaScript syntax
