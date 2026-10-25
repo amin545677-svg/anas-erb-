@@ -8,6 +8,7 @@ const listeners = {};
 const store = new Map();
 let offline = false;
 let failCacheWrites = false;
+let networkOk = true;
 let networkBody = 'network-latest';
 let skipWaitingCalled = false;
 let claimCalled = false;
@@ -16,8 +17,8 @@ function keyOf(input) {
   const raw = typeof input === 'string' ? input : input.url;
   return new URL(raw, baseUrl).href;
 }
-function makeResponse(body) {
-  return { ok: true, body, clone() { return makeResponse(body); } };
+function makeResponse(body, ok = true) {
+  return { ok, body, clone() { return makeResponse(body, ok); } };
 }
 function makeCache(name) {
   if (!store.has(name)) store.set(name, new Map());
@@ -51,7 +52,7 @@ const context = {
   self, caches, URL, Promise,
   fetch: async request => {
     if (offline) throw new Error('network offline');
-    return makeResponse(networkBody);
+    return makeResponse(networkBody, networkOk);
   }
 };
 vm.runInNewContext(swSource, context, { filename: 'sw.js' });
@@ -92,6 +93,13 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   let cache = await caches.open('anas-erp-v54-25-r1');
   assert.equal((await cache.match(indexUrl)).body, 'network-latest', 'fresh HTML should replace the cached shell');
 
+  // HTTP failures must use the current app shell rather than returning a hosting error page.
+  networkOk = false;
+  networkBody = 'http-503';
+  response = await request(shellUrl, { mode: 'navigate' });
+  assert.equal(response.body, 'network-latest', 'HTTP error navigation should fall back to the latest cached shell');
+  networkOk = true;
+
   offline = true;
   response = await request(shellUrl, { mode: 'navigate' });
   assert.equal(response.body, 'network-latest', 'offline navigation should fall back to the latest cached shell');
@@ -122,7 +130,7 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   intercepted = await request('https://example.test/app/api', { method: 'POST' });
   assert.equal(intercepted, undefined, 'non-GET requests should not be intercepted');
 
-  console.log('Service worker runtime tests passed: cache cleanup, network-first refresh, offline fallback, cache-write failure resilience, and request scope');
+  console.log('Service worker runtime tests passed: cache cleanup, network-first refresh, HTTP/offline fallback, cache-write failure resilience, and request scope');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
