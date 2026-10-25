@@ -186,6 +186,7 @@ def main():
     edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
     edit_guards = [
         "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
+        "available + delta > Number.MAX_SAFE_INTEGER",
         "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
         "سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة",
         "AppData.stockMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m))",

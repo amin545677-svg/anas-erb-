@@ -4429,7 +4429,7 @@ function renderPurchasesTable() {
                 const available = typeof wtAvailableStock === 'function'
                     ? wtAvailableStock(p, invoiceWarehouse)
                     : (Number(p.stock) || 0);
-                if (!Number.isFinite(available) || !Number.isFinite(delta) || !Number.isFinite(available + delta) || available + delta < -0.000001) {
+                if (!Number.isFinite(available) || !Number.isFinite(delta) || !Number.isFinite(available + delta) || available + delta < -0.000001 || available + delta > Number.MAX_SAFE_INTEGER) {
                     alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 'بيانات غير صالحة') + '.');
                     return;
                 }
