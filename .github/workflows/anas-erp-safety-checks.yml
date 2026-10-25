@@ -786,6 +786,22 @@ jobs:
           assert.equal(AppData.caisseBalance, 50, 'failed save restores cash balance');
           assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'failed save removes a newly created ledger');
 
+          // Failed persistence must restore original representations, not coerce legacy numeric strings.
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: '100' }], caisseBalance: '50' };
+          global.prompt = () => '40';
+          global.saveDB = () => false;
+          collectCustDebt('c1');
+          assert.equal(AppData.customers[0].debt, '100', 'failed save must restore exact original debt value and type');
+          assert.equal(AppData.caisseBalance, '50', 'failed save must restore exact original cash value and type');
+          assert.equal(typeof AppData.customers[0].debt, 'string');
+          assert.equal(typeof AppData.caisseBalance, 'string');
+
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }] };
+          global.prompt = () => '40';
+          global.saveDB = () => false;
+          collectCustDebt('c1');
+          assert.equal(Object.hasOwn(AppData, 'caisseBalance'), false, 'failed save must not leave a new cash balance property');
+
           global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
           global.prompt = () => '101';
           let saveCalled = false;
