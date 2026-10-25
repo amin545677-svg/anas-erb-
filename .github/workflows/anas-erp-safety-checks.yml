@@ -2548,3 +2548,37 @@ jobs:
           PY
           node --check /tmp/anas-truck-expense-strict-test.js
           node /tmp/anas-truck-expense-strict-test.js
+      - name: Reject deletion of ambiguous truck trip IDs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("window.anasTruckDelete = function(id){")
+          end = s.find("window.anasTruckRender = function(){", start)
+          assert start >= 0 and end > start, "Could not isolate truck deletion function"
+          fn = s[start:end]
+          js = "global.window = {}; const window = global.window; " + "/*INSERT_DELETE_FUNCTION*/"
+          js += r"""
+          const assert = require('node:assert/strict');
+          const alerts = [];
+          global.ensure = () => {};
+          global.alert = message => alerts.push(String(message));
+          global.confirm = () => true;
+          global.anasTruckRender = () => {};
+          let saves = 0;
+          global.saveDB = () => { saves++; return true; };
+          global.AppData = {truckTrips:[
+            {id:'T-DUP-DELETE',status:'planned',stockItems:[]},
+            {id:'T-DUP-DELETE',status:'planned',stockItems:[]}
+          ],expenses:[]};
+          window.anasTruckDelete('T-DUP-DELETE');
+          assert.equal(AppData.truckTrips.length,2,'ambiguous delete must preserve every trip');
+          assert.equal(saves,0,'ambiguous delete must not persist');
+          assert.ok(alerts.some(x=>x.includes('أكثر من سجل')),'ambiguous delete must explain duplicate ID');
+          console.log('Ambiguous truck deletion test passed');
+          """
+          js = js.replace("/*INSERT_DELETE_FUNCTION*/", fn)
+          Path("/tmp/anas-truck-delete-ambiguous-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-truck-delete-ambiguous-test.js
+          node /tmp/anas-truck-delete-ambiguous-test.js
