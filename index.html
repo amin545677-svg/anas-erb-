@@ -7405,8 +7405,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(missing.length){alert('تعذر الاعتماد لأن بعض المنتجات حُذفت أو تغيرت معرفاتها: '+missing.map(i=>i.productName).join('، '));return;}
     // A saved draft can be stale or manually altered; validate every counted quantity and current balance before any ledger or stock mutation.
     for(const item of s.items){
-      const actual=Number(item.physicalQty),system=Number(item.systemQty),p=productMap.get(String(item.productId)),current=Number(p&&p.stock);
-      if(!Number.isFinite(actual)||actual<0||actual>Number.MAX_SAFE_INTEGER||!Number.isFinite(system)||system<0||system>Number.MAX_SAFE_INTEGER||!Number.isFinite(current)||current<0||current>Number.MAX_SAFE_INTEGER||!Number.isFinite(actual-current)){
+      const p=productMap.get(String(item.productId));
+      const validStocktakeQuantity=value=>(typeof value==='number'||typeof value==='string')&&!(typeof value==='string'&&value.trim()==='')&&Number.isFinite(Number(value))&&Number(value)>=0&&Number(value)<=Number.MAX_SAFE_INTEGER;
+      const actual=Number(item.physicalQty),system=Number(item.systemQty),current=Number(p&&p.stock);
+      if(!validStocktakeQuantity(item.physicalQty)||!validStocktakeQuantity(item.systemQty)||!p||!validStocktakeQuantity(p.stock)||!Number.isFinite(actual-system)){
         alert('تعذر اعتماد الجرد: توجد كمية فعلية أو أرصدة تتجاوز المجال الرقمي الآمن أو تحتوي قيمة غير صالحة. لم تُعدّل الأرصدة أو الحركات.');
         return;
       }
