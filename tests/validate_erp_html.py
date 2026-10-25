@@ -448,6 +448,18 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     sale_end = source.find("\n        function printLastConfirmedInvoice", sale_start)
     sale_source = source[sale_start:sale_end] if sale_start >= 0 and sale_end > sale_start else ""
 
+    # POS cart +/- actions must not normalize malformed persisted quantities through Number(value || 0).
+    pos_quantity_edit_start = source.find("function changePosQty(idx, delta)")
+    pos_quantity_edit_end = source.find("\\n        function ", pos_quantity_edit_start)
+    pos_quantity_edit = source[pos_quantity_edit_start:pos_quantity_edit_end] if pos_quantity_edit_start >= 0 and pos_quantity_edit_end > pos_quantity_edit_start else ""
+    if ("typeof rawQty === 'number'" not in pos_quantity_edit or
+        "rawQty.trim() === ''" not in pos_quantity_edit or
+        "Number(rawQty) > Number.MAX_SAFE_INTEGER" not in pos_quantity_edit or
+        "next > Number.MAX_SAFE_INTEGER" not in pos_quantity_edit):
+        errors.append("POS cart quantity edit must reject malformed or unsafe current and resulting quantities")
+    else:
+        print("PASS: POS cart quantity edits reject malformed or unsafe values")
+
     # POS sale must not coerce malformed persisted cart quantities/prices (e.g. true or [1]) into numbers.
     pos_strict_cart_guards = [
         "typeof item.qty === 'number') || (typeof item.qty === 'string'",
