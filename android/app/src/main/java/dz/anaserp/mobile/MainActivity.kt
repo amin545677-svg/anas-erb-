@@ -233,17 +233,39 @@ class MainActivity : FragmentActivity() {
                 (() => {
                   const bridge = window.AnasSecureStorage;
                   if (!bridge) { window.__anasSecureStorageReady = false; return; }
+                  const assertHealthy = () => {
+                    if (!bridge.isHealthy()) throw new Error('توقف التخزين المشفر لحماية البيانات؛ لا يمكن متابعة القراءة أو الكتابة.');
+                  };
                   const storage = {
-                    getItem: key => bridge.getItem(String(key)),
+                    getItem: key => {
+                      const value = bridge.getItem(String(key));
+                      assertHealthy();
+                      return value;
+                    },
                     setItem: (key, value) => {
                       if (!bridge.setItem(String(key), String(value))) {
                         throw new DOMException('تعذر حفظ البيانات المشفرة', 'QuotaExceededError');
                       }
+                      assertHealthy();
                     },
-                    removeItem: key => { if (!bridge.removeItem(String(key))) throw new Error('تعذر حذف القيمة المشفرة'); },
-                    clear: () => { if (!bridge.clear()) throw new Error('تعذر مسح التخزين المشفر'); },
-                    key: index => bridge.key(Number(index)),
-                    get length() { return bridge.length(); }
+                    removeItem: key => {
+                      if (!bridge.removeItem(String(key))) throw new Error('تعذر حذف القيمة المشفرة');
+                      assertHealthy();
+                    },
+                    clear: () => {
+                      if (!bridge.clear()) throw new Error('تعذر مسح التخزين المشفر');
+                      assertHealthy();
+                    },
+                    key: index => {
+                      const value = bridge.key(Number(index));
+                      assertHealthy();
+                      return value;
+                    },
+                    get length() {
+                      const value = bridge.length();
+                      assertHealthy();
+                      return value;
+                    }
                   };
                   try {
                     Object.defineProperty(window, 'localStorage', {
