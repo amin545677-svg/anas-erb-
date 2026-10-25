@@ -7,6 +7,7 @@ const baseUrl = 'https://example.test/app/sw.js';
 const listeners = {};
 const store = new Map();
 let offline = false;
+let failCacheWrites = false;
 let networkBody = 'network-latest';
 let skipWaitingCalled = false;
 let claimCalled = false;
@@ -25,7 +26,10 @@ function makeCache(name) {
     async addAll(paths) {
       for (const path of paths) entries.set(keyOf(path), makeResponse('precache:' + path));
     },
-    async put(request, response) { entries.set(keyOf(request), response.clone()); },
+    async put(request, response) {
+      if (failCacheWrites) throw new Error('simulated cache quota failure');
+      entries.set(keyOf(request), response.clone());
+    },
     async match(request) {
       const found = entries.get(keyOf(request));
       return found ? found.clone() : undefined;
@@ -102,12 +106,23 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   response = await request('https://example.test/app/manifest.webmanifest');
   assert.equal(response.body, 'manifest-latest', 'core assets should fall back to their current cached copy');
 
+  // A cache quota/storage error must not discard a successful online response.
+  offline = false;
+  failCacheWrites = true;
+  networkBody = 'fresh-html-cache-unavailable';
+  response = await request(shellUrl, { mode: 'navigate' });
+  assert.equal(response.body, 'fresh-html-cache-unavailable', 'navigation must succeed when cache writes fail');
+  networkBody = 'fresh-manifest-cache-unavailable';
+  response = await request('https://example.test/app/manifest.webmanifest');
+  assert.equal(response.body, 'fresh-manifest-cache-unavailable', 'core asset requests must succeed when cache writes fail');
+  failCacheWrites = false;
+
   let intercepted = await request('https://external.test/resource.js');
   assert.equal(intercepted, undefined, 'cross-origin requests should not be intercepted');
   intercepted = await request('https://example.test/app/api', { method: 'POST' });
   assert.equal(intercepted, undefined, 'non-GET requests should not be intercepted');
 
-  console.log('Service worker runtime tests passed: cache cleanup, network-first refresh, offline fallback, and request scope');
+  console.log('Service worker runtime tests passed: cache cleanup, network-first refresh, offline fallback, cache-write failure resilience, and request scope');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
