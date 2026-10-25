@@ -1934,7 +1934,15 @@ jobs:
           assert.equal(r.data.products[0].stock,10,'overflowing transfer value must not mutate source stock');
           assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
           assert.match(r.alerts[0],/إجمالي قيمة/);
-          console.log('Warehouse transfer tests passed: invalid source/destination balances fail closed; valid transfer remains functional');
+          r=runCase({id:'p',name:'P',stock:10,warehouseStock:{}},'المخزن الرئيسي','A','2','5000000000000000','');
+          assert.equal(r.data.products[0].stock,10,'unsafe but finite purchase total must not mutate source stock');
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/إجمالي قيمة/);
+          r=runCase({id:'p',name:'P',stock:10,warehouseStock:{}},'المخزن الرئيسي','A','2','','5000000000000000');
+          assert.equal(r.data.products[0].stock,10,'unsafe but finite sale total must not mutate source stock');
+          assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
+          assert.match(r.alerts[0],/إجمالي قيمة/);
+          console.log('Warehouse transfer tests passed: unsafe finite totals and invalid balances fail closed; valid transfer remains functional');
           """
           js = js.replace("/*INSERT_TRANSFER_FUNCTION_SOURCE*/", "const functionSource = " + json.dumps(function_js) + ";")
           Path("/tmp/anas-warehouse-transfer-test.js").write_text(js, encoding="utf-8")
