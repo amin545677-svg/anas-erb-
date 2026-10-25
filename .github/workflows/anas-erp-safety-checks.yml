@@ -1816,9 +1816,9 @@ jobs:
           assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
           assert.match(r.alerts[0],/الرصيد الناتج/);
           r=runCase({id:'p',name:'P',stock:1e308,warehouseStock:{}},'المخزن الرئيسي','A','1e308','1e308','');
-          assert.equal(r.data.products[0].stock,1e308,'unsafe destination balance must not mutate source stock');
+          assert.equal(r.data.products[0].stock,1e308,'unsafe source balance must not mutate source stock');
           assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
-          assert.match(r.alerts[0],/الرصيد الناتج/);
+          assert.match(r.alerts[0],/رصيد المخزن المصدر/);
           r=runCase({id:'p',name:'P',stock:10,warehouseStock:{}},'المخزن الرئيسي','A','2','1e308','');
           assert.equal(r.data.products[0].stock,10,'overflowing transfer value must not mutate source stock');
           assert.equal(r.transfers.length,0); assert.equal(r.movements.length,0);
