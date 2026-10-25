@@ -460,7 +460,7 @@ jobs:
             readAsText() { this.onload({target:{result:JSON.stringify(incoming)}}); }
           }
           const ctx = {
-            AppData:oldData, posCart:oldCart,
+            AppData:oldData, posCart:oldCart, input,
             anasStartupIntegrityIssues:oldIssues, anasStartupFatalLoadError:true,
             FileReader:MockFileReader, JSON, Object, Array, Number, String, Error,
             confirm:()=>true, alert:m=>alerts.push(String(m)),
