@@ -1465,6 +1465,32 @@ jobs:
           assert.deepEqual(AppData.products[0].warehouseStock, {}, 'malformed trip records must not create warehouse balances');
           assert.deepEqual(AppData.stockMovements, [], 'malformed trip records must not create ledger entries');
           assert.deepEqual(AppData.warehouses, [], 'malformed trip records must not create warehouses');
+          // Coercible malformed quantities and aggregate overflow must fail before any stock mutation.
+          for (const badQty of [true, [2], '   ', Number.MAX_SAFE_INTEGER + 1]) {
+            global.AppData = {
+              products: [{id:'p1',name:'Product',stock:10,warehouseStock:{}}],
+              stockMovements: [], warehouses: []
+            };
+            const badQtyTrip = {id:'TR-BAD-QTY',plate:'BAD',warehouseName:'Truck BAD',stockItems:[{productId:'p1',qty:badQty}]};
+            assert.throws(() => postTripStock(badQtyTrip), /كمية في حمولة الشاحنة/, 'invalid quantity must be rejected: ' + JSON.stringify(badQty));
+            assert.equal(AppData.products[0].stock, 10, 'invalid quantity must preserve main stock');
+            assert.deepEqual(AppData.products[0].warehouseStock, {}, 'invalid quantity must preserve warehouse stock');
+            assert.deepEqual(AppData.stockMovements, [], 'invalid quantity must not create movements');
+          }
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:Number.MAX_SAFE_INTEGER,warehouseStock:{}}],
+            stockMovements: [], warehouses: []
+          };
+          const aggregateOverflowTrip = {id:'TR-BAD-AGGREGATE',plate:'BAD',warehouseName:'Truck BAD',stockItems:[
+            {productId:'p1',qty:Number.MAX_SAFE_INTEGER},{productId:'p1',qty:1}
+          ]};
+          assert.throws(() => postTripStock(aggregateOverflowTrip), /إجمالي كمية الصنف/, 'duplicate-line quantity aggregate overflow must be rejected');
+          assert.equal(AppData.products[0].stock, Number.MAX_SAFE_INTEGER, 'aggregate overflow must preserve stock');
+          assert.deepEqual(AppData.stockMovements, [], 'aggregate overflow must not create movements');
+          global.AppData = {
+            products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }],
+            stockMovements: [], warehouses: []
+          };
           global.wtEnsureMobileWarehouse = name => {
             if (!AppData.warehouses.includes(name)) AppData.warehouses.push(name);
           };

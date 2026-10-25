@@ -7610,10 +7610,13 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     const products=Array.isArray(AppData.products)?AppData.products:[];const required=new Map();
     for(const item of items){
       if(!item||item.productId===undefined||item.productId===null||String(item.productId).trim()==='')throw new Error('يوجد صنف في حمولة الشاحنة دون معرّف منتج.');
+      if(!((typeof item.qty==='number')||(typeof item.qty==='string'))||String(item.qty).trim()==='')throw new Error('كل كمية في حمولة الشاحنة يجب أن تكون رقمًا صالحًا أكبر من صفر.');
       const qty=Number(item.qty);
-      if(!Number.isFinite(qty)||qty<=0)throw new Error('كل كمية في حمولة الشاحنة يجب أن تكون رقمًا صالحًا أكبر من صفر.');
+      if(!Number.isFinite(qty)||qty<=0||qty>Number.MAX_SAFE_INTEGER)throw new Error('كل كمية في حمولة الشاحنة يجب أن تكون رقمًا صالحًا وآمنًا أكبر من صفر.');
       const key=String(item.productId);
-      required.set(key,(required.get(key)||0)+qty);
+      const aggregateQty=(required.get(key)||0)+qty;
+      if(!Number.isFinite(aggregateQty)||aggregateQty>Number.MAX_SAFE_INTEGER)throw new Error('إجمالي كمية الصنف في حمولة الشاحنة يتجاوز المجال الرقمي الآمن.');
+      required.set(key,aggregateQty);
     }
     const warehouseName=String(trip.warehouseName||('شاحنة '+(trip.plate||trip.id))).trim();
     if(!warehouseName)throw new Error('اسم مخزن الشاحنة مطلوب قبل الترحيل.');
