@@ -20,7 +20,7 @@ jobs:
           node-version: '22'
 
       - name: Test Firebase snapshot Worker before deployment
-        run: node --test tests/worker_firebase_snapshot.test.mjs
+        run: node --test tests/worker_firebase_snapshot.test.mjs tests/worker_firebase_snapshot_cors_test.mjs
 
       # Firebase web API keys are public client configuration, already present
       # in index.html. Prefer an explicit repository secret if supplied, but
