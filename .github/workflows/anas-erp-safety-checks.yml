@@ -1990,6 +1990,13 @@ jobs:
           delete missingCollections.products[0].warehouseStock;
           assert.equal(anasValidateIncomingSyncData(missingCollections), missingCollections, 'absent legacy warehouse stock map remains compatible');
 
+          for (const key of ['products','invoices','truckTrips']) {
+            const bad = base();
+            if (key === 'products') bad.products = [{id:'p1',stock:8},{id:'p1',stock:9}];
+            if (key === 'invoices') bad.invoices = [{id:'INV-DUP'},{id:'INV-DUP'}];
+            if (key === 'truckTrips') bad.truckTrips = [{id:'TR-DUP'},{id:'TR-DUP'}];
+            assert.throws(() => anasValidateIncomingSyncData(bad), /معرّف مكرر في قائمة/, 'cloud restore must reject duplicate ' + key + ' IDs');
+          }
           const validAccounting = () => ({
             products:[{id:'p1',stock:8}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],
             caisseBalance:100,
