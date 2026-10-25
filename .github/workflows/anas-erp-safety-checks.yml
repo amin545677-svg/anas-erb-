@@ -2028,7 +2028,7 @@ jobs:
             const trip={id:'T1',warehouseName:'Truck T',stockItems:[{productId:'P1',qty:4}]};
             assert.throws(()=>ctx.runLoad(trip),/تعذر حفظ حركة التحميل/,'truck load must reject undefined save result');
             assert.equal(ctx.AppData.products[0].stock,10,'main stock must roll back');
-            assert.deepEqual(ctx.AppData.products[0].warehouseStock,{},'truck stock must roll back');
+            assert.equal(JSON.stringify(ctx.AppData.products[0].warehouseStock),'{}','truck stock must roll back');
             assert.equal(ctx.AppData.stockMovements.length,0,'ledger must roll back');
             assert.equal(ctx.AppData.warehouses.length,0,'warehouse creation must roll back');
             assert.equal(Object.hasOwn(trip,'stockPostedAt'),false,'posting marker must roll back');
