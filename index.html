@@ -7742,8 +7742,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         lines.push({productId:p.id,productName:p.name||p.title||item.productName||String(p.id),loaded,delivered,returned,damaged,missing});
       }
       const deliveredByProduct=new Map();
-      for(const line of lines)deliveredByProduct.set(String(line.productId),(deliveredByProduct.get(String(line.productId))||0)+line.delivered);
-      const deliveredTotal=lines.reduce((n,line)=>n+line.delivered,0);
+      let deliveredTotal=0;
+      for(const line of lines){
+        const key=String(line.productId);
+        const productDelivered=(deliveredByProduct.get(key)||0)+line.delivered;
+        deliveredTotal+=line.delivered;
+        if(!Number.isFinite(productDelivered)||productDelivered>Number.MAX_SAFE_INTEGER||!Number.isFinite(deliveredTotal)||deliveredTotal>Number.MAX_SAFE_INTEGER){
+          alert('مجموع كميات التسوية يتجاوز المجال الرقمي الآمن؛ أُوقفت التسوية دون تعديل المخزون أو الحسابات.');
+          return;
+        }
+        deliveredByProduct.set(key,productDelivered);
+      }
       let linked=[];
       if(deliveredTotal>0){
         const raw=prompt('أدخل أرقام فواتير البيع الصادرة من مخزن «'+warehouse+'» مفصولة بفواصل. يجب أن تطابق الكميات المسلّمة تماماً.','');
@@ -7765,7 +7774,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
             const key=String(item.id??item.productId??'');
             const qty=Number(item.qty);
             if(!key||!((typeof item.qty==='number')||(typeof item.qty==='string'))||String(item.qty).trim()===''||!Number.isFinite(qty)||qty<=0||qty>Number.MAX_SAFE_INTEGER){alert('تحتوي الفاتورة '+inv.id+' على صنف أو كمية غير صالحة؛ أُلغيت التسوية.');return;}
-            invoiced.set(key,(invoiced.get(key)||0)+qty);
+            const nextInvoiced=(invoiced.get(key)||0)+qty;
+            if(!Number.isFinite(nextInvoiced)||nextInvoiced>Number.MAX_SAFE_INTEGER){
+              alert('مجموع كميات الفواتير للمنتج '+key+' يتجاوز المجال الرقمي الآمن؛ أُوقفت التسوية دون تعديل المخزون أو الحسابات.');
+              return;
+            }
+            invoiced.set(key,nextInvoiced);
           }
         }
         for(const [productId,qty] of deliveredByProduct){
