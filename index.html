@@ -7723,6 +7723,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         const productMatches=products.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined&&x.id!==null&&String(x.id)===String(item.productId));
         if(productMatches.length!==1){alert(productMatches.length?'يوجد أكثر من سجل منتج بالمعرّف نفسه ('+String(item.productId)+'). أصلح تكرار المعرّفات قبل التسوية.':'المنتج غير موجود: '+String(item.productId));return;}
         const p=productMatches[0];
+        if(!((typeof item.qty==='number')||(typeof item.qty==='string'))||String(item.qty).trim()===''){alert('بيانات الصنف أو الكمية غير صالحة أو تتجاوز المجال الرقمي الآمن؛ أُلغيت التسوية.');return;}
         const loaded=Number(item.qty);
         if(!Number.isFinite(loaded)||loaded<=0||loaded>Number.MAX_SAFE_INTEGER){alert('بيانات الصنف أو الكمية غير صالحة أو تتجاوز المجال الرقمي الآمن؛ أُلغيت التسوية.');return;}
         const ask=(label)=>prompt(label+' — '+(item.productName||p.name||item.productId)+' (المحمّل '+loaded+')','0');
