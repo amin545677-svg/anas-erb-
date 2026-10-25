@@ -749,6 +749,49 @@ jobs:
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
+      - name: Exercise supplier save validation and rollback
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function saveNewSupplierMpos()")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate supplier save function"
+          fn = s[start:end]
+          js = r"""
+          /*INSERT_SUPPLIER_SAVE_FUNCTION*/
+          const assert = require('node:assert/strict');
+          global.alert = () => {};
+          global.closeModal = () => {};
+          global.renderSuppliersDebts = () => {};
+          const ids = ['newSuppNameInput','newSuppPhoneInput','newSuppRCInput','newSuppNIFInput','newSuppArtInput','newSuppAddressInput'];
+          const elements = Object.fromEntries(ids.map(id=>[id,{value:id==='newSuppNameInput'?'Supplier':'',focus(){}}]));
+          elements.newSuppDebtInput={value:'0',focus(){}};
+          global.document={getElementById:id=>elements[id]};
+          const oldSuppliers=[{id:'S1',name:'Existing',balance:9}];
+          global.AppData={suppliers:oldSuppliers};
+          global.saveDB=()=>false;
+          saveNewSupplierMpos();
+          assert.equal(AppData.suppliers.length,1,'failed supplier save must roll back the in-memory append');
+          assert.equal(AppData.suppliers[0].id,'S1');
+          let saves=0; global.saveDB=()=>{saves++;return true;};
+          elements.newSuppDebtInput.value='-1';
+          saveNewSupplierMpos();
+          assert.equal(saves,0,'negative supplier balance must be rejected');
+          elements.newSuppDebtInput.value='15abc';
+          saveNewSupplierMpos();
+          assert.equal(saves,0,'partially numeric supplier balance must be rejected');
+          elements.newSuppDebtInput.value='10';
+          global.saveDB=()=>{throw new Error('simulated storage exception');};
+          saveNewSupplierMpos();
+          assert.equal(AppData.suppliers.length,1,'thrown persistence error must roll back supplier creation');
+          console.log('Supplier save validation/rollback tests passed');
+          """
+          js = js.replace("/*INSERT_SUPPLIER_SAVE_FUNCTION*/", fn)
+          Path("/tmp/anas-supplier-save-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-supplier-save-test.js
+          node /tmp/anas-supplier-save-test.js
       - name: Exercise customer save validation and rollback
         run: |
           python - <<'PY'
