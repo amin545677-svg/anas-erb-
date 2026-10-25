@@ -3992,6 +3992,8 @@ function renderPurchasesTable() {
                 alert('سجل حركات الصندوق تالف؛ أُوقف القبض دون استبدال السجل.');
                 return;
             }
+            const hadCustomerDebt = Object.prototype.hasOwnProperty.call(c, 'debt');
+            const previousDebtValue = c.debt;
             const previousDebt = Number(c.debt);
             if (c.debt === null || c.debt === '' || (typeof c.debt === 'string' && c.debt.trim() === '') ||
                 !Number.isFinite(previousDebt) || previousDebt <= 0 || previousDebt > Number.MAX_SAFE_INTEGER) { alert('لا يوجد دين صالح للتحصيل لهذا العميل، أو أن رصيد الدين يتجاوز المجال الرقمي الآمن. أصلح الرصيد قبل تسجيل القبض.'); return; }
@@ -4004,7 +4006,9 @@ function renderPurchasesTable() {
                 return;
             }
 
-            const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
+            const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const previousCashBalanceValue = AppData.caisseBalance;
+            const previousBalance = hadCashBalance ? Number(previousCashBalanceValue) : 0;
             if (!Number.isFinite(previousBalance + amt) || previousBalance < 0 ||
                 previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(previousBalance + amt) > Number.MAX_SAFE_INTEGER) {
                 alert('رصيد الصندوق أو نتيجة القبض خارج المجال المالي الآمن؛ لم يتم تسجيل القبض.');
@@ -4031,8 +4035,8 @@ function renderPurchasesTable() {
             try { saved = saveDB() === true; }
             catch (err) { console.error('ANAS customer debt collection save failed', err); }
             if (!saved) {
-                c.debt = previousDebt;
-                AppData.caisseBalance = previousBalance;
+                if (hadCustomerDebt) c.debt = previousDebtValue; else delete c.debt;
+                if (hadCashBalance) AppData.caisseBalance = previousCashBalanceValue; else delete AppData.caisseBalance;
                 if (hadMovements) AppData.cashMovements = previousMovements;
                 else delete AppData.cashMovements;
                 if (typeof updateCashUI === 'function') updateCashUI();
