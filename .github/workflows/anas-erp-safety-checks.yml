@@ -838,7 +838,17 @@ jobs:
           assert.equal(unsafeDebtSave, false, 'unsafe cash arithmetic must block debt collection');
           assert.equal(AppData.customers[0].debt, 100);
           assert.equal(AppData.caisseBalance, Number.MAX_SAFE_INTEGER);
-          console.log('Customer debt settlement tests passed: ledger entry, rollback, and invalid amount guard');
+          // A finite but unsafe customer debt can make a small subtraction silently lose precision.
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 1e16 }], caisseBalance: 5 };
+          global.prompt = () => '1';
+          let unsafeCustomerDebtSave = false;
+          global.saveDB = () => { unsafeCustomerDebtSave = true; return true; };
+          collectCustDebt('c1');
+          assert.equal(unsafeCustomerDebtSave, false, 'unsafe customer debt must be rejected before persistence');
+          assert.equal(AppData.customers[0].debt, 1e16, 'unsafe customer debt must remain unchanged');
+          assert.equal(AppData.caisseBalance, 5, 'cash must not change when customer debt is unsafe');
+          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'unsafe customer debt must not create a cash ledger entry');
+          console.log('Customer debt settlement tests passed: ledger entry, rollback, invalid amount, and unsafe debt guards');
           """
           js = js.replace("/*INSERT_CUSTOMER_DEBT_FUNCTION*/", function_js)
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
