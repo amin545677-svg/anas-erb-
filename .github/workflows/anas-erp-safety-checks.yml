@@ -813,7 +813,7 @@ jobs:
               wtAvailableStock:p=>p.stock,
               console,Number,String,Object,Array,Map,Math,Date
             };
-            vm.runInNewContext(functionSource+'\\neditSalesInvoice("I-OVERFLOW");',ctx);
+            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-OVERFLOW");',ctx);
             assert.equal(prompts,2,'test should reach quantity and price edits');
             assert.equal(confirms,0,'overflowing resulting stock must be rejected before confirmation');
             assert.equal(saves,0,'overflowing resulting stock must not persist');
