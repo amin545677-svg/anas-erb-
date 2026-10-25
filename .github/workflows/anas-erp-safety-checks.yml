@@ -1877,7 +1877,7 @@ jobs:
               end = s.find("\n        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               return s[start:end]
-          names = ["switchPosScreen", "clearAllPosScreens", "setPosPriceTier", "saveAppSettings"]
+          names = ["switchPosScreen", "clearAllPosScreens", "clearPosCart", "setPosPriceTier", "saveAppSettings"]
           functions = {name:extract(name) for name in names}
           js = r"""
           const assert = require('node:assert/strict');
@@ -1917,6 +1917,11 @@ jobs:
           assert.equal(r.ctx.AppData.posScreensCarts,r.carts,'failed clear restores original cart map');
           assert.equal(r.ctx.posCart,r.oldCart,'failed clear restores active cart');
           assert.ok(r.alerts.some(x=>x.includes('تعذر حفظ مسح شاشات البيع')));
+          r=run('clearPosCart');
+          assert.equal(r.ctx.posCart,r.oldCart,'failed single-cart clear restores active cart');
+          assert.equal(r.ctx.AppData.posScreensCarts,r.carts,'failed single-cart clear restores cart map identity');
+          assert.equal(r.ctx.AppData.posScreensCarts[1],r.oldCart,'failed single-cart clear restores active tab entry');
+          assert.ok(r.alerts.length===0,'clear cart does not show success after persistence failure');
           r=run('setPosPriceTier');
           assert.equal(r.ctx.AppData.activePriceTier,1,'failed tier update restores old tier');
           assert.equal(r.ctx.posCart[0].price,12,'failed tier update restores cart price');
