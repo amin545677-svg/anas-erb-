@@ -2457,12 +2457,13 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("window.anasTruckRecordExpense = function(id){")
           end = s.find("\\n  window.anasTruckExportCSV", start)
           assert start >= 0 and end > start, "Could not isolate truck expense integration"
           fn = s[start:end]
-          js = r"""
+          js = "const fn = " + json.dumps(fn) + r"""
           const vm = require('node:vm');
           const assert = require('node:assert/strict');
           const invalidAmounts = [true, [5], '', '   '];
@@ -2482,7 +2483,7 @@ jobs:
             assert.equal(Object.hasOwn(trip,'expenseId'), false, 'malformed trip cost must not link expense');
           }
           let saves = 0;
-          const trip = {id:'T-VALID-COST', cost:'12.5', plate:'T1', origin:'A', destination:'B'};
+          const trip = {id:'T-VALID-COST', cost:'12.5', plate:'T', origin:'A', destination:'B'};
           const ctx = {
             window:{}, AppData:{truckTrips:[trip], expenses:[]},
             ensure:()=>{}, alert:()=>{}, confirm:()=>true, money:String,
@@ -2497,7 +2498,6 @@ jobs:
           assert.equal(trip.expenseId,'TRUCK-EXP-T-VALID-COST');
           console.log('Truck expense strict numeric validation tests passed');
           """
-          js = js.replace("/*TRUCK_EXPENSE_FUNCTION*/", fn)
           Path("/tmp/anas-truck-expense-strict-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-truck-expense-strict-test.js
