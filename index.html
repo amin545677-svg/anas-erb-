@@ -3662,6 +3662,17 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (Object.prototype.hasOwnProperty.call(AppData, 'purchases') && (!Array.isArray(AppData.purchases) || AppData.purchases.some(p => !p || typeof p !== 'object' || Array.isArray(p)))) {
                 alert('تعذر تسجيل الشراء: سجل المشتريات تالف. لم يتم استبدال السجل.'); return;
             }
+            const productIds = new Set();
+            for (const record of (Array.isArray(AppData.products) ? AppData.products : [])) {
+                if (record.id === undefined || record.id === null || String(record.id).trim() === '') continue;
+                const recordId = String(record.id);
+                if (productIds.has(recordId)) {
+                    alert('تعذر تسجيل الشراء: معرّف المنتج مكرر في سجل المخزون. أصلح تكرار المعرّفات قبل متابعة أي تغيير للمخزون.');
+                    return;
+                }
+                productIds.add(recordId);
+            }
+
             if (suppId && (!Array.isArray(AppData.suppliers) || AppData.suppliers.some(s => !s || typeof s !== 'object' || Array.isArray(s)))) {
                 alert('تعذر تسجيل الشراء: سجل الموردين تالف.'); return;
             }
