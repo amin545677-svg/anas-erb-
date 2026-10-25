@@ -2040,6 +2040,28 @@ jobs:
             assert.throws(() => anasValidateIncomingSyncData(bad), Error,
               'cloud restore must reject malformed or duplicate truck stock items: '+JSON.stringify(badItems));
           }
+          const validCloudTransfer = base();
+          validCloudTransfer.warehouseTransfers = [{id:'WT-1',quantity:2,buyPrice:5,salePrice:7,buyTotal:10,saleTotal:14}];
+          assert.equal(anasValidateIncomingSyncData(validCloudTransfer).warehouseTransfers[0].quantity,2,
+            'valid warehouse transfer vouchers must remain restorable');
+          const missingTransferQuantity = base();
+          missingTransferQuantity.warehouseTransfers = [{id:'WT-MISSING-QTY'}];
+          assert.throws(() => anasValidateIncomingSyncData(missingTransferQuantity), Error,
+            'cloud restore must reject transfer vouchers without quantity');
+          for (const badValue of [true, [], '', '   ', -1, 0, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+            const bad = base();
+            bad.warehouseTransfers = [{id:'WT-BAD-QTY',quantity:badValue}];
+            assert.throws(() => anasValidateIncomingSyncData(bad), Error,
+              'cloud restore must reject invalid transfer quantity '+JSON.stringify(badValue));
+          }
+          for (const field of ['buyPrice','salePrice','buyTotal','saleTotal']) {
+            for (const badValue of [true, [], '', '   ', -1, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+              const bad = base();
+              bad.warehouseTransfers = [{id:'WT-BAD-'+field,quantity:1,[field]:badValue}];
+              assert.throws(() => anasValidateIncomingSyncData(bad), Error,
+                'cloud restore must reject malformed transfer '+field+' '+JSON.stringify(badValue));
+            }
+          }
           const validAccounting = () => ({
             products:[{id:'p1',stock:8}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],
             caisseBalance:100,
