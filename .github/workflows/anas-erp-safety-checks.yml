@@ -1974,3 +1974,69 @@ jobs:
           PY
           node --check /tmp/anas-sync-url-rollback-test.js
           node /tmp/anas-sync-url-rollback-test.js
+
+      - name: Reject implicit save success in purchase and truck loading
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          def extract(start_marker, end_marker, label):
+              start=s.find(start_marker)
+              end=s.find(end_marker,start+10)
+              assert start>=0 and end>start, "Could not isolate "+label
+              return s[start:end]
+          purchase=extract("function savePurchaseItem() {","\n        function ","purchase")
+          truck=extract("function postTripStock(trip){","window.anasTruckSaveTrip = function(){","truck load")
+          js=r"""
+          const assert=require('node:assert/strict');
+          const vm=require('node:vm');
+          const purchase=/*PURCHASE*/;
+          const truck=/*TRUCK*/;
+          {
+            const fields={
+              purProductName:{value:'New Product',focus(){}},
+              purBuyCost:{value:'10',focus(){}},
+              purBuyQty:{value:'3',focus(){}},
+              purSupplierSelect:{value:''},
+              purInvoiceDate:{value:'2026-10-25'}
+            };
+            const ctx={
+              AppData:{products:[],purchases:[]},posCart:[],
+              document:{getElementById:id=>fields[id]||null},
+              alert:()=>{},console:{error:()=>{}},
+              saveDB:()=>undefined,
+              anasCreateUniqueProductId:()=> 'P1',
+              anasCreateUniqueBarcode:()=> 'B1',
+              updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
+              Number,String,Object,Array,JSON,Date,Math
+            };
+            vm.runInNewContext(purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
+            ctx.runPurchase();
+            assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
+            assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
+            assert.equal(fields.purProductName.value,'New Product','failed purchase must preserve form inputs');
+          }
+          {
+            const ctx={
+              AppData:{products:[{id:'P1',name:'Product',stock:10,warehouseStock:{}}],stockMovements:[],warehouses:[]},
+              saveDB:()=>undefined,
+              wtEnsureMobileWarehouse:name=>{if(!ctx.AppData.warehouses.includes(name))ctx.AppData.warehouses.push(name);},
+              Number,String,Object,Array,Map,Date,JSON,Error
+            };
+            vm.runInNewContext(truck+'\nthis.runLoad=postTripStock;',ctx);
+            const trip={id:'T1',warehouseName:'Truck T',stockItems:[{productId:'P1',qty:4}]};
+            assert.throws(()=>ctx.runLoad(trip),/تعذر حفظ حركة التحميل/,'truck load must reject undefined save result');
+            assert.equal(ctx.AppData.products[0].stock,10,'main stock must roll back');
+            assert.equal(JSON.stringify(ctx.AppData.products[0].warehouseStock),'{}','truck stock must roll back');
+            assert.equal(ctx.AppData.stockMovements.length,0,'ledger must roll back');
+            assert.equal(ctx.AppData.warehouses.length,0,'warehouse creation must roll back');
+            assert.equal(Object.hasOwn(trip,'stockPostedAt'),false,'posting marker must roll back');
+          }
+          console.log('Explicit save-success contract tests passed for purchases and truck loading');
+          """
+          js=js.replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
+          Path("/tmp/anas-explicit-save-success-test.js").write_text(js,encoding="utf-8")
+          PY
+          node --check /tmp/anas-explicit-save-success-test.js
+          node /tmp/anas-explicit-save-success-test.js

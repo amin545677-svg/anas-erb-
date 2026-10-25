@@ -769,7 +769,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
             and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale,
         "purchase validates safe integer quantity and restores AppData on failed persistence":
-            "Number.isSafeInteger(qty)" in purchase and "saveDB() === false" in purchase
+            "Number.isSafeInteger(qty)" in purchase and "saveDB() !== true" in purchase
             and "AppData = previous" in purchase,
         "purchase rejects duplicate product names and invalid or overflowing stock before mutation":
             "productMatches.length > 1" in purchase

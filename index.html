@@ -3655,7 +3655,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 } else {
                     AppData.products.push({ id: anasCreateUniqueProductId(AppData.products), name, buyPrice: cost, price1: cost * 1.2, stock: qty, barcode: anasCreateUniqueBarcode(AppData.products), unit: 'قطعة', supplierId: suppId });
                 }
-                if (typeof saveDB !== 'function' || saveDB() === false) {
+                if (typeof saveDB !== 'function' || saveDB() !== true) {
                     AppData = previous;
                     posCart = previousCart;
                     try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); } catch (_) {}
@@ -7548,7 +7548,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         AppData.stockMovements.unshift({id:'TR-LOAD-IN-'+trip.id+'-'+id,productId:p.id,productName:p.name||p.title||id,qty:qty,type:'TRUCK_LOAD_IN',referenceType:'truck_trip',referenceId:trip.id,warehouse:warehouseName,fromWarehouse:'المخزن الرئيسي',date:new Date().toISOString(),note:'استلام عهدة '+warehouseName});
       }
       trip.warehouseName=warehouseName;trip.stockPostedAt=new Date().toISOString();
-      if(saveDB()===false)throw new Error('تعذر حفظ حركة التحميل.');
+      if(saveDB()!==true)throw new Error('تعذر حفظ حركة التحميل.');
       return true;
     }catch(e){
       oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});
@@ -7600,7 +7600,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&!t.stockPostedAt&&!confirm('سيتم تحويل أصناف الرحلة من المخزن الرئيسي إلى مخزن الشاحنة «'+(t.warehouseName||('شاحنة '+t.plate))+'» مرة واحدة. هل تؤكد التحميل؟')){anasTruckRender();return;}
       if(status==='cancelled'&&t.stockPostedAt){alert('لا يمكن إلغاء رحلة حُمّلت بضاعتها إلى مخزن الشاحنة. أعد الكمية المتبقية إلى المخزن الرئيسي بسند تحويل أولاً.');return;}
       const previousStatus=t.status,previousUpdated=t.updatedAt,previousPosted=t.stockPostedAt;
-      try{t.status=status;t.updatedAt=new Date().toISOString();if((status==='in_transit'||status==='delivered')&&!t.stockPostedAt&&Array.isArray(t.stockItems)&&t.stockItems.length)postTripStock(t);else if(saveDB()===false)throw new Error('تعذر حفظ حالة الرحلة.');}
+      try{t.status=status;t.updatedAt=new Date().toISOString();if((status==='in_transit'||status==='delivered')&&!t.stockPostedAt&&Array.isArray(t.stockItems)&&t.stockItems.length)postTripStock(t);else if(saveDB()!==true)throw new Error('تعذر حفظ حالة الرحلة.');}
       catch(e){t.status=previousStatus;if(previousUpdated===undefined)delete t.updatedAt;else t.updatedAt=previousUpdated;if(previousPosted===undefined)delete t.stockPostedAt;else t.stockPostedAt=previousPosted;anasTruckRender();alert('لم يتم اعتماد التسليم أو تغيير الحالة: '+(e.message||e)+' لم تُعتمد العملية.');return;}
       anasTruckRender();if((status==='in_transit'||status==='delivered')&&Array.isArray(t.stockItems)&&t.stockItems.length&&t.stockPostedAt)alert('تم تحميل عهدة الرحلة ونقل الأصناف إلى مخزن الشاحنة مرة واحدة. سجّل التسليم الفعلي بشكل منفصل عند اكتماله.');
     }catch(e){console.error(e);alert('تعذر تحديث حالة الرحلة. '+(e.message||e));}
@@ -7721,7 +7721,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         }
         trip.settlementId=settlementId;trip.settledAt=new Date().toISOString();
         trip.settlementInvoiceIds=linked.map(inv=>String(inv.id));trip.settlementLines=lines.map(line=>({...line}));
-        if(saveDB()===false)throw new Error('فشل حفظ التسوية.');
+        if(saveDB()!==true)throw new Error('فشل حفظ التسوية.');
       }catch(e){
         for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock;}
         if(movesBefore===null)delete AppData.stockMovements;else AppData.stockMovements=movesBefore;
