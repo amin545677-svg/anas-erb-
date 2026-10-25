@@ -634,6 +634,30 @@ jobs:
           assert.equal(saveCalled, false, 'invalid amount must not be persisted');
           assert.equal(AppData.customers[0].debt, 100);
           assert.equal(AppData.caisseBalance, 50);
+          // Duplicate customer IDs must never credit one arbitrary customer's account.
+          global.AppData = { customers: [{ id: 'dup', name: 'A', debt: 20 }, { id: 'dup', name: 'B', debt: 30 }], caisseBalance: 5 };
+          global.prompt = () => '10';
+          let duplicateSave = false;
+          global.saveDB = () => { duplicateSave = true; return true; };
+          collectCustDebt('dup');
+          assert.equal(duplicateSave, false, 'duplicate customer IDs must be rejected before persistence');
+          assert.deepEqual(AppData.customers.map(x => x.debt), [20, 30]);
+          assert.equal(AppData.caisseBalance, 5);
+
+          // Malformed persisted cash values and ledgers must fail closed, not normalize to zero or erase history.
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 'not-a-number', cashMovements: [] };
+          let malformedBalanceSave = false;
+          global.saveDB = () => { malformedBalanceSave = true; return true; };
+          collectCustDebt('c1');
+          assert.equal(malformedBalanceSave, false, 'malformed cash balance must block debt collection');
+          assert.equal(AppData.customers[0].debt, 100);
+
+          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 5, cashMovements: [{ id: 'legacy' }, null] };
+          let malformedLedgerSave = false;
+          global.saveDB = () => { malformedLedgerSave = true; return true; };
+          collectCustDebt('c1');
+          assert.equal(malformedLedgerSave, false, 'malformed cash movement ledger must block debt collection');
+          assert.equal(AppData.cashMovements[1], null, 'existing malformed history must not be silently overwritten');
           console.log('Customer debt settlement tests passed: ledger entry, rollback, and invalid amount guard');
           """
           js = js.replace("/*INSERT_CUSTOMER_DEBT_FUNCTION*/", function_js)
