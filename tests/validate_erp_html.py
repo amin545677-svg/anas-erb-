@@ -482,13 +482,20 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # Settlement must reject invalid main/truck balances before it mutates any product.
     settlement_balance_guards = [
-        "رصيد المخزن الرئيسي غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
-        "رصيد مخزن الشاحنة غير صالح للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
+        "رصيد المخزن الرئيسي غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
+        "رصيد مخزن الشاحنة غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج '+line.productName+'؛ أُوقفت التسوية دون تعديل الأرصدة.",
         "if(p.warehouseStock&&Object.prototype.hasOwnProperty.call(p.warehouseStock,warehouse)){",
     ]
     for guard in settlement_balance_guards:
         if guard not in source:
             errors.append("truck settlement balance preflight is missing: " + guard)
+    for guard in [
+        "Number(p.stock)>Number.MAX_SAFE_INTEGER",
+        "Number(p.stock)+line.returned>Number.MAX_SAFE_INTEGER",
+        "Number(balance)>Number.MAX_SAFE_INTEGER",
+    ]:
+        if guard not in source:
+            errors.append("truck settlement safe numeric bound is missing: " + guard)
     if not any("truck settlement balance preflight is missing:" in error for error in errors):
         print("PASS: truck settlement validates main and truck balances before stock mutation")
 
