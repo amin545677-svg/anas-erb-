@@ -3307,7 +3307,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             for (const id of required.keys()) {
                 const p = saleProducts.get(id);
                 oldStocks.set(id, {
-                    stock:Number(p.stock),
+                    stock:p.stock,
+                    hadStock:Object.prototype.hasOwnProperty.call(p,'stock'),
                     hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
                     warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
                 });
@@ -3356,7 +3357,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 for (const [id, stockState] of oldStocks) {
                     const p = saleProducts.get(id);
                     if (p) {
-                        p.stock = stockState.stock;
+                        if(stockState.hadStock)p.stock=stockState.stock;
+                        else delete p.stock;
                         if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;
                         else delete p.warehouseStock;
                     }
