@@ -704,7 +704,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "(!Number.isFinite(available) || available < 0)" in stock_edit
             and "q > available" in stock_edit,
         "warehouse balance reader rejects negative, non-finite, and malformed stock":
-            "Number(raw) < 0" in stock_balance
+            "Number(raw)<0" in stock_balance
             and "Number.isFinite(Number(raw))" in stock_balance
             and "return NaN" in stock_balance,
         "warehouse transfer validates both source and destination balances before mutation":
