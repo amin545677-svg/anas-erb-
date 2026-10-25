@@ -819,7 +819,7 @@ jobs:
             assert.equal(saves,0,'overflowing resulting stock must not persist');
             assert.equal(product.stock,1e308,'overflow guard must preserve original stock');
             assert.equal(invoice.items[0].qty,1e308,'overflow guard must preserve original invoice');
-            assert.equal(AppData.stockMovements.length,0,'overflow guard must not create ledger movements');
+            assert.equal(ctx.AppData.stockMovements.length,0,'overflow guard must not create ledger movements');
             assert.ok(alerts.some(x=>x.includes('الرصيد الحالي')),'overflow should be reported as invalid resulting stock');
           }
           runStockAdditionOverflowCase();
