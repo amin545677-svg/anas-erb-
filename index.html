@@ -7859,6 +7859,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(!Number.isFinite(amount)||amount<0||amount>Number.MAX_SAFE_INTEGER){alert('قيمة تكلفة الرحلة غير صالحة أو تتجاوز المجال المالي الآمن.');return;}
       if(amount===0){alert('تكلفة الرحلة صفر؛ لا حاجة لإنشاء مصروف.');return;}
       if(!confirm('سيُضاف مبلغ '+money(amount)+' إلى قائمة المصروفات تحت بند نقل الشاحنات. لن يتم خصم المبلغ من رصيد الصندوق تلقائياً. هل تريد المتابعة؟'))return;
+      if(Object.prototype.hasOwnProperty.call(AppData,'expenses')&&!Array.isArray(AppData.expenses))throw new Error('قائمة المصروفات الموجودة تالفة؛ أُوقفت العملية دون استبدال السجل. أصلح البيانات أو استعد نسخة احتياطية قبل المتابعة.');
       const hadExpensesArray=Array.isArray(AppData.expenses);
       if(!hadExpensesArray)AppData.expenses=[];
       const previousExpenses=AppData.expenses.slice();

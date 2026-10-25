@@ -941,6 +941,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "truck trip creation and expense linking require explicit persistence success":
             "typeof saveDB!=='function' || saveDB()!==true" in truck_create
             and "typeof saveDB!=='function'||saveDB()!==true" in truck_expense,
+        "truck expense refuses to replace a malformed existing expense ledger":
+            "Object.prototype.hasOwnProperty.call(AppData,'expenses')&&!Array.isArray(AppData.expenses)" in truck_expense
+            and "دون استبدال السجل" in truck_expense,
         "sale aggregates repeated product quantities and validates numeric inputs":
             "aggregateQty = (required.get(id) || 0) + qty" in sale
             and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
