@@ -5999,6 +5999,17 @@ function renderPurchasesTable() {
             if (!navigator.onLine) { setSyncStatus('لا يوجد اتصال بالإنترنت. بياناتك المحلية لم تتغير.', true); return; }
             if (!confirm('سيتم استبدال بيانات هذا الهاتف بالنسخة التي يعيدها الخادم. أنشئ نسخة احتياطية أولاً. هل تريد المتابعة؟')) return;
             if (!exportDataBackup()) { setSyncStatus('تعذر إنشاء نسخة احتياطية محلية؛ أُلغي الاسترجاع دون تغيير البيانات.', true); return; }
+            // The pull is destructive and asynchronous: remember the exact local state before the request.
+            // If a sale, purchase, or other local edit happens while the network request is pending, abort.
+            let localStateAtRequestStart;
+            try {
+                localStateAtRequestStart = JSON.stringify(AppData);
+                if (typeof localStateAtRequestStart !== 'string') throw new Error('تعذر تسلسل البيانات المحلية.');
+            } catch (snapshotError) {
+                setSyncStatus('تعذر التحقق من لقطة البيانات المحلية؛ أُلغي الاسترجاع دون تغيير البيانات.', true);
+                alert('تعذر التحقق من البيانات المحلية قبل الاسترجاع. لم يتم تغيير البيانات.');
+                return;
+            }
             setSyncStatus('جارٍ جلب البيانات من الخادم…');
             try {
                 const controller = new AbortController();
@@ -6020,6 +6031,19 @@ function renderPurchasesTable() {
                 const incoming = JSON.parse(JSON.stringify(rawIncoming));
                 anasValidateIncomingSyncData(incoming);
                 if (!confirm('تم التحقق من بنية البيانات. هل تؤكد استبدال بيانات هذا الهاتف بالنسخة السحابية؟')) return;
+                // Re-check after the confirmation too: local state may have changed during fetch or the dialog.
+                let currentLocalState;
+                try { currentLocalState = JSON.stringify(AppData); }
+                catch (snapshotError) {
+                    setSyncStatus('تعذر إعادة التحقق من البيانات المحلية؛ أُلغي الاسترجاع دون تغيير البيانات.', true);
+                    alert('تعذر إعادة التحقق من البيانات المحلية. لم يتم استبدالها.');
+                    return;
+                }
+                if (currentLocalState !== localStateAtRequestStart) {
+                    setSyncStatus('أُلغي الاسترجاع لأن البيانات المحلية تغيرت أثناء جلب النسخة. احفظ/صدّر أحدث بياناتك ثم أعد المحاولة.', true);
+                    alert('أُلغي الاسترجاع لحماية التغييرات المحلية الأحدث. لم تُستبدل بياناتك. صدّر نسخة احتياطية ثم أعد المحاولة إن كنت تريد المتابعة.');
+                    return;
+                }
                 const previous = AppData;
                 const previousCart = posCart;
                 const previousStartupIssues = anasStartupIntegrityIssues.slice();

@@ -1003,6 +1003,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "const previous = AppData" in backup_import and "try { restoreSaved = saveDB() === true; }" in backup_import
             and "catch (saveErr) { restoreSaveError = saveErr; }" in backup_import
             and "AppData = previous; posCart = previousCart" in backup_import,
+        "cloud restore aborts if local data changes while the network request is pending":
+            "localStateAtRequestStart = JSON.stringify(AppData)" in cloud_restore
+            and "currentLocalState !== localStateAtRequestStart" in cloud_restore
+            and "أُلغي الاسترجاع لأن البيانات المحلية تغيرت أثناء جلب النسخة" in cloud_restore,
     }
     for label, passed in transaction_checks.items():
         if passed:
