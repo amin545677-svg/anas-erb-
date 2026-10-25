@@ -82,3 +82,18 @@ console.log('PASS: duplicate cash movement IDs fail closed');
 console.log('PASS: normal customer debt collection updates debt, cash and ledger');
 console.log('PASS: generated cash movement ID collisions are resolved');
 console.log('PASS: failed persistence rolls back customer debt, cash and ledger');
+
+{
+  const app = fs.readFileSync('index.html', 'utf8');
+  const customerStart = app.indexOf('function saveNewCustomerMpos()');
+  const customerEnd = app.indexOf('function openCustomerDirectory()', customerStart);
+  const supplierStart = app.indexOf('function saveNewSupplierMpos()');
+  const supplierEnd = app.indexOf('function printLatestLegalCustomerInvoice()', supplierStart);
+  assert.ok(customerStart >= 0 && customerEnd > customerStart, 'customer save handler must be isolatable');
+  assert.ok(supplierStart >= 0 && supplierEnd > supplierStart, 'supplier save handler must be isolatable');
+  const customerSave = app.slice(customerStart, customerEnd);
+  const supplierSave = app.slice(supplierStart, supplierEnd);
+  assert.ok(customerSave.includes('debt > Number.MAX_SAFE_INTEGER'), 'customer debt must reject values beyond safe financial range');
+  assert.ok(supplierSave.includes('debt > Number.MAX_SAFE_INTEGER'), 'supplier balance must reject values beyond safe financial range');
+}
+console.log('PASS: customer and supplier opening balances reject values beyond the safe financial range');

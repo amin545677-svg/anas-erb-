@@ -4147,9 +4147,9 @@ function renderPurchasesTable() {
             const debt = rawDebt === '' ? 0 : Number(rawDebt);
 
             if (!name) { alert('يرجى كتابة اسم العميل / المحل'); return; }
-            if (!Number.isFinite(debt) || debt < 0) {
+            if (!Number.isFinite(debt) || debt < 0 || debt > Number.MAX_SAFE_INTEGER) {
                 if (debtInput && typeof debtInput.focus === 'function') debtInput.focus();
-                alert('رصيد دين العميل يجب أن يكون رقماً صالحاً غير سالب. لم تُحفظ أي تغييرات.');
+                alert('رصيد دين العميل يجب أن يكون رقماً صالحاً غير سالب ولا يتجاوز المجال المالي الآمن. لم تُحفظ أي تغييرات.');
                 return;
             }
             if (!Array.isArray(AppData.customers)) {
@@ -4314,9 +4314,9 @@ function renderPurchasesTable() {
             const debt = rawDebt === '' ? 0 : Number(rawDebt);
 
             if (!name) { alert('ادخل اسم المورد'); return; }
-            if (!Number.isFinite(debt) || debt < 0) {
+            if (!Number.isFinite(debt) || debt < 0 || debt > Number.MAX_SAFE_INTEGER) {
                 if (debtInput && typeof debtInput.focus === 'function') debtInput.focus();
-                alert('رصيد المورد يجب أن يكون رقماً صالحاً غير سالب. لم تُحفظ أي تغييرات.');
+                alert('رصيد المورد يجب أن يكون رقماً صالحاً غير سالب ولا يتجاوز المجال المالي الآمن. لم تُحفظ أي تغييرات.');
                 return;
             }
             if (!Array.isArray(AppData.suppliers)) {
