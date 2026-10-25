@@ -440,7 +440,7 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
-          end = s.find("\\n        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
           assert "try { restoreSaved = saveDB() !== false; }" in fn, "Restore must catch persistence exceptions"
@@ -468,7 +468,7 @@ jobs:
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(fn+'\\nimportDataBackup({target:input});',ctx);
+          vm.runInNewContext(fn+'\nimportDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'failed restore must reinstate the original data object');
           assert.equal(ctx.posCart,oldCart,'failed restore must reinstate the active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues,oldIssues,'failed restore must reinstate startup diagnostics');
