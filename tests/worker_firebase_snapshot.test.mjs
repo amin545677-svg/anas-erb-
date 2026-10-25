@@ -176,6 +176,36 @@ test("duplicate expense and stock ledger IDs are rejected before Firestore write
 });
 
 
+test("duplicate purchase, cash, return, purchase invoice, and truck IDs are rejected before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("duplicate operational IDs must not reach Firestore");
+  };
+  try {
+    const duplicateRows = [
+      ["purchases", { id: "P-DUP", cost: 2, qty: 1, total: 2 }],
+      ["cashMovements", { id: "C-DUP", amount: 2 }],
+      ["returns", { id: "R-DUP", type: "customer" }],
+      ["purchaseInvoices", { id: "PI-DUP", total: 2 }],
+      ["trucks", { id: "T-DUP", name: "Truck" }]
+    ];
+    for (const [collection, row] of duplicateRows) {
+      const data = { products: [{ id: "p1", stock: 1 }], customers: [], [collection]: [
+        { ...row }, { ...row }
+      ] };
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST", body: { data: JSON.stringify(data) }
+      }), env);
+      assert.equal(response.status, 400, collection + " duplicate IDs must be rejected");
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "duplicate operational IDs must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("duplicate user and alert IDs are rejected before Firestore writes", async () => {
   const oldFetch = globalThis.fetch;
   let firestoreCalls = 0;
