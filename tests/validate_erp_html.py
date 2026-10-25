@@ -286,6 +286,21 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: user warehouse assignment fails closed on malformed warehouse lists")
 
+    # Imported product/customer names must be escaped in alert HTML; user names must use textContent.
+    alert_and_badge_guards = [
+        "const productName = anasEscapeHTML(String(p.name || 'منتج بدون اسم'));",
+        "const customerName = anasEscapeHTML(String(c.name || 'عميل بدون اسم'));",
+        "Number.isFinite(stockValue) && stockValue <= (Number(p.minAlert) || 5)",
+        "Number.isFinite(debt) && debt > 0 && days > 30",
+        "document.getElementById('topUserQuickBadge').textContent = '👑 ' + String(cur?.name ?? '');",
+        "document.getElementById('drawerUserName').textContent = String(cur?.name ?? '');",
+    ]
+    for guard in alert_and_badge_guards:
+        if guard not in source:
+            errors.append("alert/user-badge safety guard is missing: " + guard)
+    if not any("alert/user-badge safety guard is missing:" in error for error in errors):
+        print("PASS: alert names are escaped and user badge is rendered as text")
+
     counts = Counter(parser.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
     if duplicates:
