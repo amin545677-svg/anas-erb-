@@ -3243,7 +3243,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
                 }
                 const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
-                if (!Number.isFinite(stock) || stock < qty) {
+                if (!Number.isFinite(stock) || stock > Number.MAX_SAFE_INTEGER) {
+                    alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '». أصلح الرصيد قبل البيع.'); return;
+                }
+                if (stock < qty) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
                 }
             }
