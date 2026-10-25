@@ -5978,9 +5978,14 @@ function renderPurchasesTable() {
             };
             if (Object.prototype.hasOwnProperty.call(incoming, 'caisseBalance')) {
                 const raw = incoming.caisseBalance;
-                if (raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
+                if ((typeof raw !== 'number' && typeof raw !== 'string') ||
+                    raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
                     !Number.isFinite(Number(raw)) || Number(raw) < 0)
                     throw new Error('رصيد الصندوق في النسخة غير صالح؛ رُفض الاسترجاع لحماية الحسابات.');
+            } else if (typeof AppData !== 'undefined' &&
+                Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                Number.isFinite(Number(AppData.caisseBalance)) && Number(AppData.caisseBalance) > 0) {
+                throw new Error('النسخة تفتقد رصيد الصندوق الحالي غير الصفري؛ رُفض الاسترجاع لمنع فقدان الرصيد. استخدم نسخة كاملة أو راجع الرصيد قبل الاسترجاع.');
             }
             for (const customer of incoming.customers) validateMoneyField(customer, 'debt', 'ديون العملاء');
             for (const supplier of incoming.suppliers) validateMoneyField(supplier, 'balance', 'أرصدة الموردين');
