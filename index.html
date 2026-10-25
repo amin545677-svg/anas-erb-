@@ -7350,7 +7350,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(!diffs.length){if(!confirm('جميع الكميات مطابقة. اعتماد محضر الجرد دون تسويات؟'))return;}
     else if(!confirm(`سيتم اعتماد ${diffs.length} فرقًا وتعديل أرصدة هذه المنتجات إلى الكميات الفعلية. لا يمكن تكرار الاعتماد. هل راجعت المحضر وأخذت نسخة احتياطية؟`))return;
     // Validate all products before any mutation.
-    const productMap=new Map(products().map(p=>[productId(p),p]));
+    const productRows=products();const productMap=new Map(productRows.map(p=>[String(productId(p)),p]));const duplicateProductIds=s.items.some((item,index)=>s.items.some((other,otherIndex)=>otherIndex!==index&&String(other.productId)===String(item.productId)))||s.items.some(item=>productRows.filter(p=>String(productId(p))===String(item.productId)).length!==1);if(duplicateProductIds){alert('تعذر اعتماد الجرد: يوجد معرّف منتج مكرر أو ملتبس. أصلح التكرار قبل المتابعة؛ لم تُعدّل الأرصدة أو الحركات.');return;}
     const missing=s.items.filter(i=>!productMap.has(String(i.productId)));
     if(missing.length){alert('تعذر الاعتماد لأن بعض المنتجات حُذفت أو تغيرت معرفاتها: '+missing.map(i=>i.productName).join('، '));return;}
     // A saved draft can be stale or manually altered; validate every counted quantity and current balance before any ledger or stock mutation.
