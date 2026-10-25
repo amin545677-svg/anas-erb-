@@ -6,6 +6,8 @@ on:
       - 'cloudflare/worker_firebase_snapshot.js'
       - 'tests/worker_firebase_snapshot.test.mjs'
       - '.github/workflows/snapshot-worker-tests.yml'
+      - '.github/workflows/deploy-firebase-worker.yml'
+      - 'cloudflare/wrangler.toml'
       - 'index.html'
   workflow_dispatch:
 
