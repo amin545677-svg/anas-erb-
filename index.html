@@ -8425,7 +8425,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       urlInput().addEventListener('blur',persistWorkerUrl);
     }
   }catch(e){console.error(e);status('تعذر تهيئة Firebase: '+(e.message||e));}
-  window.anasFirebaseLogin=async function(){try{if(!auth)throw Error('مكتبات Firebase غير متاحة');const email=(document.getElementById('anasFirebaseEmail').value||'').trim();const password=document.getElementById('anasFirebasePassword').value||'';if(!email||!password)throw Error('أدخل البريد الإلكتروني وكلمة المرور لحساب Firebase Authentication');await auth.signInWithEmailAndPassword(email,password);document.getElementById('anasFirebasePassword').value='';status('تم تسجيل الدخول بنجاح.',true);}catch(e){status('تعذر تسجيل الدخول: '+(e.code||e.message||e));}};
+  window.anasFirebaseLogin=async function(){try{if(!auth)throw Error('مكتبات Firebase غير متاحة');const email=(document.getElementById('anasFirebaseEmail').value||'').trim();const password=document.getElementById('anasFirebasePassword').value||'';if(!email||!password)throw Error('أدخل البريد الإلكتروني وكلمة المرور لحساب Firebase Authentication');await auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL);await auth.signInWithEmailAndPassword(email,password);document.getElementById('anasFirebasePassword').value='';status('تم تسجيل الدخول بنجاح. سيحتفظ هذا الجهاز بالجلسة حتى تسجيل الخروج أو انتهاء صلاحيتها.',true);}catch(e){status('تعذر تسجيل الدخول: '+(e.code||e.message||e));}};
   // Read-only diagnostic: never signs in, uploads, restores, or changes Firebase settings.
   window.anasDiagnoseCloudLink=function(){
     const lines=[];const yes='✅';const no='❌';
@@ -8468,6 +8468,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(!auth) throw Error('لم تتم تهيئة Firebase. تأكد من اتصال الإنترنت وتحميل مكتبات Firebase.');
       if(!window.firebase || !firebase.auth || !firebase.auth.GoogleAuthProvider) throw Error('مكتبة تسجيل Google غير متاحة؛ أعد تحميل الصفحة بعد التأكد من الاتصال.');
       if(!navigator.onLine) throw Error('الجهاز غير متصل بالإنترنت. يلزم الاتصال لإكمال تسجيل الدخول.');
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
       const provider=new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({prompt:'select_account'});
       status('جارٍ تحويلك إلى Google لتسجيل الدخول…');
