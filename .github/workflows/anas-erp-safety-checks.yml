@@ -1939,7 +1939,7 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveSyncSettings()")
-          end = s.find("\\n        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveSyncSettings"
           fn = s[start:end]
           js = r"""
@@ -1956,7 +1956,7 @@ jobs:
               setSyncStatus:(m,e)=>statuses.push({message:m,error:e}),
               alert:m=>alerts.push(String(m)),console:{error:()=>{}}
             };
-            vm.runInNewContext(fn+'\\nthis.invoke=saveSyncSettings;',ctx);
+            vm.runInNewContext(fn+'\nthis.invoke=saveSyncSettings;',ctx);
             ctx.invoke();
             return {data,alerts,statuses};
           }
