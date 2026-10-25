@@ -4027,20 +4027,56 @@ function renderPurchasesTable() {
             const art = document.getElementById('newCustArtInput').value.trim();
             const address = document.getElementById('newCustAddressInput').value.trim();
             const location = document.getElementById('newCustLocationInput').value.trim();
-            const debt = parseFloat(document.getElementById('newCustDebtInput').value) || 0;
+            const debtInput = document.getElementById('newCustDebtInput');
+            const rawDebt = debtInput ? String(debtInput.value ?? '').trim() : '';
+            const debt = rawDebt === '' ? 0 : Number(rawDebt);
 
-            if(!name) { alert('يرجى كتابة اسم العميل / المحل'); return; }
+            if (!name) { alert('يرجى كتابة اسم العميل / المحل'); return; }
+            if (!Number.isFinite(debt) || debt < 0) {
+                if (debtInput && typeof debtInput.focus === 'function') debtInput.focus();
+                alert('رصيد دين العميل يجب أن يكون رقماً صالحاً غير سالب. لم تُحفظ أي تغييرات.');
+                return;
+            }
+            if (!Array.isArray(AppData.customers)) {
+                alert('سجل العملاء غير صالح؛ لم يتم حفظ أي تغييرات.');
+                return;
+            }
 
+            const editing = editingCustomerId !== null && editingCustomerId !== undefined && String(editingCustomerId) !== '';
+            const matches = editing ? AppData.customers.filter(c => c && c.id != null && String(c.id) === String(editingCustomerId)) : [];
+            if (editing && matches.length !== 1) {
+                alert(matches.length ? 'تعذر التعديل: معرّف العميل مكرر؛ أصلح السجلات قبل المتابعة.' : 'تعذر العثور على العميل للتعديل.');
+                return;
+            }
+            const existing = editing ? matches[0] : null;
+            const previousCustomers = AppData.customers.slice();
+            const previousExisting = existing ? {...existing} : null;
             const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt, debtDate: debt > 0 ? new Date().toISOString().slice(0, 10) : ""};
-            if(editingCustomerId) {
-                const existing = AppData.customers.find(c => String(c.id) === String(editingCustomerId));
-                if(!existing) { alert('تعذر العثور على العميل للتعديل'); return; }
-                Object.assign(existing, data);
-            } else { AppData.customers.push({id: 'CUST-' + Date.now(), ...data}); }
 
-            if (!saveDB()) return;
+            if (editing) {
+                Object.assign(existing, data);
+            } else {
+                let id = 'CUST-' + Date.now();
+                while (AppData.customers.some(c => c && c.id != null && String(c.id) === id)) {
+                    id = 'CUST-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+                }
+                AppData.customers.push({id, ...data});
+            }
+
+            let saved = false;
+            let saveError = null;
+            try { saved = saveDB() !== false; }
+            catch (err) { saveError = err; }
+            if (!saved) {
+                if (existing && previousExisting) Object.assign(existing, previousExisting);
+                AppData.customers = previousCustomers;
+                const reason = saveError && saveError.message ? ' (' + saveError.message + ')' : '';
+                alert('تعذر حفظ بيانات العميل' + reason + '؛ أُعيدت البيانات السابقة ولم يتم اعتماد التغيير.');
+                return;
+            }
+
             closeModal('addCustomerModal');
-            alert(editingCustomerId ? 'تم تحديث بيانات العميل بنجاح ✅' : 'تمت إضافة العميل بكافة البيانات بنجاح ✅');
+            alert(editing ? 'تم تحديث بيانات العميل بنجاح ✅' : 'تمت إضافة العميل بكافة البيانات بنجاح ✅');
             editingCustomerId = null;
             renderCustomersDebts(); renderCustomerDirectory();
         }
