@@ -42,6 +42,8 @@ jobs:
           assert "</html>" in s.lower(), "HTML document appears incomplete"
           print(f"Full app entry point present: {p.stat().st_size} bytes")
           PY
+      - name: Exercise sales invoice print HTML escaping
+        run: node tests/invoice_print_html_escape_test.js
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
