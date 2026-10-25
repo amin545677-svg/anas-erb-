@@ -1630,6 +1630,7 @@ jobs:
 
           const validAccounting = () => ({
             products:[{id:'p1',stock:8}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],
+            caisseBalance:100,
             invoices:[{id:'i1',total:20,paid:5,remaining:15,items:[{qty:2,price:10}]}],
             purchases:[{cost:5,qty:2,total:10}],expenses:[{amt:4}],cashMovements:[{amount:5}]
           });
@@ -1639,6 +1640,22 @@ jobs:
           assert.throws(()=>anasValidateIncomingSyncData(base()),Error,'cloud restore must reject omitted cash movement history when local history exists');
           global.AppData={cashMovements:[]};
           assert.equal(anasValidateIncomingSyncData(base()).cashMovements.length,0,'empty local cash history remains compatible with legacy cloud payloads');
+          global.AppData={};
+          for (const [label, mutate] of [
+            ['boolean cloud cash balance', d=>d.caisseBalance=true],
+            ['array cloud cash balance', d=>d.caisseBalance=[5]],
+            ['malformed cloud cash balance', d=>d.caisseBalance='100oops'],
+            ['negative cloud cash balance', d=>d.caisseBalance=-1]
+          ]) {
+            const bad=validAccounting(); mutate(bad);
+            assert.throws(()=>anasValidateIncomingSyncData(bad),Error,label);
+          }
+          global.AppData={caisseBalance:75};
+          const omittedNonzeroCash=validAccounting(); delete omittedNonzeroCash.caisseBalance;
+          assert.throws(()=>anasValidateIncomingSyncData(omittedNonzeroCash),Error,'cloud restore must reject omitted non-zero local cash balance');
+          global.AppData={caisseBalance:0};
+          const omittedZeroCash=validAccounting(); delete omittedZeroCash.caisseBalance;
+          assert.equal(anasValidateIncomingSyncData(omittedZeroCash),omittedZeroCash,'legacy cloud payload without cash balance remains compatible when local balance is zero');
           global.AppData={};
           const badAccountingCases = [
             ['boolean invoice total', d=>d.invoices[0].total=true],
