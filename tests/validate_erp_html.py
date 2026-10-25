@@ -827,7 +827,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "invoiceMatches.length!==1" in truck_settlement
             and "const inv=invoiceMatches[0]" in truck_settlement,
         "truck settlement rejects coerced or unsafe invoice quantities":
-            "typeof item.qty==='number'||typeof item.qty==='string'" in truck_settlement
+            "typeof item.qty==='number'" in truck_settlement
+            and "typeof item.qty==='string'" in truck_settlement
             and "String(item.qty).trim()===''" in truck_settlement
             and "qty>Number.MAX_SAFE_INTEGER" in truck_settlement,
     }
