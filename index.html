@@ -7550,6 +7550,25 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       alert('تعذر اعتماد الجرد: سجل محاضر الجرد السابق تالف. أصلح السجل أو استعد نسخة سليمة قبل المتابعة؛ لم تُعدّل الأرصدة.');
       return;
     }
+    // A stale or manually restored draft must never post a stocktake session twice.
+    if(typeof s.id!=='string'||!s.id.trim()||!Array.isArray(s.items)||!s.items.length){
+      alert('تعذر اعتماد الجرد: معرّف الجلسة أو قائمة الأصناف غير صالحة؛ لم تُعدّل الأرصدة أو الحركات.');
+      return;
+    }
+    const existingStocktakeRecords=Array.isArray(AppData.stocktakeRecords)?AppData.stocktakeRecords:[];
+    if(existingStocktakeRecords.some(record=>String(record.id??'')===s.id)){
+      alert('تعذر اعتماد الجرد: يوجد محضر سابق بالمعرّف نفسه. رُفض التكرار لحماية سجل التدقيق؛ لم تُعدّل الأرصدة أو الحركات.');
+      return;
+    }
+    const existingStockMovements=Array.isArray(AppData.stockMovements)?AppData.stockMovements:[];
+    const proposedMovementIds=new Set(diffs.map(item=>'STK-MOV-'+s.id+'-'+String(item.productId)));
+    if(existingStockMovements.some(movement=>
+      (String(movement.sourceType||'')==='stocktake'&&String(movement.sourceId??'')===s.id)||
+      (movement.id!=null&&proposedMovementIds.has(String(movement.id)))
+    )){
+      alert('تعذر اعتماد الجرد: توجد حركة مخزون مرتبطة مسبقًا بهذه الجلسة أو تتعارض مع معرّف حركة مقترح. رُفض التكرار؛ لم تُعدّل الأرصدة أو الحركات.');
+      return;
+    }
     const before=JSON.stringify({products:AppData.products,stockMovements:AppData.stockMovements,stocktakeRecords:AppData.stocktakeRecords});
     const previousSessionState={status:s.status,approvedAt:s.approvedAt,approvedBy:s.approvedBy,varianceCount:s.varianceCount};
     const previousDrafts=getDrafts();
