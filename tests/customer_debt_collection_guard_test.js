@@ -132,3 +132,21 @@ for (const invalidValue of ['9007199254740992', '1e309', '-1']) {
   runOpeningBalanceGuard('saveNewSupplierMpos', 'newSuppDebtInput', 'suppliers', invalidValue);
 }
 console.log('PASS: runtime customer and supplier handlers reject unsafe, infinite, and negative opening balances before persistence');
+
+{
+  const customerStart = html.indexOf('function saveNewCustomerMpos()');
+  const customerEnd = html.indexOf('function openCustomerDirectory()', customerStart);
+  const supplierStart = html.indexOf('function saveNewSupplierMpos()');
+  const supplierEnd = html.indexOf('function printLatestLegalCustomerInvoice()', supplierStart);
+  assert.ok(customerStart >= 0 && customerEnd > customerStart, 'customer save handler must be isolatable');
+  assert.ok(supplierStart >= 0 && supplierEnd > supplierStart, 'supplier save handler must be isolatable');
+  const customerSave = html.slice(customerStart, customerEnd);
+  const supplierSave = html.slice(supplierStart, supplierEnd);
+  assert.ok(customerSave.includes('const customerIds = new Set()'), 'customer save must validate existing record IDs');
+  assert.ok(customerSave.includes('معرّفات مكررة'), 'customer save must reject duplicate IDs');
+  assert.ok(customerSave.includes('عنصر تالف'), 'customer save must reject malformed records');
+  assert.ok(supplierSave.includes('const supplierIds = new Set()'), 'supplier save must validate existing record IDs');
+  assert.ok(supplierSave.includes('معرّفات مكررة'), 'supplier save must reject duplicate IDs');
+  assert.ok(supplierSave.includes('عنصر تالف'), 'supplier save must reject malformed records');
+}
+console.log('PASS: customer and supplier saves fail closed on malformed records and duplicate IDs');
