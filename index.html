@@ -2696,14 +2696,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!confirm('هل تريد تصفية ومسح جميع شاشات البيع؟')) return;
             const previousCarts = AppData.posScreensCarts;
             const previousCart = posCart;
-            const previousCartsSnapshot = previousCarts && typeof previousCarts === 'object' && !Array.isArray(previousCarts)
-                ? Object.assign({}, previousCarts) : previousCarts;
             AppData.posScreensCarts = { 1: [], 2: [], 3: [], 4: [], 'quote': [] };
             posCart = [];
             let saved = false;
             try { saved = saveDB() !== false; } catch (err) { console.error('ANAS clear POS screens save failed:', err); }
             if (!saved) {
-                AppData.posScreensCarts = previousCartsSnapshot;
+                AppData.posScreensCarts = previousCarts;
                 posCart = previousCart;
                 renderPosTable();
                 alert('تعذر حفظ مسح شاشات البيع؛ أُعيدت السلال السابقة ولم يتم تأكيد المسح.');
