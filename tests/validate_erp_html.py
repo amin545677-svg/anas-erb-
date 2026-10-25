@@ -75,6 +75,18 @@ def main():
         print("PASS: customer, warehouse, truck IDs and stocktake quantities are safely rendered")
 
 
+    # Stocktake approval must not coerce booleans, arrays, or blank strings into valid counts/balances.
+    stocktake_strict_quantity_guards = [
+        "const validStocktakeQuantity=value=>(typeof value==='number'||typeof value==='string')",
+        "!validStocktakeQuantity(item.physicalQty)",
+        "!validStocktakeQuantity(item.systemQty)",
+        "!validStocktakeQuantity(p.stock)",
+    ]
+    if not all(guard in source for guard in stocktake_strict_quantity_guards):
+        errors.append("stocktake approval must reject malformed/coercible physical, baseline, and current quantities")
+    else:
+        print("PASS: stocktake approval strictly validates physical and system quantities")
+
     # POS search IDs and cart images must remain safe with imported product data.
     pos_safety_guards = [
         "selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))",
@@ -909,10 +921,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: stocktake approval rejects ambiguous product identities")
 
-    if "actual>Number.MAX_SAFE_INTEGER" not in stocktake_approve or "current>Number.MAX_SAFE_INTEGER" not in stocktake_approve:
-        errors.append("stocktake approval must reject unsafe counted and current stock balances before mutation")
+    if "!validStocktakeQuantity(item.physicalQty)" not in stocktake_approve or "!validStocktakeQuantity(item.systemQty)" not in stocktake_approve or "!validStocktakeQuantity(p.stock)" not in stocktake_approve:
+        errors.append("stocktake approval must reject malformed or unsafe counted, baseline, and current stock quantities before mutation")
     else:
-        print("PASS: stocktake approval validates safe numeric bounds before mutation")
+        print("PASS: stocktake approval strictly validates numeric bounds before mutation")
 
     if "if(current!==system)" not in stocktake_approve or "تغير رصيد المنتج" not in stocktake_approve:
         errors.append("stocktake approval must reject stale stock snapshots before mutating inventory")
