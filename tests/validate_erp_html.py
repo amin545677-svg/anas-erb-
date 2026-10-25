@@ -1066,8 +1066,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "const rawAmount=trip.cost;" in truck_expense
             and "(typeof rawAmount==='number')||(typeof rawAmount==='string')" in truck_expense
             and "String(rawAmount).trim()===''" in truck_expense,
-        "truck expense refuses to replace a malformed existing expense ledger":
-            "Object.prototype.hasOwnProperty.call(AppData,'expenses')&&!Array.isArray(AppData.expenses)" in truck_expense
+        "truck expense refuses malformed or ambiguous existing expense records":
+            "Object.prototype.hasOwnProperty.call(AppData,'expenses')&&(!Array.isArray(AppData.expenses)||AppData.expenses.some(e=>!e||typeof e!=='object'||Array.isArray(e)))" in truck_expense
+            and "existingExpenses=AppData.expenses.filter(" in truck_expense
+            and "existingExpenses.length>1" in truck_expense
             and "دون استبدال السجل" in truck_expense,
         "sale aggregates repeated product quantities and validates numeric inputs":
             "aggregateQty = (required.get(id) || 0) + qty" in sale
