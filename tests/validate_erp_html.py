@@ -845,7 +845,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "sale restores exact original stock property and value after persistence failure":
             "if (!saveDB()) throw" in sale
             and "hadStock:Object.prototype.hasOwnProperty.call(p,'stock')" in sale
-            and "if(stockState.hadStock)p.stock=stockState.stock;else delete p.stock;" in sale
+            and "if(stockState.hadStock)p.stock=stockState.stock;" in sale
+            and "else delete p.stock;" in sale
             and "if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;" in sale
             and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
             and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale,
