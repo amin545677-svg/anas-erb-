@@ -777,6 +777,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     stocktake_approve_end = source.find("})();", stocktake_approve_start)
     stocktake_approve = source[stocktake_approve_start:stocktake_approve_end] if stocktake_approve_start >= 0 and stocktake_approve_end > stocktake_approve_start else ""
     transaction_checks = {
+        "clearing POS cart restores both active cart and persisted cart map on save failure":
+            "const previousCarts = AppData.posScreensCarts" in function_source("clearPosCart")
+            and "previousCarts[activeTab] = previousTabCart" in function_source("clearPosCart")
+            and "AppData.posScreensCarts = previousCarts" in function_source("clearPosCart"),
         "POS add/remove/clear cart reject missing or implicit persistence success":
             "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_add
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_remove
