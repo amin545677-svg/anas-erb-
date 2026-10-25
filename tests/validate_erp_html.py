@@ -189,6 +189,24 @@ def main():
     else:
         print("PASS: cloud restore rejects duplicate operational record IDs")
 
+    # Both restore paths must validate the archived stocktake items, not only the top-level record ID.
+    if ("for (const record of (incoming.stocktakeRecords || []))" not in cloud_validator
+        or "const seenProducts = new Set();" not in cloud_validator
+        or "item.physicalQty === null || item.physicalQty === undefined" not in cloud_validator):
+        errors.append("cloud restore must reject malformed stocktake audit item lists and duplicate product rows")
+    else:
+        print("PASS: cloud restore validates stocktake audit contents")
+
+    backup_stocktake_start = source.find("function anasValidateBackupData(incoming)")
+    backup_stocktake_end = source.find("function importDataBackup", backup_stocktake_start)
+    backup_stocktake_validator = source[backup_stocktake_start:backup_stocktake_end] if backup_stocktake_start >= 0 and backup_stocktake_end > backup_stocktake_start else ""
+    if ("for (const record of (incoming.stocktakeRecords || []))" not in backup_stocktake_validator
+        or "const seenProducts = new Set();" not in backup_stocktake_validator
+        or "item.physicalQty === null || item.physicalQty === undefined" not in backup_stocktake_validator):
+        errors.append("backup restore must reject malformed stocktake audit item lists and duplicate product rows")
+    else:
+        print("PASS: backup restore validates stocktake audit contents")
+
     # Cloud restore must enforce invoice arithmetic consistency just like file-backup restore.
     if ("Number(inv.paid) > Number(inv.total) + 0.000001" not in cloud_validator
         or "Math.abs(Number(inv.remaining) - Math.max(0, Number(inv.total) - Number(inv.paid))) > 0.01" not in cloud_validator):

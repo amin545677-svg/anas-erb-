@@ -5926,6 +5926,31 @@ function renderPurchasesTable() {
                     seenIds.add(recordId);
                 }
             }
+            // Approved stocktake history is an audit ledger: validate its item list before accepting a restore.
+            for (const record of (incoming.stocktakeRecords || [])) {
+                if (!Array.isArray(record.items) || !record.items.length || record.items.length > 10000)
+                    throw new Error('محضر جرد محفوظ يفتقد قائمة أصناف صالحة؛ أُلغي الاسترجاع لحماية سجل التدقيق.');
+                const seenProducts = new Set();
+                for (const item of record.items) {
+                    if (!item || typeof item !== 'object' || Array.isArray(item) ||
+                        item.productId == null || String(item.productId).trim() === '' ||
+                        !Object.prototype.hasOwnProperty.call(item, 'systemQty') ||
+                        !Object.prototype.hasOwnProperty.call(item, 'physicalQty') ||
+                        item.physicalQty === null || item.physicalQty === undefined)
+                        throw new Error('صنف في محضر جرد محفوظ يفتقد المعرّف أو كميات الجرد؛ أُلغي الاسترجاع لحماية سجل التدقيق.');
+                    const productKey = String(item.productId).trim();
+                    if (seenProducts.has(productKey))
+                        throw new Error('يوجد صنف مكرر في محضر جرد محفوظ؛ أُلغي الاسترجاع لحماية سجل التدقيق.');
+                    seenProducts.add(productKey);
+                    for (const field of ['systemQty', 'physicalQty']) {
+                        const raw = item[field];
+                        if ((typeof raw !== 'number' && typeof raw !== 'string') ||
+                            (typeof raw === 'string' && raw.trim() === '') ||
+                            !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER)
+                            throw new Error('كمية غير صالحة في محضر جرد محفوظ (' + field + ')؛ أُلغي الاسترجاع لحماية سجل التدقيق.');
+                    }
+                }
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
                 if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
                     throw new Error('بيانات سلال نقاط البيع السحابية غير صالحة.');
@@ -6250,6 +6275,31 @@ function renderPurchasesTable() {
                     if (seenIds.has(recordId))
                         throw new Error('معرّف مكرر في قائمة ' + key + ': ' + recordId + '؛ رُفض الاسترجاع لمنع ربط العمليات بسجل خاطئ.');
                     seenIds.add(recordId);
+                }
+            }
+            // Approved stocktake history is an audit ledger: validate its item list before accepting a restore.
+            for (const record of (incoming.stocktakeRecords || [])) {
+                if (!Array.isArray(record.items) || !record.items.length || record.items.length > 10000)
+                    throw new Error('محضر جرد محفوظ يفتقد قائمة أصناف صالحة؛ رُفض الاسترجاع لحماية سجل التدقيق.');
+                const seenProducts = new Set();
+                for (const item of record.items) {
+                    if (!item || typeof item !== 'object' || Array.isArray(item) ||
+                        item.productId == null || String(item.productId).trim() === '' ||
+                        !Object.prototype.hasOwnProperty.call(item, 'systemQty') ||
+                        !Object.prototype.hasOwnProperty.call(item, 'physicalQty') ||
+                        item.physicalQty === null || item.physicalQty === undefined)
+                        throw new Error('صنف في محضر جرد محفوظ يفتقد المعرّف أو كميات الجرد؛ رُفض الاسترجاع لحماية سجل التدقيق.');
+                    const productKey = String(item.productId).trim();
+                    if (seenProducts.has(productKey))
+                        throw new Error('يوجد صنف مكرر في محضر جرد محفوظ؛ رُفض الاسترجاع لحماية سجل التدقيق.');
+                    seenProducts.add(productKey);
+                    for (const field of ['systemQty', 'physicalQty']) {
+                        const raw = item[field];
+                        if ((typeof raw !== 'number' && typeof raw !== 'string') ||
+                            (typeof raw === 'string' && raw.trim() === '') ||
+                            !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER)
+                            throw new Error('كمية غير صالحة في محضر جرد محفوظ (' + field + ')؛ رُفض الاسترجاع لحماية سجل التدقيق.');
+                    }
                 }
             }
             for (const p of incoming.products) {
