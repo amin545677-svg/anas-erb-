@@ -1,0 +1,27 @@
+name: ANAS ERP Service Worker Cache Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sw.js"
+      - "tests/test_service_worker_cache.py"
+      - ".github/workflows/service-worker-cache-regression.yml"
+  pull_request:
+    paths:
+      - "sw.js"
+      - "tests/test_service_worker_cache.py"
+      - ".github/workflows/service-worker-cache-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  service-worker-cache-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Verify service-worker update and offline-cache invariants
+        run: python tests/test_service_worker_cache.py
