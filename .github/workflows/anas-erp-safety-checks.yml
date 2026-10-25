@@ -1881,7 +1881,7 @@ jobs:
           functions = {}
           for name in names:
               start = s.find("function " + name + "(")
-              end = s.find("\\n        function ", start + 10)
+              end = s.find("\n        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               functions[name] = s[start:end]
           js = r"""
@@ -1894,8 +1894,8 @@ jobs:
           const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
             saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
             document:{getElementById:()=>({classList:{contains:()=>true}})}};
-          vm.runInNewContext(Object.values(sources).join('\\n')+
-            '\\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
+          vm.runInNewContext(Object.values(sources).join('\n')+
+            '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
           for(const action of ctx.actions) action();
           assert.equal(data.invoices.length,1,'legacy calls must not erase sales invoices');
           assert.equal(data.purchases.length,1,'legacy calls must not erase purchase invoices');
