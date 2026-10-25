@@ -1635,6 +1635,11 @@ jobs:
           });
           const goodAccounting=validAccounting();
           assert.equal(anasValidateIncomingSyncData(goodAccounting),goodAccounting,'valid cloud accounting records must remain accepted');
+          global.AppData={cashMovements:[{amount:7}]};
+          assert.throws(()=>anasValidateIncomingSyncData(base()),Error,'cloud restore must reject omitted cash movement history when local history exists');
+          global.AppData={cashMovements:[]};
+          assert.equal(anasValidateIncomingSyncData(base()).cashMovements.length,0,'empty local cash history remains compatible with legacy cloud payloads');
+          global.AppData={};
           const badAccountingCases = [
             ['boolean invoice total', d=>d.invoices[0].total=true],
             ['array invoice paid', d=>d.invoices[0].paid=[5]],
