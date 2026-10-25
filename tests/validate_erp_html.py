@@ -718,6 +718,27 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("stock-balance regression: " + label)
 
+    # Truck load and settlement must never resolve ambiguous product IDs with Array.find().
+    truck_load = function_source("postTripStock")
+    settlement_start = source.find("window.anasTruckSettle = function(id){")
+    settlement_end = source.find("\n  };", settlement_start)
+    truck_settlement = source[settlement_start:settlement_end] if settlement_start >= 0 and settlement_end > settlement_start else ""
+    truck_identity_checks = {
+        "truck load rejects missing or duplicate product IDs before stock mutation":
+            "matches=products.filter(" in truck_load
+            and "matches.length!==1" in truck_load
+            and "const p=matches[0]" in truck_load,
+        "truck settlement rejects missing or duplicate product IDs before prompting or mutation":
+            "productMatches=products.filter(" in truck_settlement
+            and "productMatches.length!==1" in truck_settlement
+            and "const p=productMatches[0]" in truck_settlement,
+    }
+    for label, passed in truck_identity_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("truck product identity regression: " + label)
+
     transaction_checks = {
         "sale aggregates repeated product quantities and validates numeric inputs":
             "required.set(id, (required.get(id) || 0) + qty)" in sale
