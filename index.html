@@ -6471,12 +6471,30 @@ function renderPurchasesTable() {
             return Number(value).toLocaleString();
         }
 
+        function anasGetZReportTotal(invoices, field) {
+            if (!Array.isArray(invoices) || typeof field !== 'string' || !field) return null;
+            let total = 0;
+            for (const invoice of invoices) {
+                if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice)) return null;
+                const value = invoice[field];
+                if (!((typeof value === 'number' || typeof value === 'string') &&
+                      String(value).trim() !== '' && Number.isFinite(Number(value)))) return null;
+                total += Number(value);
+                if (!Number.isFinite(total)) return null;
+            }
+            return total;
+        }
+
+        function anasFormatZReportTotal(value) {
+            return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : 'غير صالح';
+        }
+
         function printZReport() {
             if(typeof applyReportDateRange==='function' && !applyReportDateRange()) return;
             const reportInvoices = typeof getReportInvoices==='function' ? getReportInvoices() : AppData.invoices;
-            const totSales = reportInvoices.reduce((a, b) => a + (Number(b.total)||0), 0);
-            const totPaid = reportInvoices.reduce((a, b) => a + (Number(b.paid)||0), 0);
-            const totRem = reportInvoices.reduce((a, b) => a + (Number(b.remaining)||0), 0);
+            const totSales = anasGetZReportTotal(reportInvoices, 'total');
+            const totPaid = anasGetZReportTotal(reportInvoices, 'paid');
+            const totRem = anasGetZReportTotal(reportInvoices, 'remaining');
             const area = document.getElementById('receiptPrintArea');
             area.innerHTML = `
                 <div style="text-align:center; border-bottom:2px dashed #000; padding-bottom:8px; margin-bottom:8px; line-height:1.5; overflow-wrap:anywhere;">
@@ -6485,10 +6503,10 @@ function renderPurchasesTable() {
                     <p style="margin:2px 0; font-size:11px;">الفترة: ${anasEscapeHTML(getReportRange().from || "—")} إلى ${anasEscapeHTML(getReportRange().to || "—")}</p>
                 </div>
                 <div style="font-size:12px; line-height:1.7;">
-                    <div style="display:flex; justify-content:space-between;"><span>عدد الفواتير:</span><strong>${reportInvoices.length}</strong></div>
-                    <div style="display:flex; justify-content:space-between;"><span>إجمالي المبيعات:</span><strong>${totSales} د.ج</strong></div>
-                    <div style="display:flex; justify-content:space-between;"><span>مقبوضات كاش:</span><strong>${totPaid} د.ج</strong></div>
-                    <div style="display:flex; justify-content:space-between;"><span>مبيعات كريدي:</span><strong>${totRem} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>عدد الفواتير:</span><strong>${Array.isArray(reportInvoices) ? reportInvoices.length : 'غير صالح'}</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>إجمالي المبيعات:</span><strong>${anasFormatZReportTotal(totSales)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>مقبوضات كاش:</span><strong>${anasFormatZReportTotal(totPaid)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>مبيعات كريدي:</span><strong>${anasFormatZReportTotal(totRem)} د.ج</strong></div>
                     <hr style="border-top:1px dashed #000; margin:4px 0;">
                     <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px;">
                         <span>رصيد الصندوق الفعلي:</span><span>${anasFormatZReportCashBalance(AppData.caisseBalance)} د.ج</span>
