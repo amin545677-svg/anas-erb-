@@ -7,6 +7,11 @@ const start = html.indexOf('function collectCustDebt(cId) {');
 const end = html.indexOf('function openGoogleMaps(loc)', start);
 assert.ok(start >= 0 && end > start, 'collectCustDebt function must be present and isolatable');
 const source = html.slice(start, end);
+const fixedNow = 1234567890123;
+class FixedDate extends Date {
+  static now() { return fixedNow; }
+  constructor(...args) { super(...(args.length ? args : [fixedNow])); }
+}
 
 function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math } = {}) {
   const alerts = [];
@@ -25,7 +30,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
     updateCashUI() {},
     renderCustomersDebts() {},
     console,
-    Date,
+    Date: FixedDate,
     Math: math,
     Number, String, Object, Array, Set
   };
@@ -56,7 +61,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
 {
   const deterministicMath = Object.create(Math);
   deterministicMath.random = () => 0.5;
-  const baseId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + (0.5).toString(36).slice(2, 7).toUpperCase();
+  const baseId = 'DEBT-IN-' + fixedNow.toString(36).toUpperCase() + '-' + (0.5).toString(36).slice(2, 7).toUpperCase();
   const result = runCollection({ movements: [{ id: baseId, amount: 1 }], amount: '25', math: deterministicMath });
   assert.equal(result.saves, 1);
   assert.equal(result.appData.cashMovements.length, 2);
