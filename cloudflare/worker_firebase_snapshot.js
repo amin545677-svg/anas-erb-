@@ -50,6 +50,135 @@ function firestoreUrl(env, uid) {
     "/databases/(default)/documents/" + doc;
 }
 
+function isRecord(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateSnapshotNumber(record, field, label, { allowNegative = false, allowZero = true } = {}) {
+  if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+  const raw = record[field];
+  if ((typeof raw !== "number" && typeof raw !== "string") || raw === null ||
+      (typeof raw === "string" && raw.trim() === "")) {
+    throw new Error(label + "." + field + " must be an explicit number");
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER ||
+      (!allowNegative && value < 0) || (!allowZero && value === 0)) {
+    throw new Error(label + "." + field + " is outside the safe numeric range");
+  }
+}
+
+function validateSnapshotData(data) {
+  if (!isRecord(data) || !Array.isArray(data.products) || !Array.isArray(data.customers)) {
+    throw new Error("Snapshot does not match the ANAS ERP data structure");
+  }
+  const arrays = ["products", "customers", "suppliers", "invoices", "purchases", "expenses",
+    "cashMovements", "stockMovements", "warehouseTransfers", "truckTrips", "returns",
+    "purchaseInvoices", "trucks", "users", "alerts"];
+  for (const key of arrays) {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+    if (!Array.isArray(data[key]) || data[key].length > 200000 ||
+        data[key].some(row => !isRecord(row))) {
+      throw new Error("Snapshot collection " + key + " is invalid");
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(data, "warehouses") &&
+      (!Array.isArray(data.warehouses) || data.warehouses.length > 200000 ||
+       data.warehouses.some(w => !(typeof w === "string" && w.trim()) &&
+         (!isRecord(w) || typeof w.name !== "string" || !w.name.trim())))) {
+    throw new Error("Snapshot warehouses are invalid");
+  }
+  if (Object.prototype.hasOwnProperty.call(data, "caisseBalance")) {
+    validateSnapshotNumber(data, "caisseBalance", "caisseBalance");
+  }
+
+  const uniqueIds = (key, requireId = false) => {
+    const seen = new Set();
+    for (const row of data[key] || []) {
+      if (row.id == null || String(row.id).trim() === "") {
+        if (requireId) throw new Error("Snapshot " + key + " record is missing an ID");
+        continue;
+      }
+      const id = String(row.id).trim();
+      if (seen.has(id)) throw new Error("Snapshot " + key + " contains duplicate IDs");
+      seen.add(id);
+    }
+  };
+  uniqueIds("products", true);
+  uniqueIds("invoices");
+  uniqueIds("truckTrips");
+
+  for (const product of data.products) {
+    validateSnapshotNumber(product, "stock", "products.stock");
+    if (Object.prototype.hasOwnProperty.call(product, "warehouseStock")) {
+      if (!isRecord(product.warehouseStock)) throw new Error("Snapshot product warehouseStock is invalid");
+      for (const [warehouse, balance] of Object.entries(product.warehouseStock)) {
+        if (!warehouse.trim()) throw new Error("Snapshot warehouseStock contains a blank warehouse");
+        validateSnapshotNumber({ balance }, "balance", "products.warehouseStock");
+      }
+    }
+  }
+  for (const customer of data.customers) validateSnapshotNumber(customer, "debt", "customers.debt");
+  for (const supplier of data.suppliers || []) validateSnapshotNumber(supplier, "balance", "suppliers.balance");
+  for (const invoice of data.invoices || []) {
+    for (const field of ["total", "paid", "remaining"]) validateSnapshotNumber(invoice, field, "invoices");
+    if (invoice.total != null && invoice.paid != null && Number(invoice.paid) > Number(invoice.total) + 0.000001)
+      throw new Error("Snapshot invoice paid amount exceeds total");
+    if (invoice.total != null && invoice.paid != null && invoice.remaining != null &&
+        Math.abs(Number(invoice.remaining) - Math.max(0, Number(invoice.total) - Number(invoice.paid))) > 0.01)
+      throw new Error("Snapshot invoice balances are inconsistent");
+    if (Object.prototype.hasOwnProperty.call(invoice, "items")) {
+      if (!Array.isArray(invoice.items) || invoice.items.length > 10000 || invoice.items.some(item => !isRecord(item)))
+        throw new Error("Snapshot invoice items are invalid");
+      for (const item of invoice.items) {
+        validateSnapshotNumber(item, "qty", "invoices.items", { allowZero: false });
+        validateSnapshotNumber(item, "price", "invoices.items");
+      }
+    }
+  }
+  for (const purchase of data.purchases || []) {
+    for (const field of ["cost", "qty", "total"]) validateSnapshotNumber(purchase, field, "purchases", { allowZero: false });
+  }
+  for (const expense of data.expenses || []) {
+    validateSnapshotNumber(expense, "amt", "expenses", { allowZero: false });
+    validateSnapshotNumber(expense, "amount", "expenses", { allowZero: false });
+  }
+  for (const movement of data.cashMovements || [])
+    validateSnapshotNumber(movement, "amount", "cashMovements", { allowZero: false });
+  for (const movement of data.stockMovements || []) {
+    for (const field of ["qty", "quantity", "delta"])
+      validateSnapshotNumber(movement, field, "stockMovements", { allowNegative: true });
+    for (const field of ["previousStock", "newStock", "stockBefore", "stockAfter"])
+      validateSnapshotNumber(movement, field, "stockMovements");
+  }
+  for (const transfer of data.warehouseTransfers || []) {
+    if (!Object.prototype.hasOwnProperty.call(transfer, "quantity"))
+      throw new Error("Snapshot warehouse transfer is missing quantity");
+    validateSnapshotNumber(transfer, "quantity", "warehouseTransfers", { allowZero: false });
+    for (const field of ["buyPrice", "salePrice", "buyTotal", "saleTotal"]) {
+      if (transfer[field] !== null) validateSnapshotNumber(transfer, field, "warehouseTransfers");
+    }
+  }
+  for (const trip of data.truckTrips || []) {
+    validateSnapshotNumber(trip, "cost", "truckTrips");
+    validateSnapshotNumber(trip, "weight", "truckTrips");
+    if (Object.prototype.hasOwnProperty.call(trip, "stockItems")) {
+      if (!Array.isArray(trip.stockItems) || trip.stockItems.length > 10000 || trip.stockItems.some(item => !isRecord(item)))
+        throw new Error("Snapshot truck stockItems are invalid");
+      const seenProducts = new Set();
+      for (const item of trip.stockItems) {
+        if (item.productId == null || String(item.productId).trim() === "" ||
+            !Object.prototype.hasOwnProperty.call(item, "qty"))
+          throw new Error("Snapshot truck load item is missing productId or qty");
+        const id = String(item.productId).trim();
+        if (seenProducts.has(id)) throw new Error("Snapshot truck load contains duplicate product IDs");
+        seenProducts.add(id);
+        validateSnapshotNumber(item, "qty", "truckTrips.stockItems", { allowZero: false });
+      }
+    }
+  }
+}
+
 async function handleSnapshot(request, env, origin) {
   const auth = request.headers.get("Authorization") || "";
   const match = auth.match(/^Bearer\s+(.+)$/i);
@@ -89,9 +218,8 @@ async function handleSnapshot(request, env, origin) {
     }
     let appData;
     try { appData = JSON.parse(body.data); } catch (_) { return json({ error: "Snapshot data is not valid JSON" }, 400, origin); }
-    if (!appData || typeof appData !== "object" || !Array.isArray(appData.products) || !Array.isArray(appData.customers)) {
-      return json({ error: "Snapshot does not match the ANAS ERP data structure" }, 400, origin);
-    }
+    try { validateSnapshotData(appData); }
+    catch (e) { return json({ error: "Snapshot failed integrity validation", details: String(e.message || e).slice(0, 300) }, 400, origin); }
     const payload = body.data;
     const qs = new URLSearchParams();
     qs.append("updateMask.fieldPaths", "payload");
