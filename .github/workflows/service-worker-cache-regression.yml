@@ -24,4 +24,4 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Verify service-worker update and offline-cache invariants
-        run: python -m unittest tests/test_service_worker_cache.py
+        run: python tests/test_service_worker_cache.py
