@@ -6789,36 +6789,14 @@ function renderPurchasesTable() {
         }
 
         function old_clearAllSalesInvoices() {
-            if(confirm('هل تريد بالتأكيد حذف ومسح جميع فواتير المبيعات نهائياً؟')) {
-                AppData.invoices = [];
-                saveDB();
-                renderInvoicesList();
-                alert('تم مسح جميع فواتير المبيعات بنجاح ✅');
-            }
+            clearAllSalesInvoices();
         }
-
         function old_clearAllPurchaseInvoices() {
-            if(confirm('هل تريد بالتأكيد حذف ومسح جميع فواتير المشتريات نهائياً؟')) {
-                AppData.purchases = [];
-                saveDB();
-                renderPurchasesTable();
-                alert('تم مسح جميع فواتير المشتريات بنجاح ✅');
-            }
+            clearAllPurchaseInvoices();
         }
-
         function old_autoResetAllInvoicesNow() {
-            if(confirm('هل تريد تصفية ومسح كافة فواتير المبيعات والمشتريات دفعة واحدة؟')) {
-                AppData.invoices = [];
-                AppData.purchases = [];
-                saveDB();
-                if(document.getElementById('view-invoices-list').classList.contains('active')) renderInvoicesList();
-                if(document.getElementById('view-purchases').classList.contains('active')) renderPurchasesTable();
-                alert('تم مسح وتنظيف كافة الفواتير بنجاح ✅');
-            }
+            autoResetAllInvoicesNow();
         }
-
-        // Safe guard: invoice cancellation must reverse stock, cash, debt and audit records atomically.
-        // Until a complete reversal workflow is implemented, refuse destructive cancellation.
         function cancelInvoicePrompt() {
             alert('تنبيه أمني: إلغاء الفاتورة غير متاح مؤقتًا؛ حذف السجل وحده قد يفسد المخزون والحسابات. لم تتغير أي بيانات.');
         }
@@ -6834,25 +6812,14 @@ function renderPurchasesTable() {
         }
 
         function old_cancelInvoicePrompt() {
-            const id = prompt('ادخل رقم الفاتورة المراد إلغاؤها (مثال: INV-1001):');
-            if(id) {
-                AppData.invoices = AppData.invoices.filter(x => x.id !== id.trim());
-                saveDB();
-                renderInvoicesList();
-                alert('تم إلغاء الفاتورة وتحديث الحسابات بنجاح ✅');
-            }
+            cancelInvoicePrompt();
         }
-
         function old_returnSalePrompt() {
-            prompt('ادخل رقم فاتورة المبيعات المراد إرجاعها:');
-            alert('تم فتح واجهة الإرجاع وقيد السلع في المرتجعات ✅');
+            returnSalePrompt();
         }
-
         function old_returnPurchasePrompt() {
-            prompt('ادخل رقم فاتورة المشتريات المراد إرجاعها:');
-            alert('تم فتح واجهة إرجاع المشتريات للمورد ✅');
+            returnPurchasePrompt();
         }
-
         function anasFormatZReportCashBalance(value) {
             if (!((typeof value === 'number' || typeof value === 'string') &&
                   String(value).trim() !== '' && Number.isFinite(Number(value)))) {
