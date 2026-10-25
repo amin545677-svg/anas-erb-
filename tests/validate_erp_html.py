@@ -857,6 +857,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "saved = saveDB() === true" in pos_price_tier,
         "truck deletion fails closed when persistence is missing or implicit":
             "typeof saveDB!=='function'||saveDB()!==true" in source[source.find("window.anasTruckDelete = function(id){"):source.find("window.anasTruckRender = function(){")],
+        "truck trip cost and weight reject unsafe numeric magnitudes":
+            "weight>Number.MAX_SAFE_INTEGER" in truck_create
+            and "cost>Number.MAX_SAFE_INTEGER" in truck_create
+            and "amount>Number.MAX_SAFE_INTEGER" in truck_expense,
         "truck trip creation and expense linking require explicit persistence success":
             "typeof saveDB!=='function' || saveDB()!==true" in truck_create
             and "typeof saveDB!=='function'||saveDB()!==true" in truck_expense,
