@@ -469,12 +469,12 @@ jobs:
             const data = JSON.parse(JSON.stringify(base));
             mutate(data);
             const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-            vm.runInNewContext(validator + '\\nthis.validate = anasValidateBackupData;', ctx);
+            vm.runInNewContext(validator + '\nthis.validate = anasValidateBackupData;', ctx);
             assert.throws(() => ctx.validate(data), /قيمة مالية غير صالحة/, label + ' above the safe numeric range must be rejected');
           }
           const valid = JSON.parse(JSON.stringify(base));
           const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-          vm.runInNewContext(validator + '\\nthis.validate = anasValidateBackupData;', ctx);
+          vm.runInNewContext(validator + '\nthis.validate = anasValidateBackupData;', ctx);
           assert.equal(ctx.validate(valid), valid, 'ordinary backup values must remain accepted');
           console.log('Backup validator safe financial magnitude tests passed');
           """
