@@ -790,6 +790,21 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     stocktake_approve_start = source.find("window.anasApproveStocktake=function(){")
     stocktake_approve_end = source.find("})();", stocktake_approve_start)
     stocktake_approve = source[stocktake_approve_start:stocktake_approve_end] if stocktake_approve_start >= 0 and stocktake_approve_end > stocktake_approve_start else ""
+    legacy_destructive_guards = {
+        "old_clearAllSalesInvoices": "clearAllSalesInvoices();",
+        "old_clearAllPurchaseInvoices": "clearAllPurchaseInvoices();",
+        "old_autoResetAllInvoicesNow": "autoResetAllInvoicesNow();",
+        "old_cancelInvoicePrompt": "cancelInvoicePrompt();",
+        "old_returnSalePrompt": "returnSalePrompt();",
+        "old_returnPurchasePrompt": "returnPurchasePrompt();",
+    }
+    for legacy_name, guard_call in legacy_destructive_guards.items():
+        legacy_fn = function_source(legacy_name)
+        if guard_call not in legacy_fn or "saveDB(" in legacy_fn or "AppData." in legacy_fn:
+            errors.append("legacy destructive action is not routed to its safe guard: " + legacy_name)
+    if all(guard_call in function_source(name) and "saveDB(" not in function_source(name) for name, guard_call in legacy_destructive_guards.items()):
+        print("PASS: legacy destructive invoice actions delegate to safe guards")
+
     transaction_checks = {
         "clearing POS cart restores both active cart and persisted cart map on save failure":
             "const previousCarts = AppData.posScreensCarts" in function_source("clearPosCart")
