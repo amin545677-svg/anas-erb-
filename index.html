@@ -8019,13 +8019,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(!Number.isFinite(amount)||amount<0||amount>Number.MAX_SAFE_INTEGER){alert('قيمة تكلفة الرحلة غير صالحة أو تتجاوز المجال المالي الآمن.');return;}
       if(amount===0){alert('تكلفة الرحلة صفر؛ لا حاجة لإنشاء مصروف.');return;}
       if(!confirm('سيُضاف مبلغ '+money(amount)+' إلى قائمة المصروفات تحت بند نقل الشاحنات. لن يتم خصم المبلغ من رصيد الصندوق تلقائياً. هل تريد المتابعة؟'))return;
-      if(Object.prototype.hasOwnProperty.call(AppData,'expenses')&&!Array.isArray(AppData.expenses))throw new Error('قائمة المصروفات الموجودة تالفة؛ أُوقفت العملية دون استبدال السجل. أصلح البيانات أو استعد نسخة احتياطية قبل المتابعة.');
+      if(Object.prototype.hasOwnProperty.call(AppData,'expenses')&&(!Array.isArray(AppData.expenses)||AppData.expenses.some(e=>!e||typeof e!=='object'||Array.isArray(e))))throw new Error('قائمة المصروفات الموجودة تالفة؛ أُوقفت العملية دون استبدال السجل. أصلح البيانات أو استعد نسخة احتياطية قبل المتابعة.');
       const hadExpensesArray=Array.isArray(AppData.expenses);
       if(!hadExpensesArray)AppData.expenses=[];
       const previousExpenses=AppData.expenses.slice();
       const previousExpenseId=trip.expenseId;
       const expenseId='TRUCK-EXP-'+String(trip.id);
-      const existingExpense=AppData.expenses.find(e=>String(e.sourceId||'')===String(trip.id)&&e.sourceType==='truck_trip');
+      const existingExpenses=AppData.expenses.filter(e=>String(e.sourceId||'')===String(trip.id)&&e.sourceType==='truck_trip');
+      if(existingExpenses.length>1){alert('يوجد أكثر من مصروف مرتبط بهذه الرحلة؛ أُوقفت العملية لمنع اعتماد سجل مالي ملتبس. راجع المصروفات قبل المتابعة.');return;}
+      const existingExpense=existingExpenses[0];
       if(existingExpense){
         trip.expenseId=existingExpense.id;
         let linked=true;try{if(typeof saveDB!=='function'||saveDB()!==true)linked=false;}catch(e){linked=false;console.error(e);}
