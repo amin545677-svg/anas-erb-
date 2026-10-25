@@ -6002,6 +6002,22 @@ function renderPurchasesTable() {
             for (const trip of (incoming.truckTrips || [])) {
                 validateCloudMoney(trip, 'cost', 'تكلفة الرحلات');
                 validateCloudMoney(trip, 'weight', 'وزن الرحلات');
+                if (Object.prototype.hasOwnProperty.call(trip, 'stockItems')) {
+                    if (!Array.isArray(trip.stockItems) || trip.stockItems.length > 10000 ||
+                        trip.stockItems.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
+                        throw new Error('قائمة حمولة إحدى رحلات الشاحنات غير صالحة؛ أُلغي الاسترجاع لحماية المخزون.');
+                    const seenTripProducts = new Set();
+                    for (const item of trip.stockItems) {
+                        if (item.productId == null || String(item.productId).trim() === '' ||
+                            !Object.prototype.hasOwnProperty.call(item, 'qty'))
+                            throw new Error('تحتوي حمولة إحدى رحلات الشاحنات على صنف أو كمية مفقودة؛ أُلغي الاسترجاع لحماية المخزون.');
+                        const productKey = String(item.productId).trim();
+                        if (seenTripProducts.has(productKey))
+                            throw new Error('يوجد صنف مكرر في حمولة إحدى رحلات الشاحنات؛ أُلغي الاسترجاع لمنع تكرار حركة المخزون.');
+                        seenTripProducts.add(productKey);
+                        validateCloudMoney(item, 'qty', 'كميات حمولة الشاحنات', false);
+                    }
+                }
             }
             return incoming;
         }
@@ -6254,6 +6270,22 @@ function renderPurchasesTable() {
             for (const trip of (incoming.truckTrips || [])) {
                 validateMoneyField(trip, 'cost', 'تكلفة الرحلات');
                 validateMoneyField(trip, 'weight', 'وزن الرحلات');
+                if (Object.prototype.hasOwnProperty.call(trip, 'stockItems')) {
+                    if (!Array.isArray(trip.stockItems) || trip.stockItems.length > 10000 ||
+                        trip.stockItems.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
+                        throw new Error('قائمة حمولة إحدى رحلات الشاحنات غير صالحة؛ رُفض الاسترجاع لحماية المخزون.');
+                    const seenTripProducts = new Set();
+                    for (const item of trip.stockItems) {
+                        if (item.productId == null || String(item.productId).trim() === '' ||
+                            !Object.prototype.hasOwnProperty.call(item, 'qty'))
+                            throw new Error('تحتوي حمولة إحدى رحلات الشاحنات على صنف أو كمية مفقودة؛ رُفض الاسترجاع لحماية المخزون.');
+                        const productKey = String(item.productId).trim();
+                        if (seenTripProducts.has(productKey))
+                            throw new Error('يوجد صنف مكرر في حمولة إحدى رحلات الشاحنات؛ رُفض الاسترجاع لمنع تكرار حركة المخزون.');
+                        seenTripProducts.add(productKey);
+                        validateMoneyField(item, 'qty', 'كميات حمولة الشاحنات', false);
+                    }
+                }
             }
             // Warehouse transfer vouchers are persisted accounting records too. Validate numeric values
             // during restore so malformed legacy/imported vouchers cannot bypass the transfer UI guards.
