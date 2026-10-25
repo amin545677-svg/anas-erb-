@@ -557,6 +557,10 @@ jobs:
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
+          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
+          truck_links = s[helper_start:helper_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -565,8 +569,9 @@ jobs:
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
           const validatorSource = /*INSERT_VALIDATOR*/;
+          const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
           const expectReject = (data,label) => {
             assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
@@ -607,6 +612,7 @@ jobs:
           console.log('Backup restore duplicate record ID tests passed');
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
+          js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
           Path("/tmp/anas-backup-duplicate-ids-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-duplicate-ids-test.js
@@ -617,6 +623,10 @@ jobs:
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
+          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
+          truck_links = s[helper_start:helper_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -625,8 +635,9 @@ jobs:
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
           const validatorSource = /*INSERT_VALIDATOR*/;
+          const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
           ctx.AppData = {caisseBalance:75};
           const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
@@ -701,6 +712,7 @@ jobs:
           console.log('Backup financial-value validation tests passed');
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
+          js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
           Path("/tmp/anas-backup-financial-validation-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-financial-validation-test.js
