@@ -4893,8 +4893,15 @@ function renderPurchasesTable() {
                     scan(child, path + '.' + key, seen);
                 }
             };
-            for(const key of ['invoices','purchases','salesReturns','purchaseReturns','stockMovements','warehouseTransfers','truckTrips','inventoryAdjustments']) {
-                if(Array.isArray(AppData[key])) scan(AppData[key], key);
+            // Audit history is authoritative: refuse deletion if a present collection cannot be inspected.
+            // Include stocktake records and the unified returns ledger so historical product references survive.
+            for(const key of ['invoices','purchases','salesReturns','purchaseReturns','returns','stockMovements','warehouseTransfers','truckTrips','inventoryAdjustments','stocktakeRecords']) {
+                if(!Object.prototype.hasOwnProperty.call(AppData, key)) continue;
+                if(!Array.isArray(AppData[key])) {
+                    alert('لا يمكن التحقق من السجلات التاريخية لأن قائمة ' + key + ' تالفة أو غير صالحة. أصلحها أو استعد نسخة سليمة قبل حذف المنتج.');
+                    return;
+                }
+                scan(AppData[key], key);
             }
             if(references.length) {
                 alert('لا يمكن حذف هذا المنتج لأنه مرتبط بسجلات أو حركات تاريخية. احتفظ به للحفاظ على دقة التقارير والمراجعة.');
