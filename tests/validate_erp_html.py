@@ -690,6 +690,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Object.prototype.hasOwnProperty.call(incoming, key)",
         "if (Array.isArray(AppData[key]) && AppData[key].length)",
         "النسخة السحابية تفتقد قائمة ",
+        "continue;",
         "Object.prototype.hasOwnProperty.call(incoming, 'warehouses')",
         "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
         "!warehouse.trim()",
