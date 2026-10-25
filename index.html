@@ -7760,7 +7760,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           for(const item of inv.items){
             const key=String(item.id??item.productId??'');
             const qty=Number(item.qty);
-            if(!key||!Number.isFinite(qty)||qty<=0){alert('تحتوي الفاتورة '+inv.id+' على صنف أو كمية غير صالحة؛ أُلغيت التسوية.');return;}
+            if(!key||!((typeof item.qty==='number')||(typeof item.qty==='string'))||String(item.qty).trim()===''||!Number.isFinite(qty)||qty<=0||qty>Number.MAX_SAFE_INTEGER){alert('تحتوي الفاتورة '+inv.id+' على صنف أو كمية غير صالحة؛ أُلغيت التسوية.');return;}
             invoiced.set(key,(invoiced.get(key)||0)+qty);
           }
         }
