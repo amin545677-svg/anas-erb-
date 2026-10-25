@@ -2857,6 +2857,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }, true);
 
         function addItemToPosCart(pId) {
+            const hadCartMap = Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts');
+            const previousCartMap = AppData.posScreensCarts;
+            const activeTab = AppData.activePosScreenTab;
+            const hadTabCart = !!previousCartMap && typeof previousCartMap === 'object' &&
+                !Array.isArray(previousCartMap) && Object.prototype.hasOwnProperty.call(previousCartMap, activeTab);
+            const previousTabCart = hadTabCart ? previousCartMap[activeTab] : undefined;
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const p = products.find(x => String(x.id) === String(pId));
             if (!p) { alert('تعذر إضافة المنتج: لم يعد موجودًا في قائمة المنتجات. حدّث القائمة وحاول مجددًا.'); return; }
@@ -2882,10 +2888,22 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             AppData.posScreensCarts = AppData.posScreensCarts || {};
             AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB !== 'function' || saveDB() !== true) {
-                // لا نُبقي تغيير السلة غير المحفوظ في الذاكرة إذا فشل الحفظ.
+            let cartSaved = false;
+            try { cartSaved = typeof saveDB === 'function' && saveDB() === true; }
+            catch (err) { console.error('ANAS POS cart save failed', err); }
+            if (!cartSaved) {
+                // Restore both the cart contents and the exact pre-save map shape.
                 if (ex) ex.qty--;
                 else posCart.pop();
+                if (hadCartMap) {
+                    AppData.posScreensCarts = previousCartMap;
+                    if (previousCartMap && typeof previousCartMap === 'object' && !Array.isArray(previousCartMap)) {
+                        if (hadTabCart) previousCartMap[activeTab] = previousTabCart;
+                        else delete previousCartMap[activeTab];
+                    }
+                } else {
+                    delete AppData.posScreensCarts;
+                }
                 renderPosTable();
                 return;
             }
