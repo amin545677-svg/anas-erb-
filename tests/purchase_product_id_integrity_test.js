@@ -11,5 +11,7 @@ const mutationAt = source.indexOf('AppData.purchases.unshift(');
 assert.ok(guardAt >= 0, 'purchase must validate product ID uniqueness');
 assert.ok(mutationAt > guardAt, 'duplicate product IDs must be rejected before any purchase or stock mutation');
 assert.ok(source.includes('productIds.has(recordId)'), 'purchase must detect repeated non-empty product IDs');
+assert.ok(source.includes('existingProduct.id === undefined || existingProduct.id === null || String(existingProduct.id).trim() === \'\''), 'purchase must reject a same-name product without a stable ID');
+assert.ok(source.indexOf('لا يملك معرّفًا صالحًا') < mutationAt, 'missing product identity must be rejected before stock or purchase mutation');
 assert.ok(source.includes('معرّف المنتج مكرر'), 'duplicate-ID rejection must explain the reason to the operator');
 console.log('Purchase product identity integrity checks passed');

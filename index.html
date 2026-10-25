@@ -3685,6 +3685,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const productMatches = (Array.isArray(AppData.products) ? AppData.products : []).filter(p => String(p.name || '').trim().toLocaleLowerCase() === normalizedName);
             if (productMatches.length > 1) { alert('تعذر تسجيل الشراء: يوجد أكثر من منتج بالاسم نفسه. وحّد سجل المنتجات قبل تعديل المخزون.'); return; }
             const existingProduct = productMatches[0] || null;
+            if (existingProduct && (existingProduct.id === undefined || existingProduct.id === null || String(existingProduct.id).trim() === '')) {
+                alert('تعذر تسجيل الشراء: المنتج المطابق للاسم لا يملك معرّفًا صالحًا. أصلح هوية المنتج أولًا؛ لم يتم تعديل المخزون.');
+                return;
+            }
             const existingStock = existingProduct && Object.prototype.hasOwnProperty.call(existingProduct, 'stock') ? existingProduct.stock : 0;
             if (existingProduct && !((typeof existingStock === 'number' || typeof existingStock === 'string') && String(existingStock).trim() !== '' && Number.isFinite(Number(existingStock)) && Number(existingStock) >= 0)) {
                 alert('تعذر تسجيل الشراء: رصيد المخزون الحالي غير صالح للمنتج. أصلح الرصيد قبل المتابعة.'); return;
