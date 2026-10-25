@@ -1,7 +1,15 @@
 name: Deploy ANAS ERP Firebase Worker
 
 on:
-  # Deploy only after an explicit manual action.
+  # Deploy automatically after reviewed changes land on main, and retain manual recovery.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-firebase-worker.yml'
+      - 'cloudflare/**'
+      - 'tests/worker_firebase_snapshot*.mjs'
+      - 'index.html'
   workflow_dispatch:
 
 permissions:
