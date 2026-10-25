@@ -176,6 +176,34 @@ test("duplicate expense and stock ledger IDs are rejected before Firestore write
 });
 
 
+test("duplicate user and alert IDs are rejected before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("duplicate IDs must not reach Firestore");
+  };
+  try {
+    const badSnapshots = [
+      { products: [{ id: "p1", stock: 1 }], customers: [], users: [
+        { id: "user-1", name: "A" }, { id: "user-1", name: "B" }
+      ] },
+      { products: [{ id: "p1", stock: 1 }], customers: [], alerts: [
+        { id: "alert-1", message: "A" }, { id: "alert-1", message: "B" }
+      ] }
+    ];
+    for (const data of badSnapshots) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST", body: { data: JSON.stringify(data) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "duplicate user and alert IDs must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("oversized snapshot bodies are cancelled at the streaming limit", async () => {
   const oldFetch = globalThis.fetch;
   let firestoreCalls = 0;
