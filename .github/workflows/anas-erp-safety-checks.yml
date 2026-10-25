@@ -1235,6 +1235,8 @@ jobs:
           node /tmp/anas-cash-expense-test.js
       - name: Test safe financial arithmetic during sales invoice edits
         run: node tests/invoice_edit_safe_financial_arithmetic_test.js
+      - name: Test purchase product ID integrity
+        run: node tests/purchase_product_id_integrity_test.js
       - name: Exercise invoice edit rollback metadata with mocks
         run: |
           python - <<'PY'
