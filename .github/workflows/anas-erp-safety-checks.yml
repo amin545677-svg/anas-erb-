@@ -1996,7 +1996,7 @@ jobs:
             const bad = base(); bad.warehouses = warehouses;
             assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouses must be rejected');
           }
-          for (const stock of [' ', null, true, {}, [], -1, Infinity]) {
+          for (const stock of [' ', null, true, {}, [], -1, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
             const bad = base(); bad.products[0].stock = stock;
             assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed primary stock must be rejected');
           }
@@ -2004,7 +2004,7 @@ jobs:
             const bad = base(); bad.products[0].warehouseStock = warehouseStock;
             assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouse stock map must be rejected');
           }
-          for (const warehouseStock of [{'   ':2}, {Legacy:' '}, {Legacy:true}, {Legacy:-1}, {Legacy:Infinity}]) {
+          for (const warehouseStock of [{'   ':2}, {Legacy:' '}, {Legacy:true}, {Legacy:-1}, {Legacy:Infinity}, {Legacy:Number.MAX_SAFE_INTEGER + 1}]) {
             const bad = base(); bad.products[0].warehouseStock = warehouseStock;
             assert.throws(() => anasValidateIncomingSyncData(bad), Error, 'malformed warehouse key/balance must be rejected');
           }
