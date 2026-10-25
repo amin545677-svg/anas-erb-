@@ -143,6 +143,37 @@ test("malformed truck loads and warehouse transfers are rejected before persiste
   } finally { globalThis.fetch = oldFetch; }
 });
 
+test("duplicate expense and stock ledger IDs are rejected before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("duplicate ledger IDs must not reach Firestore");
+  };
+  try {
+    const badSnapshots = [
+      { products: [{ id: "p1", stock: 1 }], customers: [], expenses: [
+        { id: "E-DUP", amt: 10 }, { id: "E-DUP", amt: 12 }
+      ] },
+      { products: [{ id: "p1", stock: 1 }], customers: [], stockMovements: [
+        { id: "M-DUP", qty: 1 }, { id: "M-DUP", qty: -1 }
+      ] },
+      { products: [{ id: "p1", stock: 1 }], customers: [], warehouseTransfers: [
+        { id: "WT-DUP", quantity: 1 }, { id: "WT-DUP", quantity: 2 }
+      ] }
+    ];
+    for (const data of badSnapshots) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST", body: { data: JSON.stringify(data) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "duplicate ledger IDs must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("missing Firebase bearer token is rejected before any external request", async () => {
   const oldFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error("unexpected external request"); };
