@@ -7699,7 +7699,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
       const snapshots=lines.map(line=>{
         const p=products.find(x=>String(x.id)===String(line.productId));
-        return {p,stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)};
+        return {p,hadStock:Object.prototype.hasOwnProperty.call(p,'stock'),stock:p.stock,hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)};
       });
       const movesBefore=Array.isArray(AppData.stockMovements)?AppData.stockMovements.slice():null;
       const tripBefore={settlementId:trip.settlementId,settledAt:trip.settledAt,settlementInvoiceIds:trip.settlementInvoiceIds,settlementLines:trip.settlementLines};
@@ -7730,7 +7730,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         trip.settlementInvoiceIds=linked.map(inv=>String(inv.id));trip.settlementLines=lines.map(line=>({...line}));
         if(saveDB()!==true)throw new Error('فشل حفظ التسوية.');
       }catch(e){
-        for(const old of snapshots){old.p.stock=old.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock;}
+        for(const old of snapshots){if(old.hadStock)old.p.stock=old.stock;else delete old.p.stock;if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock;}
         if(movesBefore===null)delete AppData.stockMovements;else AppData.stockMovements=movesBefore;
         for(const key of ['settlementId','settledAt','settlementInvoiceIds','settlementLines'])if(tripBefore[key]===undefined)delete trip[key];else trip[key]=tripBefore[key];
         throw e;
