@@ -7586,7 +7586,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const plate=($('truckPlate').value||'').trim(), driver=($('truckDriver').value||'').trim(), origin=($('truckOrigin').value||'').trim(), destination=($('truckDestination').value||'').trim();
       if(!plate||!driver||!origin||!destination){ alert('يرجى إدخال رقم الشاحنة والسائق والانطلاق والوجهة.'); return; }
       const weight=Number($('truckWeight').value), cost=Number($('truckCost').value);
-      if(!Number.isFinite(weight)||weight<0||!Number.isFinite(cost)||cost<0){alert('الوزن والتكلفة يجب أن يكونا أرقاماً موجبة أو صفراً.');return;}
+      if(!Number.isFinite(weight)||weight<0||weight>Number.MAX_SAFE_INTEGER||!Number.isFinite(cost)||cost<0||cost>Number.MAX_SAFE_INTEGER){alert('الوزن والتكلفة يجب أن يكونا أرقاماً غير سالبة وضمن المجال الرقمي الآمن.');return;}
       const rawDate=$('truckDate').value;
       if(rawDate && Number.isNaN(new Date(rawDate).getTime())){alert('تاريخ ووقت الرحلة غير صالحين.');return;}
       const tripId='TR-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
@@ -7784,7 +7784,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(!trip){alert('لم يتم العثور على الرحلة.');return;}
       if(trip.expenseId){alert('تم تسجيل تكلفة هذه الرحلة كمصروف من قبل.');return;}
       const amount=Number(trip.cost);
-      if(!Number.isFinite(amount)||amount<0){alert('قيمة تكلفة الرحلة غير صالحة.');return;}
+      if(!Number.isFinite(amount)||amount<0||amount>Number.MAX_SAFE_INTEGER){alert('قيمة تكلفة الرحلة غير صالحة أو تتجاوز المجال المالي الآمن.');return;}
       if(amount===0){alert('تكلفة الرحلة صفر؛ لا حاجة لإنشاء مصروف.');return;}
       if(!confirm('سيُضاف مبلغ '+money(amount)+' إلى قائمة المصروفات تحت بند نقل الشاحنات. لن يتم خصم المبلغ من رصيد الصندوق تلقائياً. هل تريد المتابعة؟'))return;
       const hadExpensesArray=Array.isArray(AppData.expenses);
