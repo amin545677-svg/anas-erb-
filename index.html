@@ -5889,6 +5889,26 @@ function renderPurchasesTable() {
                     (!w || typeof w !== 'object' || Array.isArray(w) || typeof w.name !== 'string' || !w.name.trim())))) {
                 throw new Error('قائمة المخازن غير صالحة.');
             }
+            const idCollections = [
+                ['products', incoming.products, true],
+                ['customers', incoming.customers, false],
+                ['suppliers', incoming.suppliers, false],
+                ['invoices', incoming.invoices, false],
+                ['truckTrips', incoming.truckTrips || [], false]
+            ];
+            for (const [key, records, requireId] of idCollections) {
+                const seenIds = new Set();
+                for (const record of records) {
+                    if (record.id == null || String(record.id).trim() === '') {
+                        if (requireId) throw new Error('يوجد سجل بلا معرّف في ' + key + '؛ أُلغي الاسترجاع لحماية البيانات.');
+                        continue;
+                    }
+                    const recordId = String(record.id).trim();
+                    if (seenIds.has(recordId))
+                        throw new Error('معرّف مكرر في قائمة ' + key + ': ' + recordId + '؛ أُلغي الاسترجاع لمنع ربط العمليات بسجل خاطئ.');
+                    seenIds.add(recordId);
+                }
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
                 if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
                     throw new Error('بيانات سلال نقاط البيع السحابية غير صالحة.');
