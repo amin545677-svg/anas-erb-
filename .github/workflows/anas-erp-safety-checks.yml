@@ -2476,7 +2476,7 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-BAD-COST');
             assert.equal(saves, 0, 'malformed trip cost must not persist: ' + JSON.stringify(invalidAmount));
             assert.deepEqual(ctx.AppData.expenses, [], 'malformed trip cost must not append expense');
@@ -2490,7 +2490,7 @@ jobs:
             anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
             Number,String,Object,Array,Date,console
           };
-          vm.runInNewContext(fn + '\\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+          vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
           ctx.runExpense('T-VALID-COST');
           assert.equal(saves,1,'valid numeric string should persist');
           assert.equal(ctx.AppData.expenses.length,1);
