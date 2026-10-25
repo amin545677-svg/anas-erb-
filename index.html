@@ -6136,7 +6136,9 @@ function renderPurchasesTable() {
             const idCollections = [
                 ['products', incoming.products, true],
                 ['customers', incoming.customers, false],
-                ['suppliers', incoming.suppliers, false]
+                ['suppliers', incoming.suppliers, false],
+                ['invoices', incoming.invoices || [], false],
+                ['truckTrips', incoming.truckTrips || [], false]
             ];
             for (const [key, records, requireId] of idCollections) {
                 const seenIds = new Set();
