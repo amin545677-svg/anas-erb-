@@ -4006,7 +4006,7 @@ function renderPurchasesTable() {
 
         function collectCustDebt(cId) {
             if (!Array.isArray(AppData.customers)) { alert('سجل العملاء غير صالح؛ لم يتم تسجيل أي قبض.'); return; }
-            const customerMatches = AppData.customers.filter(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined && x.id !== null && String(x.id) === String(cId));
+            const customerMatches = AppData.customers.filter(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined && x.id !== null && String(x.id).trim() !== '' && String(x.id) === String(cId));
             if (customerMatches.length !== 1) {
                 alert(customerMatches.length ? 'تعذر تسجيل القبض: معرّف العميل مكرر؛ أصلح السجلات قبل المتابعة.' : 'تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.');
                 return;
