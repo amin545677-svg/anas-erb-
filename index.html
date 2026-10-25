@@ -4446,8 +4446,14 @@ function renderPurchasesTable() {
         // تعديل فاتورة محفوظة مع تسوية فرق المخزون والحسابات قبل اعتماد التغييرات.
         function editSalesInvoice(invoiceId) {
             const invoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
-            const inv = invoices.find(x => String(x.id) === String(invoiceId));
-            if (!inv) { alert('لم يتم العثور على الفاتورة المطلوبة.'); return; }
+            const matchingInvoices = invoices.filter(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined && x.id !== null && String(x.id).trim() !== '' && String(x.id) === String(invoiceId));
+            if (matchingInvoices.length !== 1) {
+                alert(matchingInvoices.length > 1
+                    ? 'تعذر تعديل الفاتورة: معرّف الفاتورة مكرر؛ لم يتم تغيير الفاتورة أو المخزون. أصلح المعرّفات أولًا.'
+                    : 'لم يتم العثور على الفاتورة المطلوبة.');
+                return;
+            }
+            const inv = matchingInvoices[0];
             if (!Array.isArray(inv.items) || !inv.items.length) { alert('هذه الفاتورة لا تحتوي على تفاصيل أصناف قابلة للتعديل.'); return; }
             // Validate historical invoice lines before asking the user to edit them.
             const productCatalog = Array.isArray(AppData.products) ? AppData.products : [];
