@@ -2544,15 +2544,21 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             let serialized;
             try {
                 const currentCarts = AppData.posScreensCarts;
-                nextCarts = currentCarts && typeof currentCarts === 'object' && !Array.isArray(currentCarts)
-                    ? { ...currentCarts }
-                    : {};
+                if (currentCarts !== undefined && currentCarts !== null &&
+                    (typeof currentCarts !== 'object' || Array.isArray(currentCarts))) {
+                    const invalidCarts = new Error('خريطة سلال البيع غير صالحة؛ أُوقف الحفظ دون استبدال البيانات.');
+                    invalidCarts.code = 'ANAS_INVALID_POS_CARTS';
+                    throw invalidCarts;
+                }
+                nextCarts = currentCarts ? { ...currentCarts } : {};
                 nextCarts[AppData.activePosScreenTab] = posCart;
                 const snapshot = { ...AppData, posScreensCarts: nextCarts };
                 serialized = JSON.stringify(snapshot);
                 localStorage.setItem(ANAS_DB_KEY, serialized);
             } catch (e) {
-                alert('تعذر حفظ البيانات على الهاتف. قد تكون مساحة التخزين ممتلئة. صدّر نسخة احتياطية قبل إعادة المحاولة.');
+                alert(e && e.code === 'ANAS_INVALID_POS_CARTS'
+                    ? e.message
+                    : 'تعذر حفظ البيانات على الهاتف. قد تكون مساحة التخزين ممتلئة. صدّر نسخة احتياطية قبل إعادة المحاولة.');
                 console.error('Anas ERP persistent save failed:', e);
                 return false;
             }
