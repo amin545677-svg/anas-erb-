@@ -1730,7 +1730,28 @@ jobs:
             assert.equal(AppData.stockMovements.length, 0, badInvoice.id + ' must not create ledger movements');
             assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, badInvoice.id + ' must not mark trip settled');
           }
-          console.log('Truck settlement mock tests passed: invoice match, stock partition, idempotency, rollback, empty details and malformed invoice lines');
+          // Reject coercible malformed invoice quantities even when JavaScript Number() would make them match delivery.
+          for (const malformedQty of [true, [1], '   ']) {
+            global.prompt = (() => {
+              const answers = ['1','3','3','3','INV-COERCED'];
+              return () => answers.shift();
+            })();
+            let malformedQtySaveCalled = false;
+            global.saveDB = () => { malformedQtySaveCalled = true; return true; };
+            global.AppData = {
+              products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':9}}],
+              truckTrips: [{id:'T-COERCED',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:10}]}],
+              invoices: [{id:'INV-COERCED',warehouse:'Truck T',warehouseName:'Truck T',items:[{id:'p1',qty:malformedQty}]}],
+              stockMovements: []
+            };
+            window.anasTruckSettle('T-COERCED');
+            assert.equal(malformedQtySaveCalled, false, 'coercible malformed invoice quantity must not be persisted: ' + JSON.stringify(malformedQty));
+            assert.equal(AppData.products[0].stock, 5, 'malformed invoice quantity must not change main stock');
+            assert.equal(AppData.products[0].warehouseStock['Truck T'], 9, 'malformed invoice quantity must not change truck stock');
+            assert.equal(AppData.stockMovements.length, 0, 'malformed invoice quantity must not create movements');
+            assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'malformed invoice quantity must not settle trip');
+          }
+          console.log('Truck settlement mock tests passed: invoice identity and quantity validation, stock partition, idempotency, rollback, and malformed invoice details');
           """
           js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-settlement-test.js").write_text(js, encoding="utf-8")
