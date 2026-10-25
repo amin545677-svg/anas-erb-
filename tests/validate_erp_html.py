@@ -711,6 +711,12 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "Number.isFinite(available)" in stock_transfer
             and "Number.isFinite(destinationBalance)" in stock_transfer
             and "destinationBalance=wtBalance(p,to)" in stock_transfer,
+        "warehouse transfer rejects duplicate product IDs and destination overflow":
+            "productMatches=(AppData.products||[]).filter(" in stock_transfer
+            and "productMatches.length!==1" in stock_transfer
+            and "Number.isFinite(destinationBalance+qty)" in stock_transfer,
+        "truck load rejects destination stock overflow before mutation":
+            "Number.isFinite(truckBalance+qty)" in function_source("postTripStock"),
     }
     for label, passed in stock_balance_checks.items():
         if passed:
