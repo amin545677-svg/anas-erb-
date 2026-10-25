@@ -1487,6 +1487,10 @@ jobs:
           assert.throws(() => postTripStock(aggregateOverflowTrip), /إجمالي كمية الصنف/, 'duplicate-line quantity aggregate overflow must be rejected');
           assert.equal(AppData.products[0].stock, Number.MAX_SAFE_INTEGER, 'aggregate overflow must preserve stock');
           assert.deepEqual(AppData.stockMovements, [], 'aggregate overflow must not create movements');
+          global.AppData = {
+            products: [{ id: 'p1', name: 'Product', stock: 10, warehouseStock: {} }],
+            stockMovements: [], warehouses: []
+          };
           global.wtEnsureMobileWarehouse = name => {
             if (!AppData.warehouses.includes(name)) AppData.warehouses.push(name);
           };
