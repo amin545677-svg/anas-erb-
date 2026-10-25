@@ -909,6 +909,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "warehouse transfer rejects insufficient stock and restores inventory/transfer records on failure":
             "qty>available" in transfer and "if(!saveDB())throw" in transfer
             and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
+        "backup restore validates per-warehouse stock maps":
+            "rawBalance" in source and "Number(rawBalance) > Number.MAX_SAFE_INTEGER" in source,
+
         "backup restore rejects unsafe stock and financial magnitudes":
             "Number(p.stock) > Number.MAX_SAFE_INTEGER" in source
             and "Number(raw) > Number.MAX_SAFE_INTEGER" in source,
