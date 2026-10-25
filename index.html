@@ -3313,11 +3313,14 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
                 });
             }
-            const oldCaisse = Number(AppData.caisseBalance) || 0;
+            const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const rawCaisseBalance = AppData.caisseBalance;
+            const oldCaisse = Number(rawCaisseBalance) || 0;
             const oldCart = cart.map(it => ({...it}));
             const hadInvoicesArray = Array.isArray(AppData.invoices);
             const oldInvoices = hadInvoicesArray ? AppData.invoices : (AppData.invoices = []);
             const invoicesBefore = oldInvoices.slice();
+            const hadDebtDate = Object.prototype.hasOwnProperty.call(cust, 'debtDate');
             const oldDebtDate = cust.debtDate;
             const invObj = {
                 id: 'INV-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
@@ -3360,10 +3363,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     }
                 }
                 if (registeredCustomer) {
-                    cust.debt = oldDebt;
-                    if (oldDebtDate === undefined) delete cust.debtDate; else cust.debtDate = oldDebtDate;
+                    if (hasDebtField) cust.debt = rawDebt; else delete cust.debt;
+                    if (hadDebtDate) cust.debtDate = oldDebtDate; else delete cust.debtDate;
                 }
-                AppData.caisseBalance = oldCaisse;
+                if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;
                 AppData.invoices = invoicesBefore;
                 posCart = oldCart;
                 if (!hadInvoicesArray && invoicesBefore.length === 0) delete AppData.invoices;
