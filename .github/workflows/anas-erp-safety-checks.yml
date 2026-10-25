@@ -934,6 +934,53 @@ jobs:
           PY
           node --check /tmp/anas-customer-save-test.js
           node /tmp/anas-customer-save-test.js
+      - name: Exercise user edit rollback when persistence fails
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function saveUserRecord()")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate saveUserRecord"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const fn = /*INSERT_USER_SAVE_FUNCTION*/;
+          const user = {id:7,name:'Old User',phone:'111',address:'Old Address',role:'بائع',warehouse:'المخزن الرئيسي',secondaryWarehouse:'',permissions:['dashboard'],extra:'preserve'};
+          const warehouses = [{name:'Old Warehouse',assigned_user_id:7}];
+          const fields = {
+            editUserIdInput:{value:'7'},newUserNameInput:{value:'Changed User'},newUserPhoneInput:{value:'222'},
+            newUserAddressInput:{value:'New Address'},newUserRoleSelect:{value:'بائع'},
+            newUserWarehouseInput:{value:'المخزن الرئيسي'},newUserSecondaryWarehouseInput:{value:''}
+          };
+          const alerts=[];
+          const ctx={
+            AppData:{users:[user],currentUser:user,warehouses},
+            document:{getElementById:id=>fields[id]||null,querySelectorAll:()=>[]},
+            saveDB:()=>false,alert:m=>alerts.push(String(m)),confirm:()=>true,
+            wtUserWarehouseName:()=>'',wtEnsureUserWarehouse:()=>{},
+            closeModal:()=>{throw new Error('must not close form after failed save');},renderUsers:()=>{},
+            console:{error:()=>{}},JSON,Object,Array,String,Number,Date,Math
+          };
+          vm.runInNewContext(fn+'\nthis.invoke=saveUserRecord;',ctx);
+          ctx.invoke();
+          assert.equal(user.name,'Old User','failed edit must restore prior name');
+          assert.equal(user.phone,'111','failed edit must restore prior phone');
+          assert.equal(user.address,'Old Address','failed edit must restore prior address');
+          assert.equal(user.extra,'preserve','failed edit must preserve unrelated properties');
+          assert.equal(ctx.AppData.currentUser,user,'active-user reference must be restored');
+          assert.equal(ctx.AppData.warehouses[0].assigned_user_id,7,'warehouse assignment must be restored');
+          assert.ok(alerts.some(x=>x.includes('تعذر حفظ المستخدم')));
+          console.log('User edit persistence rollback test passed');
+          """
+          js = js.replace("/*INSERT_USER_SAVE_FUNCTION*/", json.dumps(fn))
+          Path("/tmp/anas-user-edit-rollback-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-user-edit-rollback-test.js
+          node /tmp/anas-user-edit-rollback-test.js
+
       - name: Exercise cash operation and expense integrity with mocks
         run: |
           python - <<'PY'

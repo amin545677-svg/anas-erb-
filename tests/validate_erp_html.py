@@ -785,6 +785,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_add
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_remove
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_clear,
+        "failed user edit restores the prior record and active-user reference":
+            "previousUser = Object.assign({}, u)" in function_source("saveUserRecord")
+            and "Object.keys(u).forEach(key => { if (!previousUserKeys.includes(key)) delete u[key]; });" in function_source("saveUserRecord")
+            and "AppData.currentUser = previousCurrentUser" in function_source("saveUserRecord"),
         "catalog and user mutations require explicit save success with rollback":
             "saved !== true" in product_delete and "saveDB()!==true" in category_create
             and "saveDB()!==true" in bulk_price_update and "saveDB()!==true" in custom_unit_create
