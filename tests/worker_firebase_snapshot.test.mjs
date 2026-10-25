@@ -189,7 +189,8 @@ test("oversized snapshot bodies are cancelled at the streaming limit", async () 
   const body = new ReadableStream({
     pull(controller) {
       pulls++;
-      controller.enqueue(new Uint8Array(MAX_BODY_BYTES_FOR_TEST + 1));
+      if (pulls === 1) controller.enqueue(new Uint8Array(MAX_BODY_BYTES_FOR_TEST));
+      else controller.enqueue(new Uint8Array(1));
     },
     cancel() { cancelled = true; }
   });
@@ -205,7 +206,7 @@ test("oversized snapshot bodies are cancelled at the streaming limit", async () 
     assert.equal(response.status, 413);
     assert.match((await response.json()).error, /700 KiB limit/i);
     assert.equal(cancelled, true, "request stream must be cancelled when the limit is exceeded");
-    assert.equal(pulls, 1, "worker must stop consuming chunks once the limit is exceeded");
+    assert.equal(pulls, 2, "worker must stop after the first chunk that crosses the limit");
     assert.equal(firestoreCalls, 0, "oversized bodies must never be persisted");
   } finally { globalThis.fetch = oldFetch; }
 });
