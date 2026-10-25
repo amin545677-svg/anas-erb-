@@ -44,6 +44,8 @@ jobs:
           PY
       - name: Exercise sales invoice print HTML escaping
         run: node tests/invoice_print_html_escape_test.js
+      - name: Exercise product deletion stock guard and persistence rollback
+        run: node tests/product_delete_stock_guard_test.js
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
