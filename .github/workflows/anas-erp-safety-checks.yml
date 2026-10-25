@@ -139,7 +139,18 @@ jobs:
           assert.equal(anasFormatZReportCashBalance(0), '0');
           assert.equal(anasFormatZReportCashBalance(1250), (1250).toLocaleString());
           assert.equal(anasFormatZReportCashBalance('1250'), (1250).toLocaleString());
-          console.log('Z-report cash formatter tests passed: invalid/missing values rejected; numeric balances preserved');
+          assert.equal(anasGetZReportTotal([{total: 10}, {total: '20'}], 'total'), 30);
+          assert.equal(anasGetZReportTotal([], 'total'), 0);
+          assert.equal(anasGetZReportTotal([{total: 0}, {total: '0'}], 'total'), 0);
+          for (const invoices of [null, {}, [{total: null}], [{total: ''}], [{total: '   '}], [{total: false}], [{total: true}], [{total: 'abc'}], [{total: Infinity}], [{total: {}}], [[{total: 1}]], [{}, {total: 2}], [{total: Number.MAX_VALUE}, {total: Number.MAX_VALUE}]]) {
+            assert.equal(anasGetZReportTotal(invoices, 'total'), null, 'malformed invoice totals must not be coerced to zero');
+          }
+          assert.equal(anasGetZReportTotal([{paid: 5}, {paid: '7'}], 'paid'), 12);
+          assert.equal(anasGetZReportTotal([{remaining: 4}, {remaining: '6'}], 'remaining'), 10);
+          assert.equal(anasFormatZReportTotal(30), (30).toLocaleString());
+          assert.equal(anasFormatZReportTotal(null), 'غير صالح');
+          assert.equal(anasFormatZReportTotal(NaN), 'غير صالح');
+          console.log('Z-report tests passed: cash and invoice aggregates reject malformed values without zero-coercion');
           """
           js = js.replace("/*INSERT_FORMATTER*/", function_js)
           Path("/tmp/anas-z-report-cash-test.js").write_text(js, encoding="utf-8")
