@@ -830,6 +830,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "cash movements and expenses require explicit saveDB true before success":
             "cashSaved = saveDB() === true" in cash_operation
             and "expenseSaved = saveDB() === true" in expense_operation,
+        "cash and expense rollback preserve raw cash-balance value and property presence":
+            "const previousCashBalance = AppData.caisseBalance;" in cash_operation
+            and "if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;" in cash_operation
+            and "const previousCashBalance = AppData.caisseBalance;" in expense_operation
+            and "if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;" in expense_operation,
         "POS cart and screen operations reject false, undefined, and missing persistence":
             "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_change
             and "saved = saveDB() === true" in pos_screen_switch
