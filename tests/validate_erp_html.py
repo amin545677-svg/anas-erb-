@@ -782,7 +782,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_remove
             and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_clear,
         "catalog and user mutations require explicit save success with rollback":
-            "saved!==true" in product_delete and "saveDB()!==true" in category_create
+            "saved !== true" in product_delete and "saveDB()!==true" in category_create
             and "saveDB()!==true" in bulk_price_update and "saveDB()!==true" in custom_unit_create
             and "saveDB()!==true" in product_save and "saveDB()!==true" in user_switch
             and "saveDB()!==true" in user_delete and "saveDB()!==true" in user_save,
