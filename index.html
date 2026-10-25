@@ -3646,6 +3646,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             const supplierMatches = suppId ? AppData.suppliers.filter(s => s.id !== undefined && s.id !== null && String(s.id) === suppId) : [];
             if (suppId && supplierMatches.length > 1) { alert('تعذر تسجيل الشراء: معرّف المورد مكرر. أصلح سجل الموردين أولاً.'); return; }
+            if (suppId && supplierMatches.length === 0) { alert('تعذر تسجيل الشراء: المورد المحدد غير موجود. حدّث قائمة الموردين قبل تسجيل الفاتورة.'); return; }
             const supplier = supplierMatches[0] || null;
             const suppName = supplier?.name || 'مورد نقدي عابر';
             const normalizedName = name.toLocaleLowerCase();
