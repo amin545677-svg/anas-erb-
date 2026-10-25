@@ -7869,8 +7869,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   };
   window.anasTruckDelete = function(id){
     try{
-      ensure(); const previous=AppData.truckTrips; const index=previous.findIndex(t=>String(t.id)===String(id)); if(index<0)return;
-      const trip=previous[index];
+      ensure(); const previous=AppData.truckTrips;
+      const tripMatches=previous.filter(t=>t&&typeof t==='object'&&!Array.isArray(t)&&String(t.id)===String(id));
+      if(tripMatches.length!==1){alert(tripMatches.length?'يوجد أكثر من سجل رحلة بالمعرّف نفسه. أصلح التكرار قبل الحذف.':'لم يتم العثور على الرحلة.');return;}
+      const trip=tripMatches[0];
       // لا نحذف سجلاً له أثر مالي/مخزني؛ الحذف سيخفي مرجع الحركة دون عكسها.
       if(trip.stockPostedAt || trip.expenseId || (Array.isArray(AppData.expenses)&&AppData.expenses.some(e=>String(e.sourceId||'')===String(trip.id)&&e.sourceType==='truck_trip'))){
         alert('لا يمكن حذف هذه الرحلة لأنها مرتبطة بحركة مخزون أو مصروف. احتفظ بالسجل لأغراض التدقيق؛ استخدم حالة الإلغاء بعد معالجة الأثر المحاسبي/المخزني.'); return;

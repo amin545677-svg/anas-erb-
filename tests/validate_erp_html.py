@@ -1018,6 +1018,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "weight>Number.MAX_SAFE_INTEGER" in truck_create
             and "cost>Number.MAX_SAFE_INTEGER" in truck_create
             and "amount>Number.MAX_SAFE_INTEGER" in truck_expense,
+        "truck deletion rejects ambiguous trip IDs":
+            "tripMatches.length!==1" in source[source.find("window.anasTruckDelete = function(id){"):source.find("window.anasTruckRender = function(){")],
         "truck trip creation and expense linking require explicit persistence success":
             "typeof saveDB!=='function' || saveDB()!==true" in truck_create
             and "typeof saveDB!=='function'||saveDB()!==true" in truck_expense,
