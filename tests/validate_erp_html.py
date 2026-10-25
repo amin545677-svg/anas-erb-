@@ -310,6 +310,14 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "anasFormatZReportCashBalance(AppData.caisseBalance)",
         "typeof value === 'number' || typeof value === 'string'",
         "String(value).trim() !== '' && Number.isFinite(Number(value))",
+        "function anasGetZReportTotal(invoices, field)",
+        "const totSales = anasGetZReportTotal(reportInvoices, 'total')",
+        "const totPaid = anasGetZReportTotal(reportInvoices, 'paid')",
+        "const totRem = anasGetZReportTotal(reportInvoices, 'remaining')",
+        "anasFormatZReportTotal(totSales)",
+        "anasFormatZReportTotal(totPaid)",
+        "anasFormatZReportTotal(totRem)",
+        "total += Number(value)",
     ]
     for guard in z_report_guards:
         if guard not in source:
