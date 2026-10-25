@@ -747,8 +747,13 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     transaction_checks = {
         "sale aggregates repeated product quantities and validates numeric inputs":
-            "required.set(id, (required.get(id) || 0) + qty)" in sale
+            "aggregateQty = (required.get(id) || 0) + qty" in sale
             and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
+        "POS sale rejects unsafe invoice, quantity, cash, and customer-debt arithmetic":
+            "total > Number.MAX_SAFE_INTEGER" in sale
+            and "aggregateQty > Number.MAX_SAFE_INTEGER" in sale
+            and "oldDebt + remaining > Number.MAX_SAFE_INTEGER" in sale
+            and "currentCash + paid > Number.MAX_SAFE_INTEGER" in sale,
         "POS sale rejects missing or duplicate product IDs and reuses unique preflight records":
             "productMatches = (AppData.products || []).filter(" in sale
             and "productMatches.length !== 1" in sale

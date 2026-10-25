@@ -3138,8 +3138,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
             const total = cart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
-            if (!cart.length || !Number.isFinite(total) || total <= 0) {
-                alert('السلة فارغة أو تحتوي على مجموع غير صحيح.'); return;
+            if (!cart.length || !Number.isFinite(total) || total <= 0 || total > Number.MAX_SAFE_INTEGER) {
+                alert('السلة فارغة أو يحتوي مجموع الفاتورة على قيمة خارج المجال الرقمي الآمن.'); return;
             }
 
             // جمع الكميات حسب المنتج حتى لا يسمح بتجاوز المخزون عند تكرار الصنف في السلة.
@@ -3151,7 +3151,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (!id || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) {
                     alert('تعذر تأكيد الفاتورة: يوجد منتج أو كمية أو سعر غير صالح.'); return;
                 }
-                required.set(id, (required.get(id) || 0) + qty);
+                const aggregateQty = (required.get(id) || 0) + qty;
+                if (!Number.isFinite(aggregateQty) || aggregateQty > Number.MAX_SAFE_INTEGER) {
+                    alert('تعذر تأكيد الفاتورة: مجموع كمية المنتج يتجاوز المجال الرقمي الآمن.'); return;
+                }
+                required.set(id, aggregateQty);
             }
             const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             // Resolve every sale line to exactly one product record. Duplicate IDs make stock ownership ambiguous.
@@ -3221,6 +3225,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return;
             }
             const oldDebt = hasDebtField ? Number(rawDebt) : 0;
+            if (!Number.isFinite(oldDebt + remaining) || oldDebt + remaining > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال الرقمي الآمن.'); return;
+            }
+            const currentCash = Number(AppData.caisseBalance) || 0;
+            if (!Number.isFinite(currentCash + paid) || currentCash + paid > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تأكيد البيع: رصيد الصندوق الناتج يتجاوز المجال الرقمي الآمن.'); return;
+            }
 
             // نسخة تراجع دقيقة للحقول التي ستتغير، قبل لمس الحسابات والمخزون.
             const oldStocks = new Map();
