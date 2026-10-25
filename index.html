@@ -7361,6 +7361,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         return;
       }
     }
+    // Never replace or append to a corrupt stock ledger or stocktake audit history.
+    if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))){
+      alert('تعذر اعتماد الجرد: سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة قبل المتابعة؛ لم تُعدّل الأرصدة.');
+      return;
+    }
+    if(Object.prototype.hasOwnProperty.call(AppData,'stocktakeRecords')&&(!Array.isArray(AppData.stocktakeRecords)||AppData.stocktakeRecords.some(r=>!r||typeof r!=='object'||Array.isArray(r)))){
+      alert('تعذر اعتماد الجرد: سجل محاضر الجرد السابق تالف. أصلح السجل أو استعد نسخة سليمة قبل المتابعة؛ لم تُعدّل الأرصدة.');
+      return;
+    }
     const before=JSON.stringify({products:AppData.products,stockMovements:AppData.stockMovements,stocktakeRecords:AppData.stocktakeRecords});
     const previousSessionState={status:s.status,approvedAt:s.approvedAt,approvedBy:s.approvedBy,varianceCount:s.varianceCount};
     const previousDrafts=getDrafts();

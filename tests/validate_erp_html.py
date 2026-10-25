@@ -835,6 +835,14 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: stocktake approval validates safe numeric bounds before mutation")
 
+    if ("Object.prototype.hasOwnProperty.call(AppData,'stockMovements')" not in stocktake_approve
+        or "AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))" not in stocktake_approve
+        or "Object.prototype.hasOwnProperty.call(AppData,'stocktakeRecords')" not in stocktake_approve
+        or "AppData.stocktakeRecords.some(r=>!r||typeof r!=='object'||Array.isArray(r))" not in stocktake_approve):
+        errors.append("stocktake approval must reject malformed existing stock movement and audit records without replacing history")
+    else:
+        print("PASS: stocktake approval preserves malformed-ledger evidence and fails closed")
+
     transaction_checks = {
         "clearing POS cart restores both active cart and persisted cart map on save failure":
             "const previousCarts = AppData.posScreensCarts" in function_source("clearPosCart")
