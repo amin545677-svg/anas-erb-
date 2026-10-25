@@ -7386,6 +7386,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         alert('تعذر اعتماد الجرد: توجد كمية فعلية أو أرصدة تتجاوز المجال الرقمي الآمن أو تحتوي قيمة غير صالحة. لم تُعدّل الأرصدة أو الحركات.');
         return;
       }
+      if(current!==system){
+        alert('تعذر اعتماد الجرد: تغير رصيد المنتج "'+name(p)+'" منذ بدء الجرد (رصيد بدء الجرد: '+system+'، الرصيد الحالي: '+current+'). أعد عدّ هذا المنتج أو أنشئ جلسة جرد جديدة قبل الاعتماد؛ لم تُعدّل الأرصدة أو الحركات.');
+        return;
+      }
     }
     // Never replace or append to a corrupt stock ledger or stocktake audit history.
     if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m)))){
