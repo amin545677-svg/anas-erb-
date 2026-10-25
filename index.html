@@ -4194,22 +4194,41 @@ function renderPurchasesTable() {
             const nif = document.getElementById('newSuppNIFInput').value.trim();
             const art = document.getElementById('newSuppArtInput').value.trim();
             const address = document.getElementById('newSuppAddressInput').value.trim();
-            const debt = parseFloat(document.getElementById('newSuppDebtInput').value) || 0;
+            const debtInput = document.getElementById('newSuppDebtInput');
+            const rawDebt = debtInput ? String(debtInput.value ?? '').trim() : '';
+            const debt = rawDebt === '' ? 0 : Number(rawDebt);
 
-            if(!name) { alert('ادخل اسم المورد'); return; }
+            if (!name) { alert('ادخل اسم المورد'); return; }
+            if (!Number.isFinite(debt) || debt < 0) {
+                if (debtInput && typeof debtInput.focus === 'function') debtInput.focus();
+                alert('رصيد المورد يجب أن يكون رقماً صالحاً غير سالب. لم تُحفظ أي تغييرات.');
+                return;
+            }
+            if (!Array.isArray(AppData.suppliers)) {
+                alert('سجل الموردين غير صالح؛ لم يتم حفظ أي تغييرات.');
+                return;
+            }
 
+            const previousSuppliers = AppData.suppliers.slice();
+            let id = 'SUP-' + Date.now();
+            while (AppData.suppliers.some(s => s && s.id != null && String(s.id) === id)) {
+                id = 'SUP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+            }
             AppData.suppliers.push({
-                id: 'SUP-' + Date.now(),
-                name: name,
-                phone: phone,
-                rc: rc,
-                nif: nif,
-                art: art,
-                address: address,
-                balance: debt
+                id, name, phone, rc, nif, art, address, balance: debt
             });
 
-            saveDB();
+            let saved = false;
+            let saveError = null;
+            try { saved = saveDB() !== false; }
+            catch (err) { saveError = err; }
+            if (!saved) {
+                AppData.suppliers = previousSuppliers;
+                const reason = saveError && saveError.message ? ' (' + saveError.message + ')' : '';
+                alert('تعذر حفظ بيانات المورد' + reason + '؛ أُعيدت البيانات السابقة ولم يتم اعتماد الإضافة.');
+                return;
+            }
+
             closeModal('addSupplierModal');
             alert('تمت إضافة المورد بنجاح ✅');
             renderSuppliersDebts();
