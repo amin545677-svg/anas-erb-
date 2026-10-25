@@ -754,6 +754,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "productMatches.length !== 1" in sale
             and "saleProducts.set(id, product)" in sale
             and "saleProducts.get(id)" in sale,
+        "POS sale rejects duplicate or stale selected customer IDs":
+            "customerMatches = cId ? customers.filter(" in sale
+            and "customerMatches.length !== 1" in sale
+            and "const selectedCustomer = cId ? customerMatches[0] : null" in sale,
         "sale restores stock, customer debt, cash, invoices and cart after persistence failure":
             "if (!saveDB()) throw" in sale and "p.stock = stockState.stock" in sale
             and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
