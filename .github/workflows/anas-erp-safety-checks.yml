@@ -2460,7 +2460,7 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("window.anasTruckRecordExpense = function(id){")
-          end = s.find("\\n  window.anasTruckExportCSV", start)
+          end = s.find("\n  window.anasTruckExportCSV", start)
           assert start >= 0 and end > start, "Could not isolate truck expense integration"
           fn = s[start:end]
           js = "const fn = " + json.dumps(fn) + r"""
