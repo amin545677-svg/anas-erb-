@@ -110,3 +110,23 @@ Updated local artifact: `ANAS_ERP_V54_25_CANDIDATE_NEGATIVE_STOCK_GUARD.html`
 - HTML parser processed 1,139 elements and 238 IDs; no duplicate IDs were found.
 
 These are isolated source-function tests with controlled mocks, not full browser, cloud-sync, multi-user, persistence/reload, or Android device acceptance tests. This patch remains candidate-only and is not approved for production until the V42 feature-preservation audit and broader acceptance suite are complete.
+
+
+### Additional finding: active reservation totals could undercount malformed trip lines
+
+A follow-up review found that `reservedForProduct` used `Math.max(0, Number(item.qty)||0)`, which could undercount reservations in an already-`in_transit` trip when a malformed line was present. That could overstate available stock before a new reservation was attempted.
+
+The candidate now fails closed when an active in-transit trip has malformed item records, missing product IDs, invalid/non-positive quantities, or a non-array stock-item collection. `anasAvailableStock` also rejects malformed/non-finite/negative stock balances instead of converting them to zero. A genuinely absent legacy primary-stock field remains compatible as zero.
+
+Updated local candidate identity after this additional patch:
+
+- Size: 583,582 bytes
+- SHA-256: `432735ee836a2471663fab8bf808bebcc878993584ecb07cb431a2c6304794f1`
+
+Additional verification:
+
+- 9/9 isolated tests passed for reservation totals and available-stock calculation, including malformed active-trip records, malformed mixed quantities, infinite stock, valid reservations, and legacy missing-stock compatibility.
+- Combined focused suite: 14/14 POS/transfer tests + 9/9 delivery/reservation preflight tests + 9/9 active-reservation tests = **32/32 passed**.
+- All 12 inline JavaScript blocks still pass `node --check`; 1,139 HTML elements and 238 IDs parse with no duplicate IDs.
+
+This remains a local candidate-only patch. No production source was changed, and these mocked function-level tests do not replace browser/device or cloud-sync acceptance.
