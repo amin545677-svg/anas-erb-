@@ -5751,7 +5751,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 ||
@@ -5815,11 +5815,38 @@ function renderPurchasesTable() {
                     throw new Error('النسخة السحابية تفتقد قائمة المخازن المحلية؛ أُلغي الاسترجاع لمنع فقدان البيانات.');
                 incoming.warehouses = [];
             }
+            // Apply strict numeric-type checks to cloud accounting records before replacing local state.
+            const validateCloudMoney = (record, field, label, allowZero = true) => {
+                if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+                const raw = record[field];
+                if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null || raw === '' ||
+                    (typeof raw === 'string' && raw.trim() === '') ||
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || (!allowZero && Number(raw) === 0))
+                    throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ') بالنسخة السحابية؛ أُلغي الاسترجاع لحماية الحسابات.');
+            };
+            for (const customer of incoming.customers) validateCloudMoney(customer, 'debt', 'ديون العملاء');
+            for (const supplier of incoming.suppliers) validateCloudMoney(supplier, 'balance', 'أرصدة الموردين');
+            for (const expense of (incoming.expenses || [])) {
+                validateCloudMoney(expense, 'amt', 'المصروفات', false);
+                validateCloudMoney(expense, 'amount', 'المصروفات', false);
+            }
+            for (const movement of (incoming.cashMovements || [])) validateCloudMoney(movement, 'amount', 'حركات الصندوق', false);
             for (const inv of incoming.invoices) {
-                if (inv.total != null && (!Number.isFinite(Number(inv.total)) || Number(inv.total) < 0)) {
-                    throw new Error('توجد فاتورة بقيمة غير صالحة في النسخة السحابية.');
+                for (const field of ['total', 'paid', 'remaining']) validateCloudMoney(inv, field, 'فواتير البيع');
+                if (Object.prototype.hasOwnProperty.call(inv, 'items')) {
+                    if (!Array.isArray(inv.items) || inv.items.length > 10000 ||
+                        inv.items.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
+                        throw new Error('تحتوي إحدى الفواتير على قائمة منتجات غير صالحة.');
+                    for (const item of inv.items) {
+                        validateCloudMoney(item, 'qty', 'كميات فواتير البيع', false);
+                        validateCloudMoney(item, 'price', 'أسعار فواتير البيع');
+                    }
                 }
-                if (inv.items != null && !Array.isArray(inv.items)) throw new Error('تحتوي إحدى الفواتير على قائمة منتجات غير صالحة.');
+            }
+            for (const purchase of (incoming.purchases || [])) {
+                validateCloudMoney(purchase, 'cost', 'تكلفة المشتريات', false);
+                validateCloudMoney(purchase, 'qty', 'كميات المشتريات', false);
+                validateCloudMoney(purchase, 'total', 'إجمالي المشتريات', false);
             }
             return incoming;
         }
