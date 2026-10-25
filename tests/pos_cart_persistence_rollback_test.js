@@ -13,7 +13,7 @@ function run({ initialMap, includeMap = true, saveResult = false }) {
   const product = { id: 'p1', name: 'Test product', stock: 5, price1: 10, unit: 'piece' };
   const appData = { products: [product], activePosScreenTab: 'tab1' };
   if (includeMap) appData.posScreensCarts = initialMap;
-  let cart = [];
+  let cart = includeMap && initialMap && Array.isArray(initialMap.tab1) ? initialMap.tab1 : [];
   const context = {
     AppData: appData,
     posCart: cart,
