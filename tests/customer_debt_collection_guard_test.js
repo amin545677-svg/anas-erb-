@@ -13,10 +13,10 @@ class FixedDate extends Date {
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
 
-function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math } = {}) {
+function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1' } = {}) {
   const alerts = [];
   let saves = 0;
-  const customer = { id: 'C-1', name: 'Test customer', debt };
+  const customer = { id: customerId, name: 'Test customer', debt };
   const appData = {
     customers: [customer],
     caisseBalance: cash,
@@ -35,7 +35,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
     Number, String, Object, Array, Set
   };
   vm.createContext(context);
-  vm.runInContext(source + '\ncollectCustDebt("C-1");', context);
+  vm.runInContext(source + '\ncollectCustDebt(' + JSON.stringify(String(customerId)) + ');', context);
   return { appData, customer, alerts, saves };
 }
 
@@ -82,6 +82,18 @@ console.log('PASS: duplicate cash movement IDs fail closed');
 console.log('PASS: normal customer debt collection updates debt, cash and ledger');
 console.log('PASS: generated cash movement ID collisions are resolved');
 console.log('PASS: failed persistence rolls back customer debt, cash and ledger');
+
+{
+  for (const customerId of ['', '   ']) {
+    const result = runCollection({ customerId, amount: '25' });
+    assert.equal(result.saves, 0, 'customer without a stable ID must not be used for debt collection');
+    assert.equal(result.customer.debt, 100, 'invalid-identity customer debt must remain unchanged');
+    assert.equal(result.appData.caisseBalance, 0, 'invalid-identity collection must not alter cash');
+    assert.equal(result.appData.cashMovements.length, 0, 'invalid-identity collection must not append a cash movement');
+    assert.ok(result.alerts.some(message => message.includes('معرّف صالح')), 'operator must be told a valid customer identity is required');
+  }
+}
+console.log('PASS: customer debt collection rejects blank or whitespace-only customer IDs before mutation');
 
 {
   const app = fs.readFileSync('index.html', 'utf8');
