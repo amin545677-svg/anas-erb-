@@ -6716,7 +6716,7 @@ function renderPurchasesTable() {
                     else if(target==='customers') AppData.customers=next;
                     else AppData.suppliers=next;
                     const saved=saveDB();
-                    if(saved===false) throw new Error('فشل حفظ قاعدة البيانات');
+                    if(saved!==true) throw new Error('فشل حفظ قاعدة البيانات');
                 }catch(err){
                     const restored=JSON.parse(before);
                     if(target==='products')AppData.products=restored;else if(target==='customers')AppData.customers=restored;else AppData.suppliers=restored;
