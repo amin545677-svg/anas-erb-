@@ -3707,8 +3707,9 @@ function renderPurchasesTable() {
             }
             const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
             const nextBalance = previousBalance + (isAdd ? amt : -amt);
-            if (!Number.isFinite(nextBalance)) {
-                alert('تتجاوز الحركة الحد العددي الآمن لرصيد الصندوق؛ لم يتم تسجيلها.');
+            if (!Number.isFinite(nextBalance) || previousBalance < 0 ||
+                previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(nextBalance) > Number.MAX_SAFE_INTEGER) {
+                alert('رصيد الصندوق أو نتيجة الحركة خارج المجال المالي الآمن؛ لم يتم تسجيلها.');
                 return;
             }
             if (!isAdd && previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
@@ -3766,8 +3767,9 @@ function renderPurchasesTable() {
                 return;
             }
             const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
-            if (!Number.isFinite(previousBalance - amt)) {
-                alert('تتجاوز العملية الحد العددي الآمن لرصيد الصندوق؛ لم يتم تسجيل المصروف.');
+            if (!Number.isFinite(previousBalance - amt) || previousBalance < 0 ||
+                previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(previousBalance - amt) > Number.MAX_SAFE_INTEGER) {
+                alert('رصيد الصندوق أو نتيجة المصروف خارج المجال المالي الآمن؛ لم يتم تسجيل المصروف.');
                 return;
             }
             if (previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
@@ -3927,8 +3929,9 @@ function renderPurchasesTable() {
             }
 
             const previousBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') ? Number(AppData.caisseBalance) : 0;
-            if (!Number.isFinite(previousBalance + amt)) {
-                alert('سيؤدي المبلغ إلى تجاوز الحد العددي الآمن لرصيد الصندوق؛ لم يتم تسجيل القبض.');
+            if (!Number.isFinite(previousBalance + amt) || previousBalance < 0 ||
+                previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(previousBalance + amt) > Number.MAX_SAFE_INTEGER) {
+                alert('رصيد الصندوق أو نتيجة القبض خارج المجال المالي الآمن؛ لم يتم تسجيل القبض.');
                 return;
             }
             const hadMovements = Array.isArray(AppData.cashMovements);
