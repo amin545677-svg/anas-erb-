@@ -253,6 +253,16 @@ def main():
     else:
         print("PASS: customer debt collection rejects unsafe debt balances")
 
+    # Restore must validate truck expense links, not only the truck UI action.
+    if ("function anasValidateTruckExpenseLinks(incoming)" not in source
+        or "anasValidateTruckExpenseLinks(incoming);" not in source
+        or "matchingForTrip.length > 1" not in source
+        or "matches[0].sourceType !== 'truck_trip'" not in source
+        or "amount !== cost" not in source):
+        errors.append("cloud and backup restore must reject stale, duplicate, mismatched truck expense links")
+    else:
+        print("PASS: restore validates truck expense links against trip and expense ledgers")
+
     # Combined POS/warehouse integration must retain the warehouse preflight and payment guards.
     sale_start = source.find("function confirmHasibPayment()")
     sale_end = source.find("\n        function ", sale_start)
