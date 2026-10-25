@@ -753,10 +753,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     pos_clear_screens = function_source("clearAllPosScreens")
     pos_price_tier = function_source("setPosPriceTier")
     truck_create_start = source.find("window.anasTruckSaveTrip = function(){")
-    truck_create_end = source.find("\\n  window.anasTruckSetStatus", truck_create_start)
+    truck_create_end = source.find("\n  window.anasTruckSetStatus", truck_create_start)
     truck_create = source[truck_create_start:truck_create_end] if truck_create_start >= 0 and truck_create_end > truck_create_start else ""
     truck_expense_start = source.find("window.anasTruckRecordExpense = function(id){")
-    truck_expense_end = source.find("\\n  window.anasTruckExportCSV", truck_expense_start)
+    truck_expense_end = source.find("\n  window.anasTruckExportCSV", truck_expense_start)
     truck_expense = source[truck_expense_start:truck_expense_end] if truck_expense_start >= 0 and truck_expense_end > truck_expense_start else ""
 
     transaction_checks = {
