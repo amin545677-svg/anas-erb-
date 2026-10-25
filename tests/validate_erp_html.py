@@ -721,7 +721,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     # Truck load and settlement must never resolve ambiguous product IDs with Array.find().
     truck_load = function_source("postTripStock")
     settlement_start = source.find("window.anasTruckSettle = function(id){")
-    settlement_end = source.find("\\n  };", settlement_start)
+    settlement_end = source.find("\n  };", settlement_start)
     truck_settlement = source[settlement_start:settlement_end] if settlement_start >= 0 and settlement_end > settlement_start else ""
     truck_identity_checks = {
         "truck load rejects missing or duplicate product IDs before stock mutation":
