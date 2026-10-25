@@ -1931,3 +1931,46 @@ jobs:
           PY
           node --check /tmp/anas-pos-settings-rollback-test.js
           node /tmp/anas-pos-settings-rollback-test.js
+
+      - name: Exercise sync URL rollback when persistence fails
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function saveSyncSettings()")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate saveSyncSettings"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const fn = /*INSERT_SYNC_FUNCTION*/;
+          function run(initial, value) {
+            const alerts=[], statuses=[];
+            const data={...initial};
+            const ctx={
+              AppData:data,URL, Object, String,
+              document:{getElementById:()=>({value})},
+              saveDB:()=>false,
+              setSyncStatus:(m,e)=>statuses.push({message:m,error:e}),
+              alert:m=>alerts.push(String(m)),console:{error:()=>{}}
+            };
+            vm.runInNewContext(fn+'\nthis.invoke=saveSyncSettings;',ctx);
+            ctx.invoke();
+            return {data,alerts,statuses};
+          }
+          let r=run({syncUrl:'https://old.example/api'},'https://new.example/api');
+          assert.equal(r.data.syncUrl,'https://old.example/api','failed save must restore previous URL');
+          assert.ok(r.alerts.some(x=>x.includes('تعذر حفظ إعداد الرابط')));
+          assert.ok(!r.alerts.some(x=>x.includes('تم حفظ إعداد الرابط')));
+          assert.ok(r.statuses.some(x=>x.error===true),'failure status must be marked as error');
+          r=run({},'https://new.example/api');
+          assert.equal(Object.prototype.hasOwnProperty.call(r.data,'syncUrl'),false,'failed save must not retain a newly added URL');
+          console.log('Sync URL persistence rollback tests passed');
+          """
+          js = js.replace("/*INSERT_SYNC_FUNCTION*/", json.dumps(fn))
+          Path("/tmp/anas-sync-url-rollback-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-sync-url-rollback-test.js
+          node /tmp/anas-sync-url-rollback-test.js
