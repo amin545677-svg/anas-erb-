@@ -105,6 +105,8 @@ function validateSnapshotData(data) {
     }
   };
   uniqueIds("products", true);
+  uniqueIds("customers");
+  uniqueIds("suppliers");
   uniqueIds("invoices");
   uniqueIds("truckTrips");
 

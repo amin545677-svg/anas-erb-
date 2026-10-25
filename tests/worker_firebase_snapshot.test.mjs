@@ -120,6 +120,8 @@ test("malformed truck loads and warehouse transfers are rejected before persiste
   };
   try {
     const badSnapshots = [
+      { products: [{ id: "p1", stock: 1 }], customers: [{ id: "C1" }, { id: "C1" }] },
+      { products: [{ id: "p1", stock: 1 }], customers: [], suppliers: [{ id: "S1" }, { id: "S1" }] },
       { products: [{ id: "p1", stock: 1 }], customers: [], truckTrips: [
         { id: "T1", stockItems: [{ productId: "p1", qty: true }] }
       ] },
