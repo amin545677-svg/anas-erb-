@@ -749,6 +749,53 @@ jobs:
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
+      - name: Exercise customer save validation and rollback
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function saveNewCustomerMpos()")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate customer save function"
+          fn = s[start:end]
+          js = r"""
+          /*INSERT_CUSTOMER_SAVE_FUNCTION*/
+          const assert = require('node:assert/strict');
+          global.alert = () => {};
+          global.closeModal = () => {};
+          global.renderCustomersDebts = () => {};
+          global.renderCustomerDirectory = () => {};
+          const ids = ['newCustNameInput','newCustPhoneInput','newCustPhone2Input','newCustRCInput','newCustNIFInput','newCustNISInput','newCustArtInput','newCustAddressInput','newCustLocationInput'];
+          const elements = Object.fromEntries(ids.map(id=>[id,{value:id==='newCustNameInput'?'Client':'',focus(){}}]));
+          elements.newCustDebtInput={value:'0',focus(){}};
+          global.document={getElementById:id=>elements[id]};
+          global.editingCustomerId=null;
+          const oldCustomers=[{id:'C1',name:'Existing',debt:5}];
+          global.AppData={customers:oldCustomers};
+          global.saveDB=()=>false;
+          saveNewCustomerMpos();
+          assert.equal(AppData.customers.length,1,'failed create must not leave a new customer in memory');
+          assert.equal(AppData.customers[0].id,'C1');
+          elements.newCustDebtInput.value='-2';
+          let saves=0; global.saveDB=()=>{saves++;return true;};
+          saveNewCustomerMpos();
+          assert.equal(saves,0,'negative debt must be rejected before persistence');
+          elements.newCustDebtInput.value='12abc';
+          saveNewCustomerMpos();
+          assert.equal(saves,0,'partially numeric debt must be rejected');
+          elements.newCustDebtInput.value='7';
+          global.editingCustomerId='C1';
+          global.saveDB=()=>false;
+          saveNewCustomerMpos();
+          assert.equal(AppData.customers[0].name,'Existing','failed edit must restore prior customer fields');
+          assert.equal(AppData.customers[0].debt,5,'failed edit must restore prior debt');
+          console.log('Customer save validation/rollback tests passed');
+          """
+          js = js.replace("/*INSERT_CUSTOMER_SAVE_FUNCTION*/", fn)
+          Path("/tmp/anas-customer-save-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-customer-save-test.js
+          node /tmp/anas-customer-save-test.js
       - name: Exercise cash operation and expense integrity with mocks
         run: |
           python - <<'PY'
