@@ -7701,7 +7701,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   window.anasTruckSetStatus = function(id,status){
     try {
       ensure(); if(!Object.prototype.hasOwnProperty.call(statusText,status))return;
-      const t=AppData.truckTrips.find(x=>String(x.id)===String(id));if(!t)return;
+      const tripMatches=AppData.truckTrips.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&String(x.id)===String(id));
+      if(tripMatches.length!==1){alert(tripMatches.length?'يوجد أكثر من سجل رحلة بالمعرّف نفسه. أصلح التكرار قبل تغيير الحالة.':'لم يتم العثور على الرحلة.');return;}
+      const t=tripMatches[0];
       if(t.status===status)return;
       // Enforce a one-way lifecycle so completed/cancelled trips cannot be reopened or reposted accidentally.
       const allowedNext={planned:['in_transit','cancelled'],in_transit:['delivered'],delivered:[],cancelled:[]};
@@ -7721,8 +7723,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   window.anasTruckSettle = function(id){
     try {
       ensure();
-      const trip=AppData.truckTrips.find(x=>String(x.id)===String(id));
-      if(!trip){alert('لم يتم العثور على الرحلة.');return;}
+      const tripMatches=AppData.truckTrips.filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&String(x.id)===String(id));
+      if(tripMatches.length!==1){alert(tripMatches.length?'يوجد أكثر من سجل رحلة بالمعرّف نفسه. أصلح التكرار قبل التسوية.':'لم يتم العثور على الرحلة.');return;}
+      const trip=tripMatches[0];
       if(trip.status!=='delivered'){alert('يجب أن تكون الرحلة في حالة «تم التسليم» قبل التسوية.');return;}
       if(!trip.stockPostedAt||!Array.isArray(trip.stockItems)||!trip.stockItems.length){alert('لا توجد عهدة مخزنية محمّلة لهذه الرحلة.');return;}
       // A settlement line is keyed by product ID in the ledger; duplicates would collide movement IDs and apply balances twice.
@@ -7895,8 +7898,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   window.anasTruckRecordExpense = function(id){
     try {
       ensure();
-      const trip=AppData.truckTrips.find(t=>String(t.id)===String(id));
-      if(!trip){alert('لم يتم العثور على الرحلة.');return;}
+      const tripMatches=AppData.truckTrips.filter(t=>t&&typeof t==='object'&&!Array.isArray(t)&&String(t.id)===String(id));
+      if(tripMatches.length!==1){alert(tripMatches.length?'يوجد أكثر من سجل رحلة بالمعرّف نفسه. أصلح التكرار قبل تسجيل المصروف.':'لم يتم العثور على الرحلة.');return;}
+      const trip=tripMatches[0];
       if(trip.expenseId){alert('تم تسجيل تكلفة هذه الرحلة كمصروف من قبل.');return;}
       const rawAmount=trip.cost;
       if(!((typeof rawAmount==='number')||(typeof rawAmount==='string'))||String(rawAmount).trim()===''){

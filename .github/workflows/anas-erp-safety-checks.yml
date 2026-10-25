@@ -1432,6 +1432,14 @@ jobs:
           window.anasTruckSetStatus('T3','cancelled');
           assert.equal(AppData.truckTrips[0].status,'cancelled','planned trip may be cancelled');
           assert.equal(saves,3,'valid cancellation should persist');
+          AppData.truckTrips = [
+            {id:'T-DUP',status:'planned',stockItems:[]},
+            {id:'T-DUP',status:'planned',stockItems:[]}
+          ];
+          window.anasTruckSetStatus('T-DUP','in_transit');
+          assert.equal(AppData.truckTrips[0].status,'planned','duplicate trip IDs must not mutate the first trip');
+          assert.equal(AppData.truckTrips[1].status,'planned','duplicate trip IDs must not mutate the second trip');
+          assert.equal(saves,3,'ambiguous trip identity must not persist status changes');
           console.log('Truck status transition tests passed: legal lifecycle, skipped delivery, terminal states');
           """
           js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_STATUS_FUNCTION*/", function_js)
@@ -1873,6 +1881,27 @@ jobs:
           assert.equal(AppData.products[1].stock, 5, 'total overflow must preserve second product stock');
           assert.equal(AppData.stockMovements.length, 0, 'total delivered quantity overflow must not create movements');
           assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'total delivered quantity overflow must not settle trip');
+          // Duplicate trip IDs are ambiguous and must be rejected before prompting or stock mutation.
+          let duplicateTripPromptCalls = 0;
+          let duplicateTripSaveCalled = false;
+          global.prompt = () => { duplicateTripPromptCalls++; return '0'; };
+          global.saveDB = () => { duplicateTripSaveCalled = true; return true; };
+          global.AppData = {
+            products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+            truckTrips: [
+              {id:'T-DUP',plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:4}]},
+              {id:'T-DUP',plate:'T2',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:4}]}
+            ],
+            invoices: [], stockMovements: []
+          };
+          window.anasTruckSettle('T-DUP');
+          assert.equal(duplicateTripPromptCalls,0,'duplicate trip IDs must be rejected before settlement prompts');
+          assert.equal(duplicateTripSaveCalled,false,'duplicate trip IDs must not save settlement');
+          assert.equal(AppData.products[0].stock,5,'duplicate trip IDs must preserve main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'],4,'duplicate trip IDs must preserve truck stock');
+          assert.equal(AppData.stockMovements.length,0,'duplicate trip IDs must not create movements');
+          assert.equal(Object.hasOwn(AppData.truckTrips[0],'settlementId'),false);
+          assert.equal(Object.hasOwn(AppData.truckTrips[1],'settlementId'),false);
           console.log('Truck settlement mock tests passed: invoice identity and quantity validation, stock partition, idempotency, rollback, and malformed invoice details');
           """
           js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
@@ -2481,6 +2510,23 @@ jobs:
             assert.equal(saves, 0, 'malformed trip cost must not persist: ' + JSON.stringify(invalidAmount));
             assert.deepEqual(ctx.AppData.expenses, [], 'malformed trip cost must not append expense');
             assert.equal(Object.hasOwn(trip,'expenseId'), false, 'malformed trip cost must not link expense');
+          }
+          {
+            let duplicateSaves = 0;
+            const first = {id:'T-DUP-COST',cost:'12.5'};
+            const second = {id:'T-DUP-COST',cost:'15'};
+            const ctx = {
+              window:{}, AppData:{truckTrips:[first,second],expenses:[]},
+              ensure:()=>{}, alert:()=>{}, confirm:()=>true, money:String,
+              anasTruckRender:()=>{}, saveDB:()=>{duplicateSaves++;return true;},
+              Number,String,Object,Array,Date,console
+            };
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            ctx.runExpense('T-DUP-COST');
+            assert.equal(duplicateSaves,0,'duplicate trip IDs must not persist expense');
+            assert.deepEqual(ctx.AppData.expenses,[],'duplicate trip IDs must not append expense');
+            assert.equal(Object.hasOwn(first,'expenseId'),false);
+            assert.equal(Object.hasOwn(second,'expenseId'),false);
           }
           let saves = 0;
           const trip = {id:'T-VALID-COST', cost:'12.5', plate:'T', origin:'A', destination:'B'};

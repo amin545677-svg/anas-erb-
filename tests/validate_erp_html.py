@@ -1021,6 +1021,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "truck trip creation and expense linking require explicit persistence success":
             "typeof saveDB!=='function' || saveDB()!==true" in truck_create
             and "typeof saveDB!=='function'||saveDB()!==true" in truck_expense,
+        "truck status, settlement, and expense reject ambiguous trip IDs":
+            "tripMatches.length!==1" in source[source.find("window.anasTruckSetStatus = function(id,status){"):source.find("  // V54 draft: guarded truck custody settlement.")]
+            and "tripMatches.length!==1" in truck_settlement
+            and "tripMatches.length!==1" in truck_expense,
         "truck expense rejects malformed and blank persisted cost values":
             "const rawAmount=trip.cost;" in truck_expense
             and "(typeof rawAmount==='number')||(typeof rawAmount==='string')" in truck_expense
