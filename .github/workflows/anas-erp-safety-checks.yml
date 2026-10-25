@@ -1271,7 +1271,7 @@ jobs:
               prompt:()=>{prompts++;return '2';},confirm:()=>true,alert:m=>alerts.push(String(m)),
               saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},
               wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource+'\\neditSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
+            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
             assert.equal(prompts,0,'unsafe historical quantity must be rejected before prompting');
             assert.equal(saves,0,'unsafe historical quantity must not be persisted');
             assert.equal(product.stock,5,'unsafe historical quantity must not mutate stock');
@@ -1286,7 +1286,7 @@ jobs:
               prompt:()=>{prompts++;return String(Number.MAX_SAFE_INTEGER+1);},confirm:()=>true,alert:m=>alerts.push(String(m)),
               saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},
               wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource+'\\neditSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
+            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
             assert.equal(prompts,1,'unsafe edited quantity must be rejected immediately after quantity entry');
             assert.equal(saves,0,'unsafe edited quantity must not be persisted');
             assert.equal(product.stock,5,'unsafe edited quantity must not mutate stock');
