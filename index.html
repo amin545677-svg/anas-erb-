@@ -3551,13 +3551,38 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const cost = Number(costInput?.value);
             const qty = Number(qtyInput?.value);
             const suppId = String(supplierInput?.value || '');
-            const supplier = (AppData.suppliers || []).find(s => String(s.id) === suppId);
-            const suppName = supplier?.name || 'مورد نقدي عابر';
 
             if (!name) { nameInput?.focus(); alert('أدخل اسم السلعة.'); return; }
-            if (!Number.isFinite(cost) || cost <= 0) { costInput?.focus(); alert('أدخل تكلفة صحيحة أكبر من صفر.'); return; }
+            if (!Number.isFinite(cost) || cost <= 0 || cost > Number.MAX_SAFE_INTEGER) { costInput?.focus(); alert('أدخل تكلفة صحيحة أكبر من صفر وضمن المجال الآمن.'); return; }
             if (!Number.isSafeInteger(qty) || qty <= 0) { qtyInput?.focus(); alert('أدخل كمية صحيحة كعدد صحيح أكبر من صفر.'); return; }
             if (!Number.isFinite(cost * qty) || cost * qty <= 0 || cost * qty > Number.MAX_SAFE_INTEGER) { alert('قيمة الفاتورة خارج النطاق الآمن؛ راجع التكلفة والكمية.'); return; }
+            if (!Number.isFinite(cost * 1.2) || cost * 1.2 > Number.MAX_SAFE_INTEGER) { alert('سعر البيع الافتراضي الناتج عن تكلفة الشراء خارج النطاق الآمن؛ راجع التكلفة.'); return; }
+
+            // Fail closed instead of silently replacing malformed collections or choosing an arbitrary same-name product.
+            if (Object.prototype.hasOwnProperty.call(AppData, 'products') && (!Array.isArray(AppData.products) || AppData.products.some(p => !p || typeof p !== 'object' || Array.isArray(p)))) {
+                alert('تعذر تسجيل الشراء: سجل المنتجات تالف. لم يتم تعديل المخزون.'); return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'purchases') && (!Array.isArray(AppData.purchases) || AppData.purchases.some(p => !p || typeof p !== 'object' || Array.isArray(p)))) {
+                alert('تعذر تسجيل الشراء: سجل المشتريات تالف. لم يتم استبدال السجل.'); return;
+            }
+            if (suppId && (!Array.isArray(AppData.suppliers) || AppData.suppliers.some(s => !s || typeof s !== 'object' || Array.isArray(s)))) {
+                alert('تعذر تسجيل الشراء: سجل الموردين تالف.'); return;
+            }
+            const supplierMatches = suppId ? AppData.suppliers.filter(s => s.id !== undefined && s.id !== null && String(s.id) === suppId) : [];
+            if (suppId && supplierMatches.length > 1) { alert('تعذر تسجيل الشراء: معرّف المورد مكرر. أصلح سجل الموردين أولاً.'); return; }
+            const supplier = supplierMatches[0] || null;
+            const suppName = supplier?.name || 'مورد نقدي عابر';
+            const normalizedName = name.toLocaleLowerCase();
+            const productMatches = (Array.isArray(AppData.products) ? AppData.products : []).filter(p => String(p.name || '').trim().toLocaleLowerCase() === normalizedName);
+            if (productMatches.length > 1) { alert('تعذر تسجيل الشراء: يوجد أكثر من منتج بالاسم نفسه. وحّد سجل المنتجات قبل تعديل المخزون.'); return; }
+            const existingProduct = productMatches[0] || null;
+            const existingStock = existingProduct && Object.prototype.hasOwnProperty.call(existingProduct, 'stock') ? existingProduct.stock : 0;
+            if (existingProduct && !((typeof existingStock === 'number' || typeof existingStock === 'string') && String(existingStock).trim() !== '' && Number.isFinite(Number(existingStock)) && Number(existingStock) >= 0)) {
+                alert('تعذر تسجيل الشراء: رصيد المخزون الحالي غير صالح للمنتج. أصلح الرصيد قبل المتابعة.'); return;
+            }
+            if (existingProduct && (!Number.isFinite(Number(existingStock) + qty) || Number(existingStock) + qty > Number.MAX_SAFE_INTEGER)) {
+                alert('تعذر تسجيل الشراء: رصيد المخزون الناتج يتجاوز المجال الآمن. لم يتم تعديل المخزون.'); return;
+            }
 
             const invoiceDateValue = document.getElementById('purInvoiceDate')?.value;
             const invoiceDate = invoiceDateValue || new Date().toISOString().slice(0, 10);
@@ -3571,9 +3596,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 AppData.purchases = Array.isArray(AppData.purchases) ? AppData.purchases : [];
                 AppData.products = Array.isArray(AppData.products) ? AppData.products : [];
                 AppData.purchases.unshift({ name, cost, qty, total: cost * qty, supplierId: suppId, supplierName: suppName, date: invoiceDate });
-                let product = AppData.products.find(x => String(x.name || '').trim().toLocaleLowerCase() === name.toLocaleLowerCase());
+                let product = existingProduct;
                 if (product) {
-                    product.stock = Math.max(0, Number(product.stock) || 0) + qty;
+                    product.stock = Number(existingStock) + qty;
                     product.buyPrice = cost;
                     if (suppId) product.supplierId = suppId;
                 } else {
