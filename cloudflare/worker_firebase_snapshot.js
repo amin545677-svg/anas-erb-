@@ -109,6 +109,8 @@ function validateSnapshotData(data) {
   uniqueIds("suppliers");
   uniqueIds("invoices");
   uniqueIds("truckTrips");
+  // Enforce uniqueness for ledger and operational collections too; legacy records without IDs remain tolerated.
+  for (const key of ["purchases", "expenses", "cashMovements", "stockMovements", "warehouseTransfers", "returns", "purchaseInvoices", "trucks"]) uniqueIds(key);
 
   for (const product of data.products) {
     validateSnapshotNumber(product, "stock", "products.stock");
