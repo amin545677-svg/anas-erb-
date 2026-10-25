@@ -84,3 +84,29 @@ Changes in the candidate:
 - 14/14 focused Node.js VM tests passed, covering all three POS quantity mutation entry points, malformed and negative stock handling, missing secondary balance compatibility, invalid source/destination transfer rejection, valid transfer behavior, and rollback on failed save.
 
 These are isolated source-function tests with controlled mocks, not a full browser, cloud-sync, multi-user, or Android device acceptance run. The candidate artifact is not merged into or deployed as production; it must still undergo the V42 feature-preservation review described above.
+
+
+## Follow-up: truck reservation and delivery stock preflight (2026-10-25)
+
+### Reproduced source-level risk
+
+The pinned local candidate's `validateTripHold` and `postTripStock` previously aggregated each line using `(Number(item.qty)||0)`. A malformed quantity could therefore be coerced to zero and silently ignored when another valid line for the same product existed. Stock checks also used `(Number(p.stock)||0)`, which does not explicitly reject non-finite or malformed source balances before the delivery mutation.
+
+### Candidate-only patch
+
+Updated local artifact: `ANAS_ERP_V54_25_CANDIDATE_NEGATIVE_STOCK_GUARD.html`
+
+- Size: 582,109 bytes
+- SHA-256: `8f6194b729b8173ed62587b2ff73d3d813cf5f6598b53f85232f86dcac60fde8`
+- The candidate now validates each trip item before aggregation, rejects blank product IDs and non-positive/non-finite quantities, and rejects malformed, negative, or non-finite stock balances before any delivery mutation.
+- Existing two-phase behavior is retained: all required products/balances are validated before stock movements are written; the existing trip-status handler restores stock, reservation fields, movement history, and trip state if persistence fails.
+- `main/index.html` and the deployed V42 application were not modified.
+
+### Verification performed on the patched local candidate
+
+- 14/14 existing isolated Node VM regression tests passed (POS quantity guards, malformed stock handling, transfer validation, valid transfer, and persistence-failure rollback).
+- 9/9 new isolated Node VM tests passed, covering malformed quantity mixed with valid quantity for the same product, infinite and negative stock, duplicate valid line aggregation, insufficient stock, delivery idempotence, reservation preflight, and valid reservation.
+- All 12 non-empty inline JavaScript blocks passed `node --check`.
+- HTML parser processed 1,139 elements and 238 IDs; no duplicate IDs were found.
+
+These are isolated source-function tests with controlled mocks, not full browser, cloud-sync, multi-user, persistence/reload, or Android device acceptance tests. This patch remains candidate-only and is not approved for production until the V42 feature-preservation audit and broader acceptance suite are complete.
