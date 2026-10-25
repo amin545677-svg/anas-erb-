@@ -732,6 +732,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "return NaN" in stock_balance,
         "warehouse transfer validates both source and destination balances before mutation":
             "Number.isFinite(available)" in stock_transfer
+            and "available>Number.MAX_SAFE_INTEGER" in stock_transfer
             and "Number.isFinite(destinationBalance)" in stock_transfer
             and "destinationBalance=wtBalance(p,to)" in stock_transfer,
         "warehouse transfer rejects duplicate product IDs and destination overflow":
