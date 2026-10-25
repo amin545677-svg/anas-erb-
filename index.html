@@ -5768,11 +5768,21 @@ function renderPurchasesTable() {
                     return;
                 }
             }
+            const hadPrevious = Object.prototype.hasOwnProperty.call(AppData, 'syncUrl');
+            const previous = AppData.syncUrl;
             AppData.syncUrl = value;
-            if (saveDB()) {
-                setSyncStatus(value ? 'تم حفظ الرابط فقط. لم تتم مزامنة البيانات بعد؛ اضغط إرسال أو استرجاع لاختبار واجهة API.' : 'لم يُحفظ رابط مزامنة.');
-                alert('تم حفظ إعداد الرابط. ملاحظة: حفظ الرابط وحده لا يزامن البيانات.');
+            let saved = false;
+            try { saved = saveDB() !== false; }
+            catch (err) { console.error('ANAS sync URL save failed:', err); }
+            if (!saved) {
+                if (hadPrevious) AppData.syncUrl = previous;
+                else delete AppData.syncUrl;
+                setSyncStatus('تعذر حفظ رابط المزامنة؛ أُعيد الرابط السابق ولم يتم تأكيد التغيير.', true);
+                alert('تعذر حفظ إعداد الرابط؛ بقي رابط المزامنة السابق كما هو.');
+                return;
             }
+            setSyncStatus(value ? 'تم حفظ الرابط فقط. لم تتم مزامنة البيانات بعد؛ اضغط إرسال أو استرجاع لاختبار واجهة API.' : 'لم يُحفظ رابط مزامنة.');
+            alert('تم حفظ إعداد الرابط. ملاحظة: حفظ الرابط وحده لا يزامن البيانات.');
         }
 
         // فحوصات مشتركة قبل الاتصال بالخادم أو اعتماد نسخة مسترجعة.
