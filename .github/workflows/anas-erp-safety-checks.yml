@@ -664,6 +664,75 @@ jobs:
           Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
           PY
           node /tmp/anas-customer-debt-test.js
+      - name: Exercise cash operation and expense integrity with mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function submitCashOperation()")
+          mid = s.find("function submitExpenseOperation()", start)
+          end = s.find("\n        function ", mid + 10)
+          assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
+          cash_fn = s[start:mid]
+          expense_fn = s[mid:end]
+          js = r"""
+          /*INSERT_CASH_FUNCTION*/
+          /*INSERT_EXPENSE_FUNCTION*/
+          const assert = require('node:assert/strict');
+          global.alert = () => {};
+          global.updateCashUI = () => {};
+          global.renderExpenses = () => {};
+          const elements = {
+            cashAmountInput: {value:'10',focus(){}}, cashDescInput:{value:'test'},
+            optAddCash:{classList:{contains:()=>true}},
+            expAmountInput:{value:'10',focus(){}}, expDescInput:{value:'test expense'}, expAccountInput:{value:'general'}
+          };
+          global.document = {getElementById:(id)=>elements[id]};
+          global.AppData = {caisseBalance:20,cashMovements:[],expenses:[]};
+          let saves=0; global.saveDB=()=>{saves++;return true;};
+          submitCashOperation();
+          assert.equal(AppData.caisseBalance,30,'valid cash-in increases balance');
+          assert.equal(AppData.cashMovements.length,1,'valid cash-in records movement');
+          assert.equal(saves,1);
+          elements.cashAmountInput.value='10abc';
+          submitCashOperation();
+          assert.equal(saves,1,'trailing non-numeric characters must not be accepted');
+          assert.equal(AppData.caisseBalance,30);
+
+          global.AppData={caisseBalance:'corrupt',cashMovements:[]};
+          elements.cashAmountInput.value='5';
+          submitCashOperation();
+          assert.equal(saves,1,'corrupt balance must block cash movement');
+          assert.equal(AppData.caisseBalance,'corrupt');
+
+          global.AppData={caisseBalance:20,cashMovements:{bad:true}};
+          submitCashOperation();
+          assert.equal(saves,1,'malformed cash ledger must block mutation');
+          assert.deepEqual(AppData.cashMovements,{bad:true});
+
+          global.AppData={caisseBalance:20,expenses:[]};
+          elements.expAmountInput.value='10';
+          submitExpenseOperation();
+          assert.equal(AppData.caisseBalance,10,'valid expense decreases balance');
+          assert.equal(AppData.expenses.length,1,'valid expense records an entry');
+          assert.equal(saves,2);
+
+          elements.expAmountInput.value='10oops';
+          submitExpenseOperation();
+          assert.equal(saves,2,'malformed expense amount must not be accepted');
+          assert.equal(AppData.caisseBalance,10);
+
+          global.AppData={caisseBalance:20,expenses:{bad:true}};
+          submitExpenseOperation();
+          assert.equal(saves,2,'malformed expense history must block mutation');
+          assert.deepEqual(AppData.expenses,{bad:true});
+          console.log('Cash operation and expense integrity tests passed');
+          """
+          js = js.replace("/*INSERT_CASH_FUNCTION*/", cash_fn).replace("/*INSERT_EXPENSE_FUNCTION*/", expense_fn)
+          Path("/tmp/anas-cash-expense-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-cash-expense-test.js
+          node /tmp/anas-cash-expense-test.js
       - name: Exercise invoice edit rollback metadata with mocks
         run: |
           python - <<'PY'
