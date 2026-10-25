@@ -2642,6 +2642,46 @@ jobs:
             assert.equal(Object.hasOwn(first,'expenseId'),false);
             assert.equal(Object.hasOwn(second,'expenseId'),false);
           }
+          // Existing duplicate expense links are ambiguous: do not pick one and silently ignore the other.
+          {
+            let duplicateLinkSaves = 0;
+            const trip = {id:'T-DUP-LINK',cost:'12.5'};
+            const expenses = [
+              {id:'E1',sourceType:'truck_trip',sourceId:'T-DUP-LINK',amt:12.5},
+              {id:'E2',sourceType:'truck_trip',sourceId:'T-DUP-LINK',amt:15}
+            ];
+            const alerts = [];
+            const ctx = {
+              window:{}, AppData:{truckTrips:[trip],expenses},
+              ensure:()=>{}, alert:m=>alerts.push(String(m)), confirm:()=>true, money:String,
+              anasTruckRender:()=>{}, saveDB:()=>{duplicateLinkSaves++;return true;},
+              Number,String,Object,Array,Date,console
+            };
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            ctx.runExpense('T-DUP-LINK');
+            assert.equal(duplicateLinkSaves,0,'duplicate linked expenses must not persist a chosen link');
+            assert.equal(ctx.AppData.expenses.length,2,'duplicate expense records must remain untouched for audit');
+            assert.equal(Object.hasOwn(trip,'expenseId'),false,'ambiguous expense history must not link the trip arbitrarily');
+            assert.ok(alerts.some(x=>x.includes('أكثر من مصروف')),'ambiguous expense history must be explained');
+          }
+          // Corrupt expense arrays must fail closed before searching source links.
+          {
+            for (const badEntry of [null, [], 'bad']) {
+              let badEntrySaves = 0;
+              const trip = {id:'T-BAD-EXPENSE-HISTORY',cost:'12.5'};
+              const ctx = {
+                window:{}, AppData:{truckTrips:[trip],expenses:[badEntry]},
+                ensure:()=>{}, alert:()=>{}, confirm:()=>true, money:String,
+                anasTruckRender:()=>{}, saveDB:()=>{badEntrySaves++;return true;},
+                Number,String,Object,Array,Date,console
+              };
+              vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+              ctx.runExpense('T-BAD-EXPENSE-HISTORY');
+              assert.equal(badEntrySaves,0,'malformed expense history must not persist');
+              assert.equal(ctx.AppData.expenses.length,1,'malformed expense history must remain unchanged');
+              assert.equal(Object.hasOwn(trip,'expenseId'),false,'malformed expense history must not link trip');
+            }
+          }
           let saves = 0;
           const trip = {id:'T-VALID-COST', cost:'12.5', plate:'T', origin:'A', destination:'B'};
           const ctx = {
