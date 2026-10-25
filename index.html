@@ -4474,7 +4474,7 @@ function renderPurchasesTable() {
                 editedItems.push({...oldItem, qty, price, name: oldItem.name || product.name});
             }
             const newTotal = editedItems.reduce((sum, x) => sum + Number(x.qty) * Number(x.price), 0);
-            if (!Number.isFinite(newTotal) || newTotal < 0) { alert('تعذر حساب إجمالي الفاتورة.'); return; }
+            if (!Number.isFinite(newTotal) || newTotal < 0 || newTotal > Number.MAX_SAFE_INTEGER) { alert('تعذر حساب إجمالي الفاتورة: الإجمالي خارج المجال المالي الآمن.'); return; }
             const oldItems = inv.items;
             // Historical invoice quantities and prices are the baseline for stock reconciliation.
             // Never coerce malformed legacy values to zero: that would create a false stock adjustment.
@@ -4518,6 +4518,7 @@ function renderPurchasesTable() {
             const oldPaid = Object.prototype.hasOwnProperty.call(inv, 'paid') ? Number(inv.paid) : 0;
             const oldRemaining = Object.prototype.hasOwnProperty.call(inv, 'remaining') ? Number(inv.remaining) : Math.max(0, oldTotal - oldPaid);
             if (!Number.isFinite(oldTotal) || !Number.isFinite(oldPaid) || !Number.isFinite(oldRemaining) ||
+                oldTotal < 0 || oldPaid < 0 || oldRemaining < 0 || oldTotal > Number.MAX_SAFE_INTEGER || oldPaid > Number.MAX_SAFE_INTEGER || oldRemaining > Number.MAX_SAFE_INTEGER ||
                 oldPaid > oldTotal + 0.000001 || oldRemaining > oldTotal + 0.000001 ||
                 Math.abs(oldRemaining - Math.max(0, oldTotal - oldPaid)) > 0.01) {
                 alert('تعذر تعديل الفاتورة: إجماليها والمدفوع والمتبقي غير متطابقة. راجع الحسابات أو صحّح الفاتورة قبل التسوية.');
@@ -4555,6 +4556,18 @@ function renderPurchasesTable() {
                   String(customer.debt).trim() !== '' && Number.isFinite(Number(customer.debt)) && Number(customer.debt) >= 0)) {
                 alert('تعذر تعديل الفاتورة: رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي.');
                 return;
+            }
+            if (newRemaining > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تعديل الفاتورة: الرصيد المتبقي يتجاوز المجال المالي الآمن.');
+                return;
+            }
+            if (customer) {
+                const currentCustomerDebt = Number(customer.debt ?? 0);
+                const projectedCustomerDebt = currentCustomerDebt + (newRemaining - oldRemaining);
+                if (!Number.isFinite(projectedCustomerDebt) || projectedCustomerDebt < 0 || projectedCustomerDebt > Number.MAX_SAFE_INTEGER) {
+                    alert('تعذر تعديل الفاتورة: تسوية دين العميل ستنتج رصيداً خارج المجال المالي الآمن. لم يتم تغيير الفاتورة أو المخزون.');
+                    return;
+                }
             }
             // Validate every touched product map, even for a main-warehouse invoice:
             // rollback snapshots must never coerce an array/null legacy map into a plain object.
