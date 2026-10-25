@@ -4010,6 +4010,16 @@ function renderPurchasesTable() {
                 alert('سجل حركات الصندوق تالف؛ أُوقف القبض دون استبدال السجل.');
                 return;
             }
+            const movementIds = new Set();
+            for (const movement of (Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [])) {
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const movementId = String(movement.id);
+                if (movementIds.has(movementId)) {
+                    alert('سجل حركات الصندوق يحتوي على معرّفات مكررة؛ أُوقف القبض لحماية التدقيق المالي. أصلح السجل قبل المتابعة.');
+                    return;
+                }
+                movementIds.add(movementId);
+            }
             const hadCustomerDebt = Object.prototype.hasOwnProperty.call(c, 'debt');
             const previousDebtValue = c.debt;
             const previousDebt = Number(c.debt);
@@ -4037,8 +4047,12 @@ function renderPurchasesTable() {
             c.debt = Math.max(0, previousDebt - amt);
             AppData.caisseBalance = previousBalance + amt;
             if (!hadMovements) AppData.cashMovements = [];
+            const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+            let movementId = baseMovementId;
+            let movementSuffix = 1;
+            while (movementIds.has(movementId)) movementId = baseMovementId + '-' + (movementSuffix++);
             AppData.cashMovements.push({
-                id: 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                id: movementId,
                 type: 'add',
                 amount: amt,
                 description: 'تحصيل دين من العميل ' + String(c.name || c.id),
