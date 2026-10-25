@@ -60,7 +60,8 @@ internal class EncryptedWebStorage(context: Context) {
     /** Called before loading any ERP page; fails closed if an existing value cannot be decrypted. */
     @Synchronized
     fun validateExistingData() {
-        val store = secretKey()
+        healthy = false
+        secretKey()
         prefs.all.values.forEach { raw ->
             if (raw is String) decrypt(raw)
         }
@@ -87,11 +88,17 @@ internal class EncryptedWebStorage(context: Context) {
 
     @JavascriptInterface
     @Synchronized
-    fun removeItem(key: String): Boolean = try { prefs.edit().remove(key).commit() } catch (_: Exception) { false }
+    fun removeItem(key: String): Boolean {
+        if (!healthy) return false
+        return try { prefs.edit().remove(key).commit() } catch (_: Exception) { false }
+    }
 
     @JavascriptInterface
     @Synchronized
-    fun clear(): Boolean = try { prefs.edit().clear().commit() } catch (_: Exception) { false }
+    fun clear(): Boolean {
+        if (!healthy) return false
+        return try { prefs.edit().clear().commit() } catch (_: Exception) { false }
+    }
 
     @JavascriptInterface
     @Synchronized
