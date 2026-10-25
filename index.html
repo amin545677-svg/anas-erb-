@@ -7898,7 +7898,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const trip=AppData.truckTrips.find(t=>String(t.id)===String(id));
       if(!trip){alert('لم يتم العثور على الرحلة.');return;}
       if(trip.expenseId){alert('تم تسجيل تكلفة هذه الرحلة كمصروف من قبل.');return;}
-      const amount=Number(trip.cost);
+      const rawAmount=trip.cost;
+      if(!((typeof rawAmount==='number')||(typeof rawAmount==='string'))||String(rawAmount).trim()===''){
+        alert('قيمة تكلفة الرحلة غير صالحة؛ يجب أن تكون رقماً صريحاً وليس قيمة فارغة أو نوعاً آخر.');
+        return;
+      }
+      const amount=Number(rawAmount);
       if(!Number.isFinite(amount)||amount<0||amount>Number.MAX_SAFE_INTEGER){alert('قيمة تكلفة الرحلة غير صالحة أو تتجاوز المجال المالي الآمن.');return;}
       if(amount===0){alert('تكلفة الرحلة صفر؛ لا حاجة لإنشاء مصروف.');return;}
       if(!confirm('سيُضاف مبلغ '+money(amount)+' إلى قائمة المصروفات تحت بند نقل الشاحنات. لن يتم خصم المبلغ من رصيد الصندوق تلقائياً. هل تريد المتابعة؟'))return;
