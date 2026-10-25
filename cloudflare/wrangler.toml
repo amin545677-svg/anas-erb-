@@ -6,3 +6,6 @@ workers_dev = true
 [vars]
 FIREBASE_PROJECT_ID = "anas-erb"
 ALLOWED_ORIGINS = "https://amin545677-svg.github.io"
+
+[secrets]
+required = ["FIREBASE_API_KEY"]
