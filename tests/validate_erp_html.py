@@ -451,7 +451,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     settlement_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
     settlement_restore = "if(old.hadWarehouseStock)old.p.warehouseStock=old.warehouseStock;else delete old.p.warehouseStock"
     load_snapshot = "warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice()"
-    load_restore = "oldStocks.forEach(x=>{x.p.stock=x.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});"
+    load_restore = "oldStocks.forEach(x=>{if(x.hadStock)x.p.stock=x.stock;else delete x.p.stock;if(x.hadWarehouseStock)x.p.warehouseStock=x.warehouseStock;else delete x.p.warehouseStock;});"
     if load_guard not in source or settlement_snapshot not in source or settlement_restore not in source or load_snapshot not in source or load_restore not in source:
         errors.append("truck load guard or rollback preservation for malformed warehouse maps is missing")
     else:
@@ -734,6 +734,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "Number(p.stock)>Number.MAX_SAFE_INTEGER" in function_source("postTripStock")
             and "Number.isFinite(truckBalance+qty)" in function_source("postTripStock")
             and "truckBalance+qty>Number.MAX_SAFE_INTEGER" in function_source("postTripStock"),
+        "failed truck load rollback preserves stock property presence exactly":
+            "hadStock:Object.prototype.hasOwnProperty.call(p,'stock')" in function_source("postTripStock")
+            and "if(x.hadStock)x.p.stock=x.stock;else delete x.p.stock;" in function_source("postTripStock"),
     }
     for label, passed in stock_balance_checks.items():
         if passed:
