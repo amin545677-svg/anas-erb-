@@ -3217,7 +3217,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 const id = String(item.id ?? '');
                 const qty = Number(item.qty);
                 const price = Number(item.price);
-                if (!id || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) {
+                if (!id ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
+                    (typeof item.qty === 'string' && item.qty.trim() === '') ||
+                    !Number.isFinite(qty) || qty <= 0 || qty > Number.MAX_SAFE_INTEGER ||
+                    !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
+                    (typeof item.price === 'string' && item.price.trim() === '') ||
+                    !Number.isFinite(price) || price < 0 || price > Number.MAX_SAFE_INTEGER) {
                     alert('تعذر تأكيد الفاتورة: يوجد منتج أو كمية أو سعر غير صالح.'); return;
                 }
                 const aggregateQty = (required.get(id) || 0) + qty;
