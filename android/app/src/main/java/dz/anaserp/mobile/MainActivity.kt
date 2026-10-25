@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
@@ -44,6 +45,14 @@ class MainActivity : FragmentActivity() {
     private var authenticationInProgress = false
     private var lastBackgroundAt = 0L
     private var storageInstallationFailed = false
+
+    // Android 10 (API 29) rejects BIOMETRIC_STRONG | DEVICE_CREDENTIAL as a combined authenticator.
+    // Keep API 29 supported with strong biometrics; enable the system credential fallback on API 30+.
+    private fun allowedAuthenticators(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        AUTHENTICATORS
+    } else {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,7 +161,7 @@ class MainActivity : FragmentActivity() {
     private fun authenticate() {
         if (authenticationInProgress) return
         val manager = BiometricManager.from(this)
-        val capability = manager.canAuthenticate(AUTHENTICATORS)
+        val capability = manager.canAuthenticate(allowedAuthenticators())
         if (capability != BiometricManager.BIOMETRIC_SUCCESS) {
             val reason = when (capability) {
                 BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "هذا الجهاز لا يحتوي على مستشعر بصمة/قياسات حيوية قوية مدعومة."
@@ -194,7 +203,7 @@ class MainActivity : FragmentActivity() {
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(getString(R.string.biometric_title))
             .setSubtitle(getString(R.string.biometric_subtitle))
-            .setAllowedAuthenticators(AUTHENTICATORS)
+            .setAllowedAuthenticators(allowedAuthenticators())
             .build()
         prompt.authenticate(info)
     }
