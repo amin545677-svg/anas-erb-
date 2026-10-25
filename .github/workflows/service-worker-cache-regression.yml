@@ -6,11 +6,13 @@ on:
     paths:
       - "sw.js"
       - "tests/test_service_worker_cache.py"
+      - "tests/service_worker_runtime_test.js"
       - ".github/workflows/service-worker-cache-regression.yml"
   pull_request:
     paths:
       - "sw.js"
       - "tests/test_service_worker_cache.py"
+      - "tests/service_worker_runtime_test.js"
       - ".github/workflows/service-worker-cache-regression.yml"
   workflow_dispatch:
 
@@ -25,3 +27,5 @@ jobs:
         uses: actions/checkout@v4
       - name: Verify service-worker update and offline-cache invariants
         run: python tests/test_service_worker_cache.py
+      - name: Exercise service-worker cache behavior with runtime mocks
+        run: node tests/service_worker_runtime_test.js
