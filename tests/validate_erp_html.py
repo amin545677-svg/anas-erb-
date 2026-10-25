@@ -965,6 +965,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "salePrice*qty>Number.MAX_SAFE_INTEGER" in transfer,
         "backup restore validates per-warehouse stock maps":
             "rawBalance" in source and "Number(rawBalance) > Number.MAX_SAFE_INTEGER" in source,
+        "backup restore rejects invoice paid/remaining balances inconsistent with total":
+            "Number(invoice.paid) > Number(invoice.total) + 0.000001" in backup_fn
+            and "Math.abs(Number(invoice.remaining) - Math.max(0, Number(invoice.total) - Number(invoice.paid))) > 0.01" in backup_fn,
 
         "backup restore rejects unsafe stock and financial magnitudes":
             "Number(p.stock) > Number.MAX_SAFE_INTEGER" in source

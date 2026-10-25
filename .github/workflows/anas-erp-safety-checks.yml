@@ -608,7 +608,7 @@ jobs:
             ['boolean product stock', d => d.products[0].stock = false]
           ]) {
             const data = valid(); mutate(data);
-            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
+            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية|يتجاوز إجمالي|متطابقة حسابيًا/, label);
           }
           const accepted = ctx.validateBackup(valid());
           assert.equal(accepted.caisseBalance,100,'valid financial backup remains importable');
@@ -624,6 +624,8 @@ jobs:
             ['boolean invoice total', d => d.invoices[0].total = true],
             ['array invoice paid amount', d => d.invoices[0].paid = [5]],
             ['malformed invoice remaining amount', d => d.invoices[0].remaining = '15oops'],
+            ['invoice paid amount exceeds total', d => d.invoices[0].paid = 21],
+            ['invoice remaining amount disagrees with total and paid', d => d.invoices[0].remaining = 14],
             ['boolean invoice line quantity', d => d.invoices[0].items[0].qty = false],
             ['array invoice line price', d => d.invoices[0].items[0].price = [10]],
             ['malformed purchase cost', d => d.purchases[0].cost = '5abc'],
@@ -635,7 +637,7 @@ jobs:
           for (const [label, mutate] of malformedInvoiceCases) {
             const data = validSalesAndPurchases();
             mutate(data);
-            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
+            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية|يتجاوز إجمالي|متطابقة حسابيًا/, label);
           }
           const legacyInvoice = {products:[{id:'p1',stock:2}],customers:[],suppliers:[],invoices:[{number:'legacy',items:[{name:'Old line'}]}]};
           assert.equal(ctx.validateBackup(legacyInvoice).invoices.length,1,'legacy records with omitted optional numeric fields remain importable');
