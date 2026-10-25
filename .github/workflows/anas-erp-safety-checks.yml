@@ -519,6 +519,44 @@ jobs:
           PY
           node --check /tmp/anas-backup-duplicate-ids-test.js
           node /tmp/anas-backup-duplicate-ids-test.js
+      - name: Reject malformed financial values in backup restores
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function anasValidateBackupData(incoming)")
+          end = s.find("\\n        function importDataBackup(e)", start)
+          assert start >= 0 and end > start, "Could not isolate backup validator"
+          fn = s[start:end]
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const validatorSource = /*INSERT_VALIDATOR*/;
+          const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
+          vm.runInNewContext(validatorSource+'\\nthis.validateBackup=anasValidateBackupData;',ctx);
+          const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
+          for (const [label, mutate] of [
+            ['invalid cash balance', d => d.caisseBalance = '12abc'],
+            ['negative cash balance', d => d.caisseBalance = -1],
+            ['malformed customer debt', d => d.customers[0].debt = '8abc'],
+            ['negative supplier balance', d => d.suppliers[0].balance = -2],
+            ['zero expense amount', d => d.expenses[0].amt = 0],
+            ['malformed cash movement amount', d => d.cashMovements[0].amount = '4oops']
+          ]) {
+            const data = valid(); mutate(data);
+            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
+          }
+          const accepted = ctx.validateBackup(valid());
+          assert.equal(accepted.caisseBalance,100,'valid financial backup remains importable');
+          assert.equal(accepted.customers[0].debt,0,'zero customer debt remains valid');
+          console.log('Backup financial-value validation tests passed');
+          """
+          js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
+          Path("/tmp/anas-backup-financial-validation-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-backup-financial-validation-test.js
+          node /tmp/anas-backup-financial-validation-test.js
       - name: Validate import persistence and UI rollback boundary
         run: |
           python - <<'PY'
