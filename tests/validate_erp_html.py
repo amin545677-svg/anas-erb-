@@ -265,7 +265,7 @@ def main():
 
     # Execute the shared truck-expense restore validator against valid and corrupt ledger relationships.
     truck_link_start = source.find("function anasValidateTruckExpenseLinks(incoming) {")
-    truck_link_end = source.find("\\n        function anasValidateIncomingSyncData", truck_link_start)
+    truck_link_end = source.find("\n        function anasValidateIncomingSyncData", truck_link_start)
     truck_link_fn = source[truck_link_start:truck_link_end] if truck_link_start >= 0 and truck_link_end > truck_link_start else ""
     if not truck_link_fn:
         errors.append("cannot locate truck expense link validator for runtime regression tests")
@@ -275,7 +275,7 @@ const vm = require('node:vm');
 const validator = __VALIDATOR__;
 const context = {};
 vm.createContext(context);
-vm.runInContext(validator + '\\nthis.validate = anasValidateTruckExpenseLinks;', context);
+vm.runInContext(validator + '\nthis.validate = anasValidateTruckExpenseLinks;', context);
 const validate = context.validate;
 const good = {truckTrips:[{id:'T-1',cost:125,expenseId:'E-1'}],expenses:[{id:'E-1',amt:125,sourceType:'truck_trip',sourceId:'T-1'}]};
 validate(good);
