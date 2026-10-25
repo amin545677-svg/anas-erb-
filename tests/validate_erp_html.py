@@ -189,6 +189,13 @@ def main():
     else:
         print("PASS: cloud restore rejects duplicate operational record IDs")
 
+    # Cloud restore must enforce invoice arithmetic consistency just like file-backup restore.
+    if ("Number(inv.paid) > Number(inv.total) + 0.000001" not in cloud_validator
+        or "Math.abs(Number(inv.remaining) - Math.max(0, Number(inv.total) - Number(inv.paid))) > 0.01" not in cloud_validator):
+        errors.append("cloud restore must reject invoice paid/remaining totals that are internally inconsistent")
+    else:
+        print("PASS: cloud restore rejects inconsistent invoice balances")
+
     if ("validateCloudMoney(trip, 'cost', 'تكلفة الرحلات')" not in cloud_validator
         or "validateCloudMoney(trip, 'weight', 'وزن الرحلات')" not in cloud_validator):
         errors.append("cloud restore must validate persisted truck trip cost and weight")

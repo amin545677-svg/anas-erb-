@@ -6009,6 +6009,15 @@ function renderPurchasesTable() {
             for (const movement of (incoming.cashMovements || [])) validateCloudMoney(movement, 'amount', 'حركات الصندوق', false);
             for (const inv of incoming.invoices) {
                 for (const field of ['total', 'paid', 'remaining']) validateCloudMoney(inv, field, 'فواتير البيع');
+                // Match backup restore: reject internally inconsistent invoice balances before replacing live accounting data.
+                const hasInvoiceTotal = Object.prototype.hasOwnProperty.call(inv, 'total');
+                const hasInvoicePaid = Object.prototype.hasOwnProperty.call(inv, 'paid');
+                const hasInvoiceRemaining = Object.prototype.hasOwnProperty.call(inv, 'remaining');
+                if (hasInvoiceTotal && hasInvoicePaid && Number(inv.paid) > Number(inv.total) + 0.000001)
+                    throw new Error('المبلغ المدفوع في إحدى فواتير البيع يتجاوز إجمالي الفاتورة؛ أُلغي الاسترجاع لحماية الحسابات.');
+                if (hasInvoiceTotal && hasInvoicePaid && hasInvoiceRemaining &&
+                    Math.abs(Number(inv.remaining) - Math.max(0, Number(inv.total) - Number(inv.paid))) > 0.01)
+                    throw new Error('إجمالي الفاتورة والمدفوع والمتبقي غير متطابقة حسابيًا؛ أُلغي الاسترجاع لحماية الحسابات.');
                 if (Object.prototype.hasOwnProperty.call(inv, 'items')) {
                     if (!Array.isArray(inv.items) || inv.items.length > 10000 ||
                         inv.items.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
