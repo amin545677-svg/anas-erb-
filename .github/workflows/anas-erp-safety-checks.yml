@@ -1986,7 +1986,7 @@ jobs:
               end=s.find(end_marker,start+10)
               assert start>=0 and end>start, "Could not isolate "+label
               return s[start:end]
-          purchase=extract("function savePurchaseItem() {","\\n        function ","purchase")
+          purchase=extract("function savePurchaseItem() {","\n        function ","purchase")
           truck=extract("function postTripStock(trip){","window.anasTruckSaveTrip = function(){","truck load")
           js=r"""
           const assert=require('node:assert/strict');
