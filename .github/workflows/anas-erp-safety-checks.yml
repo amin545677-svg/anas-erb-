@@ -637,7 +637,7 @@ jobs:
           for (const [label, mutate] of malformedInvoiceCases) {
             const data = validSalesAndPurchases();
             mutate(data);
-            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية/, label);
+            assert.throws(() => ctx.validateBackup(data), /غير صالحة|غير صالح|غير رقمية|غير رقمي|قيمة مالية|يتجاوز إجمالي|متطابقة حسابيًا/, label);
           }
           const legacyInvoice = {products:[{id:'p1',stock:2}],customers:[],suppliers:[],invoices:[{number:'legacy',items:[{name:'Old line'}]}]};
           assert.equal(ctx.validateBackup(legacyInvoice).invoices.length,1,'legacy records with omitted optional numeric fields remain importable');
