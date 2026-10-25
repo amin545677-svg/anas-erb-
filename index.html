@@ -5999,6 +5999,16 @@ function renderPurchasesTable() {
                 validateCloudMoney(purchase, 'qty', 'كميات المشتريات', false);
                 validateCloudMoney(purchase, 'total', 'إجمالي المشتريات', false);
             }
+            // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
+            for (const transfer of (incoming.warehouseTransfers || [])) {
+                if (!Object.prototype.hasOwnProperty.call(transfer, 'quantity'))
+                    throw new Error('قيمة غير صالحة في كميات التحويل المخزني (quantity) بالنسخة السحابية؛ أُلغي الاسترجاع لحماية المخزون والحسابات.');
+                validateCloudMoney(transfer, 'quantity', 'كميات التحويل المخزني', false);
+                for (const field of ['buyPrice', 'salePrice', 'buyTotal', 'saleTotal']) {
+                    if (Object.prototype.hasOwnProperty.call(transfer, field) && transfer[field] !== null)
+                        validateCloudMoney(transfer, field, 'قيم سندات التحويل المخزني');
+                }
+            }
             for (const trip of (incoming.truckTrips || [])) {
                 validateCloudMoney(trip, 'cost', 'تكلفة الرحلات');
                 validateCloudMoney(trip, 'weight', 'وزن الرحلات');
