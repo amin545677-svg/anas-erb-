@@ -157,6 +157,14 @@ def main():
     if not any("customer/report/image output safety guard is missing:" in error for error in errors):
         print("PASS: customer debt, report numeric values, and stored image preview are hardened")
 
+    backup_start = source.find("function anasValidateBackupData(incoming)")
+    backup_end = source.find("\n        function importDataBackup", backup_start)
+    backup_fn = source[backup_start:backup_end] if backup_start >= 0 and backup_end > backup_start else ""
+    if not backup_fn or "Number(raw) > Number.MAX_SAFE_INTEGER" not in backup_fn:
+        errors.append("backup restore must reject unsafe financial magnitudes in every validated money field")
+    else:
+        print("PASS: backup restore rejects unsafe financial magnitudes")
+
     debt_start = source.find("function collectCustDebt(cId)")
     debt_end = source.find("\n        function ", debt_start)
     debt_fn = source[debt_start:debt_end] if debt_start >= 0 and debt_end > debt_start else ""
