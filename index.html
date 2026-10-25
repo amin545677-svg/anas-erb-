@@ -4368,7 +4368,7 @@ function renderPurchasesTable() {
             const seenInvoiceProductIds = new Set();
             for (const item of inv.items) {
                 if (!item || typeof item !== 'object' || Array.isArray(item) || item.id === undefined || item.id === null || String(item.id).trim() === '' ||
-                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || Number(item.qty) > Number.MAX_SAFE_INTEGER ||
                     !((typeof item.price === 'number') || (typeof item.price === 'string')) || String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
                     alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
                     return;
@@ -4395,7 +4395,7 @@ function renderPurchasesTable() {
                 const qtyText = prompt('تعديل كمية: ' + (oldItem.name || product.name) + '\nالكمية الحالية: ' + oldItem.qty, String(oldItem.qty));
                 if (qtyText === null) return;
                 const qty = Number(qtyText);
-                if (!Number.isFinite(qty) || qty <= 0) { alert('الكمية يجب أن تكون رقمًا أكبر من صفر.'); return; }
+                if (!Number.isFinite(qty) || qty <= 0 || qty > Number.MAX_SAFE_INTEGER) { alert('الكمية يجب أن تكون رقمًا أكبر من صفر ولا تتجاوز المجال الرقمي الآمن.'); return; }
                 const priceText = prompt('تعديل سعر الوحدة: ' + (oldItem.name || product.name) + '\nالسعر الحالي: ' + oldItem.price, String(oldItem.price));
                 if (priceText === null) return;
                 const price = Number(priceText);
@@ -4411,7 +4411,7 @@ function renderPurchasesTable() {
                 if (!item || typeof item !== 'object' || item.id === undefined || item.id === null ||
                     String(item.id).trim() === '' ||
                     !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
-                    String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 ||
+                    String(item.qty).trim() === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || Number(item.qty) > Number.MAX_SAFE_INTEGER ||
                     !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
                     String(item.price).trim() === '' || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
                     alert('تعذر تعديل الفاتورة: تحتوي تفاصيل الفاتورة الأصلية على كمية أو سعر غير صالح. أصلح البيانات أو استعد نسخة سليمة قبل تعديل المخزون.');
