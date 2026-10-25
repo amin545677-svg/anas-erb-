@@ -2179,7 +2179,7 @@ jobs:
           assert.deepEqual(missingCashHistory.cashMovements,[]);
           console.log('Cloud restore validator tests passed: malformed accounting fields are rejected before local replacement');
           """
-          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "\\n" + function_js)
+          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "\n" + function_js)
           Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-cloud-restore-validator-test.js
