@@ -3154,9 +3154,18 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 required.set(id, (required.get(id) || 0) + qty);
             }
             const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            // Resolve every sale line to exactly one product record. Duplicate IDs make stock ownership ambiguous.
+            const saleProducts = new Map();
             for (const [id, qty] of required) {
-                const product = (AppData.products || []).find(p => String(p.id) === id);
-                if (!product) { alert('تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.'); return; }
+                const productMatches = (AppData.products || []).filter(p => p && typeof p === 'object' && !Array.isArray(p) && p.id !== undefined && p.id !== null && String(p.id) === id);
+                if (productMatches.length !== 1) {
+                    alert(productMatches.length
+                        ? 'تعذر تأكيد الفاتورة: معرّف المنتج مكرر (' + id + '). أصلح تكرار المعرّفات قبل البيع.'
+                        : 'تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.');
+                    return;
+                }
+                const product = productMatches[0];
+                saleProducts.set(id, product);
                 if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
                     alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
                 }
@@ -3209,7 +3218,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             // نسخة تراجع دقيقة للحقول التي ستتغير، قبل لمس الحسابات والمخزون.
             const oldStocks = new Map();
             for (const id of required.keys()) {
-                const p = AppData.products.find(x => String(x.id) === id);
+                const p = saleProducts.get(id);
                 oldStocks.set(id, {
                     stock:Number(p.stock),
                     hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
@@ -3244,7 +3253,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     cust.debtDate = new Date().toISOString().slice(0, 10);
                 }
                 for (const [id, qty] of required) {
-                    const p = AppData.products.find(x => String(x.id) === id);
+                    const p = saleProducts.get(id);
                     if(saleWarehouse==='المخزن الرئيسي') p.stock = (Number(p.stock)||0)-qty;
                     else {
                         if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
@@ -3258,7 +3267,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
             } catch (e) {
                 for (const [id, stockState] of oldStocks) {
-                    const p = AppData.products.find(x => String(x.id) === id);
+                    const p = saleProducts.get(id);
                     if (p) {
                         p.stock = stockState.stock;
                         if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;

@@ -749,6 +749,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "sale aggregates repeated product quantities and validates numeric inputs":
             "required.set(id, (required.get(id) || 0) + qty)" in sale
             and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
+        "POS sale rejects missing or duplicate product IDs and reuses unique preflight records":
+            "productMatches = (AppData.products || []).filter(" in sale
+            and "productMatches.length !== 1" in sale
+            and "saleProducts.set(id, product)" in sale
+            and "saleProducts.get(id)" in sale,
         "sale restores stock, customer debt, cash, invoices and cart after persistence failure":
             "if (!saveDB()) throw" in sale and "p.stock = stockState.stock" in sale
             and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
