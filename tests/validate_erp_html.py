@@ -823,6 +823,11 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     if all(guard_call in function_source(name) and "saveDB(" not in function_source(name) for name, guard_call in legacy_destructive_guards.items()):
         print("PASS: legacy destructive invoice actions delegate to safe guards")
 
+    if "duplicateProductIds" not in stocktake_approve or "other.productId" not in stocktake_approve:
+        errors.append("stocktake approval must reject duplicate product IDs and duplicate rows")
+    else:
+        print("PASS: stocktake approval rejects ambiguous product identities")
+
     if "actual>Number.MAX_SAFE_INTEGER" not in stocktake_approve or "current>Number.MAX_SAFE_INTEGER" not in stocktake_approve:
         errors.append("stocktake approval must reject unsafe counted and current stock balances before mutation")
     else:
