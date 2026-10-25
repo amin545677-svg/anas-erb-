@@ -442,7 +442,7 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("\\n        function importDataBackup", start)
+          end = s.find("\n        function importDataBackup", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
