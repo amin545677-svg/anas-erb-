@@ -677,6 +677,50 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         if not any("inline script #" in item for item in errors):
             print(f"PASS: {checked} inline JavaScript blocks pass node --check")
 
+
+    # Transaction-safety regression guards for money and inventory mutations.
+    def function_source(name, end_marker=None):
+        marker = "function " + name + "("
+        start = source.find(marker)
+        if start < 0:
+            return ""
+        candidates = [pos for pos in (source.find("\\n        function ", start + len(marker)), source.find("\\nfunction ", start + len(marker))) if pos >= 0]
+        end = min(candidates) if candidates else len(source)
+        if end_marker:
+            marker_end = source.find(end_marker, start)
+            if marker_end >= 0 and marker_end < end:
+                end = marker_end
+        return source[start:end]
+
+    sale = function_source("confirmHasibPayment")
+    purchase = function_source("savePurchaseItem")
+    transfer = function_source("wtCreateTransfer")
+    backup_import = function_source("importDataBackup", "// ================= مركز الإكسل")
+    transaction_checks = {
+        "sale aggregates repeated product quantities and validates numeric inputs":
+            "required.set(id, (required.get(id) || 0) + qty)" in sale
+            and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
+        "sale restores stock, customer debt, cash, invoices and cart after persistence failure":
+            "if (!saveDB()) throw" in sale and "p.stock = stockState.stock" in sale
+            and "cust.debt = oldDebt" in sale and "AppData.caisseBalance = oldCaisse" in sale
+            and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale,
+        "purchase validates safe integer quantity and restores AppData on failed persistence":
+            "Number.isSafeInteger(qty)" in purchase and "saveDB() === false" in purchase
+            and "AppData = previous" in purchase,
+        "warehouse transfer rejects insufficient stock and restores inventory/transfer records on failure":
+            "qty>available" in transfer and "if(!saveDB())throw" in transfer
+            and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
+        "backup import validates before replacing state and restores prior data on save failure":
+            "anasValidateBackupData(JSON.parse(evt.target.result))" in backup_import
+            and "const previous = AppData" in backup_import and "if (!saveDB())" in backup_import
+            and "AppData = previous; posCart = previousCart" in backup_import,
+    }
+    for label, passed in transaction_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("transaction-safety regression: " + label)
+
     if errors:
         for error in errors:
             print("FAIL:", error)
