@@ -186,9 +186,8 @@ test("oversized snapshot bodies are cancelled at the streaming limit", async () 
     throw new Error("oversized snapshot must not reach Firestore");
   };
   const body = new ReadableStream({
-    pull(controller) {
-      if (pulls === 1) controller.enqueue(new Uint8Array(MAX_BODY_BYTES_FOR_TEST));
-      else controller.enqueue(new Uint8Array(1));
+    start(controller) {
+      controller.enqueue(new Uint8Array(MAX_BODY_BYTES_FOR_TEST + 1));
     },
     cancel() { cancelled = true; }
   });
