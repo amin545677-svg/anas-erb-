@@ -1112,6 +1112,17 @@ jobs:
             stockMovements: []
           };
           /*INSERT_TRUCK_SETTLEMENT_FUNCTION*/
+          window.anasTruckSettle('T1');
+          window.anasTruckSettle('T1');
+          assert.equal(AppData.products[0].stock, 6, 'one returned unit goes back to main stock');
+          assert.equal(AppData.products[0].warehouseStock['Truck T'], 0, 'return/damaged/missing units leave truck balance');
+          assert.equal(AppData.stockMovements.length, 3, 'return, damaged and missing each get a ledger movement');
+          assert.equal(AppData.truckTrips[0].settlementInvoiceIds[0], 'INV-1');
+          assert.ok(AppData.truckTrips[0].settledAt);
+          const moves = AppData.stockMovements.length;
+          window.anasTruckSettle('T1');
+          assert.equal(AppData.stockMovements.length, moves, 'repeat settlement must not duplicate movements');
+
           // A finite main-stock balance plus a finite return quantity can overflow; reject before any mutation.
           global.prompt = (() => {
             const answers = ['6','1','1','2','INV-OVERFLOW'];
@@ -1132,16 +1143,6 @@ jobs:
           assert.equal(AppData.stockMovements.length, 0, 'overflow guard must not create movements');
           assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'overflow guard must not mark trip settled');
 
-          window.anasTruckSettle('T1');
-          window.anasTruckSettle('T1');
-          assert.equal(AppData.products[0].stock, 6, 'one returned unit goes back to main stock');
-          assert.equal(AppData.products[0].warehouseStock['Truck T'], 0, 'return/damaged/missing units leave truck balance');
-          assert.equal(AppData.stockMovements.length, 3, 'return, damaged and missing each get a ledger movement');
-          assert.equal(AppData.truckTrips[0].settlementInvoiceIds[0], 'INV-1');
-          assert.ok(AppData.truckTrips[0].settledAt);
-          const moves = AppData.stockMovements.length;
-          window.anasTruckSettle('T1');
-          assert.equal(AppData.stockMovements.length, moves, 'repeat settlement must not duplicate movements');
 
           // Duplicate product IDs collide deterministic ledger movement IDs and must be rejected before prompting or mutation.
           let duplicatePromptCalls = 0;
