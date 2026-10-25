@@ -1866,7 +1866,7 @@ jobs:
           node --check /tmp/anas-save-db-persistence-test.js
           node /tmp/anas-save-db-persistence-test.js
 
-      - name: Exercise POS and settings rollback on persistence failure
+            - name: Exercise POS and settings rollback on persistence failure
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -1874,7 +1874,7 @@ jobs:
           s = Path("index.html").read_text(encoding="utf-8")
           def extract(name):
               start = s.find("function " + name + "(")
-              end = s.find("\\n        function ", start + 10)
+              end = s.find("\n        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               return s[start:end]
           names = ["switchPosScreen", "clearAllPosScreens", "setPosPriceTier", "saveAppSettings"]
@@ -1904,7 +1904,7 @@ jobs:
               openView:()=>{throw new Error('must not navigate after failed save');},
               ...extra
             };
-            vm.runInNewContext(sources[name]+'\\nthis.invoke='+name+';',ctx);
+            vm.runInNewContext(sources[name]+'\nthis.invoke='+name+';',ctx);
             ctx.invoke(name==='switchPosScreen'?'2':name==='setPosPriceTier'?2:undefined);
             return {ctx,alerts,oldCart,carts,oldConfig};
           }
