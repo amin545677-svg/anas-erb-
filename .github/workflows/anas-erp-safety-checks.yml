@@ -1627,7 +1627,38 @@ jobs:
           const missingCollections = base();
           delete missingCollections.products[0].warehouseStock;
           assert.equal(anasValidateIncomingSyncData(missingCollections), missingCollections, 'absent legacy warehouse stock map remains compatible');
-          console.log('Cloud restore validator tests passed: valid legacy data, explicit null history, malformed warehouse lists/maps, and invalid balances');
+
+          const validAccounting = () => ({
+            products:[{id:'p1',stock:8}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],
+            invoices:[{id:'i1',total:20,paid:5,remaining:15,items:[{qty:2,price:10}]}],
+            purchases:[{cost:5,qty:2,total:10}],expenses:[{amt:4}],cashMovements:[{amount:5}]
+          });
+          const goodAccounting=validAccounting();
+          assert.equal(anasValidateIncomingSyncData(goodAccounting),goodAccounting,'valid cloud accounting records must remain accepted');
+          const badAccountingCases = [
+            ['boolean invoice total', d=>d.invoices[0].total=true],
+            ['array invoice paid', d=>d.invoices[0].paid=[5]],
+            ['malformed invoice remaining', d=>d.invoices[0].remaining='15oops'],
+            ['boolean invoice line quantity', d=>d.invoices[0].items[0].qty=false],
+            ['array invoice line price', d=>d.invoices[0].items[0].price=[10]],
+            ['malformed purchase cost', d=>d.purchases[0].cost='5oops'],
+            ['boolean purchase quantity', d=>d.purchases[0].qty=true],
+            ['array purchase total', d=>d.purchases[0].total=[10]],
+            ['malformed expense amount', d=>d.expenses[0].amt='4oops'],
+            ['boolean cash movement amount', d=>d.cashMovements[0].amount=true],
+            ['array customer debt', d=>d.customers[0].debt=[10]],
+            ['boolean supplier balance', d=>d.suppliers[0].balance=false],
+            ['non-array invoice items', d=>d.invoices[0].items={qty:2,price:10}],
+            ['null invoice item', d=>d.invoices[0].items=[null]]
+          ];
+          for (const [label, mutate] of badAccountingCases) {
+            const bad=validAccounting(); mutate(bad);
+            assert.throws(()=>anasValidateIncomingSyncData(bad),Error,label);
+          }
+          const missingCashHistory=base();
+          missingCashHistory.cashMovements=[];
+          assert.deepEqual(missingCashHistory.cashMovements,[]);
+          console.log('Cloud restore validator tests passed: malformed accounting fields are rejected before local replacement');
           """
           js = js.replace("/*INSERT_SYNC_VALIDATOR*/", function_js)
           Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
