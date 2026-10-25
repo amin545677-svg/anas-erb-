@@ -5894,7 +5894,8 @@ function renderPurchasesTable() {
                 ['customers', incoming.customers, false],
                 ['suppliers', incoming.suppliers, false],
                 ['invoices', incoming.invoices, false],
-                ['truckTrips', incoming.truckTrips || [], false]
+                ['truckTrips', incoming.truckTrips || [], false],
+                ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
                 const seenIds = new Set();
@@ -6206,7 +6207,8 @@ function renderPurchasesTable() {
                 ['customers', incoming.customers, false],
                 ['suppliers', incoming.suppliers, false],
                 ['invoices', incoming.invoices || [], false],
-                ['truckTrips', incoming.truckTrips || [], false]
+                ['truckTrips', incoming.truckTrips || [], false],
+                ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
                 const seenIds = new Set();
