@@ -2011,7 +2011,7 @@ jobs:
               updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
               Number,String,Object,Array,JSON,Date,Math
             };
-            vm.runInNewContext(purchase+'\\nthis.runPurchase=savePurchaseItem;',ctx);
+            vm.runInNewContext(purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
             ctx.runPurchase();
             assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
             assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
@@ -2024,7 +2024,7 @@ jobs:
               wtEnsureMobileWarehouse:name=>{if(!ctx.AppData.warehouses.includes(name))ctx.AppData.warehouses.push(name);},
               Number,String,Object,Array,Map,Date,JSON,Error
             };
-            vm.runInNewContext(truck+'\\nthis.runLoad=postTripStock;',ctx);
+            vm.runInNewContext(truck+'\nthis.runLoad=postTripStock;',ctx);
             const trip={id:'T1',warehouseName:'Truck T',stockItems:[{productId:'P1',qty:4}]};
             assert.throws(()=>ctx.runLoad(trip),/تعذر حفظ حركة التحميل/,'truck load must reject undefined save result');
             assert.equal(ctx.AppData.products[0].stock,10,'main stock must roll back');
