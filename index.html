@@ -3203,8 +3203,15 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             const customers = Array.isArray(AppData.customers) ? AppData.customers : (AppData.customers = []);
             if (remaining > 0 && !cId) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
-            const selectedCustomer = cId ? customers.find(c => String(c.id) === cId) : null;
-            if (remaining > 0 && !selectedCustomer) { alert('الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.'); return; }
+            const customerMatches = cId ? customers.filter(c => c && typeof c === 'object' && !Array.isArray(c) && c.id !== undefined && c.id !== null && String(c.id) === cId) : [];
+            if (cId && customerMatches.length !== 1) {
+                alert(customerMatches.length
+                    ? 'تعذر تأكيد البيع: معرّف الزبون مكرر في سجل العملاء. أصلح التكرار قبل تسجيل الفاتورة.'
+                    : 'الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.');
+                return;
+            }
+            const selectedCustomer = cId ? customerMatches[0] : null;
+            if (remaining > 0 && !selectedCustomer) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
             const cust = selectedCustomer || { name: 'عميل نقدي عابر', debt: 0 };
             const registeredCustomer = Boolean(selectedCustomer);
             const hasDebtField = Object.prototype.hasOwnProperty.call(cust,'debt');
