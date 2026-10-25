@@ -5972,7 +5972,8 @@ function renderPurchasesTable() {
             const validateMoneyField = (record, field, label, allowZero = true) => {
                 if (!Object.prototype.hasOwnProperty.call(record, field)) return;
                 const raw = record[field];
-                if (raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
+                if ((typeof raw !== 'number' && typeof raw !== 'string') ||
+                    raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ||
                     !Number.isFinite(Number(raw)) || Number(raw) < 0 || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
             };
