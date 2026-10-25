@@ -7748,13 +7748,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if(!Number.isFinite(loaded)||loaded<=0||loaded>Number.MAX_SAFE_INTEGER){alert('بيانات الصنف أو الكمية غير صالحة أو تتجاوز المجال الرقمي الآمن؛ أُلغيت التسوية.');return;}
         const ask=(label)=>prompt(label+' — '+(item.productName||p.name||item.productId)+' (المحمّل '+loaded+')','0');
         const deliveredRaw=ask('الكمية المسلّمة فعلياً');if(deliveredRaw===null)return;
+        if(typeof deliveredRaw!=='string'||deliveredRaw.trim()===''){alert('يجب إدخال كمية التسليم صراحةً؛ الحقل الفارغ ليس صفراً. أُلغيت التسوية دون تعديل المخزون.');return;}
         const delivered=Number(deliveredRaw);
         if(!Number.isFinite(delivered)||delivered<0||delivered>loaded){alert('كمية التسليم غير صالحة.');return;}
         const returnedRaw=ask('كمية المرتجع الصالح');if(returnedRaw===null)return;
+        if(typeof returnedRaw!=='string'||returnedRaw.trim()===''){alert('يجب إدخال كمية المرتجع الصالح صراحةً؛ الحقل الفارغ ليس صفراً. أُلغيت التسوية دون تعديل المخزون.');return;}
         const returned=Number(returnedRaw);
         const damagedRaw=ask('كمية التالف');if(damagedRaw===null)return;
+        if(typeof damagedRaw!=='string'||damagedRaw.trim()===''){alert('يجب إدخال كمية التالف صراحةً؛ الحقل الفارغ ليس صفراً. أُلغيت التسوية دون تعديل المخزون.');return;}
         const damaged=Number(damagedRaw);
         const missingRaw=ask('كمية المفقود');if(missingRaw===null)return;
+        if(typeof missingRaw!=='string'||missingRaw.trim()===''){alert('يجب إدخال كمية المفقود صراحةً؛ الحقل الفارغ ليس صفراً. أُلغيت التسوية دون تعديل المخزون.');return;}
         const missing=Number(missingRaw);
         if(![returned,damaged,missing].every(n=>Number.isFinite(n)&&n>=0)||Math.abs(delivered+returned+damaged+missing-loaded)>1e-8){
           alert('الكميات لا تتطابق للصنف '+(item.productName||item.productId)+'. يجب أن يساوي مجموع المسلّم والمرتجع والتالف والمفقود '+loaded+'.');return;

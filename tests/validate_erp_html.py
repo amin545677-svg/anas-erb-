@@ -496,6 +496,18 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         print("PASS: stock mutation paths fail closed on malformed warehouse maps")
 
+    # Truck settlement must reject blank prompt inputs instead of Number('') silently becoming zero.
+    settlement_prompt_guards = [
+        "typeof deliveredRaw!=='string'||deliveredRaw.trim()===''",
+        "typeof returnedRaw!=='string'||returnedRaw.trim()===''",
+        "typeof damagedRaw!=='string'||damagedRaw.trim()===''",
+        "typeof missingRaw!=='string'||missingRaw.trim()===''",
+    ]
+    if not all(guard in source for guard in settlement_prompt_guards):
+        errors.append("truck settlement must reject blank delivered, returned, damaged, and missing quantity prompts")
+    else:
+        print("PASS: truck settlement rejects blank quantity prompts")
+
     # Truck settlement must reject aggregate quantity overflow before any stock or invoice mutation.
     settlement_aggregate_guards = [
         "let deliveredTotal=0;",

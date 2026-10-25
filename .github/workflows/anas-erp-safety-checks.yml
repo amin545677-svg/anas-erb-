@@ -1797,6 +1797,34 @@ jobs:
             assert.equal(AppData.stockMovements.length, 0, 'malformed invoice quantity must not create movements');
             assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, 'malformed invoice quantity must not settle trip');
           }
+          // Blank settlement prompts must not silently coerce to zero; reject before mutation for each quantity field.
+          const blankSettlementCases = [
+            {label:'delivered', answers:['', '0', '0', '0'], expectedPrompts:1},
+            {label:'returned', answers:['1', '', '0', '0'], expectedPrompts:2},
+            {label:'damaged', answers:['1', '0', '', '0'], expectedPrompts:3},
+            {label:'missing', answers:['1', '0', '0', ''], expectedPrompts:4}
+          ];
+          for (const blankCase of blankSettlementCases) {
+            let blankPromptCalls = 0;
+            let blankSaveCalled = false;
+            global.prompt = (() => {
+              const answers = blankCase.answers.slice();
+              return () => { blankPromptCalls++; return answers.shift(); };
+            })();
+            global.saveDB = () => { blankSaveCalled = true; return true; };
+            global.AppData = {
+              products: [{id:'p1',name:'Product',stock:5,warehouseStock:{'Truck T':4}}],
+              truckTrips: [{id:'T-BLANK-'+blankCase.label,plate:'T',status:'delivered',stockPostedAt:'loaded',warehouseName:'Truck T',stockItems:[{productId:'p1',productName:'Product',qty:4}]}],
+              invoices: [], stockMovements: []
+            };
+            window.anasTruckSettle('T-BLANK-'+blankCase.label);
+            assert.equal(blankPromptCalls, blankCase.expectedPrompts, blankCase.label+' blank input must stop at its field');
+            assert.equal(blankSaveCalled, false, blankCase.label+' blank input must not save settlement');
+            assert.equal(AppData.products[0].stock, 5, blankCase.label+' blank input must preserve main stock');
+            assert.equal(AppData.products[0].warehouseStock['Truck T'], 4, blankCase.label+' blank input must preserve truck stock');
+            assert.equal(AppData.stockMovements.length, 0, blankCase.label+' blank input must not create movements');
+            assert.equal(Object.hasOwn(AppData.truckTrips[0], 'settlementId'), false, blankCase.label+' blank input must not settle trip');
+          }
           // Aggregate invoice quantities must not overflow even when each persisted line is individually in range.
           let aggregatePromptIndex = 0;
           const maxSafe = Number.MAX_SAFE_INTEGER;
