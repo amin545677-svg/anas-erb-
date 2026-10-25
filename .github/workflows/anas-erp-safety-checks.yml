@@ -434,6 +434,59 @@ jobs:
           assert "Object.assign(rec,{id:recordId,name," in block, "The validated ID must be the one persisted"
           print("Import record ID uniqueness guards passed")
           PY
+      - name: Exercise backup restore rollback when persistence throws
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s = Path("index.html").read_text(encoding="utf-8")
+          start = s.find("function importDataBackup(e)")
+          end = s.find("\n        function ", start + 10)
+          assert start >= 0 and end > start, "Could not isolate backup restore function"
+          fn = s[start:end]
+          assert "try { restoreSaved = saveDB() !== false; }" in fn, "Restore must catch persistence exceptions"
+          assert "AppData = previous; posCart = previousCart;" in fn, "Restore must roll back in-memory state"
+          js = r"""
+          const assert = require('node:assert/strict');
+          const vm = require('node:vm');
+          const functionSource = /*INSERT_RESTORE_FUNCTION*/;
+          const oldData = {products:[{id:'old',stock:4}],customers:[],suppliers:[],custom:'keep'};
+          const oldCart = [{id:'old-cart'}];
+          const oldIssues = [{code:'startup-warning'}];
+          const incoming = {products:[{id:'new',stock:1}],customers:[],suppliers:[]};
+          const alerts = [];
+          const input = {files:[{size:100}],value:'chosen.json'};
+          class MockFileReader {
+            readAsText() { this.onload({target:{result:JSON.stringify(incoming)}}); }
+          }
+          const ctx = {
+            AppData:oldData, posCart:oldCart, input,
+            anasStartupIntegrityIssues:oldIssues, anasStartupFatalLoadError:true,
+            FileReader:MockFileReader, JSON, Object, Array, Number, String, Error,
+            confirm:()=>true, alert:m=>alerts.push(String(m)),
+            saveDB:()=>{throw new Error('simulated storage exception');},
+            anasValidateBackupData:data=>data,
+            openView:()=>{throw new Error('must not navigate after failed save');},
+            console
+          };
+          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
+          assert.equal(ctx.AppData,oldData,'failed restore must reinstate the original data object');
+          assert.equal(ctx.posCart,oldCart,'failed restore must reinstate the active POS cart');
+          assert.equal(ctx.anasStartupIntegrityIssues.length,1,'failed restore must reinstate startup diagnostics');
+          assert.equal(ctx.anasStartupIntegrityIssues[0].code,'startup-warning','startup diagnostics must retain their contents');
+          assert.equal(ctx.anasStartupFatalLoadError,true,'failed restore must reinstate fatal-load state');
+          assert.equal(input.value,'','file input must be reset after restore attempt');
+          assert.equal(alerts.length,1,'failed restore should report one error');
+          assert.ok(alerts[0].includes('تعذر حفظ النسخة على الهاتف'),'failure must be reported as persistence failure');
+          assert.ok(alerts[0].includes('simulated storage exception'),'underlying storage error should be visible');
+          assert.ok(!alerts.some(x=>x.includes('بنجاح')),'failed restore must never report success');
+          console.log('Backup restore exception rollback test passed');
+          """
+          js = js.replace("/*INSERT_RESTORE_FUNCTION*/", json.dumps(fn))
+          Path("/tmp/anas-backup-restore-throw-test.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/anas-backup-restore-throw-test.js
+          node /tmp/anas-backup-restore-throw-test.js
       - name: Validate import persistence and UI rollback boundary
         run: |
           python - <<'PY'
