@@ -795,6 +795,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "failed truck load rollback preserves stock property presence exactly":
             "hadStock:Object.prototype.hasOwnProperty.call(p,'stock')" in function_source("postTripStock")
             and "if(x.hadStock)x.p.stock=x.stock;else delete x.p.stock;" in function_source("postTripStock"),
+        "failed truck load rollback preserves whether the warehouses collection existed":
+            "const hadWarehouses=Object.prototype.hasOwnProperty.call(AppData,'warehouses');" in function_source("postTripStock")
+            and "const oldWarehouses=hadWarehouses?JSON.parse(JSON.stringify(AppData.warehouses)):null;" in function_source("postTripStock")
+            and "if(hadWarehouses)AppData.warehouses=oldWarehouses;else delete AppData.warehouses;" in function_source("postTripStock"),
     }
     for label, passed in stock_balance_checks.items():
         if passed:
