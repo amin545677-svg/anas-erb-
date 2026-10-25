@@ -89,8 +89,8 @@ jobs:
               "product deletion rejects nonzero stock": len(function_bodies("deleteProduct")) == 1 and "mainStock !== 0 || warehouseStock !== 0" in function_source("deleteProduct"),
               "product deletion checks historical references": len(function_bodies("deleteProduct")) == 1 and "stockMovements" in function_source("deleteProduct") and "invoices" in function_source("deleteProduct"),
               "product deletion requires exact name confirmation": len(function_bodies("deleteProduct")) == 1 and "typedName" in function_source("deleteProduct") and "1234" not in function_source("deleteProduct"),
-              "product deletion rolls back on explicit save failure": len(function_bodies("deleteProduct")) == 1 and "saved === false" in function_source("deleteProduct"),
-              "stocktake draft save checks explicit persistence failure": "saveDB()===false" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
+              "product deletion rolls back on explicit save failure": len(function_bodies("deleteProduct")) == 1 and "saved !== true" in function_source("deleteProduct"),
+              "stocktake draft save checks explicit persistence failure": "saveDB()!==true" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
               "stocktake draft save restores previous drafts on failure": "setDrafts(previousDrafts)" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
               "stocktake draft save returns explicit status": "return false" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")] and "return true" in app[app.find("window.anasSaveStocktakeDraft=function()"):app.find("window.anasExportStocktake=function()")],
               "warehouse transfer initializes missing per-product warehouse map": "if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};" in app[app.find("function wtCreateTransfer()"):app.find("function wtRenderHistory()")],
@@ -99,12 +99,12 @@ jobs:
               "bulk price update validates complete numeric input": "const pct=Number(raw);" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور") ] and "pct < -100" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
               "bulk price update validates all prices before mutation": app.find("for(const p of AppData.products)",app.find("function bulkEditPricesPrompt()")) < app.find("changes.forEach(c=>{c.p[c.key]=c.newPrice;}",app.find("function bulkEditPricesPrompt()")),
               "bulk price update rolls back on save failure": "before.forEach(c=>{c.p[c.key]=c.value;});" in app[app.find("function bulkEditPricesPrompt()"):app.find("// ================= بطاقة المنتج والوحدة والصور")],
-              "category creation checks persistence and duplicate names": "AppData.productCategories" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")] and "saveDB()===false" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
+              "category creation checks persistence and duplicate names": "AppData.productCategories" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")] and "saveDB()!==true" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
               "category suggestions are connected to product form": 'list="productCategoriesDatalist"' in app and 'id="productCategoriesDatalist"' in app and "populateProductCategorySuggestions();" in app[app.find("function openAddProductModal()"):app.find("function addNewCustomUnit()")],
               "category suggestions include saved and existing product categories": "AppData.productCategories" in app[app.find("function populateProductCategorySuggestions()"):app.find("function addNewProductCategory()")] and "p.cat||p.category||p.categoryName" in app[app.find("function populateProductCategorySuggestions()"):app.find("function addNewProductCategory()")],
               "category creation selects new category for current product": "input.value=name" in app[app.find("function addNewProductCategory()"):app.find("function bulkEditPricesPrompt()")],
               "custom units are persisted and loaded into product form": "AppData.productUnits" in app[app.find("function populateProductUnitOptions()"):app.find("function addNewCustomUnit()")] and "populateProductUnitOptions();" in app[app.find("function openAddProductModal()"):app.find("function addNewCustomUnit()")],
-              "custom unit save checks persistence and rolls back on failure": "saveDB()===false" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")] and "AppData.productUnits=previous" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")],
+              "custom unit save checks persistence and rolls back on failure": "saveDB()!==true" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")] and "AppData.productUnits=previous" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")],
               "custom unit creation avoids duplicate values": "هذه الوحدة موجودة بالفعل" in app[app.find("function addNewCustomUnit()"):app.find("function previewAndCompressProductImage")],
               "truck load validates each item quantity before aggregation": "const qty=Number(item.qty)" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")] and "كل كمية في حمولة الشاحنة" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")],
               "truck load blocks reposting when prior movements exist": "priorTripMoves.length" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")] and "لمنع تكرار خصم أو إضافة المخزون" in app[app.find("function postTripStock(trip)"):app.find("window.anasTruckSaveTrip")],
@@ -114,7 +114,7 @@ jobs:
               "product save prevents duplicate barcodes": "duplicateBarcode" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
               "product save rejects stale edit identifiers": "if(editId&&index<0)" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
               "product save uses collision-resistant new IDs": "P-'+Date.now().toString(36)" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
-              "product save restores prior products when persistence fails": "saveDB()===false" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")] and "AppData.products=beforeProducts" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
+              "product save restores prior products when persistence fails": "saveDB()!==true" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")] and "AppData.products=beforeProducts" in app[app.find("function saveNewProductFromModal()"):app.find("// ================= تقارير الأرباح الشاملة")],
           }
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
@@ -444,7 +444,7 @@ jobs:
           end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
-          assert "try { restoreSaved = saveDB() !== false; }" in fn, "Restore must catch persistence exceptions"
+          assert "try { restoreSaved = saveDB() === true; }" in fn, "Restore must catch persistence exceptions"
           assert "AppData = previous; posCart = previousCart;" in fn, "Restore must roll back in-memory state"
           js = r"""
           const assert = require('node:assert/strict');
@@ -603,7 +603,7 @@ jobs:
           assert start >= 0 and end > start, "Could not locate import persistence transaction"
           block = s[start:end]
           saved = block.find("const saved=saveDB()")
-          save_failure = block.find("if(saved===false) throw new Error")
+          save_failure = block.find("if(saved!==true) throw new Error")
           restore = block.find("const restored=JSON.parse(before)")
           ui_refresh = block.find("// Once persistence succeeds")
           ui_catch = block.find("ANAS ERP import saved; UI refresh failed")
