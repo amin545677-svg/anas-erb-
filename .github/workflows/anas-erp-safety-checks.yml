@@ -1295,7 +1295,7 @@ jobs:
           }
           runUnsafeHistoricalQuantityCase();
           runUnsafeEditedQuantityCase();
-          console.log('Invoice edit tests passed: rollback, absent primary stock preserved, unsafe quantities rejected, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails'); rollback, absent primary stock preserved, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
+          console.log('Invoice edit tests passed: rollback, absent primary stock preserved, unsafe quantities rejected, malformed/ambiguous preflight guards, and committed save remains committed when UI rendering fails');
           """
           js = js.replace("/*INSERT_INVOICE_EDIT_FUNCTION*/", json.dumps(function_js))
           Path("/tmp/anas-invoice-edit-rollback-test.js").write_text(js, encoding="utf-8")
