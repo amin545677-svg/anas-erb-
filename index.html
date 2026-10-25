@@ -6006,6 +6006,25 @@ function renderPurchasesTable() {
             for (const movement of (incoming.cashMovements || [])) {
                 validateMoneyField(movement, 'amount', 'حركات الصندوق', false);
             }
+            // Validate financial totals and line amounts on persisted sales/purchase records before replacing live data.
+            // Legacy records may omit newer fields; validate only fields that are actually present.
+            for (const invoice of (incoming.invoices || [])) {
+                for (const field of ['total', 'paid', 'remaining']) validateMoneyField(invoice, field, 'فواتير البيع');
+                if (Object.prototype.hasOwnProperty.call(invoice, 'items')) {
+                    if (!Array.isArray(invoice.items) || invoice.items.length > 10000 ||
+                        invoice.items.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
+                        throw new Error('بنود إحدى فواتير البيع غير صالحة؛ رُفض الاسترجاع لحماية الحسابات والمخزون.');
+                    for (const item of invoice.items) {
+                        validateMoneyField(item, 'qty', 'كميات فواتير البيع', false);
+                        validateMoneyField(item, 'price', 'أسعار فواتير البيع');
+                    }
+                }
+            }
+            for (const purchase of (incoming.purchases || [])) {
+                validateMoneyField(purchase, 'cost', 'تكلفة المشتريات', false);
+                validateMoneyField(purchase, 'qty', 'كميات المشتريات', false);
+                validateMoneyField(purchase, 'total', 'إجمالي المشتريات', false);
+            }
             if (Object.prototype.hasOwnProperty.call(incoming, 'posScreensCarts')) {
                 if (!incoming.posScreensCarts || typeof incoming.posScreensCarts !== 'object' || Array.isArray(incoming.posScreensCarts))
                     throw new Error('بيانات سلال نقاط البيع غير صالحة.');
