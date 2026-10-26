@@ -34,12 +34,16 @@ jobs:
         run: node --check cloudflare/worker_openai_ai.js
       - name: Deploy separate OpenAI AI Worker
         uses: cloudflare/wrangler-action@v3
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           workingDirectory: cloudflare
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler-openai.toml
-          secrets: |
-            OPENAI_API_KEY
+      - name: Set OpenAI API key on the intended Worker
+        working-directory: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@3.90.0 secret put OPENAI_API_KEY --config wrangler-openai.toml
