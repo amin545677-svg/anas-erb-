@@ -32,6 +32,27 @@ jobs:
         uses: actions/checkout@v4
       - name: Check OpenAI Worker JavaScript syntax
         run: node --check cloudflare/worker_openai_ai.js
+      - name: Verify Cloudflare token and account access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_response="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)"
+          token_success="$(printf '%s' "$token_response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success===true?"true":"false");if(j.success!==true)for(const e of j.errors||[])console.error("Cloudflare token verification:",e.code||"",e.message||"request rejected")}catch{console.log("false");console.error("Cloudflare token verification returned invalid JSON")}})')"
+          if [ "$token_success" != "true" ]; then
+            echo "::error::Cloudflare rejected CLOUDFLARE_API_TOKEN. Create/activate a valid token and update the GitHub repository secret."
+            exit 1
+          fi
+          echo "Cloudflare token is active."
+          account_response="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID")"
+          account_success="$(printf '%s' "$account_response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success===true?"true":"false");if(j.success!==true)for(const e of j.errors||[])console.error("Cloudflare account access:",e.code||"",e.message||"request rejected")}catch{console.log("false");console.error("Cloudflare account check returned invalid JSON")}})')"
+          if [ "$account_success" != "true" ]; then
+            echo "::error::Token verification passed, but the configured Cloudflare account could not be read. Check CLOUDFLARE_ACCOUNT_ID and grant Account Settings: Read for the matching account."
+            exit 1
+          fi
+          echo "Cloudflare account access verified. Worker deployment will now test the Workers Scripts permission."
       - name: Deploy separate OpenAI AI Worker
         uses: cloudflare/wrangler-action@v3
         with:
