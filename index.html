@@ -7482,7 +7482,7 @@ function renderPurchasesTable() {
                     : '⚠️ الخادم متاح، لكن OPENAI_API_KEY غير مُعدّ في Cloudflare.';
             }catch(e){if(status)status.textContent='❌ تعذر تأكيد صحة الخادم. تحقق من رابط workers.dev وCORS ونشر العامل. التفاصيل: '+(e.message||e);}
         }
-        document.addEventListener('DOMContentLoaded',()=>{const i=document.getElementById('anasAiGateway');if(i)i.value=localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'';});
+        document.addEventListener('DOMContentLoaded',()=>{const i=document.getElementById('anasAiGateway');if(!i)return;const saved=(localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'').trim();const fallback='https://anas-erp-openai-ai.amin545677.workers.dev';if(saved){i.value=saved;}else{i.value=fallback;localStorage.setItem(ANAS_AI_GATEWAY_KEY,fallback);}});
 
 </script>
 
