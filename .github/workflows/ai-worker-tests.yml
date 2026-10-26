@@ -1,6 +1,12 @@
 name: AI Worker Unit Tests
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/worker_openai_ai.js'
+      - 'tests/worker_openai_ai.test.mjs'
+      - '.github/workflows/ai-worker-tests.yml'
   pull_request:
     paths:
       - 'cloudflare/worker_openai_ai.js'
