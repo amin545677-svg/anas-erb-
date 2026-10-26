@@ -68,3 +68,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@3.90.0 secret put OPENAI_API_KEY --config wrangler-openai.toml
+      - name: Smoke-test deployed AI Worker health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors https://anas-erp-openai-ai.amin545677.workers.dev/health)"
+          printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);if(j.ok!==true||j.service!=="anas-erp-openai-ai"||j.configured!==true){console.error("Worker health check failed: expected ok=true and configured=true.");process.exit(1)}console.log("Worker health check passed. Service:",j.service,"Model:",j.model)}catch(e){console.error("Worker health endpoint returned invalid JSON.");process.exit(1)}})'
