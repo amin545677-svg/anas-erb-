@@ -6899,6 +6899,11 @@ function renderPurchasesTable() {
                         <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#0f766e" onclick="anasSetAiPrompt('راجع جودة البيانات التجارية وحدد التناقضات والمخاطر التي تستحق مراجعة بشرية.')">🛡️ تدقيق البيانات</button>
                       </div>
                     </section>
+                    <section aria-label="الملخص الصباحي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">🌅 ملخص بداية اليوم</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">ملخص محلي فوري من السجلات المتاحة، دون إرسال بيانات أو افتراض أن أرقام اليوم السابق مكتملة.</p>
+                      <div id="anasAiMorningBrief" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ تجهيز الملخص…</div>
+                    </section>
                     <section aria-label="اقتراحات محلية استباقية" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
                       <strong style="display:block;font-size:13px;margin-bottom:5px">💡 تنبيهات ذكية محلية</strong>
                       <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">تُحسب على هذا الجهاز من السجلات الحالية فقط؛ لا تُرسل البيانات إلى الخادم ولا تُعدّل السجلات.</p>
@@ -6906,6 +6911,12 @@ function renderPurchasesTable() {
                     </section>
                     <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي فقط بعد تفعيل موافقة مشاركة السياق والضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
                     <div id="anasAiChatLog" role="log" aria-live="polite" style="max-height:300px;overflow:auto;border:1px solid var(--mp-border);border-radius:12px;padding:10px;margin:10px 0;min-height:70px;background:rgba(148,163,184,.07)"><div style="color:var(--mp-text-muted);font-size:13px">جرّب: ما عدد العملاء والمنتجات؟ أو كيف أراجع الديون والمخزون؟</div></div>
+                    <section aria-label="تحويل الأمر إلى مسودة" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">🧾 أمر نصي → مسودة للمراجعة</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">اكتب أمرًا مثل «بيع 3 علب شاي للعميل أحمد بسعر 250». سنستخرج ما يمكن محليًا لعرضه للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون أو الحساب.</p>
+                      <button type="button" class="btn-full-submit" style="width:100%;background:#334155;font-size:12px;padding:9px" onclick="anasPrepareNaturalLanguageDraft()">استخراج مسودة من الأمر المكتوب</button>
+                      <div id="anasAiNaturalDraft" role="status" aria-live="polite" style="font-size:12px;line-height:1.7;margin-top:7px"></div>
+                    </section>
                     <textarea id="anasAiQuestion" rows="3" placeholder="اكتب سؤالك التجاري هنا…" style="width:100%;box-sizing:border-box;border:1px solid var(--mp-border);border-radius:10px;padding:11px;font:inherit;resize:vertical;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
                     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px">
                       <label style="font-size:12px;font-weight:800">نمط الإجابة
@@ -6962,6 +6973,7 @@ function renderPurchasesTable() {
                 </div>
             `;
             anasRefreshAiProactiveInsights();
+            anasRefreshAiMorningBrief();
         }
 
         function triggerAiGeneration(section) {
@@ -7130,6 +7142,39 @@ function renderPurchasesTable() {
             input.value=String(promptText||'');
             input.focus();
             input.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+        function anasPrepareNaturalLanguageDraft(){
+            const input=document.getElementById('anasAiQuestion'),target=document.getElementById('anasAiNaturalDraft');
+            if(!input||!target)return;
+            const raw=String(input.value||'').trim();
+            if(!raw){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
+            const qtyMatch=raw.match(/(?:عدد|كمية)?\s*(\d+(?:[.,]\d+)?)\s*(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات)?/i);
+            const priceMatch=raw.match(/(?:بسعر|السعر|ثمن|بـ)\s*(\d+(?:[.,]\d+)?)/i);
+            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+([\u0600-\u06FFa-zA-Z][\u0600-\u06FFa-zA-Z\s_-]{0,35})/i);
+            const productMatch=raw.match(/(?:علب|علبة|حبات|حبة|قطع|قطعة)\s+([\u0600-\u06FFa-zA-Z][\u0600-\u06FFa-zA-Z\s_-]{0,35})/i);
+            const draft={command:raw,quantity:qtyMatch?qtyMatch[1].replace(',','.'):null,unitPrice:priceMatch?priceMatch[1].replace(',','.'):null,customer:customerMatch?customerMatch[1].trim().split(/\s+(?:بسعر|سعر|بقيمة)/)[0]:null,item:productMatch?productMatch[1].trim().split(/\s+(?:للعميل|للزبون|بسعر|سعر)/)[0]:null};
+            const list=document.createElement('ul');list.style.cssText='margin:4px 0;padding-inline-start:20px';
+            [['نوع العملية',/بيع|فاتورة بيع|سجل/i.test(raw)?'بيع (مستنتج من النص)':'غير محدد'],['الكمية',draft.quantity||'لم تُستخرج بثقة'],['الصنف',draft.item||'يلزم تحديد الصنف'],['العميل',draft.customer||'يلزم تحديد العميل'],['سعر الوحدة',draft.unitPrice||'لم يُذكر أو لم يُفهم']].forEach(([k,v])=>{const li=document.createElement('li');li.textContent=k+': '+v;list.appendChild(li);});
+            target.replaceChildren(list);
+            const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';note.textContent='مسودة أولية وليست أمرًا منفذًا. راجع الصنف والعميل والأسعار والضرائب وطريقة الدفع يدويًا؛ لم تُحفظ أي بيانات.';target.appendChild(note);
+        }
+        function anasRefreshAiMorningBrief(){
+            const target=document.getElementById('anasAiMorningBrief');if(!target)return;
+            const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
+            const products=Array.isArray(AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData.customers)?AppData.customers:[];
+            const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
+            const sales=invoices.reduce((sum,row)=>sum+(num(row.total)||0),0);
+            const low=products.filter(p=>{const q=num(p.stock);const min=num(p.minStock??p.min_stock??p.reorderLevel);return q!==null&&min!==null&&q<=min;});
+            const debts=customers.filter(c=>(num(c.debt)||0)>0);
+            const lines=[
+              'إجمالي قيم الفواتير المسجلة: '+sales.toLocaleString('fr-DZ')+' دج (تراكمي؛ ليس مبيعات أمس المؤكدة).',
+              'أصناف عند حد الطلب أو دونه وفق الحقول المتاحة: '+low.length+'.',
+              'عملاء لديهم رصيد دين موجب: '+debts.length+'.'
+            ];
+            const list=document.createElement('ul');list.style.cssText='margin:4px 0;padding-inline-start:20px';
+            lines.forEach(line=>{const li=document.createElement('li');li.textContent=line;list.appendChild(li);});
+            target.replaceChildren(list);
         }
         function anasRefreshAiProactiveInsights(){
             const target=document.getElementById('anasAiProactiveInsights'); if(!target)return;
