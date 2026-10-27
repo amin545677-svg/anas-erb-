@@ -1318,9 +1318,9 @@ function makeNode(tag) {
     setAttribute(key, value) { this.attributes[key] = String(value); },
     focus() {}, scrollIntoView() {},
     querySelector(selector) {
+      const requested = selector.match(/^\[data-draft-field="([^"]+)"\]$/);
       const match = (n) => {
-        if (selector === '[data-draft-field="quantity"]' && n.dataset && n.dataset.draftField === 'quantity') return n;
-        if (selector === '[data-draft-field="unitPrice"]' && n.dataset && n.dataset.draftField === 'unitPrice') return n;
+        if (requested && n.dataset && n.dataset.draftField === requested[1]) return n;
         return (n.children || []).map(match).find(Boolean) || null;
       };
       return match(this);
