@@ -78,6 +78,22 @@ def main():
         errors.append("AI hub touch target must be a semantic button with valid phrasing-content children")
     else:
         print("PASS: AI hub touch target uses semantic button markup with valid children")
+    # Guard the mobile interaction/accessibility CSS used by the semantic dashboard button.
+    touch_interaction_guards = [
+        'button, [role="button"], .grid-card-item, .menu-action-card {',
+        "touch-action: manipulation;",
+        ".grid-card-item > .card-icon-box,",
+        ".grid-card-item > .card-title-text,",
+        ':where(button, input, select, textarea, a, [tabindex]):focus-visible {',
+        ".grid-card-item .card-icon-box {",
+        ".grid-card-item .card-title-text {",
+    ]
+    missing_touch_guards = [guard for guard in touch_interaction_guards if guard not in source]
+    if missing_touch_guards:
+        errors.append("mobile touch/focus styling regression: " + ", ".join(missing_touch_guards))
+    else:
+        print("PASS: dashboard touch targets retain touch-action, decorative-child handling, card styling, and visible keyboard focus")
+
     # Inline handlers must encode persisted identifiers for the JavaScript string context.
     inline_id_safety_guards = [
         "editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))",
