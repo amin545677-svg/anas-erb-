@@ -6881,8 +6881,55 @@ function renderPurchasesTable() {
             renderAiHub();
         }
 
+        // DEV-ONLY phone-visible diagnostic panel. No storage, network calls, or business data.
+        (function installAnasAiTracePanel(){
+            if (window.__anasAiTracePanelInstalled) return;
+            window.__anasAiTracePanelInstalled = true;
+            const events = [];
+            function panel(){
+                let el = document.getElementById('anasAiTracePanel');
+                if (el) return el;
+                el = document.createElement('section');
+                el.id = 'anasAiTracePanel';
+                el.setAttribute('aria-label','ANAS ERP AI diagnostic trace');
+                el.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483000;background:#111827;color:#f9fafb;border:2px solid #38bdf8;border-radius:12px;padding:10px;font:12px/1.5 system-ui;box-shadow:0 8px 28px #0008;max-height:36dvh;display:flex;flex-direction:column;gap:6px;direction:rtl';
+                const head = document.createElement('div');
+                head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:800';
+                head.textContent = 'تشخيص AI — فرع تجريبي فقط';
+                const clear = document.createElement('button');
+                clear.type='button'; clear.textContent='مسح السجل';
+                clear.style.cssText='padding:5px 8px;border-radius:7px;border:1px solid #64748b;background:#1e293b;color:#fff';
+                clear.addEventListener('click',function(){events.length=0;render();});
+                head.appendChild(clear);
+                const output = document.createElement('pre');
+                output.id='anasAiTraceOutput';
+                output.style.cssText='margin:0;white-space:pre-wrap;overflow:auto;overflow-wrap:anywhere;max-height:calc(36dvh - 48px);font:11px/1.5 ui-monospace,monospace;direction:ltr;text-align:left';
+                el.appendChild(head); el.appendChild(output);
+                (document.body || document.documentElement).appendChild(el);
+                return el;
+            }
+            function render(){
+                panel();
+                const out=document.getElementById('anasAiTraceOutput');
+                if(out) out.textContent=events.slice(-24).map((e,i)=>(i+1)+'. '+e).join('\\n') || 'بانتظار حدث تشخيصي…';
+            }
+            window.anasAiTrace = function(label, details){
+                let line = new Date().toISOString()+' | '+String(label);
+                if(details !== undefined){
+                    try { line += ' | '+JSON.stringify(details); } catch (_) { line += ' | [details unavailable]'; }
+                }
+                events.push(line); render();
+                if (label.includes('Error')) console.error('[AnasAI Trace]',label,details);
+                else console.info('[AnasAI Trace]',label,details);
+            };
+            if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',render,{once:true});
+            else render();
+            window.anasAiTrace('Panel ready; no storage/network enabled');
+        })();
+
         function renderAiHub() {
-            console.debug('[AnasAI Lifecycle] renderAiHub entered', {
+            window.anasAiTrace('renderAiHub entered', {
+
                 timestamp: Date.now(),
                 containerFoundBeforeRender: !!document.getElementById('aiHubTabContent'),
                 questionFoundBeforeRender: !!document.getElementById('anasAiQuestion')
@@ -6952,7 +6999,7 @@ function renderPurchasesTable() {
                     </div>
                 </div>
             `;
-            console.debug('[AnasAI Lifecycle] renderAiHub completed', {
+            window.anasAiTrace('renderAiHub completed', {
                 timestamp: Date.now(),
                 containerConnected: !!cont?.isConnected,
                 questionFoundAfterRender: !!document.getElementById('anasAiQuestion'),
@@ -7122,7 +7169,7 @@ function renderPurchasesTable() {
         }
         // DEV-ONLY diagnostic tracing: isolated on debug/ai-prompt-dom-tracing.
         window.anasSetAiPrompt = function(promptText){
-            console.log('[AnasAI Trace] anasSetAiPrompt called', {
+            window.anasAiTrace('anasSetAiPrompt called', {
                 promptType: typeof promptText,
                 promptLength: String(promptText ?? '').length,
                 readyState: document.readyState,
@@ -7130,7 +7177,7 @@ function renderPurchasesTable() {
             });
             const input = document.getElementById('anasAiQuestion');
             if(!input || !input.isConnected){
-                console.error('[AnasAI Error] #anasAiQuestion missing or detached at click time', {
+                window.anasAiTrace('Error: #anasAiQuestion missing or detached at click time', {
                     found: !!input,
                     connected: !!input?.isConnected,
                     aiHubContainerFound: !!document.getElementById('aiHubTabContent'),
@@ -7141,7 +7188,7 @@ function renderPurchasesTable() {
             input.value = String(promptText ?? '');
             input.focus();
             input.scrollIntoView({behavior:'smooth',block:'center'});
-            console.info('[AnasAI Success] Prompt inserted and focused', {
+            window.anasAiTrace('Success: prompt inserted and focused', {
                 valueLength: input.value.length,
                 connected: input.isConnected,
                 activeElementIsInput: document.activeElement === input
