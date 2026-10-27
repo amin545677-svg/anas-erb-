@@ -7146,32 +7146,99 @@ function renderPurchasesTable() {
         function anasPrepareNaturalLanguageDraft(){
             const input=document.getElementById('anasAiQuestion'),target=document.getElementById('anasAiNaturalDraft');
             if(!input||!target)return;
-            const raw=String(input.value||'').trim();
-            if(!raw){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
-            const qtyMatch=raw.match(/(?:عدد|كمية)?\s*(\d+(?:[.,]\d+)?)\s*(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات)?/i);
-            const priceMatch=raw.match(/(?:بسعر|السعر|ثمن|بـ)\s*(\d+(?:[.,]\d+)?)/i);
-            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+([\u0600-\u06FFa-zA-Z][\u0600-\u06FFa-zA-Z\s_-]{0,35})/i);
-            const productMatch=raw.match(/(?:علب|علبة|حبات|حبة|قطع|قطعة)\s+([\u0600-\u06FFa-zA-Z][\u0600-\u06FFa-zA-Z\s_-]{0,35})/i);
-            const draft={command:raw,quantity:qtyMatch?qtyMatch[1].replace(',','.'):null,unitPrice:priceMatch?priceMatch[1].replace(',','.'):null,customer:customerMatch?customerMatch[1].trim().split(/\s+(?:بسعر|سعر|بقيمة)/)[0]:null,item:productMatch?productMatch[1].trim().split(/\s+(?:للعميل|للزبون|بسعر|سعر)/)[0]:null};
-            const list=document.createElement('ul');list.style.cssText='margin:4px 0;padding-inline-start:20px';
-            [['نوع العملية',/بيع|فاتورة بيع|سجل/i.test(raw)?'بيع (مستنتج من النص)':'غير محدد'],['الكمية',draft.quantity||'لم تُستخرج بثقة'],['الصنف',draft.item||'يلزم تحديد الصنف'],['العميل',draft.customer||'يلزم تحديد العميل'],['سعر الوحدة',draft.unitPrice||'لم يُذكر أو لم يُفهم']].forEach(([k,v])=>{const li=document.createElement('li');li.textContent=k+': '+v;list.appendChild(li);});
-            target.replaceChildren(list);
-            const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';note.textContent='مسودة أولية وليست أمرًا منفذًا. راجع الصنف والعميل والأسعار والضرائب وطريقة الدفع يدويًا؛ لم تُحفظ أي بيانات.';target.appendChild(note);
+            const original=String(input.value||'').trim();
+            if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
+            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const raw=normalizeDigits(original);
+            const number='(\\d+(?:[.,]\\d+)?)';
+            const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة)';
+            const qtyMatch=raw.match(new RegExp('(?:عدد|كمية|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
+            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
+            const productMatch=raw.match(new RegExp(unit+'\\s+(.+?)(?=\\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|طريقة الدفع|دفع)|$)','i'));
+            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+(.+?)(?=\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
+            const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\s*(?:هي|:)?\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\b/i);
+            const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
+            const draft={transaction,quantity:qtyMatch?qtyMatch[1].replace(',','.'):null,unitPrice:priceMatch?priceMatch[1].replace(',','.'):null,customer:customerMatch?customerMatch[1].trim():null,item:productMatch?productMatch[1].trim():null,payment:paymentMatch?paymentMatch[1]:null};
+            target.replaceChildren();
+            const form=document.createElement('div');form.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0';
+            const fields=[['نوع العملية','transaction',draft.transaction,'text'],['الكمية','quantity',draft.quantity,'number'],['الصنف','item',draft.item,'text'],['العميل','customer',draft.customer,'text'],['سعر الوحدة','unitPrice',draft.unitPrice,'number'],['طريقة الدفع','payment',draft.payment,'text']];
+            fields.forEach(([labelText,key,value,type])=>{
+                const wrap=document.createElement('label');wrap.style.cssText='display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;min-width:0';
+                const label=document.createElement('span');label.textContent=labelText;
+                const field=document.createElement('input');field.type=type;field.value=value==null?'':String(value);field.dataset.draftField=key;field.setAttribute('aria-label',labelText);field.style.cssText='width:100%;min-width:0;box-sizing:border-box;padding:8px;border:1px solid var(--mp-border);border-radius:8px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827);font:inherit';
+                if(type==='number'){field.min='0';field.step='any';}
+                wrap.append(label,field);form.appendChild(wrap);
+            });
+            target.appendChild(form);
+            const missing=fields.filter(([,key])=>!draft[key]).map(([labelText])=>labelText);
+            const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';
+            note.textContent='مسودة قابلة للتعديل فقط؛ لم تُحفظ فاتورة ولم يتغير المخزون أو الحساب. تحقق من تطابق العميل والصنف مع السجلات، ومن السعر والضريبة وطريقة الدفع. '+(missing.length?'حقول تحتاج إلى استكمال أو تحقق: '+missing.join('، ')+'.':'لا يعني استخراج الحقول أنها تحققت من السجلات.');
+            target.appendChild(note);
         }
         function anasRefreshAiMorningBrief(){
             const target=document.getElementById('anasAiMorningBrief');if(!target)return;
             const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
-            const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
-            const sales=invoices.reduce((sum,row)=>sum+(num(row.total)||0),0);
-            const low=products.filter(p=>{const q=num(p.stock);const min=num(p.minStock??p.min_stock??p.reorderLevel);return q!==null&&min!==null&&q<=min;});
-            const debts=customers.filter(c=>(num(c.debt)||0)>0);
+            const strictNum=v=>{
+                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object'||String(v).trim()==='')return null;
+                const n=Number(String(v).trim().replace(/,/g,'.'));
+                return Number.isFinite(n)?n:null;
+            };
+            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const parseInvoiceDate=value=>{
+                if(value===null||value===undefined||value==='')return null;
+                if(value instanceof Date)return Number.isNaN(value.getTime())?null:new Date(value.getFullYear(),value.getMonth(),value.getDate());
+                if(typeof value==='number'&&Number.isFinite(value)){
+                    const ms=value>1e12?value:value>1e9?value*1000:NaN;
+                    if(!Number.isFinite(ms))return null;
+                    const d=new Date(ms);return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+                }
+                const raw=normalizeDigits(value).trim();
+                let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);
+                let y,month,day;
+                if(m){y=+m[1];month=+m[2];day=+m[3];}
+                else{
+                    m=raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:$|\s|،)/);
+                    if(!m)return null;
+                    day=+m[1];month=+m[2];y=+m[3];
+                }
+                if(month<1||month>12||day<1||day>31)return null;
+                const d=new Date(y,month-1,day);
+                if(d.getFullYear()!==y||d.getMonth()!==month-1||d.getDate()!==day)return null;
+                return d;
+            };
+            const now=new Date(),yesterday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-1);
+            const yesterdayKey=yesterday.getFullYear()+'-'+String(yesterday.getMonth()+1).padStart(2,'0')+'-'+String(yesterday.getDate()).padStart(2,'0');
+            const dated=[],undated=[];
+            invoices.forEach(row=>{
+                const rawDate=row&&(row.date||row.createdAt||row.created_at||row.timestamp||row.invoiceDate||row.invoice_date||row.dateCreated||row.created);
+                const date=parseInvoiceDate(rawDate);
+                if(!date)undated.push(row);
+                else if(date.getFullYear()===yesterday.getFullYear()&&date.getMonth()===yesterday.getMonth()&&date.getDate()===yesterday.getDate())dated.push(row);
+            });
+            let sales=0,invalidAmounts=0;
+            dated.forEach(row=>{const total=strictNum(row&&row.total);if(total===null)invalidAmounts++;else sales+=total;});
+            const low=products.filter(p=>{
+                const q=strictNum(p&&p.stock);
+                const rawMin=p&&(p.minStock??p.min_stock??p.reorderLevel);
+                const min=strictNum(rawMin);
+                return q!==null&&min!==null&&q<=min;
+            });
+            const missingStock=products.filter(p=>!p||p.stock===undefined||p.stock===null||String(p.stock).trim()==='');
+            const invalidStock=products.filter(p=>p&&p.stock!==undefined&&p.stock!==null&&String(p.stock).trim()!==''&&strictNum(p.stock)===null);
+            const debts=customers.filter(c=>strictNum(c&&c.debt)!==null&&strictNum(c.debt)>0);
+            const invalidDebts=customers.filter(c=>c&&c.debt!==undefined&&c.debt!==null&&String(c.debt).trim()!==''&&strictNum(c.debt)===null);
             const lines=[
-              'إجمالي قيم الفواتير المسجلة: '+sales.toLocaleString('fr-DZ')+' دج (تراكمي؛ ليس مبيعات أمس المؤكدة).',
-              'أصناف عند حد الطلب أو دونه وفق الحقول المتاحة: '+low.length+'.',
-              'عملاء لديهم رصيد دين موجب: '+debts.length+'.'
+              'مبيعات أمس ('+yesterdayKey+'): مجموع الفواتير المؤرخة أمس فقط = '+sales.toLocaleString('fr-DZ')+' دج، من '+dated.length+' فاتورة مؤرخة.'
             ];
+            if(undated.length)lines.push('تنبيه: '+undated.length+' فاتورة بلا تاريخ قابل للتحقق؛ قد تكون من أمس، لذلك لا يمكن ضمان اكتمال مجموع المبيعات.');
+            if(invalidAmounts)lines.push('تنبيه: تعذر قراءة إجمالي '+invalidAmounts+' فاتورة مؤرخة أمس؛ المجموع المعروض يستثني هذه القيم.');
+            lines.push('أصناف عند حد إعادة الطلب أو دونه (عند توفر كمية وحد أدنى رقميين): '+low.length+'.');
+            if(missingStock.length)lines.push('ملاحظة جودة بيانات: '+missingStock.length+' منتجًا بلا كمية مخزون؛ لم تُحسب كصفر.');
+            if(invalidStock.length)lines.push('ملاحظة جودة بيانات: '+invalidStock.length+' قيمة مخزون غير رقمية.');
+            lines.push('عملاء برصيد دين موجب مسجل: '+debts.length+' (ليس عدد الديون المستحقة اليوم؛ تواريخ الاستحقاق غير متحققة هنا).');
+            if(invalidDebts.length)lines.push('ملاحظة جودة بيانات: تعذر تفسير رصيد الدين لدى '+invalidDebts.length+' عميلًا.');
             const list=document.createElement('ul');list.style.cssText='margin:4px 0;padding-inline-start:20px';
             lines.forEach(line=>{const li=document.createElement('li');li.textContent=line;list.appendChild(li);});
             target.replaceChildren(list);
@@ -7180,15 +7247,23 @@ function renderPurchasesTable() {
             const target=document.getElementById('anasAiProactiveInsights'); if(!target)return;
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
-            const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
-            const noStock=products.filter(p=>{const n=num(p.stock);return n!==null&&n<=0;});
-            const debtors=customers.filter(c=>{const n=num(c.debt);return n!==null&&n>0;}).sort((a,b)=>(num(b.debt)||0)-(num(a.debt)||0));
-            const invalidStock=products.filter(p=>p.stock!==undefined&&p.stock!==null&&String(p.stock).trim()!==''&&num(p.stock)===null);
+            const strictNum=v=>{
+                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object'||String(v).trim()==='')return null;
+                const n=Number(String(v).trim().replace(/,/g,'.'));
+                return Number.isFinite(n)?n:null;
+            };
+            const noStock=products.filter(p=>{const n=strictNum(p&&p.stock);return n!==null&&n<=0;});
+            const debtors=customers.filter(c=>{const n=strictNum(c&&c.debt);return n!==null&&n>0;}).sort((a,b)=>strictNum(b.debt)-strictNum(a.debt));
+            const invalidStock=products.filter(p=>p&&p.stock!==undefined&&p.stock!==null&&String(p.stock).trim()!==''&&strictNum(p.stock)===null);
+            const missingStock=products.filter(p=>!p||p.stock===undefined||p.stock===null||String(p.stock).trim()==='');
+            const invalidDebt=customers.filter(c=>c&&c.debt!==undefined&&c.debt!==null&&String(c.debt).trim()!==''&&strictNum(c.debt)===null);
             const notes=[];
-            if(noStock.length)notes.push('🔴 يوجد '+noStock.length+' منتجًا بكميات صفرية أو سالبة؛ راجع الجرد وحركات المخزون قبل إعادة الطلب.');
-            if(debtors.length)notes.push('💳 يوجد '+debtors.length+' عميلًا برصيد دين موجب؛ راجع أعمار الديون وسجلات التسديد قبل التواصل.');
+            if(noStock.length)notes.push('🔴 يوجد '+noStock.length+' منتجًا بكميات صفرية أو سالبة مؤكدة رقميًا؛ راجع الجرد وحركات المخزون قبل إعادة الطلب.');
+            if(debtors.length)notes.push('💳 يوجد '+debtors.length+' عميلًا برصيد دين موجب رقميًا؛ راجع أعمار الديون وسجلات التسديد قبل التواصل.');
             if(invalidStock.length)notes.push('⚠️ توجد '+invalidStock.length+' قيمة مخزون غير رقمية؛ صحح البيانات قبل الاعتماد على التقارير.');
-            if(!notes.length)notes.push('✅ لم تظهر مؤشرات صفرية/سالبة أو ديون موجبة ضمن الحقول المتاحة. هذا لا يثبت خلو السجلات من الأخطاء.');
+            if(missingStock.length)notes.push('ℹ️ كمية المخزون غير متوفرة لدى '+missingStock.length+' منتجًا؛ لم تُعامل القيم الفارغة كصفر.');
+            if(invalidDebt.length)notes.push('ℹ️ تعذر تفسير رصيد الدين لدى '+invalidDebt.length+' عميلًا؛ لم تُدرج هذه القيم ضمن الديون المؤكدة.');
+            if(!notes.length)notes.push('✅ لم تظهر مؤشرات صفرية/سالبة أو ديون موجبة ضمن الحقول الرقمية المتاحة. هذا لا يثبت خلو السجلات من الأخطاء.');
             const list=document.createElement('ul'); list.style.cssText='margin:4px 0;padding-inline-start:20px;';
             notes.forEach(note=>{const li=document.createElement('li');li.textContent=note;list.appendChild(li);});
             target.replaceChildren(list);
