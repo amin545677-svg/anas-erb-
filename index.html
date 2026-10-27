@@ -6883,6 +6883,7 @@ function renderPurchasesTable() {
 
         function renderAiHub() {
             anasRefreshAiHubStatus();
+            anasRefreshAiProactiveInsights();
             const cont = document.getElementById('aiHubTabContent');
             cont.innerHTML = `
                 <div class="card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
@@ -6890,7 +6891,21 @@ function renderPurchasesTable() {
                     <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">الفحص المحلي لا يرسل البيانات إلى الإنترنت. المساعد المتصل لا يعمل إلا بعد إعداد رابط الخادم.</p>
                     <button type="button" class="btn-full-submit" style="background:#0f766e;width:100%;margin:6px 0" onclick="anasRunLocalBusinessAudit()">🔎 فحص ذكي شامل للبيانات الآن</button>
                     <div id="anasLocalAuditResults" role="status" aria-live="polite" style="margin:8px 0;line-height:1.65;font-size:13px"></div>
-                    <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي عند الضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
+                    <section aria-label="اختصارات الذكاء الاصطناعي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;margin-bottom:8px;font-size:13px">⚡ مهام سريعة — اختر المهمة ثم أرسلها</strong>
+                      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px">
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#2563eb" onclick="anasSetAiPrompt('حلّل مبيعات اليوم من البيانات المتاحة فقط، واذكر الفترة ومصدر الأرقام وأي بيانات ناقصة.')">📈 تحليل مبيعات اليوم</button>
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#7c3aed" onclick="anasSetAiPrompt('لخّص الديون المستحقة، وحدد الأولويات دون اختراع بيانات أو اقتراح إجراءات تلقائية.')">💳 تلخيص الديون</button>
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#b45309" onclick="anasSetAiPrompt('راجع مؤشرات المخزون المتاحة واقترح تنبيهات عملية، وميّز بين النقص المؤكد والبيانات غير المتاحة.')">📦 تنبيهات المخزون</button>
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#0f766e" onclick="anasSetAiPrompt('راجع جودة البيانات التجارية وحدد التناقضات والمخاطر التي تستحق مراجعة بشرية.')">🛡️ تدقيق البيانات</button>
+                      </div>
+                    </section>
+                    <section aria-label="اقتراحات محلية استباقية" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">💡 تنبيهات ذكية محلية</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">تُحسب على هذا الجهاز من السجلات الحالية فقط؛ لا تُرسل البيانات إلى الخادم ولا تُعدّل السجلات.</p>
+                      <div id="anasAiProactiveInsights" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ فحص المؤشرات المحلية…</div>
+                    </section>
+                    <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي فقط بعد تفعيل موافقة مشاركة السياق والضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
                     <div id="anasAiChatLog" role="log" aria-live="polite" style="max-height:300px;overflow:auto;border:1px solid var(--mp-border);border-radius:12px;padding:10px;margin:10px 0;min-height:70px;background:rgba(148,163,184,.07)"><div style="color:var(--mp-text-muted);font-size:13px">جرّب: ما عدد العملاء والمنتجات؟ أو كيف أراجع الديون والمخزون؟</div></div>
                     <textarea id="anasAiQuestion" rows="3" placeholder="اكتب سؤالك التجاري هنا…" style="width:100%;box-sizing:border-box;border:1px solid var(--mp-border);border-radius:10px;padding:11px;font:inherit;resize:vertical;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
                     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px">
@@ -7115,6 +7130,23 @@ function renderPurchasesTable() {
             input.value=String(promptText||'');
             input.focus();
             input.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+        function anasRefreshAiProactiveInsights(){
+            const target=document.getElementById('anasAiProactiveInsights'); if(!target)return;
+            const products=Array.isArray(AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData.customers)?AppData.customers:[];
+            const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
+            const noStock=products.filter(p=>{const n=num(p.stock);return n!==null&&n<=0;});
+            const debtors=customers.filter(c=>{const n=num(c.debt);return n!==null&&n>0;}).sort((a,b)=>(num(b.debt)||0)-(num(a.debt)||0));
+            const invalidStock=products.filter(p=>p.stock!==undefined&&p.stock!==null&&String(p.stock).trim()!==''&&num(p.stock)===null);
+            const notes=[];
+            if(noStock.length)notes.push('🔴 يوجد '+noStock.length+' منتجًا بكميات صفرية أو سالبة؛ راجع الجرد وحركات المخزون قبل إعادة الطلب.');
+            if(debtors.length)notes.push('💳 يوجد '+debtors.length+' عميلًا برصيد دين موجب؛ راجع أعمار الديون وسجلات التسديد قبل التواصل.');
+            if(invalidStock.length)notes.push('⚠️ توجد '+invalidStock.length+' قيمة مخزون غير رقمية؛ صحح البيانات قبل الاعتماد على التقارير.');
+            if(!notes.length)notes.push('✅ لم تظهر مؤشرات صفرية/سالبة أو ديون موجبة ضمن الحقول المتاحة. هذا لا يثبت خلو السجلات من الأخطاء.');
+            const list=document.createElement('ul'); list.style.cssText='margin:4px 0;padding-inline-start:20px;';
+            notes.forEach(note=>{const li=document.createElement('li');li.textContent=note;list.appendChild(li);});
+            target.replaceChildren(list);
         }
         function anasRefreshAiHubStatus(){
             const status=document.getElementById('anasAiHubConnectionStatus');
