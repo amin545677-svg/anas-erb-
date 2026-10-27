@@ -7055,7 +7055,9 @@ function renderPurchasesTable() {
         async function askAnasBusinessAI(){
             const input=document.getElementById('anasAiQuestion'),btn=document.getElementById('anasAiAskBtn');
             const question=(input?.value||'').trim(); if(!question){alert('اكتب سؤالك أولاً.');return;}
-            const url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');
+            let url='';
+            try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}
+            catch(err){anasAiAppendMessage('ai','إعداد رابط الذكاء الاصطناعي غير صالح: '+(err.message||err));return;}
             if(!url){alert('يجب إعداد رابط خادم الذكاء الاصطناعي من الإعدادات أولاً.');return;}
             anasAiAppendMessage('user',question); input.value=''; if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ التحليل…';}
             try{
@@ -7254,7 +7256,9 @@ function renderPurchasesTable() {
             document.body.appendChild(box);
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
                 const st=box.querySelector('#smartImportAiStatus');
-                const url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');
+                let url='';
+                try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}
+                catch(err){st.textContent='❌ رابط بوابة الذكاء الاصطناعي غير صالح: '+(err.message||err);return;}
                 if(!url){st.textContent='❌ لم يتم حفظ رابط خادم الذكاء الاصطناعي. افتح الإعدادات واحفظ رابط workers.dev أولاً.';return;}
                 st.textContent='⏳ يجري تحليل أسماء الأعمدة وعينة من البيانات…';
                 try{
