@@ -7181,8 +7181,11 @@ function renderPurchasesTable() {
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
             const strictNum=v=>{
-                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object'||String(v).trim()==='')return null;
-                const n=Number(String(v).trim().replace(/,/g,'.'));
+                if(typeof v==='number')return Number.isFinite(v)?v:null;
+                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object')return null;
+                const raw=String(v).trim();
+                if(!/^-?\\d+(?:\\.\\d+|,\\d{1,2})?$/.test(raw))return null;
+                const n=Number(raw.replace(',','.'));
                 return Number.isFinite(n)?n:null;
             };
             const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
@@ -7248,8 +7251,11 @@ function renderPurchasesTable() {
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
             const strictNum=v=>{
-                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object'||String(v).trim()==='')return null;
-                const n=Number(String(v).trim().replace(/,/g,'.'));
+                if(typeof v==='number')return Number.isFinite(v)?v:null;
+                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object')return null;
+                const raw=String(v).trim();
+                if(!/^-?\\d+(?:\\.\\d+|,\\d{1,2})?$/.test(raw))return null;
+                const n=Number(raw.replace(',','.'));
                 return Number.isFinite(n)?n:null;
             };
             const noStock=products.filter(p=>{const n=strictNum(p&&p.stock);return n!==null&&n<=0;});
