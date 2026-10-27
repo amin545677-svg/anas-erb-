@@ -1415,7 +1415,7 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
     # Intercept the real AI request function with a fake fetch and synthetic records.
     # Assert consent gates the actual serialized payload and no sensitive value is logged.
     ai_ask_start = source.find("async function askAnasBusinessAI(){")
-    ai_ask_end = source.find("\\n        // Load the spreadsheet parser", ai_ask_start)
+    ai_ask_end = source.find("\n        // Load the spreadsheet parser", ai_ask_start)
     ai_ask_fn = source[ai_ask_start:ai_ask_end] if ai_ask_start >= 0 and ai_ask_end > ai_ask_start else ""
     ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
     ai_append_fn = function_source("anasAiAppendMessage")
