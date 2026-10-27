@@ -7145,9 +7145,9 @@ function renderPurchasesTable() {
                 while(true){
                     const part=await reader.read(); if(part.done)break;
                     buffer+=decoder.decode(part.value,{stream:true});
-                    const blocks=buffer.split(/\\r?\\n\\r?\\n/); buffer=blocks.pop()||'';
+                    const blocks=buffer.split(/\r?\n\r?\n/); buffer=blocks.pop()||'';
                     for(const block of blocks){
-                        const line=block.split(/\\r?\\n/).find(v=>v.startsWith('data:')); if(!line)continue;
+                        const line=block.split(/\r?\n/).find(v=>v.startsWith('data:')); if(!line)continue;
                         const raw=line.slice(5).trim(); if(!raw||raw==='[DONE]')continue;
                         let event; try{event=JSON.parse(raw)}catch(_){continue;}
                         if(event.error)throw new Error(event.error);
