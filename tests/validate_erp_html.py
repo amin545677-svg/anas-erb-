@@ -94,6 +94,31 @@ def main():
     else:
         print("PASS: dashboard touch targets retain touch-action, decorative-child handling, card styling, and visible keyboard focus")
 
+    # AI hub must provide clear capabilities, safe gateway status, quick prompts, and robust Excel parser fallbacks.
+    ai_hub_guards = [
+        'id="view-ai-excel-hub" class="page-view"',
+        'مركز الذكاء الاصطناعي | ANAS AI',
+        'id="anasAiHubConnectionStatus" role="status" aria-live="polite"',
+        "function anasSetAiPrompt(promptText)",
+        "function anasRefreshAiHubStatus()",
+        "async function anasLoadSheetJs()",
+        "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+        "https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js",
+        "https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js",
+        "if(!window.XLSX) await anasLoadSheetJs();",
+        "const maxImportBytes=20*1024*1024",
+        "const maxImportRows=100000, maxImportColumns=200",
+    ]
+    missing_ai_hub_guards = [guard for guard in ai_hub_guards if guard not in source]
+    if missing_ai_hub_guards:
+        errors.append("AI hub capability/upload regression: " + ", ".join(missing_ai_hub_guards))
+    else:
+        print("PASS: AI hub has a professional entry panel, quick prompts, gateway status, and resilient Excel parser loading")
+    if "anasGoBack()" not in source[source.find('id="view-ai-excel-hub"'):source.find('id="view-ai-excel-hub"') + 500]:
+        errors.append("AI hub back button must use the app navigation history")
+    else:
+        print("PASS: AI hub back button uses application navigation history")
+
     # Inline handlers must encode persisted identifiers for the JavaScript string context.
     inline_id_safety_guards = [
         "editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))",
