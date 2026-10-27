@@ -1543,6 +1543,21 @@ vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ 
 
     # AI semantic guards cover malformed numbers, previous-day scoping, and review-only drafts.
     ai_ux_checks = {
+        "AI hub collapses quick-action and answer grids below 360px":
+            "@media (max-width: 359px)" in source
+            and "#aiHubTabContent .anas-ai-grid { grid-template-columns: minmax(0, 1fr); }" in source
+            and "anas-ai-quick-actions" in source,
+        "AI hub provides 44px touch targets and keyboard-focus scrolling":
+            "min-height: 44px" in source
+            and "field.scrollIntoView({ block: 'center', behavior: 'auto' })" in source
+            and "scroll-margin-block: 18px" in source,
+        "AI hub contains chat scrolling and respects reduced motion":
+            "overscroll-behavior: contain" in source
+            and "-webkit-overflow-scrolling: touch" in source
+            and "prefers-reduced-motion: reduce" in source,
+        "AI context-sharing disclosure matches aggregate-only payload":
+            "دون أسماء العملاء أو المنتجات أو أرصدة الأفراد" in source
+            and "عينات محدودة من أسماء المنتجات والعملاء" not in source,
         "AI center provides ready-to-use quick actions":
             "تحليل مبيعات اليوم" in source
             and "تلخيص الديون" in source
