@@ -7147,8 +7147,8 @@ function renderPurchasesTable() {
             const original=String(input.value||'').trim();
             if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
             const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
-            const raw=normalizeDigits(original).replace(/[٫٬]/g,'.');
-            const number='(\\d+(?:[.,]\\d+)?)';
+            const raw=normalizeDigits(original).replace(/٫/g,'.');
+            const number='(?<![\\d.,٫٬])(\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
             const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة|كرتونة|كرتون|باكي|باكية|باكيات|سربيس)';
             const qtyMatch=raw.match(new RegExp('(?:عدد|كمية|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
             const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
