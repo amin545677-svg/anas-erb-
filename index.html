@@ -6883,7 +6883,6 @@ function renderPurchasesTable() {
 
         function renderAiHub() {
             anasRefreshAiHubStatus();
-            anasRefreshAiProactiveInsights();
             const cont = document.getElementById('aiHubTabContent');
             cont.innerHTML = `
                 <div class="card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
@@ -6962,6 +6961,7 @@ function renderPurchasesTable() {
                     </div>
                 </div>
             `;
+            anasRefreshAiProactiveInsights();
         }
 
         function triggerAiGeneration(section) {
