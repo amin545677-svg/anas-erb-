@@ -910,6 +910,8 @@
             pointer-events: none;
         }
         .grid-card-item, .menu-action-card { cursor: pointer; }
+/* Normalize native button rendering for the AI hub entry while preserving card styling. */
+.grid-card-item { -webkit-appearance: none; appearance: none; font: inherit; color: inherit; }
         .grid-card-item button, .grid-card-item input, .grid-card-item select,
         .menu-action-card button, .menu-action-card input, .menu-action-card select {
             pointer-events: auto;
