@@ -2032,11 +2032,36 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <!-- 14. مركز الإكسل والذكاء الاصطناعي الشامل (تحميل قوالب وتصدير واستيراد) -->
         <section id="view-ai-excel-hub" class="page-view">
             <div class="sub-header-bar">
-                <button class="btn-arrow-back" onclick="openView('dashboard')">‹</button>
-                <div class="sub-header-title">مركز الملفات الذكي | Excel · PDF</div>
-                <div>✨</div>
+                <button class="btn-arrow-back" onclick="anasGoBack()">‹</button>
+                <div class="sub-header-title">مركز الذكاء الاصطناعي | ANAS AI</div>
+                <div>🤖</div>
             </div>
-
+            <div style="margin:12px 0;padding:18px;border-radius:18px;background:linear-gradient(135deg,#111827 0%,#312e81 55%,#6d28d9 100%);color:#fff;box-shadow:0 10px 26px rgba(49,46,129,.18)">
+                <div style="display:flex;align-items:center;gap:12px">
+                    <div aria-hidden="true" style="width:54px;height:54px;flex:0 0 54px;display:grid;place-items:center;border-radius:16px;background:rgba(255,255,255,.14);font-size:30px">✦</div>
+                    <div style="min-width:0">
+                        <div style="font-size:11px;letter-spacing:.08em;font-weight:800;color:#ddd6fe">ANAS ERP · INTELLIGENCE CENTER</div>
+                        <h2 style="margin:3px 0;font-size:1.25rem;font-weight:900;color:#fff">مساعد أعمالك الذكي</h2>
+                        <div style="font-size:12px;line-height:1.7;color:#e0e7ff">حلّل بياناتك، افهم ملفاتك، واكتشف مؤشرات العمل — مع بقاء قرار الاستيراد والمحاسبة بيدك.</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:15px">
+                    <div style="padding:9px 7px;border-radius:11px;background:rgba(255,255,255,.10);text-align:center"><div style="font-size:20px">📊</div><div style="font-size:11px;font-weight:800">تحليل Excel/CSV</div></div>
+                    <div style="padding:9px 7px;border-radius:11px;background:rgba(255,255,255,.10);text-align:center"><div style="font-size:20px">📄</div><div style="font-size:11px;font-weight:800">استخراج PDF</div></div>
+                    <div style="padding:9px 7px;border-radius:11px;background:rgba(255,255,255,.10);text-align:center"><div style="font-size:20px">🛡️</div><div style="font-size:11px;font-weight:800">مراجعة قبل التغيير</div></div>
+                </div>
+                <div id="anasAiHubConnectionStatus" role="status" aria-live="polite" style="margin-top:12px;padding:9px 10px;border-radius:10px;background:rgba(15,23,42,.35);font-size:12px;line-height:1.6">ℹ️ حالة الاتصال: جارٍ التحقق من الإعدادات المحلية…</div>
+            </div>
+            <div style="margin:12px 0;padding:13px;border:1px solid var(--mp-border,#e2e8f0);border-radius:14px;background:var(--mp-card,#fff)">
+                <div style="font-weight:900;margin-bottom:9px">⚡ ابدأ بسؤال جاهز</div>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+                    <button type="button" class="btn-pos-hasib" onclick="anasSetAiPrompt('حلّل حالة المخزون وحدد المنتجات التي تستحق المراجعة، ولا تخمّن بيانات غير موجودة.')">📦 مراجعة المخزون</button>
+                    <button type="button" class="btn-pos-hasib" onclick="anasSetAiPrompt('ساعدني في مراجعة ديون العملاء والمبالغ المستحقة، وميّز بين المؤكد وما يحتاج إلى تحقق.')">👥 ديون العملاء</button>
+                    <button type="button" class="btn-pos-hasib" onclick="anasSetAiPrompt('اشرح لي مؤشرات المبيعات والمشتريات المتاحة دون اعتبارها ربحًا صافيًا ما لم تتوفر بيانات التكلفة والمرتجعات.')">📈 مؤشرات النشاط</button>
+                    <button type="button" class="btn-pos-hasib" onclick="anasSetAiPrompt('افحص عناوين ملفي واقترح مطابقة آمنة للأعمدة، واذكر القيم الملتبسة قبل أي استيراد.')">🧾 تدقيق ملف</button>
+                </div>
+                <button type="button" class="btn-full-submit" style="margin-top:9px;background:#4338ca" onclick="openView('settings')">⚙️ إعداد / اختبار اتصال الذكاء الاصطناعي</button>
+            </div>
             <div class="pills-group-row" style="margin:12px 0;">
                 <div class="pill-select-btn active" onclick="switchAiTab('all', this)">الكل (شامل)</div>
                 <div class="pill-select-btn" onclick="switchAiTab('products', this)">المنتجات</div>
@@ -6857,6 +6882,7 @@ function renderPurchasesTable() {
         }
 
         function renderAiHub() {
+            anasRefreshAiHubStatus();
             const cont = document.getElementById('aiHubTabContent');
             cont.innerHTML = `
                 <div class="card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
@@ -7070,6 +7096,28 @@ function renderPurchasesTable() {
             const item=document.createElement('div'); item.style.cssText='padding:9px 10px;margin:7px 0;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px;'+(role==='user'?'background:rgba(37,99,235,.10);':'background:rgba(124,58,237,.10);');
             const label=document.createElement('strong'); label.textContent=role==='user'?'أنت: ':'Anas AI: '; item.appendChild(label); item.appendChild(document.createTextNode(text)); log.appendChild(item); log.scrollTop=log.scrollHeight;
         }
+        function anasSetAiPrompt(promptText){
+            const input=document.getElementById('anasAiQuestion');
+            if(!input)return;
+            input.value=String(promptText||'');
+            input.focus();
+            input.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+        function anasRefreshAiHubStatus(){
+            const status=document.getElementById('anasAiHubConnectionStatus');
+            if(!status)return;
+            try{
+                const saved=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim();
+                if(!saved){
+                    status.textContent='⚠️ لم يُحفظ رابط بوابة الذكاء الاصطناعي على هذا الجهاز. افتح الإعدادات واضبط رابط Cloudflare Worker ثم اختبر الاتصال.';
+                    return;
+                }
+                anasNormalizeAiGatewayUrl(saved);
+                status.textContent='🔗 رابط البوابة محفوظ على هذا الجهاز. لم يُجرَ فحص حيّ بعد؛ افتح الإعدادات واضغط «اختبار الاتصال» للتأكد من جاهزية الخدمة.';
+            }catch(err){
+                status.textContent='❌ إعداد رابط البوابة غير صالح: '+(err.message||err);
+            }
+        }
         async function askAnasBusinessAI(){
             const input=document.getElementById('anasAiQuestion'),btn=document.getElementById('anasAiAskBtn');
             const question=(input?.value||'').trim(); if(!question){alert('اكتب سؤالك أولاً.');return;}
@@ -7086,6 +7134,44 @@ function renderPurchasesTable() {
                 const answer=String(data.text||data.answer||'لم يصل نص من المساعد.'); anasAiAppendMessage('ai',answer);
             }catch(err){anasAiAppendMessage('ai','تعذر الحصول على إجابة: '+(err.name==='AbortError'?'انتهت مهلة الاتصال.':(err.message||err))+' تحقق من رابط الخادم وإعداداته.');}
             finally{if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}}
+        }
+
+        // Load the spreadsheet parser with ordered CDN fallbacks; do not depend on a single host.
+        let anasSheetJsLoadPromise=null;
+        async function anasLoadSheetJs(){
+            if(window.XLSX && typeof window.XLSX.read==='function') return window.XLSX;
+            if(anasSheetJsLoadPromise) return anasSheetJsLoadPromise;
+            anasSheetJsLoadPromise=(async()=>{
+                const sources=[
+                    'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+                    'https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js',
+                    'https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js'
+                ];
+                const failures=[];
+                for(const src of sources){
+                    let script=null,timer=null;
+                    try{
+                        await new Promise((resolve,reject)=>{
+                            script=document.createElement('script');
+                            script.crossOrigin='anonymous';
+                            script.referrerPolicy='no-referrer';
+                            script.src=src;
+                            timer=setTimeout(()=>reject(new Error('انتهت مهلة تحميل '+new URL(src).hostname)),10000);
+                            script.onload=()=>{clearTimeout(timer);window.XLSX&&typeof window.XLSX.read==='function'?resolve():reject(new Error('المكتبة غير متاحة بعد التحميل.'));};
+                            script.onerror=()=>{clearTimeout(timer);reject(new Error('تعذر تحميل '+new URL(src).hostname));};
+                            document.head.appendChild(script);
+                        });
+                        return window.XLSX;
+                    }catch(err){
+                        if(timer)clearTimeout(timer);
+                        if(script&&script.parentNode)script.parentNode.removeChild(script);
+                        failures.push(err.message||String(err));
+                    }
+                }
+                throw new Error('تعذر تحميل قارئ Excel من جميع المصادر المتاحة. تحقق من اتصال الإنترنت أو استخدم «حفظ باسم CSV». التفاصيل: '+failures.join('؛ '));
+            })();
+            try{return await anasSheetJsLoadPromise;}
+            finally{anasSheetJsLoadPromise=null;}
         }
 
         async function handleSmartAiUpload(e) {
@@ -7119,14 +7205,9 @@ function renderPurchasesTable() {
                     const delimiter=(first.split(';').length>first.split(',').length)?';':(first.includes('\t')?'\t':',');
                     rows=parseSmartCsv(raw,delimiter);
                 } else if(ext==='xlsx' || ext==='xls') {
-                    if(!window.XLSX) await new Promise((resolve,reject)=>{
-                        const sc=document.createElement('script');
-                        sc.crossOrigin='anonymous';
-                        sc.referrerPolicy='no-referrer';
-                        sc.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-                        sc.onload=resolve; sc.onerror=()=>reject(new Error('تعذر تحميل قارئ Excel من الإنترنت. جرّب اتصالًا آخر أو احفظ الملف بصيغة CSV ثم أعد اختياره.'));
-                        document.head.appendChild(sc);
-                    });
+                    if(!window.XLSX) await anasLoadSheetJs();
+                    if(!window.XLSX || typeof window.XLSX.read!=='function' || !window.XLSX.utils || typeof window.XLSX.utils.sheet_to_json!=='function')
+                        throw new Error('قارئ Excel لم يكتمل تحميله. أعد المحاولة أو احفظ الملف بصيغة CSV.');
                     const buf=await file.arrayBuffer();
                     const wb=XLSX.read(buf,{type:'array'});
                     if(!Array.isArray(wb.SheetNames)||!wb.SheetNames.length) throw new Error('ملف Excel لا يحتوي على ورقة عمل قابلة للقراءة.');
