@@ -1,4 +1,4 @@
-const CACHE = 'anas-erp-v54-25-r1';
+const CACHE = 'anas-erp-v54-25-r2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg'];
 const CORE_URLS = new Set(CORE.map(path => new URL(path, self.location.href).href));
 
