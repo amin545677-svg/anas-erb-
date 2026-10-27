@@ -869,7 +869,158 @@
 #userPermissionsBox input { flex:0 0 auto; }
 @media(max-width:420px) { #userPermissionsBox { grid-template-columns:1fr !important; } #usersViewContainer .pill-select-btn { flex:1 1 145px; } }
 
-</style>
+
+        /* ANAS ERP modern UI layer — additive visual overrides only; preserve original DOM and behavior. */
+        :root {
+            --mp-navy: #17345f;
+            --mp-navy-dark: #102744;
+            --mp-bg: #f3f6fb;
+            --mp-card-bg: #ffffff;
+            --mp-border: #dbe3ee;
+            --mp-text-dark: #172338;
+            --mp-text-muted: #64748b;
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            color-scheme: light;
+        }
+        html { scroll-behavior: smooth; }
+        body {
+            background:
+              radial-gradient(ellipse at top right, rgba(37, 99, 235, .055), transparent 38%),
+              var(--mp-bg);
+            color: var(--mp-text-dark);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+        button, input, select, textarea { font: inherit; }
+        button, [role="button"], .grid-card-item, .menu-action-card {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        :where(button, input, select, textarea, a, [tabindex]):focus-visible {
+            outline: 3px solid rgba(37, 99, 235, .42);
+            outline-offset: 2px;
+        }
+        .top-navbar {
+            min-height: 60px;
+            height: auto;
+            padding: 10px clamp(12px, 2.5vw, 28px);
+            background: linear-gradient(120deg, #17345f 0%, #102744 72%, #0d203a 100%);
+            box-shadow: 0 5px 18px rgba(15, 35, 65, .16);
+            border-bottom: 1px solid rgba(255,255,255,.12);
+        }
+        .app-brand-name { letter-spacing: 0; gap: 9px; }
+        .main-container {
+            width: min(100% - 24px, 1280px);
+            max-width: 1280px;
+            padding: clamp(12px, 2vw, 24px);
+        }
+        .dashboard-grid-8 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: clamp(10px, 1.5vw, 18px);
+            margin-top: 14px;
+        }
+        .grid-card-item, .menu-action-card {
+            border-color: var(--mp-border);
+            border-radius: 16px;
+            box-shadow: 0 4px 14px rgba(20, 43, 77, .045);
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .grid-card-item {
+            min-height: 124px;
+            padding: 20px 14px;
+            background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+        }
+        .grid-card-item .card-icon-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 15px;
+            background: #edf4ff;
+            color: #2456a6;
+            font-size: 1.9rem;
+        }
+        .grid-card-item .card-title-text { font-size: .98rem; line-height: 1.45; }
+        .menu-action-card {
+            padding: 15px 17px;
+            min-height: 58px;
+            gap: 12px;
+            background: #fff;
+        }
+        .grid-card-item:active, .menu-action-card:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 7px rgba(20, 43, 77, .07);
+        }
+        .sub-header-bar {
+            background: linear-gradient(120deg, #17345f, #102744);
+            border-radius: 14px;
+            box-shadow: 0 4px 14px rgba(15, 35, 65, .12);
+            margin-bottom: 12px;
+        }
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+        select, textarea {
+            border-color: #cbd7e6;
+            border-radius: 10px;
+            transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #3974d8;
+            box-shadow: 0 0 0 3px rgba(57, 116, 216, .12);
+            outline: none;
+        }
+        .input-pos-search { min-height: 42px; background: #fff; }
+        .sales-toolbar, .quick-products-grid {
+            border-color: var(--mp-border);
+        }
+        .quick-product-btn {
+            border-radius: 10px;
+            min-height: 42px;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            box-shadow: 0 2px 5px rgba(20, 43, 77, .035);
+        }
+        .invoice-table-header { background: #f0f4fa; }
+        .invoice-items-body, .bottom-totals-bar {
+            border-color: var(--mp-border);
+        }
+        .bottom-totals-bar {
+            padding: 10px 14px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            box-shadow: 0 -5px 20px rgba(20, 43, 77, .09);
+        }
+        .box-total-green, .box-total-red {
+            border-radius: 12px;
+            overflow-wrap: anywhere;
+        }
+        table { border-color: var(--mp-border); }
+        img, canvas, video { max-width: 100%; }
+        @media (min-width: 760px) {
+            .dashboard-grid-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .main-container { padding-top: 22px; }
+            .grid-card-item:hover, .menu-action-card:hover {
+                border-color: #b7c9e2;
+                box-shadow: 0 9px 24px rgba(20, 43, 77, .09);
+                transform: translateY(-2px);
+            }
+        }
+        @media (max-width: 420px) {
+            .main-container { width: 100%; padding: 10px; }
+            .dashboard-grid-8 { gap: 9px; }
+            .grid-card-item { min-height: 108px; padding: 14px 8px; }
+            .grid-card-item .card-title-text { font-size: .91rem; }
+            .bottom-totals-bar { gap: 8px; flex-wrap: wrap; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            *, *::before, *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        </style>
 <style>
 
 /* Anas ERP: modern, accessible interaction polish */
