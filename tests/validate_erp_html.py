@@ -1342,6 +1342,28 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "proactive insight rendering runs after the AI hub template is inserted":
             source.find("anasRefreshAiProactiveInsights();", source.find("function renderAiHub()"))
             < source.find("function triggerAiGeneration(section)"),
+        "AI numeric parsing rejects empty and non-numeric values":
+            "const strictNum=v=>" in source
+            and "String(v).trim()===''" in source
+            and "typeof v==='boolean'" in source,
+        "missing stock is not silently classified as zero":
+            "const missingStock=products.filter" in source
+            and "لم تُعامل القيم الفارغة كصفر" in source,
+        "morning brief filters invoices to the previous local calendar day":
+            "مبيعات أمس (" in source
+            and "yesterday.getFullYear()" in source
+            and "const dated=[],undated=[];" in source
+            and "row.invoice_date" in source,
+        "morning brief flags undated invoices and invalid totals":
+            "فاتورة بلا تاريخ قابل للتحقق" in source
+            and "تعذر قراءة إجمالي" in source,
+        "natural-language draft exposes editable review fields without saving":
+            "field.dataset.draftField=key" in source
+            and "مسودة قابلة للتعديل فقط" in source
+            and "لم تُحفظ فاتورة ولم يتغير المخزون أو الحساب" in source,
+        "natural-language draft supports Arabic-Indic digits":
+            "replace(/[٠-٩]/g" in source
+            and "replace(/[۰-۹]/g" in source,
     }
     for label, passed in ai_ux_checks.items():
         if passed:
