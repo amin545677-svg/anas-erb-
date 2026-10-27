@@ -7104,8 +7104,7 @@ function renderPurchasesTable() {
             const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
             const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
             const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
-            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name||p.title),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
-            const debtors=customers.filter(c=>num(c.debt)>0).sort((a,b)=>num(b.debt)-num(a.debt)).slice(0,20).map(c=>({name:anasAiSafeText(c.name),debt:num(c.debt)}));
+            // Minimize outbound business context: aggregates only, no customer/product names or per-record balances.
             return {
                 currency:'DZD',
                 counts:{
@@ -7121,14 +7120,13 @@ function renderPurchasesTable() {
                     cashBalanceDZD:num(AppData.caisseBalance)
                 },
                 truckTrips:{statusCounts:tripStatusCounts},
-                sampleProducts:recentProducts,topDebtors:debtors,
                 dataQualityNotes:[
                     'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
                     'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
                     'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
                     'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
                 ],
-                note:'ملخص لحظي اختياري من التطبيق وقت السؤال. لا يتضمن أسماء الموردين أو تفاصيل رحلاتهم؛ راجع القيم قبل اتخاذ قرار مالي.'
+                note:'ملخص لحظي اختياري ومجرد من أسماء العملاء والمنتجات وأرصدة الأفراد. يتضمن مجاميع مالية وأعداد السجلات فقط؛ راجع القيم قبل اتخاذ قرار مالي.'
             };
         }
         function anasAiAppendMessage(role,text){
@@ -7151,7 +7149,7 @@ function renderPurchasesTable() {
             const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
             const raw=normalizeDigits(original);
             const number='(\\d+(?:[.,]\\d+)?)';
-            const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة)';
+            const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة|كرتونة|كرتون|باكي|باكية|باكيات|سربيس)';
             const qtyMatch=raw.match(new RegExp('(?:عدد|كمية|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
             const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
             const productMatch=raw.match(new RegExp(unit+'\\s+(.+?)(?=\\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|طريقة الدفع|دفع)|$)','i'));
@@ -7171,8 +7169,13 @@ function renderPurchasesTable() {
             });
             target.appendChild(form);
             const missing=fields.filter(([,key])=>!draft[key]).map(([labelText])=>labelText);
+            const invalidNumeric=[];
+            const qtyField=form.querySelector('[data-draft-field="quantity"]');
+            const priceField=form.querySelector('[data-draft-field="unitPrice"]');
+            if(qtyField&&qtyField.value!==''&&(!Number.isFinite(Number(qtyField.value))||Number(qtyField.value)<=0))invalidNumeric.push('الكمية يجب أن تكون رقمًا أكبر من صفر');
+            if(priceField&&priceField.value!==''&&(!Number.isFinite(Number(priceField.value))||Number(priceField.value)<0))invalidNumeric.push('سعر الوحدة يجب أن يكون رقمًا غير سالب');
             const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';
-            note.textContent='مسودة قابلة للتعديل فقط؛ لم تُحفظ فاتورة ولم يتغير المخزون أو الحساب. تحقق من تطابق العميل والصنف مع السجلات، ومن السعر والضريبة وطريقة الدفع. '+(missing.length?'حقول تحتاج إلى استكمال أو تحقق: '+missing.join('، ')+'.':'لا يعني استخراج الحقول أنها تحققت من السجلات.');
+            note.textContent='مسودة قابلة للتعديل أو الرفض فقط؛ لا يوجد اعتماد أو حفظ تلقائي، ولم تُحفظ فاتورة ولم يتغير المخزون أو الحساب. تحقق من تطابق العميل والصنف مع السجلات، ومن السعر والضريبة وطريقة الدفع. '+(missing.length?'حقول تحتاج إلى استكمال أو تحقق: '+missing.join('، ')+'. ':'')+(invalidNumeric.length?'تحذيرات رقمية: '+invalidNumeric.join('؛ ')+'. ':'')+(!missing.length&&!invalidNumeric.length?'لا يعني استخراج الحقول أنها تحققت من السجلات.':'');
             target.appendChild(note);
         }
         function anasRefreshAiMorningBrief(){
@@ -7215,8 +7218,13 @@ function renderPurchasesTable() {
             const yesterdayKey=yesterday.getFullYear()+'-'+String(yesterday.getMonth()+1).padStart(2,'0')+'-'+String(yesterday.getDate()).padStart(2,'0');
             const dated=[],undated=[];
             invoices.forEach(row=>{
-                const rawDate=row&&(row.date||row.createdAt||row.created_at||row.timestamp||row.invoiceDate||row.invoice_date||row.dateCreated||row.created);
-                const date=parseInvoiceDate(rawDate);
+                const dateCandidates=row?['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(key=>row[key]):[];
+                let date=null;
+                for(const candidate of dateCandidates){
+                    if(candidate===null||candidate===undefined||candidate==='')continue;
+                    const parsed=parseInvoiceDate(candidate);
+                    if(parsed){date=parsed;break;}
+                }
                 if(!date)undated.push(row);
                 else if(date.getFullYear()===yesterday.getFullYear()&&date.getMonth()===yesterday.getMonth()&&date.getDate()===yesterday.getDate())dated.push(row);
             });
