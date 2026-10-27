@@ -1307,6 +1307,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     else:
         ai_behavior_harness = r"""
 const vm = require('node:vm');
+process.on('uncaughtException', err => { console.error('AI_RUNTIME_FAILURE:', err.message); process.exit(1); });
 function makeNode(tag) {
   const node = {
     tagName: String(tag || 'div').toUpperCase(), children: [], dataset: {}, style: {}, attributes: {},
@@ -1405,7 +1406,8 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
             result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
             if result.returncode:
                 detail = (result.stderr or result.stdout).strip().splitlines()
-                errors.append("AI behavioral runtime test failed: " + (detail[0] if detail else "node test failed"))
+                diagnostic = next((line.strip() for line in detail if "AI_RUNTIME_FAILURE:" in line), detail[0] if detail else "node test failed")
+                errors.append("AI behavioral runtime test failed: " + diagnostic)
             else:
                 print(result.stdout.strip())
 
