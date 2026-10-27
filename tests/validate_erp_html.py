@@ -1411,6 +1411,109 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
             else:
                 print(result.stdout.strip())
 
+
+    # Intercept the real AI request function with a fake fetch and synthetic records.
+    # Assert consent gates the actual serialized payload and no sensitive value is logged.
+    ai_ask_start = source.find("async function askAnasBusinessAI(){")
+    ai_ask_end = source.find("\\n        // Load the spreadsheet parser", ai_ask_start)
+    ai_ask_fn = source[ai_ask_start:ai_ask_end] if ai_ask_start >= 0 and ai_ask_end > ai_ask_start else ""
+    ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
+    ai_append_fn = function_source("anasAiAppendMessage")
+    ai_fallback_fn = function_source("anasAiLocalFallback")
+    if not ai_ask_fn or not ai_snapshot_fn or not ai_append_fn or not ai_fallback_fn:
+        errors.append("AI payload runtime test could not locate the request/snapshot/helper functions")
+    else:
+        ai_payload_harness = r"""
+const vm = require('node:vm');
+function makeNode(tag) {
+  const node = {
+    tagName: String(tag || 'div').toUpperCase(), children: [], dataset: {}, style: {}, attributes: {},
+    value: '', checked: false, disabled: false, textContent: '', scrollTop: 0,
+    appendChild(child) { this.children.push(child); return child; },
+    setAttribute(key, value) { this.attributes[key] = String(value); },
+    focus() {}, scrollIntoView() {}
+  };
+  return node;
+}
+const elements = {
+  anasAiQuestion: makeNode('textarea'),
+  anasAiAskBtn: makeNode('button'),
+  anasAiShareContext: makeNode('input'),
+  anasAiAnswerStyle: makeNode('select'),
+  anasAiOfflineFallback: makeNode('div'),
+  anasAiChatLog: makeNode('div')
+};
+elements.anasAiAnswerStyle.value = 'concise';
+const calls = [], consoleCalls = [];
+const context = {
+  AppData: {
+    products: [{name:'SYNTHETIC_PRIVATE_PRODUCT',stock:7,buyPrice:2}],
+    customers: [{name:'SYNTHETIC_PRIVATE_CUSTOMER',debt:1234}],
+    suppliers: [], invoices: [], purchases: [], truckTrips: [],
+    stockMovements: [], warehouseTransfers: [], warehouses: [], expenses: [],
+    caisseBalance: 55
+  },
+  document: {
+    getElementById(id) { return elements[id] || null; },
+    createElement(tag) { return makeNode(tag); },
+    createTextNode(value) { const n=makeNode('#text'); n.textContent=String(value); return n; }
+  },
+  localStorage: { getItem(key) { return key === 'anasErpAiGatewayUrlV1' ? 'https://synthetic.invalid/ai' : null; } },
+  navigator: { onLine: true },
+  console: { log(...args){consoleCalls.push(args)}, warn(...args){consoleCalls.push(args)}, error(...args){consoleCalls.push(args)} },
+  alert() {},
+  setTimeout() { return 1; }, clearTimeout() {},
+  AbortController: class { constructor(){this.signal={};} abort(){} },
+  fetch: async (_url, options) => {
+    calls.push(JSON.parse(options.body));
+    return {ok:true,status:200,headers:{get(){return 'application/json'}},text:async()=>JSON.stringify({text:'synthetic response'})};
+  },
+  anasNormalizeAiGatewayUrl(value) { return value; },
+  Number, String, Math, Array, Object, JSON, RegExp, Map
+};
+vm.createContext(context);
+vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ + '\nconst anasAiAnswerCache=new Map();\n' + __ASK_FN__, context);
+(async () => {
+  elements.anasAiQuestion.value = 'سؤال اصطناعي دون مشاركة';
+  elements.anasAiShareContext.checked = false;
+  await context.askAnasBusinessAI();
+  elements.anasAiQuestion.value = 'سؤال اصطناعي مع مشاركة';
+  elements.anasAiShareContext.checked = true;
+  await context.askAnasBusinessAI();
+  if (calls.length !== 2) throw new Error('expected two intercepted AI requests');
+  if (Object.prototype.hasOwnProperty.call(calls[0], 'businessData')) {
+    throw new Error('unchecked consent still included businessData');
+  }
+  if (!calls[1].businessData || !calls[1].businessData.counts || !calls[1].businessData.totals) {
+    throw new Error('checked consent did not include the aggregate business snapshot');
+  }
+  const serialized = JSON.stringify(calls[1].businessData);
+  if (serialized.includes('SYNTHETIC_PRIVATE_CUSTOMER') || serialized.includes('SYNTHETIC_PRIVATE_PRODUCT')) {
+    throw new Error('aggregate payload leaked synthetic customer or product identity');
+  }
+  if (Object.prototype.hasOwnProperty.call(calls[1].businessData, 'sampleProducts') ||
+      Object.prototype.hasOwnProperty.call(calls[1].businessData, 'topDebtors')) {
+    throw new Error('aggregate payload included per-record collections');
+  }
+  if (consoleCalls.length) throw new Error('AI request path emitted console output during the synthetic privacy test');
+  console.log('PASS: intercepted AI requests omit businessData without consent and send only identity-free aggregates with consent; no console output');
+})().catch(err => { console.error('AI_PAYLOAD_FAILURE:', err.message); process.exitCode = 1; });
+""";
+        ai_payload_harness = ai_payload_harness.replace("__SNAPSHOT_FN__", json.dumps(ai_snapshot_fn))
+        ai_payload_harness = ai_payload_harness.replace("__APPEND_FN__", json.dumps(ai_append_fn))
+        ai_payload_harness = ai_payload_harness.replace("__FALLBACK_FN__", json.dumps(ai_fallback_fn))
+        ai_payload_harness = ai_payload_harness.replace("__ASK_FN__", json.dumps(ai_ask_fn))
+        with tempfile.TemporaryDirectory(prefix="anas-ai-payload-") as temp:
+            test_path = Path(temp) / "ai-payload.js"
+            test_path.write_text(ai_payload_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                diagnostic = next((line.strip() for line in detail if "AI_PAYLOAD_FAILURE:" in line), detail[0] if detail else "node test failed")
+                errors.append("AI payload runtime test failed: " + diagnostic)
+            else:
+                print(result.stdout.strip())
+
     ai_privacy_checks = {
         "AI business context is opt-in and unchecked by default":
             'id="anasAiShareContext" type="checkbox"' in source
