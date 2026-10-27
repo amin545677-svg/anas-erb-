@@ -1341,7 +1341,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "li.textContent=note" in source,
         "proactive insight rendering runs after the AI hub template is inserted":
             source.find("anasRefreshAiProactiveInsights();", source.find("function renderAiHub()"))
-            > source.find("function triggerAiGeneration(section)"),
+            < source.find("function triggerAiGeneration(section)"),
     }
     for label, passed in ai_ux_checks.items():
         if passed:
