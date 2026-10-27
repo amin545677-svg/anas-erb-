@@ -1421,7 +1421,7 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
     ai_append_fn = function_source("anasAiAppendMessage")
     ai_fallback_fn = function_source("anasAiLocalFallback")
     if not ai_ask_fn or not ai_snapshot_fn or not ai_append_fn or not ai_fallback_fn:
-        errors.append("AI payload runtime test could not locate the request/snapshot/helper functions")
+        errors.append("AI payload runtime test could not locate functions: ask=" + str(bool(ai_ask_fn)) + ", snapshot=" + str(bool(ai_snapshot_fn)) + ", append=" + str(bool(ai_append_fn)) + ", fallback=" + str(bool(ai_fallback_fn)))
     else:
         ai_payload_harness = r"""
 const vm = require('node:vm');
