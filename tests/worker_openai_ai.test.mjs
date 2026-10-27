@@ -104,7 +104,7 @@ test("streaming requests forward text deltas as server-sent events", async () =>
       { type: "response.output_text.delta", delta: "مرحبا " },
       { type: "response.output_text.delta", delta: "بك" },
       { type: "response.completed" }
-    ].map(event => "data: " + JSON.stringify(event) + "\\n\\n").join("");
+    ].map(event => "data: " + JSON.stringify(event) + "\n\n").join("");
     return new Response(new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode(payload));
@@ -118,11 +118,11 @@ test("streaming requests forward text deltas as server-sent events", async () =>
       body: { message: "اختبار بث", stream: true }
     }), { OPENAI_API_KEY: "test-secret" });
     assert.equal(response.status, 200);
-    assert.match(response.headers.get("content-type"), /text\\/event-stream/);
+    assert.match(response.headers.get("content-type"), /text\/event-stream/);
     const body = await response.text();
     assert.match(body, /"delta":"مرحبا "/);
     assert.match(body, /"delta":"بك"/);
-    assert.match(body, /data: \\[DONE\\]/);
+    assert.match(body, /data: \[DONE\]/);
   } finally {
     globalThis.fetch = oldFetch;
   }
