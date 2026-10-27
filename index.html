@@ -6882,6 +6882,11 @@ function renderPurchasesTable() {
         }
 
         function renderAiHub() {
+            console.debug('[AnasAI Lifecycle] renderAiHub entered', {
+                timestamp: Date.now(),
+                containerFoundBeforeRender: !!document.getElementById('aiHubTabContent'),
+                questionFoundBeforeRender: !!document.getElementById('anasAiQuestion')
+            });
             anasRefreshAiHubStatus();
             const cont = document.getElementById('aiHubTabContent');
             cont.innerHTML = `
@@ -6947,6 +6952,12 @@ function renderPurchasesTable() {
                     </div>
                 </div>
             `;
+            console.debug('[AnasAI Lifecycle] renderAiHub completed', {
+                timestamp: Date.now(),
+                containerConnected: !!cont?.isConnected,
+                questionFoundAfterRender: !!document.getElementById('anasAiQuestion'),
+                questionConnectedAfterRender: !!document.getElementById('anasAiQuestion')?.isConnected
+            });
         }
 
         function triggerAiGeneration(section) {
