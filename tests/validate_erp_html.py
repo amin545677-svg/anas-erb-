@@ -1344,8 +1344,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             < source.find("function triggerAiGeneration(section)"),
         "AI numeric parsing rejects empty and non-numeric values":
             "const strictNum=v=>" in source
-            and "String(v).trim()===''" in source
-            and "typeof v==='boolean'" in source,
+            and "const raw=String(v).trim();" in source
+            and "if(!/^-?" in source
+            and "Number.isFinite(n)?n:null" in source,
         "AI numeric parsing rejects ambiguous thousands separators":
             "raw.replace(',','.')" in source
             and ",\\d{1,2}" in source,
