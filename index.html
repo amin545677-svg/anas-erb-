@@ -6958,7 +6958,7 @@ function renderPurchasesTable() {
                 if (/^[\\s\\u0000-\\u001f]*[=+@]/.test(text) || /^[\\s\\u0000-\\u001f]*-/.test(text)) text = "'" + text;
                 return '"' + text.replace(/"/g, '""') + '"';
             };
-            const csv = "\\uFEFF" + headers.map(csvCell).join(',') + "\\r\\n" + rows.map(row => row.map(csvCell).join(',')).join("\\r\\n");
+            const csv = "\uFEFF" + headers.map(csvCell).join(',') + "\r\n" + rows.map(row => row.map(csvCell).join(',')).join("\r\n");
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
