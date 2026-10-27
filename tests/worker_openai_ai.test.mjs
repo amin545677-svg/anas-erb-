@@ -95,6 +95,39 @@ test("successful request returns only the expected answer contract", async () =>
   }
 });
 
+test("streaming requests forward text deltas as server-sent events", async () => {
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, "https://api.openai.com/v1/responses");
+    assert.equal(JSON.parse(init.body).stream, true);
+    const payload = [
+      { type: "response.output_text.delta", delta: "مرحبا " },
+      { type: "response.output_text.delta", delta: "بك" },
+      { type: "response.completed" }
+    ].map(event => "data: " + JSON.stringify(event) + "\n\n").join("");
+    return new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(payload));
+        controller.close();
+      }
+    }), { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  };
+  try {
+    const response = await worker.fetch(request("/", {
+      method: "POST", origin: allowedOrigin,
+      body: { message: "اختبار بث", stream: true }
+    }), { OPENAI_API_KEY: "test-secret" });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /text\/event-stream/);
+    const body = await response.text();
+    assert.match(body, /"delta":"مرحبا "/);
+    assert.match(body, /"delta":"بك"/);
+    assert.match(body, /data: \[DONE\]/);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
+
 test("oversized request body is rejected", async () => {
   const oversized = { message: "x".repeat(121 * 1024) };
   const response = await worker.fetch(request("/", {

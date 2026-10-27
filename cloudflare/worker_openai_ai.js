@@ -167,11 +167,74 @@ export default {
           instructions,
           input: userInput,
           max_output_tokens: 1000,
-          store: false
+          store: false,
+          stream: body.stream === true
         })
       });
     } catch (_) {
       return json({ error: "Could not reach the OpenAI API. Check Worker network access and configuration." }, 502, origin);
+    }
+
+    if (body.stream === true) {
+      if (!upstream.ok) {
+        const errorText = await upstream.text();
+        let errorData = {};
+        try { errorData = JSON.parse(errorText); } catch (_) {}
+        const apiMessage = errorData.error && errorData.error.message;
+        return json({ error: "OpenAI API request failed (HTTP " + upstream.status + "). " + cleanText(apiMessage || "Check API key, billing, permissions, and model availability.", 500) }, upstream.status === 429 ? 429 : 502, origin);
+      }
+      if (!upstream.body) return json({ error: "The AI service did not provide a streaming response." }, 502, origin);
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
+      let carry = "";
+      const stream = upstream.body.pipeThrough(new TransformStream({
+        transform(chunk, controller) {
+          carry += decoder.decode(chunk, { stream: true });
+          const events = carry.split("\n\n");
+          carry = events.pop() || "";
+          for (const eventText of events) {
+            const dataLine = eventText.split("\n").find(line => line.startsWith("data:"));
+            if (!dataLine) continue;
+            const rawEvent = dataLine.slice(5).trim();
+            if (!rawEvent || rawEvent === "[DONE]") continue;
+            let event;
+            try { event = JSON.parse(rawEvent); } catch (_) { continue; }
+            if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
+              controller.enqueue(encoder.encode("data: " + JSON.stringify({ delta: event.delta }) + "\n\n"));
+            } else if (event.type === "error" || event.type === "response.failed") {
+              const message = event.error && event.error.message || event.response && event.response.error && event.response.error.message || "The AI stream failed.";
+              controller.enqueue(encoder.encode("data: " + JSON.stringify({ error: cleanText(message, 400) }) + "\n\n"));
+            } else if (event.type === "response.completed") {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            }
+          }
+        },
+        flush(controller) {
+          carry += decoder.decode();
+          if (carry.trim()) {
+            const dataLine = carry.split("\n").find(line => line.startsWith("data:"));
+            if (dataLine) {
+              const rawEvent = dataLine.slice(5).trim();
+              try {
+                const event = JSON.parse(rawEvent);
+                if (event.type === "response.output_text.delta" && typeof event.delta === "string")
+                  controller.enqueue(encoder.encode("data: " + JSON.stringify({ delta: event.delta }) + "\n\n"));
+                if (event.type === "response.completed") controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              } catch (_) {}
+            }
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        }
+      }));
+      return new Response(stream, { status: 200, headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store, no-transform",
+        "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Vary": "Origin"
+      }});
     }
 
     const upstreamText = await upstream.text();

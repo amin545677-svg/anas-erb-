@@ -1297,6 +1297,32 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("transaction-safety regression: " + label)
 
+    ai_privacy_checks = {
+        "AI business context is opt-in and unchecked by default":
+            'id="anasAiShareContext" type="checkbox"' in source
+            and 'const shareContext=!!document.getElementById(\'anasAiShareContext\')?.checked;' in source
+            and 'if(shareContext)payload.businessData=businessData;' in source
+            and 'businessData:anasBuildBusinessSnapshot()' not in source,
+        "AI answer style controls are present":
+            'id="anasAiAnswerStyle"' in source
+            and "نمط الإجابة المطلوب:" in source,
+        "AI answer cache is in-memory only and bounded":
+            "const anasAiAnswerCache=new Map();" in source
+            and "while(anasAiAnswerCache.size>20)" in source
+            and "sessionStorage" not in source[source.find("const anasAiAnswerCache=new Map();"):source.find("// Load the spreadsheet parser")],
+        "AI offline fallback offers local workflows":
+            "function anasAiLocalFallback(question)" in source
+            and "if(!navigator.onLine)" in source
+            and "الفحص المحلي" in source,
+        "AI request explicitly avoids HTTP cache":
+            "cache:'no-store'" in source,
+    }
+    for label, passed in ai_privacy_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("AI privacy/UX regression: " + label)
+
     if errors:
         for error in errors:
             print("FAIL:", error)

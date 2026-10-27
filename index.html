@@ -6893,8 +6893,21 @@ function renderPurchasesTable() {
                     <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي عند الضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
                     <div id="anasAiChatLog" role="log" aria-live="polite" style="max-height:300px;overflow:auto;border:1px solid var(--mp-border);border-radius:12px;padding:10px;margin:10px 0;min-height:70px;background:rgba(148,163,184,.07)"><div style="color:var(--mp-text-muted);font-size:13px">جرّب: ما عدد العملاء والمنتجات؟ أو كيف أراجع الديون والمخزون؟</div></div>
                     <textarea id="anasAiQuestion" rows="3" placeholder="اكتب سؤالك التجاري هنا…" style="width:100%;box-sizing:border-box;border:1px solid var(--mp-border);border-radius:10px;padding:11px;font:inherit;resize:vertical;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px">
+                      <label style="font-size:12px;font-weight:800">نمط الإجابة
+                        <select id="anasAiAnswerStyle" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)">
+                          <option value="concise">مختصرة</option><option value="detailed">مفصلة</option><option value="bullets">نقاط واضحة</option><option value="table">جدول عند ملاءمته</option>
+                        </select>
+                      </label>
+                      <div style="font-size:12px;line-height:1.5;color:var(--mp-text-muted);padding:7px">🔒 السؤال وحده يُرسل افتراضيًا. بيانات النشاط لا تُرسل إلا بعد تفعيل الموافقة أدناه.</div>
+                    </div>
+                    <label style="display:flex;align-items:flex-start;gap:9px;margin-top:10px;padding:10px;border:1px solid var(--mp-border);border-radius:10px;font-size:12px;line-height:1.6">
+                      <input id="anasAiShareContext" type="checkbox" style="margin-top:3px;flex:0 0 auto">
+                      <span><strong>أوافق على إرسال ملخص بيانات النشاط مع سؤالي</strong><br>قد يتضمن أرقام المبيعات والديون والمخزون وعينات محدودة من أسماء المنتجات والعملاء. سيُرسل عبر HTTPS إلى مزود الذكاء الاصطناعي لمعالجة الطلب. اتركه غير محدد للتحليل العام فقط.</span>
+                    </label>
+                    <div id="anasAiOfflineFallback" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:9px;border-radius:9px;background:rgba(217,119,6,.10);font-size:12px;line-height:1.6"></div>
                     <button id="anasAiAskBtn" type="button" class="btn-full-submit" style="background:#6d28d9;margin-top:8px;width:100%" onclick="askAnasBusinessAI()">✨ اسأل Anas AI</button>
-                    <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">الإجابات تحليلية وليست بديلًا عن مراجعة الحسابات؛ لا يُعدّل المساعد سجلاتك.</small>
+                    <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">الإجابات تحليلية وليست بديلًا عن مراجعة الحسابات؛ لا يُعدّل المساعد سجلاتك. الفحص المحلي لا يرسل البيانات إلى الخادم.</small>
                 </div>
                 <div style="background:#ffffff; border:1px solid var(--mp-border); border-radius:12px; padding:16px; margin-bottom:14px;">
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
@@ -7118,22 +7131,106 @@ function renderPurchasesTable() {
                 status.textContent='❌ إعداد رابط البوابة غير صالح: '+(err.message||err);
             }
         }
+        // Stream plain-text deltas from the Worker without rendering untrusted HTML.
+        function anasAiCreateStreamingMessage(){
+            const log=document.getElementById('anasAiChatLog'); if(!log)return null;
+            const item=document.createElement('div'); item.style.cssText='padding:9px 10px;margin:7px 0;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px;background:rgba(124,58,237,.10);';
+            const label=document.createElement('strong'); label.textContent='Anas AI: '; item.appendChild(label);
+            const content=document.createTextNode(''); item.appendChild(content); log.appendChild(item); log.scrollTop=log.scrollHeight;
+            return {content,log};
+        }
+        async function anasAiReadEventStream(response,onDelta){
+            const reader=response.body.getReader(),decoder=new TextDecoder(); let buffer='',answer='';
+            try{
+                while(true){
+                    const part=await reader.read(); if(part.done)break;
+                    buffer+=decoder.decode(part.value,{stream:true});
+                    const blocks=buffer.split(/\r?\n\r?\n/); buffer=blocks.pop()||'';
+                    for(const block of blocks){
+                        const line=block.split(/\r?\n/).find(v=>v.startsWith('data:')); if(!line)continue;
+                        const raw=line.slice(5).trim(); if(!raw||raw==='[DONE]')continue;
+                        let event; try{event=JSON.parse(raw)}catch(_){continue;}
+                        if(event.error)throw new Error(event.error);
+                        if(typeof event.delta==='string'){answer+=event.delta;if(onDelta)onDelta(answer);}
+                    }
+                }
+            }finally{reader.releaseLock();}
+            if(!answer.trim())throw new Error('انتهى البث دون وصول نص من المساعد.');
+            return answer.trim();
+        }
+
+        // Ephemeral in-memory cache only: never persist prompts or business context to browser storage.
+        const anasAiAnswerCache=new Map();
+        function anasAiLocalFallback(question){
+            const q=String(question||'').toLowerCase();
+            const tips=[];
+            if(/مخزون|نفاد|منتج|stock/.test(q))tips.push('افتح شاشة المخزون واستخدم البحث المحلي لمراجعة الكميات والتنبيهات المسجلة.');
+            if(/دين|ديون|عميل|ذمم|debt/.test(q))tips.push('افتح ذمم العملاء لمراجعة الأرصدة المسجلة محليًا قبل التواصل أو التحصيل.');
+            if(/مبيع|مبيعات|فاتورة|sale/.test(q))tips.push('افتح تقارير المبيعات وحدد الفترة المطلوبة؛ لا تعتبر إجمالي المبيعات ربحًا صافيًا.');
+            if(/ملف|excel|csv|pdf|إكسل/.test(q))tips.push('يمكنك فتح أداة الملفات للمعاينة محليًا أولًا، ولا ترسل الملف إلى الذكاء الاصطناعي إلا بعد مراجعة محتواه والموافقة.');
+            return tips.length?'🟠 المساعد السحابي غير متاح دون اتصال. بدائل محلية:\n• '+tips.join('\n• '):'🟠 المساعد السحابي يحتاج إلى اتصال بالإنترنت. يمكنك استخدام البحث والتقارير والفحص المحلي داخل ANAS ERP، ثم إعادة المحاولة عند عودة الاتصال.';
+        }
         async function askAnasBusinessAI(){
             const input=document.getElementById('anasAiQuestion'),btn=document.getElementById('anasAiAskBtn');
+            const shareContext=!!document.getElementById('anasAiShareContext')?.checked;
+            const style=document.getElementById('anasAiAnswerStyle')?.value||'concise';
+            const fallback=document.getElementById('anasAiOfflineFallback');
             const question=(input?.value||'').trim(); if(!question){alert('اكتب سؤالك أولاً.');return;}
             let url='';
             try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}
             catch(err){anasAiAppendMessage('ai','إعداد رابط الذكاء الاصطناعي غير صالح: '+(err.message||err));return;}
-            if(!url){alert('يجب إعداد رابط خادم الذكاء الاصطناعي من الإعدادات أولاً.');return;}
-            anasAiAppendMessage('user',question); input.value=''; if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ التحليل…';}
+            if(!url){anasAiAppendMessage('ai','لم يُضبط رابط الخادم بعد. يمكنك استخدام الفحص المحلي الآن أو ضبط الرابط من الإعدادات.');return;}
+            if(!navigator.onLine){if(fallback){fallback.style.display='block';fallback.textContent=anasAiLocalFallback(question);}anasAiAppendMessage('ai',anasAiLocalFallback(question));return;}
+            let businessData=null;
+            if(shareContext){
+                try{businessData=anasBuildBusinessSnapshot();}
+                catch(err){anasAiAppendMessage('ai','تعذر تجهيز ملخص البيانات. ألغِ الموافقة على إرسال السياق أو أعد المحاولة.');return;}
+            }
+            const styleInstructions={
+              concise:'أجب بإيجاز واذكر أهم نتيجة أولًا.',
+              detailed:'قدّم تحليلًا مفصلًا منظمًا مع توضيح الافتراضات والبيانات الناقصة.',
+              bullets:'اعرض الإجابة في نقاط واضحة قابلة للتنفيذ.',
+              table:'استخدم جدولًا نصيًا عند ملاءمته، وإلا استخدم نقاطًا منظمة.'
+            };
+            const payload={type:'chat',message:question+'\n\nنمط الإجابة المطلوب: '+styleInstructions[style],language:'ar'};
+            if(shareContext)payload.businessData=businessData;
+            const cacheKey=JSON.stringify([question,style,shareContext?businessData:null]);
+            if(anasAiAnswerCache.has(cacheKey)){
+                anasAiAppendMessage('user',question);
+                anasAiAppendMessage('ai','📌 إجابة من الذاكرة المؤقتة لهذه الجلسة:\n'+anasAiAnswerCache.get(cacheKey));
+                input.value='';
+                return;
+            }
+            anasAiAppendMessage('user',question); input.value='';
+            if(fallback){fallback.style.display='block';fallback.textContent=shareContext?'سيُرسل السؤال وملخص النشاط الذي وافقت عليه إلى خادم الذكاء الاصطناعي عبر HTTPS.':'سيُرسل السؤال فقط؛ لم تتم الموافقة على إرسال بيانات النشاط.';}
+            if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ التحليل…';}
             try{
                 const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),45000);
-                let resp; try{resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'chat',message:question,businessData:anasBuildBusinessSnapshot(),language:'ar'}),signal:controller.signal});} finally {clearTimeout(timer);}
-                const raw=await resp.text(); let data; try{data=JSON.parse(raw)}catch{data={text:raw}};
-                if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
-                const answer=String(data.text||data.answer||'لم يصل نص من المساعد.'); anasAiAppendMessage('ai',answer);
-            }catch(err){anasAiAppendMessage('ai','تعذر الحصول على إجابة: '+(err.name==='AbortError'?'انتهت مهلة الاتصال.':(err.message||err))+' تحقق من رابط الخادم وإعداداته.');}
-            finally{if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}}
+                let resp; try{resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'});} finally {clearTimeout(timer);}
+                if(!resp.ok){
+                    const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
+                    throw new Error(data.error||('HTTP '+resp.status));
+                }
+                let answer='';
+                if((resp.headers.get('content-type')||'').includes('text/event-stream')){
+                    const streamMessage=anasAiCreateStreamingMessage();
+                    answer=await anasAiReadEventStream(resp,current=>{
+                        if(streamMessage){streamMessage.content.textContent=current;streamMessage.log.scrollTop=streamMessage.log.scrollHeight;}
+                    });
+                }else{
+                    const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
+                    if(data.error)throw new Error(data.error);
+                    answer=String(data.text||data.answer||'لم يصل نص من المساعد.');
+                    anasAiAppendMessage('ai',answer);
+                }
+                anasAiAnswerCache.set(cacheKey,answer);
+                while(anasAiAnswerCache.size>20)anasAiAnswerCache.delete(anasAiAnswerCache.keys().next().value);
+            }catch(err){
+                const message=err.name==='AbortError'?'انتهت مهلة الاتصال.':(!navigator.onLine?'انقطع الاتصال بالإنترنت.':(err.message||String(err)));
+                const local=anasAiLocalFallback(question);
+                if(fallback){fallback.style.display='block';fallback.textContent=message+' '+local;}
+                anasAiAppendMessage('ai','تعذر الحصول على إجابة سحابية: '+message+'\n'+local+'\nتحقق من الاتصال وإعدادات الخادم ثم أعد المحاولة.');
+            }finally{if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}}
         }
 
         // Load the spreadsheet parser with ordered CDN fallbacks; do not depend on a single host.
