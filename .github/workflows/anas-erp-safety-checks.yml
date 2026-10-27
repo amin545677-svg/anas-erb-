@@ -212,8 +212,15 @@ jobs:
               "manual deployment requires Cloudflare token": "secrets.CLOUDFLARE_API_TOKEN" in deploy,
               "manual deployment requires Cloudflare account id": "secrets.CLOUDFLARE_ACCOUNT_ID" in deploy,
               "manual deployment requires OpenAI key": "secrets.OPENAI_API_KEY" in deploy,
-              "worker deployment remains manual-only": "workflow_dispatch:" in deploy and "push:" not in deploy,
-          }
+                        "worker deployment supports manual runs and narrowly scoped main-branch deployment": (
+                  "workflow_dispatch:" in deploy
+                  and "push:" in deploy
+                  and "branches:" in deploy
+                  and '"main"' in deploy
+                  and '"cloudflare/worker_openai_ai.js"' in deploy
+                  and '"cloudflare/wrangler-openai.toml"' in deploy
+              ),
+        
           missing = [name for name, passed in checks.items() if not passed]
           for name, passed in checks.items():
               print(("PASS" if passed else "FAIL") + ": " + name)
