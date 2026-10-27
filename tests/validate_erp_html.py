@@ -57,6 +57,19 @@ def main():
     parser.feed(source)
     parser.close()
     errors = []
+
+    # The AI hub entry is a semantic button; its descendants must be phrasing elements,
+    # not divs, so the HTML remains conforming while retaining the existing card classes.
+    ai_hub_button_markup = re.search(
+        r'<button type="button" class="grid-card-item" onclick="openView\(\'ai-excel-hub\'\)" aria-label="فتح مركز الذكاء الاصطناعي">\s*'
+        r'<span class="card-icon-box" aria-hidden="true">🤖</span>\s*'
+        r'<span class="card-title-text">مركز الذكاء الاصطناعي</span>\s*</button>',
+        source,
+    )
+    if not ai_hub_button_markup:
+        errors.append("AI hub touch target must be a semantic button with valid phrasing-content children")
+    else:
+        print("PASS: AI hub touch target uses semantic button markup with valid children")
     # Inline handlers must encode persisted identifiers for the JavaScript string context.
     inline_id_safety_guards = [
         "editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))",
