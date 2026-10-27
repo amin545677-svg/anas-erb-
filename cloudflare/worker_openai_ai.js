@@ -190,40 +190,40 @@ export default {
       const stream = upstream.body.pipeThrough(new TransformStream({
         transform(chunk, controller) {
           carry += decoder.decode(chunk, { stream: true });
-          const events = carry.split("\\n\\n");
+          const events = carry.split("\n\n");
           carry = events.pop() || "";
           for (const eventText of events) {
-            const dataLine = eventText.split("\\n").find(line => line.startsWith("data:"));
+            const dataLine = eventText.split("\n").find(line => line.startsWith("data:"));
             if (!dataLine) continue;
             const rawEvent = dataLine.slice(5).trim();
             if (!rawEvent || rawEvent === "[DONE]") continue;
             let event;
             try { event = JSON.parse(rawEvent); } catch (_) { continue; }
             if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
-              controller.enqueue(encoder.encode("data: " + JSON.stringify({ delta: event.delta }) + "\\n\\n"));
+              controller.enqueue(encoder.encode("data: " + JSON.stringify({ delta: event.delta }) + "\n\n"));
             } else if (event.type === "error" || event.type === "response.failed") {
               const message = event.error && event.error.message || event.response && event.response.error && event.response.error.message || "The AI stream failed.";
-              controller.enqueue(encoder.encode("data: " + JSON.stringify({ error: cleanText(message, 400) }) + "\\n\\n"));
+              controller.enqueue(encoder.encode("data: " + JSON.stringify({ error: cleanText(message, 400) }) + "\n\n"));
             } else if (event.type === "response.completed") {
-              controller.enqueue(encoder.encode("data: [DONE]\\n\\n"));
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             }
           }
         },
         flush(controller) {
           carry += decoder.decode();
           if (carry.trim()) {
-            const dataLine = carry.split("\\n").find(line => line.startsWith("data:"));
+            const dataLine = carry.split("\n").find(line => line.startsWith("data:"));
             if (dataLine) {
               const rawEvent = dataLine.slice(5).trim();
               try {
                 const event = JSON.parse(rawEvent);
                 if (event.type === "response.output_text.delta" && typeof event.delta === "string")
-                  controller.enqueue(encoder.encode("data: " + JSON.stringify({ delta: event.delta }) + "\\n\\n"));
-                if (event.type === "response.completed") controller.enqueue(encoder.encode("data: [DONE]\\n\\n"));
+                  controller.enqueue(encoder.encode("data: " + JSON.stringify({ delta: event.delta }) + "\n\n"));
+                if (event.type === "response.completed") controller.enqueue(encoder.encode("data: [DONE]\n\n"));
               } catch (_) {}
             }
           }
-          controller.enqueue(encoder.encode("data: [DONE]\\n\\n"));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         }
       }));
       return new Response(stream, { status: 200, headers: {
