@@ -1624,6 +1624,155 @@ vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ 
         else:
             errors.append("AI UX regression: " + label)
 
+    # Runtime behavioral test: proactive AI insights must classify data safely,
+    # render through textContent, and leave AppData unchanged.
+    insights_start = source.find("function anasRefreshAiProactiveInsights(){")
+    insights_end = source.find("function anasRefreshAiHubStatus(){", insights_start)
+    insights_fn = (
+        source[insights_start:insights_end]
+        if insights_start >= 0 and insights_end > insights_start
+        else ""
+    )
+
+    if not insights_fn:
+        errors.append("proactive insights runtime test could not locate the complete function")
+    else:
+        insights_harness = r"""
+const vm = require('node:vm');
+const insightsFunction = __INSIGHTS_FUNCTION__;
+
+class MockElement {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.style = {};
+    this._textContent = '';
+    this.textContentWrites = 0;
+    this.innerHTMLWrites = 0;
+  }
+  set textContent(value) {
+    this.textContentWrites++;
+    this._textContent = String(value);
+  }
+  get textContent() { return this._textContent; }
+  set innerHTML(value) {
+    this.innerHTMLWrites++;
+    this._innerHTML = String(value);
+  }
+  get innerHTML() { return this._innerHTML || ''; }
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+  replaceChildren(...children) {
+    this.children = children;
+  }
+}
+
+function collectText(node) {
+  return String(node.textContent || '') +
+    node.children.map(collectText).join('\n');
+}
+
+const target = new MockElement('div');
+const products = [
+  { id: 'zero', stock: 0 },
+  { id: 'negative', stock: -3 },
+  { id: 'healthy', stock: 12 },
+  { id: 'invalid', stock: 'غير معروف' },
+  { id: 'missing' },
+  { id: 'null-stock', stock: null },
+  { id: 'blank', stock: '' }
+];
+const customers = [
+  { id: 'debtor', debt: 2500 },
+  { id: 'zero-debt', debt: 0 },
+  { id: 'negative-debt', debt: -100 },
+  { id: 'invalid-debt', debt: 'غير صالح' },
+  { id: 'missing-debt' },
+  { id: 'null-debt', debt: null }
+];
+
+const AppData = { products, customers };
+const snapshotBefore = JSON.stringify(AppData);
+const context = {
+  AppData,
+  document: {
+    getElementById(id) {
+      return id === 'anasAiProactiveInsights' ? target : null;
+    },
+    createElement(tag) { return new MockElement(tag); }
+  },
+  Number, String, Math, Array, Object, JSON, RegExp
+};
+
+vm.createContext(context);
+vm.runInContext(insightsFunction, context);
+context.anasRefreshAiProactiveInsights();
+
+const output = collectText(target);
+const requiredMessages = [
+  '🔴 يوجد 2 منتجًا',
+  '💳 يوجد 1 عميلًا',
+  '1 قيمة مخزون غير رقمية',
+  'كمية المخزون غير متوفرة',
+  'تعذر تفسير رصيد الدين'
+];
+
+for (const message of requiredMessages) {
+  if (!output.includes(message))
+    throw new Error('missing expected insight: ' + message);
+}
+
+if (output.includes('يوجد 3 منتجًا بكميات صفرية'))
+  throw new Error('positive stock or missing values were misclassified as zero/negative');
+
+if (target.children.length !== 1 || target.children[0].tagName !== 'ul')
+  throw new Error('insights must render as one list container');
+
+const list = target.children[0];
+if (list.children.some(item => item.tagName !== 'li'))
+  throw new Error('insight list contains unexpected child elements');
+
+if (list.children.some(item => item.textContentWrites < 1))
+  throw new Error('each insight must be rendered through textContent');
+
+if (list.children.some(item => item.innerHTMLWrites !== 0))
+  throw new Error('insight renderer must not write content through innerHTML');
+
+if (JSON.stringify(AppData) !== snapshotBefore)
+  throw new Error('AppData changed during proactive insight generation');
+
+context.document.getElementById = () => null;
+context.anasRefreshAiProactiveInsights();
+
+if (JSON.stringify(AppData) !== snapshotBefore)
+  throw new Error('AppData changed when the target element was absent');
+
+console.log(
+  'PASS: proactive insights classify synthetic stock/debt safely, ' +
+  'render with textContent, tolerate a missing target, and preserve AppData'
+);
+"""
+        insights_harness = insights_harness.replace(
+            "__INSIGHTS_FUNCTION__", json.dumps(insights_fn)
+        )
+
+        with tempfile.TemporaryDirectory(prefix="anas-ai-insights-") as temp:
+            test_path = Path(temp) / "ai-proactive-insights.js"
+            test_path.write_text(insights_harness, encoding="utf-8")
+            result = subprocess.run(
+                ["node", str(test_path)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode:
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                diagnostic = detail[0] if detail else "Node runtime test failed"
+                errors.append("AI proactive insights runtime test failed: " + diagnostic)
+            else:
+                print(result.stdout.strip())
+
     if errors:
         for error in errors:
             print("FAIL:", error)
