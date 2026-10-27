@@ -1323,6 +1323,32 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("AI privacy/UX regression: " + label)
 
+    ai_ux_checks = {
+        "AI center provides ready-to-use quick actions":
+            "تحليل مبيعات اليوم" in source
+            and "تلخيص الديون" in source
+            and "تنبيهات المخزون" in source
+            and "تدقيق البيانات" in source
+            and "anasSetAiPrompt(" in source,
+        "proactive business insights are computed locally":
+            "function anasRefreshAiProactiveInsights()" in source
+            and 'id="anasAiProactiveInsights"' in source
+            and "noStock.length" in source
+            and "debtors.length" in source
+            and "invalidStock.length" in source,
+        "proactive insights use text nodes rather than injected HTML":
+            "target.replaceChildren(list)" in source
+            and "li.textContent=note" in source,
+        "proactive insight rendering runs after the AI hub template is inserted":
+            source.find("anasRefreshAiProactiveInsights();", source.find("function renderAiHub()"))
+            > source.find("`;", source.find("function renderAiHub()")),
+    }
+    for label, passed in ai_ux_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("AI UX regression: " + label)
+
     if errors:
         for error in errors:
             print("FAIL:", error)
