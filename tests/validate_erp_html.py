@@ -57,6 +57,43 @@ def main():
     parser.feed(source)
     parser.close()
     errors = []
+
+    # The AI hub entry is a semantic button; descendants must be phrasing elements,
+    # not divs, so the HTML remains conforming while retaining the existing card classes.
+    ai_hub_button_start = source.find(
+        """<button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي">"""
+    )
+    ai_hub_button_end = source.find("</button>", ai_hub_button_start) if ai_hub_button_start >= 0 else -1
+    ai_hub_button_markup = (
+        source[ai_hub_button_start:ai_hub_button_end + len("</button>")]
+        if ai_hub_button_start >= 0 and ai_hub_button_end > ai_hub_button_start
+        else ""
+    )
+    if (
+        not ai_hub_button_markup
+        or '<span class="card-icon-box" aria-hidden="true">🤖</span>' not in ai_hub_button_markup
+        or '<span class="card-title-text">مركز الذكاء الاصطناعي</span>' not in ai_hub_button_markup
+        or "<div" in ai_hub_button_markup
+    ):
+        errors.append("AI hub touch target must be a semantic button with valid phrasing-content children")
+    else:
+        print("PASS: AI hub touch target uses semantic button markup with valid children")
+    # Guard the mobile interaction/accessibility CSS used by the semantic dashboard button.
+    touch_interaction_guards = [
+        'button, [role="button"], .grid-card-item, .menu-action-card {',
+        "touch-action: manipulation;",
+        ".grid-card-item > .card-icon-box,",
+        ".grid-card-item > .card-title-text,",
+        ':where(button, input, select, textarea, a, [tabindex]):focus-visible {',
+        ".grid-card-item .card-icon-box {",
+        ".grid-card-item .card-title-text {",
+    ]
+    missing_touch_guards = [guard for guard in touch_interaction_guards if guard not in source]
+    if missing_touch_guards:
+        errors.append("mobile touch/focus styling regression: " + ", ".join(missing_touch_guards))
+    else:
+        print("PASS: dashboard touch targets retain touch-action, decorative-child handling, card styling, and visible keyboard focus")
+
     # Inline handlers must encode persisted identifiers for the JavaScript string context.
     inline_id_safety_guards = [
         "editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))",

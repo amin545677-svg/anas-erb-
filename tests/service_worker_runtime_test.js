@@ -74,15 +74,15 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
 }
 
 (async () => {
-  store.set('anas-erp-v54-25', new Map());
+  store.set('anas-erp-v54-25-r1', new Map());
   store.set('other-app-cache', new Map());
   await dispatchLifecycle('install');
   assert.equal(skipWaitingCalled, true, 'install should activate the updated worker promptly');
 
   // Re-add an old cache after install to simulate a prior app shell still present at activation.
-  store.set('anas-erp-v54-25', new Map());
+  store.set('anas-erp-v54-25-r1', new Map());
   await dispatchLifecycle('activate');
-  assert.equal(store.has('anas-erp-v54-25'), false, 'activation should remove old ANAS ERP cache');
+  assert.equal(store.has('anas-erp-v54-25-r1'), false, 'activation should remove old ANAS ERP cache');
   assert.equal(store.has('other-app-cache'), true, 'activation must not delete unrelated origin caches');
   assert.equal(claimCalled, true, 'activation should claim existing clients');
 
@@ -90,7 +90,7 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   const indexUrl = 'https://example.test/app/index.html';
   let response = await request(shellUrl, { mode: 'navigate' });
   assert.equal(response.body, 'network-latest', 'online navigation should use fresh network HTML');
-  let cache = await caches.open('anas-erp-v54-25-r1');
+  let cache = await caches.open('anas-erp-v54-25-r2');
   assert.equal((await cache.match(indexUrl)).body, 'network-latest', 'fresh HTML should replace the cached shell');
 
   // HTTP failures must use the current app shell rather than returning a hosting error page.

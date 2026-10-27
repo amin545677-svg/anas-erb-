@@ -898,6 +898,24 @@
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
         }
+
+        /* Mobile touch reliability: decorative icon/image children must not steal taps
+           from their clickable dashboard/menu cards. Keep nested controls interactive. */
+        .grid-card-item > .card-icon-box,
+        .grid-card-item > .card-icon-box *,
+        .grid-card-item > .card-title-text,
+        .menu-action-card > .card-lead,
+        .menu-action-card > .card-lead *,
+        .menu-action-card > span {
+            pointer-events: none;
+        }
+        .grid-card-item, .menu-action-card { cursor: pointer; }
+/* Normalize native button rendering for the AI hub entry while preserving card styling. */
+.grid-card-item { -webkit-appearance: none; appearance: none; font: inherit; color: inherit; }
+        .grid-card-item button, .grid-card-item input, .grid-card-item select,
+        .menu-action-card button, .menu-action-card input, .menu-action-card select {
+            pointer-events: auto;
+        }
         :where(button, input, select, textarea, a, [tabindex]):focus-visible {
             outline: 3px solid rgba(37, 99, 235, .42);
             outline-offset: 2px;
@@ -1280,10 +1298,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 </div>
 
                 <!-- مركز الذكاء الاصطناعي: وصول مباشر من الواجهة الرئيسية -->
-                <div class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي">
-                    <div class="card-icon-box">🤖</div>
-                    <div class="card-title-text">مركز الذكاء الاصطناعي</div>
-                </div>
+                <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي">
+                    <span class="card-icon-box" aria-hidden="true">🤖</span>
+                    <span class="card-title-text">مركز الذكاء الاصطناعي</span>
+                </button>
             </div>
 
             <!-- أزرار الوصول السريع للإعدادات والنسخ والذكاء الاصطناعي -->
@@ -6937,10 +6955,10 @@ function renderPurchasesTable() {
             // Quote CSV fields and neutralize spreadsheet formula injection for text-like values.
             const csvCell = value => {
                 let text = String(value == null ? '' : value);
-                if (/^[\\s\\u0000-\\u001f]*[=+@]/.test(text) || /^[\\s\\u0000-\\u001f]*-/.test(text)) text = "'" + text;
+                if (!(typeof value === 'number' && Number.isFinite(value)) && (/^[\s\u0000-\u001f]*[=+@]/.test(text) || /^[\s\u0000-\u001f]*-/.test(text))) text = "'" + text;
                 return '"' + text.replace(/"/g, '""') + '"';
             };
-            const csv = "\\uFEFF" + headers.map(csvCell).join(',') + "\\r\\n" + rows.map(row => row.map(csvCell).join(',')).join("\\r\\n");
+            const csv = "\uFEFF" + headers.map(csvCell).join(',') + "\r\n" + rows.map(row => row.map(csvCell).join(',')).join("\r\n");
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
