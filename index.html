@@ -7109,13 +7109,33 @@ function renderPurchasesTable() {
             const item=document.createElement('div'); item.style.cssText='padding:9px 10px;margin:7px 0;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px;'+(role==='user'?'background:rgba(37,99,235,.10);':'background:rgba(124,58,237,.10);');
             const label=document.createElement('strong'); label.textContent=role==='user'?'أنت: ':'Anas AI: '; item.appendChild(label); item.appendChild(document.createTextNode(text)); log.appendChild(item); log.scrollTop=log.scrollHeight;
         }
-        function anasSetAiPrompt(promptText){
-            const input=document.getElementById('anasAiQuestion');
-            if(!input)return;
-            input.value=String(promptText||'');
+        // DEV-ONLY diagnostic tracing: isolated on debug/ai-prompt-dom-tracing.
+        window.anasSetAiPrompt = function(promptText){
+            console.log('[AnasAI Trace] anasSetAiPrompt called', {
+                promptType: typeof promptText,
+                promptLength: String(promptText ?? '').length,
+                readyState: document.readyState,
+                aiHubContainerFound: !!document.getElementById('aiHubTabContent')
+            });
+            const input = document.getElementById('anasAiQuestion');
+            if(!input || !input.isConnected){
+                console.error('[AnasAI Error] #anasAiQuestion missing or detached at click time', {
+                    found: !!input,
+                    connected: !!input?.isConnected,
+                    aiHubContainerFound: !!document.getElementById('aiHubTabContent'),
+                    aiHubContainerHTMLLength: document.getElementById('aiHubTabContent')?.innerHTML?.length ?? null
+                });
+                return;
+            }
+            input.value = String(promptText ?? '');
             input.focus();
             input.scrollIntoView({behavior:'smooth',block:'center'});
-        }
+            console.info('[AnasAI Success] Prompt inserted and focused', {
+                valueLength: input.value.length,
+                connected: input.isConnected,
+                activeElementIsInput: document.activeElement === input
+            });
+        };
         function anasRefreshAiHubStatus(){
             const status=document.getElementById('anasAiHubConnectionStatus');
             if(!status)return;
