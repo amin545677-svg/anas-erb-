@@ -1346,6 +1346,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "const strictNum=v=>" in source
             and "String(v).trim()===''" in source
             and "typeof v==='boolean'" in source,
+        "AI numeric parsing rejects ambiguous thousands separators":
+            "raw.replace(',','.')" in source
+            and ",\\d{1,2}" in source,
         "missing stock is not silently classified as zero":
             "const missingStock=products.filter" in source
             and "لم تُعامل القيم الفارغة كصفر" in source,
