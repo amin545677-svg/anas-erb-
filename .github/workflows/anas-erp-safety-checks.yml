@@ -219,7 +219,7 @@ jobs:
                   and '"main"' in deploy
                   and '"cloudflare/worker_openai_ai.js"' in deploy
                   and '"cloudflare/wrangler-openai.toml"' in deploy
-              ),
+              ),}
         
           missing = [name for name, passed in checks.items() if not passed]
           for name, passed in checks.items():
