@@ -1323,6 +1323,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("AI privacy/UX regression: " + label)
 
+    # AI semantic guards cover malformed numbers, previous-day scoping, and review-only drafts.
     ai_ux_checks = {
         "AI center provides ready-to-use quick actions":
             "تحليل مبيعات اليوم" in source
