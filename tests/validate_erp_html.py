@@ -1364,7 +1364,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "تعذر قراءة إجمالي" in source,
         "natural-language draft exposes editable review fields without saving":
             "field.dataset.draftField=key" in source
-            and "مسودة قابلة للتعديل فقط" in source
+            and "مسودة قابلة للتعديل أو الرفض فقط" in source
             and "لم تُحفظ فاتورة ولم يتغير المخزون أو الحساب" in source,
         "natural-language draft supports Arabic-Indic digits":
             "replace(/[٠-٩]/g" in source
