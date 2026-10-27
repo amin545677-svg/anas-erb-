@@ -898,6 +898,22 @@
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
         }
+
+        /* Mobile touch reliability: decorative icon/image children must not steal taps
+           from their clickable dashboard/menu cards. Keep nested controls interactive. */
+        .grid-card-item > .card-icon-box,
+        .grid-card-item > .card-icon-box *,
+        .grid-card-item > .card-title-text,
+        .menu-action-card > .card-lead,
+        .menu-action-card > .card-lead *,
+        .menu-action-card > span {
+            pointer-events: none;
+        }
+        .grid-card-item, .menu-action-card { cursor: pointer; }
+        .grid-card-item button, .grid-card-item input, .grid-card-item select,
+        .menu-action-card button, .menu-action-card input, .menu-action-card select {
+            pointer-events: auto;
+        }
         :where(button, input, select, textarea, a, [tabindex]):focus-visible {
             outline: 3px solid rgba(37, 99, 235, .42);
             outline-offset: 2px;
