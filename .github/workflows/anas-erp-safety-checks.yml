@@ -207,7 +207,7 @@ jobs:
               "OpenAI calls disable response storage": "store: false" in worker,
               "UI calls the health endpoint": "fetch(url+'/health'" in app,
               "UI verifies the worker service identity": "anas-erp-openai-ai" in app,
-              "UI submits chat messages": "type:\'chat\'" in app and "businessData:anasBuildBusinessSnapshot()" in app,
+              "UI submits chat messages": "type:\'chat\'" in app and "if(shareContext)payload.businessData=businessData;" in app,
               "UI reads the text response": "data.text" in app,
               "manual deployment requires Cloudflare token": "secrets.CLOUDFLARE_API_TOKEN" in deploy,
               "manual deployment requires Cloudflare account id": "secrets.CLOUDFLARE_ACCOUNT_ID" in deploy,
