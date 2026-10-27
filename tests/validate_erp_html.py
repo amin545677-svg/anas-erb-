@@ -1369,6 +1369,21 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "natural-language draft supports Arabic-Indic digits":
             "replace(/[٠-٩]/g" in source
             and "replace(/[۰-۹]/g" in source,
+        "morning brief falls back across invalid date fields without truthiness selection":
+            "const dateCandidates=row?" in source
+            and "const parsed=parseInvoiceDate(candidate);" in source
+            and "if(parsed){date=parsed;break;}" in source,
+        "natural-language draft flags invalid quantity and unit price without saving":
+            "invalidNumeric.push('الكمية يجب أن تكون رقمًا أكبر من صفر')" in source
+            and "invalidNumeric.push('سعر الوحدة يجب أن يكون رقمًا غير سالب')" in source
+            and "لا يوجد اعتماد أو حفظ تلقائي" in source,
+        "natural-language draft recognizes additional Arabic and colloquial units":
+            "كرتونة|كرتون|باكي|باكية|باكيات|سربيس" in source,
+        "AI business context is minimized to aggregates without per-record identities":
+            "Minimize outbound business context: aggregates only" in source
+            and "sampleProducts:recentProducts" not in source
+            and "topDebtors:debtors" not in source
+            and "if(shareContext)payload.businessData=businessData;" in source,
     }
     for label, passed in ai_ux_checks.items():
         if passed:
