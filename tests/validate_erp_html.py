@@ -58,15 +58,23 @@ def main():
     parser.close()
     errors = []
 
-    # The AI hub entry is a semantic button; its descendants must be phrasing elements,
+    # The AI hub entry is a semantic button; descendants must be phrasing elements,
     # not divs, so the HTML remains conforming while retaining the existing card classes.
-    ai_hub_button_markup = re.search(
-        r'<button type="button" class="grid-card-item" onclick="openView\(\'ai-excel-hub\'\)" aria-label="فتح مركز الذكاء الاصطناعي">\s*'
-        r'<span class="card-icon-box" aria-hidden="true">🤖</span>\s*'
-        r'<span class="card-title-text">مركز الذكاء الاصطناعي</span>\s*</button>',
-        source,
+    ai_hub_button_start = source.find(
+        """<button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي">"""
     )
-    if not ai_hub_button_markup:
+    ai_hub_button_end = source.find("</button>", ai_hub_button_start) if ai_hub_button_start >= 0 else -1
+    ai_hub_button_markup = (
+        source[ai_hub_button_start:ai_hub_button_end + len("</button>")]
+        if ai_hub_button_start >= 0 and ai_hub_button_end > ai_hub_button_start
+        else ""
+    )
+    if (
+        not ai_hub_button_markup
+        or '<span class="card-icon-box" aria-hidden="true">🤖</span>' not in ai_hub_button_markup
+        or '<span class="card-title-text">مركز الذكاء الاصطناعي</span>' not in ai_hub_button_markup
+        or "<div" in ai_hub_button_markup
+    ):
         errors.append("AI hub touch target must be a semantic button with valid phrasing-content children")
     else:
         print("PASS: AI hub touch target uses semantic button markup with valid children")
