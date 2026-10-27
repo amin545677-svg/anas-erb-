@@ -216,7 +216,7 @@ jobs:
                   "workflow_dispatch:" in deploy
                   and "push:" in deploy
                   and "branches:" in deploy
-                  and '"main"' in deploy
+                  and "branches:\n      - main" in deploy
                   and '"cloudflare/worker_openai_ai.js"' in deploy
                   and '"cloudflare/wrangler-openai.toml"' in deploy
               ),}
