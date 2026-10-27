@@ -7131,6 +7131,34 @@ function renderPurchasesTable() {
                 status.textContent='❌ إعداد رابط البوابة غير صالح: '+(err.message||err);
             }
         }
+        // Stream plain-text deltas from the Worker without rendering untrusted HTML.
+        function anasAiCreateStreamingMessage(){
+            const log=document.getElementById('anasAiChatLog'); if(!log)return null;
+            const item=document.createElement('div'); item.style.cssText='padding:9px 10px;margin:7px 0;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px;background:rgba(124,58,237,.10);';
+            const label=document.createElement('strong'); label.textContent='Anas AI: '; item.appendChild(label);
+            const content=document.createTextNode(''); item.appendChild(content); log.appendChild(item); log.scrollTop=log.scrollHeight;
+            return {content,log};
+        }
+        async function anasAiReadEventStream(response,onDelta){
+            const reader=response.body.getReader(),decoder=new TextDecoder(); let buffer='',answer='';
+            try{
+                while(true){
+                    const part=await reader.read(); if(part.done)break;
+                    buffer+=decoder.decode(part.value,{stream:true});
+                    const blocks=buffer.split(/\\r?\\n\\r?\\n/); buffer=blocks.pop()||'';
+                    for(const block of blocks){
+                        const line=block.split(/\\r?\\n/).find(v=>v.startsWith('data:')); if(!line)continue;
+                        const raw=line.slice(5).trim(); if(!raw||raw==='[DONE]')continue;
+                        let event; try{event=JSON.parse(raw)}catch(_){continue;}
+                        if(event.error)throw new Error(event.error);
+                        if(typeof event.delta==='string'){answer+=event.delta;if(onDelta)onDelta(answer);}
+                    }
+                }
+            }finally{reader.releaseLock();}
+            if(!answer.trim())throw new Error('انتهى البث دون وصول نص من المساعد.');
+            return answer.trim();
+        }
+
         // Ephemeral in-memory cache only: never persist prompts or business context to browser storage.
         const anasAiAnswerCache=new Map();
         function anasAiLocalFallback(question){
@@ -7178,11 +7206,23 @@ function renderPurchasesTable() {
             if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ التحليل…';}
             try{
                 const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),45000);
-                let resp; try{resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'});} finally {clearTimeout(timer);}
-                const raw=await resp.text(); let data; try{data=JSON.parse(raw)}catch{data={text:raw}};
-                if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
-                const answer=String(data.text||data.answer||'لم يصل نص من المساعد.');
-                anasAiAppendMessage('ai',answer);
+                let resp; try{resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'});} finally {clearTimeout(timer);}
+                if(!resp.ok){
+                    const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
+                    throw new Error(data.error||('HTTP '+resp.status));
+                }
+                let answer='';
+                if((resp.headers.get('content-type')||'').includes('text/event-stream')){
+                    const streamMessage=anasAiCreateStreamingMessage();
+                    answer=await anasAiReadEventStream(resp,current=>{
+                        if(streamMessage){streamMessage.content.textContent=current;streamMessage.log.scrollTop=streamMessage.log.scrollHeight;}
+                    });
+                }else{
+                    const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
+                    if(data.error)throw new Error(data.error);
+                    answer=String(data.text||data.answer||'لم يصل نص من المساعد.');
+                    anasAiAppendMessage('ai',answer);
+                }
                 anasAiAnswerCache.set(cacheKey,answer);
                 while(anasAiAnswerCache.size>20)anasAiAnswerCache.delete(anasAiAnswerCache.keys().next().value);
             }catch(err){
