@@ -1358,7 +1358,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "مبيعات أمس (" in source
             and "yesterday.getFullYear()" in source
             and "const dated=[],undated=[];" in source
-            and "row.invoice_date" in source,
+            and "'invoice_date'" in source,
         "morning brief flags undated invoices and invalid totals":
             "فاتورة بلا تاريخ قابل للتحقق" in source
             and "تعذر قراءة إجمالي" in source,
