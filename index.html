@@ -7055,7 +7055,7 @@ function renderPurchasesTable() {
         async function askAnasBusinessAI(){
             const input=document.getElementById('anasAiQuestion'),btn=document.getElementById('anasAiAskBtn');
             const question=(input?.value||'').trim(); if(!question){alert('اكتب سؤالك أولاً.');return;}
-            const url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim();
+            const url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');
             if(!url){alert('يجب إعداد رابط خادم الذكاء الاصطناعي من الإعدادات أولاً.');return;}
             anasAiAppendMessage('user',question); input.value=''; if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ التحليل…';}
             try{
@@ -7176,7 +7176,7 @@ function renderPurchasesTable() {
             const text=(document.getElementById('smartPdfExtractText')?.value||'').trim();
             if(!text){alert('استخرج النص من ملف PDF أولًا.');return;}
             let url='';
-            try{url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim();}catch(_){alert('تعذر قراءة إعدادات خادم الذكاء الاصطناعي.');return;}
+            try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}catch(e){alert('إعداد رابط الذكاء الاصطناعي غير صالح: '+e.message);return;}
             if(!url){alert('اضبط رابط خادم الذكاء الاصطناعي من الإعدادات أولًا.');return;}
             const question=prompt('ما المطلوب من ملف PDF؟ مثال: لخّصه، استخرج المبالغ والتواريخ، أو حوّله إلى جدول. لن يُرسل النص إلا بعد تأكيدك هنا.');
             if(!question||!question.trim())return;
@@ -7254,7 +7254,7 @@ function renderPurchasesTable() {
             document.body.appendChild(box);
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
                 const st=box.querySelector('#smartImportAiStatus');
-                const url=(localStorage.getItem('anasErpAiGatewayUrlV1')||'').trim();
+                const url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');
                 if(!url){st.textContent='❌ لم يتم حفظ رابط خادم الذكاء الاصطناعي. افتح الإعدادات واحفظ رابط workers.dev أولاً.';return;}
                 st.textContent='⏳ يجري تحليل أسماء الأعمدة وعينة من البيانات…';
                 try{
