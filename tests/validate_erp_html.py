@@ -1297,6 +1297,118 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("transaction-safety regression: " + label)
 
+
+    # Execute AI morning-brief and natural-language draft functions with synthetic data in an isolated Node VM.
+    # These tests validate behavior and AppData immutability; they never call the network or persistence layer.
+    ai_draft_fn = function_source("anasPrepareNaturalLanguageDraft")
+    ai_brief_fn = function_source("anasRefreshAiMorningBrief")
+    if not ai_draft_fn or not ai_brief_fn:
+        errors.append("AI behavioral runtime tests could not locate the draft or morning-brief function")
+    else:
+        ai_behavior_harness = r"""
+const vm = require('node:vm');
+function makeNode(tag) {
+  const node = {
+    tagName: String(tag || 'div').toUpperCase(), children: [], dataset: {}, style: {}, attributes: {},
+    value: '', type: '', min: '', step: '', disabled: false, _text: '',
+    appendChild(child) { this.children.push(child); return child; },
+    append(...children) { this.children.push(...children); },
+    replaceChildren(...children) { this.children = children; this._text = ''; },
+    setAttribute(key, value) { this.attributes[key] = String(value); },
+    focus() {}, scrollIntoView() {},
+    querySelector(selector) {
+      const match = (n) => {
+        if (selector === '[data-draft-field="quantity"]' && n.dataset && n.dataset.draftField === 'quantity') return n;
+        if (selector === '[data-draft-field="unitPrice"]' && n.dataset && n.dataset.draftField === 'unitPrice') return n;
+        return (n.children || []).map(match).find(Boolean) || null;
+      };
+      return match(this);
+    },
+    get textContent() { return this._text + this.children.map(c => c.textContent || '').join(''); },
+    set textContent(value) { this._text = String(value ?? ''); this.children = []; }
+  };
+  return node;
+}
+const elements = {
+  anasAiQuestion: makeNode('textarea'),
+  anasAiNaturalDraft: makeNode('div'),
+  anasAiMorningBrief: makeNode('div')
+};
+const fixedNow = new Date('2026-10-27T12:00:00');
+class FixedDate extends Date {
+  constructor(...args) { super(...(args.length ? args : [fixedNow.getTime()])); }
+  static now() { return fixedNow.getTime(); }
+}
+const context = {
+  AppData: {
+    invoices: [
+      { id: 'SYN-1', date: 'not-a-date', createdAt: '2026-10-26', total: 10 },
+      { id: 'SYN-2', date: '2026-10-26', createdAt: '2026-10-26', total: 20 },
+      { id: 'SYN-3', date: 'invalid', createdAt: '', total: 99 }
+    ],
+    products: [], customers: [], syntheticMarker: 'UNCHANGED'
+  },
+  document: {
+    getElementById(id) { return elements[id] || null; },
+    createElement(tag) { return makeNode(tag); }
+  },
+  Date: FixedDate,
+  console,
+  Number, String, Math, Array, Object, JSON, RegExp
+};
+vm.createContext(context);
+vm.runInContext(__DRAFT_FN__ + '\n' + __BRIEF_FN__, context);
+const before = JSON.stringify(context.AppData);
+context.anasRefreshAiMorningBrief();
+const brief = elements.anasAiMorningBrief.textContent;
+if (!brief.includes('مجموع الفواتير المؤرخة أمس فقط = 30') || !brief.includes('من 2 فاتورة مؤرخة')) {
+  throw new Error('date fallback/deduplication failed: expected exactly two dated invoices totaling 30');
+}
+if (!brief.includes('1 فاتورة بلا تاريخ قابل للتحقق')) {
+  throw new Error('undated invoice was not classified exactly once');
+}
+const cases = [
+  { command: 'بيع ٢٫٥ كرتونة شاي', expectedQty: '2.5', expectedItem: 'شاي' },
+  { command: 'بيع 3 باكي شاي للعميل أحمد بسعر 250', expectedQty: '3', expectedItem: 'شاي', expectedCustomer: 'أحمد', expectedPrice: '250' }
+];
+for (const test of cases) {
+  elements.anasAiQuestion.value = test.command;
+  context.anasPrepareNaturalLanguageDraft();
+  const root = elements.anasAiNaturalDraft;
+  const field = (key) => root.querySelector('[data-draft-field="' + key + '"]');
+  if (!field('quantity') || field('quantity').value !== test.expectedQty) {
+    throw new Error('quantity extraction failed for synthetic command');
+  }
+  if (!field('item') || field('item').value !== test.expectedItem) {
+    throw new Error('item extraction failed for synthetic command');
+  }
+  if (test.expectedCustomer && (!field('customer') || field('customer').value !== test.expectedCustomer)) {
+    throw new Error('customer extraction failed for synthetic command');
+  }
+  if (test.expectedPrice && (!field('unitPrice') || field('unitPrice').value !== test.expectedPrice)) {
+    throw new Error('unit price extraction failed for synthetic command');
+  }
+  if (!root.textContent.includes('مسودة قابلة للتعديل أو الرفض فقط')) {
+    throw new Error('draft is not clearly marked review-only');
+  }
+}
+if (JSON.stringify(context.AppData) !== before) {
+  throw new Error('AI draft or morning brief mutated AppData');
+}
+console.log('PASS: AI behavioral tests validate date fallback/deduplication, Arabic decimal and colloquial-unit extraction, and AppData immutability');
+""";
+        ai_behavior_harness = ai_behavior_harness.replace("__DRAFT_FN__", json.dumps(ai_draft_fn))
+        ai_behavior_harness = ai_behavior_harness.replace("__BRIEF_FN__", json.dumps(ai_brief_fn))
+        with tempfile.TemporaryDirectory(prefix="anas-ai-behavior-") as temp:
+            test_path = Path(temp) / "ai-behavior.js"
+            test_path.write_text(ai_behavior_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                errors.append("AI behavioral runtime test failed: " + (detail[0] if detail else "node test failed"))
+            else:
+                print(result.stdout.strip())
+
     ai_privacy_checks = {
         "AI business context is opt-in and unchecked by default":
             'id="anasAiShareContext" type="checkbox"' in source
