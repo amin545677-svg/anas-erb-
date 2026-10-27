@@ -1370,7 +1370,8 @@ if (!brief.includes('1 فاتورة بلا تاريخ قابل للتحقق')) {
 }
 const cases = [
   { command: 'بيع ٢٫٥ كرتونة شاي', expectedQty: '2.5', expectedItem: 'شاي' },
-  { command: 'بيع 3 باكي شاي للعميل أحمد بسعر 250', expectedQty: '3', expectedItem: 'شاي', expectedCustomer: 'أحمد', expectedPrice: '250' }
+  { command: 'بيع 3 باكي شاي للعميل أحمد بسعر 250', expectedQty: '3', expectedItem: 'شاي', expectedCustomer: 'أحمد', expectedPrice: '250' },
+  { command: 'بيع ١٬٢٥٠ كرتونة شاي', expectedQty: '', expectedItem: 'شاي' }
 ];
 for (const test of cases) {
   elements.anasAiQuestion.value = test.command;
