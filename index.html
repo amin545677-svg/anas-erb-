@@ -6955,7 +6955,7 @@ function renderPurchasesTable() {
             // Quote CSV fields and neutralize spreadsheet formula injection for text-like values.
             const csvCell = value => {
                 let text = String(value == null ? '' : value);
-                if (/^[\s\u0000-\u001f]*[=+@]/.test(text) || /^[\s\u0000-\u001f]*-/.test(text)) text = "'" + text;
+                if (!(typeof value === 'number' && Number.isFinite(value)) && (/^[\s\u0000-\u001f]*[=+@]/.test(text) || /^[\s\u0000-\u001f]*-/.test(text))) text = "'" + text;
                 return '"' + text.replace(/"/g, '""') + '"';
             };
             const csv = "\uFEFF" + headers.map(csvCell).join(',') + "\r\n" + rows.map(row => row.map(csvCell).join(',')).join("\r\n");
