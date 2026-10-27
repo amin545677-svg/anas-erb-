@@ -1377,16 +1377,16 @@ for (const test of cases) {
   const root = elements.anasAiNaturalDraft;
   const field = (key) => root.querySelector('[data-draft-field="' + key + '"]');
   if (!field('quantity') || field('quantity').value !== test.expectedQty) {
-    throw new Error('quantity extraction failed for synthetic command');
+    throw new Error('quantity extraction failed for synthetic command: ' + test.command);
   }
   if (!field('item') || field('item').value !== test.expectedItem) {
-    throw new Error('item extraction failed for synthetic command');
+    throw new Error('item extraction failed for synthetic command: ' + test.command + '; got=' + (field('item') && field('item').value));
   }
   if (test.expectedCustomer && (!field('customer') || field('customer').value !== test.expectedCustomer)) {
-    throw new Error('customer extraction failed for synthetic command');
+    throw new Error('customer extraction failed for synthetic command: ' + test.command + '; got=' + (field('customer') && field('customer').value));
   }
   if (test.expectedPrice && (!field('unitPrice') || field('unitPrice').value !== test.expectedPrice)) {
-    throw new Error('unit price extraction failed for synthetic command');
+    throw new Error('unit price extraction failed for synthetic command: ' + test.command + '; got=' + (field('unitPrice') && field('unitPrice').value));
   }
   if (!root.textContent.includes('مسودة قابلة للتعديل أو الرفض فقط')) {
     throw new Error('draft is not clearly marked review-only');
