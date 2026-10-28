@@ -45,3 +45,12 @@ This document records the verified gap between the current per-user snapshot bac
 - No production deployment or merge based solely on static tests or a Worker health check.
 - Do not write test records to the live business account. Use isolated test users/data.
 - This document does not implement shared sync and does not authorize a destructive schema migration.
+
+
+## Additional code-inspection note (2026-10-28)
+
+A targeted scan of the current production `index.html` (blob SHA `3919bd7d2832c321a80f72adb6bbf0f07d35bb61`) found:
+- Primary persistence reads/writes the whole application state through `localStorage` under `ANAS_THE_ENTERPRISE_V11_OFFLINE`.
+- No obvious `orgId`, `organizationId`, `tenantId`, `operationId`, `idempotencyKey`, or named offline-operation queue symbol was found in the scanned source.
+- This is a targeted source scan, not proof that no equivalent mechanism exists under another name. Treat organization scoping and idempotent offline operations as unverified until traced end-to-end.
+- Do not add a superficial `orgId` field or queue in the UI alone: authorization, transaction semantics and duplicate prevention must be enforced by the trusted persistence layer.
