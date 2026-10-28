@@ -6906,6 +6906,8 @@ function renderPurchasesTable() {
 
         // DEV-ONLY phone-visible diagnostic panel. No storage, network calls, or business data.
         (function installAnasAiTracePanel(){
+            // Keep the visible diagnostic overlay opt-in; never show it in ordinary app sessions.
+            if (!window.__ANAS_ISOLATED_DIAGNOSTIC__) return;
             if (window.__anasAiTracePanelInstalled) return;
             window.__anasAiTracePanelInstalled = true;
             const events = [];
