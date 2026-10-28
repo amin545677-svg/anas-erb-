@@ -28,7 +28,7 @@ try {
       if (accesses.length > 100) accesses.shift();
     };
     try {
-      for (const method of ['setItem', 'removeItem', 'clear']) {
+      for (const method of ['getItem', 'setItem', 'removeItem', 'clear']) {
         const original = Storage.prototype[method];
         Object.defineProperty(Storage.prototype, method, {
           configurable: true,
@@ -78,7 +78,12 @@ try {
   });
   page.on('pageerror', error => add('page_error', { errorClass: String(error?.name || 'Error') }));
 
-  await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${port}/index.html?anasDiagIsolated=1`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  add('isolation_guards', await page.evaluate(() => ({
+    diagnosticMode: window.__ANAS_ISOLATED_DIAGNOSTIC__ === true,
+    firebaseInitialized: !!window.firebase,
+    serviceWorkerController: !!navigator.serviceWorker?.controller
+  })));
   add('document_loaded', { readyState: await page.evaluate(() => document.readyState) });
   add('isolated_storage_access_status', await page.evaluate(() => ({ ephemeralContextOnly: true, recordedApiLabels: window.__anasStorageAccessLabels || [] })));
 
