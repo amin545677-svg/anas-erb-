@@ -75,3 +75,65 @@ test("unknown operation types remain in review and are not silently discarded", 
   assert.equal(result.snapshot.caisseBalance, 54000);
   assert.equal(result.review[0].reason, "UNSUPPORTED_OPERATION_TYPE");
 });
+
+function saleOp({ opId, warehouse = "المخزن الرئيسي", total = 1000, paid = total, quantity = 2, customerId = null }) {
+  const remaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
+  return {
+    opId,
+    type: "SALE_INVOICE",
+    payload: {
+      ...(customerId ? { customerId } : {}),
+      invoice: {
+        id: `inv-${opId}`,
+        date: "2026-10-28",
+        customer: customerId ? "عميل آجل" : "عميل نقدي عابر",
+        items: [{ id: "item_a", name: "صنف اختبار", qty: quantity, price: total / quantity }],
+        total, paid, remaining, warehouse, warehouseName: warehouse,
+        paymentMethod: paid <= 0 ? "credit" : (remaining > 0 ? "partial" : "cash")
+      }
+    }
+  };
+}
+
+test("V42 parity: full cash sale reduces main stock and increases cash without synthetic movements", () => {
+  const initial = cloud();
+  const op = saleOp({ opId: "sale-cash", total: 1000, paid: 1000 });
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.products[0].stock, 88);
+  assert.equal(result.snapshot.caisseBalance, 55000);
+  assert.equal(result.snapshot.customers[0].debt, 26000);
+  assert.equal(result.snapshot.invoices[0].id, "inv-sale-cash");
+  assert.equal(result.snapshot.cashMovements.length, initial.cashMovements.length);
+  assert.equal(result.snapshot.stockMovements.length, initial.stockMovements.length);
+});
+
+test("V42 parity: full credit sale keeps cash fixed and increases registered customer debt", () => {
+  const initial = cloud();
+  initial.customers[0].name = "عميل آجل";
+  const op = saleOp({ opId: "sale-credit", total: 1000, paid: 0, customerId: "cust_s" });
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.products[0].stock, 88);
+  assert.equal(result.snapshot.caisseBalance, 54000);
+  assert.equal(result.snapshot.customers[0].debt, 27000);
+  assert.equal(result.snapshot.invoices[0].paymentMethod, "credit");
+  assert.equal(result.snapshot.cashMovements.length, initial.cashMovements.length);
+  assert.equal(result.snapshot.stockMovements.length, initial.stockMovements.length);
+});
+
+test("V42 parity: mixed sale from a secondary warehouse updates only that warehouse, cash paid and debt remaining", () => {
+  const initial = cloud();
+  initial.products[0].warehouseStock = { "شاحنة 1": 15 };
+  initial.customers[0].name = "عميل مختلط";
+  const op = saleOp({ opId: "sale-mixed", warehouse: "شاحنة 1", total: 1000, paid: 400, customerId: "cust_s" });
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.products[0].stock, 90);
+  assert.equal(result.snapshot.products[0].warehouseStock["شاحنة 1"], 13);
+  assert.equal(result.snapshot.caisseBalance, 54400);
+  assert.equal(result.snapshot.customers[0].debt, 26600);
+  assert.equal(result.snapshot.invoices[0].paymentMethod, "partial");
+  assert.equal(result.snapshot.cashMovements.length, initial.cashMovements.length);
+  assert.equal(result.snapshot.stockMovements.length, initial.stockMovements.length);
+});
