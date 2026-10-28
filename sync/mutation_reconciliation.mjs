@@ -207,7 +207,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       }
       let customer = null;
       if (remainingCents > 0) {
-        if (typeof op.createdAt !== "string" || !/^\\d{4}-\\d{2}-\\d{2}T/.test(op.createdAt) || !Number.isFinite(Date.parse(op.createdAt))) {
+        if (typeof op.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(op.createdAt) || !Number.isFinite(Date.parse(op.createdAt))) {
           review.push({ opId: op.opId, reason: "SALE_OPERATION_TIMESTAMP_MISSING", operation: op });
           continue;
         }
