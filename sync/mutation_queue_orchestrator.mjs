@@ -107,6 +107,7 @@ export function createMutationQueueOrchestrator({
 
   async function pushCurrent() {
     recoverInterruptedLocalMutation(storage);
+    recoverPreparedMutationsOnBoot(storage);
     const pendingAtStart = readJson(storage, MUTATION_KEYS.pending, []);
     const capturedIds = new Set(pendingAtStart.filter(x => x?.status === "PENDING").map(x => x?.opId).filter(Boolean));
     const appData = readJson(storage, MUTATION_KEYS.appData, null);
@@ -130,6 +131,7 @@ export function createMutationQueueOrchestrator({
 
   async function reconcileAndSync() {
     recoverInterruptedLocalMutation(storage);
+    recoverPreparedMutationsOnBoot(storage);
     let lastConflict = null;
     for (let attempt = 1; attempt <= maxConflictRetries; attempt++) {
       const keys = [MUTATION_KEYS.appData, MUTATION_KEYS.pending, MUTATION_KEYS.quarantined, MUTATION_KEYS.revision];
