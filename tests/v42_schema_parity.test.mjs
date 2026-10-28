@@ -91,7 +91,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
   );
 });
 
-test("parity audit exposes the current decimal-amount contract mismatch instead of hiding it", () => {
+test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", () => {
   const initial = {
     caisseBalance: 1000,
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 2000 }],
@@ -113,10 +113,13 @@ test("parity audit exposes the current decimal-amount contract mismatch instead 
       cashMovement: movement
     }
   }]);
-  // V42 accepts two-decimal DZD amounts; current prototype only accepts safe integers.
-  assert.equal(result.review[0]?.reason, "INVALID_AMOUNT");
-  assert.equal(result.snapshot.caisseBalance, 1000);
-  assert.equal(result.snapshot.customers[0].debt, 2000);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.caisseBalance, original.snapshot.caisseBalance);
+  assert.equal(result.snapshot.customers[0].debt, original.snapshot.customers[0].debt);
+  assert.deepEqual(
+    stripSyncMetadata(result.snapshot).cashMovements,
+    stripSyncMetadata(original.snapshot).cashMovements
+  );
 });
 
 test("sale parity audit documents the real V42 side-effect boundary", () => {
