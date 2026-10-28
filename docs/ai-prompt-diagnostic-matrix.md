@@ -9,9 +9,10 @@ Draft PR: #228
 
 - Static CI results are not proof of mobile runtime behavior.
 - Record only diagnostic event names, booleans, and error classes/messages needed to identify the DOM lifecycle. Never capture business records, prompt contents, authentication material, API keys, or tokens.
-- The harness uses a fresh disposable browser context with no user profile or saved user data. It records `localStorage` operation labels including `getItem` (never keys or values) and IndexedDB operation labels only; external requests and service workers are blocked.
-- For opt-in isolated preview, open `index.html?anasDiagIsolated=1` on a fresh local origin. This mode skips Firebase Auth initialization and its LOCAL persistence/worker-settings initialization, blocks cross-origin `fetch`, and skips service-worker registration. Use only a fresh disposable browser profile/origin; never open this mode against a host that shares production storage. External script tags may still be attempted by the page, but the harness blocks them at the browser request layer.
-- The visible on-screen trace panel is also gated by `?anasDiagIsolated=1`; it reports render entry/completion, whether `anasAiQuestion` exists/is connected, prompt insertion length, and focus state. It must never display prompt text, business records, storage keys/values, credentials, or request bodies.
+- The harness uses a fresh disposable browser context with no user profile or saved user data. It records storage operation labels only (never keys or values) and IndexedDB operation labels only; external requests and service workers are blocked.
+- For opt-in isolated preview, open `index.html?anasDiagIsolated=1` on a fresh local origin. This mode skips Firebase Auth initialization, blocks cross-origin `fetch`, and skips service-worker registration. Use only a fresh disposable browser profile/origin; never open this mode against a host that shares production storage.
+- The visible on-screen trace panel is gated by `?anasDiagIsolated=1`; it reports render entry/completion, whether `anasAiQuestion` exists/is connected, prompt insertion length, and focus state. It must never display prompt text, business records, storage keys/values, credentials, or request bodies.
+- CSP blocks external resource origins in isolated mode, and the test harness independently blocks external browser requests. A CSP meta policy is not a substitute for verifying the browser storage overrides; field testing must be on a fresh disposable origin/profile.
 - Do not run the production GitHub Pages deploy workflow.
 - Keep PR #228 in Draft until isolated browser evidence and live phone evidence have both been reviewed.
 
@@ -34,12 +35,12 @@ Draft PR: #228
 |---|---|---|---|---|
 | Static CI | `343a89c7f736e1502e3858e132c08976134ed61c` | HTML regression, safety, Firebase snapshot worker | All three passed; static checks only | Continue to runtime evidence |
 | Isolated browser (baseline) | GitHub Actions run #621, run ID `40609350995`, artifact `ai-prompt-dom-trace`; code at `86aa70a6257edf9847df21865071f779e5edca9b` | `renderAiHub` traces; input found and connected; helper called; prompt inserted; focus true | PASS in ephemeral Chromium; external requests blocked | Baseline works in isolated browser; phone behavior still unknown |
-| Isolated browser (storage-write-blocked experiment) | GitHub Actions run #625, run ID `40609699422`, artifact ID `12782034277`, code at `97e95a6113a78c66a0d17780791569203d0d1444` | Three `localStorage.setItem` attempts were blocked; one `SecurityError`; prompt inserted and focused | Jobs passed, but the deliberately restrictive storage override changed startup behavior. | Retained as a harness experiment only; not representative startup evidence |
-| Isolated browser (disposable storage telemetry, baseline before opt-in isolation mode) | HTML Regression run #629, run ID `40610206799`, artifact ID `12781334332`, head `cd8873cd16cb9827ea1c138f7a1b527d358f921a` | Document complete; exactly 3 `storage.setItem` API labels; AI hub and input found/connected; helper called; prompt inserted; focus true; no `page_error` event recorded | Static regression and isolated browser-trace jobs passed. Artifact JSON inspected directly; external scripts blocked, service workers blocked, fresh ephemeral context; no keys, values, prompt text, business data, or secrets captured. | Latest isolated run confirms this path works in Chromium; Android root cause remains unconfirmed |
-| Isolated mode guard verification | Added on current diagnostic branch; CI pending | Mode flag, Firebase/Auth guard, cross-origin `fetch` block, service-worker guard, storage operation labels include reads | Pending CI result | Do not claim mobile proof; inspect new run/artifact |
+| Isolated browser (storage-write-blocked experiment) | GitHub Actions run #625, run ID `40609699422`, artifact ID `12782034277`, code at `97e95a6113a78c66a0d17780791569203d0d1444` | Three `localStorage.setItem` attempts were blocked; one `SecurityError`; prompt inserted and focused | Jobs passed, but the deliberately restrictive storage override changed startup behavior | Retained as a harness experiment only; not representative startup evidence |
+| Isolated browser (disposable storage telemetry) | HTML Regression run #629, run ID `40610206799`, artifact ID `12781334332`, head `cd8873cd16cb9827ea1c138f7a1b527d358f921a` | Document complete; AI hub and input found/connected; helper called; prompt inserted; focus true; no `page_error` event | PASS in fresh ephemeral context; no keys, values, prompt text, business data, or secrets captured | Isolated Chromium path works; Android root cause remains unconfirmed |
+| Isolated browser (opt-in guards and visible overlay) | HTML Regression run #639, run ID `40612441128`, head `a71df33588b6c9a32eb1f30f1767747969d68774`, artifact ID `12782679670` | `diagnosticMode=true`; Firebase not initialized; no service-worker controller; mock storage round-trip true; IndexedDB blocked; AI hub/input found and connected; prompt inserted; focus true; external script requests blocked | `static-regression` SUCCESS and `isolated-browser-trace` SUCCESS; artifact JSON inspected directly. Artifact records no business data or secrets. | Confirms tested interaction path in isolated Chromium only. External scripts were blocked as intended. Android remains pending; no root cause/fix authorized |
 | Live Android phone | Not run | — | Pending | Do not close or merge |
 
-Artifact: [GitHub Actions run #621](https://github.com/amin545677-svg/anas-erb-/actions/runs/40609350995)
+Artifact: [GitHub Actions run #639](https://github.com/amin545677-svg/anas-erb-/actions/runs/40612441128)
 
 ## Acceptance gates
 
@@ -49,11 +50,10 @@ Artifact: [GitHub Actions run #621](https://github.com/amin545677-svg/anas-erb-/
 4. A fix is proposed only after the observed evidence identifies the failing stage.
 5. PR remains Draft and production remains untouched until review explicitly authorizes the next step.
 
-
 ## Local phone procedure
 
-1. Serve this diagnostic branch from a fresh local origin (for example `http://127.0.0.1:4173/index.html?anasDiagIsolated=1`) using a disposable browser profile and synthetic/empty app data only.
-2. Confirm the on-screen trace panel says it is in diagnostic mode; it should not initialize Firebase Auth, call external `fetch` endpoints, or register the app service worker.
+1. Serve this diagnostic branch from a fresh local origin using a disposable browser profile and synthetic/empty app data only.
+2. Confirm the on-screen trace panel says it is in diagnostic mode; confirm Firebase Auth is not initialized, external requests are blocked, and the app service worker is not registered.
 3. Open AI Center, then tap **📦 مراجعة المخزون**. Record only the visible event labels and booleans; do not enter real business data.
 4. Match the sequence to D0–D7. Do not infer a phone result from CI or desktop Chromium.
-5. Note: a local server running in a separate computer/container is not automatically reachable from the user's phone; the phone and server must be on the same trusted network and the server must bind to an appropriate LAN interface. This environment currently has no confirmed handset session or local LAN server access, so live phone evidence must be supplied by a real device run.
+5. A local server running in a separate computer/container is not automatically reachable from the phone; the phone and server must be on the same trusted network and the server must bind to an appropriate LAN interface. No live handset session or LAN server is currently available in this environment, so phone evidence must come from an actual device run.
