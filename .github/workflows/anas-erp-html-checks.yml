@@ -8,6 +8,8 @@ on:
       - "sw.js"
       - "tests/validate_erp_html.py"
       - "tests/ai_prompt_dom_trace.mjs"
+      - "tests/test_diagnostic_preview_server.py"
+      - "tools/serve_ai_diagnostic_preview.py"
       - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
@@ -16,6 +18,8 @@ on:
       - "manifest.webmanifest"
       - "sw.js"
       - "tests/validate_erp_html.py"
+      - "tests/test_diagnostic_preview_server.py"
+      - "tools/serve_ai_diagnostic_preview.py"
       - ".github/workflows/anas-erp-html-checks.yml"
 
 permissions:
@@ -37,6 +41,8 @@ jobs:
           node-version: "22"
       - name: Validate ANAS ERP HTML and inline JavaScript
         run: python tests/validate_erp_html.py
+      - name: Test restricted diagnostic preview server
+        run: python -m unittest tests/test_diagnostic_preview_server.py
 
   isolated-browser-trace:
     runs-on: ubuntu-latest
