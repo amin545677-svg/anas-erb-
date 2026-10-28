@@ -89,7 +89,7 @@ export function commitLocalMutation({ storage, nextAppData, operation }) {
 /** Recover a leftover write-ahead snapshot after an interrupted local commit. */
 export function recoverInterruptedLocalMutation(storage) {
   const rescue = readJson(storage, MUTATION_KEYS.rescue, null);
-  if (!rescue || rescue.phase !== "LOCAL_MUTATION_PREPARE" || !rescue.before) return false;
+  if (!rescue || !["LOCAL_MUTATION_PREPARE", "PRE_RECONCILE"].includes(rescue.phase) || !rescue.before) return false;
   restoreStorage(storage, rescue.before);
   storage.removeItem(MUTATION_KEYS.rescue);
   return true;
@@ -110,8 +110,9 @@ export function createMutationQueueOrchestrator({
   }
 
   async function pushCurrent() {
+    recoverInterruptedLocalMutation(storage);
     const pendingAtStart = readJson(storage, MUTATION_KEYS.pending, []);
-    const capturedIds = new Set(pendingAtStart.filter(x => x?.status !== "QUARANTINED").map(x => x?.opId).filter(Boolean));
+    const capturedIds = new Set(pendingAtStart.filter(x => x?.status === "PENDING").map(x => x?.opId).filter(Boolean));
     const appData = readJson(storage, MUTATION_KEYS.appData, null);
     if (!appData) throw new Error("Local AppData is missing");
     const revision = readJson(storage, MUTATION_KEYS.revision, null);
@@ -132,13 +133,14 @@ export function createMutationQueueOrchestrator({
   }
 
   async function reconcileAndSync() {
+    recoverInterruptedLocalMutation(storage);
     let lastConflict = null;
     for (let attempt = 1; attempt <= maxConflictRetries; attempt++) {
       const keys = [MUTATION_KEYS.appData, MUTATION_KEYS.pending, MUTATION_KEYS.quarantined, MUTATION_KEYS.revision];
       const before = captureStorage(storage, keys);
       const pending = readJson(storage, MUTATION_KEYS.pending, []);
       if (!Array.isArray(pending)) throw new Error("Pending queue must be an array");
-      const replayable = pending.filter(item => item?.status !== "QUARANTINED");
+      const replayable = pending.filter(item => item?.status === "PENDING");
       const capturedIds = new Set(replayable.map(item => item?.opId).filter(Boolean));
       let cloud;
       try {
