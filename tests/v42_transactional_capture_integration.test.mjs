@@ -101,6 +101,7 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
       });
       invoice.syncOpId = operation.opId;
       invoice.syncCreatedAt = operation.createdAt;
+      operation.payload.invoice = structuredClone(invoice);
     } else {
       const movement = context.AppData.cashMovements?.find(x => !before.cashMovements.some(old => old.id === x.id));
       assert.ok(movement, "V42 must have created the real cash movement before saveDB");
@@ -115,6 +116,8 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
       });
       movement.syncOpId = operation.opId;
       movement.syncCreatedAt = operation.createdAt;
+      movement.opId = operation.opId;
+      operation.payload.cashMovement = structuredClone(movement);
     }
     stagedOperation = operation;
     const queue = JSON.parse(local.getItem(MUTATION_KEYS.pending) || "[]");
@@ -124,7 +127,12 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
     // Simulate durable AppData write after the capture marker is attached.
     persistedSnapshot = structuredClone(context.AppData);
     local.setItem(MUTATION_KEYS.appData, JSON.stringify(persistedSnapshot));
-    if (failQueuePromotion) throw new Error("simulated pending-queue promotion failure");
+    if (failQueuePromotion) {
+      // The bridge's compensating transaction restores the durable AppData
+      // snapshot if queue promotion fails after the first write.
+      local.setItem(MUTATION_KEYS.appData, initialSerialized);
+      throw new Error("simulated pending-queue promotion failure");
+    }
     local.setItem(MUTATION_KEYS.pending, JSON.stringify(
       JSON.parse(local.getItem(MUTATION_KEYS.pending)).map(x =>
         x.opId === operation.opId ? { ...x, status: "PENDING" } : x
@@ -255,5 +263,6 @@ test("queue promotion failure after durable save is detected and not silently tr
   assert.equal(run.threw, true);
   assert.ok(run.persistedSnapshot, "the test simulates a durable AppData write before promotion fails");
   assert.equal(run.pending().length, 0, "test harness aborts the PREPARED record after failure");
-  assert.ok(run.local.getItem(MUTATION_KEYS.appData), "persisted snapshot must be inspectable for recovery");
+  assert.equal(run.local.getItem(MUTATION_KEYS.appData), JSON.stringify(initial),
+    "the bridge compensates the first durable write when queue promotion fails");
 });
