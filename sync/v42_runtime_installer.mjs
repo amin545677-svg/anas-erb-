@@ -198,6 +198,29 @@ export function installV42RuntimeWiring({
     }
   }
 
+  function refreshFromPersistedSnapshot() {
+    const raw = storage.getItem(MUTATION_KEYS.appData);
+    if (raw == null) return false;
+    let snapshot;
+    try { snapshot = JSON.parse(raw); }
+    catch { throw new Error("Persisted reconciled AppData JSON is invalid"); }
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+      throw new Error("Persisted reconciled AppData snapshot is invalid");
+    }
+    setAppData(structuredClone(snapshot));
+    lastSnapshot = structuredClone(snapshot);
+    // Refresh the real page's visible balances without saving again (which could
+    // re-enter mutation capture). Each renderer is best-effort and independent.
+    for (const name of ["updateUIState", "updateCashUI", "renderCustomersDebts", "updateDashboardStats", "checkSystemAlerts"]) {
+      try {
+        if (typeof windowObject[name] === "function") windowObject[name]();
+      } catch (error) {
+        onStatus({ level: "warning", code: "V42_SYNC_UI_REFRESH_FAILED", renderer: name, message: String(error?.message || error) });
+      }
+    }
+    return true;
+  }
+
   async function withReconcilingWrite(callback) {
     const wasReconciling = isReconcilingWrite;
     isReconcilingWrite = true;
@@ -210,6 +233,7 @@ export function installV42RuntimeWiring({
     if (result?.status === "conflict") {
       onStatus({ level: "warning", code: "V42_SYNC_CONFLICT_RECONCILING" });
       const reconciled = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
+      if (reconciled?.status === "synced") refreshFromPersistedSnapshot();
       if (reconciled?.quarantined?.length) onQuarantine(reconciled.quarantined);
       onStatus({ level: reconciled?.status === "synced" ? "success" : "error", result: reconciled });
       return reconciled;
@@ -222,6 +246,7 @@ export function installV42RuntimeWiring({
     // This is an operational reconciliation pull, intentionally distinct from the
     // legacy destructive full-snapshot restore function.
     const result = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
+    if (result?.status === "synced") refreshFromPersistedSnapshot();
     if (result?.quarantined?.length) onQuarantine(result.quarantined);
     onStatus({ level: result?.status === "synced" ? "success" : "error", result });
     return result;
