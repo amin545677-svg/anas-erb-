@@ -5,11 +5,23 @@
  * new snapshot and explicit review items; callers must persist atomically and must
  * not upload until every operation has been reconciled or quarantined.
  */
+function normalizeMoneyV42(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0 || num > Number.MAX_SAFE_INTEGER) return null;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
 function finiteAmount(value, label) {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`${label} must be a positive safe integer in the smallest currency unit`);
-  }
-  return value;
+  const amount = normalizeMoneyV42(value);
+  if (amount === null || amount <= 0) throw new Error(`${label} must be a positive amount with at most two decimal places`);
+  return amount;
+}
+function moneyCents(value) {
+  const amount = normalizeMoneyV42(value);
+  if (amount === null) return null;
+  return Math.round(amount * 100);
+}
+function fromMoneyCents(cents) {
+  return Math.round(cents) / 100;
 }
 
 function findById(items, id) {
@@ -93,17 +105,20 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         review.push({ opId: op.opId, reason: "CUSTOMER_NOT_FOUND", operation: op });
         continue;
       }
-      if (!Number.isSafeInteger(customer.debt) || customer.debt < amount) {
+      const debtCents = moneyCents(customer.debt);
+      const amountCents = moneyCents(amount);
+      if (debtCents === null || debtCents < amountCents) {
         review.push({ opId: op.opId, reason: "COLLECTION_EXCEEDS_RECORDED_DEBT_OR_INVALID_DEBT", operation: op });
         continue;
       }
-      if (!Number.isSafeInteger(snapshot.caisseBalance)) {
+      const cashCents = moneyCents(snapshot.caisseBalance);
+      if (cashCents === null) {
         review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
         continue;
       }
 
-      customer.debt -= amount;
-      snapshot.caisseBalance += amount;
+      customer.debt = fromMoneyCents(debtCents - amountCents);
+      snapshot.caisseBalance = fromMoneyCents(cashCents + amountCents);
       const movement = payload.cashMovement && typeof payload.cashMovement === "object"
         ? structuredClone(payload.cashMovement)
         : { id: movementId, type: "debt_collection", amount, customerId: payload.customerId, opId: op.opId };
@@ -117,55 +132,121 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
     }
 
     if (op.type === "SALE_INVOICE") {
-      const quantity = payload.quantity;
-      const product = findById(snapshot.products, payload.productId);
-      if (!Number.isSafeInteger(quantity) || quantity <= 0) {
-        review.push({ opId: op.opId, reason: "INVALID_SALE_QUANTITY", operation: op });
-        continue;
-      }
-      if (!product) {
-        review.push({ opId: op.opId, reason: "PRODUCT_NOT_FOUND", operation: op });
-        continue;
-      }
-      if (!Number.isSafeInteger(product.stock) || product.stock < quantity) {
-        review.push({ opId: op.opId, reason: "INSUFFICIENT_CLOUD_STOCK", operation: op });
-        continue;
-      }
       const invoice = payload.invoice;
-      const stockMovement = payload.stockMovement;
-      if (!invoice || typeof invoice.id !== "string" || !invoice.id ||
-          !stockMovement || typeof stockMovement.id !== "string" || !stockMovement.id) {
-        review.push({ opId: op.opId, reason: "INCOMPLETE_SALE_LEDGER_PAYLOAD", operation: op });
+      if (!invoice || typeof invoice !== "object" || Array.isArray(invoice) ||
+          typeof invoice.id !== "string" || !invoice.id.trim()) {
+        review.push({ opId: op.opId, reason: "INCOMPLETE_SALE_INVOICE", operation: op });
         continue;
       }
       if (!Array.isArray(snapshot.invoices)) snapshot.invoices = [];
-      if (!Array.isArray(snapshot.stockMovements)) snapshot.stockMovements = [];
       if (snapshot.invoices.some(item => item?.id === invoice.id)) {
         applied.add(op.opId);
         snapshot.appliedOpIds = [...applied];
         appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "INVOICE_ENTITY_EXISTS" });
         continue;
       }
-      if (snapshot.stockMovements.some(item => item?.id === stockMovement.id)) {
-        review.push({ opId: op.opId, reason: "SALE_LEDGER_ID_COLLISION", operation: op });
-        continue;
+      const items = Array.isArray(invoice.items) ? invoice.items : [];
+      const warehouse = String(payload.warehouse ?? invoice.warehouse ?? invoice.warehouseName ?? "المخزن الرئيسي");
+      const required = new Map();
+      for (const item of items) {
+        const id = String(item?.id ?? item?.productId ?? "");
+        const qty = Number(item?.qty ?? item?.quantity);
+        if (!id || !Number.isFinite(qty) || qty <= 0 || qty > Number.MAX_SAFE_INTEGER) {
+          review.push({ opId: op.opId, reason: "INVALID_SALE_LINE", operation: op });
+          break;
+        }
+        required.set(id, (required.get(id) || 0) + qty);
       }
-      product.stock -= quantity;
-      snapshot.invoices.push({ ...structuredClone(invoice), opId: op.opId });
-      snapshot.stockMovements.push({ ...structuredClone(stockMovement), opId: op.opId });
-      if (payload.cashMovement) {
-        if (!Array.isArray(snapshot.cashMovements)) snapshot.cashMovements = [];
-        if (typeof payload.cashMovement.id !== "string" ||
-            snapshot.cashMovements.some(item => item?.id === payload.cashMovement.id)) {
-          // Do not partially apply a sale if its cash movement cannot be recorded.
-          product.stock += quantity;
-          snapshot.invoices.pop();
-          snapshot.stockMovements.pop();
-          review.push({ opId: op.opId, reason: "SALE_CASH_MOVEMENT_ID_COLLISION_OR_INVALID", operation: op });
+      if (review.some(item => item.opId === op.opId)) continue;
+      if (!required.size && payload.productId != null) {
+        const qty = Number(payload.quantity);
+        if (!Number.isFinite(qty) || qty <= 0 || qty > Number.MAX_SAFE_INTEGER) {
+          review.push({ opId: op.opId, reason: "INVALID_SALE_QUANTITY", operation: op });
           continue;
         }
-        snapshot.cashMovements.push({ ...structuredClone(payload.cashMovement), opId: op.opId });
+        required.set(String(payload.productId), qty);
       }
+      if (!required.size) {
+        review.push({ opId: op.opId, reason: "SALE_ITEMS_MISSING", operation: op });
+        continue;
+      }
+      const productUpdates = [];
+      let invalidStock = false;
+      for (const [productId, quantity] of required) {
+        const matches = (Array.isArray(snapshot.products) ? snapshot.products : [])
+          .filter(item => item && String(item.id) === productId);
+        if (matches.length !== 1) {
+          review.push({ opId: op.opId, reason: matches.length ? "DUPLICATE_PRODUCT_ID" : "PRODUCT_NOT_FOUND", operation: op });
+          invalidStock = true; break;
+        }
+        const product = matches[0];
+        const warehouseSale = warehouse !== "المخزن الرئيسي";
+        const stock = warehouseSale
+          ? Number(product.warehouseStock?.[warehouse] ?? 0)
+          : Number(product.stock ?? 0);
+        if (!Number.isFinite(stock) || stock < quantity) {
+          review.push({ opId: op.opId, reason: "INSUFFICIENT_CLOUD_STOCK", operation: op });
+          invalidStock = true; break;
+        }
+        productUpdates.push({ product, quantity, warehouseSale, warehouse, stock });
+      }
+      if (invalidStock) continue;
+
+      const totalCents = moneyCents(invoice.total);
+      const paidCents = moneyCents(invoice.paid ?? invoice.total);
+      const remainingCents = moneyCents(invoice.remaining ?? Math.max(0, Number(invoice.total) - Number(invoice.paid ?? invoice.total)));
+      if (totalCents === null || paidCents === null || remainingCents === null ||
+          paidCents > totalCents || remainingCents !== totalCents - paidCents) {
+        review.push({ opId: op.opId, reason: "INVALID_SALE_PAYMENT_SPLIT", operation: op });
+        continue;
+      }
+      const cashCents = moneyCents(snapshot.caisseBalance ?? 0);
+      if (cashCents === null) {
+        review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
+        continue;
+      }
+      let customer = null;
+      if (remainingCents > 0) {
+        const customerId = payload.customerId ?? invoice.customerId ?? invoice.customerObj?.id;
+        if (customerId == null) {
+          review.push({ opId: op.opId, reason: "CUSTOMER_REQUIRED_FOR_CREDIT_SALE", operation: op });
+          continue;
+        }
+        const matches = (Array.isArray(snapshot.customers) ? snapshot.customers : [])
+          .filter(item => item && String(item.id) === String(customerId));
+        if (matches.length !== 1) {
+          review.push({ opId: op.opId, reason: matches.length ? "DUPLICATE_CUSTOMER_ID" : "CUSTOMER_NOT_FOUND", operation: op });
+          continue;
+        }
+        customer = matches[0];
+        const debtCents = moneyCents(customer.debt ?? 0);
+        if (debtCents === null || debtCents + remainingCents > Number.MAX_SAFE_INTEGER * 100) {
+          review.push({ opId: op.opId, reason: "INVALID_CUSTOMER_DEBT", operation: op });
+          continue;
+        }
+      }
+      if (cashCents + paidCents > Number.MAX_SAFE_INTEGER * 100) {
+        review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
+        continue;
+      }
+
+      for (const update of productUpdates) {
+        if (update.warehouseSale) {
+          if (!update.product.warehouseStock || typeof update.product.warehouseStock !== "object" || Array.isArray(update.product.warehouseStock)) {
+            update.product.warehouseStock = {};
+          }
+          update.product.warehouseStock[update.warehouse] = update.stock - update.quantity;
+        } else {
+          update.product.stock = update.stock - update.quantity;
+        }
+      }
+      if (customer && remainingCents > 0) {
+        customer.debt = fromMoneyCents(moneyCents(customer.debt ?? 0) + remainingCents);
+        if (invoice.date) customer.debtDate = String(invoice.date).slice(0, 10);
+      }
+      if (paidCents > 0) snapshot.caisseBalance = fromMoneyCents(cashCents + paidCents);
+      // V42 uses unshift and does not create cashMovements/stockMovements in this function.
+      snapshot.invoices.unshift(structuredClone(invoice));
       applied.add(op.opId);
       snapshot.appliedOpIds = [...applied];
       appliedNow.push({ opId: op.opId, outcome: "applied" });
