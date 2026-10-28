@@ -9,7 +9,7 @@ Draft PR: #228
 
 - Static CI results are not proof of mobile runtime behavior.
 - Record only diagnostic event names, booleans, and error classes/messages needed to identify the DOM lifecycle. Never capture business records, prompt contents, authentication material, API keys, or tokens.
-- No writes to localStorage, IndexedDB, AppData, or business records for diagnosis.
+- The harness uses a fresh disposable browser context with no user profile or saved user data. It allows normal app startup writes only inside that temporary context and records API labels only (never keys or values); external requests and service workers are blocked.
 - Do not run the production GitHub Pages deploy workflow.
 - Keep PR #228 in Draft until isolated browser evidence and live phone evidence have both been reviewed.
 
@@ -32,7 +32,8 @@ Draft PR: #228
 |---|---|---|---|---|
 | Static CI | `343a89c7f736e1502e3858e132c08976134ed61c` | HTML regression, safety, Firebase snapshot worker | All three passed; static checks only | Continue to runtime evidence |
 | Isolated browser (baseline) | GitHub Actions run #621, run ID `40609350995`, artifact `ai-prompt-dom-trace`; code at `86aa70a6257edf9847df21865071f779e5edca9b` | `renderAiHub` traces; input found and connected; helper called; prompt inserted; focus true | PASS in ephemeral Chromium; external requests blocked | Baseline works in isolated browser; phone behavior still unknown |
-| Isolated browser (storage-write-blocked) | GitHub Actions run #625, run ID `40609699422`, artifact ID `12782034277`, code at `97e95a6113a78c66a0d17780791569203d0d1444` | Three `localStorage.setItem` attempts were blocked; one `SecurityError` was recorded by class only; AI hub/input were present and connected; prompt inserted and focused | Both browser-trace and static-regression jobs passed. Prompt interaction passed, but storage blocking triggered a `SecurityError`; startup is not clean under this deliberately restrictive harness. External requests were blocked; no business data or secrets recorded. | Keep the restrictive trace as a safety experiment, not a faithful app-startup test; use ephemeral storage with read/write telemetry only if a no-write test is needed |
+| Isolated browser (storage-write-blocked experiment) | GitHub Actions run #625, run ID `40609699422`, artifact ID `12782034277`, code at `97e95a6113a78c66a0d17780791569203d0d1444` | Three `localStorage.setItem` attempts were blocked; one `SecurityError`; prompt inserted and focused | Jobs passed, but the deliberately restrictive storage override changed startup behavior. | Retained as a harness experiment only; not representative startup evidence |
+| Isolated browser (disposable storage telemetry) | New harness commit `e9582aa75e82d7f946334114ee7f42db653f13f0`; CI pending at time of edit | Allows normal APIs only inside a fresh disposable context; records method labels only, not keys/values | Pending new CI artifact | Prefer this for realistic startup while keeping user/production storage isolated |
 | Live Android phone | Not run | — | Pending | Do not close or merge |
 
 Artifact: [GitHub Actions run #621](https://github.com/amin545677-svg/anas-erb-/actions/runs/40609350995)
