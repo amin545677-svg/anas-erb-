@@ -136,10 +136,21 @@ export function installV42RuntimeWiring({
       throw error;
     }
 
+    const restoreCaptureMetadata = () => {
+      if (beforeEntityMarker === undefined) delete captured.entity.syncOpId;
+      else captured.entity.syncOpId = beforeEntityMarker;
+      if (captured.entity.syncCreatedAt === captured.operation.createdAt) delete captured.entity.syncCreatedAt;
+      if (beforeEntityOpId === undefined) delete captured.entity.opId;
+      else captured.entity.opId = beforeEntityOpId;
+      if (beforeApplied === undefined) delete current.appliedOpIds;
+      else current.appliedOpIds = beforeApplied;
+    };
+
     let saved;
     try {
       saved = originalSaveDB.apply(this, args);
     } catch (error) {
+      restoreCaptureMetadata();
       storage.setItem(MUTATION_KEYS.pending, JSON.stringify(
         JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]").filter(item => item?.opId !== captured.operation.opId)
       ));
@@ -147,6 +158,7 @@ export function installV42RuntimeWiring({
     }
 
     if (saved !== true) {
+      restoreCaptureMetadata();
       storage.setItem(MUTATION_KEYS.pending, JSON.stringify(
         JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]").filter(item => item?.opId !== captured.operation.opId)
       ));
