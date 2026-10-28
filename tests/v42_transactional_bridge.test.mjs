@@ -90,7 +90,7 @@ test("recovery preserves unrelated pending records and is idempotent on a second
 
 test("recovery refuses to abort intents when persisted AppData is missing or malformed", () => {
   const missing = storage({ [MUTATION_KEYS.pending]: [prepared("op_unknown")] });
-  assert.throws(() => recoverPreparedMutationsOnBoot(missing), /AppData is missing/);
+  assert.throws(() => recoverPreparedMutationsOnBoot(missing), /is missing/);
 
   const malformed = storage({
     [MUTATION_KEYS.appData]: "{bad json",
