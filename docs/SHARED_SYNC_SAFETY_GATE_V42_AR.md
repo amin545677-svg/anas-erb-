@@ -54,3 +54,21 @@ A targeted scan of the current production `index.html` (blob SHA `3919bd7d2832c3
 - No obvious `orgId`, `organizationId`, `tenantId`, `operationId`, `idempotencyKey`, or named offline-operation queue symbol was found in the scanned source.
 - This is a targeted source scan, not proof that no equivalent mechanism exists under another name. Treat organization scoping and idempotent offline operations as unverified until traced end-to-end.
 - Do not add a superficial `orgId` field or queue in the UI alone: authorization, transaction semantics and duplicate prevention must be enforced by the trusted persistence layer.
+
+
+## Tracing of V42 mutation paths (2026-10-28)
+
+The following functions were located in the production `index.html` source at blob SHA `3919bd7d2832c321a80f72adb6bbf0f07d35bb61`. This is a source-path map, not proof of multi-device correctness:
+
+- **Local persistence:** `saveDB()` serializes the whole `AppData` object and writes it to `localStorage`; it returns `true/false` and refreshes UI after the write.
+- **POS sale:** `confirmHasibPayment()` validates cart lines, aggregates quantities per product, checks stock in the selected warehouse, validates customer/cash/invoice records, and then applies local mutations. The complete function and its rollback boundary still need focused review before calling this path transaction-safe across devices.
+- **Customer debt collection:** `collectCustDebt(cId)` updates customer debt, cash balance, and a cash movement, then calls `saveDB()`; on local save failure it restores those in-memory values. This rollback protects one device's local persistence path, not concurrent writes from two devices.
+- **Invoice editing:** `editSalesInvoice(invoiceId)` reconciles historical line quantities/prices with stock and financial records; its complete mutation and rollback path still requires separate review.
+- **Truck load posting:** `postTripStock(trip)` validates the trip and product quantities and looks for prior truck-load movements. A local `stockPostedAt` marker and local movement scan are not server-enforced idempotency across phones.
+- **Truck settlement:** the settlement flow records a `TR-SETTLE-` identifier, validates delivered/returned/damaged/missing quantities and links invoices to a trip. Its full final mutation/save/rollback path needs focused review; local checks alone cannot serialize competing device operations.
+- **Generic webhook sync:** `syncPushNow()` POSTs the full `AppData` state; `syncPullNow()` fetches and can replace the local state after backup, validation, confirmation, and a local-change check. Neither flow is an operation queue or a verified merge protocol.
+- **Firebase snapshot Worker:** `verifyFirebaseToken()` verifies the Firebase token and the Worker addresses `users/{uid}/snapshots/latest`. Firestore revision preconditions protect against overwriting a snapshot revision read earlier when the client supplies `revision`; they do not create organization membership, business-level transactions, or merge concurrent sales.
+
+### Engineering conclusion from this trace
+
+The code has meaningful **single-device validation and rollback safeguards**, but these must not be mistaken for atomic multi-device accounting. Before implementation, finish a function-by-function mutation inventory for sale, collection, invoice edit/return, truck load, trip status, and settlement; identify every mutation of stock, debt, cash, invoices, and movement ledgers; then design a trusted backend operation contract and isolated concurrency tests. Do not patch these paths with a UI-only queue or add an unverified organization field.
