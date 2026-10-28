@@ -95,6 +95,10 @@ function buildHarness() {
     }
     return { data: JSON.stringify(cloud), revision: "V1" };
   };
+  for (const [name, snippet] of [["backup", backupFn], ["validator", validatorFn], ["push", pushFn], ["pull", pullFn]]) {
+    try { new window.Function(snippet); }
+    catch (error) { throw new Error(`Extracted production ${name} function is syntactically incomplete: ${error.message}`); }
+  }
   window.eval(backupFn + "\n" + validatorFn + "\n" + pushFn + "\n" + pullFn);
   return {
     dom, window, requests,
