@@ -133,3 +133,101 @@ test("sale parity audit documents the real V42 side-effect boundary", () => {
   assert.doesNotMatch(saleSource, /AppData\.stockMovements/);
   assert.doesNotMatch(saleSource, /AppData\.cashMovements/);
 });
+
+function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, cart = [{ id: "item_a", name: "صنف اختبار", qty: 2, price: 500 }], customerId = "cust_1" } = {}) {
+  const { FixedDate, fixedMath } = fixedDateContext();
+  const alerts = [];
+  const elements = {
+    hasibCustomerSelect: { value: customerId },
+    hasibPaidAmount: { value: String(paid ?? cart.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0)) }
+  };
+  const context = {
+    AppData: structuredClone(initial),
+    posCart: structuredClone(cart),
+    lastConfirmedInvoice: null,
+    Date: FixedDate,
+    Math: fixedMath,
+    Number, String, Set, Map, Array, Object, JSON,
+    document: { getElementById: id => elements[id] || null },
+    wtTryEnsureData: () => true,
+    wtCurrentSaleWarehouse: () => warehouse,
+    wtAvailableStock: (product, selectedWarehouse) => selectedWarehouse === "المخزن الرئيسي"
+      ? Number(product.stock) || 0
+      : Number(product.warehouseStock?.[selectedWarehouse]) || 0,
+    saveDB: () => true,
+    renderPosTable: () => {},
+    closeModal: () => {},
+    alert: message => alerts.push(String(message)),
+    console
+  };
+  vm.createContext(context);
+  const source = extractFunction("confirmHasibPayment", "");
+  vm.runInContext(source + "\nglobalThis.__run = confirmHasibPayment;", context);
+  context.__run();
+  return { snapshot: context.AppData, alerts, cart: context.posCart, invoice: context.lastConfirmedInvoice };
+}
+
+function paritySnapshot(value) {
+  const copy = structuredClone(value);
+  delete copy.appliedOpIds;
+  for (const movement of copy.cashMovements || []) delete movement.opId;
+  return copy;
+}
+
+function assertDeepSaleParity({ warehouse, paid, total = 1000, customerId = "cust_1", secondaryStock = 15 }) {
+  const initial = {
+    caisseBalance: 54000,
+    customers: [{ id: "cust_1", name: "عميل اختبار", debt: 26000 }],
+    products: [{
+      id: "item_a", name: "صنف اختبار", stock: 90,
+      ...(warehouse && warehouse !== "المخزن الرئيسي" ? { warehouseStock: { [warehouse]: secondaryStock } } : {})
+    }],
+    invoices: [],
+    currentUser: { id: "user_1", name: "مدير", role: "admin" }
+  };
+  const cart = [{ id: "item_a", name: "صنف اختبار", qty: 2, price: total / 2 }];
+  const original = runV42Sale(initial, { warehouse, paid, cart, customerId });
+  assert.ok(original.invoice, "V42 must produce a confirmed invoice");
+  assert.equal(original.snapshot.invoices.length, 1);
+  assert.equal(original.snapshot.products[0].stock, warehouse && warehouse !== "المخزن الرئيسي" ? 90 : 88);
+  if (warehouse && warehouse !== "المخزن الرئيسي") {
+    assert.equal(original.snapshot.products[0].warehouseStock[warehouse], secondaryStock - 2);
+  }
+
+  const remaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
+  const operation = {
+    opId: "deep-parity-" + (warehouse || "main") + "-" + paid,
+    type: "SALE_INVOICE",
+    payload: {
+      customerId,
+      warehouse: warehouse || "المخزن الرئيسي",
+      invoice: structuredClone(original.invoice)
+    }
+  };
+  const reconciled = reconcilePendingMutations(structuredClone(initial), [operation]);
+  assert.deepEqual(reconciled.review, [], "valid V42 sale must not be quarantined");
+  assert.equal(reconciled.snapshot.caisseBalance, original.snapshot.caisseBalance);
+  assert.equal(reconciled.snapshot.customers[0].debt, original.snapshot.customers[0].debt);
+  assert.deepEqual(
+    paritySnapshot(reconciled.snapshot),
+    paritySnapshot(original.snapshot),
+    "entire V42 AppData snapshot, including invoice keys, nested customerObj, item order, user/date metadata, balances and stock, must match"
+  );
+  assert.deepEqual(Object.keys(reconciled.snapshot.invoices[0]), Object.keys(original.snapshot.invoices[0]));
+  assert.equal(reconciled.snapshot.invoices[0].customerObj?.id, original.snapshot.invoices[0].customerObj?.id);
+  assert.equal(reconciled.snapshot.invoices[0].userId, original.snapshot.invoices[0].userId);
+  assert.equal(reconciled.snapshot.invoices[0].date, original.snapshot.invoices[0].date);
+  assert.equal(reconciled.snapshot.invoices[0].remaining, remaining);
+}
+
+test("DEEP PARITY: SALE_INVOICE matches the actual V42 function for a full cash sale", () => {
+  assertDeepSaleParity({ warehouse: "المخزن الرئيسي", paid: 1000 });
+});
+
+test("DEEP PARITY: SALE_INVOICE matches the actual V42 function for a full credit sale", () => {
+  assertDeepSaleParity({ warehouse: "المخزن الرئيسي", paid: 0 });
+});
+
+test("DEEP PARITY: SALE_INVOICE matches the actual V42 function for a mixed sale from a secondary warehouse", () => {
+  assertDeepSaleParity({ warehouse: "شاحنة 1", paid: 400 });
+});
