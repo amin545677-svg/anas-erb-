@@ -8,7 +8,7 @@ import { createMutationQueueOrchestrator, MUTATION_KEYS } from "../sync/mutation
 const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 function extractFunction(name, signature = "") {
-  const escaped = name.replace(/[.*+?^${}()|[]\\]/g, "\\$&");
+  const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\const escaped = name.replace(/[.*+?^${}()|[]\\]/g, "\\$&");");
   const match = source.match(new RegExp(
     "^        function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
     "m"
