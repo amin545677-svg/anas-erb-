@@ -50,9 +50,10 @@ class DiagnosticPreviewServerTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 404)
 
     def test_directory_listing_is_disabled(self):
-        with self.assertRaises(HTTPError) as caught:
-            urlopen(self.base + "/?list=1")  # root is intentionally rewritten to index.html
-        self.assertNotEqual(caught.exception.code, 403)  # app shell, never a listing
+        with urlopen(self.base + "/") as response:
+            body = response.read(4096).decode("utf-8", "replace")
+        self.assertNotIn("Directory listing for", body)
+        self.assertNotIn("<title>Directory listing", body)
 
 
 if __name__ == "__main__":
