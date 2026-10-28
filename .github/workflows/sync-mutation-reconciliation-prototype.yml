@@ -1,0 +1,25 @@
+name: Sync Mutation Reconciliation Prototype
+
+on:
+  pull_request:
+    paths:
+      - 'sync/mutation_reconciliation.mjs'
+      - 'tests/sync_mutation_reconciliation.test.mjs'
+      - '.github/workflows/sync-mutation-reconciliation-prototype.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconciliation-prototype:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test isolated mutation reconciliation prototype
+        run: node --test tests/sync_mutation_reconciliation.test.mjs
