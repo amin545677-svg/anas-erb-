@@ -81,6 +81,7 @@ function saleOp({ opId, warehouse = "المخزن الرئيسي", total = 1000,
   return {
     opId,
     type: "SALE_INVOICE",
+    createdAt: "2026-10-28T12:00:00.000Z",
     payload: {
       ...(customerId ? { customerId } : {}),
       invoice: {
