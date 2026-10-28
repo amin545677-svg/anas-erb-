@@ -74,6 +74,20 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         review.push({ opId: op.opId, reason: "INVALID_AMOUNT", detail: error.message, operation: op });
         continue;
       }
+      const movementId = payload.cashMovementId;
+      if (typeof movementId !== "string" || !movementId.trim()) {
+        review.push({ opId: op.opId, reason: "MISSING_CASH_MOVEMENT_ID", operation: op });
+        continue;
+      }
+      if (!Array.isArray(snapshot.cashMovements)) snapshot.cashMovements = [];
+      // Check the durable ledger entity before balances/customer state: another
+      // device may already have applied this movement and changed the debt.
+      if (snapshot.cashMovements.some(movement => movement?.id === movementId)) {
+        applied.add(op.opId);
+        snapshot.appliedOpIds = [...applied];
+        appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
+        continue;
+      }
       const customer = findById(snapshot.customers, payload.customerId);
       if (!customer) {
         review.push({ opId: op.opId, reason: "CUSTOMER_NOT_FOUND", operation: op });
@@ -85,20 +99,6 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       }
       if (!Number.isSafeInteger(snapshot.caisseBalance)) {
         review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
-        continue;
-      }
-      const movementId = payload.cashMovementId;
-      if (typeof movementId !== "string" || !movementId.trim()) {
-        review.push({ opId: op.opId, reason: "MISSING_CASH_MOVEMENT_ID", operation: op });
-        continue;
-      }
-      if (!Array.isArray(snapshot.cashMovements)) snapshot.cashMovements = [];
-      if (snapshot.cashMovements.some(movement => movement?.id === movementId)) {
-        // A durable ledger entity is a second idempotency guard when an older
-        // snapshot has the movement but lacks appliedOpIds.
-        applied.add(op.opId);
-        snapshot.appliedOpIds = [...applied];
-        appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
         continue;
       }
 
