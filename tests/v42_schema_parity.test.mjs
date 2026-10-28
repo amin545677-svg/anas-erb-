@@ -54,7 +54,15 @@ function runV42Collection(initial, amount) {
 function stripSyncMetadata(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
-  for (const movement of copy.cashMovements || []) delete movement.opId;
+  for (const invoice of copy.invoices || []) {
+    delete invoice.syncOpId;
+    delete invoice.syncCreatedAt;
+  }
+  for (const movement of copy.cashMovements || []) {
+    delete movement.opId;
+    delete movement.syncOpId;
+    delete movement.syncCreatedAt;
+  }
   return copy;
 }
 
@@ -170,7 +178,15 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
 function paritySnapshot(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
-  for (const movement of copy.cashMovements || []) delete movement.opId;
+  for (const invoice of copy.invoices || []) {
+    delete invoice.syncOpId;
+    delete invoice.syncCreatedAt;
+  }
+  for (const movement of copy.cashMovements || []) {
+    delete movement.opId;
+    delete movement.syncOpId;
+    delete movement.syncCreatedAt;
+  }
   return copy;
 }
 
@@ -231,4 +247,43 @@ test("DEEP PARITY: SALE_INVOICE matches the actual V42 function for a full credi
 
 test("DEEP PARITY: SALE_INVOICE matches the actual V42 function for a mixed sale from a secondary warehouse", () => {
   assertDeepSaleParity({ warehouse: "شاحنة 1", paid: 400 });
+});
+
+
+test("V42 Deep Parity: opId markers on existing entities do not change ledger behavior", () => {
+  const base = {
+    caisseBalance: 54000,
+    customers: [{ id: "cust_1", name: "عميل اختبار", debt: 26000 }],
+    products: [{ id: "item_a", name: "صنف اختبار", stock: 90 }],
+    invoices: [{ id: "historical_invoice", total: 200, paid: 200, remaining: 0, items: [] }],
+    cashMovements: [{ id: "historical_cash", amount: 200, type: "historical" }],
+    currentUser: { id: "user_1", name: "مدير", role: "admin" }
+  };
+  const annotated = structuredClone(base);
+  annotated.appliedOpIds = ["op_historical_invoice", "op_historical_cash"];
+  annotated.invoices[0].syncOpId = "op_historical_invoice";
+  annotated.invoices[0].syncCreatedAt = "2026-10-28T12:00:00.000Z";
+  annotated.cashMovements[0].opId = "op_historical_cash";
+  annotated.cashMovements[0].syncOpId = "op_historical_cash";
+  annotated.cashMovements[0].syncCreatedAt = "2026-10-28T12:00:00.000Z";
+
+  const cleanRun = runV42Sale(base, { warehouse: "المخزن الرئيسي", paid: 400 });
+  const markedRun = runV42Sale(annotated, { warehouse: "المخزن الرئيسي", paid: 400 });
+
+  assert.equal(cleanRun.snapshot.caisseBalance, 54400);
+  assert.equal(markedRun.snapshot.caisseBalance, 54400);
+  assert.equal(cleanRun.snapshot.customers[0].debt, 26600);
+  assert.equal(markedRun.snapshot.customers[0].debt, 26600);
+  assert.equal(cleanRun.snapshot.products[0].stock, 88);
+  assert.equal(markedRun.snapshot.products[0].stock, 88);
+  assert.deepEqual(
+    paritySnapshot(markedRun.snapshot),
+    paritySnapshot(cleanRun.snapshot),
+    "sync metadata must not alter V42 invoice, customer, cash or stock calculations"
+  );
+
+  const jsonRoundTrip = JSON.parse(JSON.stringify(markedRun.snapshot));
+  assert.equal(jsonRoundTrip.invoices.find(x => x.id === "historical_invoice").syncOpId, "op_historical_invoice");
+  assert.equal(jsonRoundTrip.cashMovements.find(x => x.id === "historical_cash").opId, "op_historical_cash");
+  assert.ok(jsonRoundTrip.appliedOpIds.includes("op_historical_invoice"));
 });
