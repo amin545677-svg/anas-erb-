@@ -11,6 +11,7 @@ Draft PR: #228
 - Record only diagnostic event names, booleans, and error classes/messages needed to identify the DOM lifecycle. Never capture business records, prompt contents, authentication material, API keys, or tokens.
 - The harness uses a fresh disposable browser context with no user profile or saved user data. It records `localStorage` operation labels including `getItem` (never keys or values) and IndexedDB operation labels only; external requests and service workers are blocked.
 - For opt-in isolated preview, open `index.html?anasDiagIsolated=1` on a fresh local origin. This mode skips Firebase Auth initialization and its LOCAL persistence/worker-settings initialization, blocks cross-origin `fetch`, and skips service-worker registration. Use only a fresh disposable browser profile/origin; never open this mode against a host that shares production storage. External script tags may still be attempted by the page, but the harness blocks them at the browser request layer.
+- The visible on-screen trace panel is also gated by `?anasDiagIsolated=1`; it reports render entry/completion, whether `anasAiQuestion` exists/is connected, prompt insertion length, and focus state. It must never display prompt text, business records, storage keys/values, credentials, or request bodies.
 - Do not run the production GitHub Pages deploy workflow.
 - Keep PR #228 in Draft until isolated browser evidence and live phone evidence have both been reviewed.
 
@@ -47,3 +48,12 @@ Artifact: [GitHub Actions run #621](https://github.com/amin545677-svg/anas-erb-/
 3. Captured evidence maps to one row above, with the relevant events and any JavaScript exception.
 4. A fix is proposed only after the observed evidence identifies the failing stage.
 5. PR remains Draft and production remains untouched until review explicitly authorizes the next step.
+
+
+## Local phone procedure
+
+1. Serve this diagnostic branch from a fresh local origin (for example `http://127.0.0.1:4173/index.html?anasDiagIsolated=1`) using a disposable browser profile and synthetic/empty app data only.
+2. Confirm the on-screen trace panel says it is in diagnostic mode; it should not initialize Firebase Auth, call external `fetch` endpoints, or register the app service worker.
+3. Open AI Center, then tap **📦 مراجعة المخزون**. Record only the visible event labels and booleans; do not enter real business data.
+4. Match the sequence to D0–D7. Do not infer a phone result from CI or desktop Chromium.
+5. Note: a local server running in a separate computer/container is not automatically reachable from the user's phone; the phone and server must be on the same trusted network and the server must bind to an appropriate LAN interface. This environment currently has no confirmed handset session or local LAN server access, so live phone evidence must be supplied by a real device run.
