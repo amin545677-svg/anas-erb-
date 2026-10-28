@@ -19,33 +19,41 @@ try {
   const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
 
-  // Block persistent-storage writes before application scripts execute.
-  // If the app requires these APIs to render, the resulting trace will expose that dependency.
+  // Storage belongs only to this fresh, disposable browser context.
+  // Preserve normal app startup while recording API access without recording keys or values.
   await page.addInitScript(() => {
-    const blocked = [];
-    const blockMethod = (target, method, label) => {
-      try {
-        Object.defineProperty(target, method, {
-          configurable: true,
-          value: function () {
-            blocked.push(label);
-            throw new DOMException('Blocked by isolated diagnostic harness', 'SecurityError');
-          }
-        });
-      } catch (_) { blocked.push(label + ':override-failed'); }
+    const accesses = [];
+    const record = label => {
+      accesses.push(label);
+      if (accesses.length > 100) accesses.shift();
     };
     try {
-      blockMethod(Storage.prototype, 'setItem', 'storage.setItem');
-      blockMethod(Storage.prototype, 'removeItem', 'storage.removeItem');
-      blockMethod(Storage.prototype, 'clear', 'storage.clear');
-    } catch (_) {}
+      for (const method of ['setItem', 'removeItem', 'clear']) {
+        const original = Storage.prototype[method];
+        Object.defineProperty(Storage.prototype, method, {
+          configurable: true,
+          value: function (...args) {
+            record('storage.' + method);
+            return original.apply(this, args);
+          }
+        });
+      }
+    } catch (_) { record('storage.instrumentation-unavailable'); }
     try {
-      blockMethod(IDBFactory.prototype, 'open', 'indexedDB.open');
-      blockMethod(IDBFactory.prototype, 'deleteDatabase', 'indexedDB.deleteDatabase');
-    } catch (_) {}
-    Object.defineProperty(window, '__anasBlockedStorageAttempts', {
+      for (const method of ['open', 'deleteDatabase']) {
+        const original = IDBFactory.prototype[method];
+        Object.defineProperty(IDBFactory.prototype, method, {
+          configurable: true,
+          value: function (...args) {
+            record('indexedDB.' + method);
+            return original.apply(this, args);
+          }
+        });
+      }
+    } catch (_) { record('indexedDB.instrumentation-unavailable'); }
+    Object.defineProperty(window, '__anasStorageAccessLabels', {
       configurable: false,
-      value: blocked
+      value: accesses
     });
   });
 
@@ -72,7 +80,7 @@ try {
 
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   add('document_loaded', { readyState: await page.evaluate(() => document.readyState) });
-  add('storage_write_block_status', await page.evaluate(() => ({ blockedWriteAttempts: window.__anasBlockedStorageAttempts || [] })));
+  add('isolated_storage_access_status', await page.evaluate(() => ({ ephemeralContextOnly: true, recordedApiLabels: window.__anasStorageAccessLabels || [] })));
 
   const hubButton = page.getByRole('button', { name: /مركز الذكاء الاصطناعي/ }).first();
   if (await hubButton.count()) {
