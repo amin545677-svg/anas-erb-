@@ -6957,10 +6957,15 @@ function renderPurchasesTable() {
                 clear.style.cssText='padding:5px 8px;border-radius:7px;border:1px solid #64748b;background:#1e293b;color:#fff';
                 clear.addEventListener('click',function(){events.length=0;render();});
                 head.appendChild(clear);
+                const summary = document.createElement('div');
+                summary.id='anasAiTraceSummary';
+                summary.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:4px;font:700 11px/1.4 ui-monospace,monospace;direction:ltr;text-align:left';
+                summary.textContent='renderAiHub: WAIT | Element: WAIT | Focus: WAIT';
+                el.appendChild(head); el.appendChild(summary);
                 const output = document.createElement('pre');
                 output.id='anasAiTraceOutput';
-                output.style.cssText='margin:0;white-space:pre-wrap;overflow:auto;overflow-wrap:anywhere;max-height:calc(36dvh - 48px);font:11px/1.5 ui-monospace,monospace;direction:ltr;text-align:left';
-                el.appendChild(head); el.appendChild(output);
+                output.style.cssText='margin:0;white-space:pre-wrap;overflow:auto;overflow-wrap:anywhere;max-height:calc(28dvh - 48px);font:11px/1.5 ui-monospace,monospace;direction:ltr;text-align:left';
+                el.appendChild(output);
                 (document.body || document.documentElement).appendChild(el);
                 return el;
             }
@@ -6968,6 +6973,22 @@ function renderPurchasesTable() {
                 panel();
                 const out=document.getElementById('anasAiTraceOutput');
                 if(out) out.textContent=events.slice(-24).map((e,i)=>(i+1)+'. '+e).join('\\n') || 'بانتظار حدث تشخيصي…';
+                const summary=document.getElementById('anasAiTraceSummary');
+                if(summary){
+                    const last=(needle)=>[...events].reverse().find(e=>e.includes(needle))||'';
+                    const entered=last('renderAiHub entered');
+                    const completed=last('renderAiHub completed');
+                    const called=last('anasSetAiPrompt called');
+                    const missing=last('missing or detached');
+                    const success=last('Success: prompt inserted and focused');
+                    const element=success?'YES':missing?'NO / DETACHED':called?'CHECKING':'WAIT';
+                    const focus=success?(success.includes('"activeElementIsInput":true')?'SET':'FAIL'):called?'WAIT':'WAIT';
+                    const renderState=completed?'OK':entered?'RUNNING':'WAIT';
+                    summary.textContent='renderAiHub: '+renderState+' | Element: '+element+' | Focus: '+focus;
+                    summary.style.color=success?'#86efac':missing?'#fca5a5':'#fde68a';
+                    summary.style.borderTop='1px solid #475569';
+                    summary.style.paddingTop='5px';
+                }
             }
             window.anasAiTrace = function(label, details){
                 let line = new Date().toISOString()+' | '+String(label);
