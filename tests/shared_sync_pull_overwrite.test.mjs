@@ -19,7 +19,7 @@ function between(source, startMarker, endMarker) {
 const backupFn = between(html, "function exportDataBackup() {", "function anasValidateBackupData(incoming)");
 const validatorFn = between(html, "function anasValidateBackupData(incoming)", "function importDataBackup");
 const pushFn = between(html, "window.anasFirebasePush=async function(){", ";\n  window.anasFirebasePull");
-const pullFn = between(html, "window.anasFirebasePull=async function(){", "\n  };\n})();").replace(
+const pullFn = between(html, "window.anasFirebasePull=async function(){", "\n})();").replace(
   "location.reload();", "window.__reloadCalled = true;"
 );
 
