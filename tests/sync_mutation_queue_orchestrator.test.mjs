@@ -224,7 +224,7 @@ test("interrupted local mutation recovery restores the prior stored values", () 
 });
 
 
-test("ordinary push removes only PENDING operations, preserving PREPARED journal entries", async () => {
+test("pre-sync barrier aborts an uncommitted PREPARED intent before ordinary push", async () => {
   const storage = seededStorage([
     collection("op-pending"),
     { ...collection("op-prepared"), status: "PREPARED" }
@@ -236,9 +236,8 @@ test("ordinary push removes only PENDING operations, preserving PREPARED journal
   });
   const result = await orchestrator.pushCurrent();
   assert.equal(result.status, "pushed");
-  assert.deepEqual(storage.json(MUTATION_KEYS.pending).map(item => [item.opId, item.status]), [
-    ["op-prepared", "PREPARED"]
-  ]);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), [],
+    "the ordinary pending mutation is pushed and the uncommitted PREPARED intent is aborted");
 });
 
 test("recovery restores a pre-reconcile rescue snapshot after an interrupted merge", () => {
