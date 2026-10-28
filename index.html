@@ -1,6 +1,29 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    <!-- Opt-in diagnostic isolation: fresh-origin storage only; no Firebase/Auth, remote API fetches, or service worker. -->
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          if (!params.has('anasDiagIsolated')) return;
+          Object.defineProperty(window, '__ANAS_ISOLATED_DIAGNOSTIC__', { value: true, configurable: false });
+          var nativeFetch = window.fetch.bind(window);
+          window.fetch = function (input, init) {
+            var target;
+            try {
+              target = new URL(typeof input === 'string' ? input : input.url, window.location.href);
+            } catch (_) {
+              return Promise.reject(new TypeError('Blocked invalid request in isolated diagnostic mode'));
+            }
+            if (target.origin !== window.location.origin) {
+              return Promise.reject(new TypeError('External network blocked in isolated diagnostic mode'));
+            }
+            return nativeFetch(input, init);
+          };
+        } catch (_) {}
+      })();
+    </script>
     <!-- ANAS ERP HTTPS enforcement: upgrade hosted HTTP URLs without interfering with local offline use. -->
     <script>
       (function () {
@@ -8818,6 +8841,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 <script>
 /* Firebase sign-in + Cloudflare Worker snapshot API. Manual snapshot only; not realtime sync. */
 (function(){
+  // The isolated diagnostic mode must not initialize Firebase, restore Auth, or touch worker settings.
+  if (window.__ANAS_ISOLATED_DIAGNOSTIC__) return;
   // V42: show the actual cause immediately when launched from Android content:// or file://.
   const localContext = location.protocol === 'file:' || location.protocol === 'content:' || location.origin === 'null';
   const cloudNotice = document.getElementById('anasV42CloudRootCause');
@@ -9097,6 +9122,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     <!-- Register the existing app-shell worker only on secure hosted origins. -->
     <script>
       (function () {
+        if (window.__ANAS_ISOLATED_DIAGNOSTIC__) return;
         if (!('serviceWorker' in navigator)) return;
         if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
         window.addEventListener('load', function () {
