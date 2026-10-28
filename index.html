@@ -8,6 +8,37 @@
           var params = new URLSearchParams(window.location.search);
           if (!params.has('anasDiagIsolated')) return;
           Object.defineProperty(window, '__ANAS_ISOLATED_DIAGNOSTIC__', { value: true, configurable: false });
+
+          // Lock down network-capable resource types before the remaining document is parsed.
+          var csp = document.createElement('meta');
+          csp.httpEquiv = 'Content-Security-Policy';
+          csp.content = "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; frame-src 'none'; form-action 'self'; base-uri 'self'";
+          (document.head || document.documentElement).appendChild(csp);
+
+          // Replace Web Storage with disposable in-memory stores; never read browser-profile storage.
+          function makeMemoryStorage() {
+            var data = Object.create(null);
+            return {
+              get length() { return Object.keys(data).length; },
+              key: function (index) { return Object.keys(data)[index] || null; },
+              getItem: function (key) { key = String(key); return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null; },
+              setItem: function (key, value) { data[String(key)] = String(value); },
+              removeItem: function (key) { delete data[String(key)]; },
+              clear: function () { data = Object.create(null); }
+            };
+          }
+          var mockLocalStorage = makeMemoryStorage();
+          var mockSessionStorage = makeMemoryStorage();
+          try { Object.defineProperty(window, 'localStorage', { configurable: false, get: function () { return mockLocalStorage; } }); } catch (_) {}
+          try { Object.defineProperty(window, 'sessionStorage', { configurable: false, get: function () { return mockSessionStorage; } }); } catch (_) {}
+          // IndexedDB is unavailable in this mode; force callers onto their documented fallback.
+          try {
+            if (window.indexedDB) {
+              window.indexedDB.open = function () { throw new DOMException('IndexedDB disabled in isolated diagnostic mode', 'SecurityError'); };
+              window.indexedDB.deleteDatabase = function () { throw new DOMException('IndexedDB disabled in isolated diagnostic mode', 'SecurityError'); };
+            }
+          } catch (_) {}
+
           var nativeFetch = window.fetch.bind(window);
           window.fetch = function (input, init) {
             var target;
@@ -6917,7 +6948,7 @@ function renderPurchasesTable() {
                 el = document.createElement('section');
                 el.id = 'anasAiTracePanel';
                 el.setAttribute('aria-label','ANAS ERP AI diagnostic trace');
-                el.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483000;background:#111827;color:#f9fafb;border:2px solid #38bdf8;border-radius:12px;padding:10px;font:12px/1.5 system-ui;box-shadow:0 8px 28px #0008;max-height:36dvh;display:flex;flex-direction:column;gap:6px;direction:rtl';
+                el.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483000;background:#111827;color:#f9fafb;border:2px solid #38bdf8;border-radius:12px;padding:10px;font:12px/1.5 system-ui;box-shadow:0 8px 28px #0008;max-height:36dvh;display:flex;flex-direction:column;gap:6px;direction:rtl';
                 const head = document.createElement('div');
                 head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:800';
                 head.textContent = 'تشخيص AI — فرع تجريبي فقط';
