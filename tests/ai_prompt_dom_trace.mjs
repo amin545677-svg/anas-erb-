@@ -68,7 +68,7 @@ try {
       add('console_trace', { label: match?.[1] ?? 'trace' });
     }
   });
-  page.on('pageerror', () => add('page_error', { detail: 'message suppressed to avoid leaking app data' }));
+  page.on('pageerror', error => add('page_error', { errorClass: String(error?.name || 'Error') }));
 
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   add('document_loaded', { readyState: await page.evaluate(() => document.readyState) });
