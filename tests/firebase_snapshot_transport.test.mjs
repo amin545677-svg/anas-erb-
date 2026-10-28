@@ -95,5 +95,7 @@ test("transport rejects missing authentication and malformed cloud data", async 
 test("transport rejects insecure remote URLs and unsafe base URL components", () => {
   const base = { getIdToken: async () => "token", fetchImpl: async () => response({}) };
   assert.throws(() => createFirebaseSnapshotTransport({ ...base, baseUrl: "http://snapshot.example.workers.dev" }), /must use HTTPS/);
+  assert.throws(() => createFirebaseSnapshotTransport({ ...base, baseUrl: "ftp://localhost" }), /must use HTTPS/);
+  assert.doesNotThrow(() => createFirebaseSnapshotTransport({ ...base, baseUrl: "http://localhost:8787" }));
   assert.throws(() => createFirebaseSnapshotTransport({ ...base, baseUrl: "https://user:pass@snapshot.example.workers.dev" }), /must not contain credentials/);
 });
