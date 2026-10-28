@@ -7168,7 +7168,7 @@ function renderPurchasesTable() {
             const label=document.createElement('strong'); label.textContent=role==='user'?'أنت: ':'Anas AI: '; item.appendChild(label); item.appendChild(document.createTextNode(text)); log.appendChild(item); log.scrollTop=log.scrollHeight;
         }
         // DEV-ONLY diagnostic tracing: isolated on debug/ai-prompt-dom-tracing.
-        window.anasSetAiPrompt = function(promptText){
+        function anasSetAiPrompt(promptText){
             window.anasAiTrace('anasSetAiPrompt called', {
                 promptType: typeof promptText,
                 promptLength: String(promptText ?? '').length,
@@ -7193,7 +7193,8 @@ function renderPurchasesTable() {
                 connected: input.isConnected,
                 activeElementIsInput: document.activeElement === input
             });
-        };
+        }
+        window.anasSetAiPrompt = anasSetAiPrompt;
         function anasRefreshAiHubStatus(){
             const status=document.getElementById('anasAiHubConnectionStatus');
             if(!status)return;
