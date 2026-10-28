@@ -1,0 +1,39 @@
+name: Isolated AI Prompt DOM Trace
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "tests/ai_prompt_dom_trace.mjs"
+      - ".github/workflows/ai-prompt-dom-trace.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-browser-trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install isolated browser test dependencies
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Run local-only DOM trace
+        run: node tests/ai_prompt_dom_trace.mjs
+      - name: Upload redacted diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-prompt-dom-trace
+          path: artifacts/ai-prompt-trace.json
+          if-no-files-found: warn
+          retention-days: 7
