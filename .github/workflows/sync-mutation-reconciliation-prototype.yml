@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'sync/mutation_reconciliation.mjs'
+      - 'sync/mutation_queue_orchestrator.mjs'
+      - 'tests/sync_mutation_queue_orchestrator.test.mjs'
       - 'tests/sync_mutation_reconciliation.test.mjs'
       - '.github/workflows/sync-mutation-reconciliation-prototype.yml'
   workflow_dispatch:
@@ -22,4 +24,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test isolated mutation reconciliation prototype
-        run: node --test tests/sync_mutation_reconciliation.test.mjs
+        run: node --test tests/sync_mutation_reconciliation.test.mjs tests/sync_mutation_queue_orchestrator.test.mjs
