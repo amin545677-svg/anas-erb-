@@ -14,7 +14,7 @@ function normalizeBaseUrl(value) {
   let parsed;
   try { parsed = new URL(String(value || "").trim()); }
   catch { throw new Error("A valid Worker base URL is required"); }
-  if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1"))) {
     throw new Error("The Firebase Snapshot Worker must use HTTPS");
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
