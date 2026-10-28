@@ -16,6 +16,7 @@ export function installV42RuntimeWiring({
   setAppData,
   getSaveDB,
   setSaveDB,
+  mapMutation,
   uuid,
   now = () => new Date(),
   onQuarantine = () => {},
@@ -23,7 +24,7 @@ export function installV42RuntimeWiring({
 }) {
   if (!windowObject || !storage || !orchestrator ||
       typeof getAppData !== "function" || typeof setAppData !== "function" ||
-      typeof getSaveDB !== "function" || typeof setSaveDB !== "function" ||
+      typeof getSaveDB !== "function" || typeof setSaveDB !== "function" || typeof mapMutation !== "function" ||
       typeof orchestrator.pushCurrent !== "function" ||
       typeof orchestrator.reconcileAndSync !== "function") {
     throw new Error("V42 runtime wiring dependencies are incomplete");
@@ -52,39 +53,21 @@ export function installV42RuntimeWiring({
 
   function makeOperation(current, previous) {
     const invoice = findNewEntity(current, previous, "invoices");
-    if (invoice) {
-      return {
-        entity: invoice,
-        operation: createMutationEnvelope({
-          type: "SALE_INVOICE",
-          payload: { invoice: structuredClone(invoice), warehouse: invoice.warehouse || null },
-          now,
-          uuid
-        })
-      };
+    const movement = invoice ? null : findNewEntity(current, previous, "cashMovements");
+    const entity = invoice || movement;
+    if (!entity) return null;
+    const mapped = mapMutation({
+      current: structuredClone(current),
+      previous: structuredClone(previous),
+      entity: structuredClone(entity),
+      kind: invoice ? "sale" : "collection"
+    });
+    if (!mapped || !["SALE_INVOICE", "DEBT_COLLECTION"].includes(mapped.type) ||
+        !mapped.payload || typeof mapped.payload !== "object") {
+      throw new Error("mapMutation must return a supported operation type and a valid payload");
     }
-    const movement = findNewEntity(current, previous, "cashMovements");
-    if (movement) {
-      const amount = Number(movement.amount);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        throw new Error("New cash movement has an invalid amount; refusing sync capture");
-      }
-      return {
-        entity: movement,
-        operation: createMutationEnvelope({
-          type: "DEBT_COLLECTION",
-          payload: {
-            customerId: movement.customerId ?? movement.customer_id ?? null,
-            amount,
-            cashMovementId: movement.id,
-            cashMovement: structuredClone(movement)
-          },
-          now,
-          uuid
-        })
-      };
-    }
-    return null;
+    const operation = createMutationEnvelope({ type: mapped.type, payload: mapped.payload, now, uuid });
+    return { entity, operation };
   }
 
   function persistPrepared(operation) {
