@@ -114,6 +114,13 @@ export function installV42RuntimeWiring({
     captured.entity.syncCreatedAt = captured.operation.createdAt;
     if (captured.operation.type === "DEBT_COLLECTION") captured.entity.opId = captured.operation.opId;
     current.appliedOpIds = [...new Set([...(Array.isArray(current.appliedOpIds) ? current.appliedOpIds : []), captured.operation.opId])];
+    // Keep the same audit marker inside the operation payload that will be replayed.
+    if (captured.operation.type === "SALE_INVOICE" && captured.operation.payload.invoice) {
+      captured.operation.payload.invoice = structuredClone(captured.entity);
+    }
+    if (captured.operation.type === "DEBT_COLLECTION" && captured.operation.payload.cashMovement) {
+      captured.operation.payload.cashMovement = structuredClone(captured.entity);
+    }
 
     try {
       // Strict order: journal intent + marker in memory, then original saveDB writes AppData.
