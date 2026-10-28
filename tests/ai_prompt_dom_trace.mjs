@@ -19,6 +19,36 @@ try {
   const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
 
+  // Block persistent-storage writes before application scripts execute.
+  // If the app requires these APIs to render, the resulting trace will expose that dependency.
+  await page.addInitScript(() => {
+    const blocked = [];
+    const blockMethod = (target, method, label) => {
+      try {
+        Object.defineProperty(target, method, {
+          configurable: true,
+          value: function () {
+            blocked.push(label);
+            throw new DOMException('Blocked by isolated diagnostic harness', 'SecurityError');
+          }
+        });
+      } catch (_) { blocked.push(label + ':override-failed'); }
+    };
+    try {
+      blockMethod(Storage.prototype, 'setItem', 'storage.setItem');
+      blockMethod(Storage.prototype, 'removeItem', 'storage.removeItem');
+      blockMethod(Storage.prototype, 'clear', 'storage.clear');
+    } catch (_) {}
+    try {
+      blockMethod(IDBFactory.prototype, 'open', 'indexedDB.open');
+      blockMethod(IDBFactory.prototype, 'deleteDatabase', 'indexedDB.deleteDatabase');
+    } catch (_) {}
+    Object.defineProperty(window, '__anasBlockedStorageAttempts', {
+      configurable: false,
+      value: blocked
+    });
+  });
+
   // Allow only the local test server. External scripts/APIs and remote data are blocked.
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -42,6 +72,7 @@ try {
 
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   add('document_loaded', { readyState: await page.evaluate(() => document.readyState) });
+  add('storage_write_block_status', await page.evaluate(() => ({ blockedWriteAttempts: window.__anasBlockedStorageAttempts || [] })));
 
   const hubButton = page.getByRole('button', { name: /مركز الذكاء الاصطناعي/ }).first();
   if (await hubButton.count()) {
