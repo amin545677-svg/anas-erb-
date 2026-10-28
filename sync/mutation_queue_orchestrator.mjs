@@ -6,14 +6,10 @@
  * deterministically before any production integration.
  */
 import { reconcilePendingMutations } from "./mutation_reconciliation.mjs";
+import { MUTATION_KEYS } from "./mutation_keys.mjs";
+import { recoverPreparedMutationsOnBoot } from "./v42_transactional_bridge.mjs";
 
-export const MUTATION_KEYS = Object.freeze({
-  appData: "ANAS_THE_ENTERPRISE_V11_OFFLINE",
-  pending: "ANAS_PENDING_MUTATIONS_V1",
-  rescue: "ANAS_CONFLICT_RESCUE_SNAPSHOT",
-  quarantined: "ANAS_QUARANTINED_MUTATIONS_V1",
-  revision: "ANAS_CLOUD_REVISION_V1"
-});
+export { MUTATION_KEYS } from "./mutation_keys.mjs";
 
 const readJson = (storage, key, fallback) => {
   const raw = storage.getItem(key);
