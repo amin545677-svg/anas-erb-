@@ -1,0 +1,32 @@
+name: Shared Sync Behavioral Acceptance Harness
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/worker_firebase_snapshot.js'
+      - 'tests/worker_firebase_snapshot.test.mjs'
+      - 'tests/worker_firebase_snapshot_cors_test.mjs'
+      - 'tests/shared_sync_behavioral_acceptance.test.mjs'
+      - 'tests/shared_sync_pull_overwrite.test.mjs'
+      - '.github/workflows/shared-sync-behavioral-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shared-sync-behavioral-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated DOM test dependency
+        run: npm install --no-save --package-lock=false jsdom@26
+      - name: Run shared-sync race and reconciliation harness
+        run: node --test tests/shared_sync_behavioral_acceptance.test.mjs tests/shared_sync_pull_overwrite.test.mjs
+      - name: Run existing Firebase snapshot Worker regression suite
+        run: node --test tests/worker_firebase_snapshot.test.mjs
