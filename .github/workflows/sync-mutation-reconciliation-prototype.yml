@@ -22,6 +22,7 @@ on:
       - 'tests/v42_runtime_installer_failure.test.mjs'
       - 'tests/firebase_snapshot_transport.test.mjs'
       - 'tests/firebase_snapshot_e2e_mock.test.mjs'
+      - 'tests/browser_dom_sync_harness.test.mjs'
       - 'index.html'
       - '.github/workflows/sync-mutation-reconciliation-prototype.yml'
   workflow_dispatch:
@@ -41,3 +42,9 @@ jobs:
           node-version: '22'
       - name: Test isolated reconciliation, queue lifecycle, V42 parity, and Firebase transport
         run: node --test tests/v42_runtime_installer_failure.test.mjs tests/v42_runtime_installer.test.mjs tests/v42_pre_sync_recovery_barrier.test.mjs tests/v42_transactional_bridge.test.mjs tests/v42_transactional_capture_integration.test.mjs tests/mutation_capture.test.mjs tests/sync_mutation_reconciliation.test.mjs tests/sync_mutation_queue_orchestrator.test.mjs tests/v42_schema_parity.test.mjs tests/firebase_snapshot_transport.test.mjs tests/firebase_snapshot_e2e_mock.test.mjs
+      - name: Install Playwright Chromium for isolated real-DOM tests
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test browser DOM, reload recovery, mocked 409 reconciliation, and quarantine feedback
+        run: node --test tests/browser_dom_sync_harness.test.mjs
