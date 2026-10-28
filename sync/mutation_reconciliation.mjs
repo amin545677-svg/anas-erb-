@@ -207,6 +207,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       }
       let customer = null;
       if (remainingCents > 0) {
+        if (typeof op.createdAt !== "string" || !/^\\d{4}-\\d{2}-\\d{2}T/.test(op.createdAt) || !Number.isFinite(Date.parse(op.createdAt))) {
+          review.push({ opId: op.opId, reason: "SALE_OPERATION_TIMESTAMP_MISSING", operation: op });
+          continue;
+        }
         const customerId = payload.customerId ?? invoice.customerId ?? invoice.customerObj?.id;
         if (customerId == null) {
           review.push({ opId: op.opId, reason: "CUSTOMER_REQUIRED_FOR_CREDIT_SALE", operation: op });
@@ -242,7 +246,8 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       }
       if (customer && remainingCents > 0) {
         customer.debt = fromMoneyCents(moneyCents(customer.debt ?? 0) + remainingCents);
-        if (invoice.date) customer.debtDate = String(invoice.date).slice(0, 10);
+        // V42 records debtDate as an ISO date, independent of the invoice's localized display date.
+        customer.debtDate = op.createdAt.slice(0, 10);
       }
       if (paidCents > 0) snapshot.caisseBalance = fromMoneyCents(cashCents + paidCents);
       // V42 uses unshift and does not create cashMovements/stockMovements in this function.
