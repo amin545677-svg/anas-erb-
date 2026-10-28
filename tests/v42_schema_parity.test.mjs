@@ -46,7 +46,7 @@ function runV42Collection(initial, amount) {
   };
   vm.createContext(context);
   const source = extractFunction("collectCustDebt", "cId");
-  vm.runInContext(source + "\\nglobalThis.__run = collectCustDebt;", context);
+  vm.runInContext(source + "\nglobalThis.__run = collectCustDebt;", context);
   context.__run("cust_1");
   return { snapshot: context.AppData, alerts };
 }
