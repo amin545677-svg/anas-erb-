@@ -79,11 +79,16 @@ try {
   page.on('pageerror', error => add('page_error', { errorClass: String(error?.name || 'Error') }));
 
   await page.goto(`http://127.0.0.1:${port}/index.html?anasDiagIsolated=1`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  add('isolation_guards', await page.evaluate(() => ({
+  const isolation = await page.evaluate(() => ({
     diagnosticMode: window.__ANAS_ISOLATED_DIAGNOSTIC__ === true,
     firebaseInitialized: !!window.firebase,
     serviceWorkerController: !!navigator.serviceWorker?.controller
-  })));
+  }));
+  add('isolation_guards', isolation);
+  if (!isolation.diagnosticMode || isolation.firebaseInitialized || isolation.serviceWorkerController) {
+    add('isolation_guard_failed');
+    throw new Error('Isolated preview guard verification failed');
+  }
   add('document_loaded', { readyState: await page.evaluate(() => document.readyState) });
   add('isolated_storage_access_status', await page.evaluate(() => ({ ephemeralContextOnly: true, recordedApiLabels: window.__anasStorageAccessLabels || [] })));
 
