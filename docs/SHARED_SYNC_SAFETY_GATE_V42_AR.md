@@ -72,3 +72,30 @@ The following functions were located in the production `index.html` source at bl
 ### Engineering conclusion from this trace
 
 The code has meaningful **single-device validation and rollback safeguards**, but these must not be mistaken for atomic multi-device accounting. Before implementation, finish a function-by-function mutation inventory for sale, collection, invoice edit/return, truck load, trip status, and settlement; identify every mutation of stock, debt, cash, invoices, and movement ledgers; then design a trusted backend operation contract and isolated concurrency tests. Do not patch these paths with a UI-only queue or add an unverified organization field.
+
+
+## Existing automated coverage reviewed
+
+The repository currently includes `tests/worker_firebase_snapshot.test.mjs` (blob SHA `e0e9af2c3d803efcd14ea1867d3acad487e647fc`). Its named cases cover:
+
+- returning snapshot revision metadata without exposing business data;
+- rejecting stale revisions and enforcing create-only preconditions for first upload;
+- rejecting malformed stock magnitudes, truck loads and warehouse transfers;
+- rejecting duplicate expense/stock-ledger IDs and duplicate purchase, cash, return, invoice, truck, user and alert IDs;
+- cancelling oversized streamed request bodies;
+- rejecting missing Firebase bearer tokens and disallowed CORS preflights.
+
+The existence of these test cases is verified from the test source. This review did not execute GitHub Actions, and it does not claim the latest CI run passed. These tests validate the snapshot Worker contract; they do not test two-device sale concurrency, organization membership, shared cash/debt transactions, offline operation replay, or cross-ledger truck settlement.
+
+## Additional settlement-path findings
+
+The production source exposes `window.anasTruckSettle(id)`. It requires a delivered trip and a previously posted load; rejects duplicate product IDs, repeat settlement markers, invalid quantities, invoice/quantity mismatches, and pre-existing settlement movement references; snapshots affected local balances and movement records; then restores them if `saveDB()` fails.
+
+These are useful local safeguards. However, the stock balance and trip state are still read and changed inside one browser's `AppData` object. Two separate phones do not share this in-memory transaction boundary. The settlement marker `TR-SETTLE-{trip.id}` is deterministic locally, but the snapshot Worker does not process it as an idempotent business operation.
+
+## Verification status
+
+- Source files and blob SHAs above were inspected through GitHub.
+- No live business data was changed.
+- No CI workflow was launched by this inspection.
+- No merge or deployment was performed.
