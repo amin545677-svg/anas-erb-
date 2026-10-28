@@ -81,6 +81,7 @@ try {
   await page.goto(`http://127.0.0.1:${port}/index.html?anasDiagIsolated=1`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   const isolation = await page.evaluate(() => ({
     diagnosticMode: window.__ANAS_ISOLATED_DIAGNOSTIC__ === true,
+    isolationReady: window.__ANAS_DIAGNOSTIC_ISOLATION_READY__ === true,
     firebaseInitialized: !!window.firebase,
     serviceWorkerController: !!navigator.serviceWorker?.controller,
     mockStorageRoundTrip: (() => {
@@ -97,7 +98,7 @@ try {
     })()
   }));
   add('isolation_guards', isolation);
-  if (!isolation.diagnosticMode || isolation.firebaseInitialized || isolation.serviceWorkerController || !isolation.mockStorageRoundTrip || !isolation.indexedDbBlocked) {
+  if (!isolation.diagnosticMode || !isolation.isolationReady || isolation.firebaseInitialized || isolation.serviceWorkerController || !isolation.mockStorageRoundTrip || !isolation.indexedDbBlocked) {
     add('isolation_guard_failed');
     throw new Error('Isolated preview guard verification failed');
   }
