@@ -1,0 +1,25 @@
+name: Shared Sync Behavioral Acceptance Harness
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/worker_firebase_snapshot.js'
+      - 'tests/shared_sync_behavioral_acceptance.test.mjs'
+      - '.github/workflows/shared-sync-behavioral-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shared-sync-behavioral-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run shared-sync race and reconciliation harness
+        run: node --test tests/shared_sync_behavioral_acceptance.test.mjs
