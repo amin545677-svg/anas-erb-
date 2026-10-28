@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'cloudflare/worker_firebase_snapshot.js'
+      - 'tests/worker_firebase_snapshot.test.mjs'
+      - 'tests/worker_firebase_snapshot_cors_test.mjs'
       - 'tests/shared_sync_behavioral_acceptance.test.mjs'
       - '.github/workflows/shared-sync-behavioral-acceptance.yml'
   workflow_dispatch:
@@ -23,3 +25,5 @@ jobs:
           node-version: '22'
       - name: Run shared-sync race and reconciliation harness
         run: node --test tests/shared_sync_behavioral_acceptance.test.mjs
+      - name: Run existing Firebase snapshot Worker regression suite
+        run: node --test tests/worker_firebase_snapshot.test.mjs
