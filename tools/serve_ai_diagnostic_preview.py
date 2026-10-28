@@ -20,6 +20,18 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def do_GET(self):
+        # Expose only the app shell. Never expose repository files, .git, tests, or workflows.
+        if self.path.split("?", 1)[0] not in ("/", "/index.html"):
+            self.send_error(404, "Only the diagnostic app shell is served")
+            return
+        self.path = "/index.html"
+        super().do_GET()
+
+    def list_directory(self, path):
+        self.send_error(403, "Directory listing disabled")
+        return None
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
