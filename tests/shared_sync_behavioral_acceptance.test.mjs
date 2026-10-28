@@ -69,11 +69,18 @@ test("two clients uploading the same observed revision cannot silently overwrite
     const statuses = responses.map(response => response.status).sort((a, b) => a - b);
     assert.deepEqual(statuses, [200, 409]);
     const bodies = await Promise.all(responses.map(response => response.json()));
+    const savedIndex = bodies.findIndex(body => body.saved === true);
+    const conflictIndex = bodies.findIndex(body => body.conflict === true);
+    assert.notEqual(savedIndex, -1, "exactly one request must report a saved snapshot");
+    assert.notEqual(conflictIndex, -1, "exactly one request must report a revision conflict");
     assert.equal(bodies.filter(body => body.saved === true).length, 1);
     assert.equal(bodies.filter(body => body.conflict === true).length, 1);
     assert.equal(patchCount, 2);
-    assert.ok([JSON.stringify(clientA), JSON.stringify(clientB)].includes(persistedPayload),
-      "the stored snapshot must be exactly one complete client payload, not a partial mixture");
+    const submittedPayloads = [JSON.stringify(clientA), JSON.stringify(clientB)];
+    assert.equal(persistedPayload, submittedPayloads[savedIndex],
+      "the persisted snapshot must match the request that actually succeeded");
+    assert.notEqual(persistedPayload, submittedPayloads[conflictIndex],
+      "the conflicting stale request must not replace the persisted snapshot");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -86,13 +93,13 @@ test("golden reconciliation arithmetic catches stock, cash, and debt imbalance",
   const cash = { opening: 1000, cashSales: 350, creditDownPayments: 50, oldDebtCollections: 80, tripExpenses: 40, closing: 1440 };
   assert.equal(cash.opening + cash.cashSales + cash.creditDownPayments + cash.oldDebtCollections - cash.tripExpenses, cash.closing);
 
-  const debt = { opening: 500, newCreditRemaining: 200, collections: 80, closing: 620 };
-  assert.equal(debt.opening + debt.newCreditRemaining - debt.collections, debt.closing);
+  const debt = { opening: 500, newCreditSales: 200, collections: 80, closing: 620 };
+  assert.equal(debt.opening + debt.newCreditSales - debt.collections, debt.closing);
 
   assert.notEqual(stock.soldCash + stock.soldCredit + stock.returned + stock.damaged, stock.loaded,
     "omitting missing goods must make the stock equation fail");
   assert.notEqual(cash.opening + cash.cashSales + cash.creditDownPayments + cash.oldDebtCollections, cash.closing,
     "omitting trip expenses must make the cash equation fail");
-  assert.notEqual(debt.opening + debt.newCreditRemaining, debt.closing,
+  assert.notEqual(debt.opening + debt.newCreditSales, debt.closing,
     "omitting collections must make the debt equation fail");
 });
