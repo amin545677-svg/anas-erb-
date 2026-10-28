@@ -8,7 +8,7 @@
  *
  * This module is intentionally NOT wired into production index.html.
  */
-import { MUTATION_KEYS } from "./mutation_queue_orchestrator.mjs";
+import { MUTATION_KEYS } from "./mutation_keys.mjs";
 
 function hasOperationMarker(appData, opId) {
   if (!appData || typeof appData !== "object" || Array.isArray(appData)) return false;
