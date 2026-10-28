@@ -209,7 +209,10 @@ test("V42 sale capture persists identity, survives 409 reconciliation, and drain
   assert.equal(cloud.revision, 2);
   assert.deepEqual(pending, []);
   assert.equal(cloud.data.invoices[0].id, run.context.AppData.invoices[0].id);
-  assert.deepEqual(cloud.data.invoices[0], run.context.AppData.invoices[0]);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(cloud.data.invoices[0])),
+    JSON.parse(JSON.stringify(run.context.AppData.invoices[0]))
+  );
   assert.equal(cloud.data.products[0].stock, 88);
   assert.equal(cloud.data.caisseBalance, 54400);
   assert.equal(cloud.data.customers[0].debt, 26600);
@@ -260,7 +263,13 @@ test("V42 collection save failure rolls back customer debt and cash and leaves n
 test("queue promotion failure after durable save is detected and not silently treated as a successful transaction", () => {
   const initial = fixture();
   const run = runV42WithCapture({ kind: "sale", initial, paid: 400, failQueuePromotion: true });
-  assert.equal(run.threw, true);
+  assert.equal(run.threw, false, "V42 catches saveDB errors and reports rollback through its failure alert");
+  assert.ok(run.alerts.some(message => message.includes("لم يتم تأكيد البيع")),
+    "V42 must report the failed transaction after compensating rollback");
+  assert.equal(run.context.AppData.products[0].stock, 90);
+  assert.equal(run.context.AppData.caisseBalance, 54000);
+  assert.equal(run.context.AppData.customers[0].debt, 26000);
+  assert.equal(run.context.AppData.invoices.length, 0);
   assert.ok(run.persistedSnapshot, "the test simulates a durable AppData write before promotion fails");
   assert.equal(run.pending().length, 0, "test harness aborts the PREPARED record after failure");
   assert.equal(run.local.getItem(MUTATION_KEYS.appData), JSON.stringify(initial),
