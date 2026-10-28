@@ -66,6 +66,7 @@ function buildHarness() {
 
   window.confirm = () => true;
   window.alert = () => {};
+  window.eval("function status() {}");
   window.URL.createObjectURL = () => "blob:https://test.invalid/backup";
   window.URL.revokeObjectURL = () => {};
   window.Blob = function CapturingBlob(parts, options) {
