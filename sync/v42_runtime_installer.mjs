@@ -203,8 +203,6 @@ export function installV42RuntimeWiring({
 
   function install() {
     if (installed) throw new Error("V42 runtime wiring is already installed");
-    windowObject.anasFirebasePullSnapshotRestore = originalPull;
-    windowObject.anasFirebasePushSnapshotBackup = originalPush;
     windowObject.anasFirebasePull = wrappedPull;
     windowObject.anasFirebasePush = wrappedPush;
     setSaveDB(wrappedSaveDB);
@@ -216,8 +214,6 @@ export function installV42RuntimeWiring({
     if (!installed) return false;
     windowObject.anasFirebasePull = originalPull;
     windowObject.anasFirebasePush = originalPush;
-    if (windowObject.anasFirebasePullSnapshotRestore === originalPull) delete windowObject.anasFirebasePullSnapshotRestore;
-    if (windowObject.anasFirebasePushSnapshotBackup === originalPush) delete windowObject.anasFirebasePushSnapshotBackup;
     setSaveDB(originalSaveDB);
     installed = false;
     return true;
