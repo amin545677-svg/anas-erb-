@@ -5,8 +5,6 @@
  * new snapshot and explicit review items; callers must persist atomically and must
  * not upload until every operation has been reconciled or quarantined.
  */
-const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
-
 function finiteAmount(value, label) {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${label} must be a positive safe integer in the smallest currency unit`);
@@ -96,7 +94,11 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       }
       if (!Array.isArray(snapshot.cashMovements)) snapshot.cashMovements = [];
       if (snapshot.cashMovements.some(movement => movement?.id === movementId)) {
-        review.push({ opId: op.opId, reason: "CASH_MOVEMENT_ID_COLLISION", operation: op });
+        // A durable ledger entity is a second idempotency guard when an older
+        // snapshot has the movement but lacks appliedOpIds.
+        applied.add(op.opId);
+        snapshot.appliedOpIds = [...applied];
+        appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
         continue;
       }
 
@@ -138,8 +140,13 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       }
       if (!Array.isArray(snapshot.invoices)) snapshot.invoices = [];
       if (!Array.isArray(snapshot.stockMovements)) snapshot.stockMovements = [];
-      if (snapshot.invoices.some(item => item?.id === invoice.id) ||
-          snapshot.stockMovements.some(item => item?.id === stockMovement.id)) {
+      if (snapshot.invoices.some(item => item?.id === invoice.id)) {
+        applied.add(op.opId);
+        snapshot.appliedOpIds = [...applied];
+        appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "INVOICE_ENTITY_EXISTS" });
+        continue;
+      }
+      if (snapshot.stockMovements.some(item => item?.id === stockMovement.id)) {
         review.push({ opId: op.opId, reason: "SALE_LEDGER_ID_COLLISION", operation: op });
         continue;
       }
