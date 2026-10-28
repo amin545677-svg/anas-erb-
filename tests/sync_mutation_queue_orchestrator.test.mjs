@@ -222,3 +222,46 @@ test("interrupted local mutation recovery restores the prior stored values", () 
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(storage.getItem(MUTATION_KEYS.rescue), null);
 });
+
+
+test("ordinary push removes only PENDING operations, preserving PREPARED journal entries", async () => {
+  const storage = seededStorage([
+    collection("op-pending"),
+    { ...collection("op-prepared"), status: "PREPARED" }
+  ]);
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => ({ data: baseCloud(), revision: 1 }),
+    pushCloud: async () => ({ status: 200, revision: 2 })
+  });
+  const result = await orchestrator.pushCurrent();
+  assert.equal(result.status, "pushed");
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending).map(item => [item.opId, item.status]), [
+    ["op-prepared", "PREPARED"]
+  ]);
+});
+
+test("recovery restores a pre-reconcile rescue snapshot after an interrupted merge", () => {
+  const beforeAppData = JSON.stringify({ original: true, appliedOpIds: [] });
+  const beforePending = JSON.stringify([collection("op-recover")]);
+  const storage = seededStorage([collection("op-recover")], { original: true, appliedOpIds: [] });
+  storage.setItem(MUTATION_KEYS.rescue, JSON.stringify({
+    schema: 1,
+    phase: "PRE_RECONCILE",
+    before: {
+      [MUTATION_KEYS.appData]: beforeAppData,
+      [MUTATION_KEYS.pending]: beforePending,
+      [MUTATION_KEYS.quarantined]: "[]",
+      [MUTATION_KEYS.revision]: "1"
+    },
+    cloudRevision: 2
+  }));
+  storage.setItem(MUTATION_KEYS.appData, JSON.stringify({ partiallyMerged: true, appliedOpIds: ["op-recover"] }));
+  storage.setItem(MUTATION_KEYS.pending, "[]");
+  storage.setItem(MUTATION_KEYS.revision, "2");
+  assert.equal(recoverInterruptedLocalMutation(storage), true);
+  assert.deepEqual(storage.json(MUTATION_KEYS.appData), { original: true, appliedOpIds: [] });
+  assert.equal(storage.getItem(MUTATION_KEYS.pending), beforePending);
+  assert.equal(storage.getItem(MUTATION_KEYS.revision), "1");
+  assert.equal(storage.getItem(MUTATION_KEYS.rescue), null);
+});
