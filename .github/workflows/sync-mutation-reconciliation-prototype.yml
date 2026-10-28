@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'sync/mutation_reconciliation.mjs'
+      - 'sync/mutation_capture.mjs'
       - 'sync/mutation_queue_orchestrator.mjs'
       - 'sync/firebase_snapshot_transport.mjs'
       - 'tests/sync_mutation_queue_orchestrator.test.mjs'
