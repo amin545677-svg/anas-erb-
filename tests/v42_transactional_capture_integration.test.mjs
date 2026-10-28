@@ -160,7 +160,7 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
 
   // The V42 function performs its own rollback when saveDB returns false.
   // This harness aborts the prepared queue record after the original function exits.
-  if (failSave || threw) {
+  if (failSave || failQueuePromotion || threw) {
     local.setItem(MUTATION_KEYS.pending, JSON.stringify(
       (JSON.parse(local.getItem(MUTATION_KEYS.pending) || "[]")).filter(x => x.status !== "PREPARED")
     ));
