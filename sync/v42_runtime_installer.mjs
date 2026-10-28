@@ -36,6 +36,7 @@ export function installV42RuntimeWiring({
   if (typeof originalSaveDB !== "function") throw new Error("V42 saveDB binding is unavailable");
 
   let installed = false;
+  let isReconcilingWrite = false;
   let lastSnapshot = null;
 
   function readStoredAppData() {
@@ -95,6 +96,12 @@ export function installV42RuntimeWiring({
   }
 
   function wrappedSaveDB(...args) {
+    // A snapshot persisted by reconciliation is not a new local business mutation.
+    if (isReconcilingWrite) {
+      const saved = originalSaveDB.apply(this, args);
+      if (saved === true) lastSnapshot = structuredClone(getAppData());
+      return saved;
+    }
     const current = getAppData();
     if (!current || typeof current !== "object" || Array.isArray(current)) {
       return originalSaveDB.apply(this, args);
@@ -191,11 +198,18 @@ export function installV42RuntimeWiring({
     }
   }
 
+  async function withReconcilingWrite(callback) {
+    const wasReconciling = isReconcilingWrite;
+    isReconcilingWrite = true;
+    try { return await callback(); }
+    finally { isReconcilingWrite = wasReconciling; }
+  }
+
   async function wrappedPush() {
     const result = await orchestrator.pushCurrent();
     if (result?.status === "conflict") {
       onStatus({ level: "warning", code: "V42_SYNC_CONFLICT_RECONCILING" });
-      const reconciled = await orchestrator.reconcileAndSync();
+      const reconciled = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
       if (reconciled?.quarantined?.length) onQuarantine(reconciled.quarantined);
       onStatus({ level: reconciled?.status === "synced" ? "success" : "error", result: reconciled });
       return reconciled;
@@ -207,7 +221,7 @@ export function installV42RuntimeWiring({
   async function wrappedPull() {
     // This is an operational reconciliation pull, intentionally distinct from the
     // legacy destructive full-snapshot restore function.
-    const result = await orchestrator.reconcileAndSync();
+    const result = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
     if (result?.quarantined?.length) onQuarantine(result.quarantined);
     onStatus({ level: result?.status === "synced" ? "success" : "error", result });
     return result;
