@@ -5,9 +5,11 @@ on:
     paths:
       - 'sync/mutation_reconciliation.mjs'
       - 'sync/mutation_queue_orchestrator.mjs'
+      - 'sync/firebase_snapshot_transport.mjs'
       - 'tests/sync_mutation_queue_orchestrator.test.mjs'
       - 'tests/sync_mutation_reconciliation.test.mjs'
       - 'tests/v42_schema_parity.test.mjs'
+      - 'tests/firebase_snapshot_transport.test.mjs'
       - 'index.html'
       - '.github/workflows/sync-mutation-reconciliation-prototype.yml'
   workflow_dispatch:
@@ -25,5 +27,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test isolated mutation reconciliation prototype
-        run: node --test tests/sync_mutation_reconciliation.test.mjs tests/sync_mutation_queue_orchestrator.test.mjs tests/v42_schema_parity.test.mjs
+      - name: Test isolated reconciliation, queue lifecycle, V42 parity, and Firebase transport
+        run: node --test tests/sync_mutation_reconciliation.test.mjs tests/sync_mutation_queue_orchestrator.test.mjs tests/v42_schema_parity.test.mjs tests/firebase_snapshot_transport.test.mjs
