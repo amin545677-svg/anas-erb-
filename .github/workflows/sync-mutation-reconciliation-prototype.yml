@@ -29,4 +29,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test isolated reconciliation, queue lifecycle, V42 parity, and Firebase transport
-        run: node --test tests/sync_mutation_reconciliation.test.mjs tests/sync_mutation_queue_orchestrator.test.mjs tests/v42_schema_parity.test.mjs tests/firebase_snapshot_transport.test.mjs tests/firebase_snapshot_e2e_mock.test.mjs
+        run: node --test tests/mutation_capture.test.mjs tests/sync_mutation_reconciliation.test.mjs tests/sync_mutation_queue_orchestrator.test.mjs tests/v42_schema_parity.test.mjs tests/firebase_snapshot_transport.test.mjs tests/firebase_snapshot_e2e_mock.test.mjs
