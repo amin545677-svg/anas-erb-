@@ -82,10 +82,22 @@ try {
   const isolation = await page.evaluate(() => ({
     diagnosticMode: window.__ANAS_ISOLATED_DIAGNOSTIC__ === true,
     firebaseInitialized: !!window.firebase,
-    serviceWorkerController: !!navigator.serviceWorker?.controller
+    serviceWorkerController: !!navigator.serviceWorker?.controller,
+    mockStorageRoundTrip: (() => {
+      try {
+        localStorage.setItem('__anas_diag_probe__', 'memory-only');
+        const ok = localStorage.getItem('__anas_diag_probe__') === 'memory-only';
+        localStorage.removeItem('__anas_diag_probe__');
+        return ok;
+      } catch (_) { return false; }
+    })(),
+    indexedDbBlocked: (() => {
+      try { indexedDB.open('__anas_diag_probe__'); return false; }
+      catch (_) { return true; }
+    })()
   }));
   add('isolation_guards', isolation);
-  if (!isolation.diagnosticMode || isolation.firebaseInitialized || isolation.serviceWorkerController) {
+  if (!isolation.diagnosticMode || isolation.firebaseInitialized || isolation.serviceWorkerController || !isolation.mockStorageRoundTrip || !isolation.indexedDbBlocked) {
     add('isolation_guard_failed');
     throw new Error('Isolated preview guard verification failed');
   }
