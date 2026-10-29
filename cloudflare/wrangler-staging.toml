@@ -1,0 +1,18 @@
+# Staging-only worker configuration.
+# Deploy explicitly with: npx wrangler deploy --config cloudflare/wrangler-staging.toml
+# Configure FIREBASE_API_KEY as a secret on this staging Worker before deploying.
+# Keep cloudflare/wrangler.toml unchanged for production.
+
+name = "anas-erp-firebase-snapshot-staging"
+main = "worker_firebase_snapshot.js"
+compatibility_date = "2026-10-22"
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"
+# Change this to the actual staging frontend origin before browser testing.
+# Do not point the production app at this staging Worker.
+ALLOWED_ORIGINS = "https://anas-erp-staging-a25e1.web.app"
+
+[secrets]
+required = ["FIREBASE_API_KEY"]
