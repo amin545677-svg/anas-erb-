@@ -58,6 +58,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
 
 {
   const result = runCollection({ movements: [{ id: 'LEGACY-1', amount: 10 }], amount: '25' });
+  if (result.saves !== 1) console.log('DEBUG_COLLECTION_FAILURE', JSON.stringify(result.alerts));
   assert.equal(result.saves, 1);
   assert.equal(result.customer.debt, 75);
   assert.equal(result.appData.caisseBalance, 25);
