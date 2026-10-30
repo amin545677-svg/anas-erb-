@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - staging/firebase-snapshot-worker
+      - feat/purchase-supplier-centime-ledger
     paths:
       - "index.html"
       - "tests/**"
