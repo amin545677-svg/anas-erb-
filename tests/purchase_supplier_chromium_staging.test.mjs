@@ -128,7 +128,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       anasValidateIncomingSyncData(JSON.parse(JSON.stringify(legacy)));
 
       const valid = JSON.parse(JSON.stringify(AppData));
-      valid.customers = [{ id: 'C-NEW', name: 'Ledger test client', debt: 12.75 }];
+      valid.customers = [{ id: 'C-NEW', name: 'Ledger test client', debt: 19992.75 }];
       valid.invoices = [{
         id: 'INV-NEW', customerId: 'C-NEW', customerObj: { id: 'C-NEW' },
         total: 20, paid: 7.25, remaining: 12.75,
