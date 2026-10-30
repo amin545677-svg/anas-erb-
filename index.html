@@ -5063,8 +5063,13 @@ function renderPurchasesTable() {
             const art = document.getElementById('newSuppArtInput').value.trim();
             const address = document.getElementById('newSuppAddressInput').value.trim();
             const debtInput = document.getElementById('newSuppDebtInput');
-            const debtCents = anasPurchaseToCents(debtInput ? String(debtInput.value ?? '').trim() || '0' : '0');
+            const rawDebt = debtInput ? String(debtInput.value ?? '').trim() : '';
+            const debt = rawDebt === '' ? 0 : Number(rawDebt);
             if (!name) { alert('ادخل اسم المورد'); return; }
+            if (!Number.isFinite(debt) || debt < 0 || debt > Number.MAX_SAFE_INTEGER) {
+                debtInput?.focus(); alert('رصيد المورد الافتتاحي يجب أن يكون مبلغاً صالحاً ضمن المجال المالي الآمن.'); return;
+            }
+            const debtCents = anasPurchaseToCents(rawDebt || '0');
             if (!Number.isSafeInteger(debtCents) || debtCents < 0) {
                 debtInput?.focus(); alert('رصيد المورد الافتتاحي يجب أن يكون مبلغاً صالحاً بدقة السنتيم.'); return;
             }
