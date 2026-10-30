@@ -12,18 +12,25 @@ test('initializes new collections without rewriting legacy records', () => {
 test('fails closed on malformed collection shapes', () => assert.throws(()=>R.ensureCollections({returns:{}}),/returns must be an array/));
 test('client movement uses positive safe integer centimes', () => {
  const m=R.makeClientMovement({movementId:'CM-1',clientId:'C-1',type:'receipt',amountCentimes:725,direction:'credit',referenceType:'customer_debt',referenceId:'C-1',createdAt:'2026-10-30T12:00:00Z'});
- assert.equal(m.amountCentimes,725); assert.equal(m.ledgerVersion,2); assert.ok(Object.isFrozen(m));
+ assert.equal(m.amountCentimes,725); assert.equal(Object.prototype.hasOwnProperty.call(m,'ledgerVersion'),false); assert.ok(Object.isFrozen(m));
  assert.throws(()=>R.makeClientMovement({...m,amountCentimes:0}),/positive safe integer/);
  assert.throws(()=>R.makeClientMovement({...m,amountCentimes:9007199254740992}),/positive safe integer/);
 });
 test('allocation requires matching party and invoice domains', () => {
  const base={allocationId:'A-1',partyType:'customer',partyId:'C-1',invoiceType:'sales_invoice',invoiceId:'S-1',sourceMovementId:'M-1',sourceMovementType:'customer_debt',amountCentimes:500,createdAt:'2026-10-30T12:00:00Z'};
- assert.equal(R.makeSettlementAllocation(base).ledgerVersion,2);
+ const draft=R.makeSettlementAllocation(base);
+ assert.equal(Object.prototype.hasOwnProperty.call(draft,'ledgerVersion'),false);
+ const state={customers:[],suppliers:[],invoices:[{id:'S-1',customerId:'C-1',paid:5}],purchases:[],cashMovements:[{id:'M-1',amountCentimes:1000,referenceType:'customer_debt'}]};
+ assert.equal(R.sealSettlementAllocation(state,base).ledgerVersion,2);
  assert.throws(()=>R.makeSettlementAllocation({...base,partyType:'supplier'}),/party and invoice types do not match/);
 });
 test('return document validates exact BigInt micro-unit line totals', () => {
  const d=R.makeReturnDocument({returnId:'R-1',originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',items:[{productId:'P-1',quantityMicroUnits:3000000,unitPriceCentimes:10,lineTotalCentimes:30}],totalCentimes:30,debtReductionCentimes:20,cashRefundCentimes:10,status:'DRAFT',createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'damaged'});
- assert.equal(d.totalCentimes,30); assert.equal(d.ledgerVersion,2);
+ assert.equal(d.totalCentimes,30); assert.equal(Object.prototype.hasOwnProperty.call(d,'ledgerVersion'),false);
+ const sealed=R.sealReturnDocument({customers:[],suppliers:[],invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:3,price:0.1}]}],purchases:[],returns:[]},{
+  ...d, originalInvoiceType:'sales_invoice'
+ });
+ assert.equal(sealed.ledgerVersion,2);
  assert.throws(()=>R.makeReturnDocument({...d,totalCentimes:31}),/return total does not equal line totals/);
  assert.throws(()=>R.makeReturnDocument({...d,cashRefundCentimes:11}),/settlement exceeds return value/);
  assert.throws(()=>R.makeReturnDocument({...d,items:[{productId:'P-1',quantityMicroUnits:500000,unitPriceCentimes:1,lineTotalCentimes:0}],totalCentimes:0,debtReductionCentimes:0,cashRefundCentimes:0}),/fractional centime/);
@@ -55,8 +62,10 @@ test('legacy V42 state passes without synthetic allocation or movement records',
  assert.equal(state.clientMovements,undefined);
 });
 test('version-2 client movement ledger must reconcile exactly to customer debt', () => {
- const movement=R.makeClientMovement({movementId:'CM-1',clientId:'C-1',type:'opening_balance',amountCentimes:725,direction:'debit',referenceType:'opening_balance',referenceId:'C-1',createdAt:'2026-10-30T12:00:00Z'});
- const state={customers:[{id:'C-1',debt:7.25,ledgerVersion:2}],clientMovements:[movement],invoices:[],purchases:[],returns:[]};
+ const input={movementId:'CM-1',clientId:'C-1',type:'opening_balance',amountCentimes:725,direction:'debit',referenceType:'opening_balance',referenceId:'C-1',createdAt:'2026-10-30T12:00:00Z'};
+ const state={customers:[{id:'C-1',debt:7.25,ledgerVersion:2}],clientMovements:[],invoices:[],purchases:[],returns:[]};
+ const movement=R.sealClientMovement(state,input);
+ state.clientMovements.push(movement);
  assert.equal(R.validateReverseLedgerParity(state),true);
  assert.throws(()=>R.validateReverseLedgerParity({...state,customers:[{id:'C-1',debt:7.24,ledgerVersion:2}]}),/does not match customer debt/);
 });
