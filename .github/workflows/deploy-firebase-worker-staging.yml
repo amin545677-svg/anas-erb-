@@ -34,17 +34,6 @@ jobs:
       - name: Test Firebase snapshot Worker before staging deployment
         run: node --test tests/worker_firebase_snapshot.test.mjs
 
-      - name: Check staging deployment secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN" || (echo "::error::Add CLOUDFLARE_API_TOKEN as a GitHub Actions secret." && exit 1)
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Add CLOUDFLARE_ACCOUNT_ID as a GitHub Actions secret." && exit 1)
-          test -n "$STAGING_FIREBASE_API_KEY" || (echo "::error::Add STAGING_FIREBASE_API_KEY as a GitHub Actions secret." && exit 1)
-
       # Explicit P0 one-shot recovery gate: this commit message is the authorization token.
       - name: P0 Validate and Restore Production Worker Secret from Production Web Config
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[P0-PROD-RESTORE]')
@@ -71,9 +60,9 @@ jobs:
           import { readFileSync } from "node:fs";
           const key = process.env.PROD_KEY;
           const html = readFileSync("index.html", "utf8");
-          const expectedProjectId = html.match(/projectId\\s*:\\s*["']([^"']+)["']/)?.[1] || "";
-          const expectedProjectNumber = html.match(/messagingSenderId\\s*:\\s*["']([^"']+)["']/)?.[1] || "";
-          const firebaseAppId = html.match(/appId\\s*:\\s*["']([^"']+)["']/)?.[1] || "";
+          const expectedProjectId = html.includes('projectId:"anas-erb"') ? "anas-erb" : "";
+          const expectedProjectNumber = html.includes('messagingSenderId:"859983503318"') ? "859983503318" : "";
+          const firebaseAppId = html.match(/appId:"([^"]+)"/)?.[1] || "";
           if (expectedProjectId !== "anas-erb" || !expectedProjectNumber || !firebaseAppId.startsWith("1:" + expectedProjectNumber + ":web:")) {
             throw new Error("Production Firebase config identity is incomplete or inconsistent; no Cloudflare mutation performed.");
           }
@@ -143,6 +132,17 @@ jobs:
               (productionConfigKey && cleanKey === productionConfigKey)) {
             throw new Error("Staging key matches a known Production Firebase key; refusing any Firebase or Cloudflare mutation.");
           }
+          const projectResponse = await fetch("https://identitytoolkit.googleapis.com/v1/projects?key=" + encodeURIComponent(cleanKey));
+          const projectBody = await projectResponse.json().catch(() => ({}));
+          if (!projectResponse.ok) {
+            console.error("Staging Identity Toolkit error details: " + JSON.stringify(projectBody?.error?.details ?? projectBody?.error ?? {}, null, 2));
+            throw new Error("Staging API key rejected by Identity Toolkit projects preflight; no Staging deployment or test identity created.");
+          }
+          if (String(projectBody.projectId) !== "280763919805") {
+            throw new Error("Staging key resolves to project number " + String(projectBody.projectId) + ", expected 280763919805; no Staging deployment or test identity created.");
+          }
+          console.log("PASS STAGING PROJECT IDENTITY: Identity Toolkit project number 280763919805.");
+
           let temporaryUser = null;
           try {
             const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + encodeURIComponent(cleanKey), {
