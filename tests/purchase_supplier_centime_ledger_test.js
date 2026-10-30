@@ -108,6 +108,21 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: supplier debt payment posts matching supplier and cash ledger entries');
 }
 {
+ const r=runPurchase({suppliers:[{id:'S-1',name:'Supplier',balance:2},{id:'S-1',name:'Duplicate',balance:0}]});
+ assert.equal(r.saves,0);assert.equal(r.AppData.purchases.length,0);assert.equal(r.AppData.products[0].stock,10);
+ console.log('PASS: duplicate supplier identities are rejected before purchase mutation');
+}
+{
+ const r=runPayment({balance:20,cash:100,amount:'7.25'});
+ r.AppData.cashMovements.push({...r.AppData.cashMovements[0]});
+ const duplicateContext={AppData:r.AppData,prompt:()=> '1',saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
+ vm.createContext(duplicateContext);
+ vm.runInContext(moneyHelperSource+'\\n'+paymentSource+'\\npaySupplierDebt("S-1");',duplicateContext,{timeout:1500});
+ assert.equal(duplicateContext.AppData.suppliers[0].balance,12.75);
+ assert.ok(r.alerts.some(x=>x.includes('معرّفات مكررة')));
+ console.log('PASS: supplier payment refuses duplicate pre-existing ledger IDs');
+}
+{
  const r=runPayment({balance:20,cash:5,amount:'7.25'});assert.equal(r.saves,0);
  assert.equal(r.AppData.suppliers[0].balance,20);assert.equal(r.AppData.caisseBalance,5);
  assert.equal(r.AppData.supplierMovements.length,0);assert.equal(r.AppData.cashMovements.length,0);
