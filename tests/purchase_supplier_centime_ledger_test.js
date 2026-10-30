@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const html=fs.readFileSync('index.html','utf8');
+const ANASReverseLedger=require('../reverse-ledger/reverse-ledger.js');
 
 const purchaseStart=html.indexOf('function anasCreateUniqueProductId(products)');
 const purchaseEnd=html.indexOf('function anasEscapeHtml(value)',purchaseStart);
@@ -39,9 +40,16 @@ function runPurchase({fields=elements(),products=[{id:'P-1',name:'Test product',
  return {AppData:ctx.AppData,alerts,saves};
 }
 function runPayment({balance=20,cash=100,amount='7.25',saveResult=true}={}) {
- const AppData={suppliers:[{id:'S-1',name:'Supplier',balance}],cashMovements:[],supplierMovements:[],caisseBalance:cash,currentUser:{id:'U-1',name:'Tester'}};
+ const AppData={
+  suppliers:[{id:'S-1',name:'Supplier',balance}],
+  purchases:[{id:'PUR-1',supplierId:'S-1',total:20,paid:0,remaining:20,productId:'P-1',cost:10,qty:2}],
+  cashMovements:[],
+  supplierMovements:[{id:'SM-PUR-1',supplierId:'S-1',type:'purchase',amount:20,referenceType:'purchase_invoice',referenceId:'PUR-1'}],
+  settlementAllocations:[],caisseBalance:cash,currentUser:{id:'U-1',name:'Tester'}
+ };
  const alerts=[];let saves=0;
- const ctx={AppData,prompt:()=>amount,saveDB:()=>{saves++;return saveResult;},alert:m=>alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
+ const ctx={AppData,ANASReverseLedger,prompt:()=>JSON.stringify([{invoiceId:'PUR-1',amount}]),
+  saveDB:()=>{saves++;return saveResult;},alert:m=>alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
  vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
  return {AppData:ctx.AppData,alerts,saves};
 }
@@ -103,6 +111,8 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  const r=runPayment();assert.equal(r.saves,1);assert.equal(r.AppData.suppliers[0].balance,12.75);
  assert.equal(r.AppData.caisseBalance,92.75);assert.equal(r.AppData.supplierMovements[0].type,'payment');
  assert.equal(r.AppData.supplierMovements[0].amount,7.25);assert.equal(r.AppData.cashMovements[0].type,'subtract');
+ assert.equal(r.AppData.settlementAllocations[0].amountCentimes,725);
+ assert.equal(r.AppData.settlementAllocations[0].invoiceId,'PUR-1');
  assert.equal(r.AppData.cashMovements[0].amount,7.25);
  assert.equal(r.AppData.cashMovements[0].referenceId,r.AppData.supplierMovements[0].referenceId);
  console.log('PASS: supplier debt payment posts matching supplier and cash ledger entries');
@@ -115,7 +125,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
 {
  const r=runPayment({balance:20,cash:100,amount:'7.25'});
  r.AppData.cashMovements.push({...r.AppData.cashMovements[0]});
- const duplicateContext={AppData:r.AppData,prompt:()=> '1',saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
+ const duplicateContext={AppData:r.AppData,ANASReverseLedger,prompt:()=>JSON.stringify([{invoiceId:'PUR-1',amount:'1'}]),saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
  vm.createContext(duplicateContext);
  vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',duplicateContext,{timeout:1500});
  assert.equal(duplicateContext.AppData.suppliers[0].balance,12.75);
@@ -130,7 +140,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
 }
 {
  const r=runPayment({saveResult:false});assert.equal(r.AppData.suppliers[0].balance,20);
- assert.equal(r.AppData.caisseBalance,100);assert.equal(r.AppData.supplierMovements.length,0);
+ assert.equal(r.AppData.caisseBalance,100);assert.equal(r.AppData.supplierMovements.length,1);
  assert.equal(r.AppData.cashMovements.length,0);
  console.log('PASS: failed supplier payment persistence restores both ledgers');
 }
