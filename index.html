@@ -2539,6 +2539,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             products: [],
             customers: [],
             suppliers: [],
+            supplierMovements: [],
             posScreensCarts: { 1: [], 2: [], 3: [], 4: [], 'quote': [] },
             purchases: [],
             invoices: [],
@@ -2555,7 +2556,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             AppData = saved ? JSON.parse(saved) : initialDB;
             if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
             // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
-            ['products','customers','suppliers','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
+            ['products','customers','suppliers','supplierMovements','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
                 if (!Object.prototype.hasOwnProperty.call(AppData, k)) {
                     AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
                 } else if (!Array.isArray(AppData[k])) {
@@ -6732,7 +6733,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
@@ -6758,6 +6759,8 @@ function renderPurchasesTable() {
                 ['truckTrips', incoming.truckTrips || [], false],
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
+                ['supplierMovements', incoming.supplierMovements || [], true],
+                ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
@@ -6889,6 +6892,14 @@ function renderPurchasesTable() {
                 validateCloudMoney(expense, 'amount', 'المصروفات', false);
             }
             for (const movement of (incoming.cashMovements || [])) validateCloudMoney(movement, 'amount', 'حركات الصندوق', false);
+            for (const movement of (incoming.supplierMovements || [])) {
+                validateCloudMoney(movement, 'amount', 'دفتر الموردين', false);
+                if (!['purchase','payment','opening_balance'].includes(movement.type))
+                    throw new Error('نوع حركة غير معروف في دفتر الموردين؛ أُلغي الاسترجاع لحماية الحسابات.');
+                const supplierMatches = incoming.suppliers.filter(s => String(s.id ?? '') === String(movement.supplierId ?? ''));
+                if (supplierMatches.length !== 1)
+                    throw new Error('حركة في دفتر الموردين تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
+            }
             for (const inv of incoming.invoices) {
                 for (const field of ['total', 'paid', 'remaining']) validateCloudMoney(inv, field, 'فواتير البيع');
                 // Match backup restore: reject internally inconsistent invoice balances before replacing live accounting data.
@@ -6914,6 +6925,20 @@ function renderPurchasesTable() {
                 validateCloudMoney(purchase, 'cost', 'تكلفة المشتريات', false);
                 validateCloudMoney(purchase, 'qty', 'كميات المشتريات', false);
                 validateCloudMoney(purchase, 'total', 'إجمالي المشتريات', false);
+                validateCloudMoney(purchase, 'paid', 'مدفوع المشتريات');
+                validateCloudMoney(purchase, 'remaining', 'متبقي المشتريات');
+                if (Object.prototype.hasOwnProperty.call(purchase,'paid') && Object.prototype.hasOwnProperty.call(purchase,'remaining')) {
+                    const totalCents = anasPurchaseToCents(purchase.total);
+                    const paidCents = anasPurchaseToCents(purchase.paid);
+                    const remainingCents = anasPurchaseToCents(purchase.remaining);
+                    if (!Number.isSafeInteger(totalCents) || !Number.isSafeInteger(paidCents) ||
+                        !Number.isSafeInteger(remainingCents) || paidCents > totalCents ||
+                        paidCents + remainingCents !== totalCents)
+                        throw new Error('إجمالي فاتورة الشراء والمدفوع والمتبقي غير متطابقة بالسنتيم؛ أُلغي الاسترجاع لحماية الحسابات.');
+                }
+                if (purchase.supplierId != null && String(purchase.supplierId).trim() !== '' &&
+                    incoming.suppliers.filter(s => String(s.id ?? '') === String(purchase.supplierId)).length !== 1)
+                    throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
             }
             // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
             for (const transfer of (incoming.warehouseTransfers || [])) {
@@ -7084,7 +7109,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','alerts','truckTrips','cashMovements','stocktakeRecords'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
@@ -7109,6 +7134,8 @@ function renderPurchasesTable() {
                 ['truckTrips', incoming.truckTrips || [], false],
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
+                ['supplierMovements', incoming.supplierMovements || [], true],
+                ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
@@ -7166,6 +7193,29 @@ function renderPurchasesTable() {
                             throw new Error('رصيد مخزن فرعي غير صالح أو يتجاوز المجال الرقمي الآمن؛ رُفض الاسترجاع لحماية المخزون.');
                     }
                 }
+            }
+            for (const movement of (incoming.supplierMovements || [])) {
+                validateMoneyField(movement, 'amount', 'دفتر الموردين', false);
+                if (!['purchase','payment','opening_balance'].includes(movement.type))
+                    throw new Error('نوع حركة غير معروف في دفتر الموردين؛ رُفض الاسترجاع لحماية الحسابات.');
+                if (incoming.suppliers.filter(s => String(s.id ?? '') === String(movement.supplierId ?? '')).length !== 1)
+                    throw new Error('حركة في دفتر الموردين تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+            for (const purchase of (incoming.purchases || [])) {
+                validateMoneyField(purchase, 'cost', 'تكلفة المشتريات', false);
+                validateMoneyField(purchase, 'qty', 'كميات المشتريات', false);
+                validateMoneyField(purchase, 'total', 'إجمالي المشتريات', false);
+                validateMoneyField(purchase, 'paid', 'مدفوع المشتريات');
+                validateMoneyField(purchase, 'remaining', 'متبقي المشتريات');
+                if (Object.prototype.hasOwnProperty.call(purchase,'paid') && Object.prototype.hasOwnProperty.call(purchase,'remaining')) {
+                    const totalCents=anasPurchaseToCents(purchase.total),paidCents=anasPurchaseToCents(purchase.paid),remainingCents=anasPurchaseToCents(purchase.remaining);
+                    if (!Number.isSafeInteger(totalCents)||!Number.isSafeInteger(paidCents)||!Number.isSafeInteger(remainingCents)||
+                        paidCents>totalCents||paidCents+remainingCents!==totalCents)
+                        throw new Error('إجمالي فاتورة الشراء والمدفوع والمتبقي غير متطابقة بالسنتيم؛ رُفض الاسترجاع لحماية الحسابات.');
+                }
+                if (purchase.supplierId != null && String(purchase.supplierId).trim() !== '' &&
+                    incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
+                    throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
             }
             // Reject malformed financial fields before a backup can replace valid live accounting data.
             const validateMoneyField = (record, field, label, allowZero = true) => {
