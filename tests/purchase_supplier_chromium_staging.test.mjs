@@ -566,7 +566,7 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     const exportedCustomerJson = await page.evaluate(() => window.__anasCustomerBackupBlob.text());
     const exportedCustomerBackup = Buffer.from(exportedCustomerJson, 'utf8');
     const exportedCustomerState = JSON.parse(exportedCustomerBackup.toString('utf8'));
-    assert.match(await page.evaluate(() => window.__anasCustomerBackupFilename), /_Backup_.*\\.json$/);
+    assert.match(await page.evaluate(() => window.__anasCustomerBackupFilename), /_Backup_.*\.json$/);
     assert.equal(exportedCustomerState.customers[0].debt, 10000.05);
     assert.equal(exportedCustomerState.clientMovements.length, 3);
     assert.equal(exportedCustomerState.settlementAllocations.length, 2);
