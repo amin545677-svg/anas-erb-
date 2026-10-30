@@ -428,3 +428,111 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('Chromium customer sale and explicit debt allocation: exact centimes, rollback and reload', async () => {
+  const server = await startServer();
+  let browser;
+  const dialogs = [];
+  const queuedPrompts = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    const seed = initialData();
+    seed.products[0].stock = 3;
+    seed.customers = [{ id: 'C-CUSTOMER-1', name: 'عميل دفتر الاختبار', debt: 10000.00 }];
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data: seed });
+    const page = await context.newPage();
+    page.on('dialog', async dialog => {
+      dialogs.push({ type: dialog.type(), message: dialog.message() });
+      if (dialog.type() === 'prompt') await dialog.accept(queuedPrompts.shift() ?? '');
+      else await dialog.accept();
+    });
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.page-view.active', { timeout: 15000 });
+    await page.evaluate(() => {
+      posCart = [{ id: 'STG-TEA-001', name: 'شاي اختبار Chromium', qty: 3, price: 0.10, unit: 'قطعة' }];
+      openHasibModal();
+    });
+    await page.locator('#hasibCustomerSelect').selectOption('C-CUSTOMER-1');
+    await page.locator('#hasibPaidAmount').fill('0.10');
+    await page.locator('#hasibModal button[onclick="confirmHasibPayment()"]').click();
+    let state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
+    const invoice = state.invoices.find(x => x.total === 0.30);
+    assert.ok(invoice, 'new sales invoice must be posted through the real payment modal');
+    assert.equal(invoice.paid, 0.10);
+    assert.equal(invoice.remaining, 0.20);
+    assert.equal(state.customers[0].debt, 10000.20);
+    assert.equal(state.customers[0].ledgerVersion, 2);
+    assert.equal(state.clientMovements.find(x => x.type === 'opening_balance').amountCentimes, 1000000);
+    assert.equal(state.clientMovements.find(x => x.type === 'invoice_debit').amountCentimes, 20);
+    assert.equal(state.settlementAllocations.filter(x => x.invoiceId === invoice.id)[0].amountCentimes, 10);
+    assert.equal(state.clientMovements.reduce((sum, x) => sum + (x.direction === 'debit' ? x.amountCentimes : -x.amountCentimes), 0), 1000020);
+    assert.equal(state.cashMovements.find(x => x.referenceType === 'sales_invoice' && x.referenceId === invoice.id).amount, 0.10);
+
+    queuedPrompts.push('0.15', JSON.stringify([{ invoiceId: invoice.id, amount: '0.15' }]));
+    await page.evaluate(() => collectCustDebt('C-CUSTOMER-1'));
+    state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
+    const updatedInvoice = state.invoices.find(x => x.id === invoice.id);
+    assert.equal(updatedInvoice.paid, 0.25);
+    assert.equal(updatedInvoice.remaining, 0.05);
+    assert.equal(state.customers[0].debt, 10000.05);
+    assert.equal(state.clientMovements.find(x => x.type === 'receipt').amountCentimes, 15);
+    assert.equal(state.settlementAllocations.filter(x => x.invoiceId === invoice.id).reduce((sum, x) => sum + x.amountCentimes, 0), 25);
+    assert.equal(state.clientMovements.reduce((sum, x) => sum + (x.direction === 'debit' ? x.amountCentimes : -x.amountCentimes), 0), 1000005);
+
+    const beforeOver = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')
+    }));
+    queuedPrompts.push('0.06', JSON.stringify([{ invoiceId: invoice.id, amount: '0.06' }]));
+    await page.evaluate(() => collectCustDebt('C-CUSTOMER-1'));
+    const afterOver = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')
+    }));
+    assert.deepEqual(afterOver, beforeOver, 'over-allocation must leave memory and persistent storage byte-identical');
+
+    const beforeFailedSave = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')
+    }));
+    queuedPrompts.push('0.05', JSON.stringify([{ invoiceId: invoice.id, amount: '0.05' }]));
+    await page.evaluate(() => { window.__realSaveDBForRollback = saveDB; saveDB = () => false; });
+    await page.evaluate(() => collectCustDebt('C-CUSTOMER-1'));
+    await page.evaluate(() => { saveDB = window.__realSaveDBForRollback; delete window.__realSaveDBForRollback; });
+    const afterFailedSave = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')
+    }));
+    assert.deepEqual(afterFailedSave, beforeFailedSave, 'failed save must restore all AppData and preserve localStorage');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const reloadProof = await page.evaluate(() => {
+      const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+      const persisted = JSON.parse(raw);
+      return {
+        appMatchesStorage: JSON.stringify(AppData) === JSON.stringify(persisted),
+        customerDebtCentimes: Math.round(Number(AppData.customers[0].debt) * 100),
+        invoiceRemainingCentimes: Math.round(Number(AppData.invoices.find(x => x.id === AppData.invoices[0].id).remaining) * 100),
+        opening: AppData.clientMovements.find(x => x.type === 'opening_balance')?.amountCentimes,
+        debit: AppData.clientMovements.find(x => x.type === 'invoice_debit')?.amountCentimes,
+        receipt: AppData.clientMovements.find(x => x.type === 'receipt')?.amountCentimes
+      };
+    });
+    assert.equal(reloadProof.appMatchesStorage, true);
+    assert.equal(reloadProof.customerDebtCentimes, 1000005);
+    assert.equal(reloadProof.invoiceRemainingCentimes, 5);
+    assert.equal(reloadProof.opening, 1000000);
+    assert.equal(reloadProof.debit, 20);
+    assert.equal(reloadProof.receipt, 15);
+    console.log('CHROMIUM_CUSTOMER_LEDGER_REPORT ' + JSON.stringify({
+      openingBalanceCentimes: '1000000', invoiceDebitCentimes: '20',
+      immediateAllocationCentimes: '10', laterReceiptCentimes: '15',
+      finalDebtCentimes: '1000005', finalInvoiceRemainingCentimes: '5',
+      overAllocation: 'REJECTED_WITHOUT_MUTATION', failedSaveRollback: 'PASS',
+      reloadAppDataLocalStorage: 'PASS'
+    }));
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
