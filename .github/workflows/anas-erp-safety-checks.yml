@@ -899,10 +899,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function collectCustDebt(cId)")
           end = s.find("function openGoogleMaps(loc)", start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
-          function_js = s[start:end]
+          function_js = s[helper_start:helper_end] + s[start:end]
           js = r"""
           /*INSERT_CUSTOMER_DEBT_FUNCTION*/
           const assert = require('node:assert/strict');
@@ -1155,11 +1158,15 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function submitCashOperation()")
           mid = s.find("function submitExpenseOperation()", start)
           end = s.find("\n        function ", mid + 10)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
-          cash_fn = s[start:mid]
+          helper_fn = s[helper_start:helper_end]
+          cash_fn = helper_fn + s[start:mid]
           expense_fn = s[mid:end]
           assert "renderExpenses()" not in expense_fn, "Expense save must not call an undefined renderer after committing data"
           js = r"""
