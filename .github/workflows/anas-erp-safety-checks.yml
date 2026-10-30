@@ -1,27 +1,6 @@
-name: ANAS ERP Safety Checks
+name: ANAS ERP Safety Checks (Legacy Manual Suite)
 
 on:
-  push:
-    branches: [main, 'feat/**', 'fix/**']
-    paths:
-      - "index.html"
-      - "tests/**"
-      - "reverse-ledger/**"
-      - "tests/reverse_ledger_primitives.test.js"
-      - "cloudflare/**"
-      - "firebase/**"
-      - ".github/workflows/anas-erp-safety-checks.yml"
-      - ".github/workflows/deploy-firebase-worker.yml"
-  pull_request:
-    branches: [main, 'feat/**', 'fix/**']
-    paths:
-      - "index.html"
-      - "tests/**"
-      - "reverse-ledger/**"
-      - "cloudflare/**"
-      - "firebase/**"
-      - ".github/workflows/anas-erp-safety-checks.yml"
-      - ".github/workflows/deploy-firebase-worker.yml"
   workflow_dispatch:
 
 permissions:
