@@ -830,7 +830,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     sync_validator_end = source.find("\n        async function syncPushNow()", sync_validator_start)
     sync_validator = source[sync_validator_start:sync_validator_end] if sync_validator_start >= 0 and sync_validator_end > sync_validator_start else ""
     sync_guards = [
-        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
+        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
         "Object.prototype.hasOwnProperty.call(incoming, key)",
         "if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)",
         "النسخة السحابية تفتقد قائمة ",
@@ -1283,7 +1283,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "purchase preserves malformed ledger collections and exact supplier/invoice reconciliation":
             "['products', 'المنتجات']" in purchase
             and "['supplierMovements', 'دفتر الموردين']" in purchase
-            and "paidCents + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)" in purchase,
+            and "paidCents + remainingCents !== totalCents" in purchase,
         "supplier debt payments post matching centime cash and supplier ledger entries with rollback":
             "function paySupplierDebt(supplierId)" in source
             and "nextSupplierCents = balanceCents - amountCents" in source
