@@ -524,6 +524,17 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     assert.equal(reloadProof.opening, 1000000);
     assert.equal(reloadProof.debit, 20);
     assert.equal(reloadProof.receipt, 15);
+    const domProof = await page.evaluate(() => {
+      renderCustomersDebts();
+      const card = Array.from(document.querySelectorAll('#custDebtsContainer article'))
+        .find(node => node.innerText.includes('عميل دفتر الاختبار'));
+      const amountText = card?.querySelector('strong[style*="font-size:1.05rem"]')?.textContent || '';
+      const normalized = amountText.replace(/[^0-9,.-]/g, '').replace(',', '.');
+      return { customerVisible: !!card, displayedDebt: Number(normalized), hasCurrency: amountText.includes('د.ج') };
+    });
+    assert.equal(domProof.customerVisible, true);
+    assert.equal(domProof.displayedDebt, 10000.05);
+    assert.equal(domProof.hasCurrency, true);
     console.log('CHROMIUM_CUSTOMER_LEDGER_REPORT ' + JSON.stringify({
       openingBalanceCentimes: '1000000', invoiceDebitCentimes: '20',
       immediateAllocationCentimes: '10', laterReceiptCentimes: '15',
