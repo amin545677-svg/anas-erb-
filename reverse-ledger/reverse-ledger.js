@@ -59,8 +59,7 @@
       direction: input.direction === 'debit' || input.direction === 'credit' ? input.direction : (() => { throw new Error('direction must be debit or credit'); })(),
       referenceType: identifier(input.referenceType, 'referenceType'),
       referenceId: identifier(input.referenceId, 'referenceId'),
-      createdAt: identifier(input.createdAt, 'createdAt'),
-      ledgerVersion: 2
+      createdAt: identifier(input.createdAt, 'createdAt')
     });
   }
   function makeSettlementAllocation(input) {
@@ -78,8 +77,7 @@
       sourceMovementId: identifier(input.sourceMovementId, 'sourceMovementId'),
       sourceMovementType: identifier(input.sourceMovementType, 'sourceMovementType'),
       amountCentimes: safeInt(input.amountCentimes, 'amountCentimes', false),
-      createdAt: identifier(input.createdAt, 'createdAt'),
-      ledgerVersion: 2
+      createdAt: identifier(input.createdAt, 'createdAt')
     });
   }
   function makeReturnDocument(input) {
@@ -134,8 +132,7 @@
       status: input.status,
       createdAt: identifier(input.createdAt, 'createdAt'),
       operatorId: identifier(input.operatorId, 'operatorId'),
-      reason: identifier(input.reason, 'reason'),
-      ledgerVersion: 2
+      reason: identifier(input.reason, 'reason')
     });
   }
   function computeReturnableMicroUnits(originalMicroUnits, previouslyReturnedMicroUnits) {
@@ -382,6 +379,27 @@
     validateReturns(data);
     return true;
   }
+  function sealVersion2Record(state, collectionName, record) {
+    const data = ensureCollections(state);
+    if (!['clientMovements','settlementAllocations','returns'].includes(collectionName))
+      throw new Error('unsupported version-2 ledger collection');
+    const candidateRecord = { ...record, ledgerVersion: 2 };
+    const candidate = {
+      ...data,
+      [collectionName]: [...data[collectionName], candidateRecord]
+    };
+    validateReverseLedgerParity(candidate);
+    return Object.freeze(candidateRecord);
+  }
+  function sealClientMovement(state, input) {
+    return sealVersion2Record(state, 'clientMovements', makeClientMovement(input));
+  }
+  function sealSettlementAllocation(state, input) {
+    return sealVersion2Record(state, 'settlementAllocations', makeSettlementAllocation(input));
+  }
+  function sealReturnDocument(state, input) {
+    return sealVersion2Record(state, 'returns', makeReturnDocument(input));
+  }
   function appendUnique(list, record, key) {
     if (!Array.isArray(list)) throw new Error('target ledger must be an array');
     if (list.some(x => String(x && x[key]) === String(record[key]))) throw new Error('duplicate ' + key);
@@ -389,6 +407,7 @@
   }
   return Object.freeze({
     ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument,
+    sealClientMovement, sealSettlementAllocation, sealReturnDocument,
     computeReturnableMicroUnits, validateSettlementAllocations, validateClientMovements,
     validateReturns, validateReverseLedgerParity, appendUnique, RETURN_TYPES, PARTY_TYPES
   });
