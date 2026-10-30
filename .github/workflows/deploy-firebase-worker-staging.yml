@@ -1,0 +1,44 @@
+name: Deploy ANAS ERP Firebase Snapshot Worker (Staging)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test Firebase snapshot Worker before staging deployment
+        run: node --test tests/worker_firebase_snapshot.test.mjs
+
+      - name: Check staging deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "::error::Add CLOUDFLARE_API_TOKEN as a GitHub Actions secret." && exit 1)
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Add CLOUDFLARE_ACCOUNT_ID as a GitHub Actions secret." && exit 1)
+          test -n "$STAGING_FIREBASE_API_KEY" || (echo "::error::Add STAGING_FIREBASE_API_KEY as a GitHub Actions secret." && exit 1)
+
+      - name: Deploy isolated staging Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: cloudflare
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler-staging.toml
+          secrets: |
+            FIREBASE_API_KEY
+        env:
+          FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
