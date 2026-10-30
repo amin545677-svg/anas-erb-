@@ -16,7 +16,8 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     caisseBalance:100, cashMovements:cashMovements.map(x=>({...x})), stockMovements:stockMovements.map(x=>({...x})),
     currentUser:{id:'U-1',name:'Tester'}
   };
-  if (omitLedgers) { delete AppData.cashMovements; delete AppData.stockMovements; }\n  const posCart = cart || [{id:'P-1',name:'Test product',qty:2,price:250.25}];
+  if (omitLedgers) { delete AppData.cashMovements; delete AppData.stockMovements; }
+  const posCart = cart || [{id:'P-1',name:'Test product',qty:2,price:250.25}];
   const alerts = [];
   let saves = 0, renders = 0, closes = 0;
   const elements = {
