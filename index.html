@@ -7810,11 +7810,8 @@ function renderPurchasesTable() {
             returnPurchasePrompt();
         }
         function anasFormatZReportCashBalance(value) {
-            if (!((typeof value === 'number' || typeof value === 'string') &&
-                  String(value).trim() !== '' && Number.isFinite(Number(value)))) {
-                return 'غير صالح';
-            }
-            return Number(value).toLocaleString();
+            const normalizedBalance = anasRoundCurrency(value);
+            return Number.isFinite(normalizedBalance) ? normalizedBalance.toLocaleString() : 'غير صالح';
         }
 
         function anasGetZReportTotal(invoices, field) {
