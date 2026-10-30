@@ -297,11 +297,11 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 
 {
   const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1,caisseBalance:100.1});
+  const cashDisplay={innerText:''};
   const readerContext={
-    AppData:r.AppData,
-    document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?{innerText:''}:null}
+    AppData:r.AppData, cashDisplay,
+    document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?cashDisplay:null}
   };
-  readerContext.cashDisplay=readerContext.document.getElementById('cashCurrentBalanceDisplay');
   vm.createContext(readerContext);
   const cashStart=html.indexOf('function updateCashUI()');
   const cashEnd=html.indexOf('\n        function ',cashStart+20);
