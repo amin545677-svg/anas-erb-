@@ -12,7 +12,7 @@ test('initializes new collections without rewriting legacy records', () => {
 test('fails closed on malformed collection shapes', () => assert.throws(()=>R.ensureCollections({returns:{}}),/returns must be an array/));
 test('client movement uses positive safe integer centimes', () => {
  const m=R.makeClientMovement({movementId:'CM-1',clientId:'C-1',type:'receipt',amountCentimes:725,direction:'credit',referenceType:'customer_debt',referenceId:'C-1',createdAt:'2026-10-30T12:00:00Z'});
- assert.equal(m.amountCentimes,725); assert.equal(m.ledgerVersion,2);
+ assert.equal(m.amountCentimes,725); assert.equal(m.ledgerVersion,2); assert.ok(Object.isFrozen(m));
  assert.throws(()=>R.makeClientMovement({...m,amountCentimes:0}),/positive safe integer/);
  assert.throws(()=>R.makeClientMovement({...m,amountCentimes:9007199254740992}),/positive safe integer/);
 });
