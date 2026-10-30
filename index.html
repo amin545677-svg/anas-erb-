@@ -7658,10 +7658,22 @@ function renderPurchasesTable() {
             const warehouses=Array.isArray(AppData.warehouses)?AppData.warehouses:[];
             const expenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
             const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
-            const stockValue=products.reduce((sum,p)=>sum+num(p.stock)*num(p.buyPrice),0);
+            let stockValueCents = 0;
+            for (const product of products) {
+                const valueCents = anasPurchaseStockValueCents(anasPurchaseToQtyUnits(product.stock ?? 0), anasPurchaseToCents(product.buyPrice ?? 0));
+                if (!Number.isSafeInteger(valueCents) || !Number.isSafeInteger(stockValueCents + valueCents)) { stockValueCents = NaN; break; }
+                stockValueCents += valueCents;
+            }
+            const stockValue = Number.isSafeInteger(stockValueCents) ? anasPurchaseCentsToCurrency(stockValueCents) : null;
             const debtTotal=customers.reduce((sum,c)=>sum+Math.max(0,num(c.debt)),0);
             const salesTotal=invoices.reduce((sum,i)=>sum+num(i.total),0);
-            const purchaseTotal=purchases.reduce((sum,p)=>sum+num(p.total || (num(p.cost)*num(p.qty))),0);
+            const purchaseTotalCents = anasPurchaseAggregateCents(purchases);
+            const purchaseTotal = Number.isSafeInteger(purchaseTotalCents) ? anasPurchaseCentsToCurrency(purchaseTotalCents) : null;
+            const supplierDebtCents = suppliers.reduce((sum, supplier) => {
+                const cents = anasPurchaseToCents(supplier.balance ?? 0);
+                return Number.isSafeInteger(cents) && cents >= 0 && Number.isSafeInteger(sum + cents) ? sum + cents : NaN;
+            }, 0);
+            const supplierDebt = Number.isSafeInteger(supplierDebtCents) ? anasPurchaseCentsToCurrency(supplierDebtCents) : null;
             const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
             const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
             const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
@@ -7684,7 +7696,7 @@ function renderPurchasesTable() {
                 truckTrips:{statusCounts:tripStatusCounts},
                 sampleProducts:recentProducts,topDebtors:debtors,
                 dataQualityNotes:[
-                    'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
+                    'إجمالي سجل المشتريات وقيمة المخزون تُحسب بوحدات صحيحة بالسنتيم والميكرو؛ إذا ظهرت قيمة غير صالحة فيجب إصلاح سجل المصدر قبل اعتمادها.',
                     'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
                     'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
                     'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
@@ -8301,15 +8313,18 @@ function renderPurchasesTable() {
                 if(notes) notes.textContent='لم تُحسب الإحصائيات لأن نطاق التاريخ غير صحيح.';
                 return;
             }
-            const money=v=>(Number(v)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج';
+            const money=v=>Number.isFinite(v)?v.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج':'غير صالح';
             const sales=(typeof getReportInvoices==='function'?getReportInvoices():(AppData.invoices||[]));
             const buys=(typeof getReportPurchases==='function'?getReportPurchases():(AppData.purchases||[]));
             const expenses=(AppData.expenses||[]).filter(e=>typeof reportItemInRange==='function'?reportItemInRange(e,['date','createdAt','created_at','timestamp','expenseDate','expense_date','dateCreated','created']):true);
             const sum=(arr,key)=>arr.reduce((n,x)=>n+(Number(x&&x[key])||0),0);
-            const stockValue=(AppData.products||[]).reduce((n,p)=>n+(Number(p.stock)||0)*(Number(p.buyPrice)||0),0);
+            let stockValueCents=0;
+            for(const p of (AppData.products||[])){const c=anasPurchaseStockValueCents(anasPurchaseToQtyUnits(p.stock??0),anasPurchaseToCents(p.buyPrice??0));if(!Number.isSafeInteger(c)||!Number.isSafeInteger(stockValueCents+c)){stockValueCents=NaN;break;}stockValueCents+=c;}
+            const stockValue=Number.isSafeInteger(stockValueCents)?anasPurchaseCentsToCurrency(stockValueCents):NaN;
             const customerDebt=(AppData.customers||[]).reduce((n,c)=>n+(Number(c.debt)||0),0);
-            const supplierDebt=(AppData.suppliers||[]).reduce((n,c)=>n+(Number(c.balance)||0),0);
-            const salesTotal=sum(sales,'total'), purchaseTotal=sum(buys,'total'), expenseTotal=sum(expenses,'amt');
+            const supplierDebtCents=(AppData.suppliers||[]).reduce((n,c)=>{const x=anasPurchaseToCents(c.balance??0);return Number.isSafeInteger(x)&&x>=0&&Number.isSafeInteger(n+x)?n+x:NaN;},0);
+            const supplierDebt=Number.isSafeInteger(supplierDebtCents)?anasPurchaseCentsToCurrency(supplierDebtCents):NaN;
+            const salesTotal=sum(sales,'total'), purchaseCents=anasPurchaseAggregateCents(buys), purchaseTotal=Number.isSafeInteger(purchaseCents)?anasPurchaseCentsToCurrency(purchaseCents):NaN, expenseTotal=sum(expenses,'amt');
             const profit=sales.reduce((n,inv)=>n+(Number(inv.profit)||0),0);
             const cards=[
                 ['🛒','إجمالي المبيعات',money(salesTotal)],['📦','إجمالي المشتريات',money(purchaseTotal)],
