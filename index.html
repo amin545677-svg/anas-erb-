@@ -4915,8 +4915,24 @@ function renderPurchasesTable() {
                 }
             }
             const stockChanges = new Map();
-            for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty));
-            for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty));
+            for (const item of oldItems) {
+                const id = String(item.id);
+                const units = anasToQtyUnits(item.qty);
+                const nextUnits = (stockChanges.get(id) || 0) + units;
+                if (!Number.isSafeInteger(units) || units <= 0 || !Number.isSafeInteger(nextUnits)) {
+                    alert('تعذر تعديل الفاتورة: مجموع كمية المخزون التاريخية يتجاوز المجال الرقمي الآمن.'); return;
+                }
+                stockChanges.set(id, nextUnits);
+            }
+            for (const item of editedItems) {
+                const id = String(item.id);
+                const units = anasToQtyUnits(item.qty);
+                const nextUnits = (stockChanges.get(id) || 0) - units;
+                if (!Number.isSafeInteger(units) || units <= 0 || !Number.isSafeInteger(nextUnits)) {
+                    alert('تعذر تعديل الفاتورة: مجموع كمية المخزون المعدّلة يتجاوز المجال الرقمي الآمن.'); return;
+                }
+                stockChanges.set(id, nextUnits);
+            }
             // تسوية المخزن الذي صدرت منه الفاتورة، لا المخزن الرئيسي افتراضياً.
             const invoiceWarehouse = String(inv.warehouseName || inv.warehouse || 'المخزن الرئيسي').trim() || 'المخزن الرئيسي';
             for (const [id, delta] of stockChanges) {
@@ -4924,9 +4940,12 @@ function renderPurchasesTable() {
                 if (!p) { alert('تعذر العثور على صنف من أصناف الفاتورة.'); return; }
                 const available = typeof wtAvailableStock === 'function'
                     ? wtAvailableStock(p, invoiceWarehouse)
-                    : (Number(p.stock) || 0);
-                if (!Number.isFinite(available) || !Number.isFinite(delta) || !Number.isFinite(available + delta) || available + delta < -0.000001 || available + delta > Number.MAX_SAFE_INTEGER) {
-                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 'بيانات غير صالحة') + '.');
+                    : (p.stock ?? 0);
+                const availableUnits = anasToQtyUnits(available);
+                const nextUnits = availableUnits + delta;
+                if (!Number.isSafeInteger(availableUnits) || availableUnits < 0 ||
+                    !Number.isSafeInteger(delta) || !Number.isSafeInteger(nextUnits) || nextUnits < 0) {
+                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي أو لا يمكن تمثيله بدقة المخزون المعتمدة للصنف ' + (p.name || id) + '.');
                     return;
                 }
             }
@@ -5035,7 +5054,7 @@ function renderPurchasesTable() {
                 stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null
             };
             try {
-                for (const [id, delta] of stockChanges) {
+                for (const [id, deltaUnits] of stockChanges) {
                     const p = AppData.products.find(x => String(x.id) === id);
                     snapshot.stocks.set(id, {
                         stock: p.stock,
@@ -5044,17 +5063,23 @@ function renderPurchasesTable() {
                         warehouseStock: p.warehouseStock && typeof p.warehouseStock === 'object' ? {...p.warehouseStock} : null
                     });
                     if (invoiceWarehouse === 'المخزن الرئيسي') {
-                        p.stock = (Number(p.stock) || 0) + delta;
+                        const currentUnits = anasToQtyUnits(p.stock ?? 0);
+                        const nextUnits = currentUnits + deltaUnits;
+                        if (!Number.isSafeInteger(currentUnits) || !Number.isSafeInteger(nextUnits) || nextUnits < 0) throw new Error('تعذر تسوية رصيد المخزون الرئيسي بدقة آمنة');
+                        p.stock = anasQtyFromUnits(nextUnits);
                     } else {
                         if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
-                        p.warehouseStock[invoiceWarehouse] = (Number(p.warehouseStock[invoiceWarehouse]) || 0) + delta;
+                        const currentUnits = anasToQtyUnits(p.warehouseStock[invoiceWarehouse] ?? 0);
+                        const nextUnits = currentUnits + deltaUnits;
+                        if (!Number.isSafeInteger(currentUnits) || !Number.isSafeInteger(nextUnits) || nextUnits < 0) throw new Error('تعذر تسوية رصيد المخزن الفرعي بدقة آمنة');
+                        p.warehouseStock[invoiceWarehouse] = anasQtyFromUnits(nextUnits);
                     }
-                    // Keep the stock ledger aligned with the net inventory correction made by this invoice edit.
-                    if (Math.abs(delta) > 0.000001) {
+                    // Keep the stock ledger aligned with the exact micro-unit inventory correction made by this invoice edit.
+                    if (deltaUnits !== 0) {
                         if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
                         AppData.stockMovements.unshift({
                             id: 'INV-EDIT-' + String(inv.id) + '-' + String(id) + '-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,7).toUpperCase(),
-                            productId: p.id, productName: p.name || p.title || id, qty: delta,
+                            productId: p.id, productName: p.name || p.title || id, qty: anasQtyFromUnits(deltaUnits),
                             type: 'INVOICE_EDIT_ADJUSTMENT', referenceType: 'sales_invoice_edit', referenceId: inv.id,
                             warehouse: invoiceWarehouse, date: new Date().toISOString(),
                             note: 'تسوية صافي المخزون بعد تعديل الفاتورة ' + String(inv.id)
