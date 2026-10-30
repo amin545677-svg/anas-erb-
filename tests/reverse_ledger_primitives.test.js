@@ -25,7 +25,8 @@ test('return document validates exact BigInt micro-unit line totals', () => {
  const d=R.makeReturnDocument({returnId:'R-1',originalInvoiceId:'S-1',returnType:'SALE_RETURN',items:[{productId:'P-1',quantityMicroUnits:3000000,unitPriceCentimes:10,lineTotalCentimes:30}],totalCentimes:30,debtReductionCentimes:20,cashRefundCentimes:10,status:'DRAFT',createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'damaged'});
  assert.equal(d.totalCentimes,30); assert.equal(d.ledgerVersion,2);
  assert.throws(()=>R.makeReturnDocument({...d,totalCentimes:31}),/return total does not equal line totals/);
- assert.throws(()=>R.makeReturnDocument({...d,cashRefundCentimes:11}),/settlement exceeds return value/);\n assert.throws(()=>R.makeReturnDocument({...d,items:[{productId:'P-1',quantityMicroUnits:500000,unitPriceCentimes:1,lineTotalCentimes:0}],totalCentimes:0,debtReductionCentimes:0,cashRefundCentimes:0}),/fractional centime/);
+ assert.throws(()=>R.makeReturnDocument({...d,cashRefundCentimes:11}),/settlement exceeds return value/);
+ assert.throws(()=>R.makeReturnDocument({...d,items:[{productId:'P-1',quantityMicroUnits:500000,unitPriceCentimes:1,lineTotalCentimes:0}],totalCentimes:0,debtReductionCentimes:0,cashRefundCentimes:0}),/fractional centime/);
 });
 test('returnable quantity ceiling is exact and rejects over-return', () => {
  assert.equal(R.computeReturnableMicroUnits(9007199254740990n,3000000n),9007199251740990n);
