@@ -16,15 +16,15 @@ class FixedDate extends Date {
   static now() { return fixedNow; }
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
-function runExpense({ expenses = [], math = Math, saveResult = true } = {}) {
+function runExpense({ expenses = [], math = Math, saveResult = true, amount = '10', cash = 100 } = {}) {
   const alerts = [];
   let saves = 0;
   const fields = {
-    expAmountInput: { value: '10', focus() {} },
+    expAmountInput: { value: amount, focus() {} },
     expDescInput: { value: 'Test expense' },
     expAccountInput: { value: 'General' }
   };
-  const appData = { caisseBalance: 100, expenses: expenses.map(x => ({ ...x })) };
+  const appData = { caisseBalance: cash, expenses: expenses.map(x => ({ ...x })) };
   const context = {
     AppData: appData,
     document: { getElementById: id => fields[id] || null },
@@ -61,3 +61,13 @@ console.log('PASS: duplicate expense ledger IDs fail closed');
   assert.equal(result.appData.caisseBalance, 90);
 }
 console.log('PASS: generated expense ID collisions are resolved without losing ledger entries');
+
+
+{
+  const result = runExpense({amount:'0.1',cash:100.1});
+  assert.equal(result.saves,1);
+  assert.equal(result.appData.caisseBalance,100);
+  assert.equal(result.appData.expenses[0].amt,0.1,
+    'expense amount and cash decrease must use the same integer-centime value');
+}
+console.log('PASS: fractional cash expense settles exactly in integer centimes');
