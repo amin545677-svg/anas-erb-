@@ -396,9 +396,11 @@ console.log('PASS: truck expense link runtime tests accept valid/legacy-unlinked
     edit_end = source.find("\n        function ", edit_start)
     edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
     edit_guards = [
-        "Number(item.qty) > Number.MAX_SAFE_INTEGER",
         "Number.isSafeInteger(qtyUnits)",
         "qtyUnits <= 0",
+        "Number.isSafeInteger(priceCents)",
+        "anasLineTotalCents(qtyUnits, priceCents)",
+        "oldRemainingCents !== oldTotalCents - oldPaidCents",
         "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
         "available + delta > Number.MAX_SAFE_INTEGER",
         "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
