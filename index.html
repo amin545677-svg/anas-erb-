@@ -9421,7 +9421,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const previousFatalLoadError=anasStartupFatalLoadError;
       AppData=restored;
       if(!AppData.posScreensCarts)AppData.posScreensCarts={1:[],2:[],3:[],4:[]};
-      for(const key of ['invoices','purchases','expenses','users','trucks','returns'])if(!Array.isArray(AppData[key]))AppData[key]=[];
+      for(const key of ['invoices','purchases','expenses','users','trucks','returns','supplierMovements'])if(!Array.isArray(AppData[key]))AppData[key]=[];
       const activeTab=AppData.activePosScreenTab||1;
       posCart=Array.isArray(AppData.posScreensCarts[activeTab])?AppData.posScreensCarts[activeTab]:[];
       anasStartupIntegrityIssues=[];
