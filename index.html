@@ -4884,7 +4884,7 @@ function renderPurchasesTable() {
                 const qtyText = prompt('تعديل كمية: ' + (oldItem.name || product.name) + '\nالكمية الحالية: ' + oldItem.qty, String(oldItem.qty));
                 if (qtyText === null) return;
                 const qtyUnits = anasToQtyUnits(qtyText);
-                if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) { alert('الكمية يجب أن تكون رقمًا موجبًا ضمن دقة المخزون المعتمدة.'); return; }
+                if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) { alert('الكمية يجب أن تكون رقمًا موجبًا ضمن دقة المخزون المعتمدة وضمن المجال الرقمي الآمن.'); return; }
                 const priceText = prompt('تعديل سعر الوحدة: ' + (oldItem.name || product.name) + '\nالسعر الحالي: ' + oldItem.price, String(oldItem.price));
                 if (priceText === null) return;
                 const priceCents = anasToCents(priceText);
