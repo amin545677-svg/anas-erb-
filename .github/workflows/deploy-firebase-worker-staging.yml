@@ -10,12 +10,19 @@ on:
     paths:
       - 'cloudflare/**'
       - '.github/workflows/deploy-firebase-worker-staging.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cloudflare/**'
+      - '.github/workflows/deploy-firebase-worker-staging.yml'
 
 permissions:
   contents: read
 
 jobs:
   deploy-staging-worker:
+    if: github.head_ref == 'staging/firebase-snapshot-worker' || github.ref_name == 'staging/firebase-snapshot-worker'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,100 +58,53 @@ jobs:
         env:
           FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
 
-      - name: Post-Deploy Live Smoke Test
+      - name: Post-Deploy Live Smoke Test and Auth Guard
         env:
-          WORKER_HEALTH_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/health
+          WORKER_BASE_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev
           EXPECTED_ORIGIN: https://amin545677-svg.github.io
         run: |
           set -euo pipefail
-          headers_file="$(mktemp)"
-          body_file="$(mktemp)"
-          trap 'rm -f "$headers_file" "$body_file"' EXIT
-
-          status="$(curl --silent --show-error --location \
-            --connect-timeout 15 --max-time 30 \
-            -H "Origin: $EXPECTED_ORIGIN" \
-            -D "$headers_file" -o "$body_file" \
-            -w '%{http_code}' "$WORKER_HEALTH_URL")"
-
-          test "$status" = "200" || {
-            echo "::error::Staging /health returned HTTP $status (expected 200)."
-            cat "$body_file"
-            exit 1
+          node --input-type=module <<'NODE'
+          const base = process.env.WORKER_BASE_URL;
+          const origin = process.env.EXPECTED_ORIGIN;
+          const check = (ok, message) => { if (!ok) throw new Error(message); };
+          const call = (path, options = {}) => fetch(base + path, { ...options, headers: { Origin: origin, ...(options.headers || {}) } });
+          const health = await call('/health');
+          const data = await health.json();
+          check(health.status === 200, 'health status=' + health.status);
+          check(health.headers.get('access-control-allow-origin') === origin, 'CORS origin mismatch');
+          check((health.headers.get('cache-control') || '').toLowerCase() === 'no-store', 'cache-control mismatch');
+          check(data.ok === true && data.service === 'anas-erp-firebase-snapshot-staging' && data.projectId === 'anas-erp-staging-a25e1' && data.configured === true, 'health JSON mismatch');
+          console.log('PASS LIVE HEALTH: HTTP 200, CORS, no-store and expected Staging JSON.');
+          for (const method of ['GET', 'PUT']) {
+            const response = await call('/snapshot', { method });
+            check(response.status === 401, method + ' missing token returned ' + response.status);
+            console.log('PASS AUTH GUARD: ' + method + ' without token -> 401.');
           }
-
-          node --input-type=module - "$headers_file" "$body_file" "$EXPECTED_ORIGIN" <<'NODE'
-          import fs from 'node:fs';
-          const [headersPath, bodyPath, expectedOrigin] = process.argv.slice(2);
-          const headers = fs.readFileSync(headersPath, 'utf8').toLowerCase();
-          const body = JSON.parse(fs.readFileSync(bodyPath, 'utf8'));
-          const getHeader = (name) => {
-            const matches = [...headers.matchAll(new RegExp('^' + name + ':\s*(.*?)\s*$', 'gmi'))];
-            return matches.at(-1)?.[1]?.trim() ?? '';
-          };
-          const expected = {
-            ok: true,
-            service: 'anas-erp-firebase-snapshot-staging',
-            projectId: 'anas-erp-staging-a25e1',
-            configured: true,
-          };
-          for (const [key, value] of Object.entries(expected)) {
-            if (body[key] !== value) throw new Error('/health JSON mismatch for ' + key);
+          for (const method of ['GET', 'PUT']) {
+            const response = await call('/snapshot', {
+              method,
+              headers: { Authorization: 'Bearer invalid-token-123', 'Content-Type': 'application/json' },
+              body: method === 'PUT' ? JSON.stringify({ data: '{"products":[],"customers":[]}' }) : undefined,
+            });
+            check(response.status === 401, method + ' invalid token returned ' + response.status);
+            console.log('PASS AUTH GUARD: ' + method + ' invalid token -> 401.');
           }
-          if (getHeader('access-control-allow-origin') !== expectedOrigin) {
-            throw new Error('Missing or incorrect access-control-allow-origin header');
-          }
-          if (getHeader('cache-control').toLowerCase() !== 'no-store') {
-            throw new Error('Missing or incorrect cache-control: no-store header');
-          }
-          console.log('PASS: /health HTTP 200, CORS origin, Cache-Control, and all expected JSON fields.');
           NODE
 
-      - name: Verify staging Firebase API key with temporary Auth user
+      - name: Verify Firebase Staging project configuration
         env:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          const apiKey = process.env.STAGING_FIREBASE_API_KEY;
-          if (!apiKey) throw new Error('STAGING_FIREBASE_API_KEY is empty.');
-
-          const endpoint = 'https://identitytoolkit.googleapis.com/v1/accounts';
-          let idToken;
-          let localId;
-          let primaryError;
-
-          try {
-            const createResponse = await fetch(`${endpoint}:signUp?key=${encodeURIComponent(apiKey)}`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ returnSecureToken: true }),
-            });
-            const created = await createResponse.json();
-            if (!createResponse.ok) {
-              const code = created?.error?.message ?? `HTTP_${createResponse.status}`;
-              throw new Error(`Firebase Auth rejected the staging API key or anonymous sign-up is disabled (${code}).`);
-            }
-            idToken = created.idToken;
-            localId = created.localId;
-            if (!idToken || !localId) throw new Error('Firebase Auth sign-up response omitted cleanup credentials.');
-            console.log('PASS: Firebase Identity Toolkit accepted STAGING_FIREBASE_API_KEY.');
-          } catch (error) {
-            primaryError = error;
-          } finally {
-            if (idToken) {
-              const deleteResponse = await fetch(`${endpoint}:delete?key=${encodeURIComponent(apiKey)}`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ idToken }),
-              });
-              if (!deleteResponse.ok) {
-                const deleted = await deleteResponse.json().catch(() => ({}));
-                const code = deleted?.error?.message ?? `HTTP_${deleteResponse.status}`;
-                throw new Error(`CRITICAL: temporary Firebase Auth user ${localId} could not be deleted (${code}).`);
-              }
-              console.log('PASS: temporary anonymous Firebase Auth user deleted.');
-            }
-          }
-          if (primaryError) throw primaryError;
+          const key = process.env.STAGING_FIREBASE_API_KEY;
+          if (!key) throw new Error('STAGING_FIREBASE_API_KEY is empty.');
+          const response = await fetch('https://identitytoolkit.googleapis.com/v1/projects?key=' + encodeURIComponent(key));
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error('Firebase project config lookup failed: ' + (body?.error?.message || response.status));
+          const projectId = body.projectId || body.project_id || body.project?.projectId;
+          if (projectId !== 'anas-erp-staging-a25e1') throw new Error('Unexpected Firebase project: ' + String(projectId));
+          console.log('PASS FIREBASE KEY: projectId=anas-erp-staging-a25e1');
+          console.log('authorizedDomains count: ' + (body.authorizedDomains?.length ?? 'not returned'));
           NODE
