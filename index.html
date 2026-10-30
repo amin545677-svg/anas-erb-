@@ -3965,32 +3965,57 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!inv) { alert('لم يتم العثور على فاتورة المبيعات.'); return; }
             printLegalA4Invoice(inv, true);
         }
-        function previewPurchaseInvoice(index) {
-            const item = (AppData.purchases || [])[index];
-            if (!item) { alert('لم يتم العثور على سجل المشتريات.'); return; }
-            const cfg = AppData.storeConfig || {};
+        function anasBuildPurchaseInvoiceHtml(item) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+            const costCents = anasPurchaseToCents(item.cost);
+            const qtyUnits = anasPurchaseToQtyUnits(item.qty);
+            const lineCents = anasPurchaseLineTotalCents(qtyUnits, costCents);
+            const totalCents = Object.prototype.hasOwnProperty.call(item,'total')
+                ? anasPurchaseToCents(item.total) : lineCents;
+            if (!Number.isSafeInteger(costCents) || costCents <= 0 ||
+                !Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 ||
+                !Number.isSafeInteger(totalCents) || totalCents < 0 ||
+                !Number.isSafeInteger(lineCents)) return null;
             const safe = v => String(v ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-            const html = `<div style="direction:rtl;font-family:Arial,Tahoma,sans-serif;padding:clamp(10px,3vw,28px);color:#111827;max-width:800px;min-height:650px;box-sizing:border-box;margin:auto;line-height:1.65;background:#fff;">
+            const money = cents => anasPurchaseCentsToCurrency(cents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
+            const hasSettlement = Object.prototype.hasOwnProperty.call(item,'paid') && Object.prototype.hasOwnProperty.call(item,'remaining');
+            const paidCents = hasSettlement ? anasPurchaseToCents(item.paid) : NaN;
+            const remainingCents = hasSettlement ? anasPurchaseToCents(item.remaining) : NaN;
+            if (hasSettlement && (!Number.isSafeInteger(paidCents) || !Number.isSafeInteger(remainingCents) ||
+                paidCents + remainingCents !== totalCents || paidCents > totalCents)) return null;
+            const cfg = AppData.storeConfig || {};
+            return `<div style="direction:rtl;font-family:Arial,Tahoma,sans-serif;padding:clamp(10px,3vw,28px);color:#111827;max-width:800px;min-height:650px;box-sizing:border-box;margin:auto;line-height:1.65;background:#fff;">
               <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1e3a8a;padding-bottom:16px;gap:18px;">
                 <div style="flex:1 1 230px;"><h2 style="margin:0;color:#1e3a8a;">${safe(cfg.name || 'اسم المؤسسة')}</h2><p style="margin:5px 0;">${safe(cfg.address || 'العنوان غير مسجل')}</p><p style="margin:5px 0;">الهاتف: ${safe(cfg.phone || '-')}</p><p style="margin:5px 0;font-size:12px;">RC: ${safe(cfg.rc || '-')} | NIF: ${safe(cfg.nif || '-')}</p></div>
-                <div style="flex:1 1 230px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;box-sizing:border-box;"><h2 style="margin:0 0 8px;color:#1e3a8a;">وصل / فاتورة مشتريات</h2><p style="margin:4px 0;"><b>التاريخ:</b> ${safe(item.date || new Date().toLocaleDateString('ar-DZ'))}</p><p style="margin:4px 0;"><b>المورد:</b> ${safe(item.supplierName || 'مورد نقدي')}</p></div>
+                <div style="flex:1 1 230px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;box-sizing:border-box;"><h2 style="margin:0 0 8px;color:#1e3a8a;">فاتورة مشتريات</h2><p style="margin:4px 0;"><b>رقم الفاتورة:</b> ${safe(item.id || 'سجل قديم بلا رقم')}</p><p style="margin:4px 0;"><b>التاريخ:</b> ${safe(item.date || '-')}</p><p style="margin:4px 0;"><b>المورد:</b> ${safe(item.supplierName || 'مورد نقدي')}</p></div>
               </div>
               <h3 style="margin:22px 0 8px;">تفاصيل المشتريات</h3>
               <table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px;font-size:13px;"><thead><tr style="background:#1e3a8a;color:#fff;"><th style="padding:10px 5px;border:1px solid #cbd5e1;">الصنف</th><th style="padding:10px 5px;border:1px solid #cbd5e1;">سعر الشراء</th><th style="padding:10px 5px;border:1px solid #cbd5e1;">الكمية</th><th style="padding:10px 5px;border:1px solid #cbd5e1;">الإجمالي</th></tr></thead>
-              <tbody><tr><td style="padding:12px 5px;border:1px solid #cbd5e1;overflow-wrap:anywhere;">${safe(item.name)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${Number(item.cost||0).toFixed(2)} د.ج</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${safe(item.qty)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${Number(item.total||0).toFixed(2)} د.ج</td></tr></tbody></table>
-              <div style="margin:18px 0 0 auto;max-width:320px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;display:flex;justify-content:space-between;gap:12px;font-size:16px;font-weight:bold;"><span>الإجمالي النهائي</span><span>${Number(item.total||0).toFixed(2)} د.ج</span></div>
+              <tbody><tr><td style="padding:12px 5px;border:1px solid #cbd5e1;overflow-wrap:anywhere;">${safe(item.name)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${money(costCents)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${safe(anasPurchaseQtyFromUnits(qtyUnits))}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${money(totalCents)}</td></tr></tbody></table>
+              <div style="margin:18px 0 0 auto;max-width:360px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;display:grid;gap:6px;font-size:14px;font-weight:bold;"><div style="display:flex;justify-content:space-between;gap:12px;"><span>إجمالي الفاتورة</span><span>${money(totalCents)}</span></div>
+              <div style="display:flex;justify-content:space-between;gap:12px;"><span>المدفوع الآن</span><span>${hasSettlement ? money(paidCents) : 'غير مسجل في السجل القديم'}</span></div>
+              <div style="display:flex;justify-content:space-between;gap:12px;"><span>المتبقي للمورد</span><span>${hasSettlement ? money(remainingCents) : 'غير مسجل في السجل القديم'}</span></div></div>
               <div style="margin-top:70px;padding-top:14px;border-top:1px solid #cbd5e1;text-align:left;">توقيع وختم المؤسسة: ................................</div>
             </div>`;
+        }
+        function previewPurchaseInvoice(index) {
+            const item = (AppData.purchases || [])[index];
+            if (!item) { alert('لم يتم العثور على سجل المشتريات.'); return; }
+            const html = anasBuildPurchaseInvoiceHtml(item);
+            if (!html) { alert('تعذر طباعة الفاتورة: توجد تكلفة أو كمية أو تسوية مالية غير صالحة. لم يتم تغيير أي سجل.'); return; }
             openInvoicePreview('معاينة فاتورة المشتريات', html, () => printPurchaseInvoice(index));
         }
         function printPurchaseInvoice(index) {
             const item = (AppData.purchases || [])[index];
             if (!item) { alert('لم يتم العثور على سجل المشتريات.'); return; }
-            const cfg = AppData.storeConfig || {};
-            const safe = v => String(v ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const html = anasBuildPurchaseInvoiceHtml(item);
+            if (!html) { alert('تعذر طباعة الفاتورة: توجد تكلفة أو كمية أو تسوية مالية غير صالحة.'); return; }
             const area = document.getElementById('legalInvoiceA4Area');
-            area.innerHTML = `<div style="direction:rtl;font-family:Arial,sans-serif;padding:20px;color:#111827;"><h2>${safe(cfg.name || 'اسم المؤسسة')}</h2><p>${safe(cfg.address || '')} — ${safe(cfg.phone || '')}</p><hr><h2>فاتورة مشتريات</h2><p>التاريخ: ${safe(item.date || '')} | المورد: ${safe(item.supplierName || 'مورد نقدي')}</p><table style="width:100%;border-collapse:collapse;margin-top:20px;"><tr><th style="border:1px solid #aaa;padding:10px;">الصنف</th><th style="border:1px solid #aaa;padding:10px;">السعر</th><th style="border:1px solid #aaa;padding:10px;">الكمية</th><th style="border:1px solid #aaa;padding:10px;">الإجمالي</th></tr><tr><td style="border:1px solid #aaa;padding:10px;">${safe(item.name)}</td><td style="border:1px solid #aaa;padding:10px;">${Number(item.cost||0).toFixed(2)}</td><td style="border:1px solid #aaa;padding:10px;">${safe(item.qty)}</td><td style="border:1px solid #aaa;padding:10px;">${Number(item.total||0).toFixed(2)} د.ج</td></tr></table><h3>الإجمالي: ${Number(item.total||0).toFixed(2)} د.ج</h3></div>`;
-            area.classList.add('printable'); window.print(); area.classList.remove('printable');
+            if (!area) { alert('منطقة طباعة الفاتورة غير متاحة.'); return; }
+            area.innerHTML = html;
+            area.classList.add('printable');
+            window.print();
+            area.classList.remove('printable');
         }
 
         function reprintLastInvoice() {
