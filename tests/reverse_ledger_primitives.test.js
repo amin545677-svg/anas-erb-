@@ -81,6 +81,12 @@ test('posted returns reject a one-micro-unit over-return without mutating the so
  const before=JSON.stringify(state);
  assert.throws(()=>R.validateReverseLedgerParity(state),/return exceeds remaining returnable micro-units/);
  assert.equal(JSON.stringify(state),before,'rejected validation must not mutate incoming data');
+ const draftState={...state,returns:[]};
+ assert.throws(()=>R.sealReturnDocument(draftState,{
+  returnId:'R-DRAFT-OVER',originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'DRAFT',
+  items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001}],
+  totalCentimes:2000001,debtReductionCentimes:0,cashRefundCentimes:0,createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'over ceiling'
+ }),/return exceeds remaining returnable micro-units/);
 });
 test('posted return requires matching invoice-linked stock movements', () => {
  const state={
