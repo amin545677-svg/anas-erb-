@@ -79,7 +79,7 @@ jobs:
           const headers = fs.readFileSync(headersPath, 'utf8').toLowerCase();
           const body = JSON.parse(fs.readFileSync(bodyPath, 'utf8'));
           const getHeader = (name) => {
-            const matches = [...headers.matchAll(new RegExp('^' + name + ':\\s*(.*?)\\s*$', 'gmi'))];
+            const matches = [...headers.matchAll(new RegExp('^' + name + ':\s*(.*?)\s*$', 'gmi'))];
             return matches.at(-1)?.[1]?.trim() ?? '';
           };
           const expected = {
