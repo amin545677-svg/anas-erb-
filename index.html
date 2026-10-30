@@ -2520,6 +2520,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
     <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="./reverse-ledger/reverse-ledger.js"></script>
 <script>
         // Escape untrusted values before inserting them into HTML templates.
         function anasEscapeHTML(value) {
@@ -2540,6 +2541,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             customers: [],
             suppliers: [],
             supplierMovements: [],
+            clientMovements: [],
+            settlementAllocations: [],
+            returns: [],
             posScreensCarts: { 1: [], 2: [], 3: [], 4: [], 'quote': [] },
             purchases: [],
             invoices: [],
@@ -2556,7 +2560,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             AppData = saved ? JSON.parse(saved) : initialDB;
             if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
             // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
-            ['products','customers','suppliers','supplierMovements','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
+            ['products','customers','suppliers','supplierMovements','clientMovements','settlementAllocations','returns','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
                 if (!Object.prototype.hasOwnProperty.call(AppData, k)) {
                     AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
                 } else if (!Array.isArray(AppData[k])) {
@@ -2754,6 +2758,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 nextCarts = currentCarts ? { ...currentCarts } : {};
                 nextCarts[AppData.activePosScreenTab] = posCart;
                 const snapshot = { ...AppData, posScreensCarts: nextCarts };
+                if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function')
+                    throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُوقف الحفظ لحماية البيانات.');
+                window.ANASReverseLedger.validateReverseLedgerParity(snapshot);
                 serialized = JSON.stringify(snapshot);
                 localStorage.setItem(ANAS_DB_KEY, serialized);
             } catch (e) {
@@ -6919,7 +6926,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
@@ -7126,6 +7133,8 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s => String(s.id ?? '') === String(purchase.supplierId)).length !== 1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
             }
+            if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُلغي الاسترجاع.');
+            window.ANASReverseLedger.validateReverseLedgerParity(incoming);
             anasValidatePurchaseLedgerParity(incoming, 'cloud');
             // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
             for (const transfer of (incoming.warehouseTransfers || [])) {
@@ -7250,6 +7259,9 @@ function renderPurchasesTable() {
                 if (!Array.isArray(AppData.products)) AppData.products = [];
                 if (!Array.isArray(AppData.customers)) AppData.customers = [];
                 if (!Array.isArray(AppData.suppliers)) AppData.suppliers = [];
+                if (!Array.isArray(AppData.clientMovements)) AppData.clientMovements = [];
+                if (!Array.isArray(AppData.settlementAllocations)) AppData.settlementAllocations = [];
+                if (!Array.isArray(AppData.returns)) AppData.returns = [];
                 if (!Array.isArray(AppData.invoices)) AppData.invoices = [];
                 if (!Array.isArray(AppData.purchases)) AppData.purchases = [];
                 if (!Array.isArray(AppData.expenses)) AppData.expenses = [];
@@ -7296,7 +7308,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
@@ -7413,6 +7425,8 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
             }
+            if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ رُفض الاسترجاع.');
+            window.ANASReverseLedger.validateReverseLedgerParity(incoming);
             anasValidatePurchaseLedgerParity(incoming, 'backup');
             // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
             const validateStockMovementValue = (record, field, label, allowNegative) => {
@@ -7546,7 +7560,7 @@ function renderPurchasesTable() {
                     const previousFatalLoadError = anasStartupFatalLoadError;
                     AppData = incoming;
                     if (!AppData.posScreensCarts) AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
-                    for (const key of ['invoices','purchases','expenses','users','trucks','returns']) if (!Array.isArray(AppData[key])) AppData[key] = [];
+                    for (const key of ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations']) if (!Array.isArray(AppData[key])) AppData[key] = [];
                     const activeTab = AppData.activePosScreenTab || 1;
                     posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
                     // A validated restore is the explicit repair path for a corrupt startup snapshot.
@@ -9601,7 +9615,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const previousFatalLoadError=anasStartupFatalLoadError;
       AppData=restored;
       if(!AppData.posScreensCarts)AppData.posScreensCarts={1:[],2:[],3:[],4:[]};
-      for(const key of ['invoices','purchases','expenses','users','trucks','returns','supplierMovements'])if(!Array.isArray(AppData[key]))AppData[key]=[];
+      for(const key of ['invoices','purchases','expenses','users','trucks','returns','supplierMovements','clientMovements','settlementAllocations'])if(!Array.isArray(AppData[key]))AppData[key]=[];
       const activeTab=AppData.activePosScreenTab||1;
       posCart=Array.isArray(AppData.posScreensCarts[activeTab])?AppData.posScreensCarts[activeTab]:[];
       anasStartupIntegrityIssues=[];
