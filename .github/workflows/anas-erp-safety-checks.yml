@@ -2628,10 +2628,15 @@ jobs:
               assert start>=0 and end>start, "Could not isolate "+label
               return s[start:end]
           purchase=extract("function savePurchaseItem() {","\n        function ","purchase")
+          purchase_helper_start=s.find("// Purchase-specific decimal parser")
+          purchase_helper_end=s.find("function savePurchaseItem()",purchase_helper_start)
+          assert purchase_helper_start>=0 and purchase_helper_end>purchase_helper_start, "Could not isolate purchase centime helpers"
+          purchase_helpers=s[purchase_helper_start:purchase_helper_end]
           truck=extract("function postTripStock(trip){","window.anasTruckSaveTrip = function(){","truck load")
           js=r"""
           const assert=require('node:assert/strict');
           const vm=require('node:vm');
+          const purchaseHelpers=/*PURCHASE_HELPERS*/;
           const purchase=/*PURCHASE*/;
           const truck=/*TRUCK*/;
           {
@@ -2639,11 +2644,12 @@ jobs:
               purProductName:{value:'New Product',focus(){}},
               purBuyCost:{value:'10',focus(){}},
               purBuyQty:{value:'3',focus(){}},
+              purPaidAmount:{value:'30',focus(){}},
               purSupplierSelect:{value:''},
               purInvoiceDate:{value:'2026-10-25'}
             };
             const ctx={
-              AppData:{products:[],purchases:[]},posCart:[],
+              AppData:{products:[],purchases:[],suppliers:[],caisseBalance:100},posCart:[],
               document:{getElementById:id=>fields[id]||null},
               alert:()=>{},console:{error:()=>{}},
               saveDB:()=>undefined,
@@ -2652,7 +2658,7 @@ jobs:
               updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
               Number,String,Object,Array,JSON,Date,Math
             };
-            vm.runInNewContext(purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
+            vm.runInNewContext(purchaseHelpers+'\n'+purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
             ctx.runPurchase();
             assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
             assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
@@ -2676,7 +2682,7 @@ jobs:
           }
           console.log('Explicit save-success contract tests passed for purchases and truck loading');
           """
-          js=js.replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
+          js=js.replace("/*PURCHASE_HELPERS*/",json.dumps(purchase_helpers)).replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
           Path("/tmp/anas-explicit-save-success-test.js").write_text(js,encoding="utf-8")
           PY
           node --check /tmp/anas-explicit-save-success-test.js
