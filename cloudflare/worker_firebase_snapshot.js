@@ -4,21 +4,20 @@
  * Uses Firebase Auth ID tokens and Firestore Security Rules; no service-account private key.
  */
 const MAX_BODY_BYTES = 700 * 1024;
-const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "https://amin545677-svg.github.io")
+const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 function json(data, status, origin) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": origin || "https://amin545677-svg.github.io",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
-      "Vary": "Origin"
-    }
-  });
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
+    "Vary": "Origin"
+  };
+  // Never attach an unrelated production origin to a rejected cross-origin response.
+  if (origin) headers["Access-Control-Allow-Origin"] = origin;
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function responseOrigin(request, env) {
@@ -306,7 +305,7 @@ export default {
       }});
     }
     const url = new URL(request.url);
-    if (!origin) return json({ error: "Origin is not allowed" }, 403, "https://amin545677-svg.github.io");
+    if (!origin) return json({ error: "Origin is not allowed" }, 403, "");
     if (url.pathname === "/health" && request.method === "GET") {
       const projectId = env.FIREBASE_PROJECT_ID || null;
       const isStaging = projectId === "anas-erp-staging-a25e1";

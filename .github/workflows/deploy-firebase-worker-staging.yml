@@ -8,6 +8,18 @@ on:
       - staging/firebase-snapshot-worker
     paths:
       - 'cloudflare/**'
+      - 'firebase/**'
+      - 'firebase.staging.json'
+      - 'tests/worker_firebase_snapshot*.mjs'
+      - '.github/workflows/deploy-firebase-worker-staging.yml'
+  pull_request:
+    branches:
+      - staging/firebase-snapshot-worker
+    paths:
+      - 'cloudflare/**'
+      - 'firebase/**'
+      - 'firebase.staging.json'
+      - 'tests/worker_firebase_snapshot*.mjs'
       - '.github/workflows/deploy-firebase-worker-staging.yml'
 
 permissions:
@@ -19,118 +31,57 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-staging-worker:
-    if: github.head_ref == 'staging/firebase-snapshot-worker' || github.ref_name == 'staging/firebase-snapshot-worker'
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-
-      - name: Test Firebase snapshot Worker before staging deployment
+      - name: Run Firebase snapshot Worker tests
         run: node --test tests/worker_firebase_snapshot.test.mjs
 
-      # Explicit P0 one-shot recovery gate: this commit message is the authorization token.
-      - name: P0 Validate and Restore Production Worker Secret from Production Web Config
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[P0-PROD-RESTORE]')
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  deploy-staging-worker:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/staging/firebase-snapshot-worker'
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      STAGING_ALLOWED_ORIGINS: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
+      HAS_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON != '' }}
+    steps:
+      - name: Validate required Staging origin
         run: |
           set -euo pipefail
-          PROD_KEY="$(node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
-          const html = readFileSync("index.html", "utf8");
-          const matches = [...html.matchAll(/apiKey\s*:\s*["']([^"']+)["']/g)];
-          if (matches.length !== 1) throw new Error("Expected exactly one Firebase apiKey in index.html; found " + matches.length);
-          const key = matches[0][1].replace(/["'\s\r\n]/g, "");
-          if (key.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(key)) {
-            throw new Error("Production Firebase Web API key has invalid shape; refusing production mutation.");
-          }
-          process.stdout.write(key);
-          NODE
-          )"
-          test -n "$PROD_KEY"
-          echo "::add-mask::$PROD_KEY"
-          PROJECT_ID="$(PROD_KEY="$PROD_KEY" node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
-          const key = process.env.PROD_KEY;
-          const html = readFileSync("index.html", "utf8");
-          const expectedProjectId = html.includes('projectId:"anas-erb"') ? "anas-erb" : "";
-          const expectedProjectNumber = html.includes('messagingSenderId:"859983503318"') ? "859983503318" : "";
-          const firebaseAppId = html.match(/appId:"([^"]+)"/)?.[1] || "";
-          if (expectedProjectId !== "anas-erb" || !expectedProjectNumber || !firebaseAppId.startsWith("1:" + expectedProjectNumber + ":web:")) {
-            throw new Error("Production Firebase config identity is incomplete or inconsistent; no Cloudflare mutation performed.");
-          }
-          const url = "https://identitytoolkit.googleapis.com/v1/projects?key=" + encodeURIComponent(key) +
-            "&firebaseAppId=" + encodeURIComponent(firebaseAppId);
-          const response = await fetch(url);
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            console.error("Production Firebase validation HTTP " + response.status);
-            console.error("Firebase error details: " + JSON.stringify(body?.error?.details ?? body?.error ?? {}, null, 2));
-            throw new Error("Production Firebase API key validation failed; no Cloudflare mutation performed.");
-          }
-          if (String(body.projectId) !== expectedProjectNumber) {
-            throw new Error("Production API key resolved to project number " + String(body.projectId) +
-              ", expected " + expectedProjectNumber + "; no Cloudflare mutation performed.");
-          }
-          console.log("PASS PRODUCTION KEY: Identity Toolkit accepted the key and validated Firebase app " +
-            firebaseAppId + " in project anas-erb (project number " + expectedProjectNumber + ").");
-          process.stdout.write(expectedProjectId);
-          NODE
-          )"
-          test "$PROJECT_ID" = "anas-erb"
-          VERSION_TAG="p0-prod-restore-${GITHUB_SHA:0:12}"
-          printf '%s' "$PROD_KEY" | npx --yes wrangler@4.156.0 versions secret put FIREBASE_API_KEY \
-            --config cloudflare/wrangler.toml \
-            --name anas-erp-firebase-snapshot \
-            --tag "$VERSION_TAG" \
-            --message "P0 restore validated production Firebase Web API key"
-          npx --yes wrangler@4.156.0 versions deploy \
-            --config cloudflare/wrangler.toml \
-            --name anas-erp-firebase-snapshot \
-            --version-tag "$VERSION_TAG" \
-            --yes
-          HEALTH="$(curl --fail --silent --show-error https://anas-erp-firebase-snapshot.amin545677.workers.dev/health)"
-          printf '%s' "$HEALTH" | node --input-type=module -e '
-            let raw = ""; for await (const chunk of process.stdin) raw += chunk;
-            const body = JSON.parse(raw);
-            if (body.ok !== true || body.service !== "anas-erp-firebase-snapshot" || body.configured !== true) {
-              throw new Error("Production Worker health verification failed: " + JSON.stringify(body));
+          node --input-type=module -e '
+            const values = (process.env.STAGING_ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
+            const allowed = new Set(["https://anas-erp-staging-a25e1.web.app", "https://anas-erp-staging-a25e1.firebaseapp.com"]);
+            if (!values.length || new Set(values).size !== values.length || values.some(value => !allowed.has(value)) || !values.includes("https://anas-erp-staging-a25e1.web.app")) {
+              throw new Error("Staging origins must contain the canonical Firebase Hosting web.app origin and may contain only the matching firebaseapp.com origin.");
             }
-            console.log("PASS PRODUCTION HEALTH: service=anas-erp-firebase-snapshot, configured=true.");
+            for (const value of values) {
+              const parsed = new URL(value);
+              if (parsed.protocol !== "https:" || parsed.origin !== value || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+                throw new Error("Every Staging origin must be a canonical HTTPS origin without path, query, or fragment.");
+              }
+            }
+            console.log("PASS STAGING ORIGINS: isolated Firebase Hosting origins validated.");
           '
 
       - name: Validate Firebase Staging API key before Cloudflare mutation
         env:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
-          PROD_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           EXPECTED_PROJECT_ID: anas-erp-staging-a25e1
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
           const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
-          const safePrefix = cleanKey.slice(0, 6);
-          const safeSuffix = cleanKey.slice(-4);
-          console.log(`Staging key fingerprint -> Prefix: ${safePrefix}... Suffix: ...${safeSuffix}`);
-          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\s\r\n]/g, "");
-          const html = readFileSync("index.html", "utf8");
-          const productionConfigKey = html.match(/apiKey\s*:\s*["']([^"']+)["']/)?.[1] || "";
           const projectId = process.env.EXPECTED_PROJECT_ID;
-          console.log(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
           if (cleanKey.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(cleanKey)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
-          }
-          if ((productionSecret && cleanKey === productionSecret) ||
-              (productionConfigKey && cleanKey === productionConfigKey)) {
-            throw new Error("Staging key matches a known Production Firebase key; refusing any Firebase or Cloudflare mutation.");
           }
           const projectResponse = await fetch("https://identitytoolkit.googleapis.com/v1/projects?key=" + encodeURIComponent(cleanKey));
           const projectBody = await projectResponse.json().catch(() => ({}));
@@ -141,6 +92,7 @@ jobs:
           if (String(projectBody.projectId) !== "280763919805") {
             throw new Error("Staging key resolves to project number " + String(projectBody.projectId) + ", expected 280763919805; no Staging deployment or test identity created.");
           }
+          console.log("::add-mask::" + cleanKey);
           console.log("PASS STAGING PROJECT IDENTITY: Identity Toolkit project number 280763919805.");
 
           let temporaryUser = null;
@@ -180,41 +132,45 @@ jobs:
           }
           NODE
 
-      - name: Deploy isolated staging Worker with explicit config and name
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          npx --yes wrangler@4.156.0 deploy \
-            --config cloudflare/wrangler-staging.toml \
-            --name anas-erp-firebase-snapshot-staging
+      - name: Authenticate to isolated Firebase Staging project (optional rules deployment)
+        if: env.HAS_STAGING_SERVICE_ACCOUNT == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
 
-      - name: Inject Secret Strictly to Staging Worker
+      - name: Deploy only Staging Firestore security rules (optional)
+        if: env.HAS_STAGING_SERVICE_ACCOUNT == 'true'
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
+
+      - name: Upload one fully configured Staging Worker version
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
         run: |
           set -euo pipefail
-          CLEAN_KEY="$(node --input-type=module <<'NODE'
-          const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
-          const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
-          console.error(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
-          if (cleanKey.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(cleanKey)) {
+          test -n "$STAGING_ALLOWED_ORIGINS"
+          test -n "$STAGING_FIREBASE_API_KEY"
+          echo "::add-mask::$STAGING_FIREBASE_API_KEY"
+          umask 077
+          SECRETS_FILE="$RUNNER_TEMP/anas-erp-staging-secrets.json"
+          trap 'rm -f "$SECRETS_FILE"' EXIT
+          STAGING_FIREBASE_API_KEY="$STAGING_FIREBASE_API_KEY" SECRETS_FILE="$SECRETS_FILE" node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          const key = process.env.STAGING_FIREBASE_API_KEY || "";
+          if (key.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(key)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
           }
-          process.stdout.write(cleanKey);
+          writeFileSync(process.env.SECRETS_FILE, JSON.stringify({ FIREBASE_API_KEY: key }), { mode: 0o600 });
           NODE
-          )"
-          test -n "$CLEAN_KEY"
-          echo "::add-mask::$CLEAN_KEY"
-          VERSION_TAG="staging-secret-${GITHUB_SHA:0:12}"
-          printf '%s' "$CLEAN_KEY" | npx --yes wrangler@4.156.0 versions secret put FIREBASE_API_KEY \
+          VERSION_TAG="staging-complete-${GITHUB_SHA:0:12}"
+          npx --yes wrangler@4.156.0 versions upload \
             --config cloudflare/wrangler-staging.toml \
             --name anas-erp-firebase-snapshot-staging \
             --tag "$VERSION_TAG" \
-            --message "Staging Firebase secret for ${GITHUB_SHA:0:12}"
+            --var "ALLOWED_ORIGINS:$STAGING_ALLOWED_ORIGINS" \
+            --secrets-file "$SECRETS_FILE" \
+            --message "Fully configured isolated Staging Worker ${GITHUB_SHA:0:12}"
           npx --yes wrangler@4.156.0 versions deploy \
             --config cloudflare/wrangler-staging.toml \
             --name anas-erp-firebase-snapshot-staging \
@@ -224,21 +180,24 @@ jobs:
       - name: Post-Deploy Live Smoke Test and Auth Guard
         env:
           WORKER_BASE_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev
-          EXPECTED_ORIGIN: https://amin545677-svg.github.io
+          EXPECTED_ORIGINS: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           const base = process.env.WORKER_BASE_URL;
-          const origin = process.env.EXPECTED_ORIGIN;
+          const origins = (process.env.EXPECTED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
           const check = (ok, message) => { if (!ok) throw new Error(message); };
-          const call = (path, options = {}) => fetch(base + path, { ...options, headers: { Origin: origin, ...(options.headers || {}) } });
-          const health = await call('/health');
-          const data = await health.json();
-          check(health.status === 200, 'health status=' + health.status);
-          check(health.headers.get('access-control-allow-origin') === origin, 'CORS origin mismatch');
-          check((health.headers.get('cache-control') || '').toLowerCase() === 'no-store', 'cache-control mismatch');
-          check(data.ok === true && data.service === 'anas-erp-firebase-snapshot-staging' && data.projectId === 'anas-erp-staging-a25e1' && data.configured === true, 'health JSON mismatch');
-          console.log('PASS LIVE HEALTH: HTTP 200, CORS, no-store and expected Staging JSON.');
+          check(origins.length > 0, "No expected Staging origins configured.");
+          for (const origin of origins) {
+            const health = await fetch(base + "/health", { headers: { Origin: origin } });
+            const data = await health.json();
+            check(health.status === 200, "health status=" + health.status + " for " + origin);
+            check(health.headers.get("access-control-allow-origin") === origin, "CORS origin mismatch for " + origin);
+            check((health.headers.get("cache-control") || "").toLowerCase() === "no-store", "cache-control mismatch");
+            check(data.ok === true && data.service === "anas-erp-firebase-snapshot-staging" && data.projectId === "anas-erp-staging-a25e1" && data.configured === true, "health JSON mismatch");
+            console.log("PASS LIVE HEALTH: HTTP 200 and CORS for " + origin + ".");
+          }
+          const call = (path, options = {}) => fetch(base + path, { ...options, headers: { Origin: origins[0], ...(options.headers || {}) } });
           for (const method of ['GET', 'PUT']) {
             const response = await call('/snapshot', { method });
             check(response.status === 401, method + ' missing token returned ' + response.status);
@@ -258,29 +217,19 @@ jobs:
       - name: Live Firebase Round-Trip, Cross-Tenant Isolation and 409 Conflict
         env:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
-          PROD_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           WORKER_BASE_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev
-          EXPECTED_ORIGIN: https://amin545677-svg.github.io
+          EXPECTED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
           EXPECTED_PROJECT_ID: anas-erp-staging-a25e1
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
           const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
-          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\s\r\n]/g, "");
-          const html = readFileSync("index.html", "utf8");
-          const productionConfigKey = html.match(/apiKey\s*:\s*["']([^"']+)["']/)?.[1] || "";
           const projectId = process.env.EXPECTED_PROJECT_ID;
           const base = process.env.WORKER_BASE_URL;
-          const origin = process.env.EXPECTED_ORIGIN;
-          console.log(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
+          const origin = (process.env.EXPECTED_ORIGIN || "").split(",").map(value => value.trim()).filter(Boolean)[0] || "";
           if (cleanKey.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(cleanKey)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
-          }
-          if ((productionSecret && cleanKey === productionSecret) ||
-              (productionConfigKey && cleanKey === productionConfigKey)) {
-            throw new Error("Staging key matches a known Production Firebase key; aborting before creating any Firebase identity.");
           }
 
           const authEndpoint = "https://identitytoolkit.googleapis.com/v1";

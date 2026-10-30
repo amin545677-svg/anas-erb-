@@ -7,9 +7,9 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const allowedOrigin = "https://amin545677-svg.github.io";
+const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
 
 function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = new Headers({ Origin: allowedOrigin });
@@ -289,7 +289,8 @@ test("disallowed origins cannot use CORS preflight", async () => {
 test("health identifies the staging Firebase project without exposing secrets", async () => {
   const stagingEnv = {
     FIREBASE_API_KEY: "staging-test-key",
-    FIREBASE_PROJECT_ID: "anas-erp-staging-a25e1"
+    FIREBASE_PROJECT_ID: "anas-erp-staging-a25e1",
+    ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com"
   };
   const response = await worker.fetch(request("/health"), stagingEnv);
   assert.equal(response.status, 200);
@@ -306,7 +307,8 @@ test("health identifies the staging Firebase project without exposing secrets", 
 test("health does not misidentify the production Firebase project as staging", async () => {
   const productionEnv = {
     FIREBASE_API_KEY: "production-test-key",
-    FIREBASE_PROJECT_ID: "anas-erb"
+    FIREBASE_PROJECT_ID: "anas-erb",
+    ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com"
   };
   const response = await worker.fetch(request("/health"), productionEnv);
   assert.equal(response.status, 200);

@@ -5,7 +5,7 @@ workers_dev = true
 
 [vars]
 FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"
-ALLOWED_ORIGINS = "https://amin545677-svg.github.io"
+ALLOWED_ORIGINS = "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com"
 
 [secrets]
 required = ["FIREBASE_API_KEY"]
