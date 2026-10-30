@@ -654,6 +654,8 @@
     if (!reason) throw new Error('return reason is required');
     const referenceType = returnType === 'INVOICE_CANCEL' ? 'invoice_cancel' :
       returnType === 'SALE_RETURN' ? 'sales_return' : 'purchase_return';
+    const stockMovementIds = [];
+    const financialMovementIds = [];
     const usedIds = new Set();
     for (const key of ['returns','stockMovements','cashMovements','clientMovements','supplierMovements','customerCreditMovements']) {
       for (const row of (Array.isArray(state[key]) ? state[key] : [])) {
