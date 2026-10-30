@@ -85,5 +85,7 @@ function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, cus
   `, ctx);
   assert.deepEqual(Array.from(ctx.__centimeCases), [101,10,1,30,70],
     'decimal strings and line/cart totals must resolve through exact integer base units');
+  assert.ok(Number.isNaN(vm.runInContext("anasCartTotalCents([{qty:'0',price:'5'}])", ctx)),
+    'a zero-quantity line must invalidate the cart preview rather than silently pass');
 }
 console.log('Invoice edit safe financial arithmetic tests passed');
