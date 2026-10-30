@@ -1,5 +1,6 @@
 name: Deploy ANAS ERP Firebase Snapshot Worker (Staging)
 
+# Staging-only deployment; Firebase API key is injected as a Cloudflare Worker secret.
 on:
   workflow_dispatch:
   push:
