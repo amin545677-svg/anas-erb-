@@ -168,7 +168,7 @@ test('draft return ceiling accounts for all previously posted returns', () => {
 
 test('customer v2 ledger reconciles opening debt, new invoice debit and explicitly allocated receipts', () => {
  const customer={id:'C-CYCLE',debt:10000,ledgerVersion:2};
- const invoice={id:'S-CYCLE',customerId:'C-CYCLE',total:0.30,paid:0.25,remaining:0.05};
+ const invoice={id:'S-CYCLE',customerId:'C-CYCLE',total:0.30,paid:0.10,remaining:0.20};
  const state={
   customers:[customer],invoices:[invoice],purchases:[],returns:[],
   clientMovements:[],settlementAllocations:[],
@@ -192,7 +192,9 @@ test('customer v2 ledger reconciles opening debt, new invoice debit and explicit
  assert.equal(R.validateReverseLedgerParity(state),true);
  assert.equal(state.clientMovements.reduce((sum,row)=>sum+(row.direction==='debit'?row.amountCentimes:-row.amountCentimes),0),1000005);
  assert.equal(state.settlementAllocations.reduce((sum,row)=>sum+row.amountCentimes,0),25);
- assert.equal(invoice.remaining,0.05);
+ assert.equal(invoice.paid,0.10,'posted invoice paid amount must remain immutable');
+ assert.equal(invoice.remaining,0.20,'posted invoice remaining field must remain immutable');
+ assert.equal(Math.round(invoice.total*100)-Math.round(invoice.paid*100)-state.settlementAllocations.filter(x=>x.sourceMovementType==='customer_debt').reduce((sum,x)=>sum+x.amountCentimes,0),5,'current outstanding is derived from later allocations');
 });
 
 test('client receipt ledger cannot be sealed when customer debt does not include the receipt', () => {
