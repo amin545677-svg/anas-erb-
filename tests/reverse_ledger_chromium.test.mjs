@@ -12,7 +12,7 @@ test('Chromium loads reverse-ledger primitives and enforces exact return ceiling
   await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger.js')});
   const result = await page.evaluate(() => {
    const R = window.ANASReverseLedger;
-   const state = R.ensureCollections({invoices:[{id:'S-1',customerId:'C-1',paid:7.25}],cashMovements:[{id:'M-1',amountCentimes:1000,referenceType:'customer_debt'}]});
+   const state = R.ensureCollections({invoices:[{id:'S-1',customerId:'C-1',paid:7.25}],cashMovements:[{id:'M-1',amountCentimes:1000,referenceType:'customer_debt',referenceId:'C-1'}]});
    const allocation = R.sealSettlementAllocation(state, {allocationId:'A-1',partyType:'customer',partyId:'C-1',invoiceType:'sales_invoice',invoiceId:'S-1',sourceMovementId:'M-1',sourceMovementType:'customer_debt',amountCentimes:725,createdAt:'2026-10-30T12:00:00Z'});
    state.settlementAllocations.push(allocation);
    const valid = R.validateReverseLedgerParity(state);
