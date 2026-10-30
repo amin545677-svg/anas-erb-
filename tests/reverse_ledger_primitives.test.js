@@ -110,6 +110,8 @@ test('posted return requires matching invoice-linked stock movements', () => {
  };
  assert.equal(R.validateReverseLedgerParity(state),true);
  assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[]}),/posted return stock movement is missing or mismatched/);
+ const orphanFinancial={...state,cashMovements:[...state.cashMovements,{id:'CM-ORPHAN',amount:1,referenceType:'sales_return',referenceId:'R-1'}]};
+ assert.throws(()=>R.validateReverseLedgerParity(orphanFinancial),/unreferenced or ambiguous financial movements/);
 });
 
 test('posted purchase return reconciles the legacy single-line purchase schema', () => {
