@@ -137,8 +137,18 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await page.evaluate(() => openView('supp-debts'));
     assert.match(await page.locator('#suppDebtsContainer').innerText(), /15[\s,.]?000/);
 
-    // Reload the real browser page and verify durable persistence.
+    // Export a real JSON backup through the Settings UI and verify its contents.
     const beforeReload = await page.evaluate(() => JSON.parse(localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')));
+    await page.evaluate(() => openView('settings'));
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#view-settings button[onclick="exportDataBackup()"]').click();
+    const backupDownload = await downloadPromise;
+    const backupPath = await backupDownload.path();
+    assert.ok(backupPath, 'backup export must produce a real downloaded file');
+    const validBackup = fs.readFileSync(backupPath);
+    assert.deepEqual(JSON.parse(validBackup.toString('utf8')), beforeReload, 'exported JSON must match the persisted ledger snapshot');
+
+    // Reload the real browser page and verify durable persistence.
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
@@ -153,7 +163,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await page.locator('#restoreJsonFile').setInputFiles({
       name: 'anas-erp-chromium-staging-backup.json',
       mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(beforeReload))
+      buffer: validBackup
     });
     await page.waitForFunction(() => document.getElementById('view-dashboard')?.classList.contains('active'), null, { timeout: 10000 });
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
