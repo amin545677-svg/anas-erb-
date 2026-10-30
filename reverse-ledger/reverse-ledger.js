@@ -251,6 +251,17 @@
   function invoiceItemProductId(item) {
     return String(item.productId ?? item.id ?? item.product?.id ?? '');
   }
+  function originalInvoiceItems(invoice, invoiceType) {
+    if (Array.isArray(invoice.items)) return invoice.items;
+    if (invoiceType === 'purchase_invoice' && invoice.productId != null) {
+      return [{
+        productId: invoice.productId,
+        qty: invoice.qty,
+        price: invoice.cost ?? invoice.unitCost ?? invoice.buyPrice
+      }];
+    }
+    return [];
+  }
   function validateReturns(state) {
     const docs = (state.returns || []).filter(x => x && x.ledgerVersion === 2);
     const invoices = getInvoices(state);
@@ -288,7 +299,7 @@
           throw new Error('return line amount does not match exact quantity and price');
         lineTotal += line;
         if (doc.status === 'POSTED') {
-          const originalItems = Array.isArray(invoice.items) ? invoice.items : [];
+          const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
           const originalMatches = originalItems.filter(x => invoiceItemProductId(x) === productId);
           if (originalMatches.length !== 1) throw new Error('return item is missing or ambiguous in original invoice');
           const originalQty = quantityToMicroUnits(originalMatches[0].qty ?? originalMatches[0].quantity, 'original invoice quantity');
@@ -353,8 +364,8 @@
         if (docs.some(other => other !== doc && other.status === 'POSTED' &&
             other.originalInvoiceType === doc.originalInvoiceType && String(other.originalInvoiceId) === String(doc.originalInvoiceId)))
           throw new Error('invoice cancellation cannot follow a prior posted return');
-        const originalItems = Array.isArray(invoice.items) ? invoice.items : [];
-        if (doc.items.length !== originalItems.length) throw new Error('invoice cancellation must reverse every invoice line');
+        const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
+        if (!originalItems.length || doc.items.length !== originalItems.length) throw new Error('invoice cancellation must reverse every invoice line');
         for (const original of originalItems) {
           const line = doc.items.find(x => x.productId === invoiceItemProductId(original));
           if (!line || BigInt(line.quantityMicroUnits) !== quantityToMicroUnits(original.qty ?? original.quantity, 'original invoice quantity'))
