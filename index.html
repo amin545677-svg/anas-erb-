@@ -4858,6 +4858,10 @@ function renderPurchasesTable() {
                 !Number.isSafeInteger(cashCents) || cashCents < 0) {
                 alert('رصيد العميل أو الصندوق غير صالح؛ لم يتم تسجيل القبض.'); return;
             }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'cashMovements') &&
+                (!Array.isArray(AppData.cashMovements) || AppData.cashMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m)))) {
+                alert('سجل حركات الصندوق تالف؛ أُوقف القبض دون استبدال السجل.'); return;
+            }
             const movementIds = new Set();
             for (const movement of (Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [])) {
                 if (!movement || typeof movement !== 'object' || Array.isArray(movement)) {
