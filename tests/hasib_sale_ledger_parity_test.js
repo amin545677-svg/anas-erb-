@@ -4,7 +4,7 @@ const vm = require('node:vm');
 
 const html = fs.readFileSync('index.html', 'utf8');
 const start = html.indexOf('function confirmHasibPayment()');
-const end = html.indexOf('\\n        function ', start + 20);
+const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
 const source = html.slice(start, end);
 
