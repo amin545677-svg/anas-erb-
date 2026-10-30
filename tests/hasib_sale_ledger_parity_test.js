@@ -37,7 +37,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     Date, Math, Number, String, Object, Array, Map, Set
   };
   vm.createContext(context);
-  vm.runInContext(source + '\\nconfirmHasibPayment();', context, {timeout:1000});
+  vm.runInContext(source + '\nconfirmHasibPayment();', context, {timeout:1000});
   return {AppData,product,customer,alerts,saves,renders,closes,posCart:context.posCart,lastInvoice:context.lastConfirmedInvoice};
 }
 
