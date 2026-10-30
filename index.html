@@ -3421,14 +3421,15 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             group.style.display = 'block';
             if (isCredit) document.getElementById('hasibPaidAmount').value = '0';
             else if (Number(document.getElementById('hasibPaidAmount').value) <= 0) {
-                const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
+                const rawTotal = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
+            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
                 document.getElementById('hasibPaidAmount').value = total.toFixed(2);
             }
             const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
             const parsedPaid = Number(document.getElementById('hasibPaidAmount').value) || 0;
             const paid = Math.max(0, Math.min(total, Math.round((parsedPaid + Number.EPSILON) * 100) / 100));
             const rem = document.getElementById('hasibRemainingText');
-            if (rem) rem.textContent = 'المتبقي على الزبون: ' + (total - paid).toFixed(2) + ' د.ج';
+            if (rem) rem.textContent = 'المتبقي على الزبون: ' + (Math.round((Math.max(0, total - paid) + Number.EPSILON) * 100) / 100).toFixed(2) + ' د.ج';
         }
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
