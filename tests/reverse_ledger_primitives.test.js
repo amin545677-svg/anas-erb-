@@ -77,11 +77,12 @@ test('posted return requires matching invoice-linked stock movements', () => {
  const state={
   customers:[],suppliers:[],
   invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:2,price:10}]}],
-  purchases:[],clientMovements:[],settlementAllocations:[],cashMovements:[],supplierMovements:[],
+  purchases:[],clientMovements:[],settlementAllocations:[],
+  cashMovements:[{id:'CM-1',amount:10,referenceType:'sales_return',referenceId:'R-1'}],supplierMovements:[],
   stockMovements:[{id:'SM-1',productId:'P-1',qty:1,referenceType:'sales_return',referenceId:'R-1'}],
   returns:[{returnId:'R-1',ledgerVersion:2,originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
    items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000}],
-   totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:0,stockMovementIds:['SM-1'],financialMovementIds:[]}]
+   totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,stockMovementIds:['SM-1'],financialMovementIds:['CM-1']}]
  };
  assert.equal(R.validateReverseLedgerParity(state),true);
  assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[]}),/posted return stock movement is missing or mismatched/);
