@@ -123,20 +123,29 @@ jobs:
       - name: Live Firebase Round-Trip, Cross-Tenant Isolation and 409 Conflict
         env:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
+          PROD_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           WORKER_BASE_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev
           EXPECTED_ORIGIN: https://amin545677-svg.github.io
           EXPECTED_PROJECT_ID: anas-erp-staging-a25e1
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
           const cleanKey = rawKey.replace(/["'\\s\\r\\n]/g, "");
+          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\\s\\r\\n]/g, "");
+          const html = readFileSync("index.html", "utf8");
+          const productionConfigKey = html.match(/apiKey\\s*:\\s*["']([^"']+)["']/)?.[1] || "";
           const projectId = process.env.EXPECTED_PROJECT_ID;
           const base = process.env.WORKER_BASE_URL;
           const origin = process.env.EXPECTED_ORIGIN;
           console.log(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
           if (!/^AIza[0-9A-Za-z_-]+$/.test(cleanKey)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
+          }
+          if ((productionSecret && cleanKey === productionSecret) ||
+              (productionConfigKey && cleanKey === productionConfigKey)) {
+            throw new Error("Staging key matches a known Production Firebase key; aborting before creating any Firebase identity.");
           }
 
           const authEndpoint = "https://identitytoolkit.googleapis.com/v1";
@@ -250,28 +259,32 @@ jobs:
             });
             const crossTenantBody = await parse(crossTenantResponse);
             check(crossTenantResponse.status === 403 &&
-              (crossTenantBody?.error?.status === "PERMISSION_DENIED" || crossTenantBody?.error?.message),
+              crossTenantBody?.error?.status === "PERMISSION_DENIED",
               "Cross-tenant Firestore read was not denied with HTTP 403.");
             console.log("PASS CROSS-TENANT ISOLATION: User A reading User B snapshot -> HTTP 403.");
 
           } finally {
-            if (snapshotDocumentCreated && createdUsers[0]) {
-              const docUrl = firestoreBase + "/users/" + encodeURIComponent(createdUsers[0].uid) + "/snapshots/latest";
-              const response = await fetch(docUrl, {
-                method: "DELETE",
-                headers: { Authorization: "Bearer " + createdUsers[0].idToken },
-              });
-              if (!response.ok && response.status !== 404) {
-                throw new Error("Temporary snapshot cleanup failed: HTTP " + response.status);
-              }
-              console.log("PASS CLEANUP: temporary Staging snapshot document deleted.");
-            }
             const cleanupErrors = [];
+            if (snapshotDocumentCreated && createdUsers[0]) {
+              try {
+                const docUrl = firestoreBase + "/users/" + encodeURIComponent(createdUsers[0].uid) + "/snapshots/latest";
+                const response = await fetch(docUrl, {
+                  method: "DELETE",
+                  headers: { Authorization: "Bearer " + createdUsers[0].idToken },
+                });
+                if (!response.ok && response.status !== 404) {
+                  throw new Error("Temporary snapshot cleanup failed: HTTP " + response.status);
+                }
+                console.log("PASS CLEANUP: temporary Staging snapshot document deleted.");
+              } catch (error) {
+                cleanupErrors.push(error.message);
+              }
+            }
             for (const user of createdUsers.reverse()) {
               try { await deleteTemporaryUser(user); }
               catch (error) { cleanupErrors.push(error.message); }
             }
             if (cleanupErrors.length) throw new Error(cleanupErrors.join("; "));
-            console.log("PASS CLEANUP: all temporary Firebase identities deleted.");
+            if (createdUsers.length) console.log("PASS CLEANUP: all temporary Firebase identities deleted.");
           }
           NODE
