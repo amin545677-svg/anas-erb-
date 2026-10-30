@@ -2114,12 +2114,22 @@ jobs:
           helper_end = app.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = app[helper_start:helper_end]
+          purchase_helpers_start = app.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = app.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = app[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = app.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = app.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = app[purchase_parity_start:purchase_parity_end]
           start = app.find("        function anasValidateIncomingSyncData(incoming) {")
           end = app.find("async function syncPushNow()", start)
           assert start >= 0 and end > start, "Could not isolate cloud restore validator"
           function_js = app[start:end]
           js = r"""
           const assert = require('node:assert/strict');
+          /*INSERT_PURCHASE_HELPERS*/
+          /*INSERT_PURCHASE_PARITY*/
           /*INSERT_SYNC_VALIDATOR*/
           const base = () => ({products:[{id:'p1',stock:8,warehouseStock:{'Legacy':3}}],customers:[],suppliers:[],invoices:[]});
           const valid = base();
@@ -2273,6 +2283,8 @@ jobs:
           assert.deepEqual(missingCashHistory.cashMovements,[]);
           console.log('Cloud restore validator tests passed: malformed accounting fields are rejected before local replacement');
           """
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", purchase_helpers)
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", purchase_parity)
           js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "\n" + function_js)
           Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
           PY
