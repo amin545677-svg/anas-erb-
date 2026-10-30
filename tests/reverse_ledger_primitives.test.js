@@ -196,7 +196,7 @@ test('customer v2 ledger reconciles opening debt, new invoice debit and explicit
 });
 
 test('client receipt ledger cannot be sealed when customer debt does not include the receipt', () => {
- const state={customers:[{id:'C-RECEIPT',debt:9.99,ledgerVersion:2}],invoices:[],purchases:[],returns:[],
+ const state={customers:[{id:'C-RECEIPT',debt:9.98,ledgerVersion:2}],invoices:[],purchases:[],returns:[],
   clientMovements:[{ledgerVersion:2,movementId:'OPEN-R',clientId:'C-RECEIPT',type:'opening_balance',amountCentimes:1000,direction:'debit',referenceType:'opening_balance',referenceId:'C-RECEIPT',createdAt:'2026-10-30T12:00:00Z'}]};
  assert.throws(()=>R.sealClientMovement(state,{movementId:'RECEIPT-R',clientId:'C-RECEIPT',type:'receipt',amountCentimes:1,direction:'credit',referenceType:'customer_debt',referenceId:'C-RECEIPT',createdAt:'2026-10-30T12:01:00Z'}),/does not match customer debt/);
 });
