@@ -305,7 +305,7 @@ export default {
       }});
     }
     const url = new URL(request.url);
-    if (!origin) return json({ error: "Origin is not allowed" }, 403, "https://amin545677-svg.github.io");
+    if (!origin) return json({ error: "Origin is not allowed" }, 403, "");
     if (url.pathname === "/health" && request.method === "GET") {
       const projectId = env.FIREBASE_PROJECT_ID || null;
       const isStaging = projectId === "anas-erp-staging-a25e1";
