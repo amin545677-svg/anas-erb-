@@ -45,6 +45,65 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Add CLOUDFLARE_ACCOUNT_ID as a GitHub Actions secret." && exit 1)
           test -n "$STAGING_FIREBASE_API_KEY" || (echo "::error::Add STAGING_FIREBASE_API_KEY as a GitHub Actions secret." && exit 1)
 
+      - name: Validate Firebase Staging API key before Cloudflare mutation
+        env:
+          STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
+          PROD_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          EXPECTED_PROJECT_ID: anas-erp-staging-a25e1
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
+          const cleanKey = rawKey.replace(/["'\\s\\r\\n]/g, "");
+          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\\s\\r\\n]/g, "");
+          const html = readFileSync("index.html", "utf8");
+          const productionConfigKey = html.match(/apiKey\\s*:\\s*["']([^"']+)["']/)?.[1] || "";
+          const projectId = process.env.EXPECTED_PROJECT_ID;
+          console.log(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
+          if (!/^AIza[0-9A-Za-z_-]+$/.test(cleanKey)) {
+            throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
+          }
+          if ((productionSecret && cleanKey === productionSecret) ||
+              (productionConfigKey && cleanKey === productionConfigKey)) {
+            throw new Error("Staging key matches a known Production Firebase key; refusing any Firebase or Cloudflare mutation.");
+          }
+          let temporaryUser = null;
+          try {
+            const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + encodeURIComponent(cleanKey), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ returnSecureToken: true }),
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              const reason = body?.error?.message || String(response.status);
+              if (reason === "OPERATION_NOT_ALLOWED") {
+                throw new Error("Firebase API key is accepted but Anonymous Authentication is disabled in Staging.");
+              }
+              throw new Error("Firebase Staging API key rejected by Auth: " + reason);
+            }
+            if (!body.idToken || !body.localId) throw new Error("Firebase Auth returned no temporary identity.");
+            temporaryUser = { idToken: body.idToken };
+            const claims = JSON.parse(Buffer.from(body.idToken.split(".")[1], "base64url").toString("utf8"));
+            if (claims.aud !== projectId) throw new Error("Firebase key resolves to project " + String(claims.aud) + ", not Staging.");
+            console.log("PASS FIREBASE KEY: Auth accepted key and ID token audience matches Staging.");
+          } finally {
+            if (temporaryUser) {
+              const cleanup = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete?key=" + encodeURIComponent(cleanKey), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: temporaryUser.idToken }),
+              });
+              const cleanupBody = await cleanup.json().catch(() => ({}));
+              if (!cleanup.ok && cleanupBody?.error?.message !== "USER_NOT_FOUND") {
+                throw new Error("Temporary key-validation identity cleanup failed: " + (cleanupBody?.error?.message || cleanup.status));
+              }
+              console.log("PASS CLEANUP: Firebase key-validation identity deleted.");
+            }
+          }
+          NODE
+
       - name: Deploy isolated staging Worker with explicit config and name
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
