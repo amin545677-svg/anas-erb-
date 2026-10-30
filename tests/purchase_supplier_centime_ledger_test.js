@@ -153,4 +153,41 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  assert.ok(Number.isNaN(ctx.invalidAggregate),'purchase report must fail closed on totals outside safe integer range');
  console.log('PASS: purchase reports and inventory valuation aggregate in exact centimes');
 }
+{
+ const backupStart=html.indexOf('function anasValidateBackupData(incoming)');
+ const backupEnd=html.indexOf('async function syncPushNow()',backupStart);
+ const cloudStart=html.indexOf('function anasValidateIncomingSyncData(incoming)');
+ const cloudEnd=html.indexOf('async function syncPushNow()',cloudStart);
+ assert.ok(backupStart>=0&&backupEnd>backupStart&&cloudStart>=0&&cloudEnd>cloudStart,'backup and cloud validators must be isolatable');
+ const base={
+  products:[],customers:[],suppliers:[{id:'S-1',name:'Supplier',balance:0.20}],invoices:[],
+  purchases:[{id:'PUR-1',productId:'P-1',cost:'0.10',qty:'3',total:'0.30',paid:'0.10',remaining:'0.20',supplierId:'S-1'}],
+  supplierMovements:[
+   {id:'SM-1',supplierId:'S-1',type:'purchase',amount:'0.30',referenceType:'purchase_invoice',referenceId:'PUR-1'},
+   {id:'SM-2',supplierId:'S-1',type:'payment',amount:'0.10',referenceType:'purchase_invoice',referenceId:'PUR-1'}
+  ]
+ };
+ function validate(kind,incoming,current={}) {
+  const start=kind==='backup'?backupStart:cloudStart;
+  const end=kind==='backup'?backupEnd:cloudEnd;
+  const fn=kind==='backup'?'anasValidateBackupData':'anasValidateIncomingSyncData';
+  const ctx={AppData:{products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],supplierMovements:[],alerts:[],truckTrips:[],cashMovements:[],stocktakeRecords:[],warehouses:[],caisseBalance:0,...current},
+   anasValidateTruckExpenseLinks(){},console};
+  vm.createContext(ctx);
+  vm.runInContext(moneyHelperSource+'\n'+html.slice(start,end)+'\nthis.__validate='+fn+';',ctx,{timeout:1500});
+  return ctx.__validate(JSON.parse(JSON.stringify(incoming)));
+ }
+ for(const kind of ['backup','cloud']) {
+  const accepted=validate(kind,base);
+  assert.equal(accepted.purchases[0].total,'0.30');
+  assert.equal(accepted.supplierMovements.length,2);
+  const mismatch=JSON.parse(JSON.stringify(base));mismatch.purchases[0].remaining='0.19';
+  assert.throws(()=>validate(kind,mismatch),/غير متطابقة بالسنتيم/,'restore must reject purchase total/paid/remaining mismatch');
+  const orphan=JSON.parse(JSON.stringify(base));orphan.supplierMovements[0].supplierId='MISSING';
+  assert.throws(()=>validate(kind,orphan),/مورد مفقود أو مكرر/,'restore must reject supplier ledger entries without a unique supplier');
+  const missingLedger=JSON.parse(JSON.stringify(base));delete missingLedger.supplierMovements;
+  assert.throws(()=>validate(kind,missingLedger,{supplierMovements:[{id:'OLD',supplierId:'S-1',type:'purchase',amount:1}]}),/تفتقد قائمة/,'restore must not erase an existing supplier ledger when the snapshot omits it');
+ }
+ console.log('PASS: cloud and backup restore validate purchase settlement and preserve supplier ledger history');
+}
 console.log('Purchase and supplier centime ledger tests passed');
