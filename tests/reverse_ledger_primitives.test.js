@@ -202,3 +202,162 @@ test('client receipt ledger cannot be sealed when customer debt does not include
   clientMovements:[{ledgerVersion:2,movementId:'OPEN-R',clientId:'C-RECEIPT',type:'opening_balance',amountCentimes:1000,direction:'debit',referenceType:'opening_balance',referenceId:'C-RECEIPT',createdAt:'2026-10-30T12:00:00Z'}]};
  assert.throws(()=>R.sealClientMovement(state,{movementId:'RECEIPT-R',clientId:'C-RECEIPT',type:'receipt',amountCentimes:1,direction:'credit',referenceType:'customer_debt',referenceId:'C-RECEIPT',createdAt:'2026-10-30T12:01:00Z'}),/does not match customer debt/);
 });
+
+
+function saleReturnState() {
+ const customer={id:'C-RET',name:'Customer',debt:0.20};
+ const invoice={id:'INV-RET',customerId:'C-RET',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
+  items:[{id:'P-RET',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'};
+ const product={id:'P-RET',name:'Tea',stock:0};
+ return {customers:[customer],suppliers:[],invoices:[invoice],purchases:[],products:[product],
+  cashMovements:[{id:'SALE-CASH-RET',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'INV-RET'}],
+  stockMovements:[{id:'SALE-STOCK-RET',productId:'P-RET',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-RET'}],
+  clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
+  caisseBalance:1,currentUser:{id:'U-RET'}};
+}
+function purchaseReturnState(stock=3) {
+ const supplier={id:'SUP-RET',name:'Supplier',balance:0.20};
+ const invoice={id:'PUR-RET',supplierId:'SUP-RET',total:0.30,paid:0.10,remaining:0.20,
+  productId:'P-RET',qty:3,cost:0.10,warehouse:'المخزن الرئيسي'};
+ const product={id:'P-RET',name:'Tea',stock};
+ return {customers:[],suppliers:[supplier],invoices:[],purchases:[invoice],products:[product],
+  cashMovements:[{id:'PUR-CASH-RET',type:'subtract',amount:0.10,referenceType:'purchase_invoice',referenceId:'PUR-RET'}],
+  stockMovements:[{id:'PUR-STOCK-RET',productId:'P-RET',qty:3,type:'PURCHASE_IN',referenceType:'purchase_invoice',referenceId:'PUR-RET'}],
+  clientMovements:[],supplierMovements:[{id:'SUP-PUR-RET',supplierId:'SUP-RET',type:'purchase',amount:0.30,referenceType:'purchase_invoice',referenceId:'PUR-RET'}],
+  settlementAllocations:[],returns:[],customerCreditMovements:[],caisseBalance:1,currentUser:{id:'U-RET'}};
+}
+
+test('atomic sale return reduces invoice debt first and returns stock with exact micro-units', () => {
+ const state=saleReturnState();
+ const doc=R.executeReturnTransaction(state,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'1'}],settlementMode:'cash',reason:'damaged'},
+  {createId:()=> 'RET-SALE-1',persist:()=>true});
+ assert.equal(doc.totalCentimes,10);
+ assert.equal(doc.debtReductionCentimes,10);
+ assert.equal(doc.cashRefundCentimes,0);
+ assert.equal(state.customers[0].debt,0.10);
+ assert.equal(state.products[0].stock,1);
+ assert.equal(state.stockMovements[0].type,'RETURN_IN');
+ assert.equal(state.stockMovements[0].qty,1);
+ assert.equal(state.invoices[0].paid,0.10);
+ assert.equal(state.invoices[0].remaining,0.20);
+ assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.throws(()=>R.executeReturnTransaction(state,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'over return'},{createId:()=> 'RET-SALE-OVER',persist:()=>true}),/return exceeds remaining returnable micro-units/);
+});
+
+test('sale return routes excess to documented customer credit or cash refund', () => {
+ const creditState=saleReturnState();
+ const creditDoc=R.executeReturnTransaction(creditState,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'credit',reason:'full line return'},
+  {createId:()=> 'RET-SALE-CREDIT',persist:()=>true});
+ assert.equal(creditDoc.debtReductionCentimes,20);
+ assert.equal(creditDoc.customerCreditCentimes,10);
+ assert.equal(creditState.customers[0].debt,0);
+ assert.equal(creditState.customers[0].creditBalanceCentimes,10);
+ assert.equal(creditState.customerCreditMovements[0].amountCentimes,10);
+ assert.equal(creditState.caisseBalance,1);
+ assert.equal(R.validateReverseLedgerParity(creditState),true);
+
+ const cashState=saleReturnState();
+ const cashDoc=R.executeReturnTransaction(cashState,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'full line return'},
+  {createId:()=> 'RET-SALE-CASH',persist:()=>true});
+ assert.equal(cashDoc.cashRefundCentimes,10);
+ assert.equal(cashState.caisseBalance,0.90);
+ assert.equal(cashState.cashMovements[0].type,'subtract');
+ assert.equal(cashState.customers[0].debt,0);
+ assert.equal(R.validateReverseLedgerParity(cashState),true);
+});
+
+test('purchase return checks current stock and records debt reduction plus supplier credit or cash', () => {
+ const creditState=purchaseReturnState();
+ const creditDoc=R.executeReturnTransaction(creditState,{originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',invoiceId:'PUR-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'credit',reason:'supplier defect'},
+  {createId:()=> 'RET-PUR-CREDIT',persist:()=>true});
+ assert.equal(creditDoc.debtReductionCentimes,20);
+ assert.equal(creditDoc.supplierCreditCentimes,10);
+ assert.equal(creditState.suppliers[0].balance,0);
+ assert.equal(creditState.suppliers[0].creditBalanceCentimes,10);
+ assert.equal(creditState.supplierMovements[0].type,'return_credit');
+ assert.equal(creditState.supplierMovements[0].amount,0.30);
+ assert.equal(creditState.products[0].stock,0);
+ assert.equal(creditState.stockMovements[0].type,'RETURN_OUT');
+ assert.equal(R.validateReverseLedgerParity(creditState),true);
+
+ const cashState=purchaseReturnState();
+ const cashDoc=R.executeReturnTransaction(cashState,{originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',invoiceId:'PUR-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'supplier refund'},
+  {createId:()=> 'RET-PUR-CASH',persist:()=>true});
+ assert.equal(cashDoc.cashRefundCentimes,10);
+ assert.equal(cashState.caisseBalance,1.10);
+ assert.equal(cashState.cashMovements[0].type,'add');
+ assert.equal(cashState.suppliers[0].balance,0);
+ assert.equal(R.validateReverseLedgerParity(cashState),true);
+
+ const insufficient=purchaseReturnState(2);
+ const before=JSON.stringify(insufficient);
+ assert.throws(()=>R.executeReturnTransaction(insufficient,{originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',invoiceId:'PUR-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'not enough stock'},
+  {createId:()=> 'RET-PUR-LOW',persist:()=>true}),/not available in current warehouse stock/);
+ assert.equal(JSON.stringify(insufficient),before);
+});
+
+test('invoice cancellation reverses full stock, debt and cash and refuses prior partial returns', () => {
+ const sale=saleReturnState();
+ const cancelled=R.executeReturnTransaction(sale,{originalInvoiceType:'sales_invoice',returnType:'INVOICE_CANCEL',invoiceId:'INV-RET',reason:'duplicate invoice'},
+  {createId:()=> 'RET-CANCEL-SALE',persist:()=>true});
+ assert.equal(cancelled.totalCentimes,30);
+ assert.equal(cancelled.debtReductionCentimes,20);
+ assert.equal(cancelled.cashRefundCentimes,10);
+ assert.equal(sale.invoices[0].status,'CANCELLED');
+ assert.equal(sale.customers[0].debt,0);
+ assert.equal(sale.caisseBalance,0.90);
+ assert.equal(sale.products[0].stock,3);
+ assert.equal(R.validateReverseLedgerParity(sale),true);
+
+ const purchase=purchaseReturnState();
+ R.executeReturnTransaction(purchase,{originalInvoiceType:'purchase_invoice',returnType:'INVOICE_CANCEL',invoiceId:'PUR-RET',reason:'duplicate purchase'},
+  {createId:()=> 'RET-CANCEL-PUR',persist:()=>true});
+ assert.equal(purchase.purchases[0].status,'CANCELLED');
+ assert.equal(purchase.suppliers[0].balance,0);
+ assert.equal(purchase.caisseBalance,1.10);
+ assert.equal(purchase.products[0].stock,0);
+ assert.equal(R.validateReverseLedgerParity(purchase),true);
+
+ const partial=saleReturnState();
+ R.executeReturnTransaction(partial,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'1'}],reason:'partial',settlementMode:'cash'},
+  {createId:()=> 'RET-BEFORE-CANCEL',persist:()=>true});
+ const before=JSON.stringify(partial);
+ assert.throws(()=>R.executeReturnTransaction(partial,{originalInvoiceType:'sales_invoice',returnType:'INVOICE_CANCEL',invoiceId:'INV-RET',reason:'must block'},
+  {createId:()=> 'RET-CANCEL-BLOCK',persist:()=>true}),/blocked after any posted partial return/);
+ assert.equal(JSON.stringify(partial),before);
+});
+
+test('legacy unallocated settlements and failed persistence are rejected atomically', () => {
+ const legacySale=saleReturnState();
+ legacySale.cashMovements.push({id:'LEGACY-RECEIPT',type:'add',amount:0.10,referenceType:'customer_debt',referenceId:'C-RET'});
+ const legacyBefore=JSON.stringify(legacySale);
+ assert.throws(()=>R.executeReturnTransaction(legacySale,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'1'}],reason:'legacy gate',settlementMode:'cash'},
+  {createId:()=> 'RET-LEGACY',persist:()=>true}),/unallocated subsequent settlements/);
+ assert.equal(JSON.stringify(legacySale),legacyBefore);
+
+ const state=saleReturnState();
+ const refs={app:state,customer:state.customers[0],product:state.products[0],cash:state.cashMovements,stock:state.stockMovements,
+  clients:state.clientMovements,returns:state.returns,credits:state.customerCreditMovements};
+ const before=JSON.stringify(state);
+ assert.throws(()=>R.executeReturnTransaction(state,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'1'}],reason:'save fail',settlementMode:'cash'},
+  {createId:()=> 'RET-SAVE-FAIL',persist:()=>false}),/persistence failed/);
+ assert.equal(JSON.stringify(state),before);
+ assert.equal(state,refs.app);
+ assert.equal(state.customers[0],refs.customer);
+ assert.equal(state.products[0],refs.product);
+ assert.equal(state.cashMovements,refs.cash);
+ assert.equal(state.stockMovements,refs.stock);
+ assert.equal(state.clientMovements,refs.clients);
+ assert.equal(state.returns,refs.returns);
+ assert.equal(state.customerCreditMovements,refs.credits);
+});
