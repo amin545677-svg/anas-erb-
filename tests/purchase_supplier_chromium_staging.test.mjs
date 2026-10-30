@@ -417,7 +417,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
         !(m.referenceType === 'purchase_invoice' && m.referenceId === invoiceId));
       const orphanCash = JSON.parse(JSON.stringify(snapshot));
       orphanCash.cashMovements = orphanCash.cashMovements.filter(m =>
-        !(m.referenceType === 'purchase_invoice' && m.referenceId === snapshot.purchases[0].id));
+        !(m.referenceType === 'purchase_invoice' && m.referenceId === invoiceId));
       const beforeState = JSON.stringify(AppData);
       const beforeStorage = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
       const failures = [];
