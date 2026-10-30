@@ -67,6 +67,7 @@ test('version-2 client movement ledger must reconcile exactly to customer debt',
  const movement=R.sealClientMovement(state,input);
  state.clientMovements.push(movement);
  assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.throws(()=>R.sealClientMovement(state,{...input,movementId:'CM-BAD',direction:'credit'}),/direction does not match movement type/);
  assert.throws(()=>R.validateReverseLedgerParity({...state,customers:[{id:'C-1',debt:7.24,ledgerVersion:2}]}),/does not match customer debt/);
 });
 test('posted returns reject a one-micro-unit over-return without mutating the source state', () => {
