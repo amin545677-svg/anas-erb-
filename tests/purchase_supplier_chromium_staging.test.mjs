@@ -12,7 +12,7 @@ const PORT = 4173;
 
 function decimalToScaledBigInt(value, scale) {
   const raw = String(value);
-  const match = /^([+-]?)(\\d+)(?:\\.(\\d*))?$/.exec(raw);
+  const match = /^([+-]?)(\d+)(?:\.(\d*))?$/.exec(raw);
   assert.ok(match, `invalid exact decimal value: ${raw}`);
   const fraction = match[3] || '';
   assert.ok(fraction.length <= scale || /^0*$/.test(fraction.slice(scale)), `excess precision in ${raw}`);
@@ -234,7 +234,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
 
     await page.evaluate(() => openView('cash'));
     const cashDomAfterReload = await page.locator('#cashCurrentBalanceDisplay').innerText();
-    assert.match(cashDomAfterReload, /99[,.\\s]?999[,.]70/);
+    assert.match(cashDomAfterReload, /99[,.\s\u00a0]?999[,.]70/);
     await page.evaluate(() => openView('supp-debts'));
     const supplierDomAfterReload = await page.locator('#suppDebtsContainer').innerText();
     assert.match(supplierDomAfterReload, /15[,.\\s]?000/);
