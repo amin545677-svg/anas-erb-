@@ -5287,81 +5287,212 @@ function renderPurchasesTable() {
             if (matches.length !== 1) { alert(matches.length ? 'معرّف المورد مكرر؛ أوقفنا التسديد.' : 'المورد غير موجود؛ لم يتم تسجيل أي تسديد.'); return; }
             const supplier = matches[0];
             const balanceCents = anasPurchaseToCents(supplier.balance ?? 0);
-            if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0) { alert('لا يوجد رصيد مستحق صالح للتسديد لهذا المورد.'); return; }
-            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
-                (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
-                 String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)))) {
-                alert('رصيد الصندوق غير صالح؛ أوقفنا التسديد.'); return;
+            const cashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
+            if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0 ||
+                !Number.isSafeInteger(cashCents) || cashCents < 0) {
+                alert('رصيد المورد أو الصندوق غير صالح؛ لم يتم تسجيل أي تسديد.'); return;
             }
-            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين']]) {
+            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين'],['purchases','فواتير الشراء'],['settlementAllocations','دفتر تخصيص الدفعات']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData,field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(x => !x || typeof x !== 'object' || Array.isArray(x)))) {
                     alert('سجل ' + label + ' تالف؛ لم يتم تسجيل أي تسديد.'); return;
                 }
             }
-            const raw = prompt('مبلغ التسديد للمورد ' + String(supplier.name || '') + ' (المستحق: ' +
-                anasPurchaseCentsToCurrency(balanceCents).toFixed(2) + ' د.ج):', anasPurchaseCentsToCurrency(balanceCents).toFixed(2));
-            if (raw === null) return;
-            const amountCents = anasPurchaseToCents(String(raw).trim().replace(',', '.'));
-            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > balanceCents) {
-                alert('مبلغ التسديد غير صالح أو يتجاوز رصيد المورد المستحق.'); return;
+            const supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
+            const allocations = Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations : [];
+            const supplierIdText = String(supplier.id);
+            const supplierPurchases = (Array.isArray(AppData.purchases) ? AppData.purchases : [])
+                .filter(p => p && String(p.supplierId ?? p.supplier?.id ?? '') === supplierIdText);
+            if (!supplierPurchases.length) {
+                alert('لا توجد فواتير شراء مرتبطة بهذا المورد يمكن تخصيص التسديد عليها. لم تتغير أي بيانات.'); return;
             }
-            const cashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
+            // A prior supplier payment without complete invoice allocation makes invoice-level balances uncertain.
+            for (const movement of supplierMovements.filter(m =>
+                String(m.supplierId ?? '') === supplierIdText && m.type === 'payment' &&
+                String(m.referenceType || '') === 'supplier_payment')) {
+                const linked = allocations.filter(a => a && a.partyType === 'supplier' &&
+                    String(a.partyId) === supplierIdText && a.sourceMovementType === 'supplier_payment' &&
+                    String(a.sourceMovementId) === String(movement.id));
+                const allocated = linked.reduce((sum,a) => {
+                    if (!Number.isSafeInteger(a.amountCentimes) || a.amountCentimes <= 0 || !Number.isSafeInteger(sum + a.amountCentimes))
+                        return NaN;
+                    return sum + a.amountCentimes;
+                },0);
+                const source = anasPurchaseToCents(movement.amount);
+                if (!Number.isSafeInteger(source) || allocated !== source) {
+                    alert('يوجد تسديد سابق للمورد غير مخصص بالكامل لفواتير محددة؛ يلزم تسويته يدوياً قبل أي تسديد جديد.'); return;
+                }
+            }
+            const invoiceBalance = invoice => {
+                const total = anasPurchaseToCents(invoice.total);
+                const paid = anasPurchaseToCents(invoice.paid);
+                const originalRemaining = anasPurchaseToCents(invoice.remaining);
+                if (![total,paid,originalRemaining].every(Number.isSafeInteger) ||
+                    total <= 0 || paid < 0 || originalRemaining < 0 || paid + originalRemaining !== total)
+                    throw new Error('فاتورة الشراء لا تحتوي على لقطة أصلية صحيحة للمدفوع والمتبقي');
+                const later = allocations.filter(a => a && a.partyType === 'supplier' &&
+                    String(a.partyId) === supplierIdText && a.invoiceType === 'purchase_invoice' &&
+                    String(a.invoiceId) === String(invoice.id) && a.sourceMovementType === 'supplier_payment')
+                    .reduce((sum,a) => {
+                        if (!Number.isSafeInteger(a.amountCentimes) || a.amountCentimes <= 0 || !Number.isSafeInteger(sum + a.amountCentimes))
+                            throw new Error('تخصيص لاحق غير صالح في دفتر المورد');
+                        return sum + a.amountCentimes;
+                    },0);
+                const current = total - paid - later;
+                if (current < 0) throw new Error('تخصيصات المورد تتجاوز المتبقي الأصلي للفاتورة');
+                return { total, paid, remaining: current };
+            };
+            const choices = [];
+            for (const invoice of supplierPurchases) {
+                try {
+                    const balance = invoiceBalance(invoice);
+                    if (balance.remaining > 0) choices.push({
+                        invoiceId: String(invoice.id), total: anasPurchaseCentsToCurrency(balance.total),
+                        paidAtPosting: anasPurchaseCentsToCurrency(balance.paid),
+                        currentlyOutstanding: anasPurchaseCentsToCurrency(balance.remaining)
+                    });
+                } catch (error) {
+                    alert('تعذر التحقق من فاتورة المورد ' + String(invoice.id) + ': ' + (error?.message || 'رصيد غير صالح') + '. أوقفنا التسديد.');
+                    return;
+                }
+            }
+            if (!choices.length) { alert('لا توجد فواتير شراء ذات متبقٍ حالي صالح قابل للتخصيص.'); return; }
+            const rawAllocations = prompt(
+                'أدخل تخصيصات سند الصرف يدوياً بصيغة JSON. مثال: [{"invoiceId":"PUR-1","amount":"0.20"}].\n' +
+                'مجموع المبالغ هو قيمة سند الصرف، ويجب ألا يتجاوز مستحق المورد أو رصيد الصندوق. الفواتير المتاحة: ' +
+                JSON.stringify(choices), '');
+            if (rawAllocations === null) return;
+            let requested;
+            try { requested = JSON.parse(rawAllocations); }
+            catch (_) { alert('صيغة تخصيص دفعة المورد غير صحيحة؛ استخدم JSON صالحاً.'); return; }
+            if (!Array.isArray(requested) || !requested.length) {
+                alert('يجب تحديد فاتورة شراء واحدة على الأقل ومبلغها صراحةً؛ لا يوجد توزيع تلقائي.'); return;
+            }
+            const invoiceRows = [];
+            const seenInvoices = new Set();
+            let amountCents = 0;
+            for (const entry of requested) {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry) || entry.invoiceId == null) {
+                    alert('يوجد سطر تخصيص غير صالح في سند المورد.'); return;
+                }
+                const invoiceId = String(entry.invoiceId);
+                if (seenInvoices.has(invoiceId)) { alert('لا تكرر فاتورة الشراء في قائمة التخصيص.'); return; }
+                seenInvoices.add(invoiceId);
+                const found = supplierPurchases.filter(p => String(p.id) === invoiceId);
+                if (found.length !== 1) { alert('فاتورة الشراء ' + invoiceId + ' غير موجودة أو معرّفها مكرر أو لا تخص هذا المورد.'); return; }
+                let outstanding;
+                try { outstanding = invoiceBalance(found[0]); }
+                catch (error) { alert('رصيد فاتورة الشراء ' + invoiceId + ' غير صالح: ' + (error?.message || 'خطأ دفتر الموردين')); return; }
+                const cents = anasPurchaseToCents(String(entry.amount ?? '').trim().replace(',', '.'));
+                if (!Number.isSafeInteger(cents) || cents <= 0 || cents > outstanding.remaining) {
+                    alert('تخصيص الفاتورة ' + invoiceId + ' غير صالح أو يتجاوز متبقيها الفعلي بعد الدفعات السابقة.'); return;
+                }
+                if (!Number.isSafeInteger(amountCents + cents)) { alert('مجموع تخصيصات المورد خارج المجال المالي الآمن.'); return; }
+                amountCents += cents;
+                invoiceRows.push({ invoice: found[0], invoiceId, amount: cents });
+            }
+            if (amountCents <= 0 || amountCents > balanceCents) {
+                alert('مجموع التخصيصات غير صالح أو يتجاوز رصيد المورد المستحق.'); return;
+            }
+            if (amountCents > cashCents) {
+                alert('رصيد الصندوق لا يكفي لسند الصرف؛ لم يتم تنفيذ أي حركة.'); return;
+            }
             const nextCashCents = cashCents - amountCents;
             const nextSupplierCents = balanceCents - amountCents;
-            if (!Number.isSafeInteger(cashCents) || cashCents < amountCents ||
-                !Number.isSafeInteger(nextCashCents) || nextCashCents < 0 ||
+            if (!Number.isSafeInteger(nextCashCents) || nextCashCents < 0 ||
                 !Number.isSafeInteger(nextSupplierCents) || nextSupplierCents < 0) {
-                alert('رصيد الصندوق لا يكفي أو نتيجة التسديد غير صالحة؛ لم يتم تنفيذ الحركة.'); return;
+                alert('نتيجة التسديد خارج المجال المالي الآمن؛ لم يتم تنفيذ الحركة.'); return;
             }
             const movementId = 'SUP-PAY-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
             const cashId = 'SUP-CASH-' + movementId;
-            const existingIds = new Set();
-            let duplicateLedgerId = false;
-            for (const collection of [AppData.cashMovements || [], AppData.supplierMovements || []]) {
+            const usedIds = new Set();
+            for (const collection of [AppData.cashMovements || [], supplierMovements]) {
                 for (const row of collection) if (row.id != null && String(row.id).trim()) {
                     const id = String(row.id);
-                    if (existingIds.has(id)) duplicateLedgerId = true;
-                    existingIds.add(id);
+                    if (usedIds.has(id)) { alert('توجد معرّفات مكررة في دفاتر الموردين أو الصندوق؛ أوقفنا التسديد.'); return; }
+                    usedIds.add(id);
                 }
             }
-            if (duplicateLedgerId) { alert('توجد معرّفات مكررة في دفاتر الموردين أو الصندوق؛ أوقفنا التسديد حتى إصلاح السجل.'); return; }
-            if (existingIds.has(movementId) || existingIds.has(cashId)) { alert('تعارض معرّف حركة التسديد؛ أعد المحاولة بعد مراجعة السجلات.'); return; }
-            let previous;
-            try { previous = JSON.parse(JSON.stringify(AppData)); }
-            catch (_) { alert('تعذر تجهيز التراجع؛ لم يتم تغيير البيانات.'); return; }
+            if (usedIds.has(movementId) || usedIds.has(cashId) ||
+                allocations.some(a => String(a.allocationId || '') === 'ALLOC-' + movementId + '-' + invoiceRows[0].invoiceId)) {
+                alert('تعارض معرّف سند الصرف؛ أوقفنا التسديد.'); return;
+            }
+            const hadBalance = Object.prototype.hasOwnProperty.call(supplier,'balance');
+            const oldBalance = supplier.balance;
+            const hadCash = Object.prototype.hasOwnProperty.call(AppData,'caisseBalance');
+            const oldCash = AppData.caisseBalance;
+            const snapshots = {};
+            for (const key of ['supplierMovements','cashMovements','settlementAllocations']) {
+                snapshots[key] = {
+                    had: Object.prototype.hasOwnProperty.call(AppData,key),
+                    array: Array.isArray(AppData[key]) ? AppData[key] : null,
+                    rows: Array.isArray(AppData[key]) ? AppData[key].slice() : null
+                };
+            }
             try {
-                AppData.supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
-                AppData.cashMovements = Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [];
+                if (!Array.isArray(AppData.supplierMovements)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'supplierMovements')) throw new Error('دفتر الموردين تالف.');
+                    AppData.supplierMovements = [];
+                }
+                if (!Array.isArray(AppData.cashMovements)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'cashMovements')) throw new Error('دفتر الصندوق تالف.');
+                    AppData.cashMovements = [];
+                }
+                if (!Array.isArray(AppData.settlementAllocations)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'settlementAllocations')) throw new Error('دفتر تخصيص الدفعات تالف.');
+                    AppData.settlementAllocations = [];
+                }
                 supplier.balance = anasPurchaseCentsToCurrency(nextSupplierCents);
                 AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
+                const timestamp = new Date().toISOString();
                 AppData.supplierMovements.unshift({
-                    id: movementId, supplierId: String(supplier.id), supplierName: String(supplier.name || ''),
+                    id: movementId, supplierId: supplierIdText, supplierName: String(supplier.name || ''),
                     type: 'payment', amount: anasPurchaseCentsToCurrency(amountCents),
                     referenceType: 'supplier_payment', referenceId: movementId,
-                    date: new Date().toISOString(), note: 'تسديد رصيد مستحق للمورد'
+                    date: timestamp, note: 'تسديد مورد مخصص صراحةً لفواتير شراء محددة'
                 });
                 AppData.cashMovements.unshift({
                     id: cashId, type: 'subtract', amount: anasPurchaseCentsToCurrency(amountCents),
                     description: 'تسديد مستحقات المورد ' + String(supplier.name || supplier.id),
                     referenceType: 'supplier_payment', referenceId: movementId,
-                    date: new Date().toISOString(),
+                    date: timestamp,
                     userId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : null,
                     userName: AppData.currentUser?.name || 'غير محدد'
                 });
-                if (balanceCents - nextSupplierCents !== amountCents || cashCents - nextCashCents !== amountCents ||
+                if (balanceCents - nextSupplierCents !== amountCents ||
+                    cashCents - nextCashCents !== amountCents ||
                     anasPurchaseToCents(AppData.supplierMovements[0].amount) !== amountCents ||
-                    anasPurchaseToCents(AppData.cashMovements[0].amount) !== amountCents) throw new Error('فشل التطابق المالي بين المورد والصندوق.');
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
-            } catch (err) {
-                AppData = previous;
-                try { renderSuppliersDebts(); updateCashUI(); } catch (_) {}
-                alert('لم يتم اعتماد التسديد: ' + (err?.message || 'فشل الحفظ') + '. أُعيدت البيانات السابقة.');
+                    anasPurchaseToCents(AppData.cashMovements[0].amount) !== amountCents)
+                    throw new Error('فشل التطابق المالي بين المورد والصندوق.');
+                for (const row of invoiceRows) {
+                    const allocation = globalThis.ANASReverseLedger.sealSettlementAllocation(AppData, {
+                        allocationId: 'ALLOC-' + movementId + '-' + row.invoiceId,
+                        partyType: 'supplier', partyId: supplierIdText, invoiceType: 'purchase_invoice',
+                        invoiceId: row.invoiceId, sourceMovementId: movementId, sourceMovementType: 'supplier_payment',
+                        amountCentimes: row.amount, createdAt: timestamp
+                    });
+                    AppData.settlementAllocations.push(allocation);
+                }
+                globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند صرف المورد.');
+            } catch (error) {
+                if (hadBalance) supplier.balance = oldBalance; else delete supplier.balance;
+                if (hadCash) AppData.caisseBalance = oldCash; else delete AppData.caisseBalance;
+                for (const key of Object.keys(snapshots)) {
+                    const snap = snapshots[key];
+                    if (!snap.had) { delete AppData[key]; continue; }
+                    if (snap.array) {
+                        snap.array.splice(0, snap.array.length, ...snap.rows);
+                        AppData[key] = snap.array;
+                    } else AppData[key] = AppData[key];
+                }
+                try { if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
+                alert('لم يتم اعتماد التسديد: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الأرصدة والدفاتر إلى ما قبل العملية.');
                 return;
             }
-            renderSuppliersDebts();
+            if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
             if (typeof updateCashUI === 'function') updateCashUI();
-            alert('تم تسديد المورد وتحديث دفتر الموردين والصندوق بنجاح.');
+            alert('تم تسجيل سند صرف المورد وتخصيصه يدوياً لفواتير الشراء المحددة بنجاح.');
         }
 
         function openAddSupplierModal() { 
