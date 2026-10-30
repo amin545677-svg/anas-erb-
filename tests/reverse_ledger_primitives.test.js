@@ -87,3 +87,20 @@ test('posted return requires matching invoice-linked stock movements', () => {
  assert.equal(R.validateReverseLedgerParity(state),true);
  assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[]}),/posted return stock movement is missing or mismatched/);
 });
+
+test('posted purchase return reconciles the legacy single-line purchase schema', () => {
+ const state={
+  customers:[],suppliers:[{id:'SUP-1',balance:0}],
+  invoices:[],purchases:[{id:'PUR-1',supplierId:'SUP-1',productId:'P-1',qty:2,cost:10,total:20,paid:20}],
+  clientMovements:[],settlementAllocations:[],
+  cashMovements:[{id:'CM-PUR-RET',amount:10,referenceType:'purchase_return',referenceId:'R-PUR-1'}],
+  supplierMovements:[],
+  stockMovements:[{id:'SM-PUR-RET',productId:'P-1',qty:-1,referenceType:'purchase_return',referenceId:'R-PUR-1'}],
+  returns:[{returnId:'R-PUR-1',ledgerVersion:2,originalInvoiceId:'PUR-1',originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',status:'POSTED',
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000}],
+   totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,
+   stockMovementIds:['SM-PUR-RET'],financialMovementIds:['CM-PUR-RET']}]
+ };
+ assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[{...state.stockMovements[0],qty:1}]}),/invalid direction/);
+});
