@@ -162,7 +162,9 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  assert.ok(backupStart>=0&&backupEnd>backupStart&&cloudStart>=0&&cloudEnd>cloudStart,'backup and cloud validators must be isolatable');
  const base={
   products:[],customers:[],suppliers:[{id:'S-1',name:'Supplier',balance:0.20}],invoices:[],
-  purchases:[{id:'PUR-1',productId:'P-1',cost:'0.10',qty:'3',total:'0.30',paid:'0.10',remaining:'0.20',supplierId:'S-1'}],
+  purchases:[{id:'PUR-1',ledgerVersion:1,productId:'P-1',cost:'0.10',qty:'3',total:'0.30',paid:'0.10',remaining:'0.20',supplierId:'S-1'}],
+  cashMovements:[{id:'CM-1',type:'subtract',amount:'0.10',referenceType:'purchase_invoice',referenceId:'PUR-1'}],
+  stockMovements:[{id:'ST-1',type:'PURCHASE_IN',productId:'P-1',qty:'3',referenceType:'purchase_invoice',referenceId:'PUR-1'}],
   supplierMovements:[
    {id:'SM-1',supplierId:'S-1',type:'purchase',amount:'0.30',referenceType:'purchase_invoice',referenceId:'PUR-1'},
    {id:'SM-2',supplierId:'S-1',type:'payment',amount:'0.10',referenceType:'purchase_invoice',referenceId:'PUR-1'}
@@ -186,8 +188,18 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
   assert.throws(()=>validate(kind,mismatch),/غير متطابقة بالسنتيم/,'restore must reject purchase total/paid/remaining mismatch');
   const orphan=JSON.parse(JSON.stringify(base));orphan.supplierMovements[0].supplierId='MISSING';
   assert.throws(()=>validate(kind,orphan),/مورد مفقود أو مكرر/,'restore must reject supplier ledger entries without a unique supplier');
+  const missingPurchaseEntry=JSON.parse(JSON.stringify(base));missingPurchaseEntry.supplierMovements=missingPurchaseEntry.supplierMovements.filter(x=>x.type!=='purchase');
+  assert.throws(()=>validate(kind,missingPurchaseEntry),/قيد فاتورة الشراء غير مطابق/,'restore must reject a purchase with no supplier purchase ledger entry');
+  const wrongCash=JSON.parse(JSON.stringify(base));wrongCash.cashMovements[0].amount='0.09';
+  assert.throws(()=>validate(kind,wrongCash),/حركة الصندوق لا تطابق/,'restore must reject purchase cash movements that differ from paid centimes');
+  const missingStock=JSON.parse(JSON.stringify(base));missingStock.stockMovements=[];
+  assert.throws(()=>validate(kind,missingStock),/حركة المخزون لا تطابق/,'restore must reject purchase invoices without their stock-in movement');
+  const wrongLine=JSON.parse(JSON.stringify(base));wrongLine.purchases[0].total='0.31';wrongLine.purchases[0].remaining='0.21';wrongLine.supplierMovements.find(x=>x.type==='purchase').amount='0.31';
+  assert.throws(()=>validate(kind,wrongLine),/تكلفة الوحدة والكمية/,'restore must reject purchase totals that do not equal exact unit-cost times quantity');
   const missingLedger=JSON.parse(JSON.stringify(base));delete missingLedger.supplierMovements;
   assert.throws(()=>validate(kind,missingLedger,{supplierMovements:[{id:'OLD',supplierId:'S-1',type:'purchase',amount:1}]}),/تفتقد قائمة/,'restore must not erase an existing supplier ledger when the snapshot omits it');
+  const legacy=JSON.parse(JSON.stringify(base));delete legacy.purchases[0].ledgerVersion;legacy.supplierMovements=[];legacy.cashMovements=[];legacy.stockMovements=[];
+  assert.doesNotThrow(()=>validate(kind,legacy),'legacy purchases without ledgerVersion must remain restorable without fabricated historical movements');
  }
  console.log('PASS: cloud and backup restore validate purchase settlement and preserve supplier ledger history');
 }
