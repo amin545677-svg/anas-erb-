@@ -3711,7 +3711,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             let immediateCashMovementId = null;
             const appDataBeforeSale = JSON.parse(JSON.stringify(AppData));
             try {
-                if (registeredCustomer && (remainingCents > 0 || oldDebtCents > 0)) {
+                if (registeredCustomer && (remainingCents > 0 || oldDebtCents > 0 || paidCents > 0)) {
                     if (!Array.isArray(AppData.clientMovements)) {
                         if (Object.prototype.hasOwnProperty.call(AppData, 'clientMovements')) throw new Error('دفتر حركات العملاء تالف.');
                         AppData.clientMovements = [];
