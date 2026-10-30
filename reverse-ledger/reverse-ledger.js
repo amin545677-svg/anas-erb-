@@ -268,6 +268,15 @@
     const cashRows = state.cashMovements || [];
     const clientRows = state.clientMovements || [];
     const supplierRows = state.supplierMovements || [];
+    for (const posted of docs) {
+      if (posted.status !== 'POSTED' || !Array.isArray(posted.items)) continue;
+      for (const item of posted.items) {
+        const productId = identifier(item.productId, 'return product ID');
+        const quantity = BigInt(safeInt(item.quantityMicroUnits, 'return quantity', false));
+        const key = posted.originalInvoiceType + ':' + posted.originalInvoiceId + ':' + productId;
+        postedQuantities.set(key, (postedQuantities.get(key) || 0n) + quantity);
+      }
+    }
     for (const doc of docs) {
       const returnId = identifier(doc.returnId, 'return ID');
       if (ids.has(returnId)) throw new Error('duplicate return ID');
