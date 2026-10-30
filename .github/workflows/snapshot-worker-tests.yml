@@ -3,7 +3,7 @@ name: Firebase Snapshot Worker Tests
 on:
   pull_request:
     paths:
-      - 'cloudflare/worker_firebase_snapshot.js'
+      - 'cloudflare/worker_firebase_snapshot.js'\n      - 'reverse-ledger/**'\n      - 'tests/reverse_ledger_primitives.test.js'
       - 'tests/worker_firebase_snapshot.test.mjs'
       - '.github/workflows/snapshot-worker-tests.yml'
       - '.github/workflows/deploy-firebase-worker.yml'
@@ -25,4 +25,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run Firebase snapshot Worker tests
-        run: node --test tests/worker_firebase_snapshot.test.mjs
+        run: node --test tests/worker_firebase_snapshot.test.mjs tests/reverse_ledger_primitives.test.js
