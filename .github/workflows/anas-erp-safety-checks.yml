@@ -1260,10 +1260,13 @@ jobs:
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function editSalesInvoice(invoiceId) {")
           end = s.find("// ================= إدارة المخزون وحساب الأرباح =================", start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer quantity helpers"
           assert start >= 0 and end > start, "Could not isolate invoice edit function"
-          function_js = s[start:end]
+          function_js = s[helper_start:helper_end] + s[start:end]
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
