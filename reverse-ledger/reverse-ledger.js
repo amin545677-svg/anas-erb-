@@ -227,6 +227,8 @@
     const totals = new Map();
     for (const row of rows) {
       if (!row || typeof row !== 'object' || row.ledgerVersion !== 2) throw new Error('invalid version-2 client movement');
+      if (!['opening_balance', 'invoice_debit', 'receipt', 'return_credit', 'adjustment'].includes(row.type))
+        throw new Error('unsupported client movement type');
       const movementId = identifier(row.movementId, 'client movement ID');
       if (seen.has(movementId)) throw new Error('duplicate client movement ID');
       seen.add(movementId);
