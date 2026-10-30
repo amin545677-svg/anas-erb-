@@ -1,8 +1,8 @@
 'use strict';
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { chromium } = require('playwright');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { chromium } from 'playwright';
 
 test('Chromium loads reverse-ledger primitives and enforces exact return ceilings', async () => {
  const browser = await chromium.launch({headless:true});
