@@ -3419,13 +3419,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const isCredit = document.getElementById('hasibPaymentMethod').value === 'credit';
             const group = document.getElementById('hasibPaidGroup');
             group.style.display = 'block';
+            const rawTotal = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
+            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
             if (isCredit) document.getElementById('hasibPaidAmount').value = '0';
             else if (Number(document.getElementById('hasibPaidAmount').value) <= 0) {
-                const rawTotal = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
-            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
                 document.getElementById('hasibPaidAmount').value = total.toFixed(2);
             }
-            const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
             const parsedPaid = Number(document.getElementById('hasibPaidAmount').value) || 0;
             const paid = Math.max(0, Math.min(total, Math.round((parsedPaid + Number.EPSILON) * 100) / 100));
             const rem = document.getElementById('hasibRemainingText');
