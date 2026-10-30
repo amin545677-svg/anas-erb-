@@ -4310,22 +4310,25 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     throw new Error('فشل شرط التطابق المالي الدقيق بين الفاتورة والصندوق والمورد.');
                 }
                 if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
-
-                if (nameInput) nameInput.value = '';
-                if (costInput) costInput.value = '';
-                if (qtyInput) qtyInput.value = '';
-                if (paidInput) paidInput.value = '0.00';
-                renderPurchasesTable();
-                if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
-                if (typeof updateCashUI === 'function') updateCashUI();
-                if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                alert('تم تسجيل فاتورة الشراء وربط المخزون ودفتر الموردين والصندوق بنجاح.');
             } catch (err) {
                 AppData = previous;
                 try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
                 console.error('ANAS ERP purchase ledger transaction failed:', err);
                 alert('لم يتم اعتماد فاتورة الشراء: ' + (err?.message || 'فشل الحفظ') + '. أُعيدت البيانات السابقة بالكامل.');
+                return;
             }
+
+            if (nameInput) nameInput.value = '';
+            if (costInput) costInput.value = '';
+            if (qtyInput) qtyInput.value = '';
+            if (paidInput) paidInput.value = '0.00';
+            try {
+                renderPurchasesTable();
+                if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
+                if (typeof updateCashUI === 'function') updateCashUI();
+                if (typeof updateDashboardStats === 'function') updateDashboardStats();
+            } catch (uiError) { console.warn('Purchase saved; a display refresh failed:', uiError); }
+            alert('تم تسجيل فاتورة الشراء وربط المخزون ودفتر الموردين والصندوق بنجاح.');
         }
         function anasEscapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
