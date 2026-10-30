@@ -40,3 +40,5 @@ jobs:
         run: python tests/validate_erp_html.py
       - name: Test reverse-ledger schemas and allocation invariants
         run: node --test tests/reverse_ledger_primitives.test.js
+      - name: Test reverse-ledger authorization policy gates
+        run: node --test tests/reverse_ledger_authorization.test.js
