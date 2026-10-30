@@ -79,7 +79,7 @@ function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, cus
       anasToCents('1.005'),
       anasToCents('0.10'),
       anasToQtyUnits('0.000001'),
-      anasLineTotalCents(3, 10),
+      anasLineTotalCents(anasToQtyUnits('3'), 10),
       anasCartTotalCents([{qty:'7',price:'0.10'}])
     ];
   `, ctx);
