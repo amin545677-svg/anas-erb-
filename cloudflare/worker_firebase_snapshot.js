@@ -14,7 +14,7 @@ function json(data, status, origin) {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": origin || "https://amin545677-svg.github.io",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
       "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
       "Vary": "Origin"
     }
@@ -240,7 +240,7 @@ async function handleSnapshot(request, env, origin) {
     return json({ ok: true, exists: true, data: payload, parts: 1, revision: doc.updateTime || null }, 200, origin);
   }
 
-  if (request.method === "POST") {
+  if (request.method === "POST" || request.method === "PUT") {
     const text = await readLimitedRequestBody(request, MAX_BODY_BYTES);
     if (text === null) {
       return json({ error: "Snapshot exceeds 700 KiB limit" }, 413, origin);
@@ -299,7 +299,7 @@ export default {
       if (!origin) return new Response(null, { status: 403 });
       return new Response(null, { status: 204, headers: {
         "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
         "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin"
@@ -318,7 +318,7 @@ export default {
       }, 200, origin);
     }
     if (url.pathname === "/snapshot") {
-      if (request.method !== "GET" && request.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
+      if (request.method !== "GET" && request.method !== "POST" && request.method !== "PUT") return json({ error: "Method not allowed" }, 405, origin);
       try { return await handleSnapshot(request, env, origin); }
       catch (e) { return json({ error: "Worker internal error", details: String(e.message || e).slice(0, 300) }, 500, origin); }
     }
