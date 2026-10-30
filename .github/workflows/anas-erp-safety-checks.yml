@@ -48,6 +48,8 @@ jobs:
         run: node tests/product_delete_stock_guard_test.js
       - name: Test POS cart persistence rollback
         run: node tests/pos_cart_persistence_rollback_test.js
+      - name: Test reverse-ledger schemas and allocation invariants
+        run: node --test tests/reverse_ledger_primitives.test.js
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
