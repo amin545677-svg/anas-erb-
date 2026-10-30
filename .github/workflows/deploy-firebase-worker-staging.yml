@@ -134,42 +134,35 @@ jobs:
       - name: Deploy only Staging Firestore security rules
         run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
 
-      - name: Deploy isolated staging Worker with explicit config and name
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          test -n "$STAGING_ALLOWED_ORIGIN" || { echo "STAGING_ALLOWED_ORIGIN is required in the staging Environment variables." >&2; exit 1; }
-          npx --yes wrangler@4.156.0 deploy \
-            --config cloudflare/wrangler-staging.toml \
-            --name anas-erp-firebase-snapshot-staging \
-            --var "ALLOWED_ORIGINS:${STAGING_ALLOWED_ORIGIN}"
-
-      - name: Inject Secret Strictly to Staging Worker
+      - name: Upload one fully configured Staging Worker version
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
         run: |
           set -euo pipefail
-          CLEAN_KEY="$(node --input-type=module <<'NODE'
-          const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
-          const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
-          if (cleanKey.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(cleanKey)) {
+          test -n "$STAGING_ALLOWED_ORIGIN"
+          test -n "$STAGING_FIREBASE_API_KEY"
+          echo "::add-mask::$STAGING_FIREBASE_API_KEY"
+          umask 077
+          SECRETS_FILE="$RUNNER_TEMP/anas-erp-staging-secrets.json"
+          trap 'rm -f "$SECRETS_FILE"' EXIT
+          STAGING_FIREBASE_API_KEY="$STAGING_FIREBASE_API_KEY" SECRETS_FILE="$SECRETS_FILE" node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          const key = process.env.STAGING_FIREBASE_API_KEY || "";
+          if (key.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(key)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
           }
-          process.stdout.write(cleanKey);
+          writeFileSync(process.env.SECRETS_FILE, JSON.stringify({ FIREBASE_API_KEY: key }), { mode: 0o600 });
           NODE
-          )"
-          test -n "$CLEAN_KEY"
-          echo "::add-mask::$CLEAN_KEY"
-          VERSION_TAG="staging-secret-${GITHUB_SHA:0:12}"
-          printf '%s' "$CLEAN_KEY" | npx --yes wrangler@4.156.0 versions secret put FIREBASE_API_KEY \
+          VERSION_TAG="staging-complete-${GITHUB_SHA:0:12}"
+          npx --yes wrangler@4.156.0 versions upload \
             --config cloudflare/wrangler-staging.toml \
             --name anas-erp-firebase-snapshot-staging \
             --tag "$VERSION_TAG" \
-            --message "Staging Firebase secret for ${GITHUB_SHA:0:12}"
+            --var "ALLOWED_ORIGINS:$STAGING_ALLOWED_ORIGIN" \
+            --secrets-file "$SECRETS_FILE" \
+            --message "Fully configured isolated Staging Worker ${GITHUB_SHA:0:12}"
           npx --yes wrangler@4.156.0 versions deploy \
             --config cloudflare/wrangler-staging.toml \
             --name anas-erp-firebase-snapshot-staging \
