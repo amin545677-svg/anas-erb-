@@ -2,6 +2,12 @@ name: Deploy ANAS ERP Firebase Snapshot Worker (Staging)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - staging/firebase-snapshot-worker
+    paths:
+      - 'cloudflare/**'
+      - '.github/workflows/deploy-firebase-worker-staging.yml'
 
 permissions:
   contents: read
