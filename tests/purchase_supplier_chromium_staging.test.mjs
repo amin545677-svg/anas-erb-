@@ -150,10 +150,10 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await page.evaluate(() => openView('supp-debts'));
     assert.match(await page.locator('#suppDebtsContainer').innerText(), /15[\s,.]?000/);
 
-    // Export a real JSON backup through the Settings UI and verify its contents.
+    // Export a real JSON backup through the Sync/Backup UI and verify its contents.
     const beforeReload = await page.evaluate(() => JSON.parse(localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')));
-    await page.evaluate(() => openView('settings'));
-    await page.locator('#view-settings button[onclick="exportDataBackup()"]').click();
+    await page.evaluate(() => openView('sync'));
+    await page.locator('#view-sync button[onclick="exportDataBackup()"]').click();
     await page.waitForFunction(() => window.__anasLastExportBlob instanceof Blob && !!window.__anasBackupFilename);
     const exportedJson = await page.evaluate(() => window.__anasLastExportBlob.text());
     const validBackup = Buffer.from(exportedJson, 'utf8');
