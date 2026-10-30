@@ -117,7 +117,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  r.AppData.cashMovements.push({...r.AppData.cashMovements[0]});
  const duplicateContext={AppData:r.AppData,prompt:()=> '1',saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
  vm.createContext(duplicateContext);
- vm.runInContext(moneyHelperSource+'\\n'+paymentSource+'\\npaySupplierDebt("S-1");',duplicateContext,{timeout:1500});
+ vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',duplicateContext,{timeout:1500});
  assert.equal(duplicateContext.AppData.suppliers[0].balance,12.75);
  assert.ok(r.alerts.some(x=>x.includes('معرّفات مكررة')));
  console.log('PASS: supplier payment refuses duplicate pre-existing ledger IDs');
