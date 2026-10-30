@@ -1248,6 +1248,23 @@ jobs:
           submitCashOperation();
           assert.equal(saves,beforeUnsafeCash,'negative stored cash balance must block new movement');
           assert.equal(AppData.caisseBalance,-5);
+
+          // Fractional cash receipts and expenses must mutate the balance in integer centimes.
+          global.AppData={caisseBalance:100.1,cashMovements:[]};
+          elements.cashAmountInput.value='0.1';
+          const beforeFractionalCash=saves;
+          submitCashOperation();
+          assert.equal(saves,beforeFractionalCash+1);
+          assert.equal(AppData.caisseBalance,100.2);
+          assert.equal(AppData.cashMovements[0].amount,0.1);
+
+          global.AppData={caisseBalance:100.1,expenses:[]};
+          elements.expAmountInput.value='0.1';
+          const beforeFractionalExpense=saves;
+          submitExpenseOperation();
+          assert.equal(saves,beforeFractionalExpense+1);
+          assert.equal(AppData.caisseBalance,100);
+          assert.equal(AppData.expenses[0].amt,0.1);
           console.log('Cash operation and expense integrity tests passed');
           """
           js = js.replace("/*INSERT_CASH_FUNCTION*/", cash_fn).replace("/*INSERT_EXPENSE_FUNCTION*/", expense_fn)
