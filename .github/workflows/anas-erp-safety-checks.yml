@@ -591,6 +591,14 @@ jobs:
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
+          purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -600,8 +608,10 @@ jobs:
           const vm = require('node:vm');
           const validatorSource = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
+          const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
+          const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
           const expectReject = (data,label) => {
             assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
@@ -643,6 +653,8 @@ jobs:
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", json.dumps(purchase_parity))
           Path("/tmp/anas-backup-duplicate-ids-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-duplicate-ids-test.js
@@ -657,6 +669,14 @@ jobs:
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
+          purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -666,8 +686,10 @@ jobs:
           const vm = require('node:vm');
           const validatorSource = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
+          const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
+          const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
           ctx.AppData = {caisseBalance:75};
           const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
@@ -743,6 +765,8 @@ jobs:
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", json.dumps(purchase_parity))
           Path("/tmp/anas-backup-financial-validation-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-financial-validation-test.js
