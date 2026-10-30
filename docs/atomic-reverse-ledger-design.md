@@ -45,7 +45,7 @@ Baseline: `382ed534f50b8d082acf71cc456744e5aa3a4872` (ANAS ERP v42)
 
 ### Current verification on the feature head
 
-- node --test reverse-ledger and financial invariant suite: 17/17 passed.
+- node --test reverse-ledger and financial invariant suite: 18/18 passed.
 - Playwright/Chromium: 2/2 passed, including V42 backup acceptance, valid v2 allocation acceptance, orphan allocation rejection, over-return rejection, and unchanged AppData / localStorage after rejected backup/cloud candidates.
 - The four primary CI gates and the additional service-worker cache regression passed on the same feature commit.
 
