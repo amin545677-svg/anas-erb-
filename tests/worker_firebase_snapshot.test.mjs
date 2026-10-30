@@ -9,7 +9,7 @@ const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString(
 const { default: worker } = await import(moduleUrl);
 const allowedOrigin = "https://amin545677-svg.github.io";
 const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://amin545677-svg.github.io" };
 
 function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = new Headers({ Origin: allowedOrigin });
