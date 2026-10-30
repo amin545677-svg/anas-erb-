@@ -172,8 +172,7 @@ jobs:
             }
             check(body.idToken && body.localId, "Firebase Auth returned no temporary ID token or UID.");
             const claims = JSON.parse(Buffer.from(body.idToken.split(".")[1], "base64url").toString("utf8"));
-            check(claims.aud === projectId, "Firebase key resolved to project " + String(claims.aud) + ", not Staging.");
-            return { uid: body.localId, idToken: body.idToken };
+            return { uid: body.localId, idToken: body.idToken, aud: claims.aud };
           }
 
           async function deleteTemporaryUser(user) {
@@ -202,8 +201,10 @@ jobs:
           try {
             const userA = await createTemporaryUser();
             createdUsers.push(userA);
+            check(userA.aud === projectId, "Firebase key resolved to project " + String(userA.aud) + ", not Staging; temporary identity will be deleted.");
             const userB = await createTemporaryUser();
             createdUsers.push(userB);
+            check(userB.aud === projectId, "Second Firebase identity did not resolve to Staging; temporary identity will be deleted.");
             console.log("PASS FIREBASE AUTH: two temporary Staging identities created; project audience verified.");
 
             const metadataResponse = await workerCall("/snapshot?metadata=1", "GET", userA.idToken);
