@@ -50,3 +50,101 @@ jobs:
             FIREBASE_API_KEY
         env:
           FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
+
+      - name: Post-Deploy Live Smoke Test
+        env:
+          WORKER_HEALTH_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/health
+          EXPECTED_ORIGIN: https://amin545677-svg.github.io
+        run: |
+          set -euo pipefail
+          headers_file="$(mktemp)"
+          body_file="$(mktemp)"
+          trap 'rm -f "$headers_file" "$body_file"' EXIT
+
+          status="$(curl --silent --show-error --location \
+            --connect-timeout 15 --max-time 30 \
+            -H "Origin: $EXPECTED_ORIGIN" \
+            -D "$headers_file" -o "$body_file" \
+            -w '%{http_code}' "$WORKER_HEALTH_URL")"
+
+          test "$status" = "200" || {
+            echo "::error::Staging /health returned HTTP $status (expected 200)."
+            cat "$body_file"
+            exit 1
+          }
+
+          node --input-type=module - "$headers_file" "$body_file" "$EXPECTED_ORIGIN" <<'NODE'
+          import fs from 'node:fs';
+          const [headersPath, bodyPath, expectedOrigin] = process.argv.slice(2);
+          const headers = fs.readFileSync(headersPath, 'utf8').toLowerCase();
+          const body = JSON.parse(fs.readFileSync(bodyPath, 'utf8'));
+          const getHeader = (name) => {
+            const matches = [...headers.matchAll(new RegExp('^' + name + ':\\s*(.*?)\\s*$', 'gmi'))];
+            return matches.at(-1)?.[1]?.trim() ?? '';
+          };
+          const expected = {
+            ok: true,
+            service: 'anas-erp-firebase-snapshot-staging',
+            projectId: 'anas-erp-staging-a25e1',
+            configured: true,
+          };
+          for (const [key, value] of Object.entries(expected)) {
+            if (body[key] !== value) throw new Error('/health JSON mismatch for ' + key);
+          }
+          if (getHeader('access-control-allow-origin') !== expectedOrigin) {
+            throw new Error('Missing or incorrect access-control-allow-origin header');
+          }
+          if (getHeader('cache-control').toLowerCase() !== 'no-store') {
+            throw new Error('Missing or incorrect cache-control: no-store header');
+          }
+          console.log('PASS: /health HTTP 200, CORS origin, Cache-Control, and all expected JSON fields.');
+          NODE
+
+      - name: Verify staging Firebase API key with temporary Auth user
+        env:
+          STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const apiKey = process.env.STAGING_FIREBASE_API_KEY;
+          if (!apiKey) throw new Error('STAGING_FIREBASE_API_KEY is empty.');
+
+          const endpoint = 'https://identitytoolkit.googleapis.com/v1/accounts';
+          let idToken;
+          let localId;
+          let primaryError;
+
+          try {
+            const createResponse = await fetch(`${endpoint}:signUp?key=${encodeURIComponent(apiKey)}`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ returnSecureToken: true }),
+            });
+            const created = await createResponse.json();
+            if (!createResponse.ok) {
+              const code = created?.error?.message ?? `HTTP_${createResponse.status}`;
+              throw new Error(`Firebase Auth rejected the staging API key or anonymous sign-up is disabled (${code}).`);
+            }
+            idToken = created.idToken;
+            localId = created.localId;
+            if (!idToken || !localId) throw new Error('Firebase Auth sign-up response omitted cleanup credentials.');
+            console.log('PASS: Firebase Identity Toolkit accepted STAGING_FIREBASE_API_KEY.');
+          } catch (error) {
+            primaryError = error;
+          } finally {
+            if (idToken) {
+              const deleteResponse = await fetch(`${endpoint}:delete?key=${encodeURIComponent(apiKey)}`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ idToken }),
+              });
+              if (!deleteResponse.ok) {
+                const deleted = await deleteResponse.json().catch(() => ({}));
+                const code = deleted?.error?.message ?? `HTTP_${deleteResponse.status}`;
+                throw new Error(`CRITICAL: temporary Firebase Auth user ${localId} could not be deleted (${code}).`);
+              }
+              console.log('PASS: temporary anonymous Firebase Auth user deleted.');
+            }
+          }
+          if (primaryError) throw primaryError;
+          NODE
