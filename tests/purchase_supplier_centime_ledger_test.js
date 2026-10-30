@@ -48,10 +48,11 @@ function runPayment({balance=20,cash=100,amount='7.25',saveResult=true}={}) {
   settlementAllocations:[],caisseBalance:cash,currentUser:{id:'U-1',name:'Tester'}
  };
  const alerts=[];let saves=0;
+ const supplierRef=AppData.suppliers[0],supplierMovementsRef=AppData.supplierMovements,cashMovementsRef=AppData.cashMovements,allocationsRef=AppData.settlementAllocations;
  const ctx={AppData,ANASReverseLedger,prompt:()=>JSON.stringify([{invoiceId:'PUR-1',amount}]),
   saveDB:()=>{saves++;return saveResult;},alert:m=>alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
  vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
- return {AppData:ctx.AppData,alerts,saves};
+ return {AppData:ctx.AppData,alerts,saves,identity:{supplier:ctx.AppData.suppliers[0]===supplierRef,supplierMovements:ctx.AppData.supplierMovements===supplierMovementsRef,cashMovements:ctx.AppData.cashMovements===cashMovementsRef,allocations:ctx.AppData.settlementAllocations===allocationsRef}};
 }
 function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  const fields=elements({debt});const AppData={suppliers:[],supplierMovements:[]};const alerts=[];let saves=0;
@@ -133,6 +134,18 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: supplier payment refuses duplicate pre-existing ledger IDs');
 }
 {
+ const r=runPayment({balance:19,cash:99,amount:'1.00'});
+ r.AppData.supplierMovements.push({id:'OLD-SP',supplierId:'S-1',type:'payment',amount:1,referenceType:'supplier_payment',referenceId:'OLD-SP'});
+ r.AppData.cashMovements.push({id:'OLD-CM',type:'subtract',amount:1,referenceType:'supplier_payment',referenceId:'OLD-SP'});
+ const ctx={AppData:r.AppData,ANASReverseLedger,prompt:()=>{throw new Error('must reject before prompting');},
+  saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
+ vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\\n'+paymentSource+'\\npaySupplierDebt("S-1");',ctx,{timeout:1500});
+ assert.equal(ctx.AppData.suppliers[0].balance,19);
+ assert.equal(ctx.AppData.supplierMovements.length,3);
+ assert.ok(r.alerts.some(x=>x.includes('غير مخصص بالكامل')));
+ console.log('PASS: prior unallocated supplier settlements block new invoice payments');
+}
+{
  const r=runPayment({balance:20,cash:5,amount:'7.25'});assert.equal(r.saves,0);
  assert.equal(r.AppData.suppliers[0].balance,20);assert.equal(r.AppData.caisseBalance,5);
  assert.equal(r.AppData.supplierMovements.length,1);assert.equal(r.AppData.cashMovements.length,0);
@@ -143,7 +156,9 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  const r=runPayment({saveResult:false});assert.equal(r.AppData.suppliers[0].balance,20);
  assert.equal(r.AppData.caisseBalance,100);assert.equal(r.AppData.supplierMovements.length,1);
  assert.equal(r.AppData.cashMovements.length,0);
- console.log('PASS: failed supplier payment persistence restores both ledgers');
+ assert.deepEqual(r.identity,{supplier:true,supplierMovements:true,cashMovements:true,allocations:true},'rollback must preserve supplier and ledger array identities');
+ assert.equal(r.AppData.settlementAllocations.length,0);
+ console.log('PASS: failed supplier payment persistence restores both ledgers and preserves object identity');
 }
 {
  const r=runSupplierCreate();assert.equal(r.saves,1);assert.equal(r.AppData.suppliers[0].balance,12.35);
