@@ -310,7 +310,7 @@ def main():
     debt_start = source.find("function collectCustDebt(cId)")
     debt_end = source.find("\n        function ", debt_start)
     debt_fn = source[debt_start:debt_end] if debt_start >= 0 and debt_end > debt_start else ""
-    if not debt_fn or "Number.isSafeInteger(previousDebtCents)" not in debt_fn or "previousDebtCents <= 0" not in debt_fn or "previousDebtValue = c.debt" not in debt_fn or "previousCashBalanceValue = AppData.caisseBalance" not in debt_fn or "if (hadCashBalance) AppData.caisseBalance = previousCashBalanceValue; else delete AppData.caisseBalance;" not in debt_fn:
+    if not debt_fn or "Number.isSafeInteger(previousDebtCents)" not in debt_fn or "previousDebtCents <= 0" not in debt_fn or "oldDebtValue = customer.debt" not in debt_fn or "oldCashBalance = AppData.caisseBalance" not in debt_fn or "if (hadCashBalance) AppData.caisseBalance = oldCashBalance; else delete AppData.caisseBalance;" not in debt_fn:
         errors.append("customer debt collection must reject unsafe existing debt balances before mutating cash or debt")
     else:
         print("PASS: customer debt collection rejects unsafe debt balances")
