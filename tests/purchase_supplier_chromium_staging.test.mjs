@@ -271,10 +271,12 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     assert.equal(supplierPayment.amount, 0.30);
     assert.equal(cashPayment.amount, 0.30);
     assert.equal(supplierPayment.referenceId, cashPayment.referenceId);
-    assert.equal(state.purchases[0].paid, 0.10, 'original purchase paid amount must remain immutable');
-    assert.equal(state.purchases[0].remaining, 0.20, 'original purchase remaining snapshot must remain immutable');
-    assert.equal(state.purchases[1].paid, 0, 'second purchase original paid amount must remain immutable');
-    assert.equal(state.purchases[1].remaining, 0.20, 'second purchase original remaining snapshot must remain immutable');
+    const firstPurchaseSnapshot = state.purchases.find(p => p.id === purchase.id);
+    const secondPurchaseSnapshot = state.purchases.find(p => p.id === secondPurchase.id);
+    assert.equal(firstPurchaseSnapshot.paid, 0.10, 'original purchase paid amount must remain immutable');
+    assert.equal(firstPurchaseSnapshot.remaining, 0.20, 'original purchase remaining snapshot must remain immutable');
+    assert.equal(secondPurchaseSnapshot.paid, 0, 'second purchase original paid amount must remain immutable');
+    assert.equal(secondPurchaseSnapshot.remaining, 0.20, 'second purchase original remaining snapshot must remain immutable');
     const supplierAllocations = state.settlementAllocations.filter(a =>
       a.partyType === 'supplier' && a.sourceMovementType === 'supplier_payment');
     assert.deepEqual(supplierAllocations.map(a => [a.invoiceId, a.amountCentimes]).sort(),
