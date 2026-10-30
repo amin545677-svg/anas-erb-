@@ -30,6 +30,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   };
   const context = {
     AppData, posCart, lastConfirmedInvoice:null,
+    ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
     document:{getElementById:id=>elements[id] || null},
     wtTryEnsureData:()=>true,
     wtCurrentSaleWarehouse:()=>warehouse,
