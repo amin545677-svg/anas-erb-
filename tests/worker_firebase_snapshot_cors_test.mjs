@@ -17,7 +17,7 @@ test("health endpoint rejects an untrusted origin without reflecting it in CORS 
   }), env);
   assert.equal(response.status, 403);
   assert.notEqual(response.headers.get("Access-Control-Allow-Origin"), attackerOrigin);
-  assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
   assert.match((await response.json()).error, /origin is not allowed/i);
 });
 
