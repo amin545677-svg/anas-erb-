@@ -528,8 +528,11 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
       renderCustomersDebts();
       const card = Array.from(document.querySelectorAll('#custDebtsContainer article'))
         .find(node => node.innerText.includes('عميل دفتر الاختبار'));
-      const amountText = card?.querySelector('strong[style*="font-size:1.05rem"]')?.textContent || '';
-      const normalized = amountText.replace(/[^0-9,.-]/g, '').replace(',', '.');
+      const amountText = Array.from(card?.querySelectorAll('strong') || [])
+        .find(node => node.textContent.includes('د.ج'))?.textContent || '';
+      const numeric = amountText.replace(/[^0-9,.-]/g, '');
+      const normalized = numeric.includes(',')
+        ? numeric.replace(/\./g, '').replace(',', '.') : numeric.replace(/,/g, '');
       return { customerVisible: !!card, displayedDebt: Number(normalized), hasCurrency: amountText.includes('د.ج') };
     });
     assert.equal(domProof.customerVisible, true);
