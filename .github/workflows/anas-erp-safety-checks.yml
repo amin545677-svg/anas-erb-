@@ -1023,7 +1023,12 @@ jobs:
           end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate supplier save function"
           fn = s[start:end]
+          helper_start = s.find("// Purchase-specific decimal parser")
+          helper_end = s.find("function savePurchaseItem()", helper_start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate purchase centime helpers"
+          helpers = s[helper_start:helper_end]
           js = r"""
+          /*INSERT_PURCHASE_CENTIME_HELPERS*/
           /*INSERT_SUPPLIER_SAVE_FUNCTION*/
           const assert = require('node:assert/strict');
           global.alert = () => {};
@@ -1052,7 +1057,7 @@ jobs:
           assert.equal(AppData.suppliers.length,1,'thrown persistence error must roll back supplier creation');
           console.log('Supplier save validation/rollback tests passed');
           """
-          js = js.replace("/*INSERT_SUPPLIER_SAVE_FUNCTION*/", fn)
+          js = js.replace("/*INSERT_PURCHASE_CENTIME_HELPERS*/", helpers).replace("/*INSERT_SUPPLIER_SAVE_FUNCTION*/", fn)
           Path("/tmp/anas-supplier-save-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-supplier-save-test.js
