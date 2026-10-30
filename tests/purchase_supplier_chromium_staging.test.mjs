@@ -119,6 +119,70 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught page errors');
 
+    // Exercise the actual backup/cloud validators before any restore assignment.
+    const reverseGuardProof = await page.evaluate(() => {
+      const rawBefore = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+      const appBefore = JSON.stringify(AppData);
+      const legacy = JSON.parse(JSON.stringify(AppData));
+      const legacyBackupAccepted = anasValidateBackupData(legacy) === legacy;
+      anasValidateIncomingSyncData(JSON.parse(JSON.stringify(legacy)));
+
+      const valid = JSON.parse(JSON.stringify(AppData));
+      valid.customers = [{ id: 'C-NEW', name: 'Ledger test client', debt: 12.75 }];
+      valid.invoices = [{
+        id: 'INV-NEW', customerId: 'C-NEW', customerObj: { id: 'C-NEW' },
+        total: 20, paid: 7.25, remaining: 12.75,
+        items: [{ id: 'P-NEW', qty: 2, price: 10 }]
+      }];
+      valid.cashMovements = [{
+        id: 'CM-NEW', type: 'add', referenceType: 'customer_debt',
+        referenceId: 'C-NEW', amount: 7.25
+      }];
+      valid.settlementAllocations = [{
+        allocationId: 'A-NEW', partyType: 'customer', partyId: 'C-NEW',
+        invoiceType: 'sales_invoice', invoiceId: 'INV-NEW',
+        sourceMovementId: 'CM-NEW', sourceMovementType: 'customer_debt',
+        amountCentimes: 725, createdAt: '2026-10-30T12:00:00Z', ledgerVersion: 2
+      }];
+      const validBackupAccepted = anasValidateBackupData(JSON.parse(JSON.stringify(valid))) !== false;
+      anasValidateIncomingSyncData(JSON.parse(JSON.stringify(valid)));
+
+      const orphan = JSON.parse(JSON.stringify(valid));
+      orphan.settlementAllocations[0].invoiceId = 'MISSING-INVOICE';
+      let orphanBackupRejected = false, orphanCloudRejected = false;
+      try { anasValidateBackupData(orphan); } catch (e) { orphanBackupRejected = /orphan|ambiguous settlement allocation invoice/i.test(e.message); }
+      try { anasValidateIncomingSyncData(JSON.parse(JSON.stringify(orphan))); } catch (e) { orphanCloudRejected = /orphan|ambiguous settlement allocation invoice/i.test(e.message); }
+
+      const overReturn = JSON.parse(JSON.stringify(valid));
+      overReturn.returns = [{
+        returnId: 'R-OVER', ledgerVersion: 2, originalInvoiceId: 'INV-NEW',
+        originalInvoiceType: 'sales_invoice', returnType: 'SALE_RETURN', status: 'POSTED',
+        items: [{ productId: 'P-NEW', quantityMicroUnits: 2000001, unitPriceCentimes: 1000000, lineTotalCentimes: 2000001 }],
+        totalCentimes: 2000001, debtReductionCentimes: 0, cashRefundCentimes: 0,
+        stockMovementIds: [], financialMovementIds: []
+      }];
+      let overReturnBackupRejected = false, overReturnCloudRejected = false;
+      try { anasValidateBackupData(overReturn); } catch (e) { overReturnBackupRejected = /return exceeds remaining returnable micro-units/i.test(e.message); }
+      try { anasValidateIncomingSyncData(JSON.parse(JSON.stringify(overReturn))); } catch (e) { overReturnCloudRejected = /return exceeds remaining returnable micro-units/i.test(e.message); }
+
+      const rawAfter = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+      const appAfter = JSON.stringify(AppData);
+      return {
+        legacyBackupAccepted, validBackupAccepted,
+        orphanBackupRejected, orphanCloudRejected,
+        overReturnBackupRejected, overReturnCloudRejected,
+        appUnchanged: appBefore === appAfter,
+        localStorageUnchanged: rawBefore === rawAfter
+      };
+    });
+    assert.deepEqual(reverseGuardProof, {
+      legacyBackupAccepted: true, validBackupAccepted: true,
+      orphanBackupRejected: true, orphanCloudRejected: true,
+      overReturnBackupRejected: true, overReturnCloudRejected: true,
+      appUnchanged: true, localStorageUnchanged: true
+    }, 'backup and cloud validators must accept V42/valid v2 data and reject corruption before mutation');
+    console.log('CHROMIUM_REVERSE_RESTORE_GUARD_REPORT ' + JSON.stringify(reverseGuardProof));
+
     // Create supplier through the real modal and Save button.
     await page.evaluate(() => openView('suppliers'));
     await page.locator('#view-suppliers .menu-action-card').first().click();
