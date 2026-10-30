@@ -7239,7 +7239,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
@@ -7266,6 +7266,7 @@ function renderPurchasesTable() {
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
                 ['supplierMovements', incoming.supplierMovements || [], true],
+                ['customerCreditMovements', incoming.customerCreditMovements || [], true],
                 ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
@@ -7649,6 +7650,7 @@ function renderPurchasesTable() {
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
                 ['supplierMovements', incoming.supplierMovements || [], true],
+                ['customerCreditMovements', incoming.customerCreditMovements || [], true],
                 ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
