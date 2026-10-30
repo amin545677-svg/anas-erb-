@@ -284,3 +284,36 @@ test("disallowed origins cannot use CORS preflight", async () => {
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
 });
+
+
+test("health identifies the staging Firebase project without exposing secrets", async () => {
+  const stagingEnv = {
+    FIREBASE_API_KEY: "staging-test-key",
+    FIREBASE_PROJECT_ID: "anas-erp-staging-a25e1"
+  };
+  const response = await worker.fetch(request("/health"), stagingEnv);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    service: "anas-erp-firebase-snapshot-staging",
+    projectId: "anas-erp-staging-a25e1",
+    configured: true
+  });
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("health does not misidentify the production Firebase project as staging", async () => {
+  const productionEnv = {
+    FIREBASE_API_KEY: "production-test-key",
+    FIREBASE_PROJECT_ID: "anas-erb"
+  };
+  const response = await worker.fetch(request("/health"), productionEnv);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    service: "anas-erp-firebase-snapshot",
+    projectId: "anas-erb",
+    configured: true
+  });
+});
