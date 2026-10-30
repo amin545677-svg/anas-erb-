@@ -55,4 +55,35 @@ function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, cus
   assert.equal(r.invoice.total,Number.MAX_SAFE_INTEGER + 2,'historical invoice must remain unchanged');
   assert.ok(r.alerts.some(x=>x.includes('غير متطابقة') || x.includes('المجال المالي الآمن')));
 }
+{
+  const r = run({qty:'7', price:'0.1', total:0.7, paid:0.3, remaining:0.4, customerDebt:0.4});
+  assert.equal(r.saves,1);
+  assert.equal(r.invoice.total,0.7,'invoice edit must store the exact 0.70 total for 7 x 0.10');
+  assert.equal(r.invoice.paid,0.3);
+  assert.equal(r.invoice.remaining,0.4,'invoice remaining must remain exact to the centime');
+  assert.equal(r.customer.debt,0.4,'customer debt must remain aligned with invoice remaining');
+  assert.equal(r.invoice.items[0].total,0.7,'edited invoice line must persist its authoritative centime total');
+}
+{
+  const r = run({qty:'1', price:'10', total:0.3, paid:0.1, remaining:0.194, customerDebt:0.194});
+  assert.equal(r.saves,0,'a historical invoice with even a sub-dinar centime mismatch must be rejected');
+  assert.equal(r.confirmations,0,'exact invoice identity must be checked before confirmation');
+  assert.equal(r.invoice.total,0.3,'invalid historical invoice must remain unchanged');
+  assert.ok(r.alerts.some(x=>x.includes('غير متطابقة')));
+}
+{
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(helperSource + `
+    globalThis.__centimeCases = [
+      anasToCents('1.005'),
+      anasToCents('0.10'),
+      anasToQtyUnits('0.000001'),
+      anasLineTotalCents(3, 10),
+      anasCartTotalCents([{qty:'7',price:'0.10'}])
+    ];
+  `, ctx);
+  assert.deepEqual(Array.from(ctx.__centimeCases), [101,10,1,30,70],
+    'decimal strings and line/cart totals must resolve through exact integer base units');
+}
 console.log('Invoice edit safe financial arithmetic tests passed');
