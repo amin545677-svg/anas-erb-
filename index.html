@@ -4189,6 +4189,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     fail('قيد دفعة فاتورة الشراء غير مطابق في دفتر الموردين ' + purchaseId);
                 }
             }
+            const openingBalanceSuppliers = new Set();
             for (const movement of supplierMovements) {
                 const referenceType = String(movement.referenceType || '');
                 const referenceId = String(movement.referenceId ?? '');
@@ -4206,10 +4207,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                         fail('تسديد المورد غير مرتبط بحركة صندوق مطابقة');
                     }
                 } else if (movement.type === 'opening_balance') {
+                    const openingSupplierId = String(movement.supplierId ?? '');
                     if (referenceType !== 'supplier_opening_balance' ||
-                        String(movement.referenceId ?? '') !== String(movement.supplierId ?? '')) {
-                        fail('قيد الرصيد الافتتاحي للمورد غير متطابق');
+                        String(movement.referenceId ?? '') !== openingSupplierId ||
+                        openingBalanceSuppliers.has(openingSupplierId)) {
+                        fail('قيد الرصيد الافتتاحي للمورد غير متطابق أو مكرر');
                     }
+                    openingBalanceSuppliers.add(openingSupplierId);
                 } else {
                     fail('نوع أو مرجع حركة غير صالح في دفتر الموردين');
                 }
