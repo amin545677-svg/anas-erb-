@@ -139,7 +139,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  r.AppData.cashMovements.push({id:'OLD-CM',type:'subtract',amount:1,referenceType:'supplier_payment',referenceId:'OLD-SP'});
  const ctx={AppData:r.AppData,ANASReverseLedger,prompt:()=>{throw new Error('must reject before prompting');},
   saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
- vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\\n'+paymentSource+'\\npaySupplierDebt("S-1");',ctx,{timeout:1500});
+ vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
  assert.equal(ctx.AppData.suppliers[0].balance,19);
  assert.equal(ctx.AppData.supplierMovements.length,3);
  assert.ok(r.alerts.some(x=>x.includes('غير مخصص بالكامل')));
