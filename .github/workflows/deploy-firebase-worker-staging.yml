@@ -9,15 +9,14 @@ on:
     paths:
       - 'cloudflare/**'
       - '.github/workflows/deploy-firebase-worker-staging.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'cloudflare/**'
-      - '.github/workflows/deploy-firebase-worker-staging.yml'
 
 permissions:
   contents: read
+
+# Serialize deployments to prevent push/PR races against the same Cloudflare Worker.
+concurrency:
+  group: anas-erp-firebase-snapshot-staging
+  cancel-in-progress: false
 
 jobs:
   deploy-staging-worker:
