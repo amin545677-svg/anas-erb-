@@ -8,12 +8,12 @@ const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
 const source = html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart} = {}) {
+function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = []} = {}) {
   const product = {id:'P-1', name:'Test product', stock:20, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:0};
   const AppData = {
     products:[product], customers:[customer], invoices:[],
-    caisseBalance:100, cashMovements:[], stockMovements:[],
+    caisseBalance:100, cashMovements:cashMovements.map(x=>({...x})), stockMovements:stockMovements.map(x=>({...x})),
     currentUser:{id:'U-1',name:'Tester'}
   };
   const posCart = cart || [{id:'P-1',name:'Test product',qty:2,price:250.25}];
@@ -102,6 +102,38 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   assert.equal(r.posCart.length,1);
   assert.equal(r.alerts.some(x=>x.includes('فشل')),true);
   console.log('PASS: failed save rolls back invoice, both ledgers, balances, stock, and cart');
+}
+
+{
+  const r=runSale({cart:[
+    {id:'P-1',name:'Test product',qty:0.25,price:100.1},
+    {id:'P-1',name:'Test product',qty:0.25,price:100.1}
+  ],paid:50.05});
+  assert.equal(r.AppData.invoices[0].total,50.05);
+  assert.equal(r.AppData.stockMovements.length,1,'repeated cart lines must aggregate to one stock movement per product');
+  assert.equal(r.AppData.stockMovements[0].qty,-0.5);
+  assert.equal(r.AppData.cashMovements[0].amount,50.05);
+  console.log('PASS: repeated fractional cart lines aggregate without losing decimal precision');
+}
+
+{
+  const r=runSale({cashMovements:[{id:'DUP',amount:1},{id:'DUP',amount:2}]});
+  assert.equal(r.saves,0,'duplicate cash movement IDs must block the sale before mutation');
+  assert.equal(r.product.stock,20);
+  assert.equal(r.AppData.caisseBalance,100);
+  assert.equal(r.AppData.invoices.length,0);
+  assert.equal(r.alerts.some(x=>x.includes('معرّفات مكررة')),true);
+  console.log('PASS: ambiguous pre-existing cash ledger IDs block the sale before mutation');
+}
+
+{
+  const r=runSale({stockMovements:[{id:'DUP',qty:-1},{id:'DUP',qty:-2}]});
+  assert.equal(r.saves,0,'duplicate stock movement IDs must block the sale before mutation');
+  assert.equal(r.product.stock,20);
+  assert.equal(r.AppData.caisseBalance,100);
+  assert.equal(r.AppData.invoices.length,0);
+  assert.equal(r.alerts.some(x=>x.includes('معرّفات مكررة')),true);
+  console.log('PASS: ambiguous pre-existing stock ledger IDs block the sale before mutation');
 }
 
 console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
