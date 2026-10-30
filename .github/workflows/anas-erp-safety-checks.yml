@@ -69,7 +69,8 @@ jobs:
               match = pattern.search(app)
               if not match:
                   return ""
-              end = app.find("\n        function ", match.end())
+              end = app.find("
+        function ", match.end())
               return app[match.start():end if end >= 0 else len(app)]
           checks = {
               "exactly one active purchase-invoice clear handler": len(function_bodies("clearAllPurchaseInvoices")) == 1,
@@ -144,7 +145,8 @@ jobs:
           helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("        function anasFormatZReportCashBalance(value) {")
-          end = s.find("\n        function printZReport()", start)
+          end = s.find("
+        function printZReport()", start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer currency helpers"
           assert start >= 0 and end > start, "Could not isolate Z-report cash formatter"
           function_js = s[helper_start:helper_end] + s[start:end]
@@ -219,7 +221,8 @@ jobs:
                   "workflow_dispatch:" in deploy
                   and "push:" in deploy
                   and "branches:" in deploy
-                  and "branches:\n      - main" in deploy
+                  and "branches:
+      - main" in deploy
                   and '"cloudflare/worker_openai_ai.js"' in deploy
                   and '"cloudflare/wrangler-openai.toml"' in deploy
               ),
@@ -465,19 +468,23 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
+          helper_end = s.find("
+        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
           purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = s.find("
+        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = s.find("
+        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("\n        function importDataBackup", start)
+          end = s.find("
+        function importDataBackup", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
@@ -511,12 +518,20 @@ jobs:
             const data = JSON.parse(JSON.stringify(base));
             mutate(data);
             const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-            vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
+            vm.runInNewContext(truckExpenseValidator + '
+' + purchaseHelpers + '
+' + purchaseParity + '
+' + validator + '
+this.validate = anasValidateBackupData;', ctx);
             assert.throws(() => ctx.validate(data), /قيمة مالية غير صالحة/, label + ' above the safe numeric range must be rejected');
           }
           const valid = JSON.parse(JSON.stringify(base));
           const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-          vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
+          vm.runInNewContext(truckExpenseValidator + '
+' + purchaseHelpers + '
+' + purchaseParity + '
+' + validator + '
+this.validate = anasValidateBackupData;', ctx);
           assert.equal(ctx.validate(valid), valid, 'ordinary backup values must remain accepted');
           console.log('Backup validator safe financial magnitude tests passed');
           """
@@ -535,7 +550,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
           assert "try { restoreSaved = saveDB() === true; }" in fn, "Restore must catch persistence exceptions"
@@ -563,7 +579,8 @@ jobs:
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
+          vm.runInNewContext(functionSource+'
+importDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'failed restore must reinstate the original data object');
           assert.equal(ctx.posCart,oldCart,'failed restore must reinstate the active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues.length,1,'failed restore must reinstate startup diagnostics');
@@ -588,19 +605,23 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
+          helper_end = s.find("
+        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
           purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = s.find("
+        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = s.find("
+        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("\n        function importDataBackup(e)", start)
+          end = s.find("
+        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
@@ -611,7 +632,11 @@ jobs:
           const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
           const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'
+'+purchaseHelpers+'
+'+purchaseParity+'
+'+validatorSource+'
+this.validateBackup=anasValidateBackupData;',ctx);
           const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
           const expectReject = (data,label) => {
             assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
@@ -666,19 +691,23 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
+          helper_end = s.find("
+        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
           purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = s.find("
+        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = s.find("
+        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("\n        function importDataBackup(e)", start)
+          end = s.find("
+        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
@@ -689,7 +718,11 @@ jobs:
           const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
           const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'
+'+purchaseHelpers+'
+'+purchaseParity+'
+'+validatorSource+'
+this.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
           ctx.AppData = {caisseBalance:75};
           const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
@@ -826,17 +859,23 @@ jobs:
           assert start >= 0 and end > start, "Could not isolate CSV parser"
           js = s[start:end] + r"""
           const assert = require('node:assert/strict');
-          assert.deepEqual(parseSmartCsv('\uFEFFname;note\r\nTea;"green; herbal"\r\nTea;"green ""herbal"" tea"',';'), [
+          assert.deepEqual(parseSmartCsv('\uFEFFname;note\r
+Tea;"green; herbal"\r
+Tea;"green ""herbal"" tea"',';'), [
             ['name','note'],
             ['Tea','green; herbal'],
             ['Tea','green "herbal" tea']
           ], 'BOM, CRLF, quoted delimiters, and escaped quotes should parse correctly');
-          assert.deepEqual(parseSmartCsv('name,note\nTea,"line one\nline two"',','), [
+          assert.deepEqual(parseSmartCsv('name,note
+Tea,"line one
+line two"',','), [
             ['name','note'],
-            ['Tea','line one\nline two']
+            ['Tea','line one
+line two']
           ], 'newlines inside quoted fields should remain part of the cell');
           assert.throws(
-            () => parseSmartCsv('name;note\nTea;"unfinished',';'),
+            () => parseSmartCsv('name;note
+Tea;"unfinished',';'),
             /غير مغلقة/,
             'unclosed quoted fields must be rejected rather than silently importing corrupt rows'
           );
@@ -1056,7 +1095,8 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveNewSupplierMpos()")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate supplier save function"
           fn = s[start:end]
           helper_start = s.find("// Purchase-specific decimal parser")
@@ -1104,7 +1144,8 @@ jobs:
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveNewCustomerMpos()")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate customer save function"
           fn = s[start:end]
           js = r"""
@@ -1152,7 +1193,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveUserRecord()")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveUserRecord"
           fn = s[start:end]
           js = r"""
@@ -1175,7 +1217,8 @@ jobs:
             closeModal:()=>{throw new Error('must not close form after failed save');},renderUsers:()=>{},
             console:{error:()=>{}},JSON,Object,Array,String,Number,Date,Math
           };
-          vm.runInNewContext(fn+'\nthis.invoke=saveUserRecord;',ctx);
+          vm.runInNewContext(fn+'
+this.invoke=saveUserRecord;',ctx);
           ctx.invoke();
           assert.equal(user.name,'Old User','failed edit must restore prior name');
           assert.equal(user.phone,'111','failed edit must restore prior phone');
@@ -1203,7 +1246,8 @@ jobs:
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function submitCashOperation()")
           mid = s.find("function submitExpenseOperation()", start)
-          end = s.find("\n        function ", mid + 10)
+          end = s.find("
+        function ", mid + 10)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
           helper_fn = s[helper_start:helper_end]
@@ -1357,7 +1401,8 @@ jobs:
               wtAvailableStock:(p,warehouse)=>warehouse==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[warehouse]??0),
               console, Number, String, Object, Array, Map, Math, Date
             };
-            vm.runInNewContext(functionSource + '\neditSalesInvoice("I1");', ctx);
+            vm.runInNewContext(functionSource + '
+editSalesInvoice("I1");', ctx);
             if (secondaryMissingMain) {
               assert.equal(Object.hasOwn(product,'stock'),false,'rollback must not create an absent primary stock field');
               assert.equal(product.warehouseStock.W1,5,'secondary warehouse balance must roll back');
@@ -1401,7 +1446,8 @@ jobs:
               wtAvailableStock:p=>p.stock,
               console,Number,String,Object,Array,Map,Math,Date
             };
-            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-OVERFLOW");',ctx);
+            vm.runInNewContext(functionSource+'
+editSalesInvoice("I-OVERFLOW");',ctx);
             assert.equal(prompts,2,'test should reach quantity and price edits');
             assert.equal(confirms,0,'overflowing resulting stock must be rejected before confirmation');
             assert.equal(saves,0,'overflowing resulting stock must not persist');
@@ -1425,7 +1471,8 @@ jobs:
               wtAvailableStock:p=>p.stock,
               console, Number, String, Object, Array, Map, Math, Date
             };
-            vm.runInNewContext(functionSource + '\neditSalesInvoice("I2");', ctx);
+            vm.runInNewContext(functionSource + '
+editSalesInvoice("I2");', ctx);
             assert.equal(prompts,0,'must reject duplicate product IDs before asking for edits');
             assert.equal(products[0].stock,5);
             assert.equal(products[1].stock,8);
@@ -1440,7 +1487,8 @@ jobs:
             let prompts=0,saves=0;
             const alerts=[];
             const ctx={AppData:data,prompt:()=>{prompts++;return '1';},confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\neditSalesInvoice("I3");',ctx);
+            vm.runInNewContext(functionSource + '
+editSalesInvoice("I3");',ctx);
             assert.equal(prompts,0,'malformed historical lines must be rejected before prompting');
             assert.equal(saves,0,'malformed historical lines must not be saved');
             assert.equal(product.stock,5,'malformed historical lines must not mutate stock');
@@ -1457,7 +1505,8 @@ jobs:
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{throw new Error('simulated render failure');},renderInventoryList:()=>{},wtAvailableStock:(p,w)=>w==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[w]??0),console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\neditSalesInvoice("I4");',ctx);
+            vm.runInNewContext(functionSource + '
+editSalesInvoice("I4");',ctx);
             assert.equal(saves,1,'persistence should run once');
             assert.equal(product.stock,4,'successful save must retain stock change despite UI failure');
             assert.equal(invoice.items[0].qty,3,'successful save must retain invoice edit despite UI failure');
@@ -1477,7 +1526,8 @@ jobs:
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\neditSalesInvoice("I5");',ctx);
+            vm.runInNewContext(functionSource + '
+editSalesInvoice("I5");',ctx);
             assert.equal(saves,0,'must not save invoice if customer debt cannot be reconciled');
             assert.equal(product.stock,5,'must not change stock when debt reconciliation is blocked');
             assert.equal(invoice.items[0].qty,2,'must preserve original invoice lines');
@@ -1496,7 +1546,8 @@ jobs:
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '\neditSalesInvoice("I6");',ctx);
+            vm.runInNewContext(functionSource + '
+editSalesInvoice("I6");',ctx);
             assert.equal(saves,0,'must not save when customer name resolves to multiple customers');
             assert.equal(product.stock,5,'must not mutate stock when customer identity is ambiguous');
             assert.equal(invoice.items[0].qty,2,'must preserve invoice lines when customer identity is ambiguous');
@@ -1514,7 +1565,8 @@ jobs:
               prompt:()=>{prompts++;return '2';},confirm:()=>true,alert:m=>alerts.push(String(m)),
               saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},
               wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
+            vm.runInNewContext(functionSource+'
+editSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
             assert.equal(prompts,0,'unsafe historical quantity must be rejected before prompting');
             assert.equal(saves,0,'unsafe historical quantity must not be persisted');
             assert.equal(product.stock,5,'unsafe historical quantity must not mutate stock');
@@ -1529,7 +1581,8 @@ jobs:
               prompt:()=>{prompts++;return String(Number.MAX_SAFE_INTEGER+1);},confirm:()=>true,alert:m=>alerts.push(String(m)),
               saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},
               wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
+            vm.runInNewContext(functionSource+'
+editSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
             assert.equal(prompts,1,'unsafe edited quantity must be rejected immediately after quantity entry');
             assert.equal(saves,0,'unsafe edited quantity must not be persisted');
             assert.equal(product.stock,5,'unsafe edited quantity must not mutate stock');
@@ -1605,7 +1658,8 @@ jobs:
           assert.equal(saves,3,'ambiguous trip identity must not persist status changes');
           console.log('Truck status transition tests passed: legal lifecycle, skipped delivery, terminal states');
           """
-          js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_STATUS_FUNCTION*/", function_js)
+          js = "global.window = {}; const window = global.window;
+" + js.replace("/*INSERT_TRUCK_STATUS_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-status-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-truck-status-test.js
@@ -2067,7 +2121,8 @@ jobs:
           assert.equal(Object.hasOwn(AppData.truckTrips[1],'settlementId'),false);
           console.log('Truck settlement mock tests passed: invoice identity and quantity validation, stock partition, idempotency, rollback, and malformed invoice details');
           """
-          js = "global.window = {}; const window = global.window;\n" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
+          js = "global.window = {}; const window = global.window;
+" + js.replace("/*INSERT_TRUCK_SETTLEMENT_FUNCTION*/", function_js)
           Path("/tmp/anas-truck-settlement-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-truck-settlement-test.js
@@ -2111,15 +2166,18 @@ jobs:
           from pathlib import Path
           app = Path("index.html").read_text(encoding="utf-8")
           helper_start = app.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = app.find("\n        function anasValidateIncomingSyncData", helper_start)
+          helper_end = app.find("
+        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = app[helper_start:helper_end]
           purchase_helpers_start = app.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = app.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = app.find("
+        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = app[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = app.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = app.find("\n        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = app.find("
+        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = app[purchase_parity_start:purchase_parity_end]
           start = app.find("        function anasValidateIncomingSyncData(incoming) {")
@@ -2285,7 +2343,8 @@ jobs:
           """
           js = js.replace("/*INSERT_PURCHASE_HELPERS*/", purchase_helpers)
           js = js.replace("/*INSERT_PURCHASE_PARITY*/", purchase_parity)
-          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "\n" + function_js)
+          js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "
+" + function_js)
           Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-cloud-restore-validator-test.js
@@ -2298,7 +2357,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function wtCreateTransfer(){")
-          end = s.find("\n        function ", start + 1)
+          end = s.find("
+        function ", start + 1)
           assert start >= 0 and end > start, "Could not isolate warehouse transfer function"
           function_js = s[start:end]
           assert "if(!Number.isFinite(available))" in function_js, "Invalid source balance guard missing"
@@ -2339,7 +2399,8 @@ jobs:
               saveDB:()=>true, wtInitScreen:()=>{}, renderInventoryList:()=>{},
               console, Date, Math, Number, String, Object, Array
             };
-            vm.runInNewContext(functionSource + '\nwtCreateTransfer();', ctx);
+            vm.runInNewContext(functionSource + '
+wtCreateTransfer();', ctx);
             return {data,alerts,movements,transfers,elements};
           }
           let r=runCase({id:'p',name:'P',stock:' ',warehouseStock:{A:5}},'المخزن الرئيسي','A');
@@ -2400,7 +2461,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
           js = r"""
@@ -2426,7 +2488,8 @@ jobs:
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
+          vm.runInNewContext(functionSource+'
+importDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'false save result must restore original data object');
           assert.equal(ctx.posCart,oldCart,'false save result must restore active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues.length,1,'false save result must restore startup diagnostics');
@@ -2458,7 +2521,8 @@ jobs:
           functions = {}
           for name in names:
               start = s.find("function " + name + "(")
-              end = s.find("\n        function ", start + 10)
+              end = s.find("
+        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               functions[name] = s[start:end]
           js = r"""
@@ -2471,8 +2535,10 @@ jobs:
           const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
             saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
             document:{getElementById:()=>({classList:{contains:()=>true}})}};
-          vm.runInNewContext(Object.values(sources).join('\n')+
-            '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
+          vm.runInNewContext(Object.values(sources).join('
+')+
+            '
+this.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
           for(const action of ctx.actions) action();
           assert.equal(data.invoices.length,1,'legacy calls must not erase sales invoices');
           assert.equal(data.purchases.length,1,'legacy calls must not erase purchase invoices');
@@ -2496,7 +2562,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveDB()")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveDB"
           fn = s[start:end]
           js = r"""
@@ -2517,7 +2584,8 @@ jobs:
               updateDashboardStats:()=>calls.ui++,
               JSON,Object,Array,Number,String,Error
             };
-            vm.runInNewContext(fn+'\nthis.result=saveDB();',ctx);
+            vm.runInNewContext(fn+'
+this.result=saveDB();',ctx);
             return {result:ctx.result,calls,data,originalCarts};
           }
           let r=run({throwOnWrite:true,initialCarts:{other:[{id:'keep'}]}});
@@ -2557,7 +2625,8 @@ jobs:
           s = Path("index.html").read_text(encoding="utf-8")
           def extract(name):
               start = s.find("function " + name + "(")
-              end = s.find("\n        function ", start + 10)
+              end = s.find("
+        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               return s[start:end]
           names = ["switchPosScreen", "clearAllPosScreens", "clearPosCart", "setPosPriceTier", "saveAppSettings"]
@@ -2587,7 +2656,8 @@ jobs:
               openView:()=>{throw new Error('must not navigate after failed save');},
               ...extra
             };
-            vm.runInNewContext(sources[name]+'\nthis.invoke='+name+';',ctx);
+            vm.runInNewContext(sources[name]+'
+this.invoke='+name+';',ctx);
             ctx.invoke(name==='switchPosScreen'?'2':name==='setPosPriceTier'?2:undefined);
             return {ctx,alerts,oldCart,carts,oldConfig};
           }
@@ -2628,7 +2698,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveSyncSettings()")
-          end = s.find("\n        function ", start + 10)
+          end = s.find("
+        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveSyncSettings"
           fn = s[start:end]
           js = r"""
@@ -2645,7 +2716,8 @@ jobs:
               setSyncStatus:(m,e)=>statuses.push({message:m,error:e}),
               alert:m=>alerts.push(String(m)),console:{error:()=>{}}
             };
-            vm.runInNewContext(fn+'\nthis.invoke=saveSyncSettings;',ctx);
+            vm.runInNewContext(fn+'
+this.invoke=saveSyncSettings;',ctx);
             ctx.invoke();
             return {data,alerts,statuses};
           }
@@ -2675,7 +2747,8 @@ jobs:
               end=s.find(end_marker,start+10)
               assert start>=0 and end>start, "Could not isolate "+label
               return s[start:end]
-          purchase=extract("function savePurchaseItem() {","\n        function ","purchase")
+          purchase=extract("function savePurchaseItem() {","
+        function ","purchase")
           purchase_helper_start=s.find("// Purchase-specific decimal parser")
           purchase_helper_end=s.find("function savePurchaseItem()",purchase_helper_start)
           assert purchase_helper_start>=0 and purchase_helper_end>purchase_helper_start, "Could not isolate purchase centime helpers"
@@ -2706,7 +2779,9 @@ jobs:
               updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
               Number,String,Object,Array,JSON,Date,Math
             };
-            vm.runInNewContext(purchaseHelpers+'\n'+purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
+            vm.runInNewContext(purchaseHelpers+'
+'+purchase+'
+this.runPurchase=savePurchaseItem;',ctx);
             ctx.runPurchase();
             assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
             assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
@@ -2719,7 +2794,8 @@ jobs:
               wtEnsureMobileWarehouse:name=>{if(!ctx.AppData.warehouses.includes(name))ctx.AppData.warehouses.push(name);},
               Number,String,Object,Array,Map,Date,JSON,Error
             };
-            vm.runInNewContext(truck+'\nthis.runLoad=postTripStock;',ctx);
+            vm.runInNewContext(truck+'
+this.runLoad=postTripStock;',ctx);
             const trip={id:'T1',warehouseName:'Truck T',stockItems:[{productId:'P1',qty:4}]};
             assert.throws(()=>ctx.runLoad(trip),/تعذر حفظ حركة التحميل/,'truck load must reject undefined save result');
             assert.equal(ctx.AppData.products[0].stock,10,'main stock must roll back');
@@ -2742,7 +2818,8 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("window.anasTruckRecordExpense = function(id){")
-          end = s.find("\n  window.anasTruckExportCSV", start)
+          end = s.find("
+  window.anasTruckExportCSV", start)
           assert start >= 0 and end > start, "Could not isolate truck expense integration"
           fn = s[start:end]
           js = "const fn = " + json.dumps(fn) + r"""
@@ -2758,7 +2835,8 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-BAD-COST');
             assert.equal(saves, 0, 'malformed trip cost must not persist: ' + JSON.stringify(invalidAmount));
             assert.deepEqual(ctx.AppData.expenses, [], 'malformed trip cost must not append expense');
@@ -2774,7 +2852,8 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{duplicateSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-COST');
             assert.equal(duplicateSaves,0,'duplicate trip IDs must not persist expense');
             assert.deepEqual(ctx.AppData.expenses,[],'duplicate trip IDs must not append expense');
@@ -2796,7 +2875,8 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{duplicateLinkSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-LINK');
             assert.equal(duplicateLinkSaves,0,'duplicate linked expenses must not persist a chosen link');
             assert.equal(ctx.AppData.expenses.length,2,'duplicate expense records must remain untouched for audit');
@@ -2814,7 +2894,8 @@ jobs:
                 anasTruckRender:()=>{}, saveDB:()=>{badEntrySaves++;return true;},
                 Number,String,Object,Array,Date,console
               };
-              vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+              vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
               ctx.runExpense('T-BAD-EXPENSE-HISTORY');
               assert.equal(badEntrySaves,0,'malformed expense history must not persist');
               assert.equal(ctx.AppData.expenses.length,1,'malformed expense history must remain unchanged');
@@ -2833,7 +2914,8 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{staleSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-STALE-EXPENSE-LINK');
             assert.equal(staleSaves,0,'stale trip expenseId must not be accepted');
             assert.equal(expenses.length,0,'stale link must not fabricate ledger records');
@@ -2852,7 +2934,8 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{mismatchSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-EXPENSE-AMOUNT-MISMATCH');
             assert.equal(mismatchSaves,0,'mismatched expense amount must not be linked');
             assert.equal(trip.expenseId,undefined,'mismatched expense must not create a trip link');
@@ -2874,7 +2957,8 @@ jobs:
               anasTruckRender:()=>{}, saveDB:()=>{duplicateIdSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-EXPENSE-ID');
             assert.equal(duplicateIdSaves,0,'duplicate expense IDs must not be linked');
             assert.equal(trip.expenseId,undefined,'ambiguous expense ID must not create a trip link');
@@ -2889,7 +2973,8 @@ jobs:
             anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
             Number,String,Object,Array,Date,console
           };
-          vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
+          vm.runInNewContext(fn + '
+this.runExpense = window.anasTruckRecordExpense;', ctx);
           ctx.runExpense('T-VALID-COST');
           assert.equal(saves,1,'valid numeric string should persist');
           assert.equal(ctx.AppData.expenses.length,1);
