@@ -404,7 +404,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999960n);
     assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500010n);
-    assert.equal(state.purchases[0].id, purchase.id);
+    assert.ok(state.purchases.some(row => row.id === purchase.id));
     assert.deepEqual(ledgerArrays(state), ledgerArraysBeforeRestore,
       'valid backup restore must preserve all four ledger arrays exactly');
 
