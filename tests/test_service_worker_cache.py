@@ -31,6 +31,10 @@ class ServiceWorkerCacheRegressionTests(unittest.TestCase):
         self.assertIn("caches.open(CACHE).then(cache => cache.match(request))", core)
         self.assertLess(core.index("fetch(request)"), core.index(".catch("))
 
+    def test_reverse_ledger_runtime_is_in_offline_core_shell(self):
+        self.assertIn("'./reverse-ledger/reverse-ledger.js'", SOURCE)
+        self.assertIn("new URL(path, self.location.href)", SOURCE)
+
     def test_non_get_and_cross_origin_requests_are_not_intercepted(self):
         self.assertIn("if (request.method !== 'GET') return;", SOURCE)
         self.assertIn("if (url.origin !== self.location.origin) return;", SOURCE)
