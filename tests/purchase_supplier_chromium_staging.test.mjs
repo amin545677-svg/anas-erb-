@@ -234,10 +234,12 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
 
     await page.evaluate(() => openView('cash'));
     const cashDomAfterReload = await page.locator('#cashCurrentBalanceDisplay').innerText();
-    assert.match(cashDomAfterReload, /99[,.\s\u00a0]?999[,.]70/);
+    const expectedCashDomAfterReload = await page.evaluate(() => AppData.caisseBalance.toLocaleString() + ' د.ج');
+    assert.equal(cashDomAfterReload, expectedCashDomAfterReload,
+      'cash DOM must render the exact BigInt-verified persisted balance using the active locale');
     await page.evaluate(() => openView('supp-debts'));
     const supplierDomAfterReload = await page.locator('#suppDebtsContainer').innerText();
-    assert.match(supplierDomAfterReload, /15[,.\\s]?000/);
+    assert.match(supplierDomAfterReload, /15[\s,.]?000/, 'supplier DOM must show the persisted 15,000 DZD balance');
     await page.evaluate(() => openView('inventory'));
     await page.locator('#view-inventory .menu-action-card').nth(1).click();
     const stockDomAfterReload = await page.locator('#inventoryItemsContainer').innerText();
