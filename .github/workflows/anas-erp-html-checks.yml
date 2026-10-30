@@ -7,7 +7,11 @@ on:
       - "manifest.webmanifest"
       - "sw.js"
       - "tests/validate_erp_html.py"
-      - "reverse-ledger/**"\n      - "tests/reverse_ledger_primitives.test.js"\n      - ".github/workflows/anas-erp-html-checks.yml"
+      - "reverse-ledger/**"
+      - "tests/reverse_ledger_primitives.test.js"
+      - "reverse-ledger/**"
+      - "tests/reverse_ledger_primitives.test.js"
+      - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
     paths:
@@ -36,3 +40,5 @@ jobs:
           node-version: "22"
       - name: Validate ANAS ERP HTML and inline JavaScript
         run: python tests/validate_erp_html.py
+      - name: Test reverse-ledger schemas and allocation invariants
+        run: node --test tests/reverse_ledger_primitives.test.js
