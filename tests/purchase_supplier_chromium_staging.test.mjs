@@ -131,8 +131,8 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       valid.customers = [{ id: 'C-NEW', name: 'Ledger test client', debt: 19992.75 }];
       valid.invoices = [{
         id: 'INV-NEW', customerId: 'C-NEW', customerObj: { id: 'C-NEW' },
-        total: 20, paid: 7.25, remaining: 12.75,
-        items: [{ id: 'P-NEW', qty: 2, price: 10 }]
+        total: 20000, paid: 7.25, remaining: 19992.75,
+        items: [{ id: 'P-NEW', qty: 2, price: 10000 }]
       }];
       valid.cashMovements = [{
         id: 'CM-NEW', type: 'add', referenceType: 'customer_debt',
