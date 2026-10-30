@@ -133,7 +133,8 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
 
     await page.evaluate(() => openView('cash'));
     const cashDom = await page.locator('#cashCurrentBalanceDisplay').innerText();
-    assert.equal(cashDom, state.caisseBalance.toLocaleString() + ' د.ج');
+    const expectedCashDom = await page.evaluate(() => AppData.caisseBalance.toLocaleString() + ' د.ج');
+    assert.equal(cashDom, expectedCashDom);
     await page.evaluate(() => openView('supp-debts'));
     assert.match(await page.locator('#suppDebtsContainer').innerText(), /15[\s,.]?000/);
 
