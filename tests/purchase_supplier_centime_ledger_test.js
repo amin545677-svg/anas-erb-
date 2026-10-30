@@ -8,6 +8,10 @@ const purchaseStart=html.indexOf('function anasCreateUniqueProductId(products)')
 const purchaseEnd=html.indexOf('function anasEscapeHtml(value)',purchaseStart);
 assert.ok(purchaseStart>=0&&purchaseEnd>purchaseStart,'purchase helpers/save function must be isolatable');
 const purchaseSource=html.slice(purchaseStart,purchaseEnd);
+const moneyHelperStart=html.indexOf('// Purchase-specific decimal parser');
+const moneyHelperEnd=html.indexOf('function savePurchaseItem()',moneyHelperStart);
+assert.ok(moneyHelperStart>=0&&moneyHelperEnd>moneyHelperStart,'purchase centime helpers must be isolatable');
+const moneyHelperSource=html.slice(moneyHelperStart,moneyHelperEnd);
 const paymentStart=html.indexOf('function paySupplierDebt(supplierId)');
 const paymentEnd=html.indexOf('function openAddSupplierModal()',paymentStart);
 assert.ok(paymentStart>=0&&paymentEnd>paymentStart,'supplier payment function must be isolatable');
@@ -38,7 +42,7 @@ function runPayment({balance=20,cash=100,amount='7.25',saveResult=true}={}) {
  const AppData={suppliers:[{id:'S-1',name:'Supplier',balance}],cashMovements:[],supplierMovements:[],caisseBalance:cash,currentUser:{id:'U-1',name:'Tester'}};
  const alerts=[];let saves=0;
  const ctx={AppData,prompt:()=>amount,saveDB:()=>{saves++;return saveResult;},alert:m=>alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
- vm.createContext(ctx);vm.runInContext(paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
+ vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
  return {AppData:ctx.AppData,alerts,saves};
 }
 function runSupplierCreate({debt='12.345',saveResult=true}={}) {
