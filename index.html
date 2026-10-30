@@ -6653,6 +6653,7 @@ function renderPurchasesTable() {
             return incoming;
         }
 
+        // The cloud snapshot deliberately serializes the complete AppData object, including both financial and stock audit ledgers.
         async function syncPushNow() {
             let url;
             try { url = anasValidateSyncUrl(AppData.syncUrl || document.getElementById('syncWebhookUrl')?.value || ''); }
