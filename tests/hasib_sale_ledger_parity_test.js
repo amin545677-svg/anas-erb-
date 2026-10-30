@@ -355,3 +355,33 @@ function assertAccountingIdentity(result, openingDebt = 0) {
     'stocktake must snapshot the product master balance after the sale exactly once');
   console.log('PASS: actual stocktake session reader snapshots the post-sale product balance without replaying SALE_OUT');
 }
+
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1});
+  const syncStart=html.indexOf('async function syncPushNow()');
+  const syncEnd=html.indexOf('\n        async function syncPullNow()',syncStart);
+  assert.ok(syncStart>=0&&syncEnd>syncStart,'actual cloud snapshot sender must be present and isolatable');
+  const syncSource=html.slice(syncStart,syncEnd);
+  assert.ok(syncSource.includes('data: AppData'),'cloud snapshot must serialize the complete AppData object');
+  assert.ok(html.includes("'cashMovements'")&&html.includes("'stockMovements'"),'cloud validation must retain both financial and stock movement arrays');
+  const cloudSnapshot=JSON.parse(JSON.stringify(r.AppData));
+  assert.equal(cloudSnapshot.cashMovements[0].referenceType,'sales_invoice');
+  assert.equal(cloudSnapshot.cashMovements[0].amount,0.1);
+  assert.equal(cloudSnapshot.stockMovements[0].type,'SALE_OUT');
+  assert.equal(cloudSnapshot.stockMovements[0].referenceType,'sales_invoice');
+  console.log('PASS: complete Cloud Snapshot carries both linked sale ledgers without filtering');
+}
+
+{
+  const cancelStart=html.indexOf('function cancelInvoicePrompt()');
+  const cancelEnd=html.indexOf('\n        function ',cancelStart+20);
+  assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'invoice cancellation guard must be present');
+  const alerts=[];
+  const cancelContext={alert:m=>alerts.push(String(m))};
+  vm.createContext(cancelContext);
+  vm.runInContext(html.slice(cancelStart,cancelEnd)+'\ncancelInvoicePrompt();',cancelContext,{timeout:1000});
+  assert.ok(alerts.some(m=>m.includes('لم تتغير أي بيانات')),
+    'invoice cancellation must fail closed rather than delete a sale without compensating ledger entries');
+  console.log('PASS: invoice cancellation remains blocked until an atomic compensating transaction exists');
+}
