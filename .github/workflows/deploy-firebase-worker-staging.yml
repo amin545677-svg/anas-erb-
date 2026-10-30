@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: "22"
       - name: Run Firebase snapshot Worker tests
-        run: node --test tests/worker_firebase_snapshot.test.mjs tests/worker_firebase_snapshot_cors_test.mjs
+        run: node --test tests/worker_firebase_snapshot.test.mjs tests/worker_firebase_snapshot_cors_test.mjs tests/firebase_restore_contract_test.js
 
   deploy-staging-worker:
     needs: test
