@@ -308,7 +308,14 @@ export default {
     const url = new URL(request.url);
     if (!origin) return json({ error: "Origin is not allowed" }, 403, "https://amin545677-svg.github.io");
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ ok: true, service: "anas-erp-firebase-snapshot", configured: !!(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID) }, 200, origin);
+      const projectId = env.FIREBASE_PROJECT_ID || null;
+      const isStaging = projectId === "anas-erp-staging-a25e1";
+      return json({
+        ok: true,
+        service: isStaging ? "anas-erp-firebase-snapshot-staging" : "anas-erp-firebase-snapshot",
+        projectId,
+        configured: Boolean(env.FIREBASE_API_KEY && projectId)
+      }, 200, origin);
     }
     if (url.pathname === "/snapshot") {
       if (request.method !== "GET" && request.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
