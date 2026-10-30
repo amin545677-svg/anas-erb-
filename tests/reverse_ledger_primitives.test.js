@@ -119,3 +119,15 @@ test('posted purchase return reconciles the legacy single-line purchase schema',
  assert.equal(R.validateReverseLedgerParity(state),true);
  assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[{...state.stockMovements[0],qty:1}]}),/invalid direction/);
 });
+
+test('supplier settlement allocations bind to the supplier payment ledger and exact supplier', () => {
+ const invoice={id:'PUR-1',supplierId:'SUP-1',paid:10};
+ const initialPayment={id:'SP-1',supplierId:'SUP-1',type:'payment',referenceType:'purchase_invoice',referenceId:'PUR-1',amount:5};
+ const laterPayment={id:'SP-2',supplierId:'SUP-1',type:'payment',referenceType:'supplier_payment',referenceId:'SP-2',amount:5};
+ const state={customers:[],suppliers:[{id:'SUP-1'}],invoices:[],purchases:[invoice],supplierMovements:[initialPayment,laterPayment]};
+ const first=R.sealSettlementAllocation(state,{allocationId:'SA-1',partyType:'supplier',partyId:'SUP-1',invoiceType:'purchase_invoice',invoiceId:'PUR-1',sourceMovementId:'SP-1',sourceMovementType:'purchase_invoice',amountCentimes:500,createdAt:'2026-10-30T12:00:00Z'});
+ const second=R.sealSettlementAllocation({...state,settlementAllocations:[first]},{allocationId:'SA-2',partyType:'supplier',partyId:'SUP-1',invoiceType:'purchase_invoice',invoiceId:'PUR-1',sourceMovementId:'SP-2',sourceMovementType:'supplier_payment',amountCentimes:500,createdAt:'2026-10-30T12:01:00Z'});
+ assert.equal(first.ledgerVersion,2);
+ assert.equal(second.ledgerVersion,2);
+ assert.throws(()=>R.sealSettlementAllocation(state,{allocationId:'SA-3',partyType:'supplier',partyId:'SUP-OTHER',invoiceType:'purchase_invoice',invoiceId:'PUR-1',sourceMovementId:'SP-1',sourceMovementType:'purchase_invoice',amountCentimes:500,createdAt:'2026-10-30T12:02:00Z'}),/allocation party does not match invoice/);
+});
