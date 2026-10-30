@@ -641,7 +641,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     pos_strict_cart_guards = [
         "typeof item.qty === 'number') || (typeof item.qty === 'string'",
         "typeof item.qty === 'string' && item.qty.trim() === ''",
-        "qty > Number.MAX_SAFE_INTEGER",
+        "Number.isSafeInteger(qtyUnits)",
+        "qtyUnits <= 0",
         "typeof item.price === 'number') || (typeof item.price === 'string'",
         "typeof item.price === 'string' && item.price.trim() === ''",
         "Number.isSafeInteger(priceCents)",
