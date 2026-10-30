@@ -4983,7 +4983,7 @@ function renderPurchasesTable() {
                 });
                 const receipt = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
                     movementId: 'CL-REC-' + movementId, clientId: String(customer.id), type: 'receipt',
-                    amountCentimes, direction: 'credit', referenceType: 'customer_debt',
+                    amountCentimes: amountCents, direction: 'credit', referenceType: 'customer_debt',
                     referenceId: String(customer.id), createdAt: new Date().toISOString()
                 });
                 AppData.clientMovements.push(receipt);
