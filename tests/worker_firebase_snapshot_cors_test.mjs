@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://amin545677-svg.github.io" };
 const allowedOrigin = "https://amin545677-svg.github.io";
 const attackerOrigin = "https://attacker.example";
 
