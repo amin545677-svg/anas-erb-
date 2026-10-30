@@ -2,7 +2,7 @@ name: ANAS ERP Safety Checks
 
 on:
   push:
-    branches: [main, feat/atomic-reverse-ledger]
+    branches: [main, 'feat/**', 'fix/**']
     paths:
       - "index.html"
       - "tests/**"
@@ -13,9 +13,11 @@ on:
       - ".github/workflows/anas-erp-safety-checks.yml"
       - ".github/workflows/deploy-firebase-worker.yml"
   pull_request:
+    branches: [main, 'feat/**', 'fix/**']
     paths:
       - "index.html"
       - "tests/**"
+      - "reverse-ledger/**"
       - "cloudflare/**"
       - "firebase/**"
       - ".github/workflows/anas-erp-safety-checks.yml"
