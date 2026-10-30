@@ -1227,7 +1227,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "sale aggregates repeated product quantities and validates numeric inputs":
             "aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits" in sale
             and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale
-            and "lineProduct = qtyUnits * priceCents" in sale,
+            and "anasLineTotalCents(qtyUnits, priceCents)" in sale,
         "POS sale rejects unsafe invoice, quantity, cash, and customer-debt arithmetic":
             "Number.isSafeInteger(totalCents)" in sale
             and "Number.isSafeInteger(aggregateUnits)" in sale
