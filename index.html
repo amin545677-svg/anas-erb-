@@ -4123,6 +4123,109 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return total;
         }
 
+        // Enforce cross-ledger parity for purchases created by the centime-ledger flow.
+        // Legacy purchases remain readable; ledgerVersion marks records that must have complete linked vouchers.
+        function anasValidatePurchaseLedgerParity(incoming, mode) {
+            const fail = message => {
+                const suffix = mode === 'cloud'
+                    ? '؛ أُلغي الاسترجاع لحماية الحسابات.'
+                    : '؛ رُفض الاسترجاع لحماية الحسابات.';
+                throw new Error(message + suffix);
+            };
+            const purchases = Array.isArray(incoming.purchases) ? incoming.purchases : [];
+            const supplierMovements = Array.isArray(incoming.supplierMovements) ? incoming.supplierMovements : [];
+            const cashMovements = Array.isArray(incoming.cashMovements) ? incoming.cashMovements : [];
+            const stockMovements = Array.isArray(incoming.stockMovements) ? incoming.stockMovements : [];
+            const byReference = (rows, referenceType, referenceId) =>
+                rows.filter(row => String(row.referenceType || '') === referenceType &&
+                    String(row.referenceId ?? '') === String(referenceId));
+            for (const purchase of purchases) {
+                if (purchase.ledgerVersion !== 1) continue;
+                const purchaseId = String(purchase.id ?? '').trim();
+                if (!purchaseId) fail('فاتورة شراء حديثة تفتقد معرّفاً صالحاً');
+                const totalCents = anasPurchaseToCents(purchase.total);
+                const paidCents = anasPurchaseToCents(purchase.paid);
+                const remainingCents = anasPurchaseToCents(purchase.remaining);
+                const costCents = anasPurchaseToCents(purchase.cost);
+                const qtyUnits = anasPurchaseToQtyUnits(purchase.qty);
+                const calculatedTotalCents = anasPurchaseLineTotalCents(qtyUnits, costCents);
+                if (![totalCents, paidCents, remainingCents, costCents, qtyUnits, calculatedTotalCents].every(Number.isSafeInteger) ||
+                    totalCents <= 0 || paidCents < 0 || remainingCents < 0 ||
+                    paidCents > totalCents || paidCents + remainingCents !== totalCents ||
+                    calculatedTotalCents !== totalCents) {
+                    fail('قيمة فاتورة شراء حديثة لا تتطابق مع تكلفة الوحدة والكمية أو التسوية بالسنتيم');
+                }
+                const cashLinks = byReference(cashMovements, 'purchase_invoice', purchaseId);
+                if (paidCents > 0) {
+                    if (cashLinks.length !== 1 || cashLinks[0].type !== 'subtract' ||
+                        anasPurchaseToCents(cashLinks[0].amount) !== paidCents) {
+                        fail('حركة الصندوق لا تطابق المبلغ المدفوع في فاتورة الشراء ' + purchaseId);
+                    }
+                } else if (cashLinks.length !== 0) {
+                    fail('فاتورة شراء غير مدفوعة مرتبطة بحركة صندوق غير مبررة ' + purchaseId);
+                }
+                const stockLinks = byReference(stockMovements, 'purchase_invoice', purchaseId);
+                if (stockLinks.length !== 1 || stockLinks[0].type !== 'PURCHASE_IN' ||
+                    String(stockLinks[0].productId ?? '') !== String(purchase.productId ?? '') ||
+                    anasPurchaseToQtyUnits(stockLinks[0].qty ?? stockLinks[0].quantity) !== qtyUnits) {
+                    fail('حركة المخزون لا تطابق كمية أو صنف فاتورة الشراء ' + purchaseId);
+                }
+                const supplierId = purchase.supplierId == null ? '' : String(purchase.supplierId).trim();
+                const supplierLinks = byReference(supplierMovements, 'purchase_invoice', purchaseId);
+                if (!supplierId) {
+                    if (supplierLinks.length) fail('فاتورة شراء نقدية بلا مورد مرتبطة بدفتر الموردين ' + purchaseId);
+                    continue;
+                }
+                const purchaseLinks = supplierLinks.filter(row => row.type === 'purchase');
+                const paymentLinks = supplierLinks.filter(row => row.type === 'payment');
+                if (purchaseLinks.length !== 1 ||
+                    String(purchaseLinks[0].supplierId ?? '') !== supplierId ||
+                    anasPurchaseToCents(purchaseLinks[0].amount) !== totalCents) {
+                    fail('قيد فاتورة الشراء غير مطابق في دفتر الموردين ' + purchaseId);
+                }
+                if ((paidCents > 0 && paymentLinks.length !== 1) || (paidCents === 0 && paymentLinks.length !== 0) ||
+                    paymentLinks.some(row => String(row.supplierId ?? '') !== supplierId ||
+                        anasPurchaseToCents(row.amount) !== paidCents)) {
+                    fail('قيد دفعة فاتورة الشراء غير مطابق في دفتر الموردين ' + purchaseId);
+                }
+            }
+            for (const movement of supplierMovements) {
+                const referenceType = String(movement.referenceType || '');
+                const referenceId = String(movement.referenceId ?? '');
+                if (movement.type === 'purchase' || (movement.type === 'payment' && referenceType === 'purchase_invoice')) {
+                    const purchase = purchases.find(row => String(row.id ?? '') === referenceId && row.ledgerVersion === 1);
+                    if (!purchase || referenceType !== 'purchase_invoice' ||
+                        String(purchase.supplierId ?? '') !== String(movement.supplierId ?? '')) {
+                        fail('قيد في دفتر الموردين يشير إلى فاتورة شراء حديثة مفقودة أو غير مطابقة');
+                    }
+                } else if (movement.type === 'payment' && referenceType === 'supplier_payment') {
+                    const cashLinks = byReference(cashMovements, 'supplier_payment', referenceId);
+                    if (String(movement.id ?? '') !== referenceId || cashLinks.length !== 1 ||
+                        cashLinks[0].type !== 'subtract' ||
+                        anasPurchaseToCents(cashLinks[0].amount) !== anasPurchaseToCents(movement.amount)) {
+                        fail('تسديد المورد غير مرتبط بحركة صندوق مطابقة');
+                    }
+                } else if (movement.type === 'opening_balance') {
+                    if (referenceType !== 'supplier_opening_balance' ||
+                        String(movement.referenceId ?? '') !== String(movement.supplierId ?? '')) {
+                        fail('قيد الرصيد الافتتاحي للمورد غير متطابق');
+                    }
+                } else {
+                    fail('نوع أو مرجع حركة غير صالح في دفتر الموردين');
+                }
+            }
+            for (const movement of cashMovements) {
+                if (String(movement.referenceType || '') === 'supplier_payment') {
+                    const supplierLinks = byReference(supplierMovements, 'supplier_payment', movement.referenceId);
+                    if (movement.type !== 'subtract' || supplierLinks.length !== 1 ||
+                        supplierLinks[0].type !== 'payment' ||
+                        anasPurchaseToCents(supplierLinks[0].amount) !== anasPurchaseToCents(movement.amount)) {
+                        fail('حركة صندوق لتسديد مورد تفتقد القيد المقابل في دفتر الموردين');
+                    }
+                }
+            }
+        }
+
         function savePurchaseItem() {
             const nameInput = document.getElementById('purProductName');
             const costInput = document.getElementById('purBuyCost');
@@ -4293,7 +4396,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
 
                 const purchase = {
-                    id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
+                    ledgerVersion: 1, id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
                     name, cost: anasPurchaseCentsToCurrency(costCents), qty: anasPurchaseQtyFromUnits(qtyUnits),
                     total: anasPurchaseCentsToCurrency(totalCents), paid: anasPurchaseCentsToCurrency(paidCents),
                     remaining: anasPurchaseCentsToCurrency(remainingCents),
@@ -7018,6 +7121,7 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s => String(s.id ?? '') === String(purchase.supplierId)).length !== 1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
             }
+            anasValidatePurchaseLedgerParity(incoming, 'cloud');
             // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
             for (const transfer of (incoming.warehouseTransfers || [])) {
                 if (!Object.prototype.hasOwnProperty.call(transfer, 'quantity'))
@@ -7304,6 +7408,7 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
             }
+            anasValidatePurchaseLedgerParity(incoming, 'backup');
             // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
             const validateStockMovementValue = (record, field, label, allowNegative) => {
                 if (!Object.prototype.hasOwnProperty.call(record, field)) return;
