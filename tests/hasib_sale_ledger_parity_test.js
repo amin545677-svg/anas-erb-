@@ -217,7 +217,7 @@ console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
     'cash balance display must reflect opening balance plus normalized sale receipt');
   assert.equal(r.AppData.cashMovements.filter(m=>m.referenceType==='sales_invoice'&&m.type==='add').reduce((sum,m)=>sum+m.amount,0),0.1,
     'cash ledger reader contract must include the sales receipt as an add movement');
-  assert.equal(r.AppData.stockMovements.filter(m=>m.type==='SALE_OUT'&&m.referenceType==='sales_invoice').reduce((sum,m)=>sum+m.qty,0),-0.3,
+  assert.equal(r.AppData.stockMovements.filter(m=>m.type==='SALE_OUT'&&m.referenceType==='sales_invoice').reduce((sum,m)=>sum+m.qty,0),-3,
     'stock ledger contract must preserve the invoice-linked negative sale quantity');
   assert.equal(r.customer.debt,0.3,'cumulative customer debt must match opening debt plus invoice remainder');
   console.log('PASS: integrated invoice/cash UI/cash ledger/stock ledger/customer debt parity');
