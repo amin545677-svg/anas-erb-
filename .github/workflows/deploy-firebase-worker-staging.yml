@@ -132,10 +132,10 @@ jobs:
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
-          const cleanKey = rawKey.replace(/["'\${ch}\${ch}\${ch}]/g, "");
-          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\${ch}\${ch}\${ch}]/g, "");
+          const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
+          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\s\r\n]/g, "");
           const html = readFileSync("index.html", "utf8");
-          const productionConfigKey = html.match(/apiKey\${ch}*:\${ch}*["']([^"']+)["']/)?.[1] || "";
+          const productionConfigKey = html.match(/apiKey\s*:\s*["']([^"']+)["']/)?.[1] || "";
           const projectId = process.env.EXPECTED_PROJECT_ID;
           const base = process.env.WORKER_BASE_URL;
           const origin = process.env.EXPECTED_ORIGIN;
