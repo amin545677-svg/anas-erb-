@@ -88,6 +88,7 @@ test('posted returns reject a one-micro-unit over-return without mutating the so
   items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001}],
   totalCentimes:2000001,debtReductionCentimes:0,cashRefundCentimes:0,createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'over ceiling'
  }),/return exceeds remaining returnable micro-units/);
+ assert.equal(JSON.stringify(state),before,'failed draft sealing must not mutate existing posted return state');
 });
 test('posted return requires matching invoice-linked stock movements', () => {
  const state={
@@ -146,6 +147,7 @@ test('draft return ceiling accounts for all previously posted returns', () => {
    totalCentimes:1000000,debtReductionCentimes:0,cashRefundCentimes:1000000,supplierCreditCentimes:0,
    stockMovementIds:['SM-POSTED'],financialMovementIds:['CM-POSTED']}]
  };
+ const before=JSON.stringify(state);
  assert.throws(()=>R.sealReturnDocument(state,{
   returnId:'R-DRAFT',originalInvoiceId:'S-CEILING',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'DRAFT',
   items:[{productId:'P-1',quantityMicroUnits:1000001,unitPriceCentimes:1000000,lineTotalCentimes:1000001}],
