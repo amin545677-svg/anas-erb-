@@ -6,8 +6,8 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://amin545677-svg.github.io" };
-const allowedOrigin = "https://amin545677-svg.github.io";
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
+const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const attackerOrigin = "https://attacker.example";
 
 test("health endpoint rejects an untrusted origin without reflecting it in CORS headers", async () => {
@@ -43,4 +43,13 @@ test("health endpoint permits the configured app origin", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
   assert.equal((await response.json()).ok, true);
+});
+
+test("health endpoint permits the isolated Firebase Hosting alternate origin", async () => {
+  const alternateOrigin = "https://anas-erp-staging-a25e1.firebaseapp.com";
+  const response = await worker.fetch(new Request("https://worker.test/health", {
+    method: "GET", headers: { Origin: alternateOrigin }
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), alternateOrigin);
 });
