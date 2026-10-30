@@ -7227,6 +7227,15 @@ function renderPurchasesTable() {
                     }
                 }
             }
+            // Reject malformed financial fields before a backup can replace valid live accounting data.
+            const validateMoneyField = (record, field, label, allowZero = true) => {
+                if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+                const raw = record[field];
+                if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null || raw === '' ||
+                    (typeof raw === 'string' && raw.trim() === '') ||
+                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
+                    throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
+            };
             for (const movement of (incoming.supplierMovements || [])) {
                 validateMoneyField(movement, 'amount', 'دفتر الموردين', false);
                 if (!['purchase','payment','opening_balance'].includes(movement.type))
@@ -7250,15 +7259,6 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
             }
-            // Reject malformed financial fields before a backup can replace valid live accounting data.
-            const validateMoneyField = (record, field, label, allowZero = true) => {
-                if (!Object.prototype.hasOwnProperty.call(record, field)) return;
-                const raw = record[field];
-                if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === null || raw === '' ||
-                    (typeof raw === 'string' && raw.trim() === '') ||
-                    !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
-                    throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
-            };
             // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
             const validateStockMovementValue = (record, field, label, allowNegative) => {
                 if (!Object.prototype.hasOwnProperty.call(record, field)) return;
