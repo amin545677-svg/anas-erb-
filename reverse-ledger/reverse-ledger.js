@@ -234,12 +234,33 @@
       const clientMatches = clients.filter(x => String(x.id) === clientId);
       if (clientMatches.length !== 1) throw new Error('orphan or ambiguous client movement');
       if (!['debit','credit'].includes(row.direction)) throw new Error('invalid client movement direction');
+      const expectedDirection = row.type === 'opening_balance' || row.type === 'invoice_debit' ? 'debit' :
+        row.type === 'receipt' || row.type === 'return_credit' ? 'credit' : null;
+      if (expectedDirection && row.direction !== expectedDirection)
+        throw new Error('client movement direction does not match movement type');
       const amount = BigInt(safeInt(row.amountCentimes, 'client movement amount', false));
       const key = clientId;
       totals.set(key, (totals.get(key) || 0n) + (row.direction === 'debit' ? amount : -amount));
-      identifier(row.referenceType, 'client movement reference type');
-      identifier(row.referenceId, 'client movement reference ID');
+      const referenceType = identifier(row.referenceType, 'client movement reference type');
+      const referenceId = identifier(row.referenceId, 'client movement reference ID');
       identifier(row.createdAt, 'client movement timestamp');
+      if (row.type === 'opening_balance' && (referenceType !== 'opening_balance' || referenceId !== clientId))
+        throw new Error('client opening balance reference is invalid');
+      if (row.type === 'receipt' && (referenceType !== 'customer_debt' || referenceId !== clientId))
+        throw new Error('client receipt reference is invalid');
+      if (row.type === 'invoice_debit') {
+        const linked = (state.invoices || []).filter(x => String(x.id) === referenceId &&
+          String(x.customerId ?? x.customerObj?.id ?? '') === clientId);
+        if (referenceType !== 'sales_invoice' || linked.length !== 1)
+          throw new Error('client invoice debit references a missing or mismatched invoice');
+      }
+      if (row.type === 'return_credit') {
+        const linked = (state.returns || []).filter(x => x && x.ledgerVersion === 2 &&
+          x.status === 'POSTED' && x.returnType === 'SALE_RETURN' &&
+          x.originalInvoiceType === 'sales_invoice' && String(x.returnId) === referenceId);
+        if (referenceType !== 'sales_return' || linked.length !== 1)
+          throw new Error('client return credit references a missing or mismatched return');
+      }
     }
     for (const [clientId, balance] of totals) {
       const client = clients.find(x => String(x.id) === clientId);
