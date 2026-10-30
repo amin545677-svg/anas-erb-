@@ -38,7 +38,7 @@
   const recordId = row => row && (row.id ?? row.movementId ?? row.returnId ?? row.allocationId);
   function ensureCollections(state) {
     if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('state must be an object');
-    const names = ['clientMovements', 'settlementAllocations', 'returns'];
+    const names = ['clientMovements', 'settlementAllocations', 'returns', 'customerCreditMovements'];
     for (const name of names) {
       if (own(state, name) && !Array.isArray(state[name])) throw new Error(name + ' must be an array');
     }
@@ -108,9 +108,12 @@
     const debtReductionCentimes = safeInt(input.debtReductionCentimes, 'debtReductionCentimes', true);
     const cashRefundCentimes = safeInt(input.cashRefundCentimes, 'cashRefundCentimes', true);
     const supplierCreditCentimes = safeInt(input.supplierCreditCentimes ?? 0, 'supplierCreditCentimes', true);
+    const customerCreditCentimes = safeInt(input.customerCreditCentimes ?? 0, 'customerCreditCentimes', true);
     if (input.originalInvoiceType === 'sales_invoice' && supplierCreditCentimes !== 0)
       throw new Error('sales return cannot create supplier credit');
-    const settled = BigInt(debtReductionCentimes) + BigInt(cashRefundCentimes) + BigInt(supplierCreditCentimes);
+    if (input.originalInvoiceType === 'purchase_invoice' && customerCreditCentimes !== 0)
+      throw new Error('purchase return cannot create customer credit');
+    const settled = BigInt(debtReductionCentimes) + BigInt(cashRefundCentimes) + BigInt(supplierCreditCentimes) + BigInt(customerCreditCentimes);
     if (settled > total) throw new Error('settlement exceeds return value');
     if (input.status === 'POSTED' && settled !== total) throw new Error('posted return settlement must equal return value');
     const stockMovementIds = Array.isArray(input.stockMovementIds) ? input.stockMovementIds.map(x => identifier(x, 'stockMovementId')) : [];
@@ -127,6 +130,7 @@
       debtReductionCentimes,
       cashRefundCentimes,
       supplierCreditCentimes,
+      customerCreditCentimes,
       stockMovementIds: Object.freeze(stockMovementIds),
       financialMovementIds: Object.freeze(financialMovementIds),
       status: input.status,
@@ -268,9 +272,10 @@
       }
       if (row.type === 'return_credit') {
         const linked = (state.returns || []).filter(x => x && x.ledgerVersion === 2 &&
-          x.status === 'POSTED' && x.returnType === 'SALE_RETURN' &&
+          x.status === 'POSTED' && ['SALE_RETURN','INVOICE_CANCEL'].includes(x.returnType) &&
           x.originalInvoiceType === 'sales_invoice' && String(x.returnId) === referenceId);
-        if (referenceType !== 'sales_return' || linked.length !== 1)
+        const expectedReference = linked.length === 1 && linked[0].returnType === 'INVOICE_CANCEL' ? 'invoice_cancel' : 'sales_return';
+        if (referenceType !== expectedReference || linked.length !== 1)
           throw new Error('client return credit references a missing or mismatched return');
       }
     }
@@ -311,6 +316,9 @@
     const cashRows = state.cashMovements || [];
     const clientRows = state.clientMovements || [];
     const supplierRows = state.supplierMovements || [];
+    const customerCreditRows = state.customerCreditMovements || [];
+    const customerCreditTotals = new Map();
+    const supplierCreditTotals = new Map();
     for (const posted of docs) {
       if (posted.status !== 'POSTED' || !Array.isArray(posted.items)) continue;
       for (const item of posted.items) {
@@ -365,9 +373,12 @@
       const debt = BigInt(safeInt(doc.debtReductionCentimes, 'debt reduction', true));
       const cash = BigInt(safeInt(doc.cashRefundCentimes, 'cash refund', true));
       const supplierCredit = BigInt(safeInt(doc.supplierCreditCentimes ?? 0, 'supplier credit', true));
+      const customerCredit = BigInt(safeInt(doc.customerCreditCentimes ?? 0, 'customer credit', true));
       if (doc.originalInvoiceType === 'sales_invoice' && supplierCredit !== 0n)
         throw new Error('sales return cannot create supplier credit');
-      const settled = debt + cash + supplierCredit;
+      if (doc.originalInvoiceType === 'purchase_invoice' && customerCredit !== 0n)
+        throw new Error('purchase return cannot create customer credit');
+      const settled = debt + cash + supplierCredit + customerCredit;
       if (settled > lineTotal) throw new Error('return settlement exceeds return value');
       if (doc.status === 'POSTED' && settled !== lineTotal)
         throw new Error('posted return settlement must equal return value');
@@ -409,7 +420,7 @@
       if (new Set(financialIds.map(String)).size !== financialIds.length)
         throw new Error('posted return has duplicate financial movement references');
       const financialRows = doc.originalInvoiceType === 'sales_invoice'
-        ? [...cashRows, ...clientRows] : [...cashRows, ...supplierRows];
+        ? [...cashRows, ...clientRows, ...customerCreditRows] : [...cashRows, ...supplierRows];
       // Every movement posted under this return reference must be listed by the return document.
       // Otherwise a forged/unlinked ledger row could alter cash or party balances without parity failure.
       const linkedFinancialRows = financialRows.filter(x =>
@@ -420,6 +431,29 @@
           linkedFinancialIds.length !== financialIds.length ||
           linkedFinancialIds.some(id => !financialIds.map(String).includes(id)))
         throw new Error('posted return has unreferenced or ambiguous financial movements');
+      const invoicePartyId = matches[0].partyId;
+      const linkedCash = cashRows.filter(x => x && x.referenceType === expectedRef && String(x.referenceId) === returnId);
+      if ((cash > 0n && (linkedCash.length !== 1 || linkedCash[0].type !== (doc.originalInvoiceType === 'sales_invoice' ? 'subtract' : 'add') || sourceAmountCentimes(linkedCash[0]) !== cash)) ||
+          (cash === 0n && linkedCash.length !== 0))
+        throw new Error('posted return cash movement does not match its cash settlement');
+      if (doc.originalInvoiceType === 'sales_invoice') {
+        const linkedDebt = clientRows.filter(x => x && x.referenceType === expectedRef && String(x.referenceId) === returnId && x.type === 'return_credit');
+        const linkedCredit = customerCreditRows.filter(x => x && x.referenceType === expectedRef && String(x.referenceId) === returnId);
+        if ((debt > 0n && (linkedDebt.length !== 1 || linkedDebt[0].direction !== 'credit' || String(linkedDebt[0].clientId) !== invoicePartyId || BigInt(safeInt(linkedDebt[0].amountCentimes, 'return debt movement', false)) !== debt)) ||
+            (debt === 0n && linkedDebt.length !== 0))
+          throw new Error('posted sale return debt movement does not match its debt reduction');
+        if ((customerCredit > 0n && (linkedCredit.length !== 1 || linkedCredit[0].type !== 'credit' || String(linkedCredit[0].customerId) !== invoicePartyId || BigInt(safeInt(linkedCredit[0].amountCentimes, 'customer credit movement', false)) !== customerCredit)) ||
+            (customerCredit === 0n && linkedCredit.length !== 0))
+          throw new Error('posted sale return customer credit movement does not match its credit balance');
+        if (customerCredit > 0n) customerCreditTotals.set(invoicePartyId, (customerCreditTotals.get(invoicePartyId) || 0n) + customerCredit);
+      } else {
+        const linkedSupplier = supplierRows.filter(x => x && x.referenceType === expectedRef && String(x.referenceId) === returnId && x.type === 'return_credit');
+        const supplierMovementTotal = debt + supplierCredit;
+        if ((supplierMovementTotal > 0n && (linkedSupplier.length !== 1 || String(linkedSupplier[0].supplierId) !== invoicePartyId || sourceAmountCentimes(linkedSupplier[0]) !== supplierMovementTotal)) ||
+            (supplierMovementTotal === 0n && linkedSupplier.length !== 0))
+          throw new Error('posted purchase return supplier movement does not match debt and supplier credit');
+        if (supplierCredit > 0n) supplierCreditTotals.set(invoicePartyId, (supplierCreditTotals.get(invoicePartyId) || 0n) + supplierCredit);
+      }
       let financialTotal = 0n;
       for (const movementId of financialIds) {
         const matchesMovement = financialRows.filter(x => String(recordId(x)) === String(movementId));
@@ -431,6 +465,22 @@
       if (financialTotal !== settled)
         throw new Error('posted return financial movements do not equal its settlement split');
 
+    }
+    for (const invoice of invoices) {
+      const cancellation = docs.filter(doc => doc.status === 'POSTED' && doc.returnType === 'INVOICE_CANCEL' &&
+        doc.originalInvoiceType === invoice.type && String(doc.originalInvoiceId) === String(invoice.row.id));
+      if (cancellation.length > 1 || (invoice.row.status === 'CANCELLED') !== (cancellation.length === 1))
+        throw new Error('invoice cancellation status does not match its posted cancellation document');
+    }
+    for (const customer of (state.customers || [])) {
+      const expected = customerCreditTotals.get(String(customer.id)) || 0n;
+      const actual = BigInt(safeInt(customer.creditBalanceCentimes ?? 0, 'customer credit balance', true));
+      if (actual !== expected) throw new Error('customer credit balance does not match posted return credits');
+    }
+    for (const supplier of (state.suppliers || [])) {
+      const expected = supplierCreditTotals.get(String(supplier.id)) || 0n;
+      const actual = BigInt(safeInt(supplier.creditBalanceCentimes ?? 0, 'supplier credit balance', true));
+      if (actual !== expected) throw new Error('supplier credit balance does not match posted return credits');
     }
     return true;
   }
