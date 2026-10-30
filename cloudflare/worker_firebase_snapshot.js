@@ -4,7 +4,7 @@
  * Uses Firebase Auth ID tokens and Firestore Security Rules; no service-account private key.
  */
 const MAX_BODY_BYTES = 700 * 1024;
-const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "https://amin545677-svg.github.io")
+const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 function json(data, status, origin) {
