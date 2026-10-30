@@ -88,4 +88,13 @@ function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, cus
   assert.ok(Number.isNaN(vm.runInContext("anasCartTotalCents([{qty:'0',price:'5'}])", ctx)),
     'a zero-quantity line must invalidate the cart preview rather than silently pass');
 }
+{
+  const r = run({qty:'0.3', price:'10', total:10, paid:0, remaining:10, customerDebt:10});
+  assert.equal(r.saves,1);
+  assert.equal(r.product.stock,10.7,'invoice edit must return exactly 0.7 units to stock');
+  assert.equal(r.data.stockMovements[0].qty,0.7,'stock adjustment ledger must use the same micro-unit delta');
+  assert.equal(r.invoice.total,3);
+  assert.equal(r.invoice.remaining,3);
+  assert.equal(r.customer.debt,3);
+}
 console.log('Invoice edit safe financial arithmetic tests passed');
