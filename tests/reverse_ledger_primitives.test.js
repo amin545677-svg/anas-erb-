@@ -164,3 +164,39 @@ test('draft return ceiling accounts for all previously posted returns', () => {
  }),/return exceeds remaining returnable micro-units/);
  assert.equal(JSON.stringify(state),before,'failed draft sealing must not mutate existing posted return state');
 });
+
+
+test('customer v2 ledger reconciles opening debt, new invoice debit and explicitly allocated receipts', () => {
+ const customer={id:'C-CYCLE',debt:10000,ledgerVersion:2};
+ const invoice={id:'S-CYCLE',customerId:'C-CYCLE',total:0.30,paid:0.25,remaining:0.05};
+ const state={
+  customers:[customer],invoices:[invoice],purchases:[],returns:[],
+  clientMovements:[],settlementAllocations:[],
+  cashMovements:[
+   {id:'CM-SALE-CYCLE',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'S-CYCLE'},
+   {id:'CM-RECEIPT-CYCLE',type:'add',amount:0.15,referenceType:'customer_debt',referenceId:'C-CYCLE'}
+  ]
+ };
+ const opening=R.sealClientMovement(state,{movementId:'CL-OPEN-CYCLE',clientId:'C-CYCLE',type:'opening_balance',amountCentimes:1000000,direction:'debit',referenceType:'opening_balance',referenceId:'C-CYCLE',createdAt:'2026-10-30T12:00:00Z'});
+ state.clientMovements.push(opening);
+ customer.debt=10000.20;
+ const debit=R.sealClientMovement(state,{movementId:'CL-INVOICE-CYCLE',clientId:'C-CYCLE',type:'invoice_debit',amountCentimes:20,direction:'debit',referenceType:'sales_invoice',referenceId:'S-CYCLE',createdAt:'2026-10-30T12:01:00Z'});
+ state.clientMovements.push(debit);
+ customer.debt=10000.05;
+ const receipt=R.sealClientMovement(state,{movementId:'CL-RECEIPT-CYCLE',clientId:'C-CYCLE',type:'receipt',amountCentimes:15,direction:'credit',referenceType:'customer_debt',referenceId:'C-CYCLE',createdAt:'2026-10-30T12:02:00Z'});
+ state.clientMovements.push(receipt);
+ const immediate=R.sealSettlementAllocation(state,{allocationId:'ALLOC-IMMEDIATE',partyType:'customer',partyId:'C-CYCLE',invoiceType:'sales_invoice',invoiceId:'S-CYCLE',sourceMovementId:'CM-SALE-CYCLE',sourceMovementType:'sales_invoice',amountCentimes:10,createdAt:'2026-10-30T12:03:00Z'});
+ state.settlementAllocations.push(immediate);
+ const later=R.sealSettlementAllocation(state,{allocationId:'ALLOC-LATER',partyType:'customer',partyId:'C-CYCLE',invoiceType:'sales_invoice',invoiceId:'S-CYCLE',sourceMovementId:'CM-RECEIPT-CYCLE',sourceMovementType:'customer_debt',amountCentimes:15,createdAt:'2026-10-30T12:04:00Z'});
+ state.settlementAllocations.push(later);
+ assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.equal(state.clientMovements.reduce((sum,row)=>sum+(row.direction==='debit'?row.amountCentimes:-row.amountCentimes),0),1000005);
+ assert.equal(state.settlementAllocations.reduce((sum,row)=>sum+row.amountCentimes,0),25);
+ assert.equal(invoice.remaining,0.05);
+});
+
+test('client receipt ledger cannot be sealed when customer debt does not include the receipt', () => {
+ const state={customers:[{id:'C-RECEIPT',debt:9.99,ledgerVersion:2}],invoices:[],purchases:[],returns:[],
+  clientMovements:[{ledgerVersion:2,movementId:'OPEN-R',clientId:'C-RECEIPT',type:'opening_balance',amountCentimes:1000,direction:'debit',referenceType:'opening_balance',referenceId:'C-RECEIPT',createdAt:'2026-10-30T12:00:00Z'}]};
+ assert.throws(()=>R.sealClientMovement(state,{movementId:'RECEIPT-R',clientId:'C-RECEIPT',type:'receipt',amountCentimes:1,direction:'credit',referenceType:'customer_debt',referenceId:'C-RECEIPT',createdAt:'2026-10-30T12:01:00Z'}),/does not match customer debt/);
+});
