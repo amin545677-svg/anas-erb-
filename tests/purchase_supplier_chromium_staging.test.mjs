@@ -225,6 +225,24 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     assert.equal(state.supplierMovements.filter(m => m.referenceType === 'purchase_invoice' && m.referenceId === purchase.id && m.type === 'payment')[0].amount, 0.10);
     assert.match(await page.locator('#purchasesTableBody').innerText(), /شاي اختبار Chromium/);
 
+    // Add a second payable purchase so one supplier voucher can allocate across multiple invoices.
+    await page.evaluate(() => openView('purchases'));
+    await page.locator('#purSupplierSelect').selectOption(supplierId);
+    await page.locator('#purProductName').fill('شاي اختبار Chromium - فاتورة ثانية');
+    await page.locator('#purBuyCost').fill('0.10');
+    await page.locator('#purBuyQty').fill('2');
+    await page.locator('#purPaidAmount').fill('0');
+    await page.locator('#view-purchases button[onclick="savePurchaseItem()"]').click();
+    state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
+    assert.equal(state.purchases.length, 2);
+    const secondPurchase = state.purchases.find(row => row.id !== purchase.id);
+    assert.ok(secondPurchase);
+    assert.equal(secondPurchase.total, 0.20);
+    assert.equal(secondPurchase.paid, 0);
+    assert.equal(secondPurchase.remaining, 0.20);
+    assert.equal(state.suppliers[0].balance, 15000.40);
+
+
     // Reject an over-allocation without changing supplier, cash or any ledger bytes.
     await page.evaluate(() => openView('supp-debts'));
     const beforeSupplierOverAllocation = await page.evaluate(() => ({
@@ -238,31 +256,67 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     assert.deepEqual(afterSupplierOverAllocation, beforeSupplierOverAllocation,
       'supplier invoice over-allocation must not mutate AppData or persistence');
 
-    // Settle only the invoice remainder, preserving the supplier opening balance and immutable purchase snapshot.
-    queuedPrompts.push(JSON.stringify([{ invoiceId: purchase.id, amount: '0.20' }]));
+    // Allocate one supplier payment across two invoices, preserving both original snapshots.
+    queuedPrompts.push(JSON.stringify([
+      { invoiceId: purchase.id, amount: '0.20' },
+      { invoiceId: secondPurchase.id, amount: '0.10' }
+    ]));
     await page.getByRole('button', { name: /تسديد مبلغ للمورد/ }).click();
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
-    assert.equal(state.suppliers[0].balance, 15000.00);
-    assert.equal(state.caisseBalance, 99999.70);
+    assert.equal(state.suppliers[0].balance, 15000.10);
+    assert.equal(state.caisseBalance, 99999.60);
     const supplierPayment = state.supplierMovements.find(m => m.referenceType === 'supplier_payment');
     const cashPayment = state.cashMovements.find(m => m.referenceType === 'supplier_payment');
     assert.ok(supplierPayment && cashPayment);
-    assert.equal(supplierPayment.amount, 0.20);
-    assert.equal(cashPayment.amount, 0.20);
+    assert.equal(supplierPayment.amount, 0.30);
+    assert.equal(cashPayment.amount, 0.30);
     assert.equal(supplierPayment.referenceId, cashPayment.referenceId);
     assert.equal(state.purchases[0].paid, 0.10, 'original purchase paid amount must remain immutable');
     assert.equal(state.purchases[0].remaining, 0.20, 'original purchase remaining snapshot must remain immutable');
-    const supplierAllocation = state.settlementAllocations.find(a =>
-      a.partyType === 'supplier' && a.invoiceId === purchase.id && a.sourceMovementType === 'supplier_payment');
-    assert.equal(supplierAllocation.amountCentimes, 20);
-    assert.equal(state.settlementAllocations.filter(a => a.invoiceId === purchase.id &&
-      a.sourceMovementType === 'supplier_payment')
-      .reduce((sum,a) => sum + a.amountCentimes, 0), 20,
-      'later supplier payments must be allocated in exact centimes; the original paid snapshot remains the baseline');
-    assert.equal(Math.round(purchase.total * 100) - Math.round(purchase.paid * 100) -
-      state.settlementAllocations.filter(a => a.invoiceId === purchase.id && a.sourceMovementType === 'supplier_payment')
-        .reduce((sum,a) => sum + a.amountCentimes, 0), 0,
-      'current purchase outstanding must be derived from immutable original values and later allocations');
+    assert.equal(state.purchases[1].paid, 0, 'second purchase original paid amount must remain immutable');
+    assert.equal(state.purchases[1].remaining, 0.20, 'second purchase original remaining snapshot must remain immutable');
+    const supplierAllocations = state.settlementAllocations.filter(a =>
+      a.partyType === 'supplier' && a.sourceMovementType === 'supplier_payment');
+    assert.deepEqual(supplierAllocations.map(a => [a.invoiceId, a.amountCentimes]).sort(),
+      [[purchase.id,20],[secondPurchase.id,10]].sort(),
+      'one later supplier voucher must be explicitly split across both purchase invoices in exact centimes');
+    const firstLater = supplierAllocations.filter(a => a.invoiceId === purchase.id)
+      .reduce((sum,a) => sum + a.amountCentimes, 0);
+    const secondLater = supplierAllocations.filter(a => a.invoiceId === secondPurchase.id)
+      .reduce((sum,a) => sum + a.amountCentimes, 0);
+    assert.equal(Math.round(purchase.total * 100) - Math.round(purchase.paid * 100) - firstLater, 0);
+    assert.equal(Math.round(secondPurchase.total * 100) - Math.round(secondPurchase.paid * 100) - secondLater, 10);
+
+    // Force persistence failure on the second invoice's remaining 0.10 DZD and prove full identity-preserving rollback.
+    await page.evaluate(() => openView('supp-debts'));
+    const beforeSupplierFailedSave = await page.evaluate(() => {
+      window.__supplierRollbackRefs = {
+        app: AppData, supplier: AppData.suppliers[0],
+        supplierMovements: AppData.supplierMovements,
+        cashMovements: AppData.cashMovements,
+        allocations: AppData.settlementAllocations
+      };
+      return { app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE') };
+    });
+    queuedPrompts.push(JSON.stringify([{ invoiceId: secondPurchase.id, amount: '0.10' }]));
+    await page.evaluate(() => { window.__realSaveDBForSupplierRollback = saveDB; saveDB = () => false; });
+    await page.getByRole('button', { name: /تسديد مبلغ للمورد/ }).click();
+    await page.evaluate(() => { saveDB = window.__realSaveDBForSupplierRollback; delete window.__realSaveDBForSupplierRollback; });
+    const afterSupplierFailedSave = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE'),
+      identities: {
+        app: AppData === window.__supplierRollbackRefs.app,
+        supplier: AppData.suppliers[0] === window.__supplierRollbackRefs.supplier,
+        supplierMovements: AppData.supplierMovements === window.__supplierRollbackRefs.supplierMovements,
+        cashMovements: AppData.cashMovements === window.__supplierRollbackRefs.cashMovements,
+        allocations: AppData.settlementAllocations === window.__supplierRollbackRefs.allocations
+      }
+    }));
+    assert.equal(afterSupplierFailedSave.app, beforeSupplierFailedSave.app);
+    assert.equal(afterSupplierFailedSave.storage, beforeSupplierFailedSave.storage);
+    assert.deepEqual(afterSupplierFailedSave.identities,
+      { app: true, supplier: true, supplierMovements: true, cashMovements: true, allocations: true },
+      'failed supplier save must preserve AppData, supplier and original ledger-array references');
 
     await page.evaluate(() => openView('cash'));
     const cashDom = await page.locator('#cashCurrentBalanceDisplay').innerText();
@@ -443,7 +497,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       },
       triad: { beforeReload: 'AppData=localStorage PASS', afterReload: 'AppData=localStorage=DOM PASS' },
       stock: { productId: 'STG-TEA-001', quantity: state.products.find(p => p.id === 'STG-TEA-001').stock, weightedCostDZD: state.products.find(p => p.id === 'STG-TEA-001').buyPrice },
-      supplier: { openingBalanceDZD: 15000.00, finalBalanceDZD: state.suppliers[0].balance },
+      supplier: { openingBalanceDZD: 15000.00, finalBalanceDZD: state.suppliers[0].balance, laterAllocationCentimes: state.settlementAllocations.filter(a => a.partyType === 'supplier' && a.sourceMovementType === 'supplier_payment').map(a => a.amountCentimes), originalInvoicesImmutable: state.purchases.every(p => (p.id === purchase.id && p.paid === 0.10 && p.remaining === 0.20) || (p.id === secondPurchase.id && p.paid === 0 && p.remaining === 0.20)), failedSaveRollback: 'PASS' },
       cash: { openingBalanceDZD: 100000.00, finalBalanceDZD: state.caisseBalance },
       ledgers: { purchases: state.purchases.length, cashMovements: state.cashMovements.length, stockMovements: state.stockMovements.length, supplierMovements: state.supplierMovements.length, deepRestoreEquality: 'PASS' },
       reload: 'PASS', backupRestore: 'PASS', cloudValidator: 'PASS',
