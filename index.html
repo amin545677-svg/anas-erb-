@@ -4874,12 +4874,41 @@ function renderPurchasesTable() {
                 }
                 movementIds.add(id);
             }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations') && !Array.isArray(AppData.settlementAllocations)) {
+                alert('دفتر تخصيص الدفعات تالف؛ أُوقف القبض دون استبدال السجل.'); return;
+            }
+            const existingAllocations = Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations : [];
             const eligible = (Array.isArray(AppData.invoices) ? AppData.invoices : []).filter(inv =>
                 inv && String(inv.customerId ?? inv.customerObj?.id ?? '') === String(customer.id));
-            const choices = eligible.map(inv => ({
-                invoiceId: String(inv.id), total: inv.total, paid: inv.paid, remaining: inv.remaining
-            }));
-            if (!choices.length) { alert('لا توجد فواتير مرتبطة بهذا العميل لتخصيص القبض إليها.'); return; }
+            const invoiceBalance = invoice => {
+                const total = anasToCents(invoice.total);
+                const paid = anasToCents(invoice.paid);
+                const originalRemaining = anasToCents(invoice.remaining);
+                if (![total, paid, originalRemaining].every(Number.isSafeInteger) ||
+                    total <= 0 || paid < 0 || originalRemaining < 0 || paid + originalRemaining !== total)
+                    throw new Error('invoice has an invalid original paid/remaining balance');
+                let priorLaterAllocations = 0;
+                for (const allocation of existingAllocations) {
+                    if (allocation && allocation.partyType === 'customer' && allocation.invoiceType === 'sales_invoice' &&
+                        String(allocation.invoiceId) === String(invoice.id) && allocation.sourceMovementType === 'customer_debt') {
+                        if (!Number.isSafeInteger(allocation.amountCentimes) || allocation.amountCentimes <= 0 ||
+                            !Number.isSafeInteger(priorLaterAllocations + allocation.amountCentimes))
+                            throw new Error('invoice has invalid prior customer settlement allocations');
+                        priorLaterAllocations += allocation.amountCentimes;
+                    }
+                }
+                const currentRemaining = total - paid - priorLaterAllocations;
+                if (currentRemaining < 0) throw new Error('invoice customer allocations exceed its outstanding amount');
+                return { total, paid, remaining: currentRemaining };
+            };
+            const choices = eligible.map(inv => {
+                try {
+                    const balance = invoiceBalance(inv);
+                    return { invoiceId: String(inv.id), total: anasCentsToCurrency(balance.total),
+                        paidAtPosting: anasCentsToCurrency(balance.paid), currentlyOutstanding: anasCentsToCurrency(balance.remaining) };
+                } catch (_) { return { invoiceId: String(inv.id), invalidBalance: true }; }
+            }).filter(row => !row.invalidBalance && row.currentlyOutstanding > 0);
+            if (!choices.length) { alert('لا توجد فواتير لهذا العميل ذات متبقٍ صالح قابل للتخصيص.'); return; }
             const rawAmount = prompt('المبلغ المقبوض من ' + String(customer.name || customer.id) + ' (المستحق: ' +
                 anasCentsToCurrency(previousDebtCents).toFixed(2) + ' د.ج):', anasCentsToCurrency(previousDebtCents).toFixed(2));
             if (rawAmount === null) return;
@@ -4908,18 +4937,16 @@ function renderPurchasesTable() {
                 const found = eligible.filter(inv => String(inv.id) === invoiceId);
                 if (found.length !== 1) { alert('الفاتورة ' + invoiceId + ' غير موجودة أو معرّفها مكرر.'); return; }
                 const invoice = found[0];
-                const total = anasToCents(invoice.total);
-                const paid = anasToCents(invoice.paid);
-                const remaining = anasToCents(invoice.remaining);
+                let balance;
+                try { balance = invoiceBalance(invoice); }
+                catch (_) { alert('رصيد الفاتورة ' + invoiceId + ' غير صالح أو سجل تخصيصاتها غير متطابق.'); return; }
                 const amount = anasToCents(String(entry.amount ?? '').trim().replace(',', '.'));
-                if (![total, paid, remaining, amount].every(Number.isSafeInteger) ||
-                    total <= 0 || paid < 0 || remaining < 0 || paid + remaining !== total ||
-                    amount <= 0 || amount > remaining) {
-                    alert('تخصيص الفاتورة ' + invoiceId + ' غير صالح أو يتجاوز متبقيها الفعلي.'); return;
+                if (!Number.isSafeInteger(amount) || amount <= 0 || amount > balance.remaining) {
+                    alert('تخصيص الفاتورة ' + invoiceId + ' غير صالح أو يتجاوز متبقيها الفعلي بعد التسويات السابقة.'); return;
                 }
                 if (!Number.isSafeInteger(allocatedCents + amount)) { alert('مجموع التخصيصات خارج المجال المالي الآمن.'); return; }
                 allocatedCents += amount;
-                invoiceRows.push({ invoice, invoiceId, total, paid, remaining, amount });
+                invoiceRows.push({ invoice, invoiceId, total: balance.total, paid: balance.paid, remaining: balance.remaining, amount });
             }
             if (allocatedCents !== amountCents) {
                 alert('مجموع تخصيصات الفواتير يجب أن يساوي مبلغ سند القبض تماماً؛ لا يوجد توزيع تلقائي.'); return;
@@ -4938,7 +4965,6 @@ function renderPurchasesTable() {
             const settlementAllocationsBefore = hadSettlementAllocations ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
             const hadLedgerVersion = Object.prototype.hasOwnProperty.call(customer, 'ledgerVersion');
             const oldLedgerVersion = customer.ledgerVersion;
-            const invoiceBalancesBefore = invoiceRows.map(row => ({ invoice: row.invoice, paid: row.invoice.paid, remaining: row.invoice.remaining }));
             const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
             let movementId = baseMovementId;
             let movementSuffix = 1;
@@ -4968,10 +4994,6 @@ function renderPurchasesTable() {
                 }
                 customer.debt = anasCentsToCurrency(nextDebtCents);
                 AppData.caisseBalance = anasCentsToCurrency(nextCashCents);
-                for (const row of invoiceRows) {
-                    row.invoice.paid = anasCentsToCurrency(row.paid + row.amount);
-                    row.invoice.remaining = anasCentsToCurrency(row.remaining - row.amount);
-                }
                 if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
                 AppData.cashMovements.unshift({
                     id: movementId, type: 'add', amount: anasCentsToCurrency(amountCents),
@@ -5004,10 +5026,6 @@ function renderPurchasesTable() {
                 if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
                 if (hadClientMovements) AppData.clientMovements = clientMovementsBefore; else delete AppData.clientMovements;
                 if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore; else delete AppData.settlementAllocations;
-                for (const row of invoiceBalancesBefore) {
-                    row.invoice.paid = row.paid;
-                    row.invoice.remaining = row.remaining;
-                }
                 try { if (typeof updateCashUI === 'function') updateCashUI(); if (typeof renderCustomersDebts === 'function') renderCustomersDebts(); } catch (_) {}
                 alert('لم يتم اعتماد القبض: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الحالة والدفاتر إلى ما قبل العملية.');
                 return;
