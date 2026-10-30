@@ -155,7 +155,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
 }
 {
  const backupStart=html.indexOf('function anasValidateBackupData(incoming)');
- const backupEnd=html.indexOf('async function syncPushNow()',backupStart);
+ const backupEnd=html.indexOf('function importDataBackup(e)',backupStart);
  const cloudStart=html.indexOf('function anasValidateIncomingSyncData(incoming)');
  const cloudEnd=html.indexOf('async function syncPushNow()',cloudStart);
  assert.ok(backupStart>=0&&backupEnd>backupStart&&cloudStart>=0&&cloudEnd>cloudStart,'backup and cloud validators must be isolatable');
