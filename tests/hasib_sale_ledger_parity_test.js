@@ -63,6 +63,32 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
+  const r=runSale({
+    cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],
+    paid:0.3
+  });
+  assert.equal(r.AppData.invoices.length,1);
+  assert.equal(r.AppData.invoices[0].total,0.3,'floating-point multiplication must normalize to the displayed currency total');
+  assert.equal(r.AppData.invoices[0].paid,0.3);
+  assert.equal(r.AppData.invoices[0].remaining,0,'a fully paid 0.30 invoice must not create a microscopic residual debt');
+  assert.equal(r.customer.debt,0);
+  assert.equal(r.AppData.cashMovements[0].amount,0.3);
+  assert.equal(r.AppData.invoices[0].paymentMethod,'cash');
+  console.log('PASS: 3 x 0.10 paid as 0.30 is normalized as fully paid with zero residual debt');
+}
+
+{
+  const r=runSale({
+    cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.1}],
+    paid:0.01
+  });
+  assert.equal(r.AppData.invoices[0].total,0.01);
+  assert.equal(r.AppData.invoices[0].remaining,0);
+  assert.equal(r.customer.debt,0);
+  console.log('PASS: sub-unit fractional quantity is rounded to currency precision before settlement');
+}
+
+{
   const r=runSale({paid:200.5});
   assert.equal(r.AppData.caisseBalance,300.5);
   assert.equal(r.customer.debt,300);
