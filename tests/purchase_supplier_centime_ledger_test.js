@@ -135,7 +135,8 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
 {
  const r=runPayment({balance:20,cash:5,amount:'7.25'});assert.equal(r.saves,0);
  assert.equal(r.AppData.suppliers[0].balance,20);assert.equal(r.AppData.caisseBalance,5);
- assert.equal(r.AppData.supplierMovements.length,0);assert.equal(r.AppData.cashMovements.length,0);
+ assert.equal(r.AppData.supplierMovements.length,1);assert.equal(r.AppData.cashMovements.length,0);
+ assert.equal(r.AppData.settlementAllocations.length,0);
  console.log('PASS: supplier payment rejects insufficient cash without mutation');
 }
 {
