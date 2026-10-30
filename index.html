@@ -4137,6 +4137,17 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
             }
 
+            const productIds = new Set();
+            for (const record of (Array.isArray(AppData.products) ? AppData.products : [])) {
+                if (record.id === undefined || record.id === null || String(record.id).trim() === '') continue;
+                const recordId = String(record.id);
+                if (productIds.has(recordId)) {
+                    alert('تعذر تسجيل الشراء: معرّف المنتج مكرر في سجل المخزون. أصلح تكرار المعرّفات قبل متابعة أي تغيير للمخزون.');
+                    return;
+                }
+                productIds.add(recordId);
+            }
+
             const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
             const supplierMatches = suppId ? suppliers.filter(row => row.id != null && String(row.id) === suppId) : [];
             if (suppId && supplierMatches.length !== 1) {
@@ -4161,7 +4172,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 .filter(row => String(row.name || '').trim().toLocaleLowerCase() === normalizedName);
             if (productMatches.length > 1) { alert('يوجد أكثر من منتج بالاسم نفسه. وحّد سجل المنتجات قبل تعديل المخزون.'); return; }
             const existingProduct = productMatches[0] || null;
-            if (existingProduct && (existingProduct.id == null || String(existingProduct.id).trim() === '')) {
+            if (existingProduct && (existingProduct.id === undefined || existingProduct.id === null || String(existingProduct.id).trim() === '')) {
                 alert('المنتج المطابق لا يملك معرّفاً صالحاً؛ لم يتم تعديل المخزون.');
                 return;
             }
