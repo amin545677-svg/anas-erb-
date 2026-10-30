@@ -3,10 +3,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer-centime helpers must be present and isolatable');
+const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function submitExpenseOperation() {');
 const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'submitExpenseOperation must be present and isolatable');
-const source = html.slice(start, end);
+const source = helperSource + html.slice(start, end);
 const fixedNow = 1234567890123;
 class FixedDate extends Date {
   static now() { return fixedNow; }
