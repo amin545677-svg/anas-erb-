@@ -52,6 +52,9 @@ jobs:
       STAGING_ALLOWED_ORIGINS: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
       HAS_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON != '' }}
     steps:
+      - name: Checkout Staging source
+        uses: actions/checkout@v4
+
       - name: Validate required Staging origin
         run: |
           set -euo pipefail
