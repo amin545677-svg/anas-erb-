@@ -34,7 +34,7 @@ test('returnable quantity ceiling is exact and rejects over-return', () => {
 });
 test('allocation validator rejects orphan, mismatch and over-allocation', () => {
  const invoice={id:'S-1',customerId:'C-1',paid:20}, movement={id:'M-1',amountCentimes:1000,referenceType:'customer_debt'};
- const a={allocationId:'A-1',partyType:'customer',partyId:'C-1',invoiceType:'sales_invoice',invoiceId:'S-1',sourceMovementId:'M-1',sourceMovementType:'customer_debt',amountCentimes:700};
+ const a={ledgerVersion:2,allocationId:'A-1',partyType:'customer',partyId:'C-1',invoiceType:'sales_invoice',invoiceId:'S-1',sourceMovementId:'M-1',sourceMovementType:'customer_debt',amountCentimes:700};
  const state={invoices:[invoice],cashMovements:[movement],settlementAllocations:[a]};
  assert.equal(R.validateSettlementAllocations(state),true);
  assert.throws(()=>R.validateSettlementAllocations({...state,invoices:[]}),/orphan or ambiguous settlement allocation invoice/);
