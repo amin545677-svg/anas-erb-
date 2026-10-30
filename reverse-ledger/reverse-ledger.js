@@ -184,6 +184,7 @@
     const invoices = getInvoices(data);
     const allocationIds = new Set();
     const invoiceTotals = new Map();
+    const invoiceInitialPaymentTotals = new Map();
     const sourceTotals = new Map();
     const sourceRecords = new Map();
     for (const a of data.settlementAllocations) {
@@ -201,6 +202,9 @@
       const amount = BigInt(safeInt(a.amountCentimes, 'allocation amount', false));
       const invKey = a.invoiceType + ':' + a.invoiceId;
       invoiceTotals.set(invKey, (invoiceTotals.get(invKey) || 0n) + amount);
+      const initialSourceType = a.invoiceType === 'sales_invoice' ? 'sales_invoice' : 'purchase_invoice';
+      if (a.sourceMovementType === initialSourceType)
+        invoiceInitialPaymentTotals.set(invKey, (invoiceInitialPaymentTotals.get(invKey) || 0n) + amount);
       const source = getSourceMovement(data, a);
       const sourceKey = a.partyType + ':' + a.sourceMovementType + ':' + a.sourceMovementId;
       sourceRecords.set(sourceKey, source);
@@ -211,8 +215,14 @@
       const invoiceId = rest.join(':');
       const invoice = invoices.find(x => x.type === type && String(x.row.id) === invoiceId)?.row;
       if (!invoice || !own(invoice, 'paid')) throw new Error('allocated invoice has no verifiable paid amount');
-      if (total > invoiceAmountCentimes(invoice, 'paid', 'invoice paid amount'))
-        throw new Error('invoice allocations exceed paid centime amount');
+      const initialPaid = invoiceAmountCentimes(invoice, 'paid', 'invoice paid amount');
+      const invoiceCeiling = own(invoice, 'total')
+        ? invoiceAmountCentimes(invoice, 'total', 'invoice total amount') : initialPaid;
+      const initialLinked = invoiceInitialPaymentTotals.get(key) || 0n;
+      if (initialLinked > initialPaid)
+        throw new Error('invoice-linked initial allocations exceed original paid centime amount');
+      if (total > invoiceCeiling)
+        throw new Error('invoice allocations exceed original invoice total centime amount');
     }
     for (const [key, total] of sourceTotals) {
       const source = sourceRecords.get(key);
