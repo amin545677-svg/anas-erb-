@@ -4164,11 +4164,12 @@ function renderPurchasesTable() {
             const amountInput = document.getElementById('cashAmountInput');
             const rawAmount = amountInput ? String(amountInput.value).trim() : '';
             const parsedAmount = Number(rawAmount.replace(',', '.'));
-            const amt = Math.round(parsedAmount * 100) / 100;
+            const amountCents = anasToCents(parsedAmount);
+            const amt = anasCentsToCurrency(amountCents);
             const descInput = document.getElementById('cashDescInput');
             const desc = (descInput ? String(descInput.value || '').trim() : '') || 'حركة نقدية';
             const isAdd = document.getElementById('optAddCash').classList.contains('active');
-            if (!Number.isFinite(amt) || amt <= 0) {
+            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || !Number.isFinite(amt)) {
                 if (amountInput && typeof amountInput.focus === 'function') amountInput.focus();
                 alert('أدخل مبلغاً صالحاً أكبر من صفر، باستخدام أرقام فقط.');
                 return;
@@ -4188,17 +4189,17 @@ function renderPurchasesTable() {
             }
             const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const previousCashBalance = AppData.caisseBalance;
-            const previousBalance = hadCashBalance ? Number(previousCashBalance) : 0;
-            const nextBalance = previousBalance + (isAdd ? amt : -amt);
-            if (!Number.isFinite(nextBalance) || previousBalance < 0 ||
-                previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(nextBalance) > Number.MAX_SAFE_INTEGER) {
+            const previousBalanceCents = anasToCents(hadCashBalance ? previousCashBalance : 0);
+            const nextBalanceCents = previousBalanceCents + (isAdd ? amountCents : -amountCents);
+            if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0 ||
+                !Number.isSafeInteger(nextBalanceCents) || Math.abs(nextBalanceCents) > Number.MAX_SAFE_INTEGER) {
                 alert('رصيد الصندوق أو نتيجة الحركة خارج المجال المالي الآمن؛ لم يتم تسجيلها.');
                 return;
             }
-            if (!isAdd && previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
+            if (!isAdd && previousBalanceCents < amountCents) { alert('رصيد الصندوق لا يكفي!'); return; }
             const hadMovements = Array.isArray(AppData.cashMovements);
             const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
-            AppData.caisseBalance = nextBalance;
+            AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
             if (!hadMovements) AppData.cashMovements = [];
             AppData.cashMovements.push({
                 id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
@@ -4227,12 +4228,13 @@ function renderPurchasesTable() {
             const amountInput = document.getElementById('expAmountInput');
             const rawAmount = amountInput ? String(amountInput.value).trim() : '';
             const parsedAmount = Number(rawAmount.replace(',', '.'));
-            const amt = Math.round(parsedAmount * 100) / 100;
+            const amountCents = anasToCents(parsedAmount);
+            const amt = anasCentsToCurrency(amountCents);
             const descInput = document.getElementById('expDescInput');
             const desc = (descInput ? String(descInput.value || '').trim() : '') || 'مصروف عام';
             const accountInput = document.getElementById('expAccountInput');
             const acc = (accountInput ? String(accountInput.value || '').trim() : '') || 'مصاريف عامة';
-            if (!Number.isFinite(amt) || amt <= 0) {
+            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || !Number.isFinite(amt)) {
                 if (amountInput && typeof amountInput.focus === 'function') amountInput.focus();
                 alert('أدخل مبلغاً صالحاً أكبر من صفر، باستخدام أرقام فقط.');
                 return;
@@ -4262,16 +4264,17 @@ function renderPurchasesTable() {
             }
             const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const previousCashBalance = AppData.caisseBalance;
-            const previousBalance = hadCashBalance ? Number(previousCashBalance) : 0;
-            if (!Number.isFinite(previousBalance - amt) || previousBalance < 0 ||
-                previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(previousBalance - amt) > Number.MAX_SAFE_INTEGER) {
+            const previousBalanceCents = anasToCents(hadCashBalance ? previousCashBalance : 0);
+            const nextBalanceCents = previousBalanceCents - amountCents;
+            if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0 ||
+                !Number.isSafeInteger(nextBalanceCents) || Math.abs(nextBalanceCents) > Number.MAX_SAFE_INTEGER) {
                 alert('رصيد الصندوق أو نتيجة المصروف خارج المجال المالي الآمن؛ لم يتم تسجيل المصروف.');
                 return;
             }
-            if (previousBalance < amt) { alert('رصيد الصندوق لا يكفي!'); return; }
+            if (previousBalanceCents < amountCents) { alert('رصيد الصندوق لا يكفي!'); return; }
             const hadExpenses = Array.isArray(AppData.expenses);
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
-            AppData.caisseBalance = previousBalance - amt;
+            AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
             if (!hadExpenses) AppData.expenses = [];
             const baseExpenseId = 'EXP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
             let expenseId = baseExpenseId;
@@ -4429,30 +4432,35 @@ function renderPurchasesTable() {
             }
             const hadCustomerDebt = Object.prototype.hasOwnProperty.call(c, 'debt');
             const previousDebtValue = c.debt;
-            const previousDebt = Number(c.debt);
+            const previousDebtCents = anasToCents(c.debt);
             if (c.debt === null || c.debt === '' || (typeof c.debt === 'string' && c.debt.trim() === '') ||
-                !Number.isFinite(previousDebt) || previousDebt <= 0 || previousDebt > Number.MAX_SAFE_INTEGER) { alert('لا يوجد دين صالح للتحصيل لهذا العميل، أو أن رصيد الدين يتجاوز المجال الرقمي الآمن. أصلح الرصيد قبل تسجيل القبض.'); return; }
+                !Number.isSafeInteger(previousDebtCents) || previousDebtCents <= 0) { alert('لا يوجد دين صالح للتحصيل لهذا العميل، أو أن رصيد الدين يتجاوز المجال الرقمي الآمن. أصلح الرصيد قبل تسجيل القبض.'); return; }
+            const previousDebt = anasCentsToCurrency(previousDebtCents);
             const rawAmount = prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + previousDebt + '):', String(previousDebt));
             if (rawAmount === null) return;
             const parsedAmount = Number(String(rawAmount).trim().replace(',', '.'));
-            const amt = Math.round(parsedAmount * 100) / 100;
-            if (!Number.isFinite(amt) || amt <= 0 || amt > previousDebt + 0.000001) {
+            const amountCents = anasToCents(parsedAmount);
+            const amt = anasCentsToCurrency(amountCents);
+            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > previousDebtCents || !Number.isFinite(amt)) {
                 alert('المبلغ غير صالح؛ أدخل مبلغاً أكبر من صفر ولا يتجاوز الدين المستحق.');
                 return;
             }
 
             const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const previousCashBalanceValue = AppData.caisseBalance;
-            const previousBalance = hadCashBalance ? Number(previousCashBalanceValue) : 0;
-            if (!Number.isFinite(previousBalance + amt) || previousBalance < 0 ||
-                previousBalance > Number.MAX_SAFE_INTEGER || Math.abs(previousBalance + amt) > Number.MAX_SAFE_INTEGER) {
+            const previousBalanceCents = anasToCents(hadCashBalance ? previousCashBalanceValue : 0);
+            const nextBalanceCents = previousBalanceCents + amountCents;
+            const nextDebtCents = previousDebtCents - amountCents;
+            if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0 ||
+                !Number.isSafeInteger(nextBalanceCents) || nextBalanceCents > Number.MAX_SAFE_INTEGER ||
+                !Number.isSafeInteger(nextDebtCents) || nextDebtCents < 0) {
                 alert('رصيد الصندوق أو نتيجة القبض خارج المجال المالي الآمن؛ لم يتم تسجيل القبض.');
                 return;
             }
             const hadMovements = Array.isArray(AppData.cashMovements);
             const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
-            c.debt = Math.max(0, previousDebt - amt);
-            AppData.caisseBalance = previousBalance + amt;
+            c.debt = anasCentsToCurrency(nextDebtCents);
+            AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
             if (!hadMovements) AppData.cashMovements = [];
             const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
             let movementId = baseMovementId;
@@ -7802,11 +7810,8 @@ function renderPurchasesTable() {
             returnPurchasePrompt();
         }
         function anasFormatZReportCashBalance(value) {
-            if (!((typeof value === 'number' || typeof value === 'string') &&
-                  String(value).trim() !== '' && Number.isFinite(Number(value)))) {
-                return 'غير صالح';
-            }
-            return Number(value).toLocaleString();
+            const normalizedBalance = anasRoundCurrency(value);
+            return Number.isFinite(normalizedBalance) ? normalizedBalance.toLocaleString() : 'غير صالح';
         }
 
         function anasGetZReportTotal(invoices, field) {

@@ -3,10 +3,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer-centime helpers must be present and isolatable');
+const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function collectCustDebt(cId) {');
 const end = html.indexOf('function openGoogleMaps(loc)', start);
 assert.ok(start >= 0 && end > start, 'collectCustDebt function must be present and isolatable');
-const source = html.slice(start, end);
+const source = helperSource + html.slice(start, end);
 const fixedNow = 1234567890123;
 class FixedDate extends Date {
   static now() { return fixedNow; }
@@ -162,3 +166,19 @@ console.log('PASS: runtime customer and supplier handlers reject unsafe, infinit
   assert.ok(supplierSave.includes('عنصر تالف'), 'supplier save must reject malformed records');
 }
 console.log('PASS: customer and supplier saves fail closed on malformed records and duplicate IDs');
+
+
+{
+  const result = runCollection({debt:0.3,cash:100.1,amount:'0.1'});
+  assert.equal(result.saves,1);
+  assert.equal(result.customer.debt,0.2,'debt reduction must be exact to the centime');
+  assert.equal(result.appData.caisseBalance,100.2,'cash increase must be exact to the centime');
+  assert.equal(result.appData.cashMovements[0].amount,0.1,'cash movement amount must match the collected centimes');
+}
+{
+  const result = runCollection({debt:0.3,cash:100.1,amount:'0.105'});
+  assert.equal(result.customer.debt,0.19,'half-cent amount must normalize once to 0.11 DZD');
+  assert.equal(result.appData.caisseBalance,100.21);
+  assert.equal(result.appData.cashMovements[0].amount,0.11);
+}
+console.log('PASS: debt collection and cash receipt use the same integer-centime arithmetic');
