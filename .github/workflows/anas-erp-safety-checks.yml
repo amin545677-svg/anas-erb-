@@ -6,6 +6,8 @@ on:
     paths:
       - "index.html"
       - "tests/**"
+      - "reverse-ledger/**"
+      - "tests/reverse_ledger_primitives.test.js"
       - "cloudflare/**"
       - "firebase/**"
       - ".github/workflows/anas-erp-safety-checks.yml"
