@@ -49,19 +49,25 @@ jobs:
     environment: staging
     runs-on: ubuntu-latest
     env:
-      STAGING_ALLOWED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN }}
+      STAGING_ALLOWED_ORIGINS: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
+      HAS_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - name: Validate required Staging origin
         run: |
           set -euo pipefail
           node --input-type=module -e '
-            const value = process.env.STAGING_ALLOWED_ORIGIN || "";
-            let parsed;
-            try { parsed = new URL(value); } catch { throw new Error("GitHub Environment variable STAGING_ALLOWED_ORIGIN must be a valid HTTPS origin."); }
-            if (parsed.protocol !== "https:" || parsed.origin !== value || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-              throw new Error("STAGING_ALLOWED_ORIGIN must be a canonical HTTPS origin without path, query, or fragment.");
+            const values = (process.env.STAGING_ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
+            const allowed = new Set(["https://anas-erp-staging-a25e1.web.app", "https://anas-erp-staging-a25e1.firebaseapp.com"]);
+            if (!values.length || new Set(values).size !== values.length || values.some(value => !allowed.has(value)) || !values.includes("https://anas-erp-staging-a25e1.web.app")) {
+              throw new Error("Staging origins must contain the canonical Firebase Hosting web.app origin and may contain only the matching firebaseapp.com origin.");
             }
-            console.log("PASS STAGING ORIGIN: canonical HTTPS origin configured.");
+            for (const value of values) {
+              const parsed = new URL(value);
+              if (parsed.protocol !== "https:" || parsed.origin !== value || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+                throw new Error("Every Staging origin must be a canonical HTTPS origin without path, query, or fragment.");
+              }
+            }
+            console.log("PASS STAGING ORIGINS: isolated Firebase Hosting origins validated.");
           '
 
       - name: Validate Firebase Staging API key before Cloudflare mutation
@@ -126,12 +132,14 @@ jobs:
           }
           NODE
 
-      - name: Authenticate to isolated Firebase Staging project
+      - name: Authenticate to isolated Firebase Staging project (optional rules deployment)
+        if: env.HAS_STAGING_SERVICE_ACCOUNT == 'true'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
 
-      - name: Deploy only Staging Firestore security rules
+      - name: Deploy only Staging Firestore security rules (optional)
+        if: env.HAS_STAGING_SERVICE_ACCOUNT == 'true'
         run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
 
       - name: Upload one fully configured Staging Worker version
@@ -141,7 +149,7 @@ jobs:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
         run: |
           set -euo pipefail
-          test -n "$STAGING_ALLOWED_ORIGIN"
+          test -n "$STAGING_ALLOWED_ORIGINS"
           test -n "$STAGING_FIREBASE_API_KEY"
           echo "::add-mask::$STAGING_FIREBASE_API_KEY"
           umask 077
@@ -160,7 +168,7 @@ jobs:
             --config cloudflare/wrangler-staging.toml \
             --name anas-erp-firebase-snapshot-staging \
             --tag "$VERSION_TAG" \
-            --var "ALLOWED_ORIGINS:$STAGING_ALLOWED_ORIGIN" \
+            --var "ALLOWED_ORIGINS:$STAGING_ALLOWED_ORIGINS" \
             --secrets-file "$SECRETS_FILE" \
             --message "Fully configured isolated Staging Worker ${GITHUB_SHA:0:12}"
           npx --yes wrangler@4.156.0 versions deploy \
@@ -172,21 +180,23 @@ jobs:
       - name: Post-Deploy Live Smoke Test and Auth Guard
         env:
           WORKER_BASE_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev
-          EXPECTED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN }}
+          EXPECTED_ORIGINS: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           const base = process.env.WORKER_BASE_URL;
-          const origin = process.env.EXPECTED_ORIGIN;
+          const origins = (process.env.EXPECTED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
           const check = (ok, message) => { if (!ok) throw new Error(message); };
-          const call = (path, options = {}) => fetch(base + path, { ...options, headers: { Origin: origin, ...(options.headers || {}) } });
-          const health = await call('/health');
-          const data = await health.json();
-          check(health.status === 200, 'health status=' + health.status);
-          check(health.headers.get('access-control-allow-origin') === origin, 'CORS origin mismatch');
-          check((health.headers.get('cache-control') || '').toLowerCase() === 'no-store', 'cache-control mismatch');
-          check(data.ok === true && data.service === 'anas-erp-firebase-snapshot-staging' && data.projectId === 'anas-erp-staging-a25e1' && data.configured === true, 'health JSON mismatch');
-          console.log('PASS LIVE HEALTH: HTTP 200, CORS, no-store and expected Staging JSON.');
+          check(origins.length > 0, "No expected Staging origins configured.");
+          for (const origin of origins) {
+            const health = await fetch(base + "/health", { headers: { Origin: origin } });
+            const data = await health.json();
+            check(health.status === 200, "health status=" + health.status + " for " + origin);
+            check(health.headers.get("access-control-allow-origin") === origin, "CORS origin mismatch for " + origin);
+            check((health.headers.get("cache-control") || "").toLowerCase() === "no-store", "cache-control mismatch");
+            check(data.ok === true && data.service === "anas-erp-firebase-snapshot-staging" && data.projectId === "anas-erp-staging-a25e1" && data.configured === true, "health JSON mismatch");
+            console.log("PASS LIVE HEALTH: HTTP 200 and CORS for " + origin + ".");
+          }
           for (const method of ['GET', 'PUT']) {
             const response = await call('/snapshot', { method });
             check(response.status === 401, method + ' missing token returned ' + response.status);
