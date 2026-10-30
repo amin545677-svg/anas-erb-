@@ -476,8 +476,13 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     await page.evaluate(() => collectCustDebt('C-CUSTOMER-1'));
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     const updatedInvoice = state.invoices.find(x => x.id === invoice.id);
-    assert.equal(updatedInvoice.paid, 0.25);
-    assert.equal(updatedInvoice.remaining, 0.05);
+    assert.equal(updatedInvoice.paid, 0.10, 'posted invoice original paid amount must not be rewritten');
+    assert.equal(updatedInvoice.remaining, 0.20, 'posted invoice original remaining snapshot must not be rewritten');
+    const laterAllocatedCentimes = state.settlementAllocations
+      .filter(x => x.invoiceId === invoice.id && x.sourceMovementType === 'customer_debt')
+      .reduce((sum, x) => sum + x.amountCentimes, 0);
+    assert.equal(Math.round(updatedInvoice.total * 100) - Math.round(updatedInvoice.paid * 100) - laterAllocatedCentimes, 5,
+      'current invoice outstanding must be derived from immutable original values and later allocations');
     assert.equal(state.customers[0].debt, 10000.05);
     assert.equal(state.clientMovements.find(x => x.type === 'receipt').amountCentimes, 15);
     assert.equal(state.settlementAllocations.filter(x => x.invoiceId === invoice.id).reduce((sum, x) => sum + x.amountCentimes, 0), 25);
@@ -512,7 +517,10 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
       return {
         appMatchesStorage: JSON.stringify(AppData) === JSON.stringify(persisted),
         customerDebtCentimes: Math.round(Number(AppData.customers[0].debt) * 100),
-        invoiceRemainingCentimes: Math.round(Number(AppData.invoices.find(x => x.id === AppData.invoices[0].id).remaining) * 100),
+        invoiceRemainingCentimes: Math.round(Number(AppData.invoices[0].total) * 100) -
+          Math.round(Number(AppData.invoices[0].paid) * 100) -
+          AppData.settlementAllocations.filter(x => x.invoiceId === AppData.invoices[0].id && x.sourceMovementType === 'customer_debt')
+            .reduce((sum, x) => sum + x.amountCentimes, 0),
         opening: AppData.clientMovements.find(x => x.type === 'opening_balance')?.amountCentimes,
         debit: AppData.clientMovements.find(x => x.type === 'invoice_debit')?.amountCentimes,
         receipt: AppData.clientMovements.find(x => x.type === 'receipt')?.amountCentimes
