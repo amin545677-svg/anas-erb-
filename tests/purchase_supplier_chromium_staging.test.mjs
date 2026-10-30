@@ -409,7 +409,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       'valid backup restore must preserve all four ledger arrays exactly');
 
     // Both restore validators must accept good data and reject orphan cash/stock links.
-    const validatorResult = await page.evaluate((snapshot, invoiceId) => {
+    const validatorResult = await page.evaluate(({ snapshot, invoiceId }) => {
       const acceptedBackup = anasValidateBackupData(snapshot);
       const acceptedCloud = anasValidateIncomingSyncData(snapshot);
       const orphanStock = JSON.parse(JSON.stringify(snapshot));
@@ -436,7 +436,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
         stateUnchanged: JSON.stringify(AppData) === beforeState,
         storageUnchanged: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE') === beforeStorage
       };
-    }, beforeReload, purchase.id);
+    }, { snapshot: beforeReload, invoiceId: purchase.id });
     assert.equal(validatorResult.backupAccepted, true);
     assert.equal(validatorResult.cloudAccepted, true);
     assert.deepEqual(validatorResult.failures, []);
