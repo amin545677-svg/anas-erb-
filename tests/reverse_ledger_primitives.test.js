@@ -54,6 +54,14 @@ test('appendUnique rejects replay without mutating original list', () => {
  assert.throws(()=>R.appendUnique(next,{returnId:'R-2'},'returnId'),/duplicate returnId/);
 });
 
+test('client movement validator rejects unknown persisted movement types', () => {
+ const state={
+  customers:[{id:'C-1',debt:1,ledgerVersion:2}],
+  clientMovements:[{ledgerVersion:2,movementId:'CM-UNKNOWN',clientId:'C-1',type:'unsupported_credit',amountCentimes:100,direction:'debit',referenceType:'anything',referenceId:'anything',createdAt:'2026-10-30T12:00:00Z'}],
+  invoices:[],purchases:[],returns:[]
+ };
+ assert.throws(()=>R.validateClientMovements(state),/unsupported client movement type/);
+});
 test('legacy V42 state passes without synthetic allocation or movement records', () => {
  const state={customers:[{id:'C-1',debt:125.5}],suppliers:[],invoices:[],purchases:[],returns:[]};
  const before=JSON.stringify(state);
