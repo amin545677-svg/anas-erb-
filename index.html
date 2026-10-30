@@ -4098,6 +4098,30 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
             } catch (_) { return NaN; }
         }
+        function anasPurchaseStockValueCents(qtyUnits, unitCostCents) {
+            if (!Number.isSafeInteger(qtyUnits) || qtyUnits < 0 ||
+                !Number.isSafeInteger(unitCostCents) || unitCostCents < 0) return NaN;
+            try {
+                const product = BigInt(qtyUnits) * BigInt(unitCostCents);
+                const rounded = (product + 500000n) / 1000000n;
+                return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
+            } catch (_) { return NaN; }
+        }
+        function anasPurchaseLineTotalForRecordCents(record) {
+            if (!record || typeof record !== 'object' || Array.isArray(record)) return NaN;
+            if (Object.prototype.hasOwnProperty.call(record, 'total')) return anasPurchaseToCents(record.total);
+            return anasPurchaseLineTotalCents(anasPurchaseToQtyUnits(record.qty), anasPurchaseToCents(record.cost));
+        }
+        function anasPurchaseAggregateCents(records) {
+            if (!Array.isArray(records)) return NaN;
+            let total = 0;
+            for (const record of records) {
+                const amount = anasPurchaseLineTotalForRecordCents(record);
+                if (!Number.isSafeInteger(amount) || amount < 0 || !Number.isSafeInteger(total + amount)) return NaN;
+                total += amount;
+            }
+            return total;
+        }
 
         function savePurchaseItem() {
             const nameInput = document.getElementById('purProductName');
