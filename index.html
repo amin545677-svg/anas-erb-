@@ -3782,7 +3782,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const sc = AppData.storeConfig;
             let rows = '';
             inv.items.forEach(it => {
-                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${anasEscapeHTML(it.unit || '')}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${(Number(it.qty||0)*Number(it.price||0)).toFixed(2)}</td></tr>`;
+                const storedItemCents = anasToCents(it.total);
+                const itemTotal = Number.isSafeInteger(storedItemCents)
+                    ? anasCentsToCurrency(storedItemCents)
+                    : anasRoundCurrency(Number(it.qty||0) * Number(it.price||0));
+                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${anasEscapeHTML(it.unit || '')}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${itemTotal.toFixed(2)}</td></tr>`;
             });
 
             const custInfo = inv.customerObj || {};
@@ -3827,7 +3831,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             let tableRows = '';
 
             inv.items.forEach((it, index) => {
-                const sub = it.qty * it.price;
+                const storedItemCents = anasToCents(it.total);
+                const sub = Number.isSafeInteger(storedItemCents)
+                    ? anasCentsToCurrency(storedItemCents)
+                    : anasRoundCurrency(Number(it.qty) * Number(it.price));
                 tableRows += `
                     <tr style="border-bottom:1px solid #e2e8f0;">
                         <td style="padding:8px; text-align:center;">${index + 1}</td>
