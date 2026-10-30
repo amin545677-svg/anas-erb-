@@ -76,6 +76,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
   let browser;
   const pageErrors = [];
   const dialogs = [];
+  const queuedPrompts = [];
   try {
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ acceptDownloads: true, locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
@@ -111,7 +112,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('dialog', async dialog => {
       dialogs.push({ type: dialog.type(), message: dialog.message() });
-      if (dialog.type() === 'prompt') await dialog.accept('0.20');
+      if (dialog.type() === 'prompt') await dialog.accept(queuedPrompts.shift() ?? '');
       else await dialog.accept();
     });
 
@@ -224,8 +225,21 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     assert.equal(state.supplierMovements.filter(m => m.referenceType === 'purchase_invoice' && m.referenceId === purchase.id && m.type === 'payment')[0].amount, 0.10);
     assert.match(await page.locator('#purchasesTableBody').innerText(), /شاي اختبار Chromium/);
 
-    // Settle only the invoice remainder, preserving the supplier opening balance.
+    // Reject an over-allocation without changing supplier, cash or any ledger bytes.
     await page.evaluate(() => openView('supp-debts'));
+    const beforeSupplierOverAllocation = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')
+    }));
+    queuedPrompts.push(JSON.stringify([{ invoiceId: purchase.id, amount: '0.21' }]));
+    await page.getByRole('button', { name: /تسديد مبلغ للمورد/ }).click();
+    const afterSupplierOverAllocation = await page.evaluate(() => ({
+      app: JSON.stringify(AppData), storage: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')
+    }));
+    assert.deepEqual(afterSupplierOverAllocation, beforeSupplierOverAllocation,
+      'supplier invoice over-allocation must not mutate AppData or persistence');
+
+    // Settle only the invoice remainder, preserving the supplier opening balance and immutable purchase snapshot.
+    queuedPrompts.push(JSON.stringify([{ invoiceId: purchase.id, amount: '0.20' }]));
     await page.getByRole('button', { name: /تسديد مبلغ للمورد/ }).click();
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     assert.equal(state.suppliers[0].balance, 15000.00);
@@ -236,6 +250,17 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     assert.equal(supplierPayment.amount, 0.20);
     assert.equal(cashPayment.amount, 0.20);
     assert.equal(supplierPayment.referenceId, cashPayment.referenceId);
+    assert.equal(state.purchases[0].paid, 0.10, 'original purchase paid amount must remain immutable');
+    assert.equal(state.purchases[0].remaining, 0.20, 'original purchase remaining snapshot must remain immutable');
+    const supplierAllocation = state.settlementAllocations.find(a =>
+      a.partyType === 'supplier' && a.invoiceId === purchase.id && a.sourceMovementType === 'supplier_payment');
+    assert.equal(supplierAllocation.amountCentimes, 20);
+    assert.equal(state.settlementAllocations.filter(a => a.invoiceId === purchase.id)
+      .reduce((sum,a) => sum + a.amountCentimes, 0), 30);
+    assert.equal(Math.round(purchase.total * 100) - Math.round(purchase.paid * 100) -
+      state.settlementAllocations.filter(a => a.invoiceId === purchase.id && a.sourceMovementType === 'supplier_payment')
+        .reduce((sum,a) => sum + a.amountCentimes, 0), 0,
+      'current purchase outstanding must be derived from immutable original values and later allocations');
 
     await page.evaluate(() => openView('cash'));
     const cashDom = await page.locator('#cashCurrentBalanceDisplay').innerText();
