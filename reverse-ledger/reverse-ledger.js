@@ -400,6 +400,16 @@
         throw new Error('posted return has duplicate financial movement references');
       const financialRows = doc.originalInvoiceType === 'sales_invoice'
         ? [...cashRows, ...clientRows] : [...cashRows, ...supplierRows];
+      // Every movement posted under this return reference must be listed by the return document.
+      // Otherwise a forged/unlinked ledger row could alter cash or party balances without parity failure.
+      const linkedFinancialRows = financialRows.filter(x =>
+        x && x.referenceType === expectedRef && String(x.referenceId) === returnId);
+      const linkedFinancialIds = linkedFinancialRows.map(x => String(recordId(x)));
+      if (linkedFinancialIds.some(id => !id || id === 'undefined' || id === 'null') ||
+          new Set(linkedFinancialIds).size !== linkedFinancialIds.length ||
+          linkedFinancialIds.length !== financialIds.length ||
+          linkedFinancialIds.some(id => !financialIds.map(String).includes(id)))
+        throw new Error('posted return has unreferenced or ambiguous financial movements');
       let financialTotal = 0n;
       for (const movementId of financialIds) {
         const matchesMovement = financialRows.filter(x => String(recordId(x)) === String(movementId));
