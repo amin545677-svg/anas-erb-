@@ -20,7 +20,7 @@ test('allocation requires matching party and invoice domains', () => {
  const base={allocationId:'A-1',partyType:'customer',partyId:'C-1',invoiceType:'sales_invoice',invoiceId:'S-1',sourceMovementId:'M-1',sourceMovementType:'customer_debt',amountCentimes:500,createdAt:'2026-10-30T12:00:00Z'};
  const draft=R.makeSettlementAllocation(base);
  assert.equal(Object.prototype.hasOwnProperty.call(draft,'ledgerVersion'),false);
- const state={customers:[],suppliers:[],invoices:[{id:'S-1',customerId:'C-1',paid:5}],purchases:[],cashMovements:[{id:'M-1',amountCentimes:1000,referenceType:'customer_debt'}]};
+ const state={customers:[],suppliers:[],invoices:[{id:'S-1',customerId:'C-1',paid:5}],purchases:[],cashMovements:[{id:'M-1',amountCentimes:1000,referenceType:'customer_debt',referenceId:'C-1'}]};
  assert.equal(R.sealSettlementAllocation(state,base).ledgerVersion,2);
  assert.throws(()=>R.makeSettlementAllocation({...base,partyType:'supplier'}),/party and invoice types do not match/);
 });
