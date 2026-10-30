@@ -864,6 +864,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Number.isSafeInteger(oldTotalCents)",
         "oldPaidCents > oldTotalCents",
         "oldRemainingCents !== oldTotalCents - oldPaidCents",
+        "Number.isSafeInteger(availableUnits)",
+        "Number.isSafeInteger(nextUnits)",
+        "anasQtyFromUnits(deltaUnits)",
     ]
     if not edit_invoice or any(guard not in edit_invoice for guard in edit_guards):
         errors.append("historical invoice edits must reject invalid source quantities/prices and inconsistent totals before stock/account mutation")
