@@ -39,7 +39,7 @@ test('allocation validator rejects orphan, mismatch and over-allocation', () => 
  assert.equal(R.validateSettlementAllocations(state),true);
  assert.throws(()=>R.validateSettlementAllocations({...state,invoices:[]}),/orphan or ambiguous settlement allocation invoice/);
  assert.throws(()=>R.validateSettlementAllocations({...state,invoices:[{...invoice,customerId:'C-2'}]}),/allocation party does not match invoice/);
- assert.throws(()=>R.validateSettlementAllocations({...state,settlementAllocations:[a,{...a,allocationId:'A-2',amountCentimes:400}]}),/invoice allocations exceed paid centime amount/);
+ assert.throws(()=>R.validateSettlementAllocations({...state,settlementAllocations:[a,{...a,allocationId:'A-2',amountCentimes:400}]}),/allocations exceed source movement amount/);
 });
 test('appendUnique rejects replay without mutating original list', () => {
  const original=[{returnId:'R-1'}], next=R.appendUnique(original,{returnId:'R-2'},'returnId');
