@@ -150,13 +150,23 @@
   function getSourceMovement(state, allocation) {
     const id = String(allocation.sourceMovementId);
     let rows = [];
-    if (allocation.partyType === 'customer' && allocation.sourceMovementType === 'customer_debt')
-      rows = (state.cashMovements || []).filter(x => String(recordId(x)) === id && x.referenceType === 'customer_debt');
-    else if (allocation.partyType === 'supplier' && allocation.sourceMovementType === 'supplier_payment')
-      rows = (state.supplierMovements || []).filter(x => String(recordId(x)) === id && x.type === 'payment');
-    else if (allocation.sourceMovementType === 'sales_invoice' || allocation.sourceMovementType === 'purchase_invoice')
-      rows = (state.cashMovements || []).filter(x => String(recordId(x)) === id && x.referenceType === allocation.sourceMovementType);
-    else throw new Error('unsupported allocation source movement type');
+    if (allocation.partyType === 'customer' && allocation.sourceMovementType === 'customer_debt') {
+      rows = (state.cashMovements || []).filter(x => String(recordId(x)) === id &&
+        x.referenceType === 'customer_debt' && String(x.referenceId) === String(allocation.partyId));
+    } else if (allocation.partyType === 'supplier' && allocation.sourceMovementType === 'supplier_payment') {
+      rows = (state.supplierMovements || []).filter(x => String(recordId(x)) === id &&
+        x.type === 'payment' && x.referenceType === 'supplier_payment' &&
+        String(x.supplierId) === String(allocation.partyId) && String(x.referenceId) === id);
+    } else if (allocation.partyType === 'customer' && allocation.sourceMovementType === 'sales_invoice') {
+      rows = (state.cashMovements || []).filter(x => String(recordId(x)) === id &&
+        x.referenceType === 'sales_invoice' && String(x.referenceId) === String(allocation.invoiceId));
+    } else if (allocation.partyType === 'supplier' && allocation.sourceMovementType === 'purchase_invoice') {
+      rows = (state.supplierMovements || []).filter(x => String(recordId(x)) === id &&
+        x.type === 'payment' && x.referenceType === 'purchase_invoice' &&
+        String(x.supplierId) === String(allocation.partyId) && String(x.referenceId) === String(allocation.invoiceId));
+    } else {
+      throw new Error('unsupported allocation source movement type');
+    }
     if (rows.length !== 1) throw new Error('allocation source movement missing or ambiguous');
     return rows[0];
   }
