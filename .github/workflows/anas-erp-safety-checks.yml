@@ -141,10 +141,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("        function anasFormatZReportCashBalance(value) {")
           end = s.find("\n        function printZReport()", start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer currency helpers"
           assert start >= 0 and end > start, "Could not isolate Z-report cash formatter"
-          function_js = s[start:end]
+          function_js = s[helper_start:helper_end] + s[start:end]
           js = r"""
           const assert = require('node:assert/strict');
           /*INSERT_FORMATTER*/
