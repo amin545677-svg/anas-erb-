@@ -3501,6 +3501,34 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.');
                 return;
             }
+            // Independent ledgers are part of the same sale transaction. Reject corrupt ledgers before mutating balances or stock.
+            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون']]) {
+                if (Object.prototype.hasOwnProperty.call(AppData, field) &&
+                    (!Array.isArray(AppData[field]) || AppData[field].some(record => !record || typeof record !== 'object' || Array.isArray(record)))) {
+                    alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.');
+                    return;
+                }
+            }
+            const existingCashMovementIds = new Set();
+            for (const movement of (Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [])) {
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const id = String(movement.id);
+                if (existingCashMovementIds.has(id)) {
+                    alert('تعذر تأكيد البيع: سجل حركات الصندوق يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.');
+                    return;
+                }
+                existingCashMovementIds.add(id);
+            }
+            const existingStockMovementIds = new Set();
+            for (const movement of (Array.isArray(AppData.stockMovements) ? AppData.stockMovements : [])) {
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const id = String(movement.id);
+                if (existingStockMovementIds.has(id)) {
+                    alert('تعذر تأكيد البيع: سجل حركات المخزون يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.');
+                    return;
+                }
+                existingStockMovementIds.add(id);
+            }
             if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
                 (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
                  String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)) || Number(AppData.caisseBalance) < 0)) {
@@ -3553,6 +3581,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const hadInvoicesArray = Array.isArray(AppData.invoices);
             const oldInvoices = hadInvoicesArray ? AppData.invoices : (AppData.invoices = []);
             const invoicesBefore = oldInvoices.slice();
+            const hadCashMovements = Object.prototype.hasOwnProperty.call(AppData, 'cashMovements');
+            const cashMovementsBefore = hadCashMovements ? AppData.cashMovements.slice() : null;
+            const hadStockMovements = Object.prototype.hasOwnProperty.call(AppData, 'stockMovements');
+            const stockMovementsBefore = hadStockMovements ? AppData.stockMovements.slice() : null;
             const hadDebtDate = Object.prototype.hasOwnProperty.call(cust, 'debtDate');
             const oldDebtDate = cust.debtDate;
             const invObj = {
@@ -3580,7 +3612,34 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                         p.warehouseStock[saleWarehouse]=(Number(p.warehouseStock[saleWarehouse])||0)-qty;
                     }
                 }
-                if (paid > 0) AppData.caisseBalance = oldCaisse + paid;
+                if (paid > 0) {
+                    AppData.caisseBalance = oldCaisse + paid;
+                    if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
+                    const cashMovementId = 'SALE-CASH-' + invObj.id;
+                    if (existingCashMovementIds.has(cashMovementId)) throw new Error('معرّف حركة الصندوق موجود مسبقًا.');
+                    AppData.cashMovements.unshift({
+                        id: cashMovementId, type: 'add', amount: paid,
+                        description: 'تحصيل نقدي من فاتورة البيع ' + invObj.id,
+                        referenceType: 'sales_invoice', referenceId: invObj.id,
+                        date: new Date().toISOString(),
+                        userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                        userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+                    });
+                }
+                if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
+                for (const [id, qty] of required) {
+                    const product = saleProducts.get(id);
+                    const movementId = 'SALE-STOCK-' + invObj.id + '-' + id;
+                    if (existingStockMovementIds.has(movementId)) throw new Error('معرّف حركة المخزون موجود مسبقًا.');
+                    AppData.stockMovements.unshift({
+                        id: movementId, productId: product.id,
+                        productName: product.name || product.title || id,
+                        qty: -qty, type: 'SALE_OUT',
+                        referenceType: 'sales_invoice', referenceId: invObj.id,
+                        warehouse: saleWarehouse, date: new Date().toISOString(),
+                        note: 'بيع من الفاتورة ' + invObj.id
+                    });
+                }
                 AppData.invoices.unshift(invObj);
                 // امسح السلة قبل الحفظ حتى لا تعود المنتجات إلى السلة بعد إعادة فتح التطبيق.
                 posCart = [];
@@ -3600,6 +3659,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     if (hadDebtDate) cust.debtDate = oldDebtDate; else delete cust.debtDate;
                 }
                 if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;
+                if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
+                if (hadStockMovements) AppData.stockMovements = stockMovementsBefore; else delete AppData.stockMovements;
                 AppData.invoices = invoicesBefore;
                 posCart = oldCart;
                 if (!hadInvoicesArray && invoicesBefore.length === 0) delete AppData.invoices;
