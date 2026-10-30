@@ -19,7 +19,8 @@ test('Chromium loads reverse-ledger primitives and enforces exact return ceiling
    const remaining = R.computeReturnableMicroUnits(5000000n,1250000n).toString();
    let overReturnRejected = false;
    try { R.computeReturnableMicroUnits(5,6); } catch (_) { overReturnRejected = true; }
-   const legacy = R.validateReverseLedgerParity({customers:[{id:'C-legacy',debt:12.5}],suppliers:[],invoices:[],purchases:[],returns:[]});\n   const jsonSafe = JSON.stringify(state).length > 0;
+   const legacy = R.validateReverseLedgerParity({customers:[{id:'C-legacy',debt:12.5}],suppliers:[],invoices:[],purchases:[],returns:[]});
+   const jsonSafe = JSON.stringify(state).length > 0;
    return {valid,legacy,remaining,overReturnRejected,jsonSafe,collections:['clientMovements','settlementAllocations','returns'].every(k=>Array.isArray(state[k]))};
   });
   assert.deepEqual(result,{valid:true,legacy:true,remaining:'3750000',overReturnRejected:true,jsonSafe:true,collections:true});
