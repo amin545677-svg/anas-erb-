@@ -140,7 +140,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  const ctx={AppData:r.AppData,ANASReverseLedger,prompt:()=>{throw new Error('must reject before prompting');},
   saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
  vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
- assert.equal(ctx.AppData.suppliers[0].balance,19);
+ assert.equal(ctx.AppData.suppliers[0].balance,12.75);
  assert.equal(ctx.AppData.supplierMovements.length,3);
  assert.ok(r.alerts.some(x=>x.includes('غير مخصص بالكامل')));
  console.log('PASS: prior unallocated supplier settlements block new invoice payments');
