@@ -4282,6 +4282,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                         anasPurchaseToCents(cashLinks[0].amount) !== anasPurchaseToCents(movement.amount)) {
                         fail('تسديد المورد غير مرتبط بحركة صندوق مطابقة');
                     }
+                } else if (movement.type === 'return_credit') {
+                    const returnDocs = (incoming.returns || []).filter(doc =>
+                        doc && doc.ledgerVersion === 2 && doc.status === 'POSTED' &&
+                        ['purchase_return','invoice_cancel'].includes(referenceType) &&
+                        (doc.returnType === 'PURCHASE_RETURN' || doc.returnType === 'INVOICE_CANCEL') &&
+                        String(doc.returnId) === referenceId && doc.originalInvoiceType === 'purchase_invoice');
+                    const linkedPurchase = returnDocs.length === 1
+                        ? purchases.filter(row => String(row.id ?? '') === String(returnDocs[0].originalInvoiceId) &&
+                            String(row.supplierId ?? '') === String(movement.supplierId ?? ''))
+                        : [];
+                    const expectedCredit = returnDocs.length === 1
+                        ? Number(returnDocs[0].debtReductionCentimes || 0) + Number(returnDocs[0].supplierCreditCentimes || 0)
+                        : NaN;
+                    if (returnDocs.length !== 1 || linkedPurchase.length !== 1 ||
+                        !Number.isSafeInteger(expectedCredit) || expectedCredit <= 0 ||
+                        anasPurchaseToCents(movement.amount) !== expectedCredit) {
+                        fail('قيد دائن لمرتجع مشتريات لا يطابق مستند المرتجع أو المورد أو قيمة التسوية');
+                    }
                 } else if (movement.type === 'opening_balance') {
                     const openingSupplierId = String(movement.supplierId ?? '');
                     if (referenceType !== 'supplier_opening_balance' ||
@@ -7605,7 +7623,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','customerCreditMovements','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
