@@ -3360,7 +3360,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function syncHasibInvoiceTotals() {
             const modal = document.getElementById('hasibModal');
             if (!modal || !modal.classList.contains('active')) return;
-            const total = posCart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
+            const rawTotal = posCart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
+            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
             const totalEl = document.getElementById('hasibTotalText');
             const invalidCart = !posCart.length || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) || !Number.isFinite(total);
             if (totalEl) totalEl.textContent = invalidCart ? 'بيانات السلة غير صالحة' : total.toFixed(2) + ' د.ج';
@@ -3381,7 +3382,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         function openHasibModal() {
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
-            const total = posCart.reduce((a, b) => a + (Number(b.qty) * Number(b.price)), 0);
+            const rawTotal = posCart.reduce((a, b) => a + (Number(b.qty) * Number(b.price)), 0);
+            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
             if (!Number.isFinite(total) || total <= 0 || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0)) {
                 alert('تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح. صحّح بيانات المنتجات أولاً.');
                 return;
@@ -3399,9 +3401,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         function updatePaymentMethodFromAmount() {
-            const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
+            const rawTotal = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
+            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
             const input = document.getElementById('hasibPaidAmount');
             let paid = Number(input.value);
+            if (Number.isFinite(paid)) paid = Math.round((paid + Number.EPSILON) * 100) / 100;
             if (!Number.isFinite(paid) || paid < 0) paid = 0;
             if (paid > total) { paid = total; input.value = total.toFixed(2); }
             const method = document.getElementById('hasibPaymentMethod');
@@ -3421,7 +3425,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 document.getElementById('hasibPaidAmount').value = total.toFixed(2);
             }
             const total = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
-            const paid = Math.max(0, Math.min(total, Number(document.getElementById('hasibPaidAmount').value) || 0));
+            const parsedPaid = Number(document.getElementById('hasibPaidAmount').value) || 0;
+            const paid = Math.max(0, Math.min(total, Math.round((parsedPaid + Number.EPSILON) * 100) / 100));
             const rem = document.getElementById('hasibRemainingText');
             if (rem) rem.textContent = 'المتبقي على الزبون: ' + (total - paid).toFixed(2) + ' د.ج';
         }
@@ -3492,7 +3497,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 alert('تحقق من المبلغ المدفوع؛ يجب أن يكون بين صفر ومجموع الفاتورة.'); return;
             }
             const paid = rawPaid;
-            const remaining = Math.max(0, total - paid);
+            const remaining = Math.round((Math.max(0, total - paid) + Number.EPSILON) * 100) / 100;
             // Reject malformed financial collections/balances before any stock, debt, or cash mutation.
             if (Object.prototype.hasOwnProperty.call(AppData, 'customers') &&
                 (!Array.isArray(AppData.customers) || AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c)))) {
@@ -3558,11 +3563,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return;
             }
             const oldDebt = hasDebtField ? Number(rawDebt) : 0;
-            if (!Number.isFinite(oldDebt + remaining) || oldDebt + remaining > Number.MAX_SAFE_INTEGER) {
+            const newDebt = Math.round((oldDebt + remaining + Number.EPSILON) * 100) / 100;
+            if (!Number.isFinite(newDebt) || newDebt > Number.MAX_SAFE_INTEGER) {
                 alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال الرقمي الآمن.'); return;
             }
             const currentCash = Number(AppData.caisseBalance) || 0;
-            if (!Number.isFinite(currentCash + paid) || currentCash + paid > Number.MAX_SAFE_INTEGER) {
+            const newCashBalance = Math.round((currentCash + paid + Number.EPSILON) * 100) / 100;
+            if (!Number.isFinite(newCashBalance) || newCashBalance > Number.MAX_SAFE_INTEGER) {
                 alert('تعذر تأكيد البيع: رصيد الصندوق الناتج يتجاوز المجال الرقمي الآمن.'); return;
             }
 
@@ -3599,12 +3606,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
                 paymentMethod: paid <= 0 ? 'credit' : (remaining > 0 ? 'partial' : 'cash'),
-                oldDebt, newDebt: oldDebt + remaining
+                oldDebt, newDebt
             };
 
             try {
                 if (remaining > 0 && registeredCustomer) {
-                    cust.debt = oldDebt + remaining;
+                    cust.debt = newDebt;
                     cust.debtDate = new Date().toISOString().slice(0, 10);
                 }
                 for (const [id, qty] of required) {
@@ -3616,7 +3623,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     }
                 }
                 if (paid > 0) {
-                    AppData.caisseBalance = oldCaisse + paid;
+                    AppData.caisseBalance = Math.round((oldCaisse + paid + Number.EPSILON) * 100) / 100;
                     if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
                     const cashMovementId = 'SALE-CASH-' + invObj.id;
                     if (existingCashMovementIds.has(cashMovementId)) throw new Error('معرّف حركة الصندوق موجود مسبقًا.');
