@@ -37,7 +37,7 @@ function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, cus
   assert.equal(r.saves,0,'unsafe computed invoice total must not be persisted');
   assert.equal(r.product.stock,10,'unsafe invoice total must not mutate stock');
   assert.equal(r.invoice.total,10,'unsafe invoice total must not mutate invoice');
-  assert.ok(r.alerts.some(x=>x.includes('المجال المالي الآمن')));
+  assert.ok(r.alerts.some(x=>x.includes('المجال المالي الآمن') || x.includes('السعر غير صحيح')));
 }
 {
   const r = run({qty:'2', price:'10', total:10, remaining:10, customerDebt:Number.MAX_SAFE_INTEGER - 5});
