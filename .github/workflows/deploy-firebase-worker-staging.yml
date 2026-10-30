@@ -52,7 +52,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.45.0 deploy \
+          npx --yes wrangler@4.156.0 deploy \
             --config cloudflare/wrangler-staging.toml \
             --name anas-erp-firebase-snapshot-staging
 
@@ -75,9 +75,17 @@ jobs:
           )"
           test -n "$CLEAN_KEY"
           echo "::add-mask::$CLEAN_KEY"
-          printf '%s' "$CLEAN_KEY" | npx --yes wrangler@4.45.0 secret put FIREBASE_API_KEY \
+          VERSION_TAG="staging-secret-${GITHUB_SHA:0:12}"
+          printf '%s' "$CLEAN_KEY" | npx --yes wrangler@4.156.0 versions secret put FIREBASE_API_KEY \
             --config cloudflare/wrangler-staging.toml \
-            --name anas-erp-firebase-snapshot-staging
+            --name anas-erp-firebase-snapshot-staging \
+            --tag "$VERSION_TAG" \
+            --message "Staging Firebase secret for ${GITHUB_SHA:0:12}"
+          npx --yes wrangler@4.156.0 versions deploy \
+            --config cloudflare/wrangler-staging.toml \
+            --name anas-erp-firebase-snapshot-staging \
+            --version-tag "$VERSION_TAG" \
+            --yes
 
       - name: Post-Deploy Live Smoke Test and Auth Guard
         env:
