@@ -7,9 +7,9 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const allowedOrigin = "https://amin545677-svg.github.io";
+const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://amin545677-svg.github.io" };
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
 
 function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = new Headers({ Origin: allowedOrigin });
