@@ -45,6 +45,7 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Add CLOUDFLARE_ACCOUNT_ID as a GitHub Actions secret." && exit 1)
           test -n "$STAGING_FIREBASE_API_KEY" || (echo "::error::Add STAGING_FIREBASE_API_KEY as a GitHub Actions secret." && exit 1)
 
+      # Explicit P0 one-shot recovery gate: this commit message is the authorization token.
       - name: P0 Validate and Restore Production Worker Secret from Production Web Config
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[P0-PROD-RESTORE]')
         env:
