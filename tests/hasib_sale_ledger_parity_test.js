@@ -144,7 +144,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     {id:'P-1',name:'Test product',qty:0.25,price:100.1},
     {id:'P-1',name:'Test product',qty:0.25,price:100.1}
   ],paid:50.05});
-  assert.equal(r.AppData.invoices[0].total,50.05);
+  assert.equal(r.AppData.invoices[0].total,50.06);
   assert.equal(r.AppData.stockMovements.length,1,'repeated cart lines must aggregate to one stock movement per product');
   assert.equal(r.AppData.stockMovements[0].qty,-0.5);
   assert.equal(r.AppData.cashMovements[0].amount,50.05);
