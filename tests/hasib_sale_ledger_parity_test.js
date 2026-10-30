@@ -8,7 +8,7 @@ const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
 const source = html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = []} = {}) {
+function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false} = {}) {
   const product = {id:'P-1', name:'Test product', stock:20, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:0};
   const AppData = {
@@ -16,7 +16,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     caisseBalance:100, cashMovements:cashMovements.map(x=>({...x})), stockMovements:stockMovements.map(x=>({...x})),
     currentUser:{id:'U-1',name:'Tester'}
   };
-  const posCart = cart || [{id:'P-1',name:'Test product',qty:2,price:250.25}];
+  if (omitLedgers) { delete AppData.cashMovements; delete AppData.stockMovements; }\n  const posCart = cart || [{id:'P-1',name:'Test product',qty:2,price:250.25}];
   const alerts = [];
   let saves = 0, renders = 0, closes = 0;
   const elements = {
@@ -134,6 +134,16 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   assert.equal(r.AppData.invoices.length,0);
   assert.equal(r.alerts.some(x=>x.includes('معرّفات مكررة')),true);
   console.log('PASS: ambiguous pre-existing stock ledger IDs block the sale before mutation');
+}
+
+{
+  const r=runSale({omitLedgers:true,saveResult:false});
+  assert.equal(Object.prototype.hasOwnProperty.call(r.AppData,'cashMovements'),false,'failed sale must remove a newly created cash ledger property');
+  assert.equal(Object.prototype.hasOwnProperty.call(r.AppData,'stockMovements'),false,'failed sale must remove a newly created stock ledger property');
+  assert.equal(r.AppData.caisseBalance,100);
+  assert.equal(r.product.stock,20);
+  assert.equal(r.AppData.invoices.length,0);
+  console.log('PASS: rollback removes ledgers that did not exist before the attempted sale');
 }
 
 console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
