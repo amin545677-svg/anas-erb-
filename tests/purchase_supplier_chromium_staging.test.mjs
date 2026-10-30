@@ -61,7 +61,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
   const dialogs = [];
   try {
     browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    const context = await browser.newContext({ acceptDownloads: true, locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
     await context.addInitScript(({ key, data }) => {
       localStorage.setItem(key, JSON.stringify(data));
     }, { key: DB_KEY, data: initialData() });
