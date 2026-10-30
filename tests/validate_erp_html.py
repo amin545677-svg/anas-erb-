@@ -1283,7 +1283,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "purchase preserves malformed ledger collections and exact supplier/invoice reconciliation":
             "['products', 'المنتجات']" in purchase
             and "['supplierMovements', 'دفتر الموردين']" in purchase
-            and "paidCents + remainingCents !== totalCents" in purchase,
+            and "anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)" in purchase,
         "supplier debt payments post matching centime cash and supplier ledger entries with rollback":
             "function paySupplierDebt(supplierId)" in source
             and "nextSupplierCents = balanceCents - amountCents" in source
