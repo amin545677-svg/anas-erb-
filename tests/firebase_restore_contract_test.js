@@ -26,7 +26,7 @@ function validate(incoming, current = {}) {
   const context = { AppData: current, candidate: incoming, result: null };
   vm.createContext(context);
   vm.runInContext(
-    truckExpenseValidator + '\\n' + backupValidator + '\\nresult = anasValidateBackupData(candidate);',
+    truckExpenseValidator + '\n' + backupValidator + '\\nresult = anasValidateBackupData(candidate);',
     context,
     { timeout: 1000 }
   );
