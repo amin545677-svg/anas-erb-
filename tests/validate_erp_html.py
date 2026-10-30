@@ -861,8 +861,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
         "(!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))",
         "validMoneyField = value =>",
-        "oldPaid > oldTotal + 0.000001",
-        "oldRemaining - Math.max(0, oldTotal - oldPaid)",
+        "Number.isSafeInteger(oldTotalCents)",
+        "oldPaidCents > oldTotalCents",
+        "oldRemainingCents !== oldTotalCents - oldPaidCents",
     ]
     if not edit_invoice or any(guard not in edit_invoice for guard in edit_guards):
         errors.append("historical invoice edits must reject invalid source quantities/prices and inconsistent totals before stock/account mutation")
