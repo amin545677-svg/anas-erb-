@@ -132,3 +132,23 @@ test('supplier settlement allocations bind to the supplier payment ledger and ex
  assert.equal(second.ledgerVersion,2);
  assert.throws(()=>R.sealSettlementAllocation(state,{allocationId:'SA-3',partyType:'supplier',partyId:'SUP-OTHER',invoiceType:'purchase_invoice',invoiceId:'PUR-1',sourceMovementId:'SP-1',sourceMovementType:'purchase_invoice',amountCentimes:500,createdAt:'2026-10-30T12:02:00Z'}),/allocation party does not match invoice/);
 });
+
+test('draft return ceiling accounts for all previously posted returns', () => {
+ const state={
+  customers:[],suppliers:[],
+  invoices:[{id:'S-CEILING',customerObj:{id:'C-1'},items:[{id:'P-1',qty:2,price:10000}]}],
+  purchases:[],clientMovements:[],settlementAllocations:[],
+  cashMovements:[{id:'CM-POSTED',amount:10000,referenceType:'sales_return',referenceId:'R-POSTED'}],
+  supplierMovements:[],
+  stockMovements:[{id:'SM-POSTED',productId:'P-1',qty:1,referenceType:'sales_return',referenceId:'R-POSTED'}],
+  returns:[{returnId:'R-POSTED',ledgerVersion:2,originalInvoiceId:'S-CEILING',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000000,lineTotalCentimes:1000000}],
+   totalCentimes:1000000,debtReductionCentimes:0,cashRefundCentimes:1000000,supplierCreditCentimes:0,
+   stockMovementIds:['SM-POSTED'],financialMovementIds:['CM-POSTED']}]
+ };
+ assert.throws(()=>R.sealReturnDocument(state,{
+  returnId:'R-DRAFT',originalInvoiceId:'S-CEILING',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'DRAFT',
+  items:[{productId:'P-1',quantityMicroUnits:1000001,unitPriceCentimes:1000000,lineTotalCentimes:1000001}],
+  totalCentimes:1000001,debtReductionCentimes:0,cashRefundCentimes:0,createdAt:'2026-10-30T12:03:00Z',operatorId:'U-1',reason:'remaining ceiling'
+ }),/return exceeds remaining returnable micro-units/);
+});
