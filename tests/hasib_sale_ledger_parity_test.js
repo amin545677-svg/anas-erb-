@@ -196,3 +196,29 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
+
+
+{
+  const r=runSale({
+    cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],
+    paid:0.1,
+    customerDebt:0.1,
+    caisseBalance:100.1
+  });
+  const cashUiStart=html.indexOf('function updateCashUI()');
+  const cashUiEnd=html.indexOf('\\n        function ',cashUiStart+20);
+  assert.ok(cashUiStart>=0&&cashUiEnd>cashUiStart,'cash balance UI reader must be present and isolatable');
+  const cashUiSource=html.slice(cashUiStart,cashUiEnd);
+  const cashDisplay={innerText:''};
+  const uiContext={AppData:r.AppData,document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?cashDisplay:null}};
+  vm.createContext(uiContext);
+  vm.runInContext(cashUiSource+'\\nupdateCashUI();',uiContext,{timeout:1000});
+  assert.equal(Number(cashDisplay.innerText.replace(' د.ج','').replace(/,/g,'')),100.2,
+    'cash balance display must reflect opening balance plus normalized sale receipt');
+  assert.equal(r.AppData.cashMovements.filter(m=>m.referenceType==='sales_invoice'&&m.type==='add').reduce((sum,m)=>sum+m.amount,0),0.1,
+    'cash ledger reader contract must include the sales receipt as an add movement');
+  assert.equal(r.AppData.stockMovements.filter(m=>m.type==='SALE_OUT'&&m.referenceType==='sales_invoice').reduce((sum,m)=>sum+m.qty,0),-0.3,
+    'stock ledger contract must preserve the invoice-linked negative sale quantity');
+  assert.equal(r.customer.debt,0.3,'cumulative customer debt must match opening debt plus invoice remainder');
+  console.log('PASS: integrated invoice/cash UI/cash ledger/stock ledger/customer debt parity');
+}
