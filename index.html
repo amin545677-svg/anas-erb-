@@ -5003,9 +5003,15 @@ function renderPurchasesTable() {
             const movementId = 'SUP-PAY-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
             const cashId = 'SUP-CASH-' + movementId;
             const existingIds = new Set();
+            let duplicateLedgerId = false;
             for (const collection of [AppData.cashMovements || [], AppData.supplierMovements || []]) {
-                for (const row of collection) if (row.id != null) existingIds.add(String(row.id));
+                for (const row of collection) if (row.id != null && String(row.id).trim()) {
+                    const id = String(row.id);
+                    if (existingIds.has(id)) duplicateLedgerId = true;
+                    existingIds.add(id);
+                }
             }
+            if (duplicateLedgerId) { alert('توجد معرّفات مكررة في دفاتر الموردين أو الصندوق؛ أوقفنا التسديد حتى إصلاح السجل.'); return; }
             if (existingIds.has(movementId) || existingIds.has(cashId)) { alert('تعارض معرّف حركة التسديد؛ أعد المحاولة بعد مراجعة السجلات.'); return; }
             let previous;
             try { previous = JSON.parse(JSON.stringify(AppData)); }
