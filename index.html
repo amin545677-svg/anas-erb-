@@ -7661,7 +7661,9 @@ function renderPurchasesTable() {
             const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
             let stockValueCents = 0;
             for (const product of products) {
-                const valueCents = anasPurchaseStockValueCents(anasPurchaseToQtyUnits(product.stock ?? 0), anasPurchaseToCents(product.buyPrice ?? 0));
+                const stockUnits = anasPurchaseToQtyUnits(product.stock ?? 0);
+                const unitCostCents = stockUnits > 0 ? anasPurchaseToCents(product.buyPrice) : 0;
+                const valueCents = anasPurchaseStockValueCents(stockUnits, unitCostCents);
                 if (!Number.isSafeInteger(valueCents) || !Number.isSafeInteger(stockValueCents + valueCents)) { stockValueCents = NaN; break; }
                 stockValueCents += valueCents;
             }
@@ -8320,7 +8322,7 @@ function renderPurchasesTable() {
             const expenses=(AppData.expenses||[]).filter(e=>typeof reportItemInRange==='function'?reportItemInRange(e,['date','createdAt','created_at','timestamp','expenseDate','expense_date','dateCreated','created']):true);
             const sum=(arr,key)=>arr.reduce((n,x)=>n+(Number(x&&x[key])||0),0);
             let stockValueCents=0;
-            for(const p of (AppData.products||[])){const c=anasPurchaseStockValueCents(anasPurchaseToQtyUnits(p.stock??0),anasPurchaseToCents(p.buyPrice??0));if(!Number.isSafeInteger(c)||!Number.isSafeInteger(stockValueCents+c)){stockValueCents=NaN;break;}stockValueCents+=c;}
+            for(const p of (AppData.products||[])){const units=anasPurchaseToQtyUnits(p.stock??0),cost=units>0?anasPurchaseToCents(p.buyPrice):0,c=anasPurchaseStockValueCents(units,cost);if(!Number.isSafeInteger(c)||!Number.isSafeInteger(stockValueCents+c)){stockValueCents=NaN;break;}stockValueCents+=c;}
             const stockValue=Number.isSafeInteger(stockValueCents)?anasPurchaseCentsToCurrency(stockValueCents):NaN;
             const customerDebt=(AppData.customers||[]).reduce((n,c)=>n+(Number(c.debt)||0),0);
             const supplierDebtCents=(AppData.suppliers||[]).reduce((n,c)=>{const x=anasPurchaseToCents(c.balance??0);return Number.isSafeInteger(x)&&x>=0&&Number.isSafeInteger(n+x)?n+x:NaN;},0);
