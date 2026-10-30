@@ -255,8 +255,10 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     const supplierAllocation = state.settlementAllocations.find(a =>
       a.partyType === 'supplier' && a.invoiceId === purchase.id && a.sourceMovementType === 'supplier_payment');
     assert.equal(supplierAllocation.amountCentimes, 20);
-    assert.equal(state.settlementAllocations.filter(a => a.invoiceId === purchase.id)
-      .reduce((sum,a) => sum + a.amountCentimes, 0), 30);
+    assert.equal(state.settlementAllocations.filter(a => a.invoiceId === purchase.id &&
+      a.sourceMovementType === 'supplier_payment')
+      .reduce((sum,a) => sum + a.amountCentimes, 0), 20,
+      'later supplier payments must be allocated in exact centimes; the original paid snapshot remains the baseline');
     assert.equal(Math.round(purchase.total * 100) - Math.round(purchase.paid * 100) -
       state.settlementAllocations.filter(a => a.invoiceId === purchase.id && a.sourceMovementType === 'supplier_payment')
         .reduce((sum,a) => sum + a.amountCentimes, 0), 0,
