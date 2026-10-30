@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: "22"
       - name: Run Hasib financial and stock invariants
-        run: node --test tests/hasib_sale_ledger_parity_test.js tests/invoice_edit_safe_financial_arithmetic_test.js
+        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/invoice_edit_safe_financial_arithmetic_test.js
       - name: Validate full ERP HTML and inline JavaScript
         run: |
           python -m py_compile tests/validate_erp_html.py
