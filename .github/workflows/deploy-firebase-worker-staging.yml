@@ -65,7 +65,7 @@ jobs:
           set -euo pipefail
           CLEAN_KEY="$(node --input-type=module <<'NODE'
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
-          const cleanKey = rawKey.replace(/["'\\s\\r\\n]/g, "");
+          const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
           console.error(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
           if (!/^AIza[0-9A-Za-z_-]+$/.test(cleanKey)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
@@ -120,7 +120,7 @@ jobs:
           set -euo pipefail
           node --input-type=module <<'NODE'
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
-          const cleanKey = rawKey.replace(/["'\\s\\r\\n]/g, "");
+          const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
           console.log(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
           if (!/^AIza[0-9A-Za-z_-]+$/.test(cleanKey)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
