@@ -437,7 +437,19 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
   const queuedPrompts = [];
   try {
     browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    const context = await browser.newContext({ acceptDownloads: true, locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    await context.addInitScript(() => {
+      const createObjectURL = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = blob => {
+        window.__anasCustomerBackupBlob = blob;
+        return createObjectURL(blob);
+      };
+      const anchorClick = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.download) window.__anasCustomerBackupFilename = this.download;
+        return anchorClick.call(this);
+      };
+    });
     const seed = initialData();
     seed.products[0].stock = 3;
     seed.customers = [{ id: 'C-CUSTOMER-1', name: 'عميل دفتر الاختبار', debt: 10000.00 }];
@@ -546,6 +558,49 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     assert.equal(domProof.customerVisible, true);
     assert.equal(domProof.displayedDebt, 10000.05);
     assert.equal(domProof.hasCurrency, true);
+
+    // Export the customer v2 ledgers through the actual Sync/Backup UI.
+    await page.evaluate(() => openView('sync'));
+    await page.locator('#view-sync button[onclick="exportDataBackup()"]').click();
+    await page.waitForFunction(() => window.__anasCustomerBackupBlob instanceof Blob && !!window.__anasCustomerBackupFilename);
+    const exportedCustomerJson = await page.evaluate(() => window.__anasCustomerBackupBlob.text());
+    const exportedCustomerBackup = Buffer.from(exportedCustomerJson, 'utf8');
+    const exportedCustomerState = JSON.parse(exportedCustomerBackup.toString('utf8'));
+    assert.match(await page.evaluate(() => window.__anasCustomerBackupFilename), /_Backup_.*\\.json$/);
+    assert.equal(exportedCustomerState.customers[0].debt, 10000.05);
+    assert.equal(exportedCustomerState.clientMovements.length, 3);
+    assert.equal(exportedCustomerState.settlementAllocations.length, 2);
+
+    // Restore the exported customer snapshot using the real file input and verify the ledgers survive.
+    await page.evaluate(() => openView('cash'));
+    await page.locator('#restoreJsonFile').setInputFiles({
+      name: 'anas-erp-customer-ledger-backup.json',
+      mimeType: 'application/json',
+      buffer: exportedCustomerBackup
+    });
+    await page.waitForFunction(() => document.getElementById('view-dashboard')?.classList.contains('active'), null, { timeout: 10000 });
+    const customerRestoreProof = await page.evaluate(() => {
+      const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+      const stored = JSON.parse(raw);
+      return {
+        appMatchesStorage: JSON.stringify(AppData) === JSON.stringify(stored),
+        debt: AppData.customers[0].debt,
+        movements: AppData.clientMovements.map(x => [x.type, x.amountCentimes]),
+        allocations: AppData.settlementAllocations.map(x => [x.sourceMovementType, x.amountCentimes]),
+        invoicePaid: AppData.invoices[0].paid,
+        invoiceRemainingSnapshot: AppData.invoices[0].remaining
+      };
+    });
+    assert.equal(customerRestoreProof.appMatchesStorage, true);
+    assert.equal(customerRestoreProof.debt, 10000.05);
+    assert.deepEqual(customerRestoreProof.movements, [['opening_balance', 1000000], ['invoice_debit', 20], ['receipt', 15]]);
+    assert.deepEqual(customerRestoreProof.allocations, [['sales_invoice', 10], ['customer_debt', 15]]);
+    assert.equal(customerRestoreProof.invoicePaid, 0.10);
+    assert.equal(customerRestoreProof.invoiceRemainingSnapshot, 0.20);
+    console.log('CHROMIUM_CUSTOMER_BACKUP_RESTORE_REPORT ' + JSON.stringify({
+      exported: 'PASS', restored: 'PASS', appDataLocalStorage: 'PASS',
+      invoiceImmutable: 'PASS', customerDebtCentimes: '1000005'
+    }));
     console.log('CHROMIUM_CUSTOMER_LEDGER_REPORT ' + JSON.stringify({
       openingBalanceCentimes: '1000000', invoiceDebitCentimes: '20',
       immediateAllocationCentimes: '10', laterReceiptCentimes: '15',
