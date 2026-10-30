@@ -3403,6 +3403,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         // Financial and stock arithmetic use integer base units at every mutation boundary.
         const ANAS_QTY_SCALE = 1000000;
         function anasToCents(value) {
+            if (!((typeof value === 'number') || (typeof value === 'string')) ||
+                value === null || value === undefined ||
+                (typeof value === 'string' && value.trim() === '')) return NaN;
             const number = Number(value);
             if (!Number.isFinite(number)) return NaN;
             const cents = Math.round((number + Number.EPSILON) * 100);
@@ -3415,6 +3418,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return anasCentsToCurrency(anasToCents(value));
         }
         function anasToQtyUnits(value) {
+            if (!((typeof value === 'number') || (typeof value === 'string')) ||
+                value === null || value === undefined ||
+                (typeof value === 'string' && value.trim() === '')) return NaN;
             const number = Number(value);
             if (!Number.isFinite(number)) return NaN;
             const units = Math.round((number + Number.EPSILON) * ANAS_QTY_SCALE);
