@@ -9,8 +9,6 @@ on:
       - "tests/validate_erp_html.py"
       - "reverse-ledger/**"
       - "tests/reverse_ledger_primitives.test.js"
-      - "reverse-ledger/**"
-      - "tests/reverse_ledger_primitives.test.js"
       - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
