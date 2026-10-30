@@ -12,6 +12,15 @@ on:
       - 'firebase.staging.json'
       - 'tests/worker_firebase_snapshot*.mjs'
       - '.github/workflows/deploy-firebase-worker-staging.yml'
+  pull_request:
+    branches:
+      - staging/firebase-snapshot-worker
+    paths:
+      - 'cloudflare/**'
+      - 'firebase/**'
+      - 'firebase.staging.json'
+      - 'tests/worker_firebase_snapshot*.mjs'
+      - '.github/workflows/deploy-firebase-worker-staging.yml'
 
 permissions:
   contents: read
@@ -22,24 +31,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run Firebase snapshot Worker tests
+        run: node --test tests/worker_firebase_snapshot.test.mjs
+
   deploy-staging-worker:
-    if: github.ref == 'refs/heads/staging/firebase-snapshot-worker'
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/staging/firebase-snapshot-worker'
     environment: staging
     runs-on: ubuntu-latest
     env:
       STAGING_ALLOWED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Test Firebase snapshot Worker before staging deployment
-        run: node --test tests/worker_firebase_snapshot.test.mjs
-
       - name: Validate required Staging origin
         run: |
           set -euo pipefail
