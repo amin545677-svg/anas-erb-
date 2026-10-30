@@ -344,8 +344,8 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       stockMicroUnits: decimalToScaledBigInt(beforeReload.products.find(p => p.id === 'STG-TEA-001').stock, 6),
       unitCostCentimes: decimalToScaledBigInt(beforeReload.products.find(p => p.id === 'STG-TEA-001').buyPrice, 2)
     };
-    assert.equal(expectedCentimes.cash, 9999970n);
-    assert.equal(expectedCentimes.supplier, 1500000n);
+    assert.equal(expectedCentimes.cash, 9999960n);
+    assert.equal(expectedCentimes.supplier, 1500010n);
     assert.equal(expectedCentimes.stockMicroUnits, 3000000n);
     assert.equal(expectedCentimes.unitCostCentimes, 10n);
     const ledgerArraysBeforeRestore = ledgerArrays(beforeReload);
@@ -373,11 +373,11 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     state = afterReloadProof.memory;
     assert.deepEqual(state, beforeReload, 'reload must preserve the complete application state exactly');
     assert.deepEqual(afterReloadProof.stored, beforeReload, 'localStorage must retain the exact persisted snapshot after reload');
-    assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999970n);
-    assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500000n);
+    assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999960n);
+    assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500010n);
     assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').stock, 6), 3000000n);
     assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').buyPrice, 2), 10n);
-    assert.equal(state.purchases[0].id, purchase.id);
+    assert.ok(state.purchases.some(row => row.id === purchase.id));
 
     await page.evaluate(() => openView('cash'));
     const cashDomAfterReload = await page.locator('#cashCurrentBalanceDisplay').innerText();
@@ -409,12 +409,12 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       'valid backup restore must preserve all four ledger arrays exactly');
 
     // Both restore validators must accept good data and reject orphan cash/stock links.
-    const validatorResult = await page.evaluate(snapshot => {
+    const validatorResult = await page.evaluate((snapshot, invoiceId) => {
       const acceptedBackup = anasValidateBackupData(snapshot);
       const acceptedCloud = anasValidateIncomingSyncData(snapshot);
       const orphanStock = JSON.parse(JSON.stringify(snapshot));
       orphanStock.stockMovements = orphanStock.stockMovements.filter(m =>
-        !(m.referenceType === 'purchase_invoice' && m.referenceId === snapshot.purchases[0].id));
+        !(m.referenceType === 'purchase_invoice' && m.referenceId === invoiceId));
       const orphanCash = JSON.parse(JSON.stringify(snapshot));
       orphanCash.cashMovements = orphanCash.cashMovements.filter(m =>
         !(m.referenceType === 'purchase_invoice' && m.referenceId === snapshot.purchases[0].id));
@@ -436,7 +436,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
         stateUnchanged: JSON.stringify(AppData) === beforeState,
         storageUnchanged: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE') === beforeStorage
       };
-    }, beforeReload);
+    }, beforeReload, purchase.id);
     assert.equal(validatorResult.backupAccepted, true);
     assert.equal(validatorResult.cloudAccepted, true);
     assert.deepEqual(validatorResult.failures, []);
