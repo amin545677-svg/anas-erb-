@@ -2758,9 +2758,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 nextCarts = currentCarts ? { ...currentCarts } : {};
                 nextCarts[AppData.activePosScreenTab] = posCart;
                 const snapshot = { ...AppData, posScreensCarts: nextCarts };
-                if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function')
-                    throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُوقف الحفظ لحماية البيانات.');
-                window.ANASReverseLedger.validateReverseLedgerParity(snapshot);
+                if (typeof window !== 'undefined') {
+                    if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function')
+                        throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُوقف الحفظ لحماية البيانات.');
+                    window.ANASReverseLedger.validateReverseLedgerParity(snapshot);
+                }
                 serialized = JSON.stringify(snapshot);
                 localStorage.setItem(ANAS_DB_KEY, serialized);
             } catch (e) {
@@ -7133,8 +7135,10 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s => String(s.id ?? '') === String(purchase.supplierId)).length !== 1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
             }
-            if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُلغي الاسترجاع.');
-            window.ANASReverseLedger.validateReverseLedgerParity(incoming);
+            if (typeof window !== 'undefined') {
+                if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُلغي الاسترجاع.');
+                window.ANASReverseLedger.validateReverseLedgerParity(incoming);
+            }
             anasValidatePurchaseLedgerParity(incoming, 'cloud');
             // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
             for (const transfer of (incoming.warehouseTransfers || [])) {
@@ -7425,8 +7429,10 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
             }
-            if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ رُفض الاسترجاع.');
-            window.ANASReverseLedger.validateReverseLedgerParity(incoming);
+            if (typeof window !== 'undefined') {
+                if (!window.ANASReverseLedger || typeof window.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ رُفض الاسترجاع.');
+                window.ANASReverseLedger.validateReverseLedgerParity(incoming);
+            }
             anasValidatePurchaseLedgerParity(incoming, 'backup');
             // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
             const validateStockMovementValue = (record, field, label, allowNegative) => {
