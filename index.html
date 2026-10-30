@@ -3400,50 +3400,93 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             syncHasibInvoiceTotals();
         }
 
+        // Financial and stock arithmetic use integer base units at every mutation boundary.
+        const ANAS_QTY_SCALE = 1000000;
+        function anasToCents(value) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return NaN;
+            const cents = Math.round((number + Number.EPSILON) * 100);
+            return Number.isSafeInteger(cents) ? cents : NaN;
+        }
+        function anasCentsToCurrency(cents) {
+            return Number.isSafeInteger(cents) ? cents / 100 : NaN;
+        }
+        function anasRoundCurrency(value) {
+            return anasCentsToCurrency(anasToCents(value));
+        }
+        function anasToQtyUnits(value) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return NaN;
+            const units = Math.round((number + Number.EPSILON) * ANAS_QTY_SCALE);
+            return Number.isSafeInteger(units) ? units : NaN;
+        }
+        function anasQtyFromUnits(units) {
+            return Number.isSafeInteger(units) ? units / ANAS_QTY_SCALE : NaN;
+        }
+        function anasRoundQty(value) {
+            return anasQtyFromUnits(anasToQtyUnits(value));
+        }
+
         function updatePaymentMethodFromAmount() {
-            const rawTotal = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
-            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
+            let subtotalCents = 0;
+            for (const item of (Array.isArray(posCart) ? posCart : [])) {
+                const qtyUnits = anasToQtyUnits(item.qty);
+                const priceCents = anasToCents(item.price);
+                const product = qtyUnits * priceCents;
+                if (!Number.isSafeInteger(qtyUnits) || !Number.isSafeInteger(priceCents) || !Number.isSafeInteger(product)) {
+                    subtotalCents = NaN; break;
+                }
+                const lineCents = Math.round(product / ANAS_QTY_SCALE);
+                subtotalCents += lineCents;
+            }
+            const totalCents = Number.isSafeInteger(subtotalCents) ? subtotalCents : NaN;
+            const total = anasCentsToCurrency(totalCents);
             const input = document.getElementById('hasibPaidAmount');
-            let paid = Number(input.value);
-            if (Number.isFinite(paid)) paid = Math.round((paid + Number.EPSILON) * 100) / 100;
-            if (!Number.isFinite(paid) || paid < 0) paid = 0;
-            if (paid > total) { paid = total; input.value = total.toFixed(2); }
+            let paidCents = anasToCents(input.value);
+            if (!Number.isSafeInteger(paidCents) || paidCents < 0) paidCents = 0;
+            if (paidCents > totalCents) { paidCents = totalCents; input.value = total.toFixed(2); }
             const method = document.getElementById('hasibPaymentMethod');
-            method.value = paid <= 0 ? 'credit' : (paid + 0.0001 < total ? 'partial' : 'cash');
+            method.value = paidCents <= 0 ? 'credit' : (paidCents < totalCents ? 'partial' : 'cash');
             toggleHasibPayFields();
             const rem = document.getElementById('hasibRemainingText');
-            if (rem) rem.textContent = 'المتبقي على الزبون: ' + Math.max(0, total - paid).toFixed(2) + ' د.ج';
+            if (rem) rem.textContent = 'المتبقي على الزبون: ' + anasCentsToCurrency(Math.max(0, totalCents - paidCents)).toFixed(2) + ' د.ج';
         }
 
         function toggleHasibPayFields() {
             const isCredit = document.getElementById('hasibPaymentMethod').value === 'credit';
             const group = document.getElementById('hasibPaidGroup');
             group.style.display = 'block';
-            const rawTotal = posCart.reduce((a, b) => a + (b.qty * b.price), 0);
-            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
-            if (isCredit) document.getElementById('hasibPaidAmount').value = '0';
-            else if (Number(document.getElementById('hasibPaidAmount').value) <= 0) {
-                document.getElementById('hasibPaidAmount').value = total.toFixed(2);
+            let subtotalCents = 0;
+            for (const item of (Array.isArray(posCart) ? posCart : [])) {
+                const qtyUnits = anasToQtyUnits(item.qty);
+                const priceCents = anasToCents(item.price);
+                const product = qtyUnits * priceCents;
+                if (!Number.isSafeInteger(qtyUnits) || !Number.isSafeInteger(priceCents) || !Number.isSafeInteger(product)) {
+                    subtotalCents = NaN; break;
+                }
+                subtotalCents += Math.round(product / ANAS_QTY_SCALE);
             }
-            const parsedPaid = Number(document.getElementById('hasibPaidAmount').value) || 0;
-            const paid = Math.max(0, Math.min(total, Math.round((parsedPaid + Number.EPSILON) * 100) / 100));
+            const totalCents = Number.isSafeInteger(subtotalCents) ? subtotalCents : NaN;
+            const total = anasCentsToCurrency(totalCents);
+            const paidInput = document.getElementById('hasibPaidAmount');
+            if (isCredit) paidInput.value = '0';
+            else if (anasToCents(paidInput.value) <= 0) paidInput.value = total.toFixed(2);
+            const parsedPaidCents = anasToCents(paidInput.value);
+            const paidCents = Number.isSafeInteger(parsedPaidCents) ? Math.max(0, Math.min(totalCents, parsedPaidCents)) : 0;
             const rem = document.getElementById('hasibRemainingText');
-            if (rem) rem.textContent = 'المتبقي على الزبون: ' + (Math.round((Math.max(0, total - paid) + Number.EPSILON) * 100) / 100).toFixed(2) + ' د.ج';
+            if (rem) rem.textContent = 'المتبقي على الزبون: ' + anasCentsToCurrency(Math.max(0, totalCents - paidCents)).toFixed(2) + ' د.ج';
         }
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
         function confirmHasibPayment() {
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
-            const rawTotal = cart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
-            // Currency is stored to two decimal places throughout the cash ledger. Normalize before payment/debt classification.
-            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
-            if (!cart.length || !Number.isFinite(total) || total <= 0 || total > Number.MAX_SAFE_INTEGER) {
-                alert('السلة فارغة أو يحتوي مجموع الفاتورة على قيمة خارج المجال الرقمي الآمن.'); return;
-            }
+            // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
+            if (!cart.length) return;
 
-            // جمع الكميات حسب المنتج حتى لا يسمح بتجاوز المخزون عند تكرار الصنف في السلة.
-            const required = new Map();
+            // Quantities are represented as micro-units and money as integer centimes.
+            const requiredUnits = new Map();
+            let subtotalCents = 0;
             for (const item of cart) {
                 const id = String(item.id ?? '');
                 const qty = Number(item.qty);
@@ -3451,22 +3494,40 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (!id ||
                     !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
                     (typeof item.qty === 'string' && item.qty.trim() === '') ||
-                    !Number.isFinite(qty) || qty <= 0 || qty > Number.MAX_SAFE_INTEGER ||
+                    !Number.isFinite(qty) || qty <= 0 ||
                     !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
                     (typeof item.price === 'string' && item.price.trim() === '') ||
-                    !Number.isFinite(price) || price < 0 || price > Number.MAX_SAFE_INTEGER) {
+                    !Number.isFinite(price) || price < 0) {
                     alert('تعذر تأكيد الفاتورة: يوجد منتج أو كمية أو سعر غير صالح.'); return;
                 }
-                const aggregateQty = (required.get(id) || 0) + qty;
-                if (!Number.isFinite(aggregateQty) || aggregateQty > Number.MAX_SAFE_INTEGER) {
-                    alert('تعذر تأكيد الفاتورة: مجموع كمية المنتج يتجاوز المجال الرقمي الآمن.'); return;
+                const qtyUnits = anasToQtyUnits(qty);
+                const priceCents = anasToCents(price);
+                const lineProduct = qtyUnits * priceCents;
+                if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 ||
+                    !Number.isSafeInteger(priceCents) || priceCents < 0 ||
+                    !Number.isSafeInteger(lineProduct)) {
+                    alert('تعذر تأكيد الفاتورة: كمية أو سعر الصنف يتجاوز المجال الحسابي الآمن.'); return;
                 }
-                required.set(id, aggregateQty);
+                const aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits;
+                const lineCents = Math.round(lineProduct / ANAS_QTY_SCALE);
+                if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > Number.MAX_SAFE_INTEGER ||
+                    !Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
+                    alert('تعذر تأكيد الفاتورة: مجموع الكمية أو قيمة الفاتورة يتجاوز المجال الحسابي الآمن.'); return;
+                }
+                requiredUnits.set(id, aggregateUnits);
+                subtotalCents += lineCents;
             }
+            // This sales flow has no discount input; keep the discount explicit and in integer centimes.
+            const discountCents = 0;
+            const totalCents = subtotalCents - discountCents;
+            const total = anasCentsToCurrency(totalCents);
+            if (!Number.isSafeInteger(totalCents) || totalCents <= 0 || !Number.isFinite(total)) {
+                alert('السلة فارغة أو يحتوي مجموع الفاتورة على قيمة خارج المجال الرقمي الآمن.'); return;
+            }
+            const required = new Map(Array.from(requiredUnits, ([id, units]) => [id, anasQtyFromUnits(units)]));
             const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
-            // Resolve every sale line to exactly one product record. Duplicate IDs make stock ownership ambiguous.
             const saleProducts = new Map();
-            for (const [id, qty] of required) {
+            for (const [id, qtyUnits] of requiredUnits) {
                 const productMatches = (AppData.products || []).filter(p => p && typeof p === 'object' && !Array.isArray(p) && p.id !== undefined && p.id !== null && String(p.id) === id);
                 if (productMatches.length !== 1) {
                     alert(productMatches.length
@@ -3479,42 +3540,39 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
                     alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
                 }
-                const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
-                if (!Number.isFinite(stock) || stock > Number.MAX_SAFE_INTEGER) {
-                    alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '». أصلح الرصيد قبل البيع.'); return;
+                const rawStock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
+                const stockUnits = anasToQtyUnits(rawStock);
+                if (!Number.isSafeInteger(stockUnits) || stockUnits < 0 || stockUnits > Number.MAX_SAFE_INTEGER) {
+                    alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '».'); return;
                 }
-                if (stock < qty) {
-                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + qty + '، المتوفر: ' + (Number.isFinite(stock) ? stock : 0)); return;
+                if (stockUnits < qtyUnits) {
+                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + anasQtyFromUnits(qtyUnits) + '، المتوفر: ' + anasQtyFromUnits(stockUnits)); return;
                 }
             }
 
             const customerSelect = document.getElementById('hasibCustomerSelect');
             const paidInput = document.getElementById('hasibPaidAmount');
             const cId = customerSelect ? String(customerSelect.value || '') : '';
-            const parsedPaid = Number(paidInput ? paidInput.value : total);
-            const rawPaid = Number.isFinite(parsedPaid) ? Math.round((parsedPaid + Number.EPSILON) * 100) / 100 : parsedPaid;
-            if (!Number.isFinite(rawPaid) || rawPaid < 0 || rawPaid > total) {
+            const paidCents = anasToCents(paidInput ? paidInput.value : total);
+            if (!Number.isSafeInteger(paidCents) || paidCents < 0 || paidCents > totalCents) {
                 alert('تحقق من المبلغ المدفوع؛ يجب أن يكون بين صفر ومجموع الفاتورة.'); return;
             }
-            const paid = rawPaid;
-            const remaining = Math.round((Math.max(0, total - paid) + Number.EPSILON) * 100) / 100;
-            // Reject malformed financial collections/balances before any stock, debt, or cash mutation.
+            const remainingCents = totalCents - paidCents;
+            const paid = anasCentsToCurrency(paidCents);
+            const remaining = anasCentsToCurrency(remainingCents);
+
             if (Object.prototype.hasOwnProperty.call(AppData, 'customers') &&
                 (!Array.isArray(AppData.customers) || AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c)))) {
-                alert('تعذر تأكيد البيع: سجل العملاء تالف. لم يتم تغيير المخزون أو الحسابات.');
-                return;
+                alert('تعذر تأكيد البيع: سجل العملاء تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
             }
             if (Object.prototype.hasOwnProperty.call(AppData, 'invoices') &&
                 (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
-                alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.');
-                return;
+                alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.'); return;
             }
-            // Independent ledgers are part of the same sale transaction. Reject corrupt ledgers before mutating balances or stock.
             for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData, field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(record => !record || typeof record !== 'object' || Array.isArray(record)))) {
-                    alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.');
-                    return;
+                    alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
                 }
             }
             const existingCashMovementIds = new Set();
@@ -3522,8 +3580,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
                 const id = String(movement.id);
                 if (existingCashMovementIds.has(id)) {
-                    alert('تعذر تأكيد البيع: سجل حركات الصندوق يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.');
-                    return;
+                    alert('تعذر تأكيد البيع: سجل حركات الصندوق يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.'); return;
                 }
                 existingCashMovementIds.add(id);
             }
@@ -3532,50 +3589,58 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
                 const id = String(movement.id);
                 if (existingStockMovementIds.has(id)) {
-                    alert('تعذر تأكيد البيع: سجل حركات المخزون يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.');
-                    return;
+                    alert('تعذر تأكيد البيع: سجل حركات المخزون يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.'); return;
                 }
                 existingStockMovementIds.add(id);
             }
             if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
                 (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
                  String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)) || Number(AppData.caisseBalance) < 0)) {
-                alert('تعذر تأكيد البيع: رصيد الصندوق غير صالح. لم يتم تسجيل أي حركة مالية أو مخزنية.');
-                return;
+                alert('تعذر تأكيد البيع: رصيد الصندوق غير صالح. لم يتم تسجيل أي حركة مالية أو مخزنية.'); return;
             }
-            const customers = Array.isArray(AppData.customers) ? AppData.customers : (AppData.customers = []);
-            if (remaining > 0 && !cId) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
+
+            const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
+            if (remainingCents > 0 && !cId) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
             const customerMatches = cId ? customers.filter(c => c && typeof c === 'object' && !Array.isArray(c) && c.id !== undefined && c.id !== null && String(c.id) === cId) : [];
             if (cId && customerMatches.length !== 1) {
                 alert(customerMatches.length
                     ? 'تعذر تأكيد البيع: معرّف الزبون مكرر في سجل العملاء. أصلح التكرار قبل تسجيل الفاتورة.'
-                    : 'الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.');
-                return;
+                    : 'الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.'); return;
             }
             const selectedCustomer = cId ? customerMatches[0] : null;
-            if (remaining > 0 && !selectedCustomer) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
+            if (remainingCents > 0 && !selectedCustomer) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
             const cust = selectedCustomer || { name: 'عميل نقدي عابر', debt: 0 };
             const registeredCustomer = Boolean(selectedCustomer);
             const hasDebtField = Object.prototype.hasOwnProperty.call(cust,'debt');
             const rawDebt = cust.debt;
-            if (registeredCustomer && hasDebtField && !((typeof rawDebt === 'number' || typeof rawDebt === 'string') && String(rawDebt).trim() !== '' && Number.isFinite(Number(rawDebt)) && Number(rawDebt) >= 0)) {
-                alert('تعذر تأكيد البيع: رصيد دين العميل غير صالح. صحّح سجل العميل قبل تسجيل أي حركة مالية.');
-                return;
+            if (registeredCustomer && hasDebtField &&
+                !((typeof rawDebt === 'number' || typeof rawDebt === 'string') && String(rawDebt).trim() !== '' &&
+                  Number.isFinite(Number(rawDebt)) && Number(rawDebt) >= 0)) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل غير صالح. صحّح سجل العميل قبل تسجيل أي حركة مالية.'); return;
             }
-            const oldDebt = hasDebtField ? Number(rawDebt) : 0;
-            const newDebt = Math.round((oldDebt + remaining + Number.EPSILON) * 100) / 100;
-            if (!Number.isFinite(newDebt) || newDebt > Number.MAX_SAFE_INTEGER) {
-                alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال الرقمي الآمن.'); return;
+            const oldDebtCents = hasDebtField ? anasToCents(rawDebt) : 0;
+            const newDebtCents = oldDebtCents + remainingCents;
+            if (!Number.isSafeInteger(oldDebtCents) || oldDebtCents < 0 ||
+                !Number.isSafeInteger(newDebtCents) || newDebtCents > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال المالي الآمن.'); return;
             }
-            const currentCash = Number(AppData.caisseBalance) || 0;
-            const newCashBalance = Math.round((currentCash + paid + Number.EPSILON) * 100) / 100;
-            if (!Number.isFinite(newCashBalance) || newCashBalance > Number.MAX_SAFE_INTEGER) {
-                alert('تعذر تأكيد البيع: رصيد الصندوق الناتج يتجاوز المجال الرقمي الآمن.'); return;
+            const currentCashCents = anasToCents(AppData.caisseBalance ?? 0);
+            const newCashCents = currentCashCents + paidCents;
+            if (!Number.isSafeInteger(currentCashCents) || currentCashCents < 0 ||
+                !Number.isSafeInteger(newCashCents) || newCashCents > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تأكيد البيع: رصيد الصندوق الناتج يتجاوز المجال المالي الآمن.'); return;
             }
+            // Exact identity, checked before any mutation: invoice = cash receipt + incremental customer debt.
+            if (totalCents !== paidCents + (newDebtCents - oldDebtCents) ||
+                (newDebtCents - oldDebtCents) !== remainingCents) {
+                alert('تعذر تأكيد البيع: فشل شرط التطابق المحاسبي الدقيق؛ لم تُنفذ أي حركة.'); return;
+            }
+            const oldDebt = anasCentsToCurrency(oldDebtCents);
+            const newDebt = anasCentsToCurrency(newDebtCents);
+            const newCashBalance = anasCentsToCurrency(newCashCents);
 
-            // نسخة تراجع دقيقة للحقول التي ستتغير، قبل لمس الحسابات والمخزون.
             const oldStocks = new Map();
-            for (const id of required.keys()) {
+            for (const [id, qtyUnits] of requiredUnits) {
                 const p = saleProducts.get(id);
                 oldStocks.set(id, {
                     stock:p.stock,
@@ -3586,10 +3651,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
             const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const rawCaisseBalance = AppData.caisseBalance;
-            const oldCaisse = Number(rawCaisseBalance) || 0;
             const oldCart = cart.map(it => ({...it}));
             const hadInvoicesArray = Array.isArray(AppData.invoices);
-            const oldInvoices = hadInvoicesArray ? AppData.invoices : (AppData.invoices = []);
+            const oldInvoices = hadInvoicesArray ? AppData.invoices : [];
             const invoicesBefore = oldInvoices.slice();
             const hadCashMovements = Object.prototype.hasOwnProperty.call(AppData, 'cashMovements');
             const cashMovementsBefore = hadCashMovements ? AppData.cashMovements.slice() : null;
@@ -3597,38 +3661,54 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const stockMovementsBefore = hadStockMovements ? AppData.stockMovements.slice() : null;
             const hadDebtDate = Object.prototype.hasOwnProperty.call(cust, 'debtDate');
             const oldDebtDate = cust.debtDate;
+            const invoiceId = 'INV-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+            if (oldInvoices.some(inv => String(inv.id ?? '') === invoiceId) ||
+                (Array.isArray(AppData.cashMovements) && AppData.cashMovements.some(m => m.referenceType === 'sales_invoice' && String(m.referenceId ?? '') === invoiceId)) ||
+                (Array.isArray(AppData.stockMovements) && AppData.stockMovements.some(m => m.referenceType === 'sales_invoice' && String(m.referenceId ?? '') === invoiceId))) {
+                alert('تعذر تأكيد البيع: معرّف الفاتورة مستخدم مسبقًا في سجل محاسبي. أُوقفت العملية لمنع التكرار.'); return;
+            }
+            const normalizedItems = cart.map(it => {
+                const qtyUnits = anasToQtyUnits(it.qty);
+                const priceCents = anasToCents(it.price);
+                return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents),
+                    total:anasCentsToCurrency(Math.round(qtyUnits * priceCents / ANAS_QTY_SCALE))};
+            });
             const invObj = {
-                id: 'INV-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
-                date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
-                customerObj: cust, items: cart.map(it => ({...it})), total, paid, remaining,
+                id: invoiceId, date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
+                customerObj: cust, items: normalizedItems,
+                subtotal: anasCentsToCurrency(subtotalCents), discount: anasCentsToCurrency(discountCents),
+                total, paid, remaining,
                 warehouse: saleWarehouse, warehouseName: saleWarehouse,
                 userId: (AppData.currentUser && AppData.currentUser.id) ?? null,
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
-                paymentMethod: paid <= 0 ? 'credit' : (remaining > 0 ? 'partial' : 'cash'),
+                paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
                 oldDebt, newDebt
             };
 
             try {
-                if (remaining > 0 && registeredCustomer) {
+                if (remainingCents > 0 && registeredCustomer) {
                     cust.debt = newDebt;
                     cust.debtDate = new Date().toISOString().slice(0, 10);
                 }
-                for (const [id, qty] of required) {
+                for (const [id, qtyUnits] of requiredUnits) {
                     const p = saleProducts.get(id);
-                    if(saleWarehouse==='المخزن الرئيسي') p.stock = (Number(p.stock)||0)-qty;
+                    const currentUnits = anasToQtyUnits(saleWarehouse === 'المخزن الرئيسي' ? p.stock : (p.warehouseStock?.[saleWarehouse] ?? 0));
+                    const updatedUnits = currentUnits - qtyUnits;
+                    if (!Number.isSafeInteger(updatedUnits) || updatedUnits < 0) throw new Error('تغير رصيد المخزون قبل إتمام البيع.');
+                    if (saleWarehouse === 'المخزن الرئيسي') p.stock = anasQtyFromUnits(updatedUnits);
                     else {
-                        if(!p.warehouseStock||typeof p.warehouseStock!=='object')p.warehouseStock={};
-                        p.warehouseStock[saleWarehouse]=(Number(p.warehouseStock[saleWarehouse])||0)-qty;
+                        if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
+                        p.warehouseStock[saleWarehouse] = anasQtyFromUnits(updatedUnits);
                     }
                 }
-                if (paid > 0) {
-                    AppData.caisseBalance = Math.round((oldCaisse + paid + Number.EPSILON) * 100) / 100;
+                if (paidCents > 0) {
+                    AppData.caisseBalance = newCashBalance;
                     if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
                     const cashMovementId = 'SALE-CASH-' + invObj.id;
                     if (existingCashMovementIds.has(cashMovementId)) throw new Error('معرّف حركة الصندوق موجود مسبقًا.');
                     AppData.cashMovements.unshift({
-                        id: cashMovementId, type: 'add', amount: paid,
+                        id: cashMovementId, type: 'add', amount: anasCentsToCurrency(paidCents),
                         description: 'تحصيل نقدي من فاتورة البيع ' + invObj.id,
                         referenceType: 'sales_invoice', referenceId: invObj.id,
                         date: new Date().toISOString(),
@@ -3637,21 +3717,22 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     });
                 }
                 if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
-                for (const [id, qty] of required) {
+                for (const [id, qtyUnits] of requiredUnits) {
                     const product = saleProducts.get(id);
                     const movementId = 'SALE-STOCK-' + invObj.id + '-' + id;
                     if (existingStockMovementIds.has(movementId)) throw new Error('معرّف حركة المخزون موجود مسبقًا.');
                     AppData.stockMovements.unshift({
                         id: movementId, productId: product.id,
                         productName: product.name || product.title || id,
-                        qty: -qty, type: 'SALE_OUT',
+                        qty: anasQtyFromUnits(-qtyUnits), type: 'SALE_OUT',
                         referenceType: 'sales_invoice', referenceId: invObj.id,
                         warehouse: saleWarehouse, date: new Date().toISOString(),
                         note: 'بيع من الفاتورة ' + invObj.id
                     });
                 }
+                AppData.invoices = oldInvoices;
                 AppData.invoices.unshift(invObj);
-                // امسح السلة قبل الحفظ حتى لا تعود المنتجات إلى السلة بعد إعادة فتح التطبيق.
+                // Empty the cart before persistence so a repeated click cannot post the same sale twice.
                 posCart = [];
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
             } catch (e) {
@@ -3672,8 +3753,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
                 if (hadStockMovements) AppData.stockMovements = stockMovementsBefore; else delete AppData.stockMovements;
                 AppData.invoices = invoicesBefore;
+                if (!hadInvoicesArray) delete AppData.invoices;
                 posCart = oldCart;
-                if (!hadInvoicesArray && invoicesBefore.length === 0) delete AppData.invoices;
                 alert('لم يتم تأكيد البيع لأن الحفظ فشل. أُعيدت تغييرات المخزون والحسابات والسلة داخل التطبيق. لا تغلق التطبيق قبل تصدير نسخة احتياطية.');
                 console.error('Anas ERP invoice transaction failed:', e);
                 return;
@@ -4052,7 +4133,8 @@ function renderPurchasesTable() {
 
         // ================= الصندوق والمصروفات =================
         function updateCashUI() {
-            document.getElementById('cashCurrentBalanceDisplay').innerText = (AppData.caisseBalance || 0).toLocaleString() + ' د.ج';
+            const balance = anasRoundCurrency(AppData.caisseBalance || 0);
+            document.getElementById('cashCurrentBalanceDisplay').innerText = (Number.isFinite(balance) ? balance : 0).toLocaleString() + ' د.ج';
         }
 
         function selectCashOp(op) {
@@ -7711,16 +7793,14 @@ function renderPurchasesTable() {
 
         function anasGetZReportTotal(invoices, field) {
             if (!Array.isArray(invoices) || typeof field !== 'string' || !field) return null;
-            let total = 0;
+            let totalCents = 0;
             for (const invoice of invoices) {
                 if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice)) return null;
-                const value = invoice[field];
-                if (!((typeof value === 'number' || typeof value === 'string') &&
-                      String(value).trim() !== '' && Number.isFinite(Number(value)))) return null;
-                total += Number(value);
-                if (!Number.isFinite(total)) return null;
+                const cents = anasToCents(invoice[field]);
+                if (!Number.isSafeInteger(cents) || !Number.isSafeInteger(totalCents + cents)) return null;
+                totalCents += cents;
             }
-            return total;
+            return anasCentsToCurrency(totalCents);
         }
 
         function anasFormatZReportTotal(value) {
