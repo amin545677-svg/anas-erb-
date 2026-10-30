@@ -8,12 +8,12 @@ const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
 const source = html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false} = {}) {
+function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100} = {}) {
   const product = {id:'P-1', name:'Test product', stock:20, warehouseStock:{'فرع 1':12}};
-  const customer = {id:'C-1', name:'Test customer', debt:0};
+  const customer = {id:'C-1', name:'Test customer', debt:customerDebt};
   const AppData = {
     products:[product], customers:[customer], invoices:[],
-    caisseBalance:100, cashMovements:cashMovements.map(x=>({...x})), stockMovements:stockMovements.map(x=>({...x})),
+    caisseBalance, cashMovements:cashMovements.map(x=>({...x})), stockMovements:stockMovements.map(x=>({...x})), 
     currentUser:{id:'U-1',name:'Tester'}
   };
   if (omitLedgers) { delete AppData.cashMovements; delete AppData.stockMovements; }
@@ -53,11 +53,14 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   assert.equal(inv.paid,500.5);
   assert.equal(r.AppData.cashMovements.length,1,'cash sale must create exactly one independent cash ledger movement');
   assert.equal(r.AppData.cashMovements[0].amount,500.5);
+  assert.equal(r.AppData.cashMovements[0].type,'add','cash report contract must use the canonical add movement type');
   assert.equal(r.AppData.cashMovements[0].referenceType,'sales_invoice');
   assert.equal(r.AppData.cashMovements[0].referenceId,inv.id);
   assert.equal(r.AppData.stockMovements.length,1,'cash sale must create one stock ledger movement per aggregated product');
   assert.equal(r.AppData.stockMovements[0].qty,-2);
+  assert.equal(r.AppData.stockMovements[0].type,'SALE_OUT');
   assert.equal(r.AppData.stockMovements[0].referenceType,'sales_invoice');
+  assert.equal(r.AppData.stockMovements[0].type,'SALE_OUT','sale stock movements must use the canonical stock-out event type');
   assert.equal(r.AppData.stockMovements[0].referenceId,inv.id);
   console.log('PASS: full cash sale keeps invoice, cash ledger, stock ledger, and balances in parity');
 }
@@ -171,6 +174,25 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   assert.equal(r.product.stock,20);
   assert.equal(r.AppData.invoices.length,0);
   console.log('PASS: rollback removes ledgers that did not exist before the attempted sale');
+}
+
+{
+  const r=runSale({
+    cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],
+    paid:0.1,
+    customerDebt:0.1,
+    caisseBalance:100.1
+  });
+  const inv=r.AppData.invoices[0];
+  assert.equal(inv.total,0.3);
+  assert.equal(inv.paid,0.1);
+  assert.equal(inv.remaining,0.2);
+  assert.equal(r.customer.debt,0.3,'customer debt accumulation must be normalized to currency precision');
+  assert.equal(r.AppData.cashMovements[0].amount,0.1);
+  assert.equal(r.AppData.caisseBalance,100.2,'cash balance accumulation must be normalized to currency precision');
+  assert.equal(r.AppData.stockMovements[0].type,'SALE_OUT');
+  assert.equal(r.AppData.stockMovements[0].referenceType,'sales_invoice');
+  console.log('PASS: invoice, paid cash, stock-out reference, and cumulative customer debt remain in two-decimal parity');
 }
 
 console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
