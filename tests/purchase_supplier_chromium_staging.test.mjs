@@ -65,6 +65,18 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await context.addInitScript(({ key, data }) => {
       localStorage.setItem(key, JSON.stringify(data));
     }, { key: DB_KEY, data: initialData() });
+    await context.addInitScript(() => {
+      const createObjectURL = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = blob => {
+        window.__anasLastExportBlob = blob;
+        return createObjectURL(blob);
+      };
+      const anchorClick = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.download) window.__anasBackupFilename = this.download;
+        return anchorClick.call(this);
+      };
+    });
     const page = await context.newPage();
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('dialog', async dialog => {
@@ -141,12 +153,11 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     // Export a real JSON backup through the Settings UI and verify its contents.
     const beforeReload = await page.evaluate(() => JSON.parse(localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE')));
     await page.evaluate(() => openView('settings'));
-    const downloadPromise = page.waitForEvent('download');
     await page.locator('#view-settings button[onclick="exportDataBackup()"]').click();
-    const backupDownload = await downloadPromise;
-    const backupPath = await backupDownload.path();
-    assert.ok(backupPath, 'backup export must produce a real downloaded file');
-    const validBackup = fs.readFileSync(backupPath);
+    await page.waitForFunction(() => window.__anasLastExportBlob instanceof Blob && !!window.__anasBackupFilename);
+    const exportedJson = await page.evaluate(() => window.__anasLastExportBlob.text());
+    const validBackup = Buffer.from(exportedJson, 'utf8');
+    assert.match(await page.evaluate(() => window.__anasBackupFilename), /_Backup_.*\.json$/);
     assert.deepEqual(JSON.parse(validBackup.toString('utf8')), beforeReload, 'exported JSON must match the persisted ledger snapshot');
 
     // Reload the real browser page and verify durable persistence.
