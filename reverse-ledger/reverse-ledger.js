@@ -484,6 +484,332 @@
     }
     return true;
   }
+  function executeReturnTransaction(state, input, options = {}) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('state must be an object');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('return request is required');
+    const originalInvoiceType = input.originalInvoiceType;
+    const returnType = input.returnType;
+    if (!['sales_invoice','purchase_invoice'].includes(originalInvoiceType) ||
+        !['SALE_RETURN','PURCHASE_RETURN','INVOICE_CANCEL'].includes(returnType))
+      throw new Error('return type and original invoice type are invalid');
+    if ((returnType === 'SALE_RETURN' && originalInvoiceType !== 'sales_invoice') ||
+        (returnType === 'PURCHASE_RETURN' && originalInvoiceType !== 'purchase_invoice'))
+      throw new Error('return type does not match invoice type');
+    if (!Array.isArray(state.invoices) || !Array.isArray(state.purchases) ||
+        !Array.isArray(state.products) || !Array.isArray(state.customers) || !Array.isArray(state.suppliers))
+      throw new Error('required invoice, product, customer or supplier collections are malformed');
+    const invoiceRows = getInvoices(state).filter(x => x.type === originalInvoiceType && String(x.row.id) === String(input.invoiceId));
+    if (invoiceRows.length !== 1) throw new Error('original invoice is missing or ambiguous');
+    const invoice = invoiceRows[0].row;
+    if (invoice.status === 'CANCELLED') throw new Error('invoice is already cancelled');
+    validateReverseLedgerParity(state);
+
+    const total = currencyToCentimes(invoice.total, 'original invoice total');
+    const paid = currencyToCentimes(invoice.paid, 'original invoice paid amount');
+    const originalRemaining = currencyToCentimes(invoice.remaining, 'original invoice remaining amount');
+    if (total <= 0n || paid < 0n || originalRemaining < 0n || paid + originalRemaining !== total ||
+        total > BigInt(Number.MAX_SAFE_INTEGER))
+      throw new Error('original invoice financial snapshot is invalid');
+    const partyType = originalInvoiceType === 'sales_invoice' ? 'customer' : 'supplier';
+    const partyId = invoiceRows[0].partyId;
+    const partyRows = partyType === 'customer' ? state.customers : state.suppliers;
+    const partyMatches = partyId ? partyRows.filter(x => String(x.id) === partyId) : [];
+    if (partyId && partyMatches.length !== 1) throw new Error('invoice party is missing or ambiguous');
+    const party = partyMatches[0] || null;
+    const laterType = partyType === 'customer' ? 'customer_debt' : 'supplier_payment';
+    const allocations = Array.isArray(state.settlementAllocations) ? state.settlementAllocations : [];
+    const movements = partyType === 'customer' ? (state.cashMovements || []) : (state.supplierMovements || []);
+    const laterMovements = movements.filter(row => partyType === 'customer'
+      ? row && row.referenceType === 'customer_debt' && String(row.referenceId) === partyId
+      : row && row.type === 'payment' && row.referenceType === 'supplier_payment' && String(row.supplierId) === partyId);
+    for (const movement of laterMovements) {
+      const sourceId = recordId(movement);
+      if (sourceId == null || String(sourceId).trim() === '') throw new Error('unallocated subsequent settlement has no movement ID');
+      const sourceAmount = currencyToCentimes(movement.amount ?? movement.amt, 'subsequent settlement amount');
+      const allocated = allocations.filter(a => a && a.partyType === partyType &&
+        String(a.partyId) === partyId && a.sourceMovementType === laterType &&
+        String(a.sourceMovementId) === String(sourceId))
+        .reduce((sum,a) => sum + BigInt(safeInt(a.amountCentimes, 'settlement allocation amount', false)), 0n);
+      if (allocated !== sourceAmount) throw new Error('unallocated subsequent settlements block this return or cancellation');
+    }
+    if (partyType === 'customer' && party && party.ledgerVersion !== 2 &&
+        (state.clientMovements || []).some(row => row && String(row.clientId) === partyId))
+      throw new Error('legacy customer movement rows are not sealed; manual reconciliation is required before return');
+    const laterAllocations = allocations.filter(a => a && a.partyType === partyType &&
+      String(a.partyId) === partyId && a.invoiceType === originalInvoiceType &&
+      String(a.invoiceId) === String(invoice.id) && a.sourceMovementType === laterType)
+      .reduce((sum,a) => sum + BigInt(safeInt(a.amountCentimes, 'invoice settlement allocation', false)), 0n);
+    const outstanding = total - paid - laterAllocations;
+    if (outstanding < 0n) throw new Error('invoice settlement allocations exceed its original outstanding amount');
+
+    const originalItems = originalInvoiceItems(invoice, originalInvoiceType);
+    if (!originalItems.length) throw new Error('original invoice has no verifiable product lines');
+    if (originalInvoiceType === 'sales_invoice' && currencyToCentimes(invoice.discount ?? 0, 'invoice discount') !== 0n)
+      throw new Error('returns for discounted sales invoices require a verified discount-allocation policy');
+    const previousReturns = (state.returns || []).filter(doc => doc && doc.ledgerVersion === 2 &&
+      doc.status === 'POSTED' && doc.originalInvoiceType === originalInvoiceType &&
+      String(doc.originalInvoiceId) === String(invoice.id));
+    if (returnType === 'INVOICE_CANCEL' && previousReturns.length)
+      throw new Error('invoice cancellation is blocked after any posted partial return');
+    if (returnType !== 'INVOICE_CANCEL' && previousReturns.some(doc => doc.returnType === 'INVOICE_CANCEL'))
+      throw new Error('invoice is already reversed by a cancellation document');
+
+    const requestedLines = returnType === 'INVOICE_CANCEL'
+      ? originalItems.map(row => ({ productId: invoiceItemProductId(row), quantity: row.qty ?? row.quantity }))
+      : input.items;
+    if (!Array.isArray(requestedLines) || !requestedLines.length) throw new Error('return item quantities are required');
+    const seenProducts = new Set();
+    const lines = [];
+    let totalCentimes = 0n;
+    for (const requestLine of requestedLines) {
+      if (!requestLine || typeof requestLine !== 'object' || Array.isArray(requestLine))
+        throw new Error('return line is invalid');
+      const productId = identifier(requestLine.productId, 'return product ID');
+      if (seenProducts.has(productId)) throw new Error('duplicate product line');
+      seenProducts.add(productId);
+      const matches = originalItems.filter(row => invoiceItemProductId(row) === productId);
+      if (matches.length !== 1) throw new Error('return product is missing or ambiguous in original invoice');
+      const originalLine = matches[0];
+      const quantity = quantityToMicroUnits(requestLine.quantity ?? requestLine.qty, 'return quantity');
+      if (quantity <= 0n || quantity > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('return quantity is invalid');
+      const originalQuantity = quantityToMicroUnits(originalLine.qty ?? originalLine.quantity, 'original invoice quantity');
+      const previousQuantity = previousReturns.reduce((sum,doc) => sum +
+        doc.items.filter(item => String(item.productId) === productId)
+          .reduce((subtotal,item) => subtotal + BigInt(safeInt(item.quantityMicroUnits, 'previous return quantity', false)),0n),0n);
+      const returnable = computeReturnableMicroUnits(originalQuantity, previousQuantity);
+      if (quantity > returnable) throw new Error('return exceeds remaining returnable micro-units');
+      if (returnType === 'INVOICE_CANCEL' && quantity !== originalQuantity)
+        throw new Error('invoice cancellation must reverse the full original quantity');
+      const rawPrice = originalLine.price ?? originalLine.unitPrice ?? originalLine.cost ?? originalLine.buyPrice;
+      const unitPrice = currencyToCentimes(rawPrice, 'original invoice unit price');
+      const lineProduct = quantity * unitPrice;
+      if (lineProduct % 1000000n !== 0n) throw new Error('return line creates a fractional centime; no mutation was performed');
+      const lineTotal = lineProduct / 1000000n;
+      if (lineTotal > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('return line exceeds the safe financial range');
+      totalCentimes += lineTotal;
+      if (totalCentimes > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('return total exceeds the safe financial range');
+      lines.push({ productId, quantityMicroUnits: Number(quantity), unitPriceCentimes: Number(unitPrice), lineTotalCentimes: Number(lineTotal) });
+    }
+    if (returnType === 'INVOICE_CANCEL') {
+      if (lines.length !== originalItems.length) throw new Error('invoice cancellation must reverse every original invoice line');
+      if (totalCentimes !== total) throw new Error('invoice line values do not reconcile to the original invoice total; cancellation is blocked');
+    }
+
+    const debtReduction = totalCentimes < outstanding ? totalCentimes : outstanding;
+    const excess = totalCentimes - debtReduction;
+    const settlementMode = input.settlementMode === 'credit' ? 'credit' : 'cash';
+    let cashRefund = 0n, customerCredit = 0n, supplierCredit = 0n;
+    if (returnType === 'INVOICE_CANCEL' || settlementMode === 'cash') cashRefund = excess;
+    else if (partyType === 'customer') customerCredit = excess;
+    else supplierCredit = excess;
+    if ((customerCredit > 0n || debtReduction > 0n) && partyType === 'customer' && !party)
+      throw new Error('registered customer is required for a debt reduction or customer credit');
+    if ((supplierCredit > 0n || debtReduction > 0n) && partyType === 'supplier' && !party)
+      throw new Error('registered supplier is required for a debt reduction or supplier credit');
+
+    let partyDebt = 0n, partyCredit = 0n;
+    if (party && debtReduction > 0n) {
+      partyDebt = currencyToCentimes(partyType === 'customer' ? (party.debt ?? 0) : (party.balance ?? 0), partyType + ' balance');
+      if (partyDebt < debtReduction) throw new Error('party balance is lower than the invoice debt reduction');
+    }
+    if (party && customerCredit > 0n) {
+      partyCredit = BigInt(safeInt(party.creditBalanceCentimes ?? 0, 'customer credit balance', true));
+      if (partyCredit + customerCredit > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('customer credit balance exceeds safe range');
+    }
+    if (party && supplierCredit > 0n) {
+      partyCredit = BigInt(safeInt(party.creditBalanceCentimes ?? 0, 'supplier credit balance', true));
+      if (partyCredit + supplierCredit > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('supplier credit balance exceeds safe range');
+    }
+    const cashBefore = currencyToCentimes(state.caisseBalance ?? 0, 'cash balance');
+    const cashAfter = originalInvoiceType === 'sales_invoice' ? cashBefore - cashRefund : cashBefore + cashRefund;
+    if (cashAfter < 0n || cashAfter > BigInt(Number.MAX_SAFE_INTEGER))
+      throw new Error(originalInvoiceType === 'sales_invoice' ? 'cash balance is insufficient for the refund' : 'cash balance exceeds safe range after supplier refund');
+
+    const warehouse = String(originalInvoiceType === 'sales_invoice'
+      ? (invoice.warehouseName || invoice.warehouse || 'المخزن الرئيسي')
+      : (invoice.warehouse || 'المخزن الرئيسي')).trim() || 'المخزن الرئيسي';
+    const stockDeltas = [];
+    for (const line of lines) {
+      const products = state.products.filter(row => row && String(row.id) === line.productId);
+      if (products.length !== 1) throw new Error('return product is missing or has duplicate product IDs');
+      const product = products[0];
+      if (Object.prototype.hasOwnProperty.call(product, 'warehouseStock') &&
+          (!product.warehouseStock || typeof product.warehouseStock !== 'object' || Array.isArray(product.warehouseStock)))
+        throw new Error('product warehouse stock map is malformed');
+      const currentRaw = warehouse === 'المخزن الرئيسي' ? (product.stock ?? 0) : (product.warehouseStock?.[warehouse] ?? 0);
+      const currentUnits = quantityToMicroUnits(currentRaw, 'current product stock');
+      const delta = originalInvoiceType === 'sales_invoice' ? BigInt(line.quantityMicroUnits) : -BigInt(line.quantityMicroUnits);
+      const nextUnits = currentUnits + delta;
+      if (nextUnits < 0n || nextUnits > BigInt(Number.MAX_SAFE_INTEGER))
+        throw new Error(originalInvoiceType === 'purchase_invoice' ? 'purchase return quantity is not available in current warehouse stock' : 'sale return produces an unsafe stock quantity');
+      stockDeltas.push({ product, line, currentUnits, nextUnits, warehouse });
+    }
+
+    const returnId = String(options.createId ? options.createId() :
+      'RET-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,8).toUpperCase());
+    identifier(returnId, 'return ID');
+    const createdAt = new Date().toISOString();
+    const operatorId = String(options.operatorId ?? state.currentUser?.id ?? 'system');
+    const reason = String(input.reason || '').trim();
+    if (!reason) throw new Error('return reason is required');
+    const referenceType = returnType === 'INVOICE_CANCEL' ? 'invoice_cancel' :
+      returnType === 'SALE_RETURN' ? 'sales_return' : 'purchase_return';
+    const usedIds = new Set();
+    for (const key of ['returns','stockMovements','cashMovements','clientMovements','supplierMovements','customerCreditMovements']) {
+      for (const row of (Array.isArray(state[key]) ? state[key] : [])) {
+        const id = recordId(row);
+        if (id != null) {
+          if (usedIds.has(String(id))) throw new Error('duplicate movement ID exists in reverse-ledger collections');
+          usedIds.add(String(id));
+        }
+      }
+    }
+    const movementId = suffix => {
+      const id = 'RET-' + suffix + '-' + returnId;
+      if (usedIds.has(id)) throw new Error('duplicate reverse posting movement ID');
+      usedIds.add(id);
+      return id;
+    };
+
+    const arrayNames = ['returns','stockMovements','cashMovements','clientMovements','supplierMovements','customerCreditMovements'];
+    const arraySnapshots = Object.fromEntries(arrayNames.map(key => ({
+      key, had: own(state,key), ref: Array.isArray(state[key]) ? state[key] : null,
+      rows: Array.isArray(state[key]) ? state[key].slice() : null
+    })).map(x => [x.key,x]));
+    const stateFields = ['caisseBalance'];
+    const stateSnapshot = Object.fromEntries(stateFields.map(key => [key,{had:own(state,key),value:state[key]}]));
+    const partyFields = partyType === 'customer' ? ['debt','ledgerVersion','creditBalanceCentimes'] : ['balance','creditBalanceCentimes'];
+    const partySnapshot = party ? Object.fromEntries(partyFields.map(key => [key,{had:own(party,key),value:party[key]}])) : null;
+    const invoiceSnapshot = { had:own(invoice,'status'), value:invoice.status };
+    const productSnapshots = stockDeltas.map(({product}) => ({
+      product, stock:{had:own(product,'stock'),value:product.stock},
+      warehouseStock:{had:own(product,'warehouseStock'),value:product.warehouseStock,
+        ref: product.warehouseStock && typeof product.warehouseStock === 'object' && !Array.isArray(product.warehouseStock) ? product.warehouseStock : null,
+        entries: product.warehouseStock && typeof product.warehouseStock === 'object' && !Array.isArray(product.warehouseStock) ? {...product.warehouseStock} : null}
+    }));
+    const restoreObjectField = (object,key,snapshot) => {
+      if (!snapshot.had) { delete object[key]; return; }
+      if (key === 'warehouseStock' && snapshot.ref && snapshot.entries) {
+        for (const existing of Object.keys(snapshot.ref)) delete snapshot.ref[existing];
+        Object.assign(snapshot.ref,snapshot.entries);
+        object[key] = snapshot.ref;
+      } else object[key] = snapshot.value;
+    };
+    const rollback = () => {
+      for (const snap of productSnapshots) {
+        restoreObjectField(snap.product,'stock',snap.stock);
+        restoreObjectField(snap.product,'warehouseStock',snap.warehouseStock);
+      }
+      if (party && partySnapshot) for (const key of Object.keys(partySnapshot)) restoreObjectField(party,key,partySnapshot[key]);
+      restoreObjectField(invoice,'status',invoiceSnapshot);
+      for (const key of stateFields) restoreObjectField(state,key,stateSnapshot[key]);
+      for (const key of arrayNames) {
+        const snap = arraySnapshots[key];
+        if (!snap.had) delete state[key];
+        else if (snap.ref) { snap.ref.splice(0,snap.ref.length,...snap.rows); state[key]=snap.ref; }
+        else state[key]=state[key];
+      }
+    };
+
+    try {
+      for (const key of arrayNames) {
+        if (!Array.isArray(state[key])) {
+          if (own(state,key)) throw new Error(key + ' collection is malformed');
+          state[key] = [];
+        }
+      }
+      for (const {product,line,nextUnits,warehouse} of stockDeltas) {
+        const nextValue = Number(nextUnits) / 1000000;
+        if (warehouse === 'المخزن الرئيسي') product.stock = nextValue;
+        else {
+          if (!product.warehouseStock) product.warehouseStock = {};
+          product.warehouseStock[warehouse] = nextValue;
+        }
+        const stockId = movementId('STOCK');
+        state.stockMovements.unshift({
+          id:stockId, productId:line.productId, productName:product.name || product.title || line.productId,
+          qty:(originalInvoiceType === 'sales_invoice' ? 1 : -1) * (Number(BigInt(line.quantityMicroUnits))/1000000),
+          type:originalInvoiceType === 'sales_invoice' ? 'RETURN_IN' : 'RETURN_OUT',
+          referenceType, referenceId:returnId, warehouse, date:createdAt,
+          note:(returnType === 'INVOICE_CANCEL' ? 'عكس كامل للفاتورة ' : 'مرتجع مرتبط بالفاتورة ') + String(invoice.id)
+        });
+        stockMovementIds.push(stockId);
+      }
+      if (party && debtReduction > 0n) {
+        if (partyType === 'customer') {
+          const existingRows = state.clientMovements.filter(row => row && String(row.clientId) === partyId);
+          if (party.ledgerVersion !== 2) {
+            if (existingRows.length) throw new Error('customer has unsealed historical movements; manual reconciliation is required');
+            party.ledgerVersion = 2;
+            if (partyDebt > 0n) state.clientMovements.push(makeClientMovement({
+              movementId:movementId('CLIENT-OPEN'), clientId:partyId, type:'opening_balance',
+              amountCentimes:Number(partyDebt), direction:'debit', referenceType:'opening_balance',
+              referenceId:partyId, createdAt
+            }));
+          }
+          party.debt = Number(partyDebt - debtReduction) / 100;
+          const clientMovementId = movementId('CLIENT-RETURN');
+          state.clientMovements.push(makeClientMovement({
+            movementId:clientMovementId, clientId:partyId, type:'return_credit',
+            amountCentimes:Number(debtReduction), direction:'credit',
+            referenceType, referenceId:returnId, createdAt
+          }));
+          financialMovementIds.push(clientMovementId);
+        } else {
+          party.balance = Number(partyDebt - debtReduction) / 100;
+        }
+      }
+      if (party && customerCredit > 0n) {
+        party.creditBalanceCentimes = Number(partyCredit + customerCredit);
+        const creditId = movementId('CUSTOMER-CREDIT');
+        state.customerCreditMovements.push({
+          id:creditId, type:'credit', customerId:partyId, amountCentimes:Number(customerCredit),
+          referenceType, referenceId:returnId, date:createdAt
+        });
+        financialMovementIds.push(creditId);
+      }
+      if (party && supplierCredit > 0n) party.creditBalanceCentimes = Number(partyCredit + supplierCredit);
+      if (partyType === 'supplier' && party && (debtReduction > 0n || supplierCredit > 0n)) {
+        const supplierMovementId = movementId('SUPPLIER-RETURN');
+        const supplierAmount = debtReduction + supplierCredit;
+        state.supplierMovements.unshift({
+          id:supplierMovementId, supplierId:partyId, supplierName:String(party.name || ''),
+          type:'return_credit', amount:Number(supplierAmount)/100, referenceType, referenceId:returnId,
+          date:createdAt, note:'قيد دائن لمرتجع فاتورة شراء'
+        });
+        financialMovementIds.push(supplierMovementId);
+      }
+      if (cashRefund > 0n) {
+        const cashMovementId = movementId('CASH');
+        state.caisseBalance = Number(cashAfter) / 100;
+        state.cashMovements.unshift({
+          id:cashMovementId, type:originalInvoiceType === 'sales_invoice' ? 'subtract' : 'add',
+          amount:Number(cashRefund)/100,
+          description:(originalInvoiceType === 'sales_invoice' ? 'رد قيمة مرتجع مبيعات ' : 'استرداد مرتجع مشتريات ') + String(invoice.id),
+          referenceType, referenceId:returnId, date:createdAt,
+          userId:state.currentUser?.id != null ? String(state.currentUser.id) : null,
+          userName:state.currentUser?.name || 'غير محدد'
+        });
+        financialMovementIds.push(cashMovementId);
+      } else if (cashAfter !== cashBefore) state.caisseBalance = Number(cashAfter)/100;
+      if (returnType === 'INVOICE_CANCEL') invoice.status = 'CANCELLED';
+      const doc = makeReturnDocument({
+        returnId, originalInvoiceId:String(invoice.id), originalInvoiceType, returnType,
+        items:lines, totalCentimes:Number(totalCentimes),
+        debtReductionCentimes:Number(debtReduction), cashRefundCentimes:Number(cashRefund),
+        supplierCreditCentimes:Number(supplierCredit), customerCreditCentimes:Number(customerCredit),
+        stockMovementIds, financialMovementIds, status:'POSTED', createdAt, operatorId, reason
+      });
+      state.returns.push({...doc,ledgerVersion:2});
+      validateReverseLedgerParity(state);
+      if (typeof options.validateSupplierParity === 'function') options.validateSupplierParity(state);
+      if (typeof options.persist === 'function' && options.persist() !== true) throw new Error('return transaction persistence failed');
+      return state.returns[state.returns.length - 1];
+    } catch (error) {
+      rollback();
+      throw error;
+    }
+  }
   function validateReverseLedgerParity(state) {
     const data = ensureCollections(state);
     validateClientMovements(data);
@@ -521,6 +847,6 @@
     ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument,
     sealClientMovement, sealSettlementAllocation, sealReturnDocument,
     computeReturnableMicroUnits, validateSettlementAllocations, validateClientMovements,
-    validateReturns, validateReverseLedgerParity, appendUnique, RETURN_TYPES, PARTY_TYPES
+    validateReturns, validateReverseLedgerParity, executeReturnTransaction, appendUnique, RETURN_TYPES, PARTY_TYPES
   });
 });
