@@ -3360,15 +3360,15 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function syncHasibInvoiceTotals() {
             const modal = document.getElementById('hasibModal');
             if (!modal || !modal.classList.contains('active')) return;
-            const rawTotal = posCart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
-            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
+            const totalCents = anasCartTotalCents(posCart);
+            const total = anasCentsToCurrency(totalCents);
             const totalEl = document.getElementById('hasibTotalText');
-            const invalidCart = !posCart.length || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) || !Number.isFinite(total);
+            const invalidCart = !posCart.length || !Number.isSafeInteger(totalCents) || totalCents <= 0;
             if (totalEl) totalEl.textContent = invalidCart ? 'بيانات السلة غير صالحة' : total.toFixed(2) + ' د.ج';
             if (invalidCart) return;
             renderHasibCartEditor();
             const paidInput = document.getElementById('hasibPaidAmount');
-            if (paidInput && Number(paidInput.value) > total) paidInput.value = total.toFixed(2);
+            if (paidInput && anasToCents(paidInput.value) > totalCents) paidInput.value = total.toFixed(2);
             updatePaymentMethodFromAmount();
         }
 
@@ -3382,9 +3382,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         function openHasibModal() {
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
-            const rawTotal = posCart.reduce((a, b) => a + (Number(b.qty) * Number(b.price)), 0);
-            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
-            if (!Number.isFinite(total) || total <= 0 || posCart.some(item => !((typeof item.qty === 'number') || (typeof item.qty === 'string')) || item.qty === null || item.qty === undefined || item.qty === '' || !Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0 || !((typeof item.price === 'number') || (typeof item.price === 'string')) || item.price === null || item.price === undefined || item.price === '' || (typeof item.price === 'string' && item.price.trim() === '') || !Number.isFinite(Number(item.price)) || Number(item.price) < 0)) {
+            const totalCents = anasCartTotalCents(posCart);
+            const total = anasCentsToCurrency(totalCents);
+            if (!Number.isSafeInteger(totalCents) || totalCents <= 0) {
                 alert('تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح. صحّح بيانات المنتجات أولاً.');
                 return;
             }
@@ -3402,50 +3402,56 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         // Financial and stock arithmetic use integer base units at every mutation boundary.
         const ANAS_QTY_SCALE = 1000000;
-        function anasToCents(value) {
-            if (!((typeof value === 'number') || (typeof value === 'string')) ||
-                value === null || value === undefined ||
-                (typeof value === 'string' && value.trim() === '')) return NaN;
-            const number = Number(value);
-            if (!Number.isFinite(number)) return NaN;
-            const cents = Math.round((number + Number.EPSILON) * 100);
-            return Number.isSafeInteger(cents) ? cents : NaN;
+        function anasDecimalToScaledInteger(value, decimalPlaces) {
+            if (!((typeof value === 'number') || (typeof value === 'string')) || value === null || value === undefined) return NaN;
+            const raw = String(value).trim();
+            if (!raw || raw.length > 128) return NaN;
+            const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(raw);
+            if (!match) return NaN;
+            const exponent = match[4] ? Number(match[4]) : 0;
+            if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) return NaN;
+            const fraction = match[3] || '';
+            const digits = (match[2] + fraction).replace(/^0+(?=\d)/, '') || '0';
+            try {
+                const coefficient = BigInt(digits);
+                const power = decimalPlaces + exponent - fraction.length;
+                let magnitude;
+                if (power >= 0) magnitude = coefficient * (10n ** BigInt(power));
+                else { const divisor = 10n ** BigInt(-power); magnitude = (coefficient + divisor / 2n) / divisor; }
+                if (match[1] === '-') magnitude = -magnitude;
+                if (magnitude > BigInt(Number.MAX_SAFE_INTEGER) || magnitude < BigInt(Number.MIN_SAFE_INTEGER)) return NaN;
+                return Number(magnitude);
+            } catch (_) { return NaN; }
         }
-        function anasCentsToCurrency(cents) {
-            return Number.isSafeInteger(cents) ? cents / 100 : NaN;
+        function anasToCents(value) { return anasDecimalToScaledInteger(value, 2); }
+        function anasCentsToCurrency(cents) { return Number.isSafeInteger(cents) ? cents / 100 : NaN; }
+        function anasRoundCurrency(value) { return anasCentsToCurrency(anasToCents(value)); }
+        function anasToQtyUnits(value) { return anasDecimalToScaledInteger(value, 6); }
+        function anasQtyFromUnits(units) { return Number.isSafeInteger(units) ? units / ANAS_QTY_SCALE : NaN; }
+        function anasRoundQty(value) { return anasQtyFromUnits(anasToQtyUnits(value)); }
+        function anasLineTotalCents(qtyUnits, priceCents) {
+            if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 || !Number.isSafeInteger(priceCents) || priceCents < 0) return NaN;
+            try {
+                const product = BigInt(qtyUnits) * BigInt(priceCents);
+                const rounded = (product + BigInt(ANAS_QTY_SCALE / 2)) / BigInt(ANAS_QTY_SCALE);
+                return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
+            } catch (_) { return NaN; }
         }
-        function anasRoundCurrency(value) {
-            return anasCentsToCurrency(anasToCents(value));
-        }
-        function anasToQtyUnits(value) {
-            if (!((typeof value === 'number') || (typeof value === 'string')) ||
-                value === null || value === undefined ||
-                (typeof value === 'string' && value.trim() === '')) return NaN;
-            const number = Number(value);
-            if (!Number.isFinite(number)) return NaN;
-            const units = Math.round((number + Number.EPSILON) * ANAS_QTY_SCALE);
-            return Number.isSafeInteger(units) ? units : NaN;
-        }
-        function anasQtyFromUnits(units) {
-            return Number.isSafeInteger(units) ? units / ANAS_QTY_SCALE : NaN;
-        }
-        function anasRoundQty(value) {
-            return anasQtyFromUnits(anasToQtyUnits(value));
+        function anasCartTotalCents(cart) {
+            if (!Array.isArray(cart) || !cart.length) return NaN;
+            let total = 0;
+            for (const item of cart) {
+                const qtyUnits = anasToQtyUnits(item && item.qty);
+                const priceCents = anasToCents(item && item.price);
+                const lineCents = anasLineTotalCents(qtyUnits, priceCents);
+                if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(total + lineCents)) return NaN;
+                total += lineCents;
+            }
+            return total;
         }
 
         function updatePaymentMethodFromAmount() {
-            let subtotalCents = 0;
-            for (const item of (Array.isArray(posCart) ? posCart : [])) {
-                const qtyUnits = anasToQtyUnits(item.qty);
-                const priceCents = anasToCents(item.price);
-                const product = qtyUnits * priceCents;
-                if (!Number.isSafeInteger(qtyUnits) || !Number.isSafeInteger(priceCents) || !Number.isSafeInteger(product)) {
-                    subtotalCents = NaN; break;
-                }
-                const lineCents = Math.round(product / ANAS_QTY_SCALE);
-                subtotalCents += lineCents;
-            }
-            const totalCents = Number.isSafeInteger(subtotalCents) ? subtotalCents : NaN;
+            const totalCents = anasCartTotalCents(posCart);
             const total = anasCentsToCurrency(totalCents);
             const input = document.getElementById('hasibPaidAmount');
             let paidCents = anasToCents(input.value);
@@ -3462,17 +3468,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const isCredit = document.getElementById('hasibPaymentMethod').value === 'credit';
             const group = document.getElementById('hasibPaidGroup');
             group.style.display = 'block';
-            let subtotalCents = 0;
-            for (const item of (Array.isArray(posCart) ? posCart : [])) {
-                const qtyUnits = anasToQtyUnits(item.qty);
-                const priceCents = anasToCents(item.price);
-                const product = qtyUnits * priceCents;
-                if (!Number.isSafeInteger(qtyUnits) || !Number.isSafeInteger(priceCents) || !Number.isSafeInteger(product)) {
-                    subtotalCents = NaN; break;
-                }
-                subtotalCents += Math.round(product / ANAS_QTY_SCALE);
-            }
-            const totalCents = Number.isSafeInteger(subtotalCents) ? subtotalCents : NaN;
+            const totalCents = anasCartTotalCents(posCart);
             const total = anasCentsToCurrency(totalCents);
             const paidInput = document.getElementById('hasibPaidAmount');
             if (isCredit) paidInput.value = '0';
@@ -3508,14 +3504,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 const qtyUnits = anasToQtyUnits(qty);
                 const priceCents = anasToCents(price);
-                const lineProduct = qtyUnits * priceCents;
+                const lineCents = anasLineTotalCents(qtyUnits, priceCents);
                 if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 ||
                     !Number.isSafeInteger(priceCents) || priceCents < 0 ||
-                    !Number.isSafeInteger(lineProduct)) {
+                    !Number.isSafeInteger(lineCents)) {
                     alert('تعذر تأكيد الفاتورة: كمية أو سعر الصنف يتجاوز المجال الحسابي الآمن.'); return;
                 }
                 const aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits;
-                const lineCents = Math.round(lineProduct / ANAS_QTY_SCALE);
                 if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > Number.MAX_SAFE_INTEGER ||
                     !Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
                     alert('تعذر تأكيد الفاتورة: مجموع الكمية أو قيمة الفاتورة يتجاوز المجال الحسابي الآمن.'); return;
@@ -3788,10 +3783,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const sc = AppData.storeConfig;
             let rows = '';
             inv.items.forEach(it => {
-                const storedItemTotal = (typeof it.total === 'number' || typeof it.total === 'string') && String(it.total).trim() !== '' ? Number(it.total) : NaN;
-                const itemTotal = Number.isFinite(storedItemTotal)
-                    ? Math.round((storedItemTotal + Number.EPSILON) * 100) / 100
-                    : Math.round((Number(it.qty||0) * Number(it.price||0) + Number.EPSILON) * 100) / 100;
+                const storedItemCents = (typeof it.total === 'number' || typeof it.total === 'string') && String(it.total).trim() !== '' ? anasToCents(it.total) : NaN;
+                const itemTotalCents = Number.isSafeInteger(storedItemCents) ? storedItemCents : anasLineTotalCents(anasToQtyUnits(it.qty || 0), anasToCents(it.price || 0));
+                const itemTotal = anasCentsToCurrency(itemTotalCents);
                 rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${anasEscapeHTML(it.unit || '')}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${itemTotal.toFixed(2)}</td></tr>`;
             });
 
@@ -3837,10 +3831,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             let tableRows = '';
 
             inv.items.forEach((it, index) => {
-                const storedItemTotal = (typeof it.total === 'number' || typeof it.total === 'string') && String(it.total).trim() !== '' ? Number(it.total) : NaN;
-                const sub = Number.isFinite(storedItemTotal)
-                    ? Math.round((storedItemTotal + Number.EPSILON) * 100) / 100
-                    : Math.round((Number(it.qty) * Number(it.price) + Number.EPSILON) * 100) / 100;
+                const storedItemCents = (typeof it.total === 'number' || typeof it.total === 'string') && String(it.total).trim() !== '' ? anasToCents(it.total) : NaN;
+                const subCents = Number.isSafeInteger(storedItemCents) ? storedItemCents : anasLineTotalCents(anasToQtyUnits(it.qty), anasToCents(it.price));
+                const sub = anasCentsToCurrency(subCents);
                 tableRows += `
                     <tr style="border-bottom:1px solid #e2e8f0;">
                         <td style="padding:8px; text-align:center;">${index + 1}</td>
@@ -4890,16 +4883,23 @@ function renderPurchasesTable() {
                 const product = productMatches[0];
                 const qtyText = prompt('تعديل كمية: ' + (oldItem.name || product.name) + '\nالكمية الحالية: ' + oldItem.qty, String(oldItem.qty));
                 if (qtyText === null) return;
-                const qty = Number(qtyText);
-                if (!Number.isFinite(qty) || qty <= 0 || qty > Number.MAX_SAFE_INTEGER) { alert('الكمية يجب أن تكون رقمًا أكبر من صفر ولا تتجاوز المجال الرقمي الآمن.'); return; }
+                const qtyUnits = anasToQtyUnits(qtyText);
+                if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) { alert('الكمية يجب أن تكون رقمًا موجبًا ضمن دقة المخزون المعتمدة وضمن المجال الرقمي الآمن.'); return; }
                 const priceText = prompt('تعديل سعر الوحدة: ' + (oldItem.name || product.name) + '\nالسعر الحالي: ' + oldItem.price, String(oldItem.price));
                 if (priceText === null) return;
-                const price = Number(priceText);
-                if (!Number.isFinite(price) || price < 0) { alert('السعر غير صحيح.'); return; }
-                editedItems.push({...oldItem, qty, price, name: oldItem.name || product.name});
+                const priceCents = anasToCents(priceText);
+                if (!Number.isSafeInteger(priceCents) || priceCents < 0) { alert('السعر غير صحيح أو يتجاوز دقة السنتيمات المعتمدة.'); return; }
+                const lineCents = anasLineTotalCents(qtyUnits, priceCents);
+                if (!Number.isSafeInteger(lineCents)) { alert('تعذر حساب قيمة سطر الفاتورة ضمن المجال المالي الآمن.'); return; }
+                editedItems.push({...oldItem, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents), total:anasCentsToCurrency(lineCents), name:oldItem.name || product.name});
             }
-            const newTotal = editedItems.reduce((sum, x) => sum + Number(x.qty) * Number(x.price), 0);
-            if (!Number.isFinite(newTotal) || newTotal < 0 || newTotal > Number.MAX_SAFE_INTEGER) { alert('تعذر حساب إجمالي الفاتورة: الإجمالي خارج المجال المالي الآمن.'); return; }
+            let newTotalCents = 0;
+            for (const item of editedItems) {
+                const lineCents = anasToCents(item.total);
+                if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(newTotalCents + lineCents)) { alert('تعذر حساب إجمالي الفاتورة: الإجمالي خارج المجال المالي الآمن.'); return; }
+                newTotalCents += lineCents;
+            }
+            const newTotal = anasCentsToCurrency(newTotalCents);
             const oldItems = inv.items;
             // Historical invoice quantities and prices are the baseline for stock reconciliation.
             // Never coerce malformed legacy values to zero: that would create a false stock adjustment.
@@ -4915,8 +4915,24 @@ function renderPurchasesTable() {
                 }
             }
             const stockChanges = new Map();
-            for (const item of oldItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) + Number(item.qty));
-            for (const item of editedItems) stockChanges.set(String(item.id), (stockChanges.get(String(item.id)) || 0) - Number(item.qty));
+            for (const item of oldItems) {
+                const id = String(item.id);
+                const units = anasToQtyUnits(item.qty);
+                const nextUnits = (stockChanges.get(id) || 0) + units;
+                if (!Number.isSafeInteger(units) || units <= 0 || !Number.isSafeInteger(nextUnits)) {
+                    alert('تعذر تعديل الفاتورة: مجموع كمية المخزون التاريخية يتجاوز المجال الرقمي الآمن.'); return;
+                }
+                stockChanges.set(id, nextUnits);
+            }
+            for (const item of editedItems) {
+                const id = String(item.id);
+                const units = anasToQtyUnits(item.qty);
+                const nextUnits = (stockChanges.get(id) || 0) - units;
+                if (!Number.isSafeInteger(units) || units <= 0 || !Number.isSafeInteger(nextUnits)) {
+                    alert('تعذر تعديل الفاتورة: مجموع كمية المخزون المعدّلة يتجاوز المجال الرقمي الآمن.'); return;
+                }
+                stockChanges.set(id, nextUnits);
+            }
             // تسوية المخزن الذي صدرت منه الفاتورة، لا المخزن الرئيسي افتراضياً.
             const invoiceWarehouse = String(inv.warehouseName || inv.warehouse || 'المخزن الرئيسي').trim() || 'المخزن الرئيسي';
             for (const [id, delta] of stockChanges) {
@@ -4924,9 +4940,12 @@ function renderPurchasesTable() {
                 if (!p) { alert('تعذر العثور على صنف من أصناف الفاتورة.'); return; }
                 const available = typeof wtAvailableStock === 'function'
                     ? wtAvailableStock(p, invoiceWarehouse)
-                    : (Number(p.stock) || 0);
-                if (!Number.isFinite(available) || !Number.isFinite(delta) || !Number.isFinite(available + delta) || available + delta < -0.000001 || available + delta > Number.MAX_SAFE_INTEGER) {
-                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي لتسوية كمية ' + (p.name || id) + '. المتاح ' + (Number.isFinite(available) ? available : 'بيانات غير صالحة') + '.');
+                    : (p.stock ?? 0);
+                const availableUnits = anasToQtyUnits(available);
+                const nextUnits = availableUnits + delta;
+                if (!Number.isSafeInteger(availableUnits) || availableUnits < 0 ||
+                    !Number.isSafeInteger(delta) || !Number.isSafeInteger(nextUnits) || nextUnits < 0) {
+                    alert('لا يمكن تعديل الفاتورة: الرصيد الحالي في «' + invoiceWarehouse + '» لا يكفي أو لا يمكن تمثيله بدقة المخزون المعتمدة للصنف ' + (p.name || id) + '.');
                     return;
                 }
             }
@@ -4939,24 +4958,34 @@ function renderPurchasesTable() {
                 alert('تعذر تعديل الفاتورة: إجماليها أو المبلغ المحصّل أو المتبقي يحتوي قيمة مالية غير صالحة. لم يتم تغيير المخزون أو الحسابات.');
                 return;
             }
-            const oldTotal = Object.prototype.hasOwnProperty.call(inv, 'total') ? Number(inv.total) : oldItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0);
-            const oldPaid = Object.prototype.hasOwnProperty.call(inv, 'paid') ? Number(inv.paid) : 0;
-            const oldRemaining = Object.prototype.hasOwnProperty.call(inv, 'remaining') ? Number(inv.remaining) : Math.max(0, oldTotal - oldPaid);
-            if (!Number.isFinite(oldTotal) || !Number.isFinite(oldPaid) || !Number.isFinite(oldRemaining) ||
-                oldTotal < 0 || oldPaid < 0 || oldRemaining < 0 || oldTotal > Number.MAX_SAFE_INTEGER || oldPaid > Number.MAX_SAFE_INTEGER || oldRemaining > Number.MAX_SAFE_INTEGER ||
-                oldPaid > oldTotal + 0.000001 || oldRemaining > oldTotal + 0.000001 ||
-                Math.abs(oldRemaining - Math.max(0, oldTotal - oldPaid)) > 0.01) {
+            let historicalLineTotalCents = 0;
+            for (const item of oldItems) {
+                const lineCents = anasLineTotalCents(anasToQtyUnits(item.qty), anasToCents(item.price));
+                if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(historicalLineTotalCents + lineCents)) { alert('تعذر تعديل الفاتورة: تفاصيلها التاريخية تتجاوز المجال المالي الآمن.'); return; }
+                historicalLineTotalCents += lineCents;
+            }
+            const oldTotalCents = Object.prototype.hasOwnProperty.call(inv, 'total') ? anasToCents(inv.total) : historicalLineTotalCents;
+            const oldPaidCents = Object.prototype.hasOwnProperty.call(inv, 'paid') ? anasToCents(inv.paid) : 0;
+            const oldRemainingCents = Object.prototype.hasOwnProperty.call(inv, 'remaining') ? anasToCents(inv.remaining) : oldTotalCents - oldPaidCents;
+            const oldTotal = anasCentsToCurrency(oldTotalCents);
+            const oldPaid = anasCentsToCurrency(oldPaidCents);
+            const oldRemaining = anasCentsToCurrency(oldRemainingCents);
+            if (!Number.isSafeInteger(oldTotalCents) || !Number.isSafeInteger(oldPaidCents) || !Number.isSafeInteger(oldRemainingCents) ||
+                oldTotalCents < 0 || oldPaidCents < 0 || oldRemainingCents < 0 ||
+                oldPaidCents > oldTotalCents || oldRemainingCents !== oldTotalCents - oldPaidCents) {
                 alert('تعذر تعديل الفاتورة: إجماليها والمدفوع والمتبقي غير متطابقة. راجع الحسابات أو صحّح الفاتورة قبل التسوية.');
                 return;
             }
             // Do not silently rewrite historic cash when an edited invoice total falls below money already collected.
             // Refunds must be recorded as a separate cash movement so the audit trail remains accurate.
-            if (newTotal + 0.000001 < oldPaid) {
+            if (newTotalCents < oldPaidCents) {
                 alert('إجمالي الفاتورة الجديد أقل من المبلغ المحصّل سابقاً (' + oldPaid + ' دج). لم يتم تعديل الفاتورة. هذه الأداة لا تسوّي ردّ المبالغ المرتبط بالفاتورة؛ يلزم تنفيذ تسوية/ردّ موثّق مرتبط بالفاتورة قبل تعديل إجماليها.');
                 return;
             }
-            const newPaid = oldPaid;
-            const newRemaining = Math.max(0, newTotal - newPaid);
+            const newPaidCents = oldPaidCents;
+            const newRemainingCents = newTotalCents - newPaidCents;
+            const newPaid = anasCentsToCurrency(newPaidCents);
+            const newRemaining = anasCentsToCurrency(newRemainingCents);
             const customerRecords = Array.isArray(AppData.customers) ? AppData.customers.filter(c => c && typeof c === 'object' && !Array.isArray(c)) : [];
             let customer = null;
             let customerResolutionAmbiguous = false;
@@ -4974,7 +5003,7 @@ function renderPurchasesTable() {
                 if (nameMatches.length === 1) customer = nameMatches[0];
                 else if (nameMatches.length > 1) customerResolutionAmbiguous = true;
             }
-            const debtChanges = Math.abs(newRemaining - oldRemaining) > 0.000001;
+            const debtChanges = newRemainingCents !== oldRemainingCents;
             if (debtChanges && (!customer || customerResolutionAmbiguous)) { alert(customerResolutionAmbiguous ? 'تعذر تحديد حساب العميل بدقة: يوجد أكثر من عميل محتمل بالاسم أو المعرّف نفسه. صحّح سجل العملاء قبل تعديل الفاتورة.' : 'تعذر تحديد حساب العميل المرتبط بتسوية الدين. لم يتم تعديل الفاتورة أو المخزون حتى لا يبقى رصيد الدين غير متطابق.'); return; }
             if (customer && Object.prototype.hasOwnProperty.call(customer, 'debt') &&
                 !((typeof customer.debt === 'number' || typeof customer.debt === 'string') &&
@@ -4982,14 +5011,16 @@ function renderPurchasesTable() {
                 alert('تعذر تعديل الفاتورة: رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي.');
                 return;
             }
-            if (newRemaining > Number.MAX_SAFE_INTEGER) {
+            if (!Number.isSafeInteger(newRemainingCents)) {
                 alert('تعذر تعديل الفاتورة: الرصيد المتبقي يتجاوز المجال المالي الآمن.');
                 return;
             }
+            let projectedCustomerDebtCents = null;
             if (customer) {
-                const currentCustomerDebt = Number(customer.debt ?? 0);
-                const projectedCustomerDebt = currentCustomerDebt + (newRemaining - oldRemaining);
-                if (!Number.isFinite(projectedCustomerDebt) || projectedCustomerDebt < 0 || projectedCustomerDebt > Number.MAX_SAFE_INTEGER) {
+                const currentCustomerDebtCents = anasToCents(customer.debt ?? 0);
+                projectedCustomerDebtCents = currentCustomerDebtCents + (newRemainingCents - oldRemainingCents);
+                if (!Number.isSafeInteger(currentCustomerDebtCents) || currentCustomerDebtCents < 0 ||
+                    !Number.isSafeInteger(projectedCustomerDebtCents) || projectedCustomerDebtCents < 0) {
                     alert('تعذر تعديل الفاتورة: تسوية دين العميل ستنتج رصيداً خارج المجال المالي الآمن. لم يتم تغيير الفاتورة أو المخزون.');
                     return;
                 }
@@ -5023,7 +5054,7 @@ function renderPurchasesTable() {
                 stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null
             };
             try {
-                for (const [id, delta] of stockChanges) {
+                for (const [id, deltaUnits] of stockChanges) {
                     const p = AppData.products.find(x => String(x.id) === id);
                     snapshot.stocks.set(id, {
                         stock: p.stock,
@@ -5032,17 +5063,23 @@ function renderPurchasesTable() {
                         warehouseStock: p.warehouseStock && typeof p.warehouseStock === 'object' ? {...p.warehouseStock} : null
                     });
                     if (invoiceWarehouse === 'المخزن الرئيسي') {
-                        p.stock = (Number(p.stock) || 0) + delta;
+                        const currentUnits = anasToQtyUnits(p.stock ?? 0);
+                        const nextUnits = currentUnits + deltaUnits;
+                        if (!Number.isSafeInteger(currentUnits) || !Number.isSafeInteger(nextUnits) || nextUnits < 0) throw new Error('تعذر تسوية رصيد المخزون الرئيسي بدقة آمنة');
+                        p.stock = anasQtyFromUnits(nextUnits);
                     } else {
                         if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
-                        p.warehouseStock[invoiceWarehouse] = (Number(p.warehouseStock[invoiceWarehouse]) || 0) + delta;
+                        const currentUnits = anasToQtyUnits(p.warehouseStock[invoiceWarehouse] ?? 0);
+                        const nextUnits = currentUnits + deltaUnits;
+                        if (!Number.isSafeInteger(currentUnits) || !Number.isSafeInteger(nextUnits) || nextUnits < 0) throw new Error('تعذر تسوية رصيد المخزن الفرعي بدقة آمنة');
+                        p.warehouseStock[invoiceWarehouse] = anasQtyFromUnits(nextUnits);
                     }
-                    // Keep the stock ledger aligned with the net inventory correction made by this invoice edit.
-                    if (Math.abs(delta) > 0.000001) {
+                    // Keep the stock ledger aligned with the exact micro-unit inventory correction made by this invoice edit.
+                    if (deltaUnits !== 0) {
                         if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
                         AppData.stockMovements.unshift({
                             id: 'INV-EDIT-' + String(inv.id) + '-' + String(id) + '-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,7).toUpperCase(),
-                            productId: p.id, productName: p.name || p.title || id, qty: delta,
+                            productId: p.id, productName: p.name || p.title || id, qty: anasQtyFromUnits(deltaUnits),
                             type: 'INVOICE_EDIT_ADJUSTMENT', referenceType: 'sales_invoice_edit', referenceId: inv.id,
                             warehouse: invoiceWarehouse, date: new Date().toISOString(),
                             note: 'تسوية صافي المخزون بعد تعديل الفاتورة ' + String(inv.id)
@@ -5050,7 +5087,7 @@ function renderPurchasesTable() {
                     }
                 }
                 if (newPaid !== oldPaid) AppData.caisseBalance = (Number(AppData.caisseBalance) || 0) + (newPaid - oldPaid);
-                if (customer) customer.debt = Math.max(0, (Number(customer.debt) || 0) + (newRemaining - oldRemaining));
+                if (customer) customer.debt = anasCentsToCurrency(projectedCustomerDebtCents);
                 inv.items = editedItems;
                 inv.total = newTotal;
                 inv.paid = newPaid;
@@ -7208,7 +7245,7 @@ function renderPurchasesTable() {
             const dupPhone=dup(customers,c=>c.phone);
             const badPrice=products.filter(p=>n(p.buyPrice)>0 && n(p.price1)>0 && n(p.price1)<n(p.buyPrice));
             const debtors=customers.filter(c=>n(c.debt)>0).sort((a,b)=>n(b.debt)-n(a.debt));
-            const badInvoices=invoices.filter(i=>{const total=n(i.total),paid=n(i.paid),rem=n(i.remaining);return total<0||paid<0||rem<0||(Math.abs(total-paid-rem)>1);});
+            const badInvoices=invoices.filter(i=>{const total=anasToCents(i.total),paid=anasToCents(i.paid),rem=anasToCents(i.remaining);return !Number.isSafeInteger(total)||!Number.isSafeInteger(paid)||!Number.isSafeInteger(rem)||total<0||paid<0||rem<0||total!==paid+rem;});
             const noSupplier=products.filter(p=>!p.supplier && !p.supplierId);
             const stockCost=products.reduce((a,p)=>a+n(p.stock)*n(p.buyPrice),0);
             const debtTotal=debtors.reduce((a,c)=>a+n(c.debt),0);
@@ -8246,7 +8283,7 @@ function renderQuickSaleResults(){
 }
 function escapeQuickText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function quickSaleAdd(id){const p=(AppData.products||[]).find(x=>String(x.id)===String(id));if(!p)return;if(Number(p.stock)<=0){alert('هذا المنتج غير متوفر في المخزون.');return;}const old=posCart.find(x=>String(x.id)===String(id));if(old){if(Number(old.qty)>=Number(p.stock)){alert('الكمية المطلوبة تتجاوز المخزون المتاح.');return;}old.qty++;}else{posCart.push({id:p.id,name:p.name,price:quickSalePrice(p),qty:1,unit:p.unit||'قطعة',image:p.image||''});}renderPosTable();renderQuickSaleCart();}
-function renderQuickSaleCart(){const box=document.getElementById('qsCart');if(!box)return;let total=0,count=0;box.innerHTML=posCart.length?posCart.map((it,i)=>{const sub=(Number(it.qty)||0)*(Number(it.price)||0);total+=sub;count+=Number(it.qty)||0;return `<div class="qs-cartrow"><div><strong>${escapeQuickText(it.name)}</strong><div class="qs-muted">${Number(it.price).toLocaleString('fr-DZ')} د.ج / ${escapeQuickText(it.unit||'')}</div></div><button aria-label="تقليل الكمية" onclick="quickSaleChangeQty(${i},-1)" style="padding:5px 10px">−</button><strong>${it.qty}</strong><button aria-label="زيادة الكمية" onclick="quickSaleChangeQty(${i},1)" style="padding:5px 10px">+</button><span class="qs-line-total">${sub.toLocaleString('fr-DZ')} د.ج</span><button onclick="posCart.splice(${i},1);renderPosTable();renderQuickSaleCart()" style="color:#dc2626;border:0;background:transparent">حذف</button></div>`}).join(''):'<div class="qs-muted" style="padding:16px;text-align:center">السلة فارغة — اختر منتجًا للبدء.</div>';document.getElementById('qsTotal').textContent=total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج';document.getElementById('qsCount').textContent=`(${count} وحدة)`;}
+function renderQuickSaleCart(){const box=document.getElementById('qsCart');if(!box)return;let count=0;const totalCents=anasCartTotalCents(posCart);box.innerHTML=posCart.length?posCart.map((it,i)=>{const lineCents=anasLineTotalCents(anasToQtyUnits(it.qty),anasToCents(it.price));const sub=anasCentsToCurrency(lineCents);count+=Number(it.qty)||0;return `<div class="qs-cartrow"><div><strong>${escapeQuickText(it.name)}</strong><div class="qs-muted">${Number(it.price).toLocaleString('fr-DZ')} د.ج / ${escapeQuickText(it.unit||'')}</div></div><button aria-label="تقليل الكمية" onclick="quickSaleChangeQty(${i},-1)" style="padding:5px 10px">−</button><strong>${it.qty}</strong><button aria-label="زيادة الكمية" onclick="quickSaleChangeQty(${i},1)" style="padding:5px 10px">+</button><span class="qs-line-total">${Number.isFinite(sub)?sub.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'} د.ج</span><button onclick="posCart.splice(${i},1);renderPosTable();renderQuickSaleCart()" style="color:#dc2626;border:0;background:transparent">حذف</button></div>`}).join(''):'<div class="qs-muted" style="padding:16px;text-align:center">السلة فارغة — اختر منتجًا للبدء.</div>';const total=posCart.length?anasCentsToCurrency(totalCents):0;document.getElementById('qsTotal').textContent=(Number.isFinite(total)?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+' د.ج';document.getElementById('qsCount').textContent=`(${count} وحدة)`;}
 function quickSaleChangeQty(i,delta){const it=posCart[i];if(!it)return;const p=(AppData.products||[]).find(x=>String(x.id)===String(it.id));const next=Number(it.qty)+delta;if(next<=0){posCart.splice(i,1)}else if(p&&next>Number(p.stock)){alert('لا توجد كمية كافية في المخزون.');return;}else it.qty=next;renderPosTable();renderQuickSaleCart();}
 function quickSaleClear(){if(!posCart.length)return;if(confirm('تفريغ سلة البيع السريع؟')){posCart=[];renderPosTable();renderQuickSaleCart();}}
 function quickSaleCheckout(){if(!posCart.length){alert('أضف منتجًا واحدًا على الأقل أولًا.');return;}closeQuickSale();openHasibModal();}

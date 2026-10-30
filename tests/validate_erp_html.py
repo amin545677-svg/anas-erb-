@@ -396,11 +396,15 @@ console.log('PASS: truck expense link runtime tests accept valid/legacy-unlinked
     edit_end = source.find("\n        function ", edit_start)
     edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
     edit_guards = [
-        "Number(item.qty) > Number.MAX_SAFE_INTEGER",
         "Number.isSafeInteger(qtyUnits)",
         "qtyUnits <= 0",
+        "Number.isSafeInteger(priceCents)",
+        "anasLineTotalCents(qtyUnits, priceCents)",
+        "oldRemainingCents !== oldTotalCents - oldPaidCents",
         "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
-        "available + delta > Number.MAX_SAFE_INTEGER",
+        "Number.isSafeInteger(availableUnits)",
+        "Number.isSafeInteger(nextUnits)",
+        "anasQtyFromUnits(deltaUnits)",
         "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
         "سجل حركات المخزون تالف. أصلح السجل أو استعد نسخة سليمة",
         "AppData.stockMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m))",
@@ -859,8 +863,12 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "Object.prototype.hasOwnProperty.call(p, 'warehouseStock')",
         "(!p.warehouseStock || typeof p.warehouseStock !== 'object' || Array.isArray(p.warehouseStock))",
         "validMoneyField = value =>",
-        "oldPaid > oldTotal + 0.000001",
-        "oldRemaining - Math.max(0, oldTotal - oldPaid)",
+        "Number.isSafeInteger(oldTotalCents)",
+        "oldPaidCents > oldTotalCents",
+        "oldRemainingCents !== oldTotalCents - oldPaidCents",
+        "Number.isSafeInteger(availableUnits)",
+        "Number.isSafeInteger(nextUnits)",
+        "anasQtyFromUnits(deltaUnits)",
     ]
     if not edit_invoice or any(guard not in edit_invoice for guard in edit_guards):
         errors.append("historical invoice edits must reject invalid source quantities/prices and inconsistent totals before stock/account mutation")
@@ -1227,7 +1235,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "sale aggregates repeated product quantities and validates numeric inputs":
             "aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits" in sale
             and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale
-            and "lineProduct = qtyUnits * priceCents" in sale,
+            and "anasLineTotalCents(qtyUnits, priceCents)" in sale,
         "POS sale rejects unsafe invoice, quantity, cash, and customer-debt arithmetic":
             "Number.isSafeInteger(totalCents)" in sale
             and "Number.isSafeInteger(aggregateUnits)" in sale
