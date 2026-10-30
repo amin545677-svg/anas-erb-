@@ -7,7 +7,7 @@ on:
       - "manifest.webmanifest"
       - "sw.js"
       - "tests/validate_erp_html.py"
-      - ".github/workflows/anas-erp-html-checks.yml"
+      - "reverse-ledger/**"\n      - "tests/reverse_ledger_primitives.test.js"\n      - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
     paths:
