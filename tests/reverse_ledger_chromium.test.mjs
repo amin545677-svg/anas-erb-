@@ -9,7 +9,7 @@ test('Chromium loads reverse-ledger primitives and enforces exact return ceiling
  try {
   const page = await browser.newPage();
   await page.setContent('<!doctype html><html><body><main id="result">ready</main></body></html>');
-  await page.addScriptTag({path:path.join(__dirname,'../reverse-ledger/reverse-ledger.js')});
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger.js')});
   const result = await page.evaluate(() => {
    const R = window.ANASReverseLedger;
    const state = R.ensureCollections({invoices:[{id:'S-1',customerId:'C-1'}],cashMovements:[{id:'M-1',amountCentimes:1000}]});
