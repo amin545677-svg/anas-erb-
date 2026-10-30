@@ -1226,8 +1226,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "POS sale rejects unsafe invoice, quantity, cash, and customer-debt arithmetic":
             "total > Number.MAX_SAFE_INTEGER" in sale
             and "aggregateQty > Number.MAX_SAFE_INTEGER" in sale
-            and "oldDebt + remaining > Number.MAX_SAFE_INTEGER" in sale
-            and "currentCash + paid > Number.MAX_SAFE_INTEGER" in sale,
+            and "newDebt > Number.MAX_SAFE_INTEGER" in sale
+            and "newCashBalance > Number.MAX_SAFE_INTEGER" in sale,
         "POS sale rejects missing or duplicate product IDs and reuses unique preflight records":
             "productMatches = (AppData.products || []).filter(" in sale
             and "productMatches.length !== 1" in sale
