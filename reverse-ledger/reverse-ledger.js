@@ -295,21 +295,18 @@
         if (product % 1000000n !== 0n || product / 1000000n !== line)
           throw new Error('return line amount does not match exact quantity and price');
         lineTotal += line;
-        if (doc.status === 'POSTED') {
-          const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
-          const originalMatches = originalItems.filter(x => invoiceItemProductId(x) === productId);
-          if (originalMatches.length !== 1) throw new Error('return item is missing or ambiguous in original invoice');
-          const originalQty = quantityToMicroUnits(originalMatches[0].qty ?? originalMatches[0].quantity, 'original invoice quantity');
-          const originalPrice = currencyToCentimes(originalMatches[0].price ?? originalMatches[0].unitPrice, 'original invoice unit price');
-          if (price > originalPrice) throw new Error('return unit price exceeds original invoice unit price');
-          if (doc.returnType === 'INVOICE_CANCEL' && price !== originalPrice)
-            throw new Error('invoice cancellation must reverse the original unit price');
-          const key = doc.originalInvoiceType + ':' + doc.originalInvoiceId + ':' + productId;
-          const before = postedQuantities.get(key) || 0n;
-          const next = before + qty;
-          if (next > originalQty) throw new Error('return exceeds remaining returnable micro-units');
-          postedQuantities.set(key, next);
-        }
+        const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
+        const originalMatches = originalItems.filter(x => invoiceItemProductId(x) === productId);
+        if (originalMatches.length !== 1) throw new Error('return item is missing or ambiguous in original invoice');
+        const originalQty = quantityToMicroUnits(originalMatches[0].qty ?? originalMatches[0].quantity, 'original invoice quantity');
+        const originalPrice = currencyToCentimes(originalMatches[0].price ?? originalMatches[0].unitPrice, 'original invoice unit price');
+        if (price > originalPrice) throw new Error('return unit price exceeds original invoice unit price');
+        if (doc.returnType === 'INVOICE_CANCEL' && price !== originalPrice)
+          throw new Error('invoice cancellation must reverse the original unit price');
+        const key = doc.originalInvoiceType + ':' + doc.originalInvoiceId + ':' + productId;
+        const postedTotal = postedQuantities.get(key) || 0n;
+        if (postedTotal > originalQty || (doc.status !== 'POSTED' && postedTotal + qty > originalQty))
+          throw new Error('return exceeds remaining returnable micro-units');
       }
       if (lineTotal !== BigInt(safeInt(doc.totalCentimes, 'return total', true)))
         throw new Error('return total does not match item totals');
@@ -322,6 +319,19 @@
       if (settled > lineTotal) throw new Error('return settlement exceeds return value');
       if (doc.status === 'POSTED' && settled !== lineTotal)
         throw new Error('posted return settlement must equal return value');
+      if (doc.returnType === 'INVOICE_CANCEL') {
+        if (docs.some(other => other !== doc && other.status === 'POSTED' &&
+            other.originalInvoiceType === doc.originalInvoiceType && String(other.originalInvoiceId) === String(doc.originalInvoiceId)))
+          throw new Error('invoice cancellation cannot follow a prior posted return');
+        const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
+        if (!originalItems.length || doc.items.length !== originalItems.length)
+          throw new Error('invoice cancellation must reverse every invoice line');
+        for (const original of originalItems) {
+          const line = doc.items.find(x => x.productId === invoiceItemProductId(original));
+          if (!line || BigInt(line.quantityMicroUnits) !== quantityToMicroUnits(original.qty ?? original.quantity, 'original invoice quantity'))
+            throw new Error('invoice cancellation must reverse the full original quantity');
+        }
+      }
       if (doc.status !== 'POSTED') continue;
       if (!Array.isArray(doc.stockMovementIds) || doc.stockMovementIds.length !== doc.items.length)
         throw new Error('posted return must reference one stock movement per item');
@@ -346,7 +356,8 @@
       if (settled > 0n && !financialIds.length) throw new Error('posted return is missing financial movements');
       if (new Set(financialIds.map(String)).size !== financialIds.length)
         throw new Error('posted return has duplicate financial movement references');
-      const financialRows = [...cashRows, ...clientRows, ...supplierRows];
+      const financialRows = doc.originalInvoiceType === 'sales_invoice'
+        ? [...cashRows, ...clientRows] : [...cashRows, ...supplierRows];
       let financialTotal = 0n;
       for (const movementId of financialIds) {
         const matchesMovement = financialRows.filter(x => String(recordId(x)) === String(movementId));
@@ -357,18 +368,7 @@
       }
       if (financialTotal !== settled)
         throw new Error('posted return financial movements do not equal its settlement split');
-      if (doc.returnType === 'INVOICE_CANCEL') {
-        if (docs.some(other => other !== doc && other.status === 'POSTED' &&
-            other.originalInvoiceType === doc.originalInvoiceType && String(other.originalInvoiceId) === String(doc.originalInvoiceId)))
-          throw new Error('invoice cancellation cannot follow a prior posted return');
-        const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
-        if (!originalItems.length || doc.items.length !== originalItems.length) throw new Error('invoice cancellation must reverse every invoice line');
-        for (const original of originalItems) {
-          const line = doc.items.find(x => x.productId === invoiceItemProductId(original));
-          if (!line || BigInt(line.quantityMicroUnits) !== quantityToMicroUnits(original.qty ?? original.quantity, 'original invoice quantity'))
-            throw new Error('invoice cancellation must reverse the full original quantity');
-        }
-      }
+
     }
     return true;
   }
