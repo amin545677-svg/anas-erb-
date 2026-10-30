@@ -209,7 +209,7 @@ def main():
         "${reportDisplay(p.stock)}",
         "${esc(p.id??'—')}",
         "const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;",
-        "${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td>",
+        "${purchaseMoneyDisplay(p.total)}</td><td>${Object.prototype.hasOwnProperty.call(p,'paid')?purchaseMoneyDisplay(p.paid):'غير مسجل'}</td><td>${Object.prototype.hasOwnProperty.call(p,'remaining')?purchaseMoneyDisplay(p.remaining):'غير مسجل'}</td>",
         "${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td>",
         "${reportDisplay(c.debt)} د.ج",
         "بيانات غير صالحة",
