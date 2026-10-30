@@ -78,7 +78,9 @@
       const quantityMicroUnits = safeInt(line.quantityMicroUnits, 'quantityMicroUnits', false);
       const unitPriceCentimes = safeInt(line.unitPriceCentimes, 'unitPriceCentimes', true);
       const lineTotalCentimes = safeInt(line.lineTotalCentimes, 'lineTotalCentimes', true);
-      const exact = asBigInt(quantityMicroUnits, 'quantityMicroUnits') * asBigInt(unitPriceCentimes, 'unitPriceCentimes') / 1000000n;
+      const product = asBigInt(quantityMicroUnits, 'quantityMicroUnits') * asBigInt(unitPriceCentimes, 'unitPriceCentimes');
+      if (product % 1000000n !== 0n) throw new Error('return line produces a fractional centime');
+      const exact = product / 1000000n;
       if (exact !== BigInt(lineTotalCentimes)) throw new Error('return line total does not match exact micro-unit arithmetic');
       return Object.freeze({ productId, quantityMicroUnits, unitPriceCentimes, lineTotalCentimes });
     });
@@ -112,7 +114,9 @@
   function validateSettlementAllocations(state) {
     const data = ensureCollections(state);
     const allocations = data.settlementAllocations;
-    const movements = [...(data.clientMovements || []), ...(data.supplierMovements || []), ...(data.cashMovements || [])];
+    const clientMovements = data.clientMovements || [];
+    const supplierMovements = data.supplierMovements || [];
+    const cashMovements = data.cashMovements || [];
     const invoices = [...(data.invoices || []).map(x => ({...x, __type:'sales_invoice', __party:'customer', __partyId:String(x.customerId ?? x.customerObj?.id ?? '')})),
       ...(data.purchases || []).map(x => ({...x, __type:'purchase_invoice', __party:'supplier', __partyId:String(x.supplierId ?? '')}))];
     const allocationIds = new Set();
@@ -124,15 +128,30 @@
       const invoice = invoices.find(x => String(x.id) === String(a.invoiceId) && x.__type === a.invoiceType);
       if (!invoice) throw new Error('orphan settlement allocation');
       if (String(invoice.__partyId) !== String(a.partyId)) throw new Error('allocation party does not match invoice');
-      const source = movements.filter(x => String(x.id ?? x.movementId ?? '') === String(a.sourceMovementId));
+      let source;
+      if (a.partyType === 'customer' && a.sourceMovementType === 'customer_debt') {
+        source = cashMovements.filter(x => String(x.id ?? '') === String(a.sourceMovementId) && x.referenceType === 'customer_debt');
+      } else if (a.partyType === 'supplier' && a.sourceMovementType === 'supplier_payment') {
+        source = supplierMovements.filter(x => String(x.id ?? '') === String(a.sourceMovementId) && x.type === 'payment');
+      } else if (a.sourceMovementType === 'sales_invoice' || a.sourceMovementType === 'purchase_invoice') {
+        source = cashMovements.filter(x => String(x.id ?? '') === String(a.sourceMovementId) && x.referenceType === a.sourceMovementType);
+      } else {
+        throw new Error('unsupported allocation source movement type');
+      }
       if (source.length !== 1) throw new Error('allocation source movement missing or ambiguous');
-      const key = a.partyType + ':' + a.sourceMovementId;
+      const key = a.partyType + ':' + a.sourceMovementType + ':' + a.sourceMovementId;
       sourceTotals.set(key, (sourceTotals.get(key) || 0n) + asBigInt(a.amountCentimes, 'allocation amount'));
+      sourceTotals.set(key + ':source', source[0]);
     }
     for (const [key, total] of sourceTotals) {
-      const sourceId = key.slice(key.indexOf(':') + 1);
-      const source = movements.find(x => String(x.id ?? x.movementId ?? '') === sourceId);
-      const amount = source && (source.amountCentimes ?? source.amount);
+      if (key.endsWith(':source')) continue;
+      const source = sourceTotals.get(key + ':source');
+      let amount = source && source.amountCentimes;
+      if (amount === undefined && source && (typeof source.amount === 'number' || typeof source.amount === 'string')) {
+        const text = String(source.amount);
+        const match = /^(0|[1-9]\\d*)(?:\\.(\\d{1,2}))?$/.exec(text);
+        if (match) amount = Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0'));
+      }
       if (!Number.isSafeInteger(amount) || total > BigInt(amount)) throw new Error('allocations exceed source movement amount');
     }
     return true;
