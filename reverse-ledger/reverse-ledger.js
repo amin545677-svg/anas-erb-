@@ -319,6 +319,7 @@
     const customerCreditRows = state.customerCreditMovements || [];
     const customerCreditTotals = new Map();
     const supplierCreditTotals = new Map();
+    const referencedCustomerCreditIds = new Set();
     for (const posted of docs) {
       if (posted.status !== 'POSTED' || !Array.isArray(posted.items)) continue;
       for (const item of posted.items) {
@@ -409,8 +410,9 @@
         const rawQty = matchesStock[0].qty ?? matchesStock[0].quantity;
         const numericQty = Number(rawQty);
         const expectedSign = doc.originalInvoiceType === 'sales_invoice' ? 1 : -1;
-        if (!Number.isFinite(numericQty) || numericQty === 0 || Math.sign(numericQty) !== expectedSign)
-          throw new Error('posted return stock movement has an invalid direction');
+        const expectedMovementType = expectedSign > 0 ? 'RETURN_IN' : 'RETURN_OUT';
+        if (!Number.isFinite(numericQty) || numericQty === 0 || Math.sign(numericQty) !== expectedSign || matchesStock[0].type !== expectedMovementType)
+          throw new Error('posted return stock movement has an invalid direction or movement type');
         const movementQty = quantityToMicroUnits(String(Math.abs(numericQty)), 'return stock movement quantity');
         if (movementQty !== BigInt(doc.items[i].quantityMicroUnits))
           throw new Error('posted return stock quantity does not match return document');
@@ -445,14 +447,21 @@
         if ((customerCredit > 0n && (linkedCredit.length !== 1 || linkedCredit[0].type !== 'credit' || String(linkedCredit[0].customerId) !== invoicePartyId || BigInt(safeInt(linkedCredit[0].amountCentimes, 'customer credit movement', false)) !== customerCredit)) ||
             (customerCredit === 0n && linkedCredit.length !== 0))
           throw new Error('posted sale return customer credit movement does not match its credit balance');
-        if (customerCredit > 0n) customerCreditTotals.set(invoicePartyId, (customerCreditTotals.get(invoicePartyId) || 0n) + customerCredit);
+        if (customerCredit > 0n) {
+          if (!invoicePartyId) throw new Error('customer credit return requires a registered customer');
+          customerCreditTotals.set(invoicePartyId, (customerCreditTotals.get(invoicePartyId) || 0n) + customerCredit);
+          for (const row of linkedCredit) referencedCustomerCreditIds.add(String(recordId(row)));
+        }
       } else {
         const linkedSupplier = supplierRows.filter(x => x && x.referenceType === expectedRef && String(x.referenceId) === returnId && x.type === 'return_credit');
         const supplierMovementTotal = debt + supplierCredit;
         if ((supplierMovementTotal > 0n && (linkedSupplier.length !== 1 || String(linkedSupplier[0].supplierId) !== invoicePartyId || sourceAmountCentimes(linkedSupplier[0]) !== supplierMovementTotal)) ||
             (supplierMovementTotal === 0n && linkedSupplier.length !== 0))
           throw new Error('posted purchase return supplier movement does not match debt and supplier credit');
-        if (supplierCredit > 0n) supplierCreditTotals.set(invoicePartyId, (supplierCreditTotals.get(invoicePartyId) || 0n) + supplierCredit);
+        if (supplierCredit > 0n) {
+          if (!invoicePartyId) throw new Error('supplier credit return requires a registered supplier');
+          supplierCreditTotals.set(invoicePartyId, (supplierCreditTotals.get(invoicePartyId) || 0n) + supplierCredit);
+        }
       }
       let financialTotal = 0n;
       for (const movementId of financialIds) {
@@ -466,6 +475,16 @@
         throw new Error('posted return financial movements do not equal its settlement split');
 
     }
+    const creditMovementIds = new Set();
+    for (const movement of customerCreditRows) {
+      const id = String(recordId(movement) ?? '');
+      if (!id || id === 'undefined' || id === 'null' || creditMovementIds.has(id) || !referencedCustomerCreditIds.has(id) ||
+          movement.type !== 'credit' || !Number.isSafeInteger(movement.amountCentimes) || movement.amountCentimes <= 0)
+        throw new Error('orphan, duplicate or malformed customer credit movement');
+      creditMovementIds.add(id);
+    }
+    if (creditMovementIds.size !== referencedCustomerCreditIds.size)
+      throw new Error('customer credit movement references are incomplete');
     for (const invoice of invoices) {
       const cancellation = docs.filter(doc => doc.status === 'POSTED' && doc.returnType === 'INVOICE_CANCEL' &&
         doc.originalInvoiceType === invoice.type && String(doc.originalInvoiceId) === String(invoice.row.id));
