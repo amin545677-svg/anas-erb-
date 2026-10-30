@@ -468,6 +468,14 @@ jobs:
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
+          purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -477,6 +485,8 @@ jobs:
           const vm = require('node:vm');
           const validator = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
+          const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
+          const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const base = {
             products:[{id:'p',stock:1}], customers:[{id:'c',debt:0}],
             suppliers:[{id:'s',balance:0}], invoices:[], purchases:[], expenses:[],
@@ -501,17 +511,19 @@ jobs:
             const data = JSON.parse(JSON.stringify(base));
             mutate(data);
             const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-            vm.runInNewContext(truckExpenseValidator + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
+            vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
             assert.throws(() => ctx.validate(data), /قيمة مالية غير صالحة/, label + ' above the safe numeric range must be rejected');
           }
           const valid = JSON.parse(JSON.stringify(base));
           const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-          vm.runInNewContext(truckExpenseValidator + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
+          vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
           assert.equal(ctx.validate(valid), valid, 'ordinary backup values must remain accepted');
           console.log('Backup validator safe financial magnitude tests passed');
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", json.dumps(purchase_parity))
           Path("/tmp/anas-backup-financial-safe-range-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-financial-safe-range-test.js
