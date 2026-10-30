@@ -109,8 +109,12 @@
     if (total !== BigInt(totalCentimes)) throw new Error('return total does not equal line totals');
     const debtReductionCentimes = safeInt(input.debtReductionCentimes, 'debtReductionCentimes', true);
     const cashRefundCentimes = safeInt(input.cashRefundCentimes, 'cashRefundCentimes', true);
-    if (BigInt(debtReductionCentimes) + BigInt(cashRefundCentimes) > total)
-      throw new Error('settlement exceeds return value');
+    const supplierCreditCentimes = safeInt(input.supplierCreditCentimes ?? 0, 'supplierCreditCentimes', true);
+    if (input.originalInvoiceType === 'sales_invoice' && supplierCreditCentimes !== 0)
+      throw new Error('sales return cannot create supplier credit');
+    const settled = BigInt(debtReductionCentimes) + BigInt(cashRefundCentimes) + BigInt(supplierCreditCentimes);
+    if (settled > total) throw new Error('settlement exceeds return value');
+    if (input.status === 'POSTED' && settled !== total) throw new Error('posted return settlement must equal return value');
     const stockMovementIds = Array.isArray(input.stockMovementIds) ? input.stockMovementIds.map(x => identifier(x, 'stockMovementId')) : [];
     const financialMovementIds = Array.isArray(input.financialMovementIds) ? input.financialMovementIds.map(x => identifier(x, 'financialMovementId')) : [];
     if (new Set(stockMovementIds).size !== stockMovementIds.length || new Set(financialMovementIds).size !== financialMovementIds.length)
@@ -124,6 +128,7 @@
       totalCentimes,
       debtReductionCentimes,
       cashRefundCentimes,
+      supplierCreditCentimes,
       stockMovementIds: Object.freeze(stockMovementIds),
       financialMovementIds: Object.freeze(financialMovementIds),
       status: input.status,
@@ -287,6 +292,10 @@
           const originalMatches = originalItems.filter(x => invoiceItemProductId(x) === productId);
           if (originalMatches.length !== 1) throw new Error('return item is missing or ambiguous in original invoice');
           const originalQty = quantityToMicroUnits(originalMatches[0].qty ?? originalMatches[0].quantity, 'original invoice quantity');
+          const originalPrice = currencyToCentimes(originalMatches[0].price ?? originalMatches[0].unitPrice, 'original invoice unit price');
+          if (price > originalPrice) throw new Error('return unit price exceeds original invoice unit price');
+          if (doc.returnType === 'INVOICE_CANCEL' && price !== originalPrice)
+            throw new Error('invoice cancellation must reverse the original unit price');
           const key = doc.originalInvoiceType + ':' + doc.originalInvoiceId + ':' + productId;
           const before = postedQuantities.get(key) || 0n;
           const next = before + qty;
@@ -298,7 +307,13 @@
         throw new Error('return total does not match item totals');
       const debt = BigInt(safeInt(doc.debtReductionCentimes, 'debt reduction', true));
       const cash = BigInt(safeInt(doc.cashRefundCentimes, 'cash refund', true));
-      if (debt + cash > lineTotal) throw new Error('return settlement exceeds return value');
+      const supplierCredit = BigInt(safeInt(doc.supplierCreditCentimes ?? 0, 'supplier credit', true));
+      if (doc.originalInvoiceType === 'sales_invoice' && supplierCredit !== 0n)
+        throw new Error('sales return cannot create supplier credit');
+      const settled = debt + cash + supplierCredit;
+      if (settled > lineTotal) throw new Error('return settlement exceeds return value');
+      if (doc.status === 'POSTED' && settled !== lineTotal)
+        throw new Error('posted return settlement must equal return value');
       if (doc.status !== 'POSTED') continue;
       if (!Array.isArray(doc.stockMovementIds) || doc.stockMovementIds.length !== doc.items.length)
         throw new Error('posted return must reference one stock movement per item');
@@ -311,19 +326,29 @@
             String(matchesStock[0].productId) !== String(doc.items[i].productId))
           throw new Error('posted return stock movement is missing or mismatched');
         const rawQty = matchesStock[0].qty ?? matchesStock[0].quantity;
-        const movementQty = quantityToMicroUnits(Math.abs(Number(rawQty)), 'return stock movement quantity');
+        const numericQty = Number(rawQty);
+        const expectedSign = doc.originalInvoiceType === 'sales_invoice' ? 1 : -1;
+        if (!Number.isFinite(numericQty) || numericQty === 0 || Math.sign(numericQty) !== expectedSign)
+          throw new Error('posted return stock movement has an invalid direction');
+        const movementQty = quantityToMicroUnits(String(Math.abs(numericQty)), 'return stock movement quantity');
         if (movementQty !== BigInt(doc.items[i].quantityMicroUnits))
           throw new Error('posted return stock quantity does not match return document');
       }
       const financialIds = Array.isArray(doc.financialMovementIds) ? doc.financialMovementIds : [];
-      if ((debt + cash) > 0n && !financialIds.length) throw new Error('posted return is missing financial movements');
+      if (settled > 0n && !financialIds.length) throw new Error('posted return is missing financial movements');
+      if (new Set(financialIds.map(String)).size !== financialIds.length)
+        throw new Error('posted return has duplicate financial movement references');
       const financialRows = [...cashRows, ...clientRows, ...supplierRows];
+      let financialTotal = 0n;
       for (const movementId of financialIds) {
         const matchesMovement = financialRows.filter(x => String(recordId(x)) === String(movementId));
         if (matchesMovement.length !== 1 || matchesMovement[0].referenceType !== expectedRef ||
             String(matchesMovement[0].referenceId) !== returnId)
           throw new Error('posted return financial movement is missing or mismatched');
+        financialTotal += sourceAmountCentimes(matchesMovement[0]);
       }
+      if (financialTotal !== settled)
+        throw new Error('posted return financial movements do not equal its settlement split');
       if (doc.returnType === 'INVOICE_CANCEL') {
         if (docs.some(other => other !== doc && other.status === 'POSTED' &&
             other.originalInvoiceType === doc.originalInvoiceType && String(other.originalInvoiceId) === String(doc.originalInvoiceId)))
