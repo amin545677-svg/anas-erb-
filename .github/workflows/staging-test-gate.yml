@@ -2,16 +2,12 @@ name: Staging Test Gate
 
 on:
   pull_request:
-    branches:
-      - staging/firebase-snapshot-worker
-      - feat/purchase-supplier-centime-ledger
     paths:
       - "index.html"
       - "tests/**"
       - ".github/workflows/staging-test-gate.yml"
   push:
-    branches:
-      - staging/firebase-snapshot-worker
+    branches: [staging/firebase-snapshot-worker, 'feat/**', 'fix/**']
     paths:
       - "index.html"
       - "tests/**"
