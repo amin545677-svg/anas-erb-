@@ -145,4 +145,12 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  assert.equal(r.AppData.supplierMovements.length,0);
  console.log('PASS: failed supplier creation restores supplier and opening ledger');
 }
+{
+ const ctx={};vm.createContext(ctx);
+ vm.runInContext(moneyHelperSource+"\\nthis.aggregate=anasPurchaseAggregateCents([{total:'0.10'},{total:'0.20'}]);this.stockValue=anasPurchaseStockValueCents(anasPurchaseToQtyUnits('3'),anasPurchaseToCents('0.10'));this.invalidAggregate=anasPurchaseAggregateCents([{total:'9007199254740992'}]);",ctx);
+ assert.equal(ctx.aggregate,30,'purchase report aggregates must sum exact integer centimes');
+ assert.equal(ctx.stockValue,30,'inventory valuation must multiply micro-units and unit cents without floating drift');
+ assert.ok(Number.isNaN(ctx.invalidAggregate),'purchase report must fail closed on totals outside safe integer range');
+ console.log('PASS: purchase reports and inventory valuation aggregate in exact centimes');
+}
 console.log('Purchase and supplier centime ledger tests passed');
