@@ -40,6 +40,19 @@ jobs:
       - name: Test Firebase snapshot Worker before staging deployment
         run: node --test tests/worker_firebase_snapshot.test.mjs
 
+      - name: Validate required Staging origin
+        run: |
+          set -euo pipefail
+          node --input-type=module -e '
+            const value = process.env.STAGING_ALLOWED_ORIGIN || "";
+            let parsed;
+            try { parsed = new URL(value); } catch { throw new Error("GitHub Environment variable STAGING_ALLOWED_ORIGIN must be a valid HTTPS origin."); }
+            if (parsed.protocol !== "https:" || parsed.origin !== value || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+              throw new Error("STAGING_ALLOWED_ORIGIN must be a canonical HTTPS origin without path, query, or fragment.");
+            }
+            console.log("PASS STAGING ORIGIN: canonical HTTPS origin configured.");
+          '
+
       - name: Validate Firebase Staging API key before Cloudflare mutation
         env:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
@@ -62,7 +75,7 @@ jobs:
           if (String(projectBody.projectId) !== "280763919805") {
             throw new Error("Staging key resolves to project number " + String(projectBody.projectId) + ", expected 280763919805; no Staging deployment or test identity created.");
           }
-          echo "::add-mask::$cleanKey"
+          console.log("::add-mask::" + cleanKey);
           console.log("PASS STAGING PROJECT IDENTITY: Identity Toolkit project number 280763919805.");
 
           let temporaryUser = null;
@@ -101,6 +114,14 @@ jobs:
             }
           }
           NODE
+
+      - name: Authenticate to isolated Firebase Staging project
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
+
+      - name: Deploy only Staging Firestore security rules
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
 
       - name: Deploy isolated staging Worker with explicit config and name
         env:
