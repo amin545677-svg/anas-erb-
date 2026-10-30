@@ -3430,7 +3430,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function confirmHasibPayment() {
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
-            const total = cart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
+            const rawTotal = cart.reduce((sum, item) => sum + (Number(item.qty) * Number(item.price)), 0);
+            // Currency is stored to two decimal places throughout the cash ledger. Normalize before payment/debt classification.
+            const total = Number.isFinite(rawTotal) ? Math.round((rawTotal + Number.EPSILON) * 100) / 100 : rawTotal;
             if (!cart.length || !Number.isFinite(total) || total <= 0 || total > Number.MAX_SAFE_INTEGER) {
                 alert('السلة فارغة أو يحتوي مجموع الفاتورة على قيمة خارج المجال الرقمي الآمن.'); return;
             }
@@ -3484,7 +3486,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const customerSelect = document.getElementById('hasibCustomerSelect');
             const paidInput = document.getElementById('hasibPaidAmount');
             const cId = customerSelect ? String(customerSelect.value || '') : '';
-            const rawPaid = Number(paidInput ? paidInput.value : total);
+            const parsedPaid = Number(paidInput ? paidInput.value : total);
+            const rawPaid = Number.isFinite(parsedPaid) ? Math.round((parsedPaid + Number.EPSILON) * 100) / 100 : parsedPaid;
             if (!Number.isFinite(rawPaid) || rawPaid < 0 || rawPaid > total) {
                 alert('تحقق من المبلغ المدفوع؛ يجب أن يكون بين صفر ومجموع الفاتورة.'); return;
             }
