@@ -91,6 +91,7 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   let response = await request(shellUrl, { mode: 'navigate' });
   assert.equal(response.body, 'network-latest', 'online navigation should use fresh network HTML');
   let cache = await caches.open('anas-erp-v54-25-r3');
+  assert.ok(await cache.match('https://example.test/app/reverse-ledger/reverse-ledger.js'), 'reverse-ledger runtime must be included in the offline app shell');
   assert.equal((await cache.match(indexUrl)).body, 'network-latest', 'fresh HTML should replace the cached shell');
 
   // HTTP failures must use the current app shell rather than returning a hosting error page.
