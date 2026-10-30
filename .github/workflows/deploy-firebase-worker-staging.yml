@@ -55,10 +55,10 @@ jobs:
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const rawKey = process.env.STAGING_FIREBASE_API_KEY || "";
-          const cleanKey = rawKey.replace(/["'\\s\\r\\n]/g, "");
-          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\\s\\r\\n]/g, "");
+          const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
+          const productionSecret = (process.env.PROD_FIREBASE_API_KEY || "").replace(/["'\s\r\n]/g, "");
           const html = readFileSync("index.html", "utf8");
-          const productionConfigKey = html.match(/apiKey\\s*:\\s*["']([^"']+)["']/)?.[1] || "";
+          const productionConfigKey = html.match(/apiKey\s*:\s*["']([^"']+)["']/)?.[1] || "";
           const projectId = process.env.EXPECTED_PROJECT_ID;
           console.log(`Key Diagnostic -> Raw Length: ${rawKey.length}, Clean Length: ${cleanKey.length}, StartsWith AIza: ${cleanKey.startsWith("AIza")}`);
           if (!/^AIza[0-9A-Za-z_-]+$/.test(cleanKey)) {
