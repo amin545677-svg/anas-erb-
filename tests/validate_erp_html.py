@@ -376,7 +376,7 @@ console.log('PASS: truck expense link runtime tests accept valid/legacy-unlinked
     modal_start = source.find("function openHasibModal()")
     modal_end = source.find("\n        function ", modal_start)
     modal_fn = source[modal_start:modal_end] if modal_start >= 0 and modal_end > modal_start else ""
-    if not sale_fn or "wtTryEnsureData" not in sale_fn or "hasDebtField" not in sale_fn or "stock > Number.MAX_SAFE_INTEGER" not in sale_fn or "رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن" not in sale_fn:
+    if not sale_fn or "wtTryEnsureData" not in sale_fn or "hasDebtField" not in sale_fn or "stockUnits > Number.MAX_SAFE_INTEGER" not in sale_fn or "رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن" not in sale_fn:
         errors.append("integrated POS payment must retain warehouse preflight and malformed customer-debt rejection")
     if not transfer_fn or "if(!wtTryEnsureData())return;" not in transfer_fn:
         errors.append("integrated warehouse transfer must validate persisted stock data before mutation")
@@ -397,7 +397,8 @@ console.log('PASS: truck expense link runtime tests accept valid/legacy-unlinked
     edit_fn = source[edit_start:edit_end] if edit_start >= 0 and edit_end > edit_start else ""
     edit_guards = [
         "Number(item.qty) > Number.MAX_SAFE_INTEGER",
-        "qty > Number.MAX_SAFE_INTEGER",
+        "Number.isSafeInteger(qtyUnits)",
+        "qtyUnits <= 0",
         "رصيد دين العميل غير صالح. أصلح سجل العميل قبل أي تعديل مالي",
         "available + delta > Number.MAX_SAFE_INTEGER",
         "خريطة أرصدة المخازن الفرعية تالفة للمنتج",
@@ -562,7 +563,8 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         "anasFormatZReportTotal(totSales)",
         "anasFormatZReportTotal(totPaid)",
         "anasFormatZReportTotal(totRem)",
-        "total += Number(value)",
+        "totalCents += cents",
+        "Number.isSafeInteger(totalCents + cents)",
     ]
     for guard in z_report_guards:
         if guard not in source:
@@ -639,10 +641,12 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     pos_strict_cart_guards = [
         "typeof item.qty === 'number') || (typeof item.qty === 'string'",
         "typeof item.qty === 'string' && item.qty.trim() === ''",
-        "qty > Number.MAX_SAFE_INTEGER",
+        "Number.isSafeInteger(qtyUnits)",
+        "qtyUnits <= 0",
         "typeof item.price === 'number') || (typeof item.price === 'string'",
         "typeof item.price === 'string' && item.price.trim() === ''",
-        "price > Number.MAX_SAFE_INTEGER",
+        "Number.isSafeInteger(priceCents)",
+        "priceCents < 0",
     ]
     if not all(guard in sale_source for guard in pos_strict_cart_guards):
         errors.append("POS sale must reject coerced or unsafe cart quantities and prices before stock mutation")
@@ -1221,13 +1225,15 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "existingExpenses.length>1" in truck_expense
             and "دون استبدال السجل" in truck_expense,
         "sale aggregates repeated product quantities and validates numeric inputs":
-            "aggregateQty = (required.get(id) || 0) + qty" in sale
-            and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale,
+            "aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits" in sale
+            and "Number.isFinite(qty)" in sale and "Number.isFinite(price)" in sale
+            and "lineProduct = qtyUnits * priceCents" in sale,
         "POS sale rejects unsafe invoice, quantity, cash, and customer-debt arithmetic":
-            "total > Number.MAX_SAFE_INTEGER" in sale
-            and "aggregateQty > Number.MAX_SAFE_INTEGER" in sale
-            and "newDebt > Number.MAX_SAFE_INTEGER" in sale
-            and "newCashBalance > Number.MAX_SAFE_INTEGER" in sale,
+            "Number.isSafeInteger(totalCents)" in sale
+            and "Number.isSafeInteger(aggregateUnits)" in sale
+            and "Number.isSafeInteger(newDebtCents)" in sale
+            and "Number.isSafeInteger(newCashCents)" in sale
+            and "totalCents !== paidCents + (newDebtCents - oldDebtCents)" in sale,
         "POS sale rejects missing or duplicate product IDs and reuses unique preflight records":
             "productMatches = (AppData.products || []).filter(" in sale
             and "productMatches.length !== 1" in sale

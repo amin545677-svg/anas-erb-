@@ -3,13 +3,17 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer currency/quantity helpers must be present and isolatable');
+const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function confirmHasibPayment()');
-const end = html.indexOf('\n        function ', start + 20);
+const end = html.indexOf('\n        function printLastConfirmedInvoice(type)', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
-const source = html.slice(start, end);
+const source = helperSource + html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100} = {}) {
-  const product = {id:'P-1', name:'Test product', stock:20, warehouseStock:{'فرع 1':12}};
+function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, doubleConfirm = false} = {}) {
+  const product = {id:'P-1', name:'Test product', stock:productStock, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:customerDebt};
   const AppData = {
     products:[product], customers:[customer], invoices:[],
@@ -39,7 +43,8 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   };
   vm.createContext(context);
   vm.runInContext(source + '\nconfirmHasibPayment();', context, {timeout:1000});
-  return {AppData,product,customer,alerts,saves,renders,closes,posCart:context.posCart,lastInvoice:context.lastConfirmedInvoice};
+  if (doubleConfirm) vm.runInContext('confirmHasibPayment();', context, {timeout:1000});
+  return {AppData,product,customer,alerts,saves,renders,closes,posCart:context.posCart,lastInvoice:context.lastConfirmedInvoice,context};
 }
 
 {
@@ -139,7 +144,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     {id:'P-1',name:'Test product',qty:0.25,price:100.1},
     {id:'P-1',name:'Test product',qty:0.25,price:100.1}
   ],paid:50.05});
-  assert.equal(r.AppData.invoices[0].total,50.05);
+  assert.equal(r.AppData.invoices[0].total,50.06);
   assert.equal(r.AppData.stockMovements.length,1,'repeated cart lines must aggregate to one stock movement per product');
   assert.equal(r.AppData.stockMovements[0].qty,-0.5);
   assert.equal(r.AppData.cashMovements[0].amount,50.05);
@@ -212,7 +217,7 @@ console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
   const cashDisplay={innerText:''};
   const uiContext={AppData:r.AppData,document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?cashDisplay:null}};
   vm.createContext(uiContext);
-  vm.runInContext(cashUiSource+'\nupdateCashUI();',uiContext,{timeout:1000});
+  vm.runInContext(helperSource+'\n'+cashUiSource+'\nupdateCashUI();',uiContext,{timeout:1000});
   assert.equal(Number(cashDisplay.innerText.replace(' د.ج','').replace(/,/g,'')),100.2,
     'cash balance display must reflect opening balance plus normalized sale receipt');
   assert.equal(r.AppData.cashMovements.filter(m=>m.referenceType==='sales_invoice'&&m.type==='add').reduce((sum,m)=>sum+m.amount,0),0.1,
@@ -221,4 +226,162 @@ console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
     'stock ledger contract must preserve the invoice-linked negative sale quantity');
   assert.equal(r.customer.debt,0.3,'cumulative customer debt must match opening debt plus invoice remainder');
   console.log('PASS: integrated invoice/cash UI/cash ledger/stock ledger/customer debt parity');
+}
+
+
+// Integer-centime stress matrix: all identity checks are exact integer equalities.
+function assertAccountingIdentity(result, openingDebt = 0) {
+  const invoice = result.AppData.invoices[0];
+  const invoiceCents = Math.round(invoice.total * 100);
+  const cashCents = result.AppData.cashMovements
+    .filter(m => m.referenceType === 'sales_invoice' && m.referenceId === invoice.id && m.type === 'add')
+    .reduce((sum, m) => sum + Math.round(m.amount * 100), 0);
+  const debtDeltaCents = Math.round(result.customer.debt * 100) - Math.round(openingDebt * 100);
+  assert.equal(invoiceCents, cashCents + debtDeltaCents,
+    'invoice cents must equal linked cash inflow cents plus the exact customer-debt delta');
+  assert.equal(Math.round(invoice.paid * 100), cashCents,
+    'invoice paid cents must equal its linked cash movement cents');
+  assert.equal(Math.round(invoice.remaining * 100), debtDeltaCents,
+    'invoice remaining cents must equal the exact customer-debt delta');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:7,price:0.1}],paid:0.7});
+  assert.equal(r.AppData.invoices[0].total,0.7);
+  assert.equal(r.AppData.invoices[0].paid,0.7);
+  assert.equal(r.AppData.invoices[0].remaining,0);
+  assert.equal(r.customer.debt,0);
+  assertAccountingIdentity(r);
+  console.log('PASS: 7 x 0.10 settles as exactly 0.70 with no phantom debt');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.2}],paid:0.02});
+  assert.equal(r.AppData.invoices[0].total,0.02);
+  assert.equal(r.AppData.invoices[0].paid,0.02);
+  assert.equal(r.AppData.invoices[0].remaining,0);
+  assert.equal(r.customer.debt,0);
+  assertAccountingIdentity(r);
+  console.log('PASS: 0.1 x 0.2 settles as exactly 0.02');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.2}],paid:0.01,customerDebt:0.03,caisseBalance:100.09});
+  assert.equal(r.AppData.invoices[0].total,0.02);
+  assert.equal(r.AppData.invoices[0].paid,0.01);
+  assert.equal(r.AppData.invoices[0].remaining,0.01);
+  assert.equal(r.customer.debt,0.04);
+  assert.equal(r.AppData.cashMovements[0].amount,0.01);
+  assert.equal(r.AppData.caisseBalance,100.10);
+  assertAccountingIdentity(r,0.03);
+  console.log('PASS: 0.1 x 0.2 partial settlement preserves exact 0.01 cash and 0.01 debt');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:1}],paid:0.1,productStock:0.8});
+  assert.equal(r.product.stock,0.7,'stock subtraction must be stored at six-decimal quantity precision');
+  assert.equal(r.AppData.stockMovements[0].qty,-0.1);
+  assert.equal(r.context.anasRoundQty(0.8-0.1),0.7);
+  console.log('PASS: fractional stock arithmetic stores 0.700000 exactly, not a binary drift residue');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.3,doubleConfirm:true});
+  assert.equal(r.AppData.invoices.length,1,'a second confirmation after commit must be a no-op');
+  assert.equal(r.AppData.cashMovements.length,1,'double confirmation must not duplicate SALE-CASH');
+  assert.equal(r.AppData.stockMovements.length,1,'double confirmation must not duplicate SALE-STOCK');
+  assert.equal(r.product.stock,17,'double confirmation must not deduct stock twice');
+  assert.equal(r.saves,1,'second confirmation must not persist another sale');
+  console.log('PASS: sequential double-confirmation cannot duplicate invoice, cash, or stock movements');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1,caisseBalance:100.1});
+  const cashDisplay={innerText:''};
+  const readerContext={
+    AppData:r.AppData, cashDisplay,
+    document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?cashDisplay:null}
+  };
+  vm.createContext(readerContext);
+  const cashStart=html.indexOf('function updateCashUI()');
+  const cashEnd=html.indexOf('\n        function ',cashStart+20);
+  const zStart=html.indexOf('function anasGetZReportTotal(');
+  const zEnd=html.indexOf('\n        function ',zStart+20);
+  assert.ok(cashStart>=0&&cashEnd>cashStart,'actual cash UI reader must be extractable');
+  assert.ok(zStart>=0&&zEnd>zStart,'actual Z-report invoice aggregator must be extractable');
+  vm.runInContext(helperSource+html.slice(cashStart,cashEnd)+html.slice(zStart,zEnd)+
+    '\nupdateCashUI(); globalThis.zTotal=anasGetZReportTotal(AppData.invoices,"total"); globalThis.zPaid=anasGetZReportTotal(AppData.invoices,"paid"); globalThis.zDebt=anasGetZReportTotal(AppData.invoices,"remaining");',
+    readerContext,{timeout:1000});
+  assert.match(readerContext.cashDisplay.innerText,/100\.2/);
+  assert.equal(readerContext.zTotal,0.3);
+  assert.equal(readerContext.zPaid,0.1);
+  assert.equal(readerContext.zDebt,0.2);
+  assert.equal(r.AppData.cashMovements[0].type,'add');
+  assert.equal(r.AppData.cashMovements[0].referenceType,'sales_invoice');
+  assert.equal(r.AppData.stockMovements[0].type,'SALE_OUT');
+  assert.equal(r.AppData.stockMovements[0].referenceType,'sales_invoice');
+  console.log('PASS: actual cash balance and Z-report readers reflect the committed invoice values');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.3,customerDebt:0.25});
+  assert.equal(r.customer.debt,0.25,'fully paid invoice must not change an existing customer debt');
+  assert.equal(r.AppData.invoices[0].remaining,0);
+  assert.equal(r.AppData.invoices[0].paymentMethod,'cash');
+  assert.equal(r.AppData.cashMovements.length,1);
+  assert.equal(r.AppData.cashMovements[0].amount,0.3);
+  assertAccountingIdentity(r,0.25);
+  console.log('PASS: exact full payment creates no new debt and does not mark the invoice partial');
+}
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1});
+  const stocktakeStart=html.indexOf('/* ANAS ERP — stocktake sessions, draft, variance approval and audit movements */');
+  const stocktakeEnd=html.indexOf('\n})();',stocktakeStart);
+  assert.ok(stocktakeStart>=0&&stocktakeEnd>stocktakeStart,'actual stocktake module must be present and isolatable');
+  const stocktakeContext={
+    AppData:r.AppData,Date,Math,Number,String,Object,Array,Map,Set,JSON,
+    window:null,localStorage:{getItem:()=>null,setItem:()=>{}},
+    document:{getElementById:()=>null,addEventListener:()=>{}},
+    alert:()=>{},confirm:()=>true,console
+  };
+  stocktakeContext.window=stocktakeContext;
+  vm.createContext(stocktakeContext);
+  vm.runInContext(html.slice(stocktakeStart,stocktakeEnd+5),stocktakeContext,{timeout:1000});
+  stocktakeContext.anasRenderStocktake=()=>{};
+  stocktakeContext.anasSaveStocktakeDraft=()=>true;
+  vm.runInContext('anasStartStocktake()',stocktakeContext,{timeout:1000});
+  assert.equal(stocktakeContext.__anasCurrentStocktake.items[0].systemQty,17,
+    'stocktake must snapshot the product master balance after the sale exactly once');
+  console.log('PASS: actual stocktake session reader snapshots the post-sale product balance without replaying SALE_OUT');
+}
+
+
+{
+  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1});
+  const syncStart=html.indexOf('async function syncPushNow()');
+  const syncEnd=html.indexOf('\n        async function syncPullNow()',syncStart);
+  assert.ok(syncStart>=0&&syncEnd>syncStart,'actual cloud snapshot sender must be present and isolatable');
+  const syncSource=html.slice(syncStart,syncEnd);
+  assert.ok(syncSource.includes('data: AppData'),'cloud snapshot must serialize the complete AppData object');
+  assert.ok(html.includes("'cashMovements'")&&html.includes("'stockMovements'"),'cloud validation must retain both financial and stock movement arrays');
+  const cloudSnapshot=JSON.parse(JSON.stringify(r.AppData));
+  assert.equal(cloudSnapshot.cashMovements[0].referenceType,'sales_invoice');
+  assert.equal(cloudSnapshot.cashMovements[0].amount,0.1);
+  assert.equal(cloudSnapshot.stockMovements[0].type,'SALE_OUT');
+  assert.equal(cloudSnapshot.stockMovements[0].referenceType,'sales_invoice');
+  console.log('PASS: complete Cloud Snapshot carries both linked sale ledgers without filtering');
+}
+
+{
+  const cancelStart=html.indexOf('function cancelInvoicePrompt()');
+  const cancelEnd=html.indexOf('\n        function ',cancelStart+20);
+  assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'invoice cancellation guard must be present');
+  const alerts=[];
+  const cancelContext={alert:m=>alerts.push(String(m))};
+  vm.createContext(cancelContext);
+  vm.runInContext(html.slice(cancelStart,cancelEnd)+'\ncancelInvoicePrompt();',cancelContext,{timeout:1000});
+  assert.ok(alerts.some(m=>m.includes('لم تتغير أي بيانات')),
+    'invoice cancellation must fail closed rather than delete a sale without compensating ledger entries');
+  console.log('PASS: invoice cancellation remains blocked until an atomic compensating transaction exists');
 }

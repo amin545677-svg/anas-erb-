@@ -3,10 +3,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer stock quantity helpers must be present and isolatable');
+const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function editSalesInvoice(invoiceId) {');
 const end = html.indexOf('// ================= إدارة المخزون وحساب الأرباح =================', start);
 assert.ok(start >= 0 && end > start, 'editSalesInvoice must be present and isolatable');
-const source = html.slice(start, end);
+const source = helperSource + html.slice(start, end);
 
 function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, customerDebt = 0} = {}) {
   const invoice = {id:'INV-SAFE-1', items:[{id:'P1', name:'Test', qty:1, price:10}], total, paid, remaining, customer:'Customer'};

@@ -1,0 +1,38 @@
+name: Staging Test Gate
+
+on:
+  pull_request:
+    branches:
+      - staging/firebase-snapshot-worker
+    paths:
+      - "index.html"
+      - "tests/**"
+      - ".github/workflows/staging-test-gate.yml"
+  push:
+    branches:
+      - staging/firebase-snapshot-worker
+    paths:
+      - "index.html"
+      - "tests/**"
+      - ".github/workflows/staging-test-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  financial-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging candidate
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run Hasib financial and stock invariants
+        run: node --test tests/hasib_sale_ledger_parity_test.js
+      - name: Validate full ERP HTML and inline JavaScript
+        run: |
+          python -m py_compile tests/validate_erp_html.py
+          python tests/validate_erp_html.py
