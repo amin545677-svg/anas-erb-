@@ -2591,6 +2591,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
         let posCart = AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) && Array.isArray(AppData.posScreensCarts[AppData.activePosScreenTab]) ? AppData.posScreensCarts[AppData.activePosScreenTab] : [];
         let activeAiTab = 'all';
+        let currentPosCategoryFilter = 'الكل';
 
         
         function populateSuppliersDropdowns() {
