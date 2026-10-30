@@ -197,6 +197,7 @@ jobs:
             check(data.ok === true && data.service === "anas-erp-firebase-snapshot-staging" && data.projectId === "anas-erp-staging-a25e1" && data.configured === true, "health JSON mismatch");
             console.log("PASS LIVE HEALTH: HTTP 200 and CORS for " + origin + ".");
           }
+          const call = (path, options = {}) => fetch(base + path, { ...options, headers: { Origin: origins[0], ...(options.headers || {}) } });
           for (const method of ['GET', 'PUT']) {
             const response = await call('/snapshot', { method });
             check(response.status === 401, method + ' missing token returned ' + response.status);
@@ -217,7 +218,7 @@ jobs:
         env:
           STAGING_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
           WORKER_BASE_URL: https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev
-          EXPECTED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN }}
+          EXPECTED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN || 'https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com' }}
           EXPECTED_PROJECT_ID: anas-erp-staging-a25e1
         run: |
           set -euo pipefail
@@ -226,7 +227,7 @@ jobs:
           const cleanKey = rawKey.replace(/["'\s\r\n]/g, "");
           const projectId = process.env.EXPECTED_PROJECT_ID;
           const base = process.env.WORKER_BASE_URL;
-          const origin = process.env.EXPECTED_ORIGIN;
+          const origin = (process.env.EXPECTED_ORIGIN || "").split(",").map(value => value.trim()).filter(Boolean)[0] || "";
           if (cleanKey.length !== 39 || !/^AIza[0-9A-Za-z_-]{35}$/.test(cleanKey)) {
             throw new Error("Staging Firebase API key has an invalid Web API key shape; value withheld.");
           }
