@@ -200,6 +200,16 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
   assert.throws(()=>validate(kind,missingLedger,{supplierMovements:[{id:'OLD',supplierId:'S-1',type:'purchase',amount:1}]}),/تفتقد قائمة/,'restore must not erase an existing supplier ledger when the snapshot omits it');
   const legacy=JSON.parse(JSON.stringify(base));delete legacy.purchases[0].ledgerVersion;legacy.supplierMovements=[];legacy.cashMovements=[];legacy.stockMovements=[];
   assert.doesNotThrow(()=>validate(kind,legacy),'legacy purchases without ledgerVersion must remain restorable without fabricated historical movements');
+  const supplierPayment=JSON.parse(JSON.stringify(base));
+  supplierPayment.supplierMovements.push({id:'SP-1',supplierId:'S-1',type:'payment',amount:'0.05',referenceType:'supplier_payment',referenceId:'SP-1'});
+  supplierPayment.cashMovements.push({id:'SC-1',type:'subtract',amount:'0.05',referenceType:'supplier_payment',referenceId:'SP-1'});
+  assert.doesNotThrow(()=>validate(kind,supplierPayment),'supplier debt payment must restore only with its matching cash movement');
+  const brokenSupplierPayment=JSON.parse(JSON.stringify(supplierPayment));brokenSupplierPayment.cashMovements[1].amount='0.04';
+  assert.throws(()=>validate(kind,brokenSupplierPayment),/تسديد المورد غير مرتبط بحركة صندوق مطابقة/,'restore must reject supplier payments without exact cash parity');
+  const duplicateOpening=JSON.parse(JSON.stringify(base));
+  duplicateOpening.supplierMovements.push({id:'SM-OPEN-2',supplierId:'S-1',type:'opening_balance',amount:'1.00',referenceType:'supplier_opening_balance',referenceId:'S-1'});
+  duplicateOpening.supplierMovements.push({id:'SM-OPEN-3',supplierId:'S-1',type:'opening_balance',amount:'1.00',referenceType:'supplier_opening_balance',referenceId:'S-1'});
+  assert.throws(()=>validate(kind,duplicateOpening),/غير متطابق أو مكرر/,'restore must reject duplicate supplier opening-balance entries');
  }
  console.log('PASS: cloud and backup restore validate purchase settlement and preserve supplier ledger history');
 }
