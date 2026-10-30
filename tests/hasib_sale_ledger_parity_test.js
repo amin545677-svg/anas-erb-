@@ -217,7 +217,7 @@ console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
   const cashDisplay={innerText:''};
   const uiContext={AppData:r.AppData,document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?cashDisplay:null}};
   vm.createContext(uiContext);
-  vm.runInContext(cashUiSource+'\nupdateCashUI();',uiContext,{timeout:1000});
+  vm.runInContext(helperSource+'\n'+cashUiSource+'\nupdateCashUI();',uiContext,{timeout:1000});
   assert.equal(Number(cashDisplay.innerText.replace(' د.ج','').replace(/,/g,'')),100.2,
     'cash balance display must reflect opening balance plus normalized sale receipt');
   assert.equal(r.AppData.cashMovements.filter(m=>m.referenceType==='sales_invoice'&&m.type==='add').reduce((sum,m)=>sum+m.amount,0),0.1,
