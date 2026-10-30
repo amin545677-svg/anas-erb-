@@ -26,6 +26,29 @@ Baseline: `382ed534f50b8d082acf71cc456744e5aa3a4872` (ANAS ERP v42)
 6. Cancellation is a full reversal only when no prior return/reversal exists and all stock/settlement preconditions pass. Keep the original invoice and its monetary/line data unchanged; a separate status marker may indicate cancellation.
 7. Extend both `anasValidateBackupData` and `anasValidateIncomingSyncData` through a shared reverse-ledger parity validator. Validate references, line and value ceilings, stock movement parity, settlement allocation parity, and duplicate/replay protection before accepting snapshots.
 
+
+## Implemented structural guard layer (feature branch)
+
+- index.html now initializes clientMovements, settlementAllocations, and returns only when absent. Existing malformed values remain visible to startup integrity checks; no historical allocation or invoice version is fabricated.
+- saveDB() runs the shared reverse-ledger validator before serialization. Backup and cloud validators run the same validator before any state replacement; legacy snapshots may omit the new arrays and are normalized after successful validation.
+- reverse-ledger.js exports pure constructors and seal functions. Constructors do not stamp ledgerVersion: 2. Sealing first validates a candidate full state and only then returns a version-2 record; failure leaves the caller's state unchanged.
+- Settlement allocation validation checks the exact invoice/party relationship, source-ledger identity, per-invoice paid-centime ceiling, and per-source-movement amount ceiling. Customer debt receipts bind to the customer-level cash movement; supplier payments bind to the supplier ledger movement, including distinct initial-purchase-payment and later-supplier-payment references.
+- Return validation checks original invoice existence and type, exact centime arithmetic, original line identity and unit-price ceiling, cumulative posted-return micro-unit ceiling, full-line/full-quantity cancellation, stock movement direction and quantity, and exact financial movement references and settlement totals. Purchase invoices use their actual single-line productId / qty / cost schema.
+- Purchase returns may represent residual supplier credit explicitly as supplierCreditCentimes; this is included in the posted settlement equality check. Sales returns cannot create supplier credit.
+- sw.js precaches the reverse-ledger runtime for offline startup.
+
+### Deliberate non-goals at this gate
+
+- No transaction flow yet creates customer allocations from collectCustDebt or supplier allocations from later supplier payments. The source functions still need a separate, auditable transaction integration before v2 settlement records are issued in production.
+- No sale-return, purchase-return, or cancellation posting UI is enabled. cancelInvoicePrompt, returnSalePrompt, and returnPurchasePrompt remain fail-closed until the posting engine, rollback path, and operator confirmation flow are implemented.
+- No legacy invoice is auto-migrated or assigned ledgerVersion: 2. Historical unallocated payments remain unallocated.
+
+### Current verification on the feature head
+
+- node --test reverse-ledger and financial invariant suite: 17/17 passed.
+- Playwright/Chromium: 2/2 passed, including V42 backup acceptance, valid v2 allocation acceptance, orphan allocation rejection, over-return rejection, and unchanged AppData / localStorage after rejected backup/cloud candidates.
+- The four primary CI gates and the additional service-worker cache regression passed on the same feature commit.
+
 ## Implementation and release gates
 
 - No production merge or deployment. Keep PR #248 and this stacked PR Draft.
