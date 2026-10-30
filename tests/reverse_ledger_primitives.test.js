@@ -33,16 +33,56 @@ test('returnable quantity ceiling is exact and rejects over-return', () => {
  assert.throws(()=>R.computeReturnableMicroUnits(3,4),/invalid return quantity ceiling/);
 });
 test('allocation validator rejects orphan, mismatch and over-allocation', () => {
- const invoice={id:'S-1',customerId:'C-1'}, movement={id:'M-1',amountCentimes:1000,referenceType:'customer_debt'};
+ const invoice={id:'S-1',customerId:'C-1',paid:20}, movement={id:'M-1',amountCentimes:1000,referenceType:'customer_debt'};
  const a={allocationId:'A-1',partyType:'customer',partyId:'C-1',invoiceType:'sales_invoice',invoiceId:'S-1',sourceMovementId:'M-1',sourceMovementType:'customer_debt',amountCentimes:700};
  const state={invoices:[invoice],cashMovements:[movement],settlementAllocations:[a]};
  assert.equal(R.validateSettlementAllocations(state),true);
- assert.throws(()=>R.validateSettlementAllocations({...state,invoices:[]}),/orphan settlement allocation/);
+ assert.throws(()=>R.validateSettlementAllocations({...state,invoices:[]}),/orphan or ambiguous settlement allocation invoice/);
  assert.throws(()=>R.validateSettlementAllocations({...state,invoices:[{...invoice,customerId:'C-2'}]}),/allocation party does not match invoice/);
- assert.throws(()=>R.validateSettlementAllocations({...state,settlementAllocations:[a,{...a,allocationId:'A-2',amountCentimes:400}]}),/allocations exceed source movement amount/);
+ assert.throws(()=>R.validateSettlementAllocations({...state,settlementAllocations:[a,{...a,allocationId:'A-2',amountCentimes:400}]}),/invoice allocations exceed paid centime amount/);
 });
 test('appendUnique rejects replay without mutating original list', () => {
  const original=[{returnId:'R-1'}], next=R.appendUnique(original,{returnId:'R-2'},'returnId');
  assert.equal(original.length,1); assert.equal(next.length,2);
  assert.throws(()=>R.appendUnique(next,{returnId:'R-2'},'returnId'),/duplicate returnId/);
+});
+
+test('legacy V42 state passes without synthetic allocation or movement records', () => {
+ const state={customers:[{id:'C-1',debt:125.5}],suppliers:[],invoices:[],purchases:[],returns:[]};
+ const before=JSON.stringify(state);
+ assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.equal(JSON.stringify(state),before);
+ assert.equal(state.clientMovements,undefined);
+});
+test('version-2 client movement ledger must reconcile exactly to customer debt', () => {
+ const movement=R.makeClientMovement({movementId:'CM-1',clientId:'C-1',type:'opening_balance',amountCentimes:725,direction:'debit',referenceType:'opening_balance',referenceId:'C-1',createdAt:'2026-10-30T12:00:00Z'});
+ const state={customers:[{id:'C-1',debt:7.25,ledgerVersion:2}],clientMovements:[movement],invoices:[],purchases:[],returns:[]};
+ assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.throws(()=>R.validateReverseLedgerParity({...state,customers:[{id:'C-1',debt:7.24,ledgerVersion:2}]}),/does not match customer debt/);
+});
+test('posted returns reject a one-micro-unit over-return without mutating the source state', () => {
+ const state={
+  customers:[],suppliers:[],
+  invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:2,price:1000000}]}],
+  purchases:[],clientMovements:[],settlementAllocations:[],cashMovements:[],supplierMovements:[],stockMovements:[],
+  returns:[{returnId:'R-1',ledgerVersion:2,originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
+   items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001}],
+   totalCentimes:2000001,debtReductionCentimes:0,cashRefundCentimes:0,stockMovementIds:[],financialMovementIds:[]}]
+ };
+ const before=JSON.stringify(state);
+ assert.throws(()=>R.validateReverseLedgerParity(state),/return exceeds remaining returnable micro-units/);
+ assert.equal(JSON.stringify(state),before,'rejected validation must not mutate incoming data');
+});
+test('posted return requires matching invoice-linked stock movements', () => {
+ const state={
+  customers:[],suppliers:[],
+  invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:2,price:10}]}],
+  purchases:[],clientMovements:[],settlementAllocations:[],cashMovements:[],supplierMovements:[],
+  stockMovements:[{id:'SM-1',productId:'P-1',qty:1,referenceType:'sales_return',referenceId:'R-1'}],
+  returns:[{returnId:'R-1',ledgerVersion:2,originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000}],
+   totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:0,stockMovementIds:['SM-1'],financialMovementIds:[]}]
+ };
+ assert.equal(R.validateReverseLedgerParity(state),true);
+ assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[]}),/posted return stock movement is missing or mismatched/);
 });
