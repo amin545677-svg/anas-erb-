@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 
 const MAX_SNAPSHOT_BYTES = 700 * 1024;
+const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const MAX_OPERATION_RECORDS = 300;
 const MAX_OPERATION_BYTES = 6 * 1024 * 1024;
 const MAX_SINGLE_OPERATION_BYTES = 200 * 1024;
@@ -111,6 +112,7 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
           ownerUid: uid,
           schemaVersion: 1,
           snapshotPayload: payload,
+          snapshotPayloadHash: sha256(payload),
           snapshotLastReverseOperationId: snapshotSnap.get('lastReverseOperationId') || null,
           operationCount: entries.length,
           createdAt: FieldValue.serverTimestamp()
@@ -157,6 +159,22 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
         }
         if (!snapshotSnap.exists) fail('failed-precondition', 'A cloud snapshot is required before trusted restore.');
         const backupPayload = backupSnap.get('snapshotPayload');
+        if (typeof backupSnap.get('snapshotPayloadHash') !== 'string' ||
+            sha256(backupPayload) !== backupSnap.get('snapshotPayloadHash')) {
+          fail('failed-precondition', 'Trusted backup snapshot hash does not match its manifest.');
+        }
+        const currentPayload = snapshotSnap.get('payload');
+        if (currentPayload !== backupPayload) {
+          let currentSnapshotIsValid = false;
+          try {
+            const currentState = parseSnapshot(currentPayload);
+            ReverseLedger.validateReverseLedgerParity(currentState);
+            currentSnapshotIsValid = true;
+          } catch (_) {}
+          if (currentSnapshotIsValid) {
+            fail('failed-precondition', 'Current cloud snapshot is valid but newer or different; refusing to overwrite it with an older backup.');
+          }
+        }
         const backupRecords = operationMap({
           size: backupOperationsSnap.size,
           docs: backupOperationsSnap.docs.map(doc => ({
