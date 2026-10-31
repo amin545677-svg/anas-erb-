@@ -422,8 +422,15 @@ test("runtime wiring rejects multiple appended business entities before local pe
 test("runtime wiring fails closed when financial balances or stock change without a queued operation", () => {
   for (const mutate of [
     data => { data.products[0].stock -= 3; },
+    data => { data.products[0].warehouseStock = { "مخزن ثانوي": 3 }; },
     data => { data.caisseBalance += 75; },
-    data => { data.customers[0].debt -= 75; }
+    data => { data.customers[0].debt -= 75; },
+    data => { data.purchases = [...(data.purchases || []), { id: "purchase-untracked" }]; },
+    data => { data.expenses = [...(data.expenses || []), { id: "expense-untracked" }]; },
+    data => { data.truckTrips = [...(data.truckTrips || []), { id: "trip-untracked" }]; },
+    data => { data.warehouseTransfers = [...(data.warehouseTransfers || []), { id: "transfer-untracked" }]; },
+    data => { data.suppliers = [...(data.suppliers || []), { id: "supplier-untracked", balance: 25 }]; },
+    data => { data.stocktakeRecords = [...(data.stocktakeRecords || []), { id: "stocktake-untracked" }]; }
   ]) {
     const initial = fixture();
     const current = structuredClone(initial);
