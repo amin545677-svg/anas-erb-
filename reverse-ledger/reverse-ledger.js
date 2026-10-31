@@ -132,9 +132,22 @@
       );
       if (expectedLineTotal !== BigInt(lineTotalCentimes))
         throw new Error('return line total does not match cumulative centime valuation');
+      const restoredInventoryCostCentimes = safeInt(line.restoredInventoryCostCentimes ?? 0, 'restoredInventoryCostCentimes', true);
+      const inventoryBookValueCentimes = safeInt(line.inventoryBookValueCentimes ?? 0, 'inventoryBookValueCentimes', true);
+      const valuationVarianceCentimes = line.valuationVarianceCentimes ?? 0;
+      if (!Number.isSafeInteger(valuationVarianceCentimes))
+        throw new Error('valuationVarianceCentimes must be a safe signed integer');
+      if (input.originalInvoiceType === 'sales_invoice' &&
+          (inventoryBookValueCentimes !== 0 || valuationVarianceCentimes !== 0))
+        throw new Error('sale return cannot record purchase valuation variance');
+      if (input.originalInvoiceType === 'purchase_invoice' &&
+          (restoredInventoryCostCentimes !== 0 ||
+           BigInt(lineTotalCentimes) - BigInt(inventoryBookValueCentimes) !== BigInt(valuationVarianceCentimes)))
+        throw new Error('purchase return valuation variance does not reconcile');
       return Object.freeze({
         productId, quantityMicroUnits, unitPriceCentimes, lineTotalCentimes,
-        originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits
+        originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits,
+        restoredInventoryCostCentimes, inventoryBookValueCentimes, valuationVarianceCentimes
       });
     });
     const total = items.reduce((sum, line) => sum + BigInt(line.lineTotalCentimes), 0n);
