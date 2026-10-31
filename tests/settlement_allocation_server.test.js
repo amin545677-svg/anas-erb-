@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeAllocationRequest } = require('../functions/settlement-allocation-service.js');
+const { normalizeAllocationRequest, toCentimes, integerCentimes } = require('../functions/settlement-allocation-service.js');
 
 const base = {
   operationId: 'ALLOC-OP-00000001',
@@ -13,6 +13,13 @@ const base = {
   sourceMovementType: 'customer_debt',
   allocations: [{ invoiceId: 'INV-1', amountCentimes: 12550 }]
 };
+
+test('currency amounts and integer centimes use distinct exact scales', () => {
+  assert.equal(toCentimes(100), 10000);
+  assert.equal(toCentimes('100.50'), 10050);
+  assert.equal(integerCentimes('10050', 'amount'), 10050);
+  assert.throws(() => toCentimes('100.501', 'amount'), /at most two decimals/);
+});
 
 test('normalizes a multi-invoice allocation request with exact integer centimes', () => {
   const result = normalizeAllocationRequest({
