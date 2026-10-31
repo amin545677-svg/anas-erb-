@@ -52,6 +52,17 @@ test("Firestore control-plane rules deny every browser client",async()=>{
   assert.match(rules,/match \/financialPeriods\/{periodId}\s*\{\s*allow read, write: if false;/);
   assert.match(rules,/match \/reverseLedgerOperations\/{operationId}\s*\{\s*allow read, write: if false;/);
 });
+test("deployed and Staging Firestore rules both deny client access to the reverse-ledger control plane",async()=>{
+  const rules=await readFile(resolve("firebase/firestore.rules"),"utf8");
+  const stagingRules=await readFile(resolve("firebase/firestore.staging.rules"),"utf8");
+  for(const source of [rules,stagingRules]){
+    assert.match(source,/match \/reverseLedgerGrants\/{uid}\s*\{\s*allow read, write: if false;/);
+    assert.match(source,/match \/financialPeriods\/{periodId}\s*\{\s*allow read, write: if false;/);
+    assert.match(source,/match \/reverseLedgerOperations\/{operationId}\s*\{\s*allow read, write: if false;/);
+  }
+  const firebaseConfig=JSON.parse(await readFile(resolve("firebase.staging.json"),"utf8"));
+  assert.equal(firebaseConfig.firestore.rules,"firebase/firestore.staging.rules");
+});
 test("staging Worker config uses isolated Firebase project and dedicated service credentials",async()=>{
   const config=await readFile(resolve("cloudflare/wrangler-reverse-ledger-staging.toml"),"utf8");
   assert.match(config,/name = "anas-erp-reverse-ledger-staging"/);
