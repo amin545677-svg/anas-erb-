@@ -8,6 +8,7 @@ on:
       - feature/atomic-settlement-allocation
     paths:
       - 'functions/**'
+      - 'scripts/**'
       - 'reverse-ledger/**'
       - 'firebase.staging.json'
       - 'firebase/firestore.staging.rules'
