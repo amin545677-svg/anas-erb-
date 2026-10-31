@@ -167,9 +167,6 @@ export default {
       return json({ error: "AI gateway is missing the OPENAI_API_KEY secret." }, 503, origin);
     }
 
-    const identity = await verifyFirebaseIdToken(request, env);
-    if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
-
     let raw;
     try {
       raw = await readLimitedRequestBody(request, MAX_BODY_BYTES);
@@ -199,6 +196,9 @@ export default {
         return json({ error: "Business summary is too large. Send a smaller summary." }, 413, origin);
       }
     }
+
+    const identity = await verifyFirebaseIdToken(request, env);
+    if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
 
     const instructions = [
       "أنت مساعد ANAS ERP التجاري، وتجيب بالعربية الواضحة ما لم يطلب المستخدم لغة أخرى.",
