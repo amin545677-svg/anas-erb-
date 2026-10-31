@@ -68,18 +68,9 @@ Example open period document:
 
 ## Two-step reservation and posting contract
 
-First, the browser obtains a Firebase ID token and reserves the operation through the Cloudflare Worker:
+The Cloudflare reservation Worker remains an optional first step for clients that need an explicit lease. It returns `reserved: true` and `posted: false`; this is only an idempotency reservation, never a financial success. The Firebase callable then verifies that any existing RESERVED document belongs to the same UID and matches the operation type, invoice, and period.
 
-```json
-{
-  "operationId": "REV-OP-00000001",
-  "type": "SALE_RETURN",
-  "invoiceId": "INV-100",
-  "periodId": "FY-2026-10"
-}
-```
-
-The Worker returns `reserved: true` and `posted: false`; this is only an idempotency reservation, never a financial success. The browser then calls the Firebase callable with the same `operationId` and `periodId`, plus `originalInvoiceType`, `returnType`, exact item quantities, settlement mode, and reason. The callable verifies that the RESERVED document belongs to the same UID and matches the operation type, invoice, and period before it posts.
+The isolated `staging/index.html` console currently exercises the direct-callable path: it sends the normalized operation to `executeReverseLedger` without a preceding Worker reservation. The server creates the idempotency/operation record inside the same Firestore transaction as the snapshot update. This path is explicitly covered by the Firestore Emulator test `callable handler can create an operation record when no Worker reservation exists`.
 
 Only the callable's successful transaction result confirms a posted return. A reservation response must never be displayed as a completed accounting operation.
 
