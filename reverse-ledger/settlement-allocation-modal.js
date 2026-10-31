@@ -347,6 +347,7 @@ function open() {
   state.invoice = null;
   byId('alloc-party-type').value = state.partyType;
   byId('alloc-amount').value = '';
+  if (byId('alloc-period-id')) byId('alloc-period-id').value = '';
   byId('alloc-draft-match').textContent = '—';
   renderParties();
   refresh();
