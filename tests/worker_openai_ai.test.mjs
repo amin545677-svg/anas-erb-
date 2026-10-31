@@ -34,7 +34,7 @@ function firebaseToken(overrides = {}) {
   return input + "." + signer.sign(privateKey).toString("base64url");
 }
 function installFetch(mock = async () => { throw new Error("unexpected upstream request"); }) {
-  installFetch(async (url, init) => {
+  globalThis.fetch = async (url, init) => {
     if (String(url) === jwksUrl) return new Response(JSON.stringify({ keys: [firebaseJwk] }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
     return mock(url, init);
   };
@@ -95,7 +95,7 @@ test("empty question is rejected", async () => {
 
 test("successful request returns only the expected answer contract", async () => {
   const oldFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
+  installFetch(async (url, init) => {
     assert.equal(url, "https://api.openai.com/v1/responses");
     assert.match(init.headers.Authorization, /^Bearer test-secret$/);
     const body = JSON.parse(init.body);
@@ -103,7 +103,7 @@ test("successful request returns only the expected answer contract", async () =>
     return new Response(JSON.stringify({
       output: [{ type: "message", content: [{ type: "output_text", text: "تحليل تجريبي" }] }]
     }), { status: 200, headers: { "Content-Type": "application/json" } });
-  };
+  });
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin, body: { message: "حلل المبيعات", language: "ar" }
@@ -118,7 +118,7 @@ test("successful request returns only the expected answer contract", async () =>
 
 test("streaming requests forward text deltas as server-sent events", async () => {
   const oldFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
+  installFetch(async (url, init) => {
     assert.equal(url, "https://api.openai.com/v1/responses");
     assert.equal(JSON.parse(init.body).stream, true);
     const payload = [
@@ -132,7 +132,7 @@ test("streaming requests forward text deltas as server-sent events", async () =>
         controller.close();
       }
     }), { status: 200, headers: { "Content-Type": "text/event-stream" } });
-  };
+  });
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin,
