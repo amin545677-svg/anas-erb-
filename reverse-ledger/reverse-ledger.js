@@ -143,7 +143,7 @@
       if (input.originalInvoiceType === 'purchase_invoice' &&
           (restoredInventoryCostCentimes !== 0 ||
            BigInt(lineTotalCentimes) - BigInt(inventoryBookValueCentimes) !== BigInt(valuationVarianceCentimes)))
-        throw new Error('purchase return valuation variance does not reconcile');
+        throw new Error('purchase return valuation variance does not reconcile: line=' + lineTotalCentimes + ', book=' + inventoryBookValueCentimes + ', variance=' + valuationVarianceCentimes + ', restored=' + restoredInventoryCostCentimes);
       return Object.freeze({
         productId, quantityMicroUnits, unitPriceCentimes, lineTotalCentimes,
         originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits,
