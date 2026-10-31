@@ -5,7 +5,7 @@ const { initializeApp, getApps } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const ReverseLedger = require('../reverse-ledger/reverse-ledger.js');
+const ReverseLedger = require('./lib/reverse-ledger.js');
 const {
   normalizeReverseRequest,
   authorizePreparedReverseOperation
