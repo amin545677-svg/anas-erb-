@@ -61,7 +61,7 @@ jobs:
       - name: Install Firestore Rules emulator test dependencies
         run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
       - name: Run real Firestore Emulator transaction, concurrency and security-rules tests
-        run: npx --yes firebase-tools@14.22.0 emulators:exec --only firestore --project demo-anas-erp --config firebase.staging.json "node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs"
+        run: npx --yes firebase-tools@14.22.0 emulators:exec --only firestore --project demo-anas-erp --config firebase.staging.json "node --test tests/reverse_ledger_firestore_emulator.test.js && node --test tests/reverse_ledger_snapshot_rules.test.mjs"
       - name: Syntax-check Chromium behavioral tests
         run: node --check tests/purchase_supplier_chromium_staging.test.mjs && node --check tests/reverse_ledger_chromium.test.mjs
       - name: Install Playwright for real browser verification
