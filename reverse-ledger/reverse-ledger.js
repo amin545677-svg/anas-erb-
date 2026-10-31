@@ -38,6 +38,29 @@
   }
   const currencyToCentimes = (value, label) => decimalUnits(value, 100, label);
   const quantityToMicroUnits = (value, label) => decimalUnits(value, 1000000, label);
+  const roundHalfUpRatio = (numerator, denominator) => {
+    const n = asBigInt(numerator, 'valuation numerator');
+    const d = asBigInt(denominator, 'valuation denominator');
+    if (n < 0n || d <= 0n) throw new Error('invalid cumulative valuation basis');
+    return (n + d / 2n) / d;
+  };
+  const cumulativeValueCentimes = (lineTotalCentimes, originalQuantityMicroUnits, cumulativeQuantityMicroUnits) => {
+    const total = asBigInt(lineTotalCentimes, 'original line total');
+    const originalQty = asBigInt(originalQuantityMicroUnits, 'original quantity');
+    const cumulativeQty = asBigInt(cumulativeQuantityMicroUnits, 'cumulative quantity');
+    if (total < 0n || originalQty <= 0n || cumulativeQty < 0n || cumulativeQty > originalQty)
+      throw new Error('invalid cumulative return valuation quantities or amount');
+    return roundHalfUpRatio(total * cumulativeQty, originalQty);
+  };
+  const cumulativeDeltaCentimes = (lineTotalCentimes, originalQuantityMicroUnits, previousQuantityMicroUnits, returnQuantityMicroUnits) => {
+    const originalQty = asBigInt(originalQuantityMicroUnits, 'original quantity');
+    const previous = asBigInt(previousQuantityMicroUnits, 'previously returned quantity');
+    const quantity = asBigInt(returnQuantityMicroUnits, 'return quantity');
+    if (previous < 0n || quantity <= 0n || previous > originalQty || quantity > originalQty - previous)
+      throw new Error('return quantity exceeds remaining original quantity');
+    return cumulativeValueCentimes(lineTotalCentimes, originalQty, previous + quantity) -
+      cumulativeValueCentimes(lineTotalCentimes, originalQty, previous);
+  };
   const clone = value => JSON.parse(JSON.stringify(value));
   const recordId = row => row && (row.id ?? row.movementId ?? row.returnId ?? row.allocationId);
   function ensureCollections(state) {
@@ -100,11 +123,19 @@
       const quantityMicroUnits = safeInt(line.quantityMicroUnits, 'quantityMicroUnits', false);
       const unitPriceCentimes = safeInt(line.unitPriceCentimes, 'unitPriceCentimes', true);
       const lineTotalCentimes = safeInt(line.lineTotalCentimes, 'lineTotalCentimes', true);
-      const product = asBigInt(quantityMicroUnits, 'quantityMicroUnits') * asBigInt(unitPriceCentimes, 'unitPriceCentimes');
-      if (product % 1000000n !== 0n) throw new Error('return line produces a fractional centime');
-      if (product / 1000000n !== BigInt(lineTotalCentimes))
-        throw new Error('return line total does not match exact micro-unit arithmetic');
-      return Object.freeze({ productId, quantityMicroUnits, unitPriceCentimes, lineTotalCentimes });
+      const originalLineTotalCentimes = safeInt(line.originalLineTotalCentimes, 'originalLineTotalCentimes', true);
+      const originalQuantityMicroUnits = safeInt(line.originalQuantityMicroUnits, 'originalQuantityMicroUnits', false);
+      const previouslyReturnedMicroUnits = safeInt(line.previouslyReturnedMicroUnits ?? 0, 'previouslyReturnedMicroUnits', true);
+      const expectedLineTotal = cumulativeDeltaCentimes(
+        originalLineTotalCentimes, originalQuantityMicroUnits,
+        previouslyReturnedMicroUnits, quantityMicroUnits
+      );
+      if (expectedLineTotal !== BigInt(lineTotalCentimes))
+        throw new Error('return line total does not match cumulative centime valuation');
+      return Object.freeze({
+        productId, quantityMicroUnits, unitPriceCentimes, lineTotalCentimes,
+        originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits
+      });
     });
     const total = items.reduce((sum, line) => sum + BigInt(line.lineTotalCentimes), 0n);
     const totalCentimes = safeInt(input.totalCentimes, 'totalCentimes', true);
@@ -358,15 +389,28 @@
         const qty = BigInt(safeInt(item.quantityMicroUnits, 'return quantity', false));
         const price = BigInt(safeInt(item.unitPriceCentimes, 'return unit price', true));
         const line = BigInt(safeInt(item.lineTotalCentimes, 'return line total', true));
-        const product = qty * price;
-        if (product % 1000000n !== 0n || product / 1000000n !== line)
-          throw new Error('return line amount does not match exact quantity and price');
+        const originalLineTotalCentimes = BigInt(safeInt(item.originalLineTotalCentimes, 'original line total centimes', true));
+        const originalQuantityMicroUnits = BigInt(safeInt(item.originalQuantityMicroUnits, 'original quantity micro-units', false));
+        const previouslyReturnedMicroUnits = BigInt(safeInt(item.previouslyReturnedMicroUnits ?? 0, 'previously returned micro-units', true));
+        if (originalQuantityMicroUnits !== originalQty || originalLineTotalCentimes !== originalLineTotal)
+          throw new Error('return valuation basis does not match the original invoice line');
+        const expectedLine = cumulativeDeltaCentimes(
+          originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits, qty
+        );
+        if (expectedLine !== line)
+          throw new Error('return line amount does not match cumulative centime valuation');
         lineTotal += line;
         const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
         const originalMatches = originalItems.filter(x => invoiceItemProductId(x) === productId);
         if (originalMatches.length !== 1) throw new Error('return item is missing or ambiguous in original invoice');
         const originalQty = quantityToMicroUnits(originalMatches[0].qty ?? originalMatches[0].quantity, 'original invoice quantity');
-        const originalPrice = currencyToCentimes(originalMatches[0].price ?? originalMatches[0].unitPrice, 'original invoice unit price');
+        const originalPrice = currencyToCentimes(originalMatches[0].price ?? originalMatches[0].unitPrice ?? originalMatches[0].cost ?? originalMatches[0].buyPrice, 'original invoice unit price');
+        const rawOriginalLineTotal = originalMatches[0].totalCentimes ?? originalMatches[0].lineTotalCentimes;
+        const originalLineTotal = rawOriginalLineTotal != null
+          ? BigInt(safeInt(rawOriginalLineTotal, 'original line total centimes', true))
+          : originalMatches[0].total != null || originalMatches[0].lineTotal != null
+            ? currencyToCentimes(originalMatches[0].total ?? originalMatches[0].lineTotal, 'original line total')
+            : roundHalfUpRatio(originalQty * originalPrice, 1000000n);
         if (price > originalPrice) throw new Error('return unit price exceeds original invoice unit price');
         if (doc.returnType === 'INVOICE_CANCEL' && price !== originalPrice)
           throw new Error('invoice cancellation must reverse the original unit price');
@@ -620,13 +664,21 @@
         throw new Error('invoice cancellation must reverse the full original quantity');
       const rawPrice = originalLine.price ?? originalLine.unitPrice ?? originalLine.cost ?? originalLine.buyPrice;
       const unitPrice = currencyToCentimes(rawPrice, 'original invoice unit price');
-      const lineProduct = quantity * unitPrice;
-      if (lineProduct % 1000000n !== 0n) throw new Error('return line creates a fractional centime; no mutation was performed');
-      const lineTotal = lineProduct / 1000000n;
+      const rawOriginalLineTotal = originalLine.totalCentimes ?? originalLine.lineTotalCentimes;
+      const originalLineTotal = rawOriginalLineTotal != null
+        ? BigInt(safeInt(rawOriginalLineTotal, 'original line total centimes', true))
+        : originalLine.total != null || originalLine.lineTotal != null
+          ? currencyToCentimes(originalLine.total ?? originalLine.lineTotal, 'original line total')
+          : roundHalfUpRatio(originalQuantity * unitPrice, 1000000n);
+      const lineTotal = cumulativeDeltaCentimes(originalLineTotal, originalQuantity, previousQuantity, quantity);
       if (lineTotal > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('return line exceeds the safe financial range');
       totalCentimes += lineTotal;
       if (totalCentimes > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('return total exceeds the safe financial range');
-      lines.push({ productId, quantityMicroUnits: Number(quantity), unitPriceCentimes: Number(unitPrice), lineTotalCentimes: Number(lineTotal) });
+      lines.push({
+        productId, quantityMicroUnits: Number(quantity), unitPriceCentimes: Number(unitPrice),
+        lineTotalCentimes: Number(lineTotal), originalLineTotalCentimes: Number(originalLineTotal),
+        originalQuantityMicroUnits: Number(originalQuantity), previouslyReturnedMicroUnits: Number(previousQuantity)
+      });
     }
     if (returnType === 'INVOICE_CANCEL') {
       if (lines.length !== originalItems.length) throw new Error('invoice cancellation must reverse every original invoice line');
