@@ -98,7 +98,10 @@ function authorizeReverseOperation(context) {
   if (refundCentimes > 0) {
     requirePermission(context.grant, PERMISSIONS.CASH_REFUND);
     if (operation.settlementMode !== 'cash') throw new Error('cash refund requires explicit cash settlement mode');
-    if (cashAvailable < refundCentimes) {
+    const cashDirection = operation.cashDirection || (type === 'PURCHASE_RETURN' ? 'inflow' : 'outflow');
+    if (!['inflow', 'outflow'].includes(cashDirection)) throw new Error('cash refund direction is invalid');
+    // Supplier purchase returns increase the cashbox; only customer cash refunds consume liquidity.
+    if (cashDirection === 'outflow' && cashAvailable < refundCentimes) {
       const approval = context.liquidityOverride;
       if (!approval || approval.approved !== true || approval.uid !== uid ||
           approval.operationId !== operationId ||
