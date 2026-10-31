@@ -146,7 +146,8 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
       String(row.sourceMovementId) === String(settlement.sourceMovementId))
       .reduce((sum, row) => sum + BigInt(row.amountCentimes || 0), 0n);
     const expectedAllocation = BigInt(settlement.expectedAllocatedCentimes);
-    if (sourceAmount - priorSourceAllocated !== expectedAllocation) throw new Error('Fixture allocation amount must equal the source movement remaining centimes exactly.');
+    if (priorSourceAllocated !== 0n) throw new Error('Staging E2E receipt source must start without pre-made settlement allocations.');
+    if (sourceAmount !== expectedAllocation) throw new Error('Fixture allocation amount must equal the source movement remaining centimes exactly.');
     if (expectedAllocation <= 0n) throw new Error('Fixture allocation amount must be positive.');
 
     await page.locator('#settlement-allocation').click();
@@ -187,7 +188,7 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
       String(row.partyId) === String(settlement.partyId) && row.partyType === 'customer' &&
       row.sourceMovementType === settlement.sourceMovementType);
     const allocated = allocationRows.reduce((sum, row) => sum + BigInt(row.amountCentimes || 0), 0n);
-    if (allocated < expectedAllocation) throw new Error('Server-posted settlement allocation was not present in the refreshed cloud snapshot.');
+    if (allocated !== expectedAllocation) throw new Error('Server-posted settlement allocation total differs from the exact fixture centimes.');
     evidence.saleSettlement = {
       invoiceId: String(invoice.id), partyId: String(settlement.partyId), sourceMovementId: String(settlement.sourceMovementId),
       paidCentimes: paid.toString(), allocatedCentimes: allocated.toString(), allocationRows: allocationRows.length,
