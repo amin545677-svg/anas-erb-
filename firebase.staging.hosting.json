@@ -1,0 +1,22 @@
+{
+  "hosting": {
+    "site": "anas-erp-staging-a25e1",
+    "public": "staging-site",
+    "ignore": [
+      "firebase.staging.hosting.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "no-referrer" },
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "Cache-Control", "value": "no-store" }
+        ]
+      }
+    ]
+  }
+}
