@@ -29,7 +29,7 @@ test("unknown origins are rejected without permissive CORS",async()=>{
   assert.equal(r.headers.get("Access-Control-Allow-Origin"),null);
 });
 test("reservation endpoint requires Firebase bearer token",async()=>{
-  const r=await worker.fetch(request("/reserve",{method:"POST",body:{}}),env);
+  const r=await worker.fetch(request("/reserve",{method:"POST",body:{},auth:false}),env);
   assert.equal(r.status,401);
 });
 test("reservation endpoint rejects malformed JSON and non-object payloads",async()=>{
@@ -101,7 +101,7 @@ test("verified grant and open period produce a durable create-only reservation, 
   };
   try {
     const first=await worker.fetch(request("/reserve",{method:"POST",body:validBody}),realEnv);
-    assert.equal(first.status,201);
+    assert.equal(first.status,201,JSON.stringify(await first.clone().json()));
     const result=await first.json();
     assert.equal(result.reserved,true);
     assert.equal(result.posted,false);
