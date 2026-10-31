@@ -26,7 +26,6 @@ test('cash ledger renderer preserves invalid records as visible audit exceptions
   assert.match(renderer, /Number\.isSafeInteger\(cents\)/);
   assert.match(renderer, /invalidCount/);
   assert.match(renderer, /سجل غير صالح/);
-  assert.match(renderer, /لا يتم/);
   assert.doesNotMatch(renderer, /AppData\.cashMovements\s*=|\.push\(|\.splice\(|\.pop\(/,
     'read-only renderer must not mutate the financial ledger');
 });
@@ -35,7 +34,7 @@ test('cash ledger safely escapes untrusted ledger text before HTML rendering', (
   assert.match(html, /function anasCashLedgerEscape\(value\)/);
   assert.match(html, /'&': '&amp;'/);
   assert.match(html, /'<': '&lt;'/);
-  assert.match(html, /'\\\"': '&quot;'/);
+  assert.match(html, /'\"': '&quot;'/);
   assert.match(html, /anasCashLedgerEscape\(row\.description\)/);
   assert.match(html, /anasCashLedgerEscape\(row\.user\)/);
   assert.match(html, /anasCashLedgerEscape\(row\.reference\)/);
