@@ -54,3 +54,88 @@ test("staging Worker config uses isolated Firebase project and dedicated service
   assert.match(config,/required = \["FIREBASE_API_KEY", "FIREBASE_SERVICE_ACCOUNT_JSON"\]/);
   assert.doesNotMatch(config,/anas-erb|amin545677-svg\.github\.io/);
 });
+
+function value(x) {
+  if (typeof x === "string") return { stringValue:x };
+  if (typeof x === "boolean") return { booleanValue:x };
+  if (typeof x === "number") return { integerValue:String(x) };
+  if (Array.isArray(x)) return { arrayValue:{values:x.map(value)} };
+  return { mapValue:{fields:Object.fromEntries(Object.entries(x).map(([k,v])=>[k,value(v)]))} };
+}
+function firestoreDoc(data) {
+  return { fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,value(v)])) };
+}
+const signingKeys = await crypto.subtle.generateKey(
+  {name:"RSASSA-PKCS1-v1_5",modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:"SHA-256"},
+  true,["sign","verify"]);
+const pkcs8 = Buffer.from(await crypto.subtle.exportKey("pkcs8",signingKeys.privateKey)).toString("base64");
+const realEnv = {...env,FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({
+  client_email:"reverse-ledger@test-project.iam.gserviceaccount.com",
+  private_key:"-----BEGIN PRIVATE KEY-----\\n"+pkcs8+"\\n-----END PRIVATE KEY-----"
+})};
+const validBody = {operationId:"RET-OP-20261031-0001",type:"SALE_RETURN",invoiceId:"INV-1001",periodId:"FY-2026-10"};
+
+test("verified grant and open period produce a durable create-only reservation, never a posting",async()=>{
+  const oldFetch=globalThis.fetch;
+  let reservationUrl="", patchCount=0, duplicate=false;
+  globalThis.fetch=async(url,init={})=>{
+    const target=String(url);
+    if(target.includes("identitytoolkit.googleapis.com"))
+      return new Response(JSON.stringify({users:[{localId:"trusted-user-1",disabled:false}]}),{status:200});
+    if(target.includes("oauth2.googleapis.com/token"))
+      return new Response(JSON.stringify({access_token:"service-access-token",expires_in:3600}),{status:200});
+    if(target.includes("firestore.googleapis.com")){
+      assert.equal(new Headers(init.headers).get("Authorization"),"Bearer service-access-token");
+      if(init.method==="PATCH"){
+        patchCount++; reservationUrl=target;
+        assert.match(target,/currentDocument\\.exists=false/);
+        if(duplicate) return new Response(JSON.stringify({error:{status:"FAILED_PRECONDITION",message:"Document already exists"}}),{status:400});
+        return new Response(JSON.stringify({updateTime:"2026-10-31T00:00:00.000000Z"}),{status:200});
+      }
+      if(target.endsWith("/reverseLedgerGrants/trusted-user-1"))
+        return new Response(JSON.stringify(firestoreDoc({uid:"trusted-user-1",active:true,schemaVersion:1,permissions:["reverse_sale_return"]})),{status:200});
+      if(target.endsWith("/financialPeriods/FY-2026-10"))
+        return new Response(JSON.stringify(firestoreDoc({periodId:"FY-2026-10",status:"OPEN"})),{status:200});
+    }
+    throw new Error("Unexpected network request: "+target);
+  };
+  try {
+    const first=await worker.fetch(request("/reserve",{method:"POST",body:validBody}),realEnv);
+    assert.equal(first.status,201);
+    const result=await first.json();
+    assert.equal(result.reserved,true);
+    assert.equal(result.posted,false);
+    assert.equal(result.postingEnabled,false);
+    assert.equal(result.reservation.ownerUid,"trusted-user-1");
+    assert.equal(result.reservation.status,"RESERVED");
+    assert.match(reservationUrl,/currentDocument\\.exists=false/);
+    assert.equal(patchCount,1);
+
+    duplicate=true;
+    const second=await worker.fetch(request("/reserve",{method:"POST",body:validBody}),realEnv);
+    assert.equal(second.status,409);
+    assert.match((await second.json()).error,/already reserved/i);
+    assert.equal(patchCount,2);
+  } finally { globalThis.fetch=oldFetch; }
+});
+
+test("a grant without the exact operation permission cannot reserve an operation",async()=>{
+  const oldFetch=globalThis.fetch;
+  globalThis.fetch=async(url,init={})=>{
+    const target=String(url);
+    if(target.includes("identitytoolkit.googleapis.com"))
+      return new Response(JSON.stringify({users:[{localId:"trusted-user-1"}]}),{status:200});
+    if(target.includes("oauth2.googleapis.com/token"))
+      return new Response(JSON.stringify({access_token:"service-access-token",expires_in:3600}),{status:200});
+    if(target.endsWith("/reverseLedgerGrants/trusted-user-1"))
+      return new Response(JSON.stringify(firestoreDoc({uid:"trusted-user-1",active:true,schemaVersion:1,permissions:[]})),{status:200});
+    if(target.endsWith("/financialPeriods/FY-2026-10"))
+      return new Response(JSON.stringify(firestoreDoc({periodId:"FY-2026-10",status:"OPEN"})),{status:200});
+    throw new Error("No reservation write is permitted for a grant without permission");
+  };
+  try {
+    const response=await worker.fetch(request("/reserve",{method:"POST",body:validBody}),realEnv);
+    assert.equal(response.status,403);
+    assert.match((await response.json()).error,/missing required permission/i);
+  } finally { globalThis.fetch=oldFetch; }
+});
