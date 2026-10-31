@@ -80,8 +80,8 @@ function authorizeReverseOperation(context) {
   if (operation.invoiceLedgerVersion !== 2) throw new Error('reverse operation requires a version-2 invoice ledger');
   if (operation.allocationsReconciled !== true) throw new Error('invoice payment allocations are not reconciled');
   if (operation.legacyRecordsPresent === true) {
-    if (operation.legacyReconciled !== true) throw new Error('legacy invoice requires documented reconciliation');
     requirePermission(context.grant, PERMISSIONS.LEGACY_RECONCILE);
+    if (operation.legacyReconciled !== true) throw new Error('legacy invoice requires documented reconciliation');
     requiredString(operation.legacyReconciliationId, 'legacy reconciliation ID', 160);
   }
 
@@ -93,11 +93,11 @@ function authorizeReverseOperation(context) {
     if (operation.settlementMode !== 'cash') throw new Error('cash refund requires explicit cash settlement mode');
     if (cashAvailable < refundCentimes) {
       const approval = context.liquidityOverride;
-      requirePermission(context.grant, PERMISSIONS.LIQUIDITY_OVERRIDE);
       if (!approval || approval.approved !== true || approval.uid !== uid ||
           approval.operationId !== operationId ||
           !Number.isSafeInteger(approval.amountCentimes) || approval.amountCentimes < refundCentimes - cashAvailable)
         throw new Error('insufficient liquidity; an explicit authorized liquidity approval is required');
+      requirePermission(context.grant, PERMISSIONS.LIQUIDITY_OVERRIDE);
       requiredString(approval.approvalId, 'liquidity approval ID', 160);
     }
   }
