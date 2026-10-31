@@ -1,0 +1,31 @@
+name: ANAS ERP Classic UI Chromium Gate
+
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "anas-classic-ui.css"
+      - "tests/test_classic_ui_browser.py"
+      - ".github/workflows/classic-ui-chromium.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Run isolated local-browser UI checks
+        run: python tests/test_classic_ui_browser.py
