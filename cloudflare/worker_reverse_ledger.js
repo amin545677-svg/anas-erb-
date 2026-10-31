@@ -140,7 +140,7 @@ async function reserveOperation(env, uid, requestData) {
     operationId, ownerUid:uid, operationType:type, invoiceId, periodId,
     status:"RESERVED", schemaVersion:1, createdAt:new Date().toISOString()
   };
-  const {response,data} = await firestoreRequest(env,"reverseLedgerOperations/"+encodeURIComponent(operationId),{
+  const {response,data} = await firestoreRequest(env,"reverseLedgerOperations/"+encodeURIComponent(operationId)+"?currentDocument.exists=false",{
     method:"PATCH", headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({ fields:Object.fromEntries(Object.entries(reservation).map(([k,v])=>[k,firestoreFields(v)])) })
   });
