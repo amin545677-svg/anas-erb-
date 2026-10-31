@@ -69,3 +69,49 @@
 - سياسة التفويض منفصلة ومختبرة، لكنها لم تُربط بعد بمحرك `executeReturnTransaction()` ولا بواجهة الترحيل.
 - لا يوجد بعد Worker مالي مخصص أو مخزن صلاحيات موثوق أو حجز Firestore ذري لـ `operationId`.
 - لذلك لا يجوز اعتبار العمليات العكسية آمنة للتشغيل الحي، ولا يجوز تفعيل زر الترحيل.
+
+## سجل إغلاق جولة الفحص — 2026-10-31
+
+### حاجز الترحيل في الواجهة
+
+- الالتزام `78b3badb4f7f830146bbaf5b2be40e7ddddccc14`: إزالة الاستدعاء المحلي المباشر لـ `executeReturnTransaction(AppData, ...)` من نقطة دخول الترحيل.
+- أصبح `anasExecuteReversePosting()` يرفض التنفيذ عند غياب `globalThis.ANASReverseLedgerServer.execute`، ولا يقبل إلا بوابة غير متزامنة تعيد `{ok:true, document}`.
+- لا يوجد حالياً adapter خادمي بهذا العقد؛ لذلك تبقى جميع عمليات المرتجعات والإلغاءات محجوبة عمداً ولا تتغير البيانات المحلية.
+- تم التحقق نصياً من عدم وجود أي استدعاء لـ `executeReturnTransaction(` داخل `index.html`.
+
+### اختبارات واجهة Chromium
+
+- الالتزام `594e490a56e1d195295c41f40e167430bcb7a0d6`: تحديث اختبار واجهة البيع/الشراء/الإلغاء ليتحقق من الرفض المغلق بدلاً من افتراض السماح بترحيل محلي.
+- الالتزام `884a3567d01a70ebc8619bb3efa740c0a626c7b1`: إضافة اختبار Chromium لمسارات الواجهة الثلاثة.
+- الالتزام `baba2a3238fa5b2ab92972d1956dd9bc65219772`: إصلاح محدد استخراج دالة الواجهة في اختبار Chromium.
+- تقرير Chromium الفعلي:
+  - `saleBlocked=true`
+  - `purchaseBlocked=true`
+  - `cancelBlocked=true`
+  - `saleUnchanged=true`, `purchaseUnchanged=true`, `cancelUnchanged=true`
+  - `localEngineCalls=0`
+- اجتازت اختبارات Chromium الأخرى الخاصة باستعادة النسخة، التطابق المحاسبي للمشتريات والموردين، إعادة التحميل، ودفتر العميل.
+
+### بوابات GitHub Actions على SHA
+
+`baba2a3238fa5b2ab92972d1956dd9bc65219772`
+
+- ANAS ERP Safety Checks: SUCCESS — run `41148296103`.
+- ANAS ERP HTML Regression Checks: SUCCESS — run `41148296203`.
+- Firebase Snapshot Worker Tests: SUCCESS — run `41148296138`.
+- Staging Test Gate: SUCCESS — run `41148296134`.
+- ANAS ERP Service Worker Cache Regression: SUCCESS — run `41148296146`.
+
+### ما لم يكتمل بعد — لا تُعلن الجاهزية النهائية
+
+- لم يُنشأ بعد Worker مالي منفصل للتحقق الخادمي من Firebase ID token وقراءة Grant موثوق.
+- لا يوجد حتى الآن مخزن Grants مع تعيين آمن للمدير العام الأول.
+- لا يوجد بعد حجز ذري دائم لـ `operationId` ولا معاملة خادمية واحدة تشمل المستند والدفاتر والمخزون والسيولة.
+- تقرير Chromium الحالي يثبت بوابة الرفض المغلق واختبارات primitive والاستعادة، لكنه **ليس** التقرير الكامل المطلوب ذي الحقول العشرة ولا يثبت سيناريوهات الترحيل الاثني عشر.
+- لذلك لا تُسجل هذه المرحلة كـ `5/5` قبول نهائي، ولا يُفعّل الترحيل، ولا يُدمج أي PR.
+
+### ثبات الإنتاج
+
+- `main` بقي على `507f4a1bbd4e5071edbcb531c8232bd674494850`.
+- PR #248 وPR #249 بقيا مفتوحين وDraft.
+- لا نشر إنتاج، وهوية التطبيق تبقى ANAS ERP v42.
