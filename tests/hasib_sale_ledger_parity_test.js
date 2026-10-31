@@ -375,14 +375,34 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const cancelStart=html.indexOf('function cancelInvoicePrompt()');
-  const cancelEnd=html.indexOf('\n        function ',cancelStart+20);
-  assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'invoice cancellation guard must be present');
+  const cancelStart=html.indexOf('function anasReverseInvoiceChoices(');
+  const cancelEnd=html.indexOf('\n        function old_cancelInvoicePrompt()',cancelStart);
+  assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'atomic reverse-posting UI handlers must be present');
+  const customer={id:'C-CANCEL',name:'Customer',debt:0.20};
+  const invoice={id:'INV-CANCEL',customerId:'C-CANCEL',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
+    items:[{id:'P-CANCEL',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'};
+  const AppData={customers:[customer],suppliers:[],invoices:[invoice],purchases:[],
+    products:[{id:'P-CANCEL',name:'Tea',stock:0}],
+    cashMovements:[{id:'SALE-CASH-CANCEL',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
+    stockMovements:[{id:'SALE-STOCK-CANCEL',productId:'P-CANCEL',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
+    clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
+    caisseBalance:1,currentUser:{id:'U-CANCEL'}};
   const alerts=[];
-  const cancelContext={alert:m=>alerts.push(String(m))};
+  const cancelContext={AppData,ANASReverseLedger:require('../reverse-ledger/reverse-ledger.js'),
+    prompt:()=>JSON.stringify({invoiceType:'sales_invoice',invoiceId:'INV-CANCEL',reason:'duplicate invoice'}),
+    saveDB:()=>true,anasValidatePurchaseLedgerParity:()=>true,
+    alert:m=>alerts.push(String(m)),renderInvoicesTable(){},renderPurchasesTable(){},
+    renderCustomersDebts(){},renderSuppliersDebts(){},updateCashUI(){},updateDashboardStats(){},updateUIState(){}};
   vm.createContext(cancelContext);
-  vm.runInContext(html.slice(cancelStart,cancelEnd)+'\ncancelInvoicePrompt();',cancelContext,{timeout:1000});
-  assert.ok(alerts.some(m=>m.includes('لم تتغير أي بيانات')),
-    'invoice cancellation must fail closed rather than delete a sale without compensating ledger entries');
-  console.log('PASS: invoice cancellation remains blocked until an atomic compensating transaction exists');
+  vm.runInContext(html.slice(cancelStart,cancelEnd)+'\nglobalThis.__cancelResult = cancelInvoicePrompt();',cancelContext,{timeout:1500});
+  assert.equal(cancelContext.__cancelResult.returnType,'INVOICE_CANCEL');
+  assert.equal(AppData.invoices[0].status,'CANCELLED');
+  assert.equal(AppData.invoices[0].paid,0.10);
+  assert.equal(AppData.invoices[0].remaining,0.20);
+  assert.equal(AppData.customers[0].debt,0);
+  assert.equal(AppData.products[0].stock,3);
+  assert.equal(AppData.caisseBalance,0.90);
+  assert.equal(AppData.returns.length,1);
+  assert.ok(alerts.some(m=>m.includes('تم ترحيل المستند العكسي ذريًا بنجاح')));
+  console.log('PASS: invoice cancellation UI posts an atomic compensating transaction without deleting the original invoice');
 }
