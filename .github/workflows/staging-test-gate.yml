@@ -5,12 +5,22 @@ on:
     paths:
       - "index.html"
       - "tests/**"
+      - "functions/**"
+      - "reverse-ledger/**"
+      - "firebase.staging.json"
+      - "firebase/firestore.staging.rules"
       - ".github/workflows/staging-test-gate.yml"
   push:
     branches: [staging/firebase-snapshot-worker, 'feat/**', 'fix/**']
     paths:
       - "index.html"
       - "tests/**"
+      - "functions/**"
+      - "reverse-ledger/**"
+      - "firebase.staging.json"
+      - "firebase/firestore.staging.rules"
+      - "firebase/firestore.reverse-ledger.rules"
+      - "cloudflare/worker_reverse_ledger.js"
       - ".github/workflows/staging-test-gate.yml"
   workflow_dispatch:
 
@@ -28,8 +38,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Set up Java for the Firestore Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Run Hasib financial and stock invariants
-        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/reverse_ledger_primitives.test.js
+        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/reverse_ledger_primitives.test.js tests/reverse_ledger_rollback_identity.test.js
+      - name: Verify deployable Functions bundle matches canonical ledger modules
+        run: |
+          cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js
+          cmp reverse-ledger/authorization.js functions/lib/authorization.js
+          node --check functions/index.js
+          node --check functions/reverse-ledger-adapter.js
+          node --check functions/reverse-ledger-service.js
+      - name: Install and load the Firebase Functions runtime package
+        run: |
+          npm install --prefix functions --omit=dev --no-audit --no-fund
+          GCLOUD_PROJECT=anas-erp-staging-a25e1 node -e "const f=require('./functions'); if(typeof f.executeReverseLedger!=='function') process.exit(1); console.log('Firebase callable runtime loaded.');"
+      - name: Run trusted reverse-ledger authorization, server adapter and reservation Worker tests
+        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_server_transaction.test.js tests/worker_reverse_ledger.test.mjs
+      - name: Run real Firestore Emulator transaction and concurrency tests
+        run: npx --yes firebase-tools@14.22.0 emulators:exec --only firestore --project demo-anas-erp --config firebase.staging.json "node --test tests/reverse_ledger_firestore_emulator.test.js"
       - name: Syntax-check Chromium behavioral tests
         run: node --check tests/purchase_supplier_chromium_staging.test.mjs && node --check tests/reverse_ledger_chromium.test.mjs
       - name: Install Playwright for real browser verification
