@@ -211,8 +211,7 @@ jobs:
                   "workflow_dispatch:" in deploy
                   and "push:" in deploy
                   and "branches:" in deploy
-                  and "branches:
-      - main" in deploy
+                  and "branches:\n      - main" in deploy
                   and '"cloudflare/worker_openai_ai.js"' in deploy
                   and '"cloudflare/wrangler-openai.toml"' in deploy
               ),
@@ -504,20 +503,12 @@ jobs:
             const data = JSON.parse(JSON.stringify(base));
             mutate(data);
             const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-            vm.runInNewContext(truckExpenseValidator + '
-' + purchaseHelpers + '
-' + purchaseParity + '
-' + validator + '
-this.validate = anasValidateBackupData;', ctx);
+            vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
             assert.throws(() => ctx.validate(data), /قيمة مالية غير صالحة/, label + ' above the safe numeric range must be rejected');
           }
           const valid = JSON.parse(JSON.stringify(base));
           const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-          vm.runInNewContext(truckExpenseValidator + '
-' + purchaseHelpers + '
-' + purchaseParity + '
-' + validator + '
-this.validate = anasValidateBackupData;', ctx);
+          vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
           assert.equal(ctx.validate(valid), valid, 'ordinary backup values must remain accepted');
           console.log('Backup validator safe financial magnitude tests passed');
           """
@@ -564,8 +555,7 @@ this.validate = anasValidateBackupData;', ctx);
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(functionSource+'
-importDataBackup({target:input});',ctx);
+          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'failed restore must reinstate the original data object');
           assert.equal(ctx.posCart,oldCart,'failed restore must reinstate the active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues.length,1,'failed restore must reinstate startup diagnostics');
@@ -613,11 +603,7 @@ importDataBackup({target:input});',ctx);
           const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
           const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'
-'+purchaseHelpers+'
-'+purchaseParity+'
-'+validatorSource+'
-this.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
           const expectReject = (data,label) => {
             assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
@@ -695,11 +681,7 @@ this.validateBackup=anasValidateBackupData;',ctx);
           const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
           const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'
-'+purchaseHelpers+'
-'+purchaseParity+'
-'+validatorSource+'
-this.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
           ctx.AppData = {caisseBalance:75};
           const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
@@ -836,23 +818,17 @@ this.validateBackup=anasValidateBackupData;',ctx);
           assert start >= 0 and end > start, "Could not isolate CSV parser"
           js = s[start:end] + r"""
           const assert = require('node:assert/strict');
-          assert.deepEqual(parseSmartCsv('\uFEFFname;note\r
-Tea;"green; herbal"\r
-Tea;"green ""herbal"" tea"',';'), [
+          assert.deepEqual(parseSmartCsv('\uFEFFname;note\r\nTea;"green; herbal"\r\nTea;"green ""herbal"" tea"',';'), [
             ['name','note'],
             ['Tea','green; herbal'],
             ['Tea','green "herbal" tea']
           ], 'BOM, CRLF, quoted delimiters, and escaped quotes should parse correctly');
-          assert.deepEqual(parseSmartCsv('name,note
-Tea,"line one
-line two"',','), [
+          assert.deepEqual(parseSmartCsv('name,note\nTea,"line one\nline two"',','), [
             ['name','note'],
-            ['Tea','line one
-line two']
+            ['Tea','line one\nline two']
           ], 'newlines inside quoted fields should remain part of the cell');
           assert.throws(
-            () => parseSmartCsv('name;note
-Tea;"unfinished',';'),
+            () => parseSmartCsv('name;note\nTea;"unfinished',';'),
             /غير مغلقة/,
             'unclosed quoted fields must be rejected rather than silently importing corrupt rows'
           );
@@ -1191,8 +1167,7 @@ Tea;"unfinished',';'),
             closeModal:()=>{throw new Error('must not close form after failed save');},renderUsers:()=>{},
             console:{error:()=>{}},JSON,Object,Array,String,Number,Date,Math
           };
-          vm.runInNewContext(fn+'
-this.invoke=saveUserRecord;',ctx);
+          vm.runInNewContext(fn+'\nthis.invoke=saveUserRecord;',ctx);
           ctx.invoke();
           assert.equal(user.name,'Old User','failed edit must restore prior name');
           assert.equal(user.phone,'111','failed edit must restore prior phone');
@@ -1374,8 +1349,7 @@ this.invoke=saveUserRecord;',ctx);
               wtAvailableStock:(p,warehouse)=>warehouse==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[warehouse]??0),
               console, Number, String, Object, Array, Map, Math, Date
             };
-            vm.runInNewContext(functionSource + '
-editSalesInvoice("I1");', ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I1");', ctx);
             if (secondaryMissingMain) {
               assert.equal(Object.hasOwn(product,'stock'),false,'rollback must not create an absent primary stock field');
               assert.equal(product.warehouseStock.W1,5,'secondary warehouse balance must roll back');
@@ -1419,8 +1393,7 @@ editSalesInvoice("I1");', ctx);
               wtAvailableStock:p=>p.stock,
               console,Number,String,Object,Array,Map,Math,Date
             };
-            vm.runInNewContext(functionSource+'
-editSalesInvoice("I-OVERFLOW");',ctx);
+            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-OVERFLOW");',ctx);
             assert.equal(prompts,2,'test should reach quantity and price edits');
             assert.equal(confirms,0,'overflowing resulting stock must be rejected before confirmation');
             assert.equal(saves,0,'overflowing resulting stock must not persist');
@@ -1444,8 +1417,7 @@ editSalesInvoice("I-OVERFLOW");',ctx);
               wtAvailableStock:p=>p.stock,
               console, Number, String, Object, Array, Map, Math, Date
             };
-            vm.runInNewContext(functionSource + '
-editSalesInvoice("I2");', ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I2");', ctx);
             assert.equal(prompts,0,'must reject duplicate product IDs before asking for edits');
             assert.equal(products[0].stock,5);
             assert.equal(products[1].stock,8);
@@ -1460,8 +1432,7 @@ editSalesInvoice("I2");', ctx);
             let prompts=0,saves=0;
             const alerts=[];
             const ctx={AppData:data,prompt:()=>{prompts++;return '1';},confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '
-editSalesInvoice("I3");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I3");',ctx);
             assert.equal(prompts,0,'malformed historical lines must be rejected before prompting');
             assert.equal(saves,0,'malformed historical lines must not be saved');
             assert.equal(product.stock,5,'malformed historical lines must not mutate stock');
@@ -1478,8 +1449,7 @@ editSalesInvoice("I3");',ctx);
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{throw new Error('simulated render failure');},renderInventoryList:()=>{},wtAvailableStock:(p,w)=>w==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[w]??0),console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '
-editSalesInvoice("I4");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I4");',ctx);
             assert.equal(saves,1,'persistence should run once');
             assert.equal(product.stock,4,'successful save must retain stock change despite UI failure');
             assert.equal(invoice.items[0].qty,3,'successful save must retain invoice edit despite UI failure');
@@ -1499,8 +1469,7 @@ editSalesInvoice("I4");',ctx);
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '
-editSalesInvoice("I5");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I5");',ctx);
             assert.equal(saves,0,'must not save invoice if customer debt cannot be reconciled');
             assert.equal(product.stock,5,'must not change stock when debt reconciliation is blocked');
             assert.equal(invoice.items[0].qty,2,'must preserve original invoice lines');
@@ -1519,8 +1488,7 @@ editSalesInvoice("I5");',ctx);
             const alerts=[];
             let saves=0;
             const ctx={AppData:data,prompt:()=>answers.shift(),confirm:()=>true,alert:m=>alerts.push(String(m)),saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource + '
-editSalesInvoice("I6");',ctx);
+            vm.runInNewContext(functionSource + '\neditSalesInvoice("I6");',ctx);
             assert.equal(saves,0,'must not save when customer name resolves to multiple customers');
             assert.equal(product.stock,5,'must not mutate stock when customer identity is ambiguous');
             assert.equal(invoice.items[0].qty,2,'must preserve invoice lines when customer identity is ambiguous');
@@ -1538,8 +1506,7 @@ editSalesInvoice("I6");',ctx);
               prompt:()=>{prompts++;return '2';},confirm:()=>true,alert:m=>alerts.push(String(m)),
               saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},
               wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource+'
-editSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
+            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
             assert.equal(prompts,0,'unsafe historical quantity must be rejected before prompting');
             assert.equal(saves,0,'unsafe historical quantity must not be persisted');
             assert.equal(product.stock,5,'unsafe historical quantity must not mutate stock');
@@ -1554,8 +1521,7 @@ editSalesInvoice("I-UNSAFE-OLD-QTY");',ctx);
               prompt:()=>{prompts++;return String(Number.MAX_SAFE_INTEGER+1);},confirm:()=>true,alert:m=>alerts.push(String(m)),
               saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{},renderInventoryList:()=>{},
               wtAvailableStock:p=>p.stock,console,Number,String,Object,Array,Map,Math,Date};
-            vm.runInNewContext(functionSource+'
-editSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
+            vm.runInNewContext(functionSource+'\neditSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
             assert.equal(prompts,1,'unsafe edited quantity must be rejected immediately after quantity entry');
             assert.equal(saves,0,'unsafe edited quantity must not be persisted');
             assert.equal(product.stock,5,'unsafe edited quantity must not mutate stock');
@@ -2368,8 +2334,7 @@ editSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
               saveDB:()=>true, wtInitScreen:()=>{}, renderInventoryList:()=>{},
               console, Date, Math, Number, String, Object, Array
             };
-            vm.runInNewContext(functionSource + '
-wtCreateTransfer();', ctx);
+            vm.runInNewContext(functionSource + '\nwtCreateTransfer();', ctx);
             return {data,alerts,movements,transfers,elements};
           }
           let r=runCase({id:'p',name:'P',stock:' ',warehouseStock:{A:5}},'المخزن الرئيسي','A');
@@ -2456,8 +2421,7 @@ wtCreateTransfer();', ctx);
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
-          vm.runInNewContext(functionSource+'
-importDataBackup({target:input});',ctx);
+          vm.runInNewContext(functionSource+'\nimportDataBackup({target:input});',ctx);
           assert.equal(ctx.AppData,oldData,'false save result must restore original data object');
           assert.equal(ctx.posCart,oldCart,'false save result must restore active POS cart');
           assert.equal(ctx.anasStartupIntegrityIssues.length,1,'false save result must restore startup diagnostics');
@@ -2502,10 +2466,8 @@ importDataBackup({target:input});',ctx);
           const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
             saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
             document:{getElementById:()=>({classList:{contains:()=>true}})}};
-          vm.runInNewContext(Object.values(sources).join('
-')+
-            '
-this.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
+          vm.runInNewContext(Object.values(sources).join('\n')+
+            '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
           for(const action of ctx.actions) action();
           assert.equal(data.invoices.length,1,'legacy calls must not erase sales invoices');
           assert.equal(data.purchases.length,1,'legacy calls must not erase purchase invoices');
@@ -2550,8 +2512,7 @@ this.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoRes
               updateDashboardStats:()=>calls.ui++,
               JSON,Object,Array,Number,String,Error
             };
-            vm.runInNewContext(fn+'
-this.result=saveDB();',ctx);
+            vm.runInNewContext(fn+'\nthis.result=saveDB();',ctx);
             return {result:ctx.result,calls,data,originalCarts};
           }
           let r=run({throwOnWrite:true,initialCarts:{other:[{id:'keep'}]}});
@@ -2621,8 +2582,7 @@ this.result=saveDB();',ctx);
               openView:()=>{throw new Error('must not navigate after failed save');},
               ...extra
             };
-            vm.runInNewContext(sources[name]+'
-this.invoke='+name+';',ctx);
+            vm.runInNewContext(sources[name]+'\nthis.invoke='+name+';',ctx);
             ctx.invoke(name==='switchPosScreen'?'2':name==='setPosPriceTier'?2:undefined);
             return {ctx,alerts,oldCart,carts,oldConfig};
           }
@@ -2680,8 +2640,7 @@ this.invoke='+name+';',ctx);
               setSyncStatus:(m,e)=>statuses.push({message:m,error:e}),
               alert:m=>alerts.push(String(m)),console:{error:()=>{}}
             };
-            vm.runInNewContext(fn+'
-this.invoke=saveSyncSettings;',ctx);
+            vm.runInNewContext(fn+'\nthis.invoke=saveSyncSettings;',ctx);
             ctx.invoke();
             return {data,alerts,statuses};
           }
@@ -2742,9 +2701,7 @@ this.invoke=saveSyncSettings;',ctx);
               updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
               Number,String,Object,Array,JSON,Date,Math
             };
-            vm.runInNewContext(purchaseHelpers+'
-'+purchase+'
-this.runPurchase=savePurchaseItem;',ctx);
+            vm.runInNewContext(purchaseHelpers+'\n'+purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
             ctx.runPurchase();
             assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
             assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
@@ -2757,8 +2714,7 @@ this.runPurchase=savePurchaseItem;',ctx);
               wtEnsureMobileWarehouse:name=>{if(!ctx.AppData.warehouses.includes(name))ctx.AppData.warehouses.push(name);},
               Number,String,Object,Array,Map,Date,JSON,Error
             };
-            vm.runInNewContext(truck+'
-this.runLoad=postTripStock;',ctx);
+            vm.runInNewContext(truck+'\nthis.runLoad=postTripStock;',ctx);
             const trip={id:'T1',warehouseName:'Truck T',stockItems:[{productId:'P1',qty:4}]};
             assert.throws(()=>ctx.runLoad(trip),/تعذر حفظ حركة التحميل/,'truck load must reject undefined save result');
             assert.equal(ctx.AppData.products[0].stock,10,'main stock must roll back');
@@ -2797,8 +2753,7 @@ this.runLoad=postTripStock;',ctx);
               anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-BAD-COST');
             assert.equal(saves, 0, 'malformed trip cost must not persist: ' + JSON.stringify(invalidAmount));
             assert.deepEqual(ctx.AppData.expenses, [], 'malformed trip cost must not append expense');
@@ -2814,8 +2769,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
               anasTruckRender:()=>{}, saveDB:()=>{duplicateSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-COST');
             assert.equal(duplicateSaves,0,'duplicate trip IDs must not persist expense');
             assert.deepEqual(ctx.AppData.expenses,[],'duplicate trip IDs must not append expense');
@@ -2837,8 +2791,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
               anasTruckRender:()=>{}, saveDB:()=>{duplicateLinkSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-LINK');
             assert.equal(duplicateLinkSaves,0,'duplicate linked expenses must not persist a chosen link');
             assert.equal(ctx.AppData.expenses.length,2,'duplicate expense records must remain untouched for audit');
@@ -2856,8 +2809,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
                 anasTruckRender:()=>{}, saveDB:()=>{badEntrySaves++;return true;},
                 Number,String,Object,Array,Date,console
               };
-              vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+              vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
               ctx.runExpense('T-BAD-EXPENSE-HISTORY');
               assert.equal(badEntrySaves,0,'malformed expense history must not persist');
               assert.equal(ctx.AppData.expenses.length,1,'malformed expense history must remain unchanged');
@@ -2876,8 +2828,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
               anasTruckRender:()=>{}, saveDB:()=>{staleSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-STALE-EXPENSE-LINK');
             assert.equal(staleSaves,0,'stale trip expenseId must not be accepted');
             assert.equal(expenses.length,0,'stale link must not fabricate ledger records');
@@ -2896,8 +2847,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
               anasTruckRender:()=>{}, saveDB:()=>{mismatchSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-EXPENSE-AMOUNT-MISMATCH');
             assert.equal(mismatchSaves,0,'mismatched expense amount must not be linked');
             assert.equal(trip.expenseId,undefined,'mismatched expense must not create a trip link');
@@ -2919,8 +2869,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
               anasTruckRender:()=>{}, saveDB:()=>{duplicateIdSaves++;return true;},
               Number,String,Object,Array,Date,console
             };
-            vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+            vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
             ctx.runExpense('T-DUP-EXPENSE-ID');
             assert.equal(duplicateIdSaves,0,'duplicate expense IDs must not be linked');
             assert.equal(trip.expenseId,undefined,'ambiguous expense ID must not create a trip link');
@@ -2935,8 +2884,7 @@ this.runExpense = window.anasTruckRecordExpense;', ctx);
             anasTruckRender:()=>{}, saveDB:()=>{saves++;return true;},
             Number,String,Object,Array,Date,console
           };
-          vm.runInNewContext(fn + '
-this.runExpense = window.anasTruckRecordExpense;', ctx);
+          vm.runInNewContext(fn + '\nthis.runExpense = window.anasTruckRecordExpense;', ctx);
           ctx.runExpense('T-VALID-COST');
           assert.equal(saves,1,'valid numeric string should persist');
           assert.equal(ctx.AppData.expenses.length,1);
