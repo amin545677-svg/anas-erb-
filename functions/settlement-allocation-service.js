@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { PERMISSIONS } = require('./lib/authorization.js');
 
 const MAX_SNAPSHOT_BYTES = 700 * 1024;
 const MAX_ALLOCATIONS = 200;
@@ -146,7 +147,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           fail('failed-precondition', 'The requested financial period is not OPEN.');
         const grant = grantSnap.data();
         if (grant.uid !== uid || grant.active !== true || grant.schemaVersion !== 1 ||
-            !Array.isArray(grant.permissions) || !grant.permissions.includes('settlement_allocation_post'))
+            !Array.isArray(grant.permissions) || !grant.permissions.includes(PERMISSIONS.SETTLEMENT_ALLOCATION))
           fail('permission-denied', 'An active financial settlement-allocation permission is required.');
         if (grant.role && !['admin', 'owner', 'accountant', 'finance', 'financial_manager'].includes(String(grant.role).toLowerCase()))
           fail('permission-denied', 'The Firebase grant role is not authorized for financial allocation.');
