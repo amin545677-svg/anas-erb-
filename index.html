@@ -7150,15 +7150,56 @@ function renderPurchasesTable() {
             const warehouseTransfers=Array.isArray(AppData.warehouseTransfers)?AppData.warehouseTransfers:[];
             const warehouses=Array.isArray(AppData.warehouses)?AppData.warehouses:[];
             const expenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
-            const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
-            const stockValue=products.reduce((sum,p)=>sum+num(p.stock)*num(p.buyPrice),0);
-            const debtTotal=customers.reduce((sum,c)=>sum+Math.max(0,num(c.debt)),0);
-            const salesTotal=invoices.reduce((sum,i)=>sum+num(i.total),0);
-            const purchaseTotal=purchases.reduce((sum,p)=>sum+num(p.total || (num(p.cost)*num(p.qty))),0);
-            const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
-            const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
-            const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
-            // Minimize outbound business context: aggregates only, no customer/product names or per-record balances.
+            const readNumber=value=>{
+                if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return null;
+                if(typeof value!=='number'&&typeof value!=='string')return null;
+                const parsed=typeof value==='number'?value:Number(value);
+                return Number.isFinite(parsed)?parsed:null;
+            };
+            const aggregate=(rows,readValue,transform=value=>value)=>{
+                let total=0,validRecords=0,invalidRecords=0;
+                rows.forEach(record=>{
+                    let raw=null;
+                    try{raw=readValue(record||{});}catch(_){raw=null;}
+                    const parsed=readNumber(raw);
+                    if(parsed===null){invalidRecords++;return;}
+                    const amount=transform(parsed);
+                    if(!Number.isFinite(amount)){invalidRecords++;return;}
+                    total+=amount;validRecords++;
+                });
+                return {total,validRecords,invalidRecords};
+            };
+            const stock=aggregate(products,p=>{
+                const quantity=readNumber(p.stock),unitCost=readNumber(p.buyPrice);
+                return quantity===null||unitCost===null?null:quantity*unitCost;
+            });
+            const debts=aggregate(customers,c=>c.debt,value=>Math.max(0,value));
+            const sales=aggregate(invoices,i=>i.total);
+            const purchase=aggregate(purchases,p=>{
+                const direct=readNumber(p.total);
+                if(direct!==null)return direct;
+                const cost=readNumber(p.cost),quantity=readNumber(p.qty);
+                return cost===null||quantity===null?null:cost*quantity;
+            });
+            const expense=aggregate(expenses,e=>e.amt);
+            const tripExpense=aggregate(truckTrips,t=>t.cost);
+            const cashBalance=readNumber(AppData.caisseBalance);
+            const tripStatusCounts=truckTrips.reduce((acc,t)=>{
+                const status=String(t.status||'غير محدد').slice(0,40);
+                acc[status]=(acc[status]||0)+1;
+                return acc;
+            },{});
+            const quality={
+                estimatedStockCostDZD:{validRecords:stock.validRecords,invalidRecords:stock.invalidRecords},
+                customerDebtsDZD:{validRecords:debts.validRecords,invalidRecords:debts.invalidRecords},
+                invoiceTotalsDZD:{validRecords:sales.validRecords,invalidRecords:sales.invalidRecords},
+                purchaseRecordsTotalDZD:{validRecords:purchase.validRecords,invalidRecords:purchase.invalidRecords},
+                recordedExpensesDZD:{validRecords:expense.validRecords,invalidRecords:expense.invalidRecords},
+                recordedTruckTripCostsDZD:{validRecords:tripExpense.validRecords,invalidRecords:tripExpense.invalidRecords},
+                cashBalanceDZD:{validRecords:cashBalance===null?0:1,invalidRecords:cashBalance===null?1:0}
+            };
+            const incompleteMetrics=Object.keys(quality).filter(key=>quality[key].invalidRecords>0);
+            // Minimize outbound business context: aggregates only; no customer/product names or per-record balances leave the device.
             return {
                 currency:'DZD',
                 counts:{
@@ -7168,19 +7209,25 @@ function renderPurchasesTable() {
                     warehouses:warehouses.length,expenses:expenses.length
                 },
                 totals:{
-                    customerDebtsDZD:debtTotal,estimatedStockCostDZD:stockValue,
-                    invoiceTotalsDZD:salesTotal,purchaseRecordsTotalDZD:purchaseTotal,
-                    recordedExpensesDZD:expensesTotal,recordedTruckTripCostsDZD:tripCosts,
-                    cashBalanceDZD:num(AppData.caisseBalance)
+                    customerDebtsDZD:debts.total,estimatedStockCostDZD:stock.total,
+                    invoiceTotalsDZD:sales.total,purchaseRecordsTotalDZD:purchase.total,
+                    recordedExpensesDZD:expense.total,recordedTruckTripCostsDZD:tripExpense.total,
+                    cashBalanceDZD:cashBalance
+                },
+                dataQuality:{
+                    metricCoverage:quality,
+                    incompleteMetrics,
+                    hasIncompleteFinancialData:incompleteMetrics.length>0
                 },
                 truckTrips:{statusCounts:tripStatusCounts},
                 dataQualityNotes:[
-                    'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
+                    'المجاميع تستبعد السجلات ذات القيم الرقمية المفقودة أو غير الصالحة؛ راجع تغطية كل مؤشر قبل اعتبار الإجمالي كاملاً.',
+                    'مجموع سجل المشتريات يستخدم الحقل total عند صلاحيته، وإلا يستخدم cost × qty؛ يجب مطابقته مع فواتير الموردين.',
                     'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
                     'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
                     'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
                 ],
-                note:'ملخص لحظي اختياري ومجرد من أسماء العملاء والمنتجات وأرصدة الأفراد. يتضمن مجاميع مالية وأعداد السجلات فقط؛ راجع القيم قبل اتخاذ قرار مالي.'
+                note:'ملخص لحظي اختياري ومجرد من أسماء العملاء والمنتجات وأرصدة الأفراد. القيم الجزئية والمفقودة موضحة في dataQuality؛ لا تعتبر أي مجموع جزئي رصيداً نهائياً.'
             };
         }
         function anasAiAppendMessage(role,text){
