@@ -237,13 +237,14 @@ test('Chromium settlement allocation UI fails closed without the trusted callabl
    const period=document.getElementById('alloc-period-id');
    if(period) period.value='FY-2026-10';
   });
-  await page.click('#alloc-submit');
+  const submitDisabled=await page.locator('#alloc-submit').isDisabled();
   const result=await page.evaluate(()=>({
    allocations:AppData.settlementAllocations.length,
    saveCalls:window.__saveCalls,
    status:document.getElementById('alloc-status')?.textContent||'',
    alerts:window.__alerts
   }));
+  assert.equal(submitDisabled,true,'posting must remain disabled when the trusted callable is absent');
   assert.equal(result.allocations,0,'an untrusted local path must not post an allocation');
   assert.equal(result.saveCalls,0,'the UI must never call saveDB as a fallback');
   assert.match(result.status+' '+result.alerts.join(' '),/بوابة|خادمية|موثوقة|server|gateway/i);
