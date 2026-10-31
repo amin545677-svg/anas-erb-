@@ -73,7 +73,7 @@ test("409 CAS recovery preserves a concurrently POSTED reverse-ledger return and
   });
 
   const result = await queue.reconcileAndSync();
-  assert.equal(result.status, "synced");
+  assert.equal(result.status, "synced", JSON.stringify(result));
   assert.equal(result.attempts, 2);
   assert.equal(pushes, 2);
   assert.equal(cloud.returns.filter(row => row.returnId === "RET-DEVICE-B-POSTED-0001").length, 1);
