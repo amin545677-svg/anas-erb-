@@ -8,7 +8,7 @@ import { validateFixture, assertFinancials, verifyLiveStaging } from '../scripts
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('live staging E2E verifier is fail-closed and requires all three operation classes', () => {
-  assert.throws(() => validateFixture({ projectId: 'anas-erb', operations: [] }), /projectId/);
+  assert.throws(() => validateFixture({ projectId: 'anas-erb', operations: [] }), /Fixture must target/);
   assert.throws(() => validateFixture({ projectId: 'anas-erp-staging-a25e1', operations: [] }), /SALE_RETURN/);
   const fixture = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/reverse-ledger-live-staging.example.json'), 'utf8'));
   assert.doesNotThrow(() => validateFixture(fixture));
