@@ -71,10 +71,11 @@ test('requires an open financial period and version-2 reconciled invoice', () =>
 });
 test('blocks legacy invoices until explicitly reconciled with a dedicated permission', () => {
   assert.throws(() => authorizeReverseOperation(validContext({ operation: { legacyRecordsPresent: true } })), /missing required permission: reverse_legacy_reconcile/);
-  assert.throws(() => authorizeReverseOperation(validContext({
+  const reconciled = validContext({
     operation: { legacyRecordsPresent: true, legacyReconciled: true, legacyReconciliationId: 'REC-LEGACY-01' },
     grant: { permissions: [...validContext().grant.permissions, PERMISSIONS.LEGACY_RECONCILE] }
-  })), /legacy invoice requires documented reconciliation/ === false ? /x/ : /x/);
+  });
+  assert.equal(authorizeReverseOperation(reconciled).authorized, true);
 });
 test('requires explicit cash refund permission and sufficient liquidity', () => {
   assert.throws(() => authorizeReverseOperation(validContext({ grant: { permissions: [PERMISSIONS.SALE_RETURN] } })), /missing required permission: reverse_cash_refund/);
@@ -91,7 +92,7 @@ test('permits insufficient cash only with separately authorized and operation-bo
   assert.throws(() => authorizeReverseOperation({ ...context, liquidityOverride: { ...context.liquidityOverride, operationId: 'OTHER-OP-0000001' } }), /explicit authorized liquidity approval/);
 });
 test('requires explicit credit permission and credit settlement mode', () => {
-  assert.throws(() => authorizeReverseOperation(validContext({ operation: { creditIssueCentimes: 200, settlementMode: 'credit' }, grant: { permissions: [PERMISSIONS.SALE_RETURN] } })), /missing required permission: reverse_credit_issue/);
+  assert.throws(() => authorizeReverseOperation(validContext({ operation: { cashRefundCentimes: 0, creditIssueCentimes: 200, settlementMode: 'credit' }, grant: { permissions: [PERMISSIONS.SALE_RETURN] } })), /missing required permission: reverse_credit_issue/);
   assert.throws(() => authorizeReverseOperation(validContext({ operation: { creditIssueCentimes: 200 } })), /explicit credit settlement mode/);
 });
 test('purchase returns cannot exceed stock in the selected warehouse', () => {
