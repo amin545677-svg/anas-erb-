@@ -53,8 +53,29 @@ export function installV42RuntimeWiring({
   }
 
   function makeOperation(current, previous) {
-    const invoice = findNewEntity(current, previous, "invoices");
-    const movement = invoice ? null : findNewEntity(current, previous, "cashMovements");
+    const newInvoices = (Array.isArray(current.invoices) ? current.invoices : []).filter(item =>
+      item && item.id != null && !(Array.isArray(previous?.invoices) ? previous.invoices : [])
+        .some(old => String(old?.id) === String(item.id))
+    );
+    const newMovements = (Array.isArray(current.cashMovements) ? current.cashMovements : []).filter(item =>
+      item && item.id != null && !(Array.isArray(previous?.cashMovements) ? previous.cashMovements : [])
+        .some(old => String(old?.id) === String(item.id))
+    );
+
+    // The V42 adapter currently supports exactly one atomic sale OR one customer-debt
+    // collection. Never guess the meaning of an expense, supplier payment, or a
+    // multi-entity save: reject it before the original saveDB can persist it.
+    if (newInvoices.length > 1 || newMovements.length > 1 ||
+        (newInvoices.length && newMovements.length)) {
+      throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
+    }
+    const invoice = newInvoices[0] || null;
+    const movement = newMovements[0] || null;
+    if (movement && (String(movement.type || "").toLowerCase() !== "add" ||
+        String(movement.referenceType || "").toLowerCase() !== "customer_debt" ||
+        movement.referenceId == null || String(movement.referenceId).trim() === "")) {
+      throw new Error("Unsupported cash movement; only customer-debt collections can enter the sync queue");
+    }
     const entity = invoice || movement;
     if (!entity) return null;
     const mapped = mapMutation({
