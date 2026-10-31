@@ -7,13 +7,18 @@ const workerSource = await readFile(resolve("cloudflare/worker_reverse_ledger.js
 const workerUrl = "data:text/javascript;base64,"+Buffer.from(workerSource).toString("base64");
 const { default: worker } = await import(workerUrl);
 const origin = "https://anas-erp-staging-a25e1.web.app";
+const nowSeconds = Math.floor(Date.now()/1000);
+const firebaseClaims = { sub:"trusted-user-1", user_id:"trusted-user-1",
+  aud:"anas-erp-staging-a25e1", iss:"https://securetoken.google.com/anas-erp-staging-a25e1",
+  auth_time:nowSeconds-30, iat:nowSeconds-20, exp:nowSeconds+3600 };
+const mockFirebaseIdToken = "header."+Buffer.from(JSON.stringify(firebaseClaims)).toString("base64url")+".signature";
 const env = { FIREBASE_API_KEY:"test-key", FIREBASE_PROJECT_ID:"anas-erp-staging-a25e1",
   FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({client_email:"worker@test.iam.gserviceaccount.com",
     private_key:"-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQD\\n-----END PRIVATE KEY-----"}),
   ALLOWED_ORIGINS:origin };
 function request(path,{method="GET",body,auth=true,requestOrigin=origin}={}) {
   const headers=new Headers({Origin:requestOrigin});
-  if(auth) headers.set("Authorization","Bearer firebase-token");
+  if(auth) headers.set("Authorization","Bearer "+mockFirebaseIdToken);
   if(body!==undefined) headers.set("Content-Type","application/json");
   return new Request("https://reverse-ledger.test"+path,{method,headers,
     body:body===undefined?undefined:JSON.stringify(body)});
