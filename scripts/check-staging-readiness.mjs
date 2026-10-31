@@ -4,10 +4,12 @@
 // Fail-closed contract preflight for the isolated Firebase Staging financial callables.
 // This check intentionally prints no secret values and never contacts Firebase.
 
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [];
