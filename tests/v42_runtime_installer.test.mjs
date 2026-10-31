@@ -417,3 +417,57 @@ test("runtime wiring rejects multiple appended business entities before local pe
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   installer.uninstall();
 });
+
+
+test("runtime wiring fails closed when financial balances or stock change without a queued operation", () => {
+  for (const mutate of [
+    data => { data.products[0].stock -= 3; },
+    data => { data.caisseBalance += 75; },
+    data => { data.customers[0].debt -= 75; }
+  ]) {
+    const initial = fixture();
+    const current = structuredClone(initial);
+    mutate(current);
+    const storage = new MemoryStorage({
+      [MUTATION_KEYS.appData]: JSON.stringify(initial),
+      [MUTATION_KEYS.pending]: "[]"
+    });
+    let persisted = false;
+    const installer = installV42RuntimeWiring({
+      windowObject: {}, storage,
+      orchestrator: { pushCurrent: async () => ({}), reconcileAndSync: async () => ({}) },
+      getAppData: () => current, setAppData: () => {},
+      getSaveDB: () => () => { persisted = true; return true; }, setSaveDB: () => {},
+      mapMutation: () => null
+    });
+    installer.install();
+    assert.throws(() => installer.wrappedSaveDB(), /Unsupported V42 financial or inventory change/);
+    assert.equal(persisted, false);
+    assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+    installer.uninstall();
+  }
+});
+
+test("runtime wiring still permits nonfinancial settings persistence", () => {
+  const initial = fixture();
+  const current = structuredClone(initial);
+  current.settings = { theme: "classic", language: "ar" };
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]"
+  });
+  let persisted = false;
+  const installer = installV42RuntimeWiring({
+    windowObject: {}, storage,
+    orchestrator: { pushCurrent: async () => ({}), reconcileAndSync: async () => ({}) },
+    getAppData: () => current, setAppData: () => {},
+    getSaveDB: () => () => { persisted = true; storage.setItem(MUTATION_KEYS.appData, JSON.stringify(current)); return true; },
+    setSaveDB: () => {},
+    mapMutation: () => null
+  });
+  installer.install();
+  assert.equal(installer.wrappedSaveDB(), true);
+  assert.equal(persisted, true);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  installer.uninstall();
+});
