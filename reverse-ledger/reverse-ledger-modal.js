@@ -109,7 +109,7 @@ function renderLines() {
   if (!state.invoice) {
     const tr = document.createElement('tr');
     const td = makeCell('اختر فاتورة لعرض الأصناف.');
-    td.colSpan = 6;
+    td.colSpan = 7;
     tr.appendChild(td);
     body.appendChild(tr);
     return;
@@ -126,12 +126,18 @@ function renderLines() {
     return;
   }
   items.forEach((item, index) => {
-    const productId = itemProductId(item);
-    const product = productById(productId);
-    const originalQuantity = parseMicro(item.qty ?? item.quantity);
-    const returned = priorReturned(state.invoice, state.invoiceType, productId);
-    const remaining = originalQuantity - returned;
-    const stock = product ? warehouseStock(product, state.invoice, state.invoiceType) : 0n;
+    let productId, product, originalQuantity, returned, remaining, stock;
+    try {
+      productId = itemProductId(item);
+      product = productById(productId);
+      originalQuantity = parseMicro(item.qty ?? item.quantity);
+      returned = priorReturned(state.invoice, state.invoiceType, productId);
+      remaining = originalQuantity - returned;
+      stock = product ? warehouseStock(product, state.invoice, state.invoiceType) : 0n;
+    } catch (error) {
+      status(error && error.message ? error.message : 'بيانات سطر الفاتورة غير صالحة.', false);
+      return;
+    }
     const tr = document.createElement('tr');
     tr.appendChild(makeCell(item.name ?? item.productName ?? product?.name ?? productId));
     tr.appendChild(makeCell(formatMicro(originalQuantity)));
@@ -154,6 +160,9 @@ function renderLines() {
       td.appendChild(input);
     }
     tr.appendChild(td);
+    const valueCell = makeCell('—');
+    valueCell.dataset.lineValue = productId;
+    tr.appendChild(valueCell);
     body.appendChild(tr);
     state.lines.push({ item, productId, originalQuantity, returned, remaining, stock });
   });
@@ -191,6 +200,7 @@ function updatePreview() {
   state.preview = null;
   byId('rev-submit-btn').disabled = true;
   byId('rev-preview-total').textContent = '—';
+  byId('rev-items-body').querySelectorAll('[data-line-value]').forEach(cell => { cell.textContent = '—'; });
   byId('rev-preview-invoice-remaining').textContent = '—';
   byId('rev-preview-debt-reduction').textContent = '—';
   byId('rev-preview-cash-excess').textContent = '—';
@@ -203,6 +213,11 @@ function updatePreview() {
     }
     const preview = engine.previewReturnTransaction(appData(), request);
     state.preview = preview;
+    const previewByProduct = new Map(preview.items.map(item => [String(item.productId), item]));
+    byId('rev-items-body').querySelectorAll('[data-line-value]').forEach(cell => {
+      const line = previewByProduct.get(String(cell.dataset.lineValue));
+      cell.textContent = line ? formatMoney(line.lineTotalCentimes) : '—';
+    });
     byId('rev-preview-total').textContent = formatMoney(preview.totalCentimes);
     byId('rev-preview-debt-reduction').textContent = formatMoney(preview.debtReductionCentimes);
     const excess = BigInt(preview.cashRefundCentimes || 0) +
@@ -280,7 +295,7 @@ function mount() {
   overlay.setAttribute('aria-labelledby', 'rev-modal-title');
   overlay.innerHTML = '<div class="rev-dialog"><div class="rev-head"><h2 id="rev-modal-title">التسوية العكسية</h2><button type="button" class="rev-close" aria-label="إغلاق" id="rev-close-btn">×</button></div>'+
     '<div class="rev-body"><section class="rev-section"><h3>1. الفاتورة والأهلية</h3><label>الفاتورة<select id="rev-invoice-select"><option value="">اختر الفاتورة...</option></select></label><div id="rev-eligibility-status" class="rev-status" role="status" aria-live="polite">اختر فاتورة لبدء فحص الأهلية.</div></section>'+
-    '<section class="rev-section"><h3>2. الأصناف والكميات</h3><div class="rev-items"><table><thead><tr><th>الصنف</th><th>الأصلية</th><th>مرتجع سابقاً</th><th>المتاح للإرجاع</th><th>المخزون الحالي</th><th>الكمية الآن</th></tr></thead><tbody id="rev-items-body"><tr><td colspan="6">اختر فاتورة لعرض الأصناف.</td></tr></tbody></table></div></section>'+
+    '<section class="rev-section"><h3>2. الأصناف والكميات</h3><div class="rev-items"><table><thead><tr><th>الصنف</th><th>الأصلية</th><th>مرتجع سابقاً</th><th>المتاح للإرجاع</th><th>المخزون الحالي</th><th>الكمية الآن</th><th>قيمة السطر</th></tr></thead><tbody id="rev-items-body"><tr><td colspan="7">اختر فاتورة لعرض الأصناف.</td></tr></tbody></table></div></section>'+
     '<section class="rev-section"><h3>3. المعاينة المالية الدقيقة</h3><div class="rev-preview"><div><small>إجمالي المرتجع</small><strong id="rev-preview-total">—</strong></div><div><small>المتبقي المشتق على الفاتورة</small><strong id="rev-preview-invoice-remaining">—</strong></div><div><small>إطفاء الدين أولاً</small><strong id="rev-preview-debt-reduction">—</strong></div><div><small>الفائض النقدي / الدائن</small><strong id="rev-preview-cash-excess">—</strong></div></div>'+
     '<div class="rev-grid"><label>معالجة الفائض<select id="rev-excess-mode"><option value="cash">نقداً</option><option value="credit">رصيد دائن</option></select></label><label>الفترة المالية (معرّف الخادم)<input id="rev-period-id" maxlength="128" autocomplete="off" placeholder="يتطلب معرّف فترة مفتوحة"></label><label>سبب العملية<input id="rev-reason-input" maxlength="500" placeholder="سبب الإرجاع أو الإلغاء"></label></div></section>'+
     '<div class="rev-actions"><button type="button" id="rev-submit-btn" disabled>طلب الترحيل الخادمي</button><button type="button" id="rev-cancel-btn">إغلاق</button></div><p style="font-size:.75rem;color:#64748b;margin:0">المعاينة تعمل على نسخة منفصلة من البيانات. لا يُسمح بأي تعديل محلي. زر الترحيل لا يعمل إلا عند اتصال بوابة خادمية موثوقة وتحديد فترة مالية مفتوحة.</p></div></div>';
