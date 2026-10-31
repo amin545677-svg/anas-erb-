@@ -5958,8 +5958,7 @@ function renderPurchasesTable() {
             if (!w) { alert('اسمح بفتح نافذة الطباعة لهذا الملف ثم أعد المحاولة.'); return; }
             const styles = `<style>body{font-family:Arial,sans-serif;direction:rtl;padding:18px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:7px;text-align:right;font-size:12px}th{background:#eee}button,input{display:none!important} [hidden]{display:none!important}</style>`;
             w.document.open();
-            w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</title>' + styles + '</head><body><h1>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</h1>' + root.innerHTML + '<script src="./warehouse-transfer-audit.js"></script>
-</body></html>');
+            w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</title>' + styles + '</head><body><h1>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</h1>' + root.innerHTML + '</body></html>');
             w.document.close();
             w.focus();
             setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
@@ -9346,5 +9345,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         });
       })();
     </script>
+<script src="./warehouse-transfer-audit.js"></script>
 </body>
 </html>
