@@ -8,7 +8,6 @@ on:
       - "functions/**"
       - "reverse-ledger/**"
       - "staging/**"
-      - "staging/**"
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
       - ".github/workflows/staging-test-gate.yml"
@@ -60,8 +59,8 @@ jobs:
         run: |
           npm install --prefix functions --omit=dev --no-audit --no-fund
           GCLOUD_PROJECT=anas-erp-staging-a25e1 node -e "const f=require('./functions'); if(typeof f.executeReverseLedger!=='function'||typeof f.createTrustedReverseLedgerBackup!=='function'||typeof f.restoreTrustedReverseLedgerBackup!=='function') process.exit(1); console.log('Firebase reverse-ledger and trusted backup callables loaded.');"
-      - name: Run staging Firebase callable client tests
-        run: node --test tests/reverse_ledger_firebase_callable_client.test.cjs
+      - name: Run staging Firebase callable client and isolated browser console tests
+        run: node --test tests/reverse_ledger_firebase_callable_client.test.cjs tests/reverse_ledger_staging_console.test.cjs
       - name: Run trusted reverse-ledger authorization, server adapter and reservation Worker tests
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_server_transaction.test.js tests/worker_reverse_ledger.test.mjs
       - name: Install Firestore Rules emulator test dependencies
