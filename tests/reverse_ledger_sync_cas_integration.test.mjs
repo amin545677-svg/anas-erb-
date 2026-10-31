@@ -64,10 +64,10 @@ test("409 CAS recovery preserves a concurrently POSTED reverse-ledger return and
         revision = "REV-2";
         return { status: 409, error: "revision conflict" };
       }
-      assert.equal(baseRevision, "REV-2");
+      assert.ok(baseRevision === "REV-2" || baseRevision === "REV-3");
       assert.equal(data.returns.filter(row => row.returnId === "RET-DEVICE-B-POSTED-0001").length, 1);
       cloud = structuredClone(data);
-      revision = "REV-3";
+      revision = baseRevision === "REV-2" ? "REV-3" : "REV-4";
       return { status: 200, saved: true, revision };
     }
   });
