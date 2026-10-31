@@ -150,3 +150,55 @@ test('Chromium reverse UI handlers fail closed without a trusted server gateway'
   console.log('CHROMIUM_REVERSE_UI_FAIL_CLOSED_REPORT '+JSON.stringify(result));
  } finally { await browser.close(); }
 });
+
+test('Chromium reverse modal previews exact centimes without mutating AppData or enabling an untrusted post', async () => {
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.setContent('<!doctype html><html><head></head><body><main>ANAS ERP</main></body></html>');
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger.js')});
+  await page.evaluate(() => {
+   const customer={id:'C-MODAL',name:'Modal customer',debt:0.20};
+   window.AppData={
+    customers:[customer],suppliers:[],
+    invoices:[{id:'INV-MODAL',customerId:'C-MODAL',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
+      items:[{id:'P-MODAL',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'}],
+    purchases:[],products:[{id:'P-MODAL',name:'Tea',stock:0,buyPrice:0.05}],
+    cashMovements:[{id:'SALE-CASH-MODAL',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'INV-MODAL'}],
+    stockMovements:[{id:'SALE-STOCK-MODAL',productId:'P-MODAL',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',
+      referenceId:'INV-MODAL',originalSaleQuantityMicroUnits:3000000,originalSaleCostCentimes:15}],
+    clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
+    caisseBalance:1,currentUser:{id:'U-MODAL',name:'Tester'}
+   };
+  });
+  const before=await page.evaluate(()=>JSON.stringify(AppData));
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger-modal.js')});
+  await page.evaluate(() => {
+   window.prompt=()=>{throw new Error('prompt must not be used');};
+   window.returnSalePrompt();
+   const select=document.getElementById('rev-invoice-select');
+   select.value='0';select.dispatchEvent(new Event('change',{bubbles:true}));
+   const quantity=document.querySelector('#rev-items-body input[data-line-index="0"]');
+   quantity.value='1';quantity.dispatchEvent(new Event('input',{bubbles:true}));
+   document.getElementById('rev-reason-input').value='Chromium modal preview';
+   document.getElementById('rev-reason-input').dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  const result=await page.evaluate(()=>({
+   total:document.getElementById('rev-preview-total').textContent,
+   remaining:document.getElementById('rev-preview-invoice-remaining').textContent,
+   debt:document.getElementById('rev-preview-debt-reduction').textContent,
+   status:document.getElementById('rev-eligibility-status').textContent,
+   submitDisabled:document.getElementById('rev-submit-btn').disabled,
+   modalOpen:document.getElementById('modal-reverse-ledger').classList.contains('active')
+  }));
+  const after=await page.evaluate(()=>JSON.stringify(AppData));
+  assert.equal(result.total,'0.10 د.ج');
+  assert.equal(result.remaining,'0.20 د.ج');
+  assert.equal(result.debt,'0.10 د.ج');
+  assert.equal(result.submitDisabled,true);
+  assert.equal(result.modalOpen,true);
+  assert.match(result.status,/نسخة بيانات معزولة/);
+  assert.equal(after,before,'preview must leave the live AppData byte-for-byte unchanged');
+  console.log('CHROMIUM_REVERSE_MODAL_PREVIEW_REPORT '+JSON.stringify({...result,appDataUnchanged:after===before}));
+ } finally { await browser.close(); }
+});
