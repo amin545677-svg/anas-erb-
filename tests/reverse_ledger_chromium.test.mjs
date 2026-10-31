@@ -81,7 +81,7 @@ test('Chromium reverse UI handlers fail closed without a trusted server gateway'
   const html=fs.readFileSync(path.join(process.cwd(),'index.html'),'utf8');
   const start=html.indexOf('function anasReverseInvoiceChoices(');
   const purchaseStart=html.indexOf('function returnPurchasePrompt()',start);
-  const end=html.indexOf('\\n        function ',purchaseStart+30);
+  const end=html.indexOf('\n        function ',purchaseStart+30);
   assert.ok(start>=0&&purchaseStart>start&&end>purchaseStart,'reverse UI handlers must be extractable');
   await page.addScriptTag({content:html.slice(start,end)});
   const result=await page.evaluate(() => {
