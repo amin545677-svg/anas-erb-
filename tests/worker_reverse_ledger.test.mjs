@@ -171,3 +171,50 @@ test("a grant without the exact operation permission cannot reserve an operation
     assert.match((await response.json()).error,/missing required permission/i);
   } finally { globalThis.fetch=oldFetch; }
 });
+
+test("client-supplied financial amounts are rejected before privileged Firestore access",async()=>{
+  const oldFetch=globalThis.fetch;
+  let privilegedCalls=0;
+  globalThis.fetch=async url=>{
+    if(String(url).includes("identitytoolkit.googleapis.com"))
+      return new Response(JSON.stringify({users:[{localId:"trusted-user-1"}]}),{status:200});
+    privilegedCalls++;
+    throw new Error("client financial fields must be rejected before service-account access");
+  };
+  try {
+    const response=await worker.fetch(request("/reserve",{method:"POST",body:{...validBody,refundCentimes:1,cashAvailableCentimes:100000}}),realEnv);
+    assert.equal(response.status,400);
+    assert.match((await response.json()).error,/client-supplied financial fields/i);
+    assert.equal(privilegedCalls,0);
+  } finally { globalThis.fetch=oldFetch; }
+});
+
+test("closed financial periods roll back and cannot create a reservation",async()=>{
+  const oldFetch=globalThis.fetch;
+  let commitCount=0,rollbackCount=0;
+  globalThis.fetch=async(url,init={})=>{
+    const target=String(url);
+    if(target.includes("identitytoolkit.googleapis.com"))
+      return new Response(JSON.stringify({users:[{localId:"trusted-user-1"}]}),{status:200});
+    if(target.includes("oauth2.googleapis.com/token"))
+      return new Response(JSON.stringify({access_token:"service-access-token",expires_in:3600}),{status:200});
+    if(target.endsWith("/documents:beginTransaction"))
+      return new Response(JSON.stringify({transaction:"tx-closed-period"}),{status:200});
+    if(target.includes("/reverseLedgerGrants/trusted-user-1?transaction="))
+      return new Response(JSON.stringify(firestoreDoc({uid:"trusted-user-1",active:true,schemaVersion:1,permissions:["reverse_sale_return"]})),{status:200});
+    if(target.includes("/financialPeriods/FY-2026-10?transaction="))
+      return new Response(JSON.stringify(firestoreDoc({periodId:"FY-2026-10",status:"CLOSED"})),{status:200});
+    if(target.includes("/reverseLedgerOperations/RET-OP-20261031-0001?transaction="))
+      return new Response(JSON.stringify({error:{status:"NOT_FOUND"}}),{status:404});
+    if(target.endsWith("/documents:commit")){commitCount++;return new Response("{}",{status:200});}
+    if(target.endsWith("/documents:rollback")){rollbackCount++;return new Response("{}",{status:200});}
+    throw new Error("Unexpected network request: "+target);
+  };
+  try {
+    const response=await worker.fetch(request("/reserve",{method:"POST",body:validBody}),realEnv);
+    assert.equal(response.status,403);
+    assert.match((await response.json()).error,/not OPEN/i);
+    assert.equal(commitCount,0);
+    assert.equal(rollbackCount,1);
+  } finally { globalThis.fetch=oldFetch; }
+});
