@@ -1417,8 +1417,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             </div>
 
             <div style="background:#fff; padding:8px 10px; border-bottom:1px solid var(--mp-border); display:flex; gap:6px;">
-                <input type="number" id="purBuyCost" placeholder="سعر الشراء / التكلفة (د.ج)" class="field-input" style="flex:1;">
-                <input type="number" id="purBuyQty" placeholder="الكمية" value="10" class="field-input" style="flex:1;">
+                <input type="number" id="purBuyCost" min="0.01" step="0.01" placeholder="سعر شراء الوحدة (د.ج)" class="field-input" style="flex:1;">
+                <input type="number" id="purBuyQty" min="0.000001" step="any" placeholder="الكمية" value="10" class="field-input" style="flex:1;">
+            </div>
+            <div style="background:#fff;padding:8px 10px;border-bottom:1px solid var(--mp-border);">
+                <label for="purPaidAmount" style="display:block;margin-bottom:4px;font-size:.8rem;font-weight:800;color:var(--mp-text-muted);">المبلغ المدفوع الآن من الصندوق (د.ج) — المتبقي يُسجل ديناً على المورد</label>
+                <input type="number" id="purPaidAmount" min="0" step="0.01" value="0.00" class="field-input" style="width:100%;">
+                <small style="display:block;margin-top:4px;color:#64748b;">إذا لم تختر مورداً، يجب دفع كامل الفاتورة نقداً. لا يُسمح بتسجيل دين بلا مورد محدد.</small>
             </div>
             <div style="background:#fff; padding:8px 10px; border-bottom:1px solid var(--mp-border);">
                 <label for="purInvoiceDate" style="display:block; margin-bottom:4px; font-size:0.8rem; font-weight:800; color:var(--mp-text-muted);">تاريخ الفاتورة</label>
@@ -2534,6 +2539,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             products: [],
             customers: [],
             suppliers: [],
+            supplierMovements: [],
             posScreensCarts: { 1: [], 2: [], 3: [], 4: [], 'quote': [] },
             purchases: [],
             invoices: [],
@@ -2550,7 +2556,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             AppData = saved ? JSON.parse(saved) : initialDB;
             if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
             // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
-            ['products','customers','suppliers','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
+            ['products','customers','suppliers','supplierMovements','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
                 if (!Object.prototype.hasOwnProperty.call(AppData, k)) {
                     AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
                 } else if (!Array.isArray(AppData[k])) {
@@ -2585,6 +2591,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
         let posCart = AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) && Array.isArray(AppData.posScreensCarts[AppData.activePosScreenTab]) ? AppData.posScreensCarts[AppData.activePosScreenTab] : [];
         let activeAiTab = 'all';
+        let currentPosCategoryFilter = 'الكل';
 
         
         function populateSuppliersDropdowns() {
@@ -3959,32 +3966,57 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!inv) { alert('لم يتم العثور على فاتورة المبيعات.'); return; }
             printLegalA4Invoice(inv, true);
         }
-        function previewPurchaseInvoice(index) {
-            const item = (AppData.purchases || [])[index];
-            if (!item) { alert('لم يتم العثور على سجل المشتريات.'); return; }
-            const cfg = AppData.storeConfig || {};
+        function anasBuildPurchaseInvoiceHtml(item) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+            const costCents = anasPurchaseToCents(item.cost);
+            const qtyUnits = anasPurchaseToQtyUnits(item.qty);
+            const lineCents = anasPurchaseLineTotalCents(qtyUnits, costCents);
+            const totalCents = Object.prototype.hasOwnProperty.call(item,'total')
+                ? anasPurchaseToCents(item.total) : lineCents;
+            if (!Number.isSafeInteger(costCents) || costCents <= 0 ||
+                !Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 ||
+                !Number.isSafeInteger(totalCents) || totalCents < 0 ||
+                !Number.isSafeInteger(lineCents)) return null;
             const safe = v => String(v ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-            const html = `<div style="direction:rtl;font-family:Arial,Tahoma,sans-serif;padding:clamp(10px,3vw,28px);color:#111827;max-width:800px;min-height:650px;box-sizing:border-box;margin:auto;line-height:1.65;background:#fff;">
+            const money = cents => anasPurchaseCentsToCurrency(cents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
+            const hasSettlement = Object.prototype.hasOwnProperty.call(item,'paid') && Object.prototype.hasOwnProperty.call(item,'remaining');
+            const paidCents = hasSettlement ? anasPurchaseToCents(item.paid) : NaN;
+            const remainingCents = hasSettlement ? anasPurchaseToCents(item.remaining) : NaN;
+            if (hasSettlement && (!Number.isSafeInteger(paidCents) || !Number.isSafeInteger(remainingCents) ||
+                paidCents + remainingCents !== totalCents || paidCents > totalCents)) return null;
+            const cfg = AppData.storeConfig || {};
+            return `<div style="direction:rtl;font-family:Arial,Tahoma,sans-serif;padding:clamp(10px,3vw,28px);color:#111827;max-width:800px;min-height:650px;box-sizing:border-box;margin:auto;line-height:1.65;background:#fff;">
               <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1e3a8a;padding-bottom:16px;gap:18px;">
                 <div style="flex:1 1 230px;"><h2 style="margin:0;color:#1e3a8a;">${safe(cfg.name || 'اسم المؤسسة')}</h2><p style="margin:5px 0;">${safe(cfg.address || 'العنوان غير مسجل')}</p><p style="margin:5px 0;">الهاتف: ${safe(cfg.phone || '-')}</p><p style="margin:5px 0;font-size:12px;">RC: ${safe(cfg.rc || '-')} | NIF: ${safe(cfg.nif || '-')}</p></div>
-                <div style="flex:1 1 230px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;box-sizing:border-box;"><h2 style="margin:0 0 8px;color:#1e3a8a;">وصل / فاتورة مشتريات</h2><p style="margin:4px 0;"><b>التاريخ:</b> ${safe(item.date || new Date().toLocaleDateString('ar-DZ'))}</p><p style="margin:4px 0;"><b>المورد:</b> ${safe(item.supplierName || 'مورد نقدي')}</p></div>
+                <div style="flex:1 1 230px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;box-sizing:border-box;"><h2 style="margin:0 0 8px;color:#1e3a8a;">فاتورة مشتريات</h2><p style="margin:4px 0;"><b>رقم الفاتورة:</b> ${safe(item.id || 'سجل قديم بلا رقم')}</p><p style="margin:4px 0;"><b>التاريخ:</b> ${safe(item.date || '-')}</p><p style="margin:4px 0;"><b>المورد:</b> ${safe(item.supplierName || 'مورد نقدي')}</p></div>
               </div>
               <h3 style="margin:22px 0 8px;">تفاصيل المشتريات</h3>
               <table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px;font-size:13px;"><thead><tr style="background:#1e3a8a;color:#fff;"><th style="padding:10px 5px;border:1px solid #cbd5e1;">الصنف</th><th style="padding:10px 5px;border:1px solid #cbd5e1;">سعر الشراء</th><th style="padding:10px 5px;border:1px solid #cbd5e1;">الكمية</th><th style="padding:10px 5px;border:1px solid #cbd5e1;">الإجمالي</th></tr></thead>
-              <tbody><tr><td style="padding:12px 5px;border:1px solid #cbd5e1;overflow-wrap:anywhere;">${safe(item.name)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${Number(item.cost||0).toFixed(2)} د.ج</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${safe(item.qty)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${Number(item.total||0).toFixed(2)} د.ج</td></tr></tbody></table>
-              <div style="margin:18px 0 0 auto;max-width:320px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;display:flex;justify-content:space-between;gap:12px;font-size:16px;font-weight:bold;"><span>الإجمالي النهائي</span><span>${Number(item.total||0).toFixed(2)} د.ج</span></div>
+              <tbody><tr><td style="padding:12px 5px;border:1px solid #cbd5e1;overflow-wrap:anywhere;">${safe(item.name)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${money(costCents)}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;">${safe(anasPurchaseQtyFromUnits(qtyUnits))}</td><td style="padding:12px 5px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${money(totalCents)}</td></tr></tbody></table>
+              <div style="margin:18px 0 0 auto;max-width:360px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;display:grid;gap:6px;font-size:14px;font-weight:bold;"><div style="display:flex;justify-content:space-between;gap:12px;"><span>إجمالي الفاتورة</span><span>${money(totalCents)}</span></div>
+              <div style="display:flex;justify-content:space-between;gap:12px;"><span>المدفوع الآن</span><span>${hasSettlement ? money(paidCents) : 'غير مسجل في السجل القديم'}</span></div>
+              <div style="display:flex;justify-content:space-between;gap:12px;"><span>المتبقي للمورد</span><span>${hasSettlement ? money(remainingCents) : 'غير مسجل في السجل القديم'}</span></div></div>
               <div style="margin-top:70px;padding-top:14px;border-top:1px solid #cbd5e1;text-align:left;">توقيع وختم المؤسسة: ................................</div>
             </div>`;
+        }
+        function previewPurchaseInvoice(index) {
+            const item = (AppData.purchases || [])[index];
+            if (!item) { alert('لم يتم العثور على سجل المشتريات.'); return; }
+            const html = anasBuildPurchaseInvoiceHtml(item);
+            if (!html) { alert('تعذر طباعة الفاتورة: توجد تكلفة أو كمية أو تسوية مالية غير صالحة. لم يتم تغيير أي سجل.'); return; }
             openInvoicePreview('معاينة فاتورة المشتريات', html, () => printPurchaseInvoice(index));
         }
         function printPurchaseInvoice(index) {
             const item = (AppData.purchases || [])[index];
             if (!item) { alert('لم يتم العثور على سجل المشتريات.'); return; }
-            const cfg = AppData.storeConfig || {};
-            const safe = v => String(v ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const html = anasBuildPurchaseInvoiceHtml(item);
+            if (!html) { alert('تعذر طباعة الفاتورة: توجد تكلفة أو كمية أو تسوية مالية غير صالحة.'); return; }
             const area = document.getElementById('legalInvoiceA4Area');
-            area.innerHTML = `<div style="direction:rtl;font-family:Arial,sans-serif;padding:20px;color:#111827;"><h2>${safe(cfg.name || 'اسم المؤسسة')}</h2><p>${safe(cfg.address || '')} — ${safe(cfg.phone || '')}</p><hr><h2>فاتورة مشتريات</h2><p>التاريخ: ${safe(item.date || '')} | المورد: ${safe(item.supplierName || 'مورد نقدي')}</p><table style="width:100%;border-collapse:collapse;margin-top:20px;"><tr><th style="border:1px solid #aaa;padding:10px;">الصنف</th><th style="border:1px solid #aaa;padding:10px;">السعر</th><th style="border:1px solid #aaa;padding:10px;">الكمية</th><th style="border:1px solid #aaa;padding:10px;">الإجمالي</th></tr><tr><td style="border:1px solid #aaa;padding:10px;">${safe(item.name)}</td><td style="border:1px solid #aaa;padding:10px;">${Number(item.cost||0).toFixed(2)}</td><td style="border:1px solid #aaa;padding:10px;">${safe(item.qty)}</td><td style="border:1px solid #aaa;padding:10px;">${Number(item.total||0).toFixed(2)} د.ج</td></tr></table><h3>الإجمالي: ${Number(item.total||0).toFixed(2)} د.ج</h3></div>`;
-            area.classList.add('printable'); window.print(); area.classList.remove('printable');
+            if (!area) { alert('منطقة طباعة الفاتورة غير متاحة.'); return; }
+            area.innerHTML = html;
+            area.classList.add('printable');
+            window.print();
+            area.classList.remove('printable');
         }
 
         function reprintLastInvoice() {
@@ -4016,29 +4048,227 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return barcode;
         }
 
+        // Purchase-specific decimal parser: decimal text -> exact integer base units.
+        // Kept scoped so legacy sales helpers are not changed as part of the purchase ledger work.
+        function anasPurchaseToScaledInteger(value, decimalPlaces) {
+            if (!((typeof value === 'number') || (typeof value === 'string')) || value === null || value === undefined) return NaN;
+            const raw = String(value).trim();
+            if (!raw || raw.length > 128) return NaN;
+            const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(raw);
+            if (!match) return NaN;
+            const exponent = match[4] ? Number(match[4]) : 0;
+            if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) return NaN;
+            const fraction = match[3] || '';
+            const digits = (match[2] + fraction).replace(/^0+(?=\d)/, '') || '0';
+            try {
+                const coefficient = BigInt(digits);
+                const power = decimalPlaces + exponent - fraction.length;
+                let magnitude;
+                if (power >= 0) magnitude = coefficient * (10n ** BigInt(power));
+                else {
+                    const divisor = 10n ** BigInt(-power);
+                    magnitude = (coefficient + divisor / 2n) / divisor;
+                }
+                if (match[1] === '-') magnitude = -magnitude;
+                if (magnitude > BigInt(Number.MAX_SAFE_INTEGER) || magnitude < BigInt(Number.MIN_SAFE_INTEGER)) return NaN;
+                return Number(magnitude);
+            } catch (_) { return NaN; }
+        }
+        function anasPurchaseToCents(value) { return anasPurchaseToScaledInteger(value, 2); }
+        function anasPurchaseCentsToCurrency(cents) { return Number.isSafeInteger(cents) ? cents / 100 : NaN; }
+        function anasPurchaseToQtyUnits(value) { return anasPurchaseToScaledInteger(value, 6); }
+        function anasPurchaseQtyFromUnits(units) { return Number.isSafeInteger(units) ? units / 1000000 : NaN; }
+        function anasPurchaseLineTotalCents(qtyUnits, unitCostCents) {
+            if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 || !Number.isSafeInteger(unitCostCents) || unitCostCents <= 0) return NaN;
+            try {
+                const product = BigInt(qtyUnits) * BigInt(unitCostCents);
+                const rounded = (product + 500000n) / 1000000n;
+                return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
+            } catch (_) { return NaN; }
+        }
+        function anasPurchaseWeightedCostCents(oldQtyUnits, oldCostCents, incomingQtyUnits, incomingCostCents) {
+            if (!Number.isSafeInteger(oldQtyUnits) || oldQtyUnits < 0 ||
+                !Number.isSafeInteger(incomingQtyUnits) || incomingQtyUnits <= 0 ||
+                !Number.isSafeInteger(incomingCostCents) || incomingCostCents <= 0) return NaN;
+            if (oldQtyUnits === 0) return incomingCostCents;
+            if (!Number.isSafeInteger(oldCostCents) || oldCostCents <= 0) return NaN;
+            try {
+                const totalUnits = BigInt(oldQtyUnits) + BigInt(incomingQtyUnits);
+                const weighted = BigInt(oldQtyUnits) * BigInt(oldCostCents) + BigInt(incomingQtyUnits) * BigInt(incomingCostCents);
+                const rounded = (weighted + totalUnits / 2n) / totalUnits;
+                return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
+            } catch (_) { return NaN; }
+        }
+        function anasPurchaseStockValueCents(qtyUnits, unitCostCents) {
+            if (!Number.isSafeInteger(qtyUnits) || qtyUnits < 0 ||
+                !Number.isSafeInteger(unitCostCents) || unitCostCents < 0) return NaN;
+            try {
+                const product = BigInt(qtyUnits) * BigInt(unitCostCents);
+                const rounded = (product + 500000n) / 1000000n;
+                return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
+            } catch (_) { return NaN; }
+        }
+        function anasPurchaseLineTotalForRecordCents(record) {
+            if (!record || typeof record !== 'object' || Array.isArray(record)) return NaN;
+            if (Object.prototype.hasOwnProperty.call(record, 'total')) return anasPurchaseToCents(record.total);
+            return anasPurchaseLineTotalCents(anasPurchaseToQtyUnits(record.qty), anasPurchaseToCents(record.cost));
+        }
+        function anasPurchaseAggregateCents(records) {
+            if (!Array.isArray(records)) return NaN;
+            let total = 0;
+            for (const record of records) {
+                const amount = anasPurchaseLineTotalForRecordCents(record);
+                if (!Number.isSafeInteger(amount) || amount < 0 || !Number.isSafeInteger(total + amount)) return NaN;
+                total += amount;
+            }
+            return total;
+        }
+
+        // Enforce cross-ledger parity for purchases created by the centime-ledger flow.
+        // Legacy purchases remain readable; ledgerVersion marks records that must have complete linked vouchers.
+        function anasValidatePurchaseLedgerParity(incoming, mode) {
+            const fail = message => {
+                const suffix = mode === 'cloud'
+                    ? '؛ أُلغي الاسترجاع لحماية الحسابات.'
+                    : '؛ رُفض الاسترجاع لحماية الحسابات.';
+                throw new Error(message + suffix);
+            };
+            const purchases = Array.isArray(incoming.purchases) ? incoming.purchases : [];
+            const supplierMovements = Array.isArray(incoming.supplierMovements) ? incoming.supplierMovements : [];
+            const cashMovements = Array.isArray(incoming.cashMovements) ? incoming.cashMovements : [];
+            const stockMovements = Array.isArray(incoming.stockMovements) ? incoming.stockMovements : [];
+            const byReference = (rows, referenceType, referenceId) =>
+                rows.filter(row => String(row.referenceType || '') === referenceType &&
+                    String(row.referenceId ?? '') === String(referenceId));
+            for (const purchase of purchases) {
+                if (purchase.ledgerVersion !== 1) continue;
+                const purchaseId = String(purchase.id ?? '').trim();
+                if (!purchaseId) fail('فاتورة شراء حديثة تفتقد معرّفاً صالحاً');
+                const totalCents = anasPurchaseToCents(purchase.total);
+                const paidCents = anasPurchaseToCents(purchase.paid);
+                const remainingCents = anasPurchaseToCents(purchase.remaining);
+                const costCents = anasPurchaseToCents(purchase.cost);
+                const qtyUnits = anasPurchaseToQtyUnits(purchase.qty);
+                const calculatedTotalCents = anasPurchaseLineTotalCents(qtyUnits, costCents);
+                if (![totalCents, paidCents, remainingCents, costCents, qtyUnits, calculatedTotalCents].every(Number.isSafeInteger) ||
+                    totalCents <= 0 || paidCents < 0 || remainingCents < 0 ||
+                    paidCents > totalCents || paidCents + remainingCents !== totalCents ||
+                    calculatedTotalCents !== totalCents) {
+                    fail('قيمة فاتورة شراء حديثة لا تتطابق مع تكلفة الوحدة والكمية أو التسوية بالسنتيم');
+                }
+                const cashLinks = byReference(cashMovements, 'purchase_invoice', purchaseId);
+                if (paidCents > 0) {
+                    if (cashLinks.length !== 1 || cashLinks[0].type !== 'subtract' ||
+                        anasPurchaseToCents(cashLinks[0].amount) !== paidCents) {
+                        fail('حركة الصندوق لا تطابق المبلغ المدفوع في فاتورة الشراء ' + purchaseId);
+                    }
+                } else if (cashLinks.length !== 0) {
+                    fail('فاتورة شراء غير مدفوعة مرتبطة بحركة صندوق غير مبررة ' + purchaseId);
+                }
+                const stockLinks = byReference(stockMovements, 'purchase_invoice', purchaseId);
+                if (stockLinks.length !== 1 || stockLinks[0].type !== 'PURCHASE_IN' ||
+                    String(stockLinks[0].productId ?? '') !== String(purchase.productId ?? '') ||
+                    anasPurchaseToQtyUnits(stockLinks[0].qty ?? stockLinks[0].quantity) !== qtyUnits) {
+                    fail('حركة المخزون لا تطابق كمية أو صنف فاتورة الشراء ' + purchaseId);
+                }
+                const supplierId = purchase.supplierId == null ? '' : String(purchase.supplierId).trim();
+                const supplierLinks = byReference(supplierMovements, 'purchase_invoice', purchaseId);
+                if (!supplierId) {
+                    if (supplierLinks.length) fail('فاتورة شراء نقدية بلا مورد مرتبطة بدفتر الموردين ' + purchaseId);
+                    continue;
+                }
+                const purchaseLinks = supplierLinks.filter(row => row.type === 'purchase');
+                const paymentLinks = supplierLinks.filter(row => row.type === 'payment');
+                if (purchaseLinks.length !== 1 ||
+                    String(purchaseLinks[0].supplierId ?? '') !== supplierId ||
+                    anasPurchaseToCents(purchaseLinks[0].amount) !== totalCents) {
+                    fail('قيد فاتورة الشراء غير مطابق في دفتر الموردين ' + purchaseId);
+                }
+                if ((paidCents > 0 && paymentLinks.length !== 1) || (paidCents === 0 && paymentLinks.length !== 0) ||
+                    paymentLinks.some(row => String(row.supplierId ?? '') !== supplierId ||
+                        anasPurchaseToCents(row.amount) !== paidCents)) {
+                    fail('قيد دفعة فاتورة الشراء غير مطابق في دفتر الموردين ' + purchaseId);
+                }
+            }
+            const openingBalanceSuppliers = new Set();
+            for (const movement of supplierMovements) {
+                const referenceType = String(movement.referenceType || '');
+                const referenceId = String(movement.referenceId ?? '');
+                if (movement.type === 'purchase' || (movement.type === 'payment' && referenceType === 'purchase_invoice')) {
+                    const purchase = purchases.find(row => String(row.id ?? '') === referenceId && row.ledgerVersion === 1);
+                    if (!purchase || referenceType !== 'purchase_invoice' ||
+                        String(purchase.supplierId ?? '') !== String(movement.supplierId ?? '')) {
+                        fail('قيد في دفتر الموردين يشير إلى فاتورة شراء حديثة مفقودة أو غير مطابقة');
+                    }
+                } else if (movement.type === 'payment' && referenceType === 'supplier_payment') {
+                    const cashLinks = byReference(cashMovements, 'supplier_payment', referenceId);
+                    if (String(movement.id ?? '') !== referenceId || cashLinks.length !== 1 ||
+                        cashLinks[0].type !== 'subtract' ||
+                        anasPurchaseToCents(cashLinks[0].amount) !== anasPurchaseToCents(movement.amount)) {
+                        fail('تسديد المورد غير مرتبط بحركة صندوق مطابقة');
+                    }
+                } else if (movement.type === 'opening_balance') {
+                    const openingSupplierId = String(movement.supplierId ?? '');
+                    if (referenceType !== 'supplier_opening_balance' ||
+                        String(movement.referenceId ?? '') !== openingSupplierId ||
+                        openingBalanceSuppliers.has(openingSupplierId)) {
+                        fail('قيد الرصيد الافتتاحي للمورد غير متطابق أو مكرر');
+                    }
+                    openingBalanceSuppliers.add(openingSupplierId);
+                } else {
+                    fail('نوع أو مرجع حركة غير صالح في دفتر الموردين');
+                }
+            }
+            for (const movement of cashMovements) {
+                if (String(movement.referenceType || '') === 'supplier_payment') {
+                    const supplierLinks = byReference(supplierMovements, 'supplier_payment', movement.referenceId);
+                    if (movement.type !== 'subtract' || supplierLinks.length !== 1 ||
+                        supplierLinks[0].type !== 'payment' ||
+                        anasPurchaseToCents(supplierLinks[0].amount) !== anasPurchaseToCents(movement.amount)) {
+                        fail('حركة صندوق لتسديد مورد تفتقد القيد المقابل في دفتر الموردين');
+                    }
+                }
+            }
+        }
+
         function savePurchaseItem() {
             const nameInput = document.getElementById('purProductName');
             const costInput = document.getElementById('purBuyCost');
             const qtyInput = document.getElementById('purBuyQty');
+            const paidInput = document.getElementById('purPaidAmount');
             const supplierInput = document.getElementById('purSupplierSelect');
             const name = (nameInput?.value || '').trim();
-            const cost = Number(costInput?.value);
-            const qty = Number(qtyInput?.value);
+            const costCents = anasPurchaseToCents(costInput?.value);
+            const qtyUnits = anasPurchaseToQtyUnits(qtyInput?.value);
+            const paidCents = anasPurchaseToCents(paidInput ? paidInput.value : '0');
             const suppId = String(supplierInput?.value || '');
 
             if (!name) { nameInput?.focus(); alert('أدخل اسم السلعة.'); return; }
-            if (!Number.isFinite(cost) || cost <= 0 || cost > Number.MAX_SAFE_INTEGER) { costInput?.focus(); alert('أدخل تكلفة صحيحة أكبر من صفر وضمن المجال الآمن.'); return; }
-            if (!Number.isSafeInteger(qty) || qty <= 0) { qtyInput?.focus(); alert('أدخل كمية صحيحة كعدد صحيح أكبر من صفر.'); return; }
-            if (!Number.isFinite(cost * qty) || cost * qty <= 0 || cost * qty > Number.MAX_SAFE_INTEGER) { alert('قيمة الفاتورة خارج النطاق الآمن؛ راجع التكلفة والكمية.'); return; }
-            if (!Number.isFinite(cost * 1.2) || cost * 1.2 > Number.MAX_SAFE_INTEGER) { alert('سعر البيع الافتراضي الناتج عن تكلفة الشراء خارج النطاق الآمن؛ راجع التكلفة.'); return; }
+            if (!Number.isSafeInteger(costCents) || costCents <= 0) { costInput?.focus(); alert('أدخل تكلفة وحدة صحيحة بالسنتيم، أكبر من صفر.'); return; }
+            if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) { qtyInput?.focus(); alert('أدخل كمية موجبة ضمن دقة المخزون المعتمدة (6 منازل عشرية).'); return; }
+            const totalCents = anasPurchaseLineTotalCents(qtyUnits, costCents);
+            if (!Number.isSafeInteger(totalCents) || totalCents <= 0) { alert('إجمالي الشراء خارج المجال المالي الآمن.'); return; }
+            if (!Number.isSafeInteger(paidCents) || paidCents < 0 || paidCents > totalCents) {
+                paidInput?.focus(); alert('المبلغ المدفوع يجب أن يكون بين صفر وإجمالي الفاتورة، بدقة السنتيم.'); return;
+            }
+            const remainingCents = totalCents - paidCents;
+            if (!suppId && remainingCents > 0) {
+                alert('لا يمكن تسجيل شراء آجل دون اختيار مورد مسجل. اختر المورد أو ادفع كامل قيمة الفاتورة.');
+                return;
+            }
 
-            // Fail closed instead of silently replacing malformed collections or choosing an arbitrary same-name product.
-            if (Object.prototype.hasOwnProperty.call(AppData, 'products') && (!Array.isArray(AppData.products) || AppData.products.some(p => !p || typeof p !== 'object' || Array.isArray(p)))) {
-                alert('تعذر تسجيل الشراء: سجل المنتجات تالف. لم يتم تعديل المخزون.'); return;
+            for (const [field, label] of [
+                ['products', 'المنتجات'], ['purchases', 'المشتريات'], ['suppliers', 'الموردين'],
+                ['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون'],
+                ['supplierMovements', 'دفتر الموردين']
+            ]) {
+                if (Object.prototype.hasOwnProperty.call(AppData, field) &&
+                    (!Array.isArray(AppData[field]) || AppData[field].some(row => !row || typeof row !== 'object' || Array.isArray(row)))) {
+                    alert('تعذر تسجيل الشراء: سجل ' + label + ' تالف. لم تتغير أي بيانات.');
+                    return;
+                }
             }
-            if (Object.prototype.hasOwnProperty.call(AppData, 'purchases') && (!Array.isArray(AppData.purchases) || AppData.purchases.some(p => !p || typeof p !== 'object' || Array.isArray(p)))) {
-                alert('تعذر تسجيل الشراء: سجل المشتريات تالف. لم يتم استبدال السجل.'); return;
-            }
+
             const productIds = new Set();
             for (const record of (Array.isArray(AppData.products) ? AppData.products : [])) {
                 if (record.id === undefined || record.id === null || String(record.id).trim() === '') continue;
@@ -4050,71 +4280,199 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 productIds.add(recordId);
             }
 
-            if (suppId && (!Array.isArray(AppData.suppliers) || AppData.suppliers.some(s => !s || typeof s !== 'object' || Array.isArray(s)))) {
-                alert('تعذر تسجيل الشراء: سجل الموردين تالف.'); return;
-            }
-            const supplierMatches = suppId ? AppData.suppliers.filter(s => s.id !== undefined && s.id !== null && String(s.id) === suppId) : [];
-            if (suppId && supplierMatches.length > 1) { alert('تعذر تسجيل الشراء: معرّف المورد مكرر. أصلح سجل الموردين أولاً.'); return; }
-            if (suppId && supplierMatches.length === 0) { alert('تعذر تسجيل الشراء: المورد المحدد غير موجود. حدّث قائمة الموردين قبل تسجيل الفاتورة.'); return; }
-            const supplier = supplierMatches[0] || null;
-            const suppName = supplier?.name || 'مورد نقدي عابر';
-            const normalizedName = name.toLocaleLowerCase();
-            const productMatches = (Array.isArray(AppData.products) ? AppData.products : []).filter(p => String(p.name || '').trim().toLocaleLowerCase() === normalizedName);
-            if (productMatches.length > 1) { alert('تعذر تسجيل الشراء: يوجد أكثر من منتج بالاسم نفسه. وحّد سجل المنتجات قبل تعديل المخزون.'); return; }
-            const existingProduct = productMatches[0] || null;
-            if (existingProduct && (existingProduct.id === undefined || existingProduct.id === null || String(existingProduct.id).trim() === '')) {
-                alert('تعذر تسجيل الشراء: المنتج المطابق للاسم لا يملك معرّفًا صالحًا. أصلح هوية المنتج أولًا؛ لم يتم تعديل المخزون.');
+            const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
+            const supplierMatches = suppId ? suppliers.filter(row => row.id != null && String(row.id) === suppId) : [];
+            if (suppId && supplierMatches.length !== 1) {
+                alert(supplierMatches.length ? 'معرّف المورد مكرر؛ أصلح سجل الموردين أولاً.' : 'المورد المحدد غير موجود؛ حدّث القائمة قبل تسجيل الشراء.');
                 return;
             }
-            const existingStock = existingProduct && Object.prototype.hasOwnProperty.call(existingProduct, 'stock') ? existingProduct.stock : 0;
-            if (existingProduct && !((typeof existingStock === 'number' || typeof existingStock === 'string') && String(existingStock).trim() !== '' && Number.isFinite(Number(existingStock)) && Number(existingStock) >= 0)) {
-                alert('تعذر تسجيل الشراء: رصيد المخزون الحالي غير صالح للمنتج. أصلح الرصيد قبل المتابعة.'); return;
+            const supplier = supplierMatches[0] || null;
+            const supplierName = supplier ? String(supplier.name || 'مورد بلا اسم') : 'مورد نقدي عابر';
+            const supplierBalanceCents = supplier ? anasPurchaseToCents(supplier.balance ?? 0) : 0;
+            if (supplier && (!Number.isSafeInteger(supplierBalanceCents) || supplierBalanceCents < 0)) {
+                alert('رصيد المورد الحالي غير صالح؛ أوقفنا العملية لحماية دفتر الموردين.');
+                return;
             }
-            if (existingProduct && (!Number.isFinite(Number(existingStock) + qty) || Number(existingStock) + qty > Number.MAX_SAFE_INTEGER)) {
-                alert('تعذر تسجيل الشراء: رصيد المخزون الناتج يتجاوز المجال الآمن. لم يتم تعديل المخزون.'); return;
+            const nextSupplierBalanceCents = supplierBalanceCents + remainingCents;
+            if (!Number.isSafeInteger(nextSupplierBalanceCents) || nextSupplierBalanceCents > Number.MAX_SAFE_INTEGER) {
+                alert('رصيد المورد بعد الفاتورة يتجاوز المجال المالي الآمن.');
+                return;
             }
 
-            const invoiceDateValue = document.getElementById('purInvoiceDate')?.value;
-            const invoiceDate = invoiceDateValue || new Date().toISOString().slice(0, 10);
-            // Snapshot the current state so a failed persistent write cannot leave a phantom purchase in memory.
+            const normalizedName = name.toLocaleLowerCase();
+            const productMatches = (Array.isArray(AppData.products) ? AppData.products : [])
+                .filter(row => String(row.name || '').trim().toLocaleLowerCase() === normalizedName);
+            if (productMatches.length > 1) { alert('يوجد أكثر من منتج بالاسم نفسه. وحّد سجل المنتجات قبل تعديل المخزون.'); return; }
+            const existingProduct = productMatches[0] || null;
+            if (existingProduct && (existingProduct.id === undefined || existingProduct.id === null || String(existingProduct.id).trim() === '')) {
+                alert('المنتج المطابق لا يملك معرّفاً صالحاً؛ لم يتم تعديل المخزون.');
+                return;
+            }
+            const oldStockUnits = anasPurchaseToQtyUnits(existingProduct ? (existingProduct.stock ?? 0) : 0);
+            if (!Number.isSafeInteger(oldStockUnits) || oldStockUnits < 0) {
+                alert('رصيد المخزون الحالي غير صالح أو يتجاوز دقة المخزون المعتمدة.');
+                return;
+            }
+            const newStockUnits = oldStockUnits + qtyUnits;
+            if (!Number.isSafeInteger(newStockUnits) || newStockUnits > Number.MAX_SAFE_INTEGER) {
+                alert('رصيد المخزون الناتج يتجاوز المجال الرقمي الآمن.');
+                return;
+            }
+            const oldCostCents = existingProduct && oldStockUnits > 0
+                ? anasPurchaseToCents(existingProduct.buyPrice)
+                : costCents;
+            if (existingProduct && oldStockUnits > 0 && (!Number.isSafeInteger(oldCostCents) || oldCostCents <= 0)) {
+                alert('المنتج لديه مخزون قائم لكن تكلفة شرائه التاريخية غير صالحة. أصلح تكلفة الأساس قبل إعادة تقييم المخزون.');
+                return;
+            }
+            const weightedCostCents = anasPurchaseWeightedCostCents(oldStockUnits, oldCostCents, qtyUnits, costCents);
+            if (!Number.isSafeInteger(weightedCostCents) || weightedCostCents <= 0) {
+                alert('تعذر حساب متوسط تكلفة المخزون ضمن المجال المالي الآمن.');
+                return;
+            }
+            const retailPriceCentsBig = (BigInt(weightedCostCents) * 120n + 50n) / 100n;
+            if (retailPriceCentsBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+                alert('سعر البيع الافتراضي الناتج عن متوسط التكلفة يتجاوز المجال المالي الآمن.');
+                return;
+            }
+            const retailPriceCents = Number(retailPriceCentsBig);
+
+            const currentCashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
+            const nextCashCents = currentCashCents - paidCents;
+            if (!Number.isSafeInteger(currentCashCents) || currentCashCents < 0 ||
+                !Number.isSafeInteger(nextCashCents) || nextCashCents < 0) {
+                alert('رصيد الصندوق غير كافٍ أو غير صالح لدفع المبلغ المحدد؛ لم تُسجل الفاتورة.');
+                return;
+            }
+
+            const invoiceDate = document.getElementById('purInvoiceDate')?.value || new Date().toISOString().slice(0, 10);
+            const purchases = Array.isArray(AppData.purchases) ? AppData.purchases : [];
+            const cashMovements = Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [];
+            const stockMovements = Array.isArray(AppData.stockMovements) ? AppData.stockMovements : [];
+            const supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
+            const uniqueIds = new Set();
+            for (const collection of [purchases, cashMovements, stockMovements, supplierMovements]) {
+                for (const row of collection) if (row.id != null && String(row.id).trim()) {
+                    const id = String(row.id);
+                    if (uniqueIds.has(id)) { alert('توجد معرّفات مكررة بين سجلات المشتريات والدفاتر؛ أصلحها قبل المتابعة.'); return; }
+                    uniqueIds.add(id);
+                }
+            }
+            const purchaseId = 'PUR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+            const cashMovementId = 'PUR-CASH-' + purchaseId;
+            const stockMovementId = 'PUR-STOCK-' + purchaseId;
+            const supplierPurchaseMovementId = 'SUP-PUR-' + purchaseId;
+            const supplierPaymentMovementId = 'SUP-PAY-' + purchaseId;
+            if ([purchaseId, cashMovementId, stockMovementId, supplierPurchaseMovementId, supplierPaymentMovementId].some(id => uniqueIds.has(id))) {
+                alert('تعذر إنشاء معرّفات فريدة للفاتورة وحركات دفاترها؛ لم يتم تسجيل العملية.');
+                return;
+            }
+
             let previous;
             try { previous = JSON.parse(JSON.stringify(AppData)); }
-            catch (e) { alert('تعذر تجهيز العملية للحفظ؛ لم يتم تغيير البيانات.'); return; }
-            const previousCart = Array.isArray(posCart) ? posCart.map(x => ({...x})) : [];
+            catch (_) { alert('تعذر تجهيز لقطة التراجع؛ لم يتم تغيير البيانات.'); return; }
 
             try {
-                AppData.purchases = Array.isArray(AppData.purchases) ? AppData.purchases : [];
-                AppData.products = Array.isArray(AppData.products) ? AppData.products : [];
-                AppData.purchases.unshift({ name, cost, qty, total: cost * qty, supplierId: suppId, supplierName: suppName, date: invoiceDate });
-                let product = existingProduct;
-                if (product) {
-                    product.stock = Number(existingStock) + qty;
-                    product.buyPrice = cost;
-                    if (suppId) product.supplierId = suppId;
-                } else {
-                    AppData.products.push({ id: anasCreateUniqueProductId(AppData.products), name, buyPrice: cost, price1: cost * 1.2, stock: qty, barcode: anasCreateUniqueBarcode(AppData.products), unit: 'قطعة', supplierId: suppId });
-                }
-                if (typeof saveDB !== 'function' || saveDB() !== true) {
-                    AppData = previous;
-                    posCart = previousCart;
-                    try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); } catch (_) {}
-                    alert('لم يتم حفظ المشتريات؛ أُلغيت التغييرات داخل الذاكرة. صدّر نسخة احتياطية وافحص مساحة التخزين.');
-                    return;
-                }
-                if (nameInput) nameInput.value = '';
-                if (costInput) costInput.value = '';
-                if (qtyInput) qtyInput.value = '';
-                renderPurchasesTable();
-                alert('تم حفظ المشتريات وتحديث المخزون بنجاح.');
-            } catch (e) {
-                AppData = previous;
-                posCart = previousCart;
-                try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); } catch (_) {}
-                console.error('ANAS ERP purchase transaction failed:', e);
-                alert('تعذر إكمال عملية الشراء؛ أُلغيت التغييرات غير المحفوظة.');
-            }
-        }
+                AppData.purchases = purchases;
+                AppData.cashMovements = cashMovements;
+                AppData.stockMovements = stockMovements;
+                AppData.supplierMovements = supplierMovements;
 
+                if (existingProduct) {
+                    existingProduct.stock = anasPurchaseQtyFromUnits(newStockUnits);
+                    existingProduct.buyPrice = anasPurchaseCentsToCurrency(weightedCostCents);
+                    existingProduct.lastPurchaseCost = anasPurchaseCentsToCurrency(costCents);
+                    existingProduct.supplierId = suppId || existingProduct.supplierId || '';
+                } else {
+                    const newProduct = {
+                        id: anasCreateUniqueProductId(AppData.products),
+                        name, buyPrice: anasPurchaseCentsToCurrency(weightedCostCents),
+                        lastPurchaseCost: anasPurchaseCentsToCurrency(costCents),
+                        price1: anasPurchaseCentsToCurrency(retailPriceCents),
+                        stock: anasPurchaseQtyFromUnits(newStockUnits),
+                        barcode: anasCreateUniqueBarcode(AppData.products),
+                        unit: 'قطعة', supplierId: suppId
+                    };
+                    if (!newProduct.id || AppData.products.some(row => String(row.id) === String(newProduct.id))) throw new Error('تعذر إنشاء معرّف منتج فريد.');
+                    AppData.products.push(newProduct);
+                }
+
+                if (supplier) supplier.balance = anasPurchaseCentsToCurrency(nextSupplierBalanceCents);
+                AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
+
+                const purchase = {
+                    ledgerVersion: 1, id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
+                    name, cost: anasPurchaseCentsToCurrency(costCents), qty: anasPurchaseQtyFromUnits(qtyUnits),
+                    total: anasPurchaseCentsToCurrency(totalCents), paid: anasPurchaseCentsToCurrency(paidCents),
+                    remaining: anasPurchaseCentsToCurrency(remainingCents),
+                    supplierId: suppId || null, supplierName, date: invoiceDate,
+                    warehouse: 'المخزن الرئيسي', paymentMethod: paidCents === 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
+                    buyPriceBefore: existingProduct ? anasPurchaseCentsToCurrency(oldCostCents) : null,
+                    buyPriceAfter: anasPurchaseCentsToCurrency(weightedCostCents)
+                };
+                AppData.purchases.unshift(purchase);
+
+                AppData.stockMovements.unshift({
+                    id: stockMovementId, productId: purchase.productId, productName: name,
+                    qty: anasPurchaseQtyFromUnits(qtyUnits), type: 'PURCHASE_IN',
+                    referenceType: 'purchase_invoice', referenceId: purchaseId,
+                    warehouse: 'المخزن الرئيسي', date: new Date().toISOString(),
+                    note: 'إدخال بضاعة من فاتورة شراء ' + purchaseId
+                });
+
+                if (paidCents > 0) {
+                    AppData.cashMovements.unshift({
+                        id: cashMovementId, type: 'subtract', amount: anasPurchaseCentsToCurrency(paidCents),
+                        description: 'دفع نقدي لفاتورة شراء ' + purchaseId + ' — ' + supplierName,
+                        referenceType: 'purchase_invoice', referenceId: purchaseId,
+                        date: new Date().toISOString(),
+                        userId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : null,
+                        userName: AppData.currentUser?.name || 'غير محدد'
+                    });
+                }
+
+                if (supplier) {
+                    AppData.supplierMovements.unshift({
+                        id: supplierPurchaseMovementId, supplierId: String(supplier.id), supplierName,
+                        type: 'purchase', amount: anasPurchaseCentsToCurrency(totalCents),
+                        referenceType: 'purchase_invoice', referenceId: purchaseId,
+                        date: new Date().toISOString(), note: 'قيد فاتورة شراء'
+                    });
+                    if (paidCents > 0) AppData.supplierMovements.unshift({
+                        id: supplierPaymentMovementId, supplierId: String(supplier.id), supplierName,
+                        type: 'payment', amount: anasPurchaseCentsToCurrency(paidCents),
+                        referenceType: 'purchase_invoice', referenceId: purchaseId,
+                        date: new Date().toISOString(), note: 'دفعة نقدية عند تسجيل فاتورة الشراء'
+                    });
+                }
+
+                if (!Number.isSafeInteger(totalCents) ||
+                    (supplier && nextSupplierBalanceCents - supplierBalanceCents !== remainingCents) ||
+                    currentCashCents - (paidCents > 0 ? paidCents : 0) !== nextCashCents ||
+                    anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)) {
+                    throw new Error('فشل شرط التطابق المالي الدقيق بين الفاتورة والصندوق والمورد.');
+                }
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
+            } catch (err) {
+                AppData = previous;
+                try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
+                console.error('ANAS ERP purchase ledger transaction failed:', err);
+                alert('لم يتم اعتماد فاتورة الشراء: ' + (err?.message || 'فشل الحفظ') + '. أُعيدت البيانات السابقة بالكامل.');
+                return;
+            }
+
+            if (nameInput) nameInput.value = '';
+            if (costInput) costInput.value = '';
+            if (qtyInput) qtyInput.value = '';
+            if (paidInput) paidInput.value = '0.00';
+            try {
+                renderPurchasesTable();
+                if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
+                if (typeof updateCashUI === 'function') updateCashUI();
+                if (typeof updateDashboardStats === 'function') updateDashboardStats();
+            } catch (uiError) { console.warn('Purchase saved; a display refresh failed:', uiError); }
+            alert('تم تسجيل فاتورة الشراء وربط المخزون ودفتر الموردين والصندوق بنجاح.');
+        }
         function anasEscapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
@@ -4122,26 +4480,37 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 function renderPurchasesTable() {
             const tb = document.getElementById('purchasesTableBody');
             if (!tb) return;
-            tb.innerHTML = '';
-            let total = 0;
+            tb.replaceChildren();
+            let totalCents = 0;
+            let totalsValid = true;
             (Array.isArray(AppData.purchases) ? AppData.purchases : []).forEach(item => {
-                const safeTotal = Number(item?.total);
-                total += Number.isFinite(safeTotal) ? safeTotal : 0;
-                const purchaseIndex = (AppData.purchases || []).indexOf(item);
-                tb.innerHTML += `
-                    <div class="invoice-table-row" style="grid-template-columns:1.5fr .7fr .6fr .8fr;">
-                        <div>${anasEscapeHtml(item.name)}</div>
-                        <div>${Number(item.cost || 0).toLocaleString('fr-DZ')}</div>
-                        <div>${Number(item.qty || 0)}</div>
-                        <div style="font-weight:700;color:#2563eb;">${Number(item.total || 0).toLocaleString('fr-DZ')}<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
-                          <button class="btn-pos-hasib" style="font-size:11px;padding:4px 6px;background:#0f766e;color:white;" onclick="previewPurchaseInvoice(${purchaseIndex})">👁️ عرض</button>
-                          <button class="btn-pos-hasib" style="font-size:11px;padding:4px 6px;background:#1d4ed8;color:white;" onclick="previewPurchaseInvoice(${purchaseIndex})">🖨️ طباعة</button>
-                        </div></div>
-                    </div>
-                `;
+                const costCents = anasPurchaseToCents(item?.cost);
+                const qtyUnits = anasPurchaseToQtyUnits(item?.qty);
+                const storedTotalCents = item && Object.prototype.hasOwnProperty.call(item, 'total')
+                    ? anasPurchaseToCents(item.total)
+                    : anasPurchaseLineTotalCents(qtyUnits, costCents);
+                if (!Number.isSafeInteger(storedTotalCents) || storedTotalCents < 0 || !Number.isSafeInteger(totalCents + storedTotalCents)) totalsValid = false;
+                else totalCents += storedTotalCents;
+                const purchaseIndex = AppData.purchases.indexOf(item);
+                const row = document.createElement('div');
+                row.className = 'invoice-table-row';
+                row.style.gridTemplateColumns = '1.5fr .7fr .6fr .8fr';
+                const cell = value => { const el=document.createElement('div'); el.textContent=String(value); return el; };
+                row.append(cell(item.name || '—'), cell(Number.isFinite(anasPurchaseCentsToCurrency(costCents)) ? anasPurchaseCentsToCurrency(costCents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) : 'غير صالح'),
+                    cell(Number.isFinite(anasPurchaseQtyFromUnits(qtyUnits)) ? anasPurchaseQtyFromUnits(qtyUnits) : 'غير صالح'));
+                const totalCell = document.createElement('div');
+                totalCell.style.cssText = 'font-weight:700;color:#2563eb;';
+                totalCell.appendChild(document.createTextNode(Number.isSafeInteger(storedTotalCents) ? anasPurchaseCentsToCurrency(storedTotalCents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) : 'غير صالح'));
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;';
+                const button = (label, action) => { const b=document.createElement('button');b.type='button';b.className='btn-pos-hasib';b.style.cssText='font-size:11px;padding:4px 6px;background:#1d4ed8;color:white;';b.textContent=label;b.onclick=action;return b; };
+                actions.append(button('👁️ عرض',()=>previewPurchaseInvoice(purchaseIndex)),button('🖨️ طباعة',()=>previewPurchaseInvoice(purchaseIndex)));
+                totalCell.appendChild(actions); row.appendChild(totalCell); tb.appendChild(row);
             });
             const totalDisplay = document.getElementById('purTotalDisplay');
-            if (totalDisplay) totalDisplay.innerText = total.toFixed(2) + ' د.ج';
+            if (totalDisplay) totalDisplay.innerText = totalsValid
+                ? anasPurchaseCentsToCurrency(totalCents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج'
+                : 'غير صالح — راجع سجلات المشتريات';
         }
 
         // ================= الصندوق والمصروفات =================
@@ -4714,14 +5083,116 @@ function renderPurchasesTable() {
                 addLine('📞 ' + String(s.phone || '') + (s.phone2 ? ' | ' + String(s.phone2) : ''), 'color:#64748b;');
                 addLine('RC: ' + String(s.rc || '-') + ' | NIF: ' + String(s.nif || '-') + ' | Art: ' + String(s.art || '-'), 'color:#64748b;font-size:0.75rem;');
                 addLine('📍 ' + String(s.address || 'العنوان غير محدد'), 'color:#0284c7;');
+                const balanceCents = anasPurchaseToCents(s.balance ?? 0);
                 const balance = document.createElement('strong');
                 balance.style.color = '#ef4444';
-                balance.textContent = 'مستحقات: ' + String(Number(s.balance) || 0) + ' د.ج';
+                balance.textContent = Number.isSafeInteger(balanceCents)
+                    ? 'مستحقات: ' + anasPurchaseCentsToCurrency(balanceCents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج'
+                    : 'مستحقات: رصيد غير صالح';
                 row.append(details, balance);
                 card.appendChild(row);
+                const history = (Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [])
+                    .filter(m => String(m.supplierId ?? '') === String(s.id ?? '')).slice(0, 3);
+                if (history.length) {
+                    history.forEach(m => addLine((m.type === 'purchase' ? 'فاتورة شراء' : m.type === 'payment' ? 'تسديد' : 'رصيد افتتاحي') +
+                        ' · ' + String(m.referenceId || '—') + ' · ' +
+                        anasPurchaseCentsToCurrency(anasPurchaseToCents(m.amount)).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج',
+                        'font-size:.78rem;color:#64748b;'));
+                }
+                if (Number.isSafeInteger(balanceCents) && balanceCents > 0) {
+                    const pay = document.createElement('button');
+                    pay.type = 'button'; pay.className = 'btn-pos-hasib';
+                    pay.style.cssText = 'align-self:flex-start;background:#0f766e;color:white;margin-top:4px;';
+                    pay.textContent = '💸 تسديد مبلغ للمورد';
+                    pay.onclick = () => paySupplierDebt(s.id);
+                    card.appendChild(pay);
+                }
                 cont.appendChild(card);
             });
         }
+        function paySupplierDebt(supplierId) {
+            if (!Array.isArray(AppData.suppliers)) { alert('سجل الموردين غير صالح؛ لم يتم تسجيل أي تسديد.'); return; }
+            const matches = AppData.suppliers.filter(s => s && typeof s === 'object' && !Array.isArray(s) && s.id != null && String(s.id) === String(supplierId));
+            if (matches.length !== 1) { alert(matches.length ? 'معرّف المورد مكرر؛ أوقفنا التسديد.' : 'المورد غير موجود؛ لم يتم تسجيل أي تسديد.'); return; }
+            const supplier = matches[0];
+            const balanceCents = anasPurchaseToCents(supplier.balance ?? 0);
+            if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0) { alert('لا يوجد رصيد مستحق صالح للتسديد لهذا المورد.'); return; }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
+                 String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)))) {
+                alert('رصيد الصندوق غير صالح؛ أوقفنا التسديد.'); return;
+            }
+            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين']]) {
+                if (Object.prototype.hasOwnProperty.call(AppData,field) &&
+                    (!Array.isArray(AppData[field]) || AppData[field].some(x => !x || typeof x !== 'object' || Array.isArray(x)))) {
+                    alert('سجل ' + label + ' تالف؛ لم يتم تسجيل أي تسديد.'); return;
+                }
+            }
+            const raw = prompt('مبلغ التسديد للمورد ' + String(supplier.name || '') + ' (المستحق: ' +
+                anasPurchaseCentsToCurrency(balanceCents).toFixed(2) + ' د.ج):', anasPurchaseCentsToCurrency(balanceCents).toFixed(2));
+            if (raw === null) return;
+            const amountCents = anasPurchaseToCents(String(raw).trim().replace(',', '.'));
+            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > balanceCents) {
+                alert('مبلغ التسديد غير صالح أو يتجاوز رصيد المورد المستحق.'); return;
+            }
+            const cashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
+            const nextCashCents = cashCents - amountCents;
+            const nextSupplierCents = balanceCents - amountCents;
+            if (!Number.isSafeInteger(cashCents) || cashCents < amountCents ||
+                !Number.isSafeInteger(nextCashCents) || nextCashCents < 0 ||
+                !Number.isSafeInteger(nextSupplierCents) || nextSupplierCents < 0) {
+                alert('رصيد الصندوق لا يكفي أو نتيجة التسديد غير صالحة؛ لم يتم تنفيذ الحركة.'); return;
+            }
+            const movementId = 'SUP-PAY-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
+            const cashId = 'SUP-CASH-' + movementId;
+            const existingIds = new Set();
+            let duplicateLedgerId = false;
+            for (const collection of [AppData.cashMovements || [], AppData.supplierMovements || []]) {
+                for (const row of collection) if (row.id != null && String(row.id).trim()) {
+                    const id = String(row.id);
+                    if (existingIds.has(id)) duplicateLedgerId = true;
+                    existingIds.add(id);
+                }
+            }
+            if (duplicateLedgerId) { alert('توجد معرّفات مكررة في دفاتر الموردين أو الصندوق؛ أوقفنا التسديد حتى إصلاح السجل.'); return; }
+            if (existingIds.has(movementId) || existingIds.has(cashId)) { alert('تعارض معرّف حركة التسديد؛ أعد المحاولة بعد مراجعة السجلات.'); return; }
+            let previous;
+            try { previous = JSON.parse(JSON.stringify(AppData)); }
+            catch (_) { alert('تعذر تجهيز التراجع؛ لم يتم تغيير البيانات.'); return; }
+            try {
+                AppData.supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
+                AppData.cashMovements = Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [];
+                supplier.balance = anasPurchaseCentsToCurrency(nextSupplierCents);
+                AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
+                AppData.supplierMovements.unshift({
+                    id: movementId, supplierId: String(supplier.id), supplierName: String(supplier.name || ''),
+                    type: 'payment', amount: anasPurchaseCentsToCurrency(amountCents),
+                    referenceType: 'supplier_payment', referenceId: movementId,
+                    date: new Date().toISOString(), note: 'تسديد رصيد مستحق للمورد'
+                });
+                AppData.cashMovements.unshift({
+                    id: cashId, type: 'subtract', amount: anasPurchaseCentsToCurrency(amountCents),
+                    description: 'تسديد مستحقات المورد ' + String(supplier.name || supplier.id),
+                    referenceType: 'supplier_payment', referenceId: movementId,
+                    date: new Date().toISOString(),
+                    userId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : null,
+                    userName: AppData.currentUser?.name || 'غير محدد'
+                });
+                if (balanceCents - nextSupplierCents !== amountCents || cashCents - nextCashCents !== amountCents ||
+                    anasPurchaseToCents(AppData.supplierMovements[0].amount) !== amountCents ||
+                    anasPurchaseToCents(AppData.cashMovements[0].amount) !== amountCents) throw new Error('فشل التطابق المالي بين المورد والصندوق.');
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
+            } catch (err) {
+                AppData = previous;
+                try { renderSuppliersDebts(); updateCashUI(); } catch (_) {}
+                alert('لم يتم اعتماد التسديد: ' + (err?.message || 'فشل الحفظ') + '. أُعيدت البيانات السابقة.');
+                return;
+            }
+            renderSuppliersDebts();
+            if (typeof updateCashUI === 'function') updateCashUI();
+            alert('تم تسديد المورد وتحديث دفتر الموردين والصندوق بنجاح.');
+        }
+
         function openAddSupplierModal() { 
             document.getElementById('newSuppNameInput').value = '';
             document.getElementById('newSuppPhoneInput').value = '';
@@ -4743,59 +5214,53 @@ function renderPurchasesTable() {
             const debtInput = document.getElementById('newSuppDebtInput');
             const rawDebt = debtInput ? String(debtInput.value ?? '').trim() : '';
             const debt = rawDebt === '' ? 0 : Number(rawDebt);
-
             if (!name) { alert('ادخل اسم المورد'); return; }
             if (!Number.isFinite(debt) || debt < 0 || debt > Number.MAX_SAFE_INTEGER) {
-                if (debtInput && typeof debtInput.focus === 'function') debtInput.focus();
-                alert('رصيد المورد يجب أن يكون رقماً صالحاً غير سالب ولا يتجاوز المجال المالي الآمن. لم تُحفظ أي تغييرات.');
-                return;
+                debtInput?.focus(); alert('رصيد المورد الافتتاحي يجب أن يكون مبلغاً صالحاً ضمن المجال المالي الآمن.'); return;
             }
-            if (!Array.isArray(AppData.suppliers)) {
-                alert('سجل الموردين غير صالح؛ لم يتم حفظ أي تغييرات.');
-                return;
+            const debtCents = anasPurchaseToCents(rawDebt || '0');
+            if (!Number.isSafeInteger(debtCents) || debtCents < 0) {
+                debtInput?.focus(); alert('رصيد المورد الافتتاحي يجب أن يكون مبلغاً صالحاً بدقة السنتيم.'); return;
             }
-
+            if (!Array.isArray(AppData.suppliers)) { alert('سجل الموردين غير صالح؛ لم يتم حفظ أي تغييرات.'); return; }
+            if (Object.prototype.hasOwnProperty.call(AppData,'supplierMovements') &&
+                (!Array.isArray(AppData.supplierMovements) || AppData.supplierMovements.some(x=>!x||typeof x!=='object'||Array.isArray(x)))) {
+                alert('دفتر الموردين تالف؛ لم يتم إضافة مورد جديد.'); return;
+            }
             const supplierIds = new Set();
             for (const record of AppData.suppliers) {
-                if (!record || typeof record !== 'object' || Array.isArray(record)) {
-                    alert('سجل الموردين يحتوي على عنصر تالف؛ أُوقف الحفظ لحماية البيانات.');
-                    return;
-                }
-                if (record.id !== undefined && record.id !== null && String(record.id).trim() !== '') {
-                    const recordId = String(record.id);
-                    if (supplierIds.has(recordId)) {
-                        alert('سجل الموردين يحتوي على معرّفات مكررة؛ أصلح السجل قبل إضافة مورد.');
-                        return;
-                    }
-                    supplierIds.add(recordId);
+                if (!record || typeof record !== 'object' || Array.isArray(record)) { alert('سجل الموردين يحتوي على عنصر تالف؛ أُوقف الحفظ.'); return; }
+                if (record.id != null && String(record.id).trim()) {
+                    const id=String(record.id); if(supplierIds.has(id)){alert('سجل الموردين يحتوي على معرّفات مكررة؛ أصلح السجل أولاً.');return;} supplierIds.add(id);
                 }
             }
-
-            const previousSuppliers = AppData.suppliers.slice();
+            let previous;
+            try { previous = JSON.parse(JSON.stringify(AppData)); }
+            catch (_) { alert('تعذر تجهيز التراجع؛ لم يتم تغيير البيانات.'); return; }
             let id = 'SUP-' + Date.now();
-            while (AppData.suppliers.some(s => s && s.id != null && String(s.id) === id)) {
-                id = 'SUP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-            }
-            AppData.suppliers.push({
-                id, name, phone, rc, nif, art, address, balance: debt
-            });
-
-            let saved = false;
-            let saveError = null;
-            try { saved = saveDB() === true; }
-            catch (err) { saveError = err; }
-            if (!saved) {
-                AppData.suppliers = previousSuppliers;
-                const reason = saveError && saveError.message ? ' (' + saveError.message + ')' : '';
-                alert('تعذر حفظ بيانات المورد' + reason + '؛ أُعيدت البيانات السابقة ولم يتم اعتماد الإضافة.');
+            while (supplierIds.has(id)) id = 'SUP-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
+            try {
+                AppData.supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
+                AppData.suppliers.push({id,name,phone,rc,nif,art,address,balance:anasPurchaseCentsToCurrency(debtCents)});
+                if (debtCents > 0) {
+                    const movementId = 'SUP-OPEN-' + id;
+                    if (AppData.supplierMovements.some(x=>String(x.id)===movementId)) throw new Error('معرّف الرصيد الافتتاحي مستخدم مسبقاً.');
+                    AppData.supplierMovements.unshift({
+                        id:movementId,supplierId:String(id),supplierName:name,type:'opening_balance',
+                        amount:anasPurchaseCentsToCurrency(debtCents),referenceType:'supplier_opening_balance',
+                        referenceId:String(id),date:new Date().toISOString(),note:'رصيد افتتاحي معتمد عند إنشاء المورد'
+                    });
+                }
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
+            } catch (err) {
+                AppData = previous;
+                alert('تعذر حفظ بيانات المورد: ' + (err?.message || 'فشل الحفظ') + '؛ أُعيدت البيانات السابقة.');
                 return;
             }
-
             closeModal('addSupplierModal');
-            alert('تمت إضافة المورد بنجاح ✅');
+            alert('تمت إضافة المورد وحفظ رصيده الافتتاحي في دفتر الموردين بنجاح.');
             renderSuppliersDebts();
         }
-
         function printLatestLegalCustomerInvoice() {
             const invoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
             if (!invoices.length) {
@@ -5902,9 +6367,10 @@ function renderPurchasesTable() {
             const content = document.getElementById('customReportContent');
             if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني') {
                 const totalSalesValid = reportInvoices.every(b => reportNumber(b.total) !== null);
-                const totalPurchasesValid = reportPurchases.every(b => reportNumber(b.total) !== null);
+                const totalPurchasesCents = anasPurchaseAggregateCents(reportPurchases);
+                const totalPurchasesValid = Number.isSafeInteger(totalPurchasesCents);
                 const totalSales = reportInvoices.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
-                const totalPurchases = reportPurchases.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
+                const totalPurchases = totalPurchasesValid ? anasPurchaseCentsToCurrency(totalPurchasesCents) : NaN;
                 content.innerHTML = `
                     <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:10px;">
                         <div>إجمالي المبيعات: <strong>${totalSalesValid ? totalSales.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
@@ -5989,8 +6455,11 @@ function renderPurchasesTable() {
                   </tr></thead><tbody>${rows}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد منتجات مسجلة.</p>'}`;
             } else if(title === 'تقرير المشتريات') {
                 const purchases = reportPurchases;
-                const purchaseTotalsValid = purchases.every(p=>reportNumber(p.total)!==null); const total = purchases.reduce((n,p)=>n+(reportNumber(p.total)??0),0);
-                content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${purchaseTotalsValid?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'غير صالح — توجد قيم ناقصة أو تالفة'} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(p.id??'—')}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
+                const purchaseTotalsCents = anasPurchaseAggregateCents(purchases);
+                const purchaseTotalsValid = Number.isSafeInteger(purchaseTotalsCents);
+                const total = purchaseTotalsValid ? anasPurchaseCentsToCurrency(purchaseTotalsCents) : NaN;
+                const purchaseMoneyDisplay = value => { const cents=anasPurchaseToCents(value); return Number.isSafeInteger(cents) ? anasPurchaseCentsToCurrency(cents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) : 'غير صالح'; };
+                content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${purchaseTotalsValid?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'غير صالح — توجد قيم ناقصة أو تالفة'} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(p.id??'—')}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${purchaseMoneyDisplay(p.total)}</td><td>${Object.prototype.hasOwnProperty.call(p,'paid')?purchaseMoneyDisplay(p.paid):'غير مسجل'}</td><td>${Object.prototype.hasOwnProperty.call(p,'remaining')?purchaseMoneyDisplay(p.remaining):'غير مسجل'}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
             } else if(title === 'عرض فواتير المبيعات') {
                 content.innerHTML = reportInvoices.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${reportInvoices.map(i=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id??'—')}</td><td>${esc(i.date||i.createdAt||i.invoiceDate||'—')}</td><td>${esc(i.customer||'عميل نقدي')}</td><td>${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}</td><td>${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد فواتير ضمن الفترة المحددة.</p>';
             } else if(title === 'كشف حساب عميل') {
@@ -6450,7 +6919,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
@@ -6476,6 +6945,8 @@ function renderPurchasesTable() {
                 ['truckTrips', incoming.truckTrips || [], false],
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
+                ['supplierMovements', incoming.supplierMovements || [], true],
+                ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
@@ -6607,6 +7078,14 @@ function renderPurchasesTable() {
                 validateCloudMoney(expense, 'amount', 'المصروفات', false);
             }
             for (const movement of (incoming.cashMovements || [])) validateCloudMoney(movement, 'amount', 'حركات الصندوق', false);
+            for (const movement of (incoming.supplierMovements || [])) {
+                validateCloudMoney(movement, 'amount', 'دفتر الموردين', false);
+                if (!['purchase','payment','opening_balance'].includes(movement.type))
+                    throw new Error('نوع حركة غير معروف في دفتر الموردين؛ أُلغي الاسترجاع لحماية الحسابات.');
+                const supplierMatches = incoming.suppliers.filter(s => String(s.id ?? '') === String(movement.supplierId ?? ''));
+                if (supplierMatches.length !== 1)
+                    throw new Error('حركة في دفتر الموردين تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
+            }
             for (const inv of incoming.invoices) {
                 for (const field of ['total', 'paid', 'remaining']) validateCloudMoney(inv, field, 'فواتير البيع');
                 // Match backup restore: reject internally inconsistent invoice balances before replacing live accounting data.
@@ -6632,7 +7111,22 @@ function renderPurchasesTable() {
                 validateCloudMoney(purchase, 'cost', 'تكلفة المشتريات', false);
                 validateCloudMoney(purchase, 'qty', 'كميات المشتريات', false);
                 validateCloudMoney(purchase, 'total', 'إجمالي المشتريات', false);
+                validateCloudMoney(purchase, 'paid', 'مدفوع المشتريات');
+                validateCloudMoney(purchase, 'remaining', 'متبقي المشتريات');
+                if (Object.prototype.hasOwnProperty.call(purchase,'paid') && Object.prototype.hasOwnProperty.call(purchase,'remaining')) {
+                    const totalCents = anasPurchaseToCents(purchase.total);
+                    const paidCents = anasPurchaseToCents(purchase.paid);
+                    const remainingCents = anasPurchaseToCents(purchase.remaining);
+                    if (!Number.isSafeInteger(totalCents) || !Number.isSafeInteger(paidCents) ||
+                        !Number.isSafeInteger(remainingCents) || paidCents > totalCents ||
+                        paidCents + remainingCents !== totalCents)
+                        throw new Error('إجمالي فاتورة الشراء والمدفوع والمتبقي غير متطابقة بالسنتيم؛ أُلغي الاسترجاع لحماية الحسابات.');
+                }
+                if (purchase.supplierId != null && String(purchase.supplierId).trim() !== '' &&
+                    incoming.suppliers.filter(s => String(s.id ?? '') === String(purchase.supplierId)).length !== 1)
+                    throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
             }
+            anasValidatePurchaseLedgerParity(incoming, 'cloud');
             // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
             for (const transfer of (incoming.warehouseTransfers || [])) {
                 if (!Object.prototype.hasOwnProperty.call(transfer, 'quantity'))
@@ -6802,7 +7296,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','alerts','truckTrips','cashMovements','stocktakeRecords'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
@@ -6827,6 +7321,8 @@ function renderPurchasesTable() {
                 ['truckTrips', incoming.truckTrips || [], false],
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
+                ['supplierMovements', incoming.supplierMovements || [], true],
+                ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
@@ -6894,6 +7390,30 @@ function renderPurchasesTable() {
                     !Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > Number.MAX_SAFE_INTEGER || (!allowZero && Number(raw) === 0))
                     throw new Error('قيمة مالية غير صالحة في ' + label + ' (' + field + ')؛ رُفض الاسترجاع لحماية الحسابات.');
             };
+            for (const movement of (incoming.supplierMovements || [])) {
+                validateMoneyField(movement, 'amount', 'دفتر الموردين', false);
+                if (!['purchase','payment','opening_balance'].includes(movement.type))
+                    throw new Error('نوع حركة غير معروف في دفتر الموردين؛ رُفض الاسترجاع لحماية الحسابات.');
+                if (incoming.suppliers.filter(s => String(s.id ?? '') === String(movement.supplierId ?? '')).length !== 1)
+                    throw new Error('حركة في دفتر الموردين تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+            for (const purchase of (incoming.purchases || [])) {
+                validateMoneyField(purchase, 'cost', 'تكلفة المشتريات', false);
+                validateMoneyField(purchase, 'qty', 'كميات المشتريات', false);
+                validateMoneyField(purchase, 'total', 'إجمالي المشتريات', false);
+                validateMoneyField(purchase, 'paid', 'مدفوع المشتريات');
+                validateMoneyField(purchase, 'remaining', 'متبقي المشتريات');
+                if (Object.prototype.hasOwnProperty.call(purchase,'paid') && Object.prototype.hasOwnProperty.call(purchase,'remaining')) {
+                    const totalCents=anasPurchaseToCents(purchase.total),paidCents=anasPurchaseToCents(purchase.paid),remainingCents=anasPurchaseToCents(purchase.remaining);
+                    if (!Number.isSafeInteger(totalCents)||!Number.isSafeInteger(paidCents)||!Number.isSafeInteger(remainingCents)||
+                        paidCents>totalCents||paidCents+remainingCents!==totalCents)
+                        throw new Error('إجمالي فاتورة الشراء والمدفوع والمتبقي غير متطابقة بالسنتيم؛ رُفض الاسترجاع لحماية الحسابات.');
+                }
+                if (purchase.supplierId != null && String(purchase.supplierId).trim() !== '' &&
+                    incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
+                    throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+            anasValidatePurchaseLedgerParity(incoming, 'backup');
             // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
             const validateStockMovementValue = (record, field, label, allowNegative) => {
                 if (!Object.prototype.hasOwnProperty.call(record, field)) return;
@@ -7249,10 +7769,24 @@ function renderPurchasesTable() {
             const warehouses=Array.isArray(AppData.warehouses)?AppData.warehouses:[];
             const expenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
             const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
-            const stockValue=products.reduce((sum,p)=>sum+num(p.stock)*num(p.buyPrice),0);
+            let stockValueCents = 0;
+            for (const product of products) {
+                const stockUnits = anasPurchaseToQtyUnits(product.stock ?? 0);
+                const unitCostCents = stockUnits > 0 ? anasPurchaseToCents(product.buyPrice) : 0;
+                const valueCents = anasPurchaseStockValueCents(stockUnits, unitCostCents);
+                if (!Number.isSafeInteger(valueCents) || !Number.isSafeInteger(stockValueCents + valueCents)) { stockValueCents = NaN; break; }
+                stockValueCents += valueCents;
+            }
+            const stockValue = Number.isSafeInteger(stockValueCents) ? anasPurchaseCentsToCurrency(stockValueCents) : null;
             const debtTotal=customers.reduce((sum,c)=>sum+Math.max(0,num(c.debt)),0);
             const salesTotal=invoices.reduce((sum,i)=>sum+num(i.total),0);
-            const purchaseTotal=purchases.reduce((sum,p)=>sum+num(p.total || (num(p.cost)*num(p.qty))),0);
+            const purchaseTotalCents = anasPurchaseAggregateCents(purchases);
+            const purchaseTotal = Number.isSafeInteger(purchaseTotalCents) ? anasPurchaseCentsToCurrency(purchaseTotalCents) : null;
+            const supplierDebtCents = suppliers.reduce((sum, supplier) => {
+                const cents = anasPurchaseToCents(supplier.balance ?? 0);
+                return Number.isSafeInteger(cents) && cents >= 0 && Number.isSafeInteger(sum + cents) ? sum + cents : NaN;
+            }, 0);
+            const supplierDebt = Number.isSafeInteger(supplierDebtCents) ? anasPurchaseCentsToCurrency(supplierDebtCents) : null;
             const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
             const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
             const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
@@ -7275,7 +7809,7 @@ function renderPurchasesTable() {
                 truckTrips:{statusCounts:tripStatusCounts},
                 sampleProducts:recentProducts,topDebtors:debtors,
                 dataQualityNotes:[
-                    'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
+                    'إجمالي سجل المشتريات وقيمة المخزون تُحسب بوحدات صحيحة بالسنتيم والميكرو؛ إذا ظهرت قيمة غير صالحة فيجب إصلاح سجل المصدر قبل اعتمادها.',
                     'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
                     'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
                     'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
@@ -7892,15 +8426,18 @@ function renderPurchasesTable() {
                 if(notes) notes.textContent='لم تُحسب الإحصائيات لأن نطاق التاريخ غير صحيح.';
                 return;
             }
-            const money=v=>(Number(v)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج';
+            const money=v=>Number.isFinite(v)?v.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج':'غير صالح';
             const sales=(typeof getReportInvoices==='function'?getReportInvoices():(AppData.invoices||[]));
             const buys=(typeof getReportPurchases==='function'?getReportPurchases():(AppData.purchases||[]));
             const expenses=(AppData.expenses||[]).filter(e=>typeof reportItemInRange==='function'?reportItemInRange(e,['date','createdAt','created_at','timestamp','expenseDate','expense_date','dateCreated','created']):true);
             const sum=(arr,key)=>arr.reduce((n,x)=>n+(Number(x&&x[key])||0),0);
-            const stockValue=(AppData.products||[]).reduce((n,p)=>n+(Number(p.stock)||0)*(Number(p.buyPrice)||0),0);
+            let stockValueCents=0;
+            for(const p of (AppData.products||[])){const units=anasPurchaseToQtyUnits(p.stock??0),cost=units>0?anasPurchaseToCents(p.buyPrice):0,c=anasPurchaseStockValueCents(units,cost);if(!Number.isSafeInteger(c)||!Number.isSafeInteger(stockValueCents+c)){stockValueCents=NaN;break;}stockValueCents+=c;}
+            const stockValue=Number.isSafeInteger(stockValueCents)?anasPurchaseCentsToCurrency(stockValueCents):NaN;
             const customerDebt=(AppData.customers||[]).reduce((n,c)=>n+(Number(c.debt)||0),0);
-            const supplierDebt=(AppData.suppliers||[]).reduce((n,c)=>n+(Number(c.balance)||0),0);
-            const salesTotal=sum(sales,'total'), purchaseTotal=sum(buys,'total'), expenseTotal=sum(expenses,'amt');
+            const supplierDebtCents=(AppData.suppliers||[]).reduce((n,c)=>{const x=anasPurchaseToCents(c.balance??0);return Number.isSafeInteger(x)&&x>=0&&Number.isSafeInteger(n+x)?n+x:NaN;},0);
+            const supplierDebt=Number.isSafeInteger(supplierDebtCents)?anasPurchaseCentsToCurrency(supplierDebtCents):NaN;
+            const salesTotal=sum(sales,'total'), purchaseCents=anasPurchaseAggregateCents(buys), purchaseTotal=Number.isSafeInteger(purchaseCents)?anasPurchaseCentsToCurrency(purchaseCents):NaN, expenseTotal=sum(expenses,'amt');
             const profit=sales.reduce((n,inv)=>n+(Number(inv.profit)||0),0);
             const cards=[
                 ['🛒','إجمالي المبيعات',money(salesTotal)],['📦','إجمالي المشتريات',money(purchaseTotal)],
@@ -9064,7 +9601,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const previousFatalLoadError=anasStartupFatalLoadError;
       AppData=restored;
       if(!AppData.posScreensCarts)AppData.posScreensCarts={1:[],2:[],3:[],4:[]};
-      for(const key of ['invoices','purchases','expenses','users','trucks','returns'])if(!Array.isArray(AppData[key]))AppData[key]=[];
+      for(const key of ['invoices','purchases','expenses','users','trucks','returns','supplierMovements'])if(!Array.isArray(AppData[key]))AppData[key]=[];
       const activeTab=AppData.activePosScreenTab||1;
       posCart=Array.isArray(AppData.posScreensCarts[activeTab])?AppData.posScreensCarts[activeTab]:[];
       anasStartupIntegrityIssues=[];

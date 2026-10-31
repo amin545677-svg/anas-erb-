@@ -209,7 +209,7 @@ def main():
         "${reportDisplay(p.stock)}",
         "${esc(p.id??'—')}",
         "const reportNumber = value => (typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined && value !== '' && !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value)) ? Number(value) : null;",
-        "${reportDisplay(p.total)}</td><td>${reportDisplay(p.paid)}</td><td>${reportDisplay(p.remaining)}</td>",
+        "${purchaseMoneyDisplay(p.total)}</td><td>${Object.prototype.hasOwnProperty.call(p,'paid')?purchaseMoneyDisplay(p.paid):'غير مسجل'}</td><td>${Object.prototype.hasOwnProperty.call(p,'remaining')?purchaseMoneyDisplay(p.remaining):'غير مسجل'}</td>",
         "${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td>",
         "${reportDisplay(c.debt)} د.ج",
         "بيانات غير صالحة",
@@ -830,7 +830,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     sync_validator_end = source.find("\n        async function syncPushNow()", sync_validator_start)
     sync_validator = source[sync_validator_start:sync_validator_end] if sync_validator_start >= 0 and sync_validator_end > sync_validator_start else ""
     sync_guards = [
-        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
+        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
         "Object.prototype.hasOwnProperty.call(incoming, key)",
         "if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)",
         "النسخة السحابية تفتقد قائمة ",
@@ -1256,22 +1256,41 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;" in sale
             and "AppData.invoices = invoicesBefore" in sale and "posCart = oldCart" in sale
             and "AppData.posScreensCarts" not in sale,
-        "purchase validates safe integer quantity and restores AppData on failed persistence":
-            "Number.isSafeInteger(qty)" in purchase and "saveDB() !== true" in purchase
-            and "AppData = previous" in purchase,
-        "purchase rejects stale supplier IDs before recording a cash purchase":
-            "if (suppId && supplierMatches.length === 0)" in purchase
-            and "supplierMatches.length > 1" in purchase
+        "purchase parses money and quantity into exact integer base units and computes weighted-average stock cost":
+            "anasPurchaseToCents(costInput?.value)" in purchase
+            and "anasPurchaseToQtyUnits(qtyInput?.value)" in purchase
+            and "anasPurchaseLineTotalCents(qtyUnits, costCents)" in purchase
+            and "anasPurchaseWeightedCostCents(oldStockUnits, oldCostCents, qtyUnits, costCents)" in purchase,
+        "purchase rejects stale or duplicate supplier identities before mutation":
+            "supplierMatches.length !== 1" in purchase
             and "const supplier = supplierMatches[0] || null;" in purchase,
-        "purchase rejects duplicate product names and invalid or overflowing stock before mutation":
+        "purchase rejects unpaid invoices without a registered supplier and prevents cash overdraft":
+            "if (!suppId && remainingCents > 0)" in purchase
+            and "nextCashCents < 0" in purchase,
+        "purchase rejects duplicate product names and unsafe stock/cost bases":
             "productMatches.length > 1" in purchase
-            and "existingProduct && !((typeof existingStock === 'number' || typeof existingStock === 'string')" in purchase
-            and "Number(existingStock) + qty > Number.MAX_SAFE_INTEGER" in purchase
-            and "let product = existingProduct" in purchase,
-        "purchase preserves malformed product and purchase collections instead of replacing them":
-            "Object.prototype.hasOwnProperty.call(AppData, 'products')" in purchase
-            and "Object.prototype.hasOwnProperty.call(AppData, 'purchases')" in purchase
-            and "سجل المشتريات تالف" in purchase,
+            and "!Number.isSafeInteger(oldStockUnits)" in purchase
+            and "existingProduct && oldStockUnits > 0" in purchase
+            and "weightedCostCents" in purchase,
+        "purchase atomically records purchase, stock, supplier and cash ledger movements":
+            "type: 'PURCHASE_IN'" in purchase
+            and "referenceType: 'purchase_invoice'" in purchase
+            and "type: 'purchase'" in purchase
+            and "type: 'payment'" in purchase
+            and "type: 'subtract'" in purchase
+            and "AppData = previous" in purchase
+            and "saveDB() !== true" in purchase,
+        "purchase preserves malformed ledger collections and exact supplier/invoice reconciliation":
+            "['products', 'المنتجات']" in purchase
+            and "['supplierMovements', 'دفتر الموردين']" in purchase
+            and "anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)" in purchase,
+        "supplier debt payments post matching centime cash and supplier ledger entries with rollback":
+            "function paySupplierDebt(supplierId)" in source
+            and "nextSupplierCents = balanceCents - amountCents" in source
+            and "referenceType: 'supplier_payment'" in source
+            and "if (typeof saveDB !== 'function' || saveDB() !== true)" in source,
+        "supplier opening balances are recorded in supplier ledger":
+            "type:'opening_balance'" in source and "referenceType:'supplier_opening_balance'" in source,
         "warehouse transfer rejects insufficient stock and restores inventory/transfer records on failure":
             "qty>available" in transfer and "if(!saveDB())throw" in transfer
             and "p.stock=beforeMain" in transfer and "AppData.warehouseTransfers=transfersBefore" in transfer,
