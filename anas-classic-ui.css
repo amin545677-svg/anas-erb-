@@ -162,3 +162,104 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   #view-dashboard .grid-card-item::after { transition: none; }
 }
+
+
+/* Mobile POS: preserve control access without widening the document */
+.drawer-sidebar {
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.drawer-nav-row {
+  flex: 0 0 auto;
+  min-height: 48px;
+}
+#view-pos { min-width: 0; }
+#view-pos .sales-toolbar {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+#view-pos .search-field-box,
+#view-pos .pos-search-wrap { min-width: 0; }
+#view-pos .input-pos-search { box-sizing: border-box; }
+#view-pos .invoice-table-header,
+#view-pos .invoice-table-row {
+  grid-template-columns: minmax(105px, 2.2fr) minmax(60px, 1fr) minmax(95px, 1.3fr) minmax(75px, 1fr);
+}
+#view-pos .invoice-table-header {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+#view-pos .invoice-items-body {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#view-pos .invoice-table-row { min-width: 335px; }
+#view-pos .pos-qty-controls button {
+  min-width: 32px;
+  min-height: 32px;
+}
+#view-pos .bottom-totals-bar {
+  box-sizing: border-box;
+  padding-left: max(10px, env(safe-area-inset-left));
+  padding-right: max(10px, env(safe-area-inset-right));
+}
+.field-input, .input-pos-search, select, textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  #view-pos .sales-toolbar {
+    gap: 7px;
+    padding: 8px;
+    align-items: center;
+  }
+  #view-pos .sales-toolbar > .btn-pos-hasib,
+  #view-pos .sales-toolbar > .btn-multi-tab,
+  #view-pos .sales-toolbar > .btn-scanner-icon {
+    min-height: 42px;
+    flex: 0 0 auto;
+  }
+  #view-pos .sales-toolbar > .search-field-box {
+    order: 5;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  #view-pos .sales-toolbar > .btn-scanner-icon { margin-inline-start: auto; }
+  #view-pos .input-pos-search { min-height: 44px; font-size: 16px; }
+  #view-pos .quick-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 180px;
+    gap: 7px;
+  }
+  #view-pos .quick-product-btn {
+    min-width: 0;
+    min-height: 48px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #view-pos .invoice-table-header {
+    grid-template-columns: minmax(105px, 2.2fr) minmax(60px, 1fr) minmax(95px, 1.3fr) minmax(75px, 1fr);
+  }
+  #view-pos .bottom-totals-bar { gap: 8px; }
+  #view-pos .bottom-totals-bar .box-total-green {
+    min-width: 0 !important;
+    max-width: 52vw;
+    font-size: .92rem;
+  }
+}
+@media (max-width: 360px) {
+  #view-pos .sales-toolbar > .btn-pos-hasib {
+    padding: 7px 8px;
+    font-size: .82rem;
+  }
+  #view-pos .invoice-table-header { font-size: .76rem; }
+}
