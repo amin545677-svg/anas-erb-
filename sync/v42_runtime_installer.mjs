@@ -95,21 +95,18 @@ export function installV42RuntimeWiring({
   function hasUnsupportedBusinessDelta(current, previous) {
     const changed = (left, right) => JSON.stringify(left ?? null) !== JSON.stringify(right ?? null);
     if (changed(current.caisseBalance, previous.caisseBalance)) return true;
-    const changedField = (key, field) => {
-      const before = new Map((Array.isArray(previous[key]) ? previous[key] : [])
-        .filter(item => item?.id != null).map(item => [String(item.id), item?.[field] ?? null]));
-      const after = new Map((Array.isArray(current[key]) ? current[key] : [])
-        .filter(item => item?.id != null).map(item => [String(item.id), item?.[field] ?? null]));
-      if (before.size !== after.size) return true;
-      for (const [id, value] of after) if (!before.has(id) || changed(value, before.get(id))) return true;
-      return false;
-    };
-    return changedField("customers", "debt") ||
-      changedField("suppliers", "debt") ||
-      changedField("products", "stock") ||
-      changed(current.stockMovements, previous.stockMovements) ||
-      changed(current.invoices, previous.invoices) ||
-      changed(current.cashMovements, previous.cashMovements);
+
+    // Until a mutation type has an explicit replay contract, every operational
+    // collection must remain byte-for-byte stable. Checking only product.stock
+    // missed warehouseStock, purchases, expenses, truck trips and other ledgers,
+    // allowing those changes to be saved locally without entering the sync queue.
+    const businessCollections = [
+      "products", "customers", "suppliers", "invoices", "purchases",
+      "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
+      "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
+      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits"
+    ];
+    return businessCollections.some(key => changed(current[key], previous[key]));
   }
 
   function persistPrepared(operation) {
