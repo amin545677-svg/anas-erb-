@@ -202,3 +202,61 @@ test('Chromium reverse modal previews exact centimes without mutating AppData or
   console.log('CHROMIUM_REVERSE_MODAL_PREVIEW_REPORT '+JSON.stringify({...result,appDataUnchanged:after===before}));
  } finally { await browser.close(); }
 });
+
+test('Chromium settlement allocation UI enforces exact centimes and saves without rewriting invoice fields', async () => {
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.setContent('<!doctype html><html><head></head><body><main>ANAS ERP</main></body></html>');
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger.js')});
+  await page.evaluate(() => {
+   window.AppData={
+    customers:[{id:'C-ALLOC-UI',name:'Customer',debt:50}],
+    suppliers:[],
+    invoices:[{id:'INV-ALLOC-UI',customerId:'C-ALLOC-UI',total:100,paid:50,remaining:50,items:[{id:'P-1',qty:1,price:100}]}],
+    purchases:[],products:[],
+    cashMovements:[{id:'CM-ALLOC-UI',type:'add',amount:50,referenceType:'sales_invoice',referenceId:'INV-ALLOC-UI'}],
+    supplierMovements:[],clientMovements:[],settlementAllocations:[],returns:[],
+    caisseBalance:50,posScreensCarts:{1:[]},activePosScreenTab:1
+   };
+   window.__saveCalls=0;window.__alerts=[];
+   window.saveDB=()=>{window.__saveCalls++;return true;};
+   window.alert=message=>window.__alerts.push(String(message));
+   window.prompt=()=>{throw new Error('prompt must not be used');};
+  });
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/settlement-allocation-modal.js')});
+  await page.evaluate(() => {
+   window.openSettlementAllocationModal();
+   const party=document.getElementById('alloc-party');
+   party.value='C-ALLOC-UI';party.dispatchEvent(new Event('change',{bubbles:true}));
+   const source=document.getElementById('alloc-source');
+   source.value='0';source.dispatchEvent(new Event('change',{bubbles:true}));
+   const amount=document.getElementById('alloc-amount');
+   amount.value='20.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  const beforePost=await page.evaluate(()=>({
+   assigned:document.getElementById('alloc-assigned-total').textContent,
+   fill:document.getElementById('alloc-match-fill').style.width,
+   enabled:!document.getElementById('alloc-submit').disabled,
+   invoiceRemaining:document.getElementById('alloc-invoice-remaining').textContent
+  }));
+  assert.equal(beforePost.assigned,'20.00 د.ج / 50.00 د.ج');
+  assert.equal(beforePost.fill,'40%');
+  assert.equal(beforePost.enabled,true);
+  await page.click('#alloc-submit');
+  const after=await page.evaluate(()=>({
+   allocations:AppData.settlementAllocations.map(row=>({amountCentimes:row.amountCentimes,ledgerVersion:row.ledgerVersion})),
+   paid:AppData.invoices[0].paid,remaining:AppData.invoices[0].remaining,
+   saveCalls:window.__saveCalls,alerts:window.__alerts
+  }));
+  assert.deepEqual(after.allocations,[{amountCentimes:2000,ledgerVersion:2}]);
+  assert.equal(after.paid,50);
+  assert.equal(after.remaining,50);
+  assert.equal(after.saveCalls,1);
+  assert.ok(after.alerts.some(message=>message.includes('تم حفظ تخصيص الدفعة')));
+  const html=fs.readFileSync(path.join(process.cwd(),'index.html'),'utf8');
+  assert.match(html,/<!-- ANAS_REVERSE_LEDGER_UI_MODULES -->[\\s\\S]*?<script src="\\.\\/reverse-ledger\\/reverse-ledger-modal\\.js"><\\/script>[\\s\\S]*?<script src="\\.\\/reverse-ledger\\/settlement-allocation-modal\\.js"><\\/script>/);
+  assert.match(html,/openSettlementAllocationModal\\(\\)/);
+  console.log('CHROMIUM_SETTLEMENT_ALLOCATION_UI_REPORT '+JSON.stringify({...beforePost,allocationSaved:true,invoiceFieldsImmutable:after.paid===50&&after.remaining===50}));
+ } finally { await browser.close(); }
+});
