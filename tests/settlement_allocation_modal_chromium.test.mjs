@@ -18,7 +18,7 @@ test('settlement allocation modal uses the callable, rejects safely, and reloads
         suppliers: [],
         invoices: [{ id: 'I1', customerId: 'C1', total: 100, paid: 50, remaining: 50, items: [] }],
         purchases: [], products: [],
-        cashMovements: [{ id: 'M1', type: 'add', amount: 50, referenceType: 'sales_invoice', referenceId: 'I1' }],
+        cashMovements: [{ id: 'M1', type: 'add', amount: 50, referenceType: 'customer_debt', referenceId: 'C1' }],
         supplierMovements: [], clientMovements: [], settlementAllocations: [], returns: [],
         caisseBalance: 50
       };
@@ -33,7 +33,7 @@ test('settlement allocation modal uses the callable, rejects safely, and reloads
           window.posted = {
             allocationId: 'A1', partyType: 'customer', partyId: 'C1',
             invoiceType: 'sales_invoice', invoiceId: 'I1',
-            sourceMovementId: 'M1', sourceMovementType: 'sales_invoice',
+            sourceMovementId: 'M1', sourceMovementType: 'customer_debt',
             amountCentimes: 5000, createdAt: '2026-10-31T12:00:00.000Z', ledgerVersion: 2
           };
           return { ok: true, status: 'POSTED', operationId: request.operationId, allocations: [window.posted] };
@@ -50,6 +50,8 @@ test('settlement allocation modal uses the callable, rejects safely, and reloads
       document.getElementById('alloc-party').dispatchEvent(new Event('change'));
       document.getElementById('alloc-source').value = '0';
       document.getElementById('alloc-source').dispatchEvent(new Event('change'));
+      document.getElementById('alloc-invoice').value = '0';
+      document.getElementById('alloc-invoice').dispatchEvent(new Event('change'));
       document.getElementById('alloc-amount').value = '50.00';
       document.getElementById('alloc-amount').dispatchEvent(new Event('input'));
       document.getElementById('alloc-period-id').value = 'FY-2026-10';
