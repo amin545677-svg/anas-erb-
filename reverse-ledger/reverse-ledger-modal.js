@@ -40,8 +40,9 @@ function escapeText(value) {
   }[ch]));
 }
 function appData() {
-  if (typeof AppData === 'undefined' || !AppData || typeof AppData !== 'object') throw new Error('بيانات التطبيق غير جاهزة.');
-  return AppData;
+  const current = window.AppData;
+  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق غير جاهزة.');
+  return current;
 }
 function invoiceRows(mode) {
   const data = appData();
