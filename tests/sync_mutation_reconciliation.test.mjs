@@ -229,3 +229,31 @@ test("invoice ID collisions without the exact operation marker or with changed p
     assert.equal(result.snapshot.invoices[0].total, existing.total, scenario.label + ": existing audit data must remain unchanged");
   }
 });
+
+
+test("does not accept an unmarked cash movement as proof of an already-applied collection", () => {
+  const initial = cloud();
+  initial.cashMovements.push({ id: "cm_991", amount: 5000, customerId: "cust_s" });
+  const result = reconcilePendingMutations(initial, [collection()]);
+  assert.equal(result.review[0].reason, "CASH_MOVEMENT_ID_COLLISION");
+  assert.equal(result.snapshot.caisseBalance, 54000);
+  assert.equal(result.snapshot.customers[0].debt, 26000);
+});
+
+test("quarantines appliedOpIds markers when their durable business entity is missing", () => {
+  const collectionSnapshot = cloud();
+  collectionSnapshot.appliedOpIds = [collection().opId];
+  const collectionResult = reconcilePendingMutations(collectionSnapshot, [collection()]);
+  assert.equal(collectionResult.review[0].reason, "APPLIED_OPERATION_ENTITY_MISSING");
+  assert.equal(collectionResult.snapshot.caisseBalance, 54000);
+  assert.equal(collectionResult.snapshot.customers[0].debt, 26000);
+
+  const sale = saleOp({ opId: "sale-marker-without-invoice", total: 1000, paid: 1000 });
+  const saleSnapshot = cloud();
+  saleSnapshot.appliedOpIds = [sale.opId];
+  const saleResult = reconcilePendingMutations(saleSnapshot, [sale]);
+  assert.equal(saleResult.review[0].reason, "APPLIED_OPERATION_ENTITY_MISSING");
+  assert.equal(saleResult.snapshot.products[0].stock, 90);
+  assert.equal(saleResult.snapshot.caisseBalance, 54000);
+  assert.equal(saleResult.snapshot.invoices.some(item => item.id === sale.payload.invoice.id), false);
+});
