@@ -112,7 +112,7 @@ test("verified grant and open period produce a durable transactional create-only
         assert.equal(payload.transaction,"tx-1");
         assert.equal(payload.writes.length,1);
         assert.equal(payload.writes[0].currentDocument.exists,false);
-        assert.match(payload.writes[0].update.name,/reverseLedgerOperations\\/RET-OP-20261031-0001$/);
+        assert.match(payload.writes[0].update.name,/reverseLedgerOperations\/RET-OP-20261031-0001$/);
         assert.equal(payload.writes[0].update.fields.status.stringValue,"RESERVED");
         return new Response(JSON.stringify({writeResults:[{updateTime:"2026-10-31T00:00:00.000000Z"}]}),{status:200});
       }
