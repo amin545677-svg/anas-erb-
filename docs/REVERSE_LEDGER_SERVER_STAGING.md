@@ -130,7 +130,7 @@ window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = {
   functionsRegion: "us-central1"
 };
 </script>
-<script src="./staging/reverse-ledger-gateway.js"></script>
+<script src="../reverse-ledger/reverse-ledger.js"></script>\n<script src="../reverse-ledger/reverse-ledger-modal.js"></script>\n<script src="./reverse-ledger-gateway.js"></script>
 ```
 
 The staging page must sign users in through `ANASReverseLedgerStagingAuth` (the named staging Firebase app), not the production app's default `auth` instance. Once signed in, the client exposes `ANASReverseLedgerServer.execute(request)`, matching the modal's existing gateway contract. It refreshes the staging ID token, requires an App Check token, calls `executeReverseLedger`, and reports success only when the callable returns a posted document with a return ID. The callable can create the idempotency record in its own Firestore transaction, so this client does not treat the Cloudflare reservation response as a posted financial result.
