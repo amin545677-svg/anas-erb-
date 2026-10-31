@@ -25,7 +25,7 @@ test('allocation requires matching party and invoice domains', () => {
  assert.throws(()=>R.makeSettlementAllocation({...base,partyType:'supplier'}),/party and invoice types do not match/);
 });
 test('return document validates exact BigInt micro-unit line totals', () => {
- const d=R.makeReturnDocument({returnId:'R-1',originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',items:[{productId:'P-1',quantityMicroUnits:3000000,unitPriceCentimes:10,lineTotalCentimes:30}],totalCentimes:30,debtReductionCentimes:20,cashRefundCentimes:10,status:'DRAFT',createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'damaged'});
+ const d=R.makeReturnDocument({returnId:'R-1',originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',items:[{productId:'P-1',quantityMicroUnits:3000000,unitPriceCentimes:10,lineTotalCentimes:30,originalLineTotalCentimes:30,originalQuantityMicroUnits:3000000,previouslyReturnedMicroUnits:0}],totalCentimes:30,debtReductionCentimes:20,cashRefundCentimes:10,status:'DRAFT',createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'damaged'});
  assert.equal(d.totalCentimes,30); assert.equal(Object.prototype.hasOwnProperty.call(d,'ledgerVersion'),false);
  const sealed=R.sealReturnDocument({customers:[],suppliers:[],invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:3,price:0.1}]}],purchases:[],returns:[]},{
   ...d, originalInvoiceType:'sales_invoice'
@@ -33,7 +33,8 @@ test('return document validates exact BigInt micro-unit line totals', () => {
  assert.equal(sealed.ledgerVersion,2);
  assert.throws(()=>R.makeReturnDocument({...d,totalCentimes:31}),/return total does not equal line totals/);
  assert.throws(()=>R.makeReturnDocument({...d,cashRefundCentimes:11}),/settlement exceeds return value/);
- assert.throws(()=>R.makeReturnDocument({...d,items:[{productId:'P-1',quantityMicroUnits:500000,unitPriceCentimes:1,lineTotalCentimes:0}],totalCentimes:0,debtReductionCentimes:0,cashRefundCentimes:0}),/fractional centime/);
+ const fractional=R.makeReturnDocument({...d,items:[{productId:'P-1',quantityMicroUnits:500000,unitPriceCentimes:1,lineTotalCentimes:5,originalLineTotalCentimes:30,originalQuantityMicroUnits:3000000,previouslyReturnedMicroUnits:0}],totalCentimes:5,debtReductionCentimes:5,cashRefundCentimes:0});
+ assert.equal(fractional.items[0].lineTotalCentimes,5);
 });
 test('returnable quantity ceiling is exact and rejects over-return', () => {
  assert.equal(R.computeReturnableMicroUnits(9007199254740990n,3000000n),9007199251740990n);
@@ -84,11 +85,11 @@ test('posted returns reject a one-micro-unit over-return without mutating the so
   invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:2,price:1000000}]}],
   purchases:[],clientMovements:[],settlementAllocations:[],cashMovements:[],supplierMovements:[],stockMovements:[],
   returns:[{returnId:'R-1',ledgerVersion:2,originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001}],
+   items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001,originalLineTotalCentimes:2000000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
    totalCentimes:2000001,debtReductionCentimes:0,cashRefundCentimes:0,stockMovementIds:[],financialMovementIds:[]}]
  };
  const before=JSON.stringify(state);
- assert.throws(()=>R.validateReverseLedgerParity(state),/return exceeds remaining returnable micro-units/);
+ assert.throws(()=>R.validateReverseLedgerParity(state),/return quantity exceeds remaining original quantity/);
  assert.equal(JSON.stringify(state),before,'rejected validation must not mutate incoming data');
  const draftState={...state,returns:[]};
  assert.throws(()=>R.sealReturnDocument(draftState,{
@@ -105,7 +106,7 @@ test('posted return requires matching invoice-linked stock movements', () => {
   cashMovements:[{id:'CM-1',type:'subtract',amount:10,referenceType:'sales_return',referenceId:'R-1'}],supplierMovements:[],
   stockMovements:[{id:'SM-1',productId:'P-1',qty:1,type:'RETURN_IN',referenceType:'sales_return',referenceId:'R-1'}],
   returns:[{returnId:'R-1',ledgerVersion:2,originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000}],
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000,originalLineTotalCentimes:2000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
    totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,stockMovementIds:['SM-1'],financialMovementIds:['CM-1']}]
  };
  assert.equal(R.validateReverseLedgerParity(state),true);
@@ -123,7 +124,7 @@ test('posted purchase return reconciles the legacy single-line purchase schema',
   supplierMovements:[],
   stockMovements:[{id:'SM-PUR-RET',productId:'P-1',qty:-1,type:'RETURN_OUT',referenceType:'purchase_return',referenceId:'R-PUR-1'}],
   returns:[{returnId:'R-PUR-1',ledgerVersion:2,originalInvoiceId:'PUR-1',originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000}],
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000,originalLineTotalCentimes:2000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
    totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,
    stockMovementIds:['SM-PUR-RET'],financialMovementIds:['CM-PUR-RET']}]
  };
@@ -152,7 +153,7 @@ test('draft return ceiling accounts for all previously posted returns', () => {
   supplierMovements:[],
   stockMovements:[{id:'SM-POSTED',productId:'P-1',qty:1,type:'RETURN_IN',referenceType:'sales_return',referenceId:'R-POSTED'}],
   returns:[{returnId:'R-POSTED',ledgerVersion:2,originalInvoiceId:'S-CEILING',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000000,lineTotalCentimes:1000000}],
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000000,lineTotalCentimes:1000000,originalLineTotalCentimes:2000000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
    totalCentimes:1000000,debtReductionCentimes:0,cashRefundCentimes:1000000,supplierCreditCentimes:0,
    stockMovementIds:['SM-POSTED'],financialMovementIds:['CM-POSTED']}]
  };
