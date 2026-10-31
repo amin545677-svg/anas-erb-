@@ -40,6 +40,10 @@ jobs:
         run: node --test tests/reverse_ledger_primitives.test.js
       - name: Test cumulative and WAC reverse-ledger valuation
         run: node --test tests/reverse_ledger_valuation.test.js
+      - name: Check trusted reverse-ledger reservation Worker syntax
+        run: node --check cloudflare/worker_reverse_ledger.js
+      - name: Test trusted reverse-ledger reservation Worker security
+        run: node --test tests/worker_reverse_ledger.test.mjs
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
