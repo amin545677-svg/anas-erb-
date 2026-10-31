@@ -19,7 +19,7 @@ function anasQueryMatches(fields,query){
 function anasQueryScore(fields,query){
  const q=anasNormalizeQueryText(query);if(!q)return 0;
  const values=(Array.isArray(fields)?fields:[fields]).map(anasNormalizeQueryText);
- if(values.some(v=>v===q))return 100;if(values.some(v=>v.startsWith(q))return 70;if(values.some(v=>v.includes(q))return 50;return 10;
+ if(values.some(v=>v===q))return 100;if(values.some(v=>v.startsWith(q)))return 70;if(values.some(v=>v.includes(q)))return 50;return 10;
 }
 root.anasNormalizeQueryText=anasNormalizeQueryText;root.anasQueryMatches=anasQueryMatches;root.anasQueryScore=anasQueryScore;
 if(typeof module!=='undefined'&&module.exports)module.exports={anasNormalizeQueryText,anasQueryMatches,anasQueryScore};
