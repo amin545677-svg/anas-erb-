@@ -159,7 +159,7 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
         }
         if (!snapshotSnap.exists) fail('failed-precondition', 'A cloud snapshot is required before trusted restore.');
         const backupPayload = backupSnap.get('snapshotPayload');
-        if (typeof backupSnap.get('snapshotPayloadHash') !== 'string' ||
+        if (typeof backupPayload !== 'string' || typeof backupSnap.get('snapshotPayloadHash') !== 'string' ||
             sha256(backupPayload) !== backupSnap.get('snapshotPayloadHash')) {
           fail('failed-precondition', 'Trusted backup snapshot hash does not match its manifest.');
         }
