@@ -27,6 +27,14 @@ test('cumulative valuation rejects zero basis, negative values and over-return',
   assert.throws(() => V.cumulativeValueCentimes(100, 3000000, 3000001), /exceeds original/);
 });
 
+test('sale return rejects inventory value without a corresponding stock quantity', () => {
+  assert.throws(() => V.saleReturnInventoryValuation({
+    currentStockMicroUnits:0,currentInventoryValueCentimes:1,
+    returnQuantityMicroUnits:1000000,originalSaleCostCentimes:10,
+    originalSaleQuantityMicroUnits:1000000
+  }), /zero stock must not retain inventory book value/);
+});
+
 test('sale return restores inventory at historical sale COGS, not current WAC', () => {
   const result = V.saleReturnInventoryValuation({
     currentStockMicroUnits: 5000000,
