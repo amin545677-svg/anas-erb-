@@ -427,3 +427,32 @@ test('legacy unallocated settlements and failed persistence are rejected atomica
  assert.equal(state.returns,refs.returns);
  assert.equal(state.customerCreditMovements,refs.credits);
 });
+
+test('previewReturnTransaction uses the exact BigInt posting engine without mutating live AppData', () => {
+ const state=saleReturnState();
+ const before=JSON.stringify(state);
+ const refs={state,invoice:state.invoices[0],customer:state.customers[0],product:state.products[0],
+  invoices:state.invoices,customers:state.customers,products:state.products,
+  stock:state.stockMovements,cash:state.cashMovements,returns:state.returns};
+ const preview=R.previewReturnTransaction(state,{
+  originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'1'}],settlementMode:'cash',reason:'preview only'
+ });
+ assert.equal(preview.previewOnly,true);
+ assert.equal(preview.status,'POSTED');
+ assert.equal(preview.totalCentimes,10);
+ assert.equal(preview.debtReductionCentimes,10);
+ assert.equal(preview.cashRefundCentimes,0);
+ assert.equal(preview.items[0].quantityMicroUnits,1000000);
+ assert.equal(JSON.stringify(state),before,'preview must not mutate the source state');
+ assert.strictEqual(state,refs.state);
+ assert.strictEqual(state.invoices,refs.invoices);
+ assert.strictEqual(state.customers,refs.customers);
+ assert.strictEqual(state.products,refs.products);
+ assert.strictEqual(state.stockMovements,refs.stock);
+ assert.strictEqual(state.cashMovements,refs.cash);
+ assert.strictEqual(state.returns,refs.returns);
+ assert.strictEqual(state.invoices[0],refs.invoice);
+ assert.strictEqual(state.customers[0],refs.customer);
+ assert.strictEqual(state.products[0],refs.product);
+});
