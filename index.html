@@ -8669,29 +8669,32 @@ function renderPurchasesTable() {
         }
 
         function anasExecuteReversePosting(request) {
+            // Never post a financial reversal by mutating browser-local AppData.
+            // The server adapter must verify Firebase identity, trusted grants, OPEN
+            // fiscal period, ledger parity, stock/liquidity and a durable operationId
+            // reservation before committing one atomic backend transaction.
             try {
-                if (!globalThis.ANASReverseLedger || typeof globalThis.ANASReverseLedger.executeReturnTransaction !== 'function')
-                    throw new Error('محرك الترحيل العكسي غير محمّل؛ لم تتغير أي بيانات.');
-                const doc = globalThis.ANASReverseLedger.executeReturnTransaction(AppData, request, {
-                    operatorId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : 'system',
-                    persist: () => typeof saveDB === 'function' && saveDB() === true,
-                    validateSupplierParity: state => anasValidatePurchaseLedgerParity(state, 'runtime')
+                if (!request || typeof request !== 'object' || Array.isArray(request))
+                    throw new Error('طلب العملية العكسية غير صالح.');
+                const gateway = globalThis.ANASReverseLedgerServer;
+                if (!gateway || typeof gateway.execute !== 'function')
+                    throw new Error('التنفيذ معطّل: لا توجد بوابة ترحيل خادمية موثوقة ومتصلة. لم تتغير أي بيانات.');
+                const result = gateway.execute(request);
+                if (!result || typeof result.then !== 'function')
+                    throw new Error('بوابة الترحيل الخادمية يجب أن تنفذ طلبًا غير متزامنًا موثقًا.');
+                return result.then(response => {
+                    if (!response || response.ok !== true || !response.document)
+                        throw new Error(response && response.error ? String(response.error) : 'لم يؤكد الخادم نجاح الترحيل.');
+                    alert('أكد الخادم ترحيل المستند العكسي. رقم المستند: ' + String(response.document.returnId || '—'));
+                    return response.document;
+                }).catch(error => {
+                    alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + (error?.message || 'فشل التفويض أو الترحيل') +
+                        '. لم يتم اعتماد أي نجاح محلي.');
+                    return null;
                 });
-                try {
-                    if (typeof renderInvoicesTable === 'function') renderInvoicesTable();
-                    if (typeof renderPurchasesTable === 'function') renderPurchasesTable();
-                    if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
-                    if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
-                    if (typeof updateCashUI === 'function') updateCashUI();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                    if (typeof updateUIState === 'function') updateUIState();
-                } catch (_) {}
-                alert('تم ترحيل المستند العكسي ذريًا بنجاح. رقم المستند: ' + doc.returnId +
-                    ' — القيمة: ' + (doc.totalCentimes / 100).toFixed(2) + ' دج.');
-                return doc;
             } catch (error) {
-                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + (error?.message || 'فشل التحقق أو الحفظ') +
-                    '. أُعيدت الأرصدة والمخزون والدفاتر إلى ما قبل العملية.');
+                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + (error?.message || 'فشل التفويض أو الترحيل') +
+                    '. لم تتغير أي بيانات.');
                 return null;
             }
         }
