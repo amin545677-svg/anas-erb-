@@ -13,6 +13,8 @@ on:
     paths:
       - "cloudflare/worker_openai_ai.js"
       - "cloudflare/worker_openai_ai.test.mjs"
+      - "tests/worker_openai_ai.test.mjs"
+      - "index.html"
       - ".github/workflows/ai-gateway-tests.yml"
 permissions:
   contents: read
