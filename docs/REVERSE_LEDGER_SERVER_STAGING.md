@@ -101,7 +101,7 @@ No production deployment is configured. Do not put service-account JSON, private
 
 ## Staging browser callable client
 
-The isolated client lives at `staging/reverse-ledger-gateway.js`; it is intentionally **not loaded by the production V42 page**. A staging-only UI must load the Firebase compat SDKs (including App Check) before this client, then inject a dedicated staging configuration:
+The isolated browser console lives at `staging/index.html` and the callable client at `staging/reverse-ledger-gateway.js`; neither is loaded by the production V42 page. The console loads the Firebase App, Auth, Firestore, Functions and App Check compat SDKs, reads `staging/config.js`, and then loads the gateway. Create `staging/config.js` from `staging/config.example.js` with the dedicated staging Web App API key, App ID, App Check site key and exact HTTPS origin. Do not commit the populated config file. The gateway creates the named app `anas-erp-reverse-ledger-staging`; the console deliberately retrieves that same app and uses its Auth session for snapshot reads, backup/restore callables and reverse posting. The gateway refreshes that user's ID token and obtains an App Check token before calling `executeReverseLedger`.
 
 ```html
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -124,7 +124,7 @@ window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = {
 <script src="../reverse-ledger/reverse-ledger.js"></script>\n<script src="../reverse-ledger/reverse-ledger-modal.js"></script>\n<script src="./reverse-ledger-gateway.js"></script>
 ```
 
-The staging page must sign users in through `ANASReverseLedgerStagingAuth` (the named staging Firebase app), not the production app's default `auth` instance. Once signed in, the client exposes `ANASReverseLedgerServer.execute(request)`, matching the modal's existing gateway contract. It refreshes the staging ID token, requires an App Check token, calls `executeReverseLedger`, and reports success only when the callable returns a posted document with a return ID. The callable can create the idempotency record in its own Firestore transaction, so this client does not treat the Cloudflare reservation response as a posted financial result.
+The standalone staging console signs users in through the named staging Firebase app; it never reuses the production default app. The client exposes `ANASReverseLedgerServer.execute(request)`, matching the modal's gateway contract. It refreshes the staging ID token, requires an App Check token, calls `executeReverseLedger`, and reports success only when the callable returns a posted document with a return ID. The callable can create the idempotency record in its own Firestore transaction, so this client does not treat the Cloudflare reservation response as a posted financial result.
 
 The client hard-rejects any Firebase project other than `anas-erp-staging-a25e1`, requires HTTPS (except localhost), and requires an explicit exact-origin allowlist. The configuration contains public web-app/App Check identifiers only; never embed service-account credentials. The staging client and its tests do not alter the production V42 page or its Firebase configuration.
 
@@ -134,7 +134,6 @@ The Staging Test Gate now runs a deterministic in-memory transaction harness and
 
 Still required before enabling real posting:
 
-- 
 - Provision and verify a dedicated staging user, server-managed grant, and open financial period.
 - Add the Firebase Web SDK callable client and App Check initialization to the staging UI only.
 - Complete the Firestore Emulator backup/restore tests, including pending reservation preservation and rejection of stale backups that omit posted operations.
