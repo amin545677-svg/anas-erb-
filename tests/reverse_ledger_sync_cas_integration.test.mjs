@@ -18,6 +18,7 @@ function baseSnapshot() {
     invoices: [],
     purchases: [],
     returns: [],
+    settlementAllocations: [],
     stockMovements: [],
     cashMovements: [],
     appliedOpIds: []
@@ -61,6 +62,15 @@ test("409 CAS recovery preserves a concurrently POSTED reverse-ledger return and
           items: [{ productId: "prod-sync", quantityMicroUnits: 1000000 }]
         });
         cloud.lastReverseOperationId = "device-b-reverse-op-0001";
+        cloud.settlementAllocations.push({
+          id: "alloc-device-b-0001",
+          partyType: "customer",
+          partyId: "cust-sync",
+          invoiceType: "sales_invoice",
+          invoiceId: "INV-DEVICE-B",
+          sourceMovementType: "customer_debt",
+          amountCentimes: 5000
+        });
         revision = "REV-2";
         return { status: 409, error: "revision conflict" };
       }
@@ -78,6 +88,8 @@ test("409 CAS recovery preserves a concurrently POSTED reverse-ledger return and
   assert.equal(pushes, 2);
   assert.equal(cloud.returns.filter(row => row.returnId === "RET-DEVICE-B-POSTED-0001").length, 1);
   assert.equal(cloud.lastReverseOperationId, "device-b-reverse-op-0001");
+  assert.equal(cloud.settlementAllocations.filter(row => row.id === "alloc-device-b-0001").length, 1);
+  assert.equal(cloud.settlementAllocations.find(row => row.id === "alloc-device-b-0001").amountCentimes, 5000);
   assert.equal(cloud.caisseBalance, 590);
   assert.equal(cloud.customers[0].debt, 210);
   assert.equal(cloud.cashMovements.filter(row => row.id === "cash-device-a-0001").length, 1);
