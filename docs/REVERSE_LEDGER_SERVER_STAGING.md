@@ -99,6 +99,18 @@ The workflow verifies the staging project, checks that the bundled engine and au
 
 No production deployment is configured. Do not put service-account JSON, private keys, or API tokens in source control or chat.
 
+## Deploying the isolated staging console
+
+The manual workflow `Deploy ANAS ERP Reverse Ledger Console (Staging)` in `.github/workflows/deploy-reverse-ledger-console-staging.yml` deploys only the standalone `staging/index.html` console to the Firebase Hosting site `anas-erp-staging-a25e1`. It builds a temporary `staging-site` directory, copies only the console, gateway and canonical reverse-ledger browser modules, and generates `config.js` from protected Actions secrets. It does not copy or deploy the production `index.html`.
+
+Required GitHub Actions secrets:
+- `FIREBASE_STAGING_SERVICE_ACCOUNT`: service-account JSON for `anas-erp-staging-a25e1`, with Firebase Hosting deployment permission.
+- `FIREBASE_STAGING_WEB_API_KEY`: staging Web App API key.
+- `FIREBASE_STAGING_WEB_APP_ID`: staging Web App ID.
+- `FIREBASE_STAGING_APP_CHECK_SITE_KEY`: staging App Check reCAPTCHA v3 site key.
+
+The workflow is manual-only, targets the staging Hosting site explicitly, verifies the live console and public configuration origin after deployment, and never deploys Hosting to the production project. Web App and App Check identifiers are public client configuration; service-account JSON remains secret and is never copied into the deployed console.
+
 ## Staging browser callable client
 
 The isolated browser console lives at `staging/index.html` and the callable client at `staging/reverse-ledger-gateway.js`; neither is loaded by the production V42 page. The console loads the Firebase App, Auth, Firestore, Functions and App Check compat SDKs, reads `staging/config.js`, and then loads the gateway. Create `staging/config.js` from `staging/config.example.js` with the dedicated staging Web App API key, App ID, App Check site key and exact HTTPS origin. Do not commit the populated config file. The gateway creates the named app `anas-erp-reverse-ledger-staging`; the console deliberately retrieves that same app and uses its Auth session for snapshot reads, backup/restore callables and reverse posting. The gateway refreshes that user's ID token and obtains an App Check token before calling `executeReverseLedger`.
