@@ -8690,13 +8690,13 @@ function renderPurchasesTable() {
                     alert('أكد الخادم ترحيل المستند العكسي. رقم المستند: ' + String(response.document.returnId || '—'));
                     return response.document;
                 }).catch(error => {
-                    alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + (error?.message || 'فشل التفويض أو الترحيل') +
-                        '. لم يتم اعتماد أي نجاح محلي.');
+                    const detail = error && error.message ? String(error.message) : 'فشل التفويض أو الترحيل';
+                    alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + detail + '. لم يتم اعتماد أي نجاح محلي.');
                     return null;
                 });
             } catch (error) {
-                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + (error?.message || 'فشل التفويض أو الترحيل') +
-                    '. لم تتغير أي بيانات.');
+                const detail = error && error.message ? String(error.message) : 'فشل التفويض أو الترحيل';
+                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + detail + '. لم يتم اعتماد أي نجاح محلي.');
                 return null;
             }
         }
