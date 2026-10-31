@@ -940,8 +940,18 @@ jobs:
           global.alert = () => {};
           global.renderCustomersDebts = () => {};
           global.updateCashUI = () => {};
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50, currentUser: { id: 'u1', name: 'Admin' } };
-          global.prompt = () => '40';
+          require('./reverse-ledger/reverse-ledger.js');
+          const makeCustomerCollectionState = (debt = 100, cash = 50) => ({
+            customers: [{ id: 'c1', name: 'Client', debt }],
+            invoices: [{ id: 'INV-1', customerId: 'c1', total: 100, paid: 0, remaining: 100 }],
+            caisseBalance: cash, currentUser: { id: 'u1', name: 'Admin' }
+          });
+          const setCollectionPrompts = (amount = '40') => {
+            const answers = [String(amount), JSON.stringify([{ invoiceId: 'INV-1', amount: String(amount) }])];
+            global.prompt = () => answers.shift() ?? null;
+          };
+          global.AppData = makeCustomerCollectionState();
+          setCollectionPrompts('40');
           global.saveDB = () => true;
           collectCustDebt('c1');
           assert.equal(AppData.customers[0].debt, 60, 'successful collection reduces customer debt');
@@ -950,8 +960,8 @@ jobs:
           assert.equal(AppData.cashMovements[0].amount, 40);
           assert.equal(AppData.cashMovements[0].referenceType, 'customer_debt');
 
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
-          global.prompt = () => '40';
+          global.AppData = makeCustomerCollectionState();
+          setCollectionPrompts('40');
           global.saveDB = () => false;
           collectCustDebt('c1');
           assert.equal(AppData.customers[0].debt, 100, 'failed save restores customer debt');
@@ -959,8 +969,8 @@ jobs:
           assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'failed save removes a newly created ledger');
 
           // Failed persistence must restore original representations, not coerce legacy numeric strings.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: '100' }], caisseBalance: '50' };
-          global.prompt = () => '40';
+          global.AppData = makeCustomerCollectionState('100', '50');
+          setCollectionPrompts('40');
           global.saveDB = () => false;
           collectCustDebt('c1');
           assert.equal(AppData.customers[0].debt, '100', 'failed save must restore exact original debt value and type');
@@ -968,14 +978,15 @@ jobs:
           assert.equal(typeof AppData.customers[0].debt, 'string');
           assert.equal(typeof AppData.caisseBalance, 'string');
 
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }] };
-          global.prompt = () => '40';
+          global.AppData = makeCustomerCollectionState();
+          delete global.AppData.caisseBalance;
+          setCollectionPrompts('40');
           global.saveDB = () => false;
           collectCustDebt('c1');
           assert.equal(Object.hasOwn(AppData, 'caisseBalance'), false, 'failed save must not leave a new cash balance property');
 
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
-          global.prompt = () => '101';
+          global.AppData = makeCustomerCollectionState();
+          setCollectionPrompts('101');
           let saveCalled = false;
           global.saveDB = () => { saveCalled = true; return true; };
           collectCustDebt('c1');
@@ -1018,8 +1029,8 @@ jobs:
           assert.equal(malformedLedgerSave, false, 'malformed cash movement ledger must block debt collection');
           assert.equal(AppData.cashMovements[1], null, 'existing malformed history must not be silently overwritten');
 
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: Number.MAX_SAFE_INTEGER };
-          global.prompt = () => '1';
+          global.AppData = makeCustomerCollectionState(100, Number.MAX_SAFE_INTEGER / 100);
+          setCollectionPrompts('1');
           let unsafeDebtSave = false;
           global.saveDB = () => { unsafeDebtSave = true; return true; };
           collectCustDebt('c1');
