@@ -183,3 +183,18 @@ test("oversized request stream is cancelled as soon as it crosses the byte limit
     globalThis.fetch = oldFetch;
   }
 });
+
+
+const appHtml = await readFile(resolve("index.html"), "utf8");
+test("contextual AI helper authenticates Firebase requests to the protected gateway", () => {
+  const helperRoot = appHtml.indexOf("const fab=document.getElementById('anasContextAiFab')");
+  const helperStart = appHtml.indexOf("send.addEventListener('click',async function(){", helperRoot);
+  const helperEnd = appHtml.indexOf("\\n  });\\n})();", helperStart);
+  assert.notEqual(helperRoot, -1, "contextual AI helper must exist");
+  assert.notEqual(helperStart, -1, "contextual AI send handler must exist");
+  assert.notEqual(helperEnd, -1, "contextual AI send handler must be closed");
+  const handler = appHtml.slice(helperStart, helperEnd);
+  assert.match(handler, /currentUser\\?\.getIdToken|currentUser\.getIdToken/);
+  assert.match(handler, /Authorization:\\s*'Bearer '\\s*\\+\\s*firebaseIdToken/);
+  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+});
