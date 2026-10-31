@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateFixture, assertFinancials } from '../scripts/verify-live-staging-e2e.mjs';
+import { validateFixture, assertFinancials, verifyLiveStaging } from '../scripts/verify-live-staging-e2e.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -22,4 +22,22 @@ test('live staging E2E compares centimes and micro-units with BigInt and zero to
   assert.throws(() => assertFinancials({ caisseBalance: '125.51' }, [
     { path: 'caisseBalance', unit: 'centimes', expected: '12550' }
   ], 'test'), /delta=1/);
+});
+
+const liveReady = ['ANAS_STAGING_URL','ANAS_STAGING_EMAIL','ANAS_STAGING_PASSWORD','ANAS_STAGING_E2E_FIXTURE']
+  .every(key => Boolean(process.env[key] && process.env[key].trim()));
+
+test('Playwright live staging round-trip, POSTED idempotency and trusted backup restore', {
+  skip: !liveReady ? 'Dedicated staging credentials and a pre-seeded fixture are not available in this CI context.' : false
+}, async () => {
+  const evidence = await verifyLiveStaging({
+    url: process.env.ANAS_STAGING_URL,
+    email: process.env.ANAS_STAGING_EMAIL,
+    password: process.env.ANAS_STAGING_PASSWORD,
+    fixturePath: process.env.ANAS_STAGING_E2E_FIXTURE,
+    evidencePath: process.env.ANAS_STAGING_EVIDENCE_PATH || ''
+  });
+  assert.equal(evidence.result, 'PASS');
+  assert.equal(evidence.backupRestore.centimeDelta, '0');
+  assert.equal(evidence.backupRestore.microUnitDelta, '0');
 });
