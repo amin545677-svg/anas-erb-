@@ -3,9 +3,10 @@
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) {
-    const browserApi = { ...api };
-    delete browserApi.executeReturnTransaction;
-    root.ANASReverseLedger = Object.freeze(browserApi);
+    const runtimeApi = { ...api };
+    // The browser UI receives validators only; trusted Worker runtimes have no window.
+    if (typeof window !== 'undefined') delete runtimeApi.executeReturnTransaction;
+    root.ANASReverseLedger = Object.freeze(runtimeApi);
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   const RETURN_TYPES = Object.freeze(['SALE_RETURN', 'PURCHASE_RETURN', 'INVOICE_CANCEL']);
