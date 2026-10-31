@@ -290,3 +290,55 @@ test("first-time cloud snapshot creation accepts a null Firestore revision and p
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(storage.getItem(MUTATION_KEYS.rescue), null);
 });
+
+test("server-posted customer and supplier settlement allocations are isolated from ordinary snapshot push", async () => {
+  const protectedRows = [
+    { opId: "alloc-customer-0001", type: "CUSTOMER_SETTLEMENT_ALLOCATION", status: "PENDING", payload: { amountCentimes: 5000 } },
+    { opId: "alloc-supplier-0001", type: "SUPPLIER_SETTLEMENT_ALLOCATION", status: "PENDING", payload: { amountCentimes: 7000 } }
+  ];
+  const storage = seededStorage(protectedRows, { ...baseCloud(), appliedOpIds: [] });
+  let pushCalls = 0;
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => ({ data: baseCloud(), revision: 7 }),
+    pushCloud: async () => { pushCalls++; return { status: 200, revision: 8 }; }
+  });
+  const result = await orchestrator.pushCurrent();
+  assert.equal(result.status, "protected-financial-pending");
+  assert.equal(pushCalls, 0, "whole-snapshot writes must not replay server-posted allocations");
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending).map(row => row.opId),
+    ["alloc-customer-0001", "alloc-supplier-0001"]);
+});
+
+test("settlement allocations survive 409 CAS reconciliation without replay, loss or duplication", async () => {
+  const protectedRow = {
+    opId: "alloc-server-posted-0001", type: "CUSTOMER_SETTLEMENT_ALLOCATION", status: "PENDING",
+    payload: { amountCentimes: 5000 }
+  };
+  const posted = {
+    allocationId: "ALLOC-SERVER-1", operationId: protectedRow.opId,
+    partyType: "customer", invoiceId: "INV-1", amountCentimes: 5000, status: "POSTED"
+  };
+  const storage = seededStorage([protectedRow], { localOnly: true, appliedOpIds: [] });
+  const cloud = { ...baseCloud(), settlementAllocations: [posted] };
+  let pushes = 0;
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => ({ data: structuredClone(cloud), revision: 12 }),
+    pushCloud: async ({ data, baseRevision }) => {
+      pushes++;
+      assert.equal(baseRevision, 12);
+      assert.equal(data.settlementAllocations.filter(row => row.operationId === protectedRow.opId).length, 1);
+      if (pushes === 1) return { status: 409 };
+      return { status: 200, revision: 14 };
+    }
+  });
+  const result = await orchestrator.reconcileAndSync();
+  assert.equal(result.status, "synced");
+  assert.equal(pushes, 2);
+  assert.equal(storage.json(MUTATION_KEYS.pending).length, 1);
+  assert.equal(storage.json(MUTATION_KEYS.pending)[0].opId, protectedRow.opId);
+  assert.equal(cloud.settlementAllocations.filter(row => row.operationId === protectedRow.opId).length, 1);
+  assert.equal(storage.json(MUTATION_KEYS.appData).settlementAllocations
+    .filter(row => row.operationId === protectedRow.opId).length, 1);
+});
