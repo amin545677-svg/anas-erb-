@@ -762,19 +762,19 @@
           if (party.ledgerVersion !== 2) {
             if (existingRows.length) throw new Error('customer has unsealed historical movements; manual reconciliation is required');
             party.ledgerVersion = 2;
-            if (partyDebt > 0n) state.clientMovements.push(makeClientMovement({
+            if (partyDebt > 0n) state.clientMovements.push({...makeClientMovement({
               movementId:movementId('CLIENT-OPEN'), clientId:partyId, type:'opening_balance',
               amountCentimes:Number(partyDebt), direction:'debit', referenceType:'opening_balance',
               referenceId:partyId, createdAt
-            }));
+            }),ledgerVersion:2});
           }
           party.debt = Number(partyDebt - debtReduction) / 100;
           const clientMovementId = movementId('CLIENT-RETURN');
-          state.clientMovements.push(makeClientMovement({
+          state.clientMovements.push({...makeClientMovement({
             movementId:clientMovementId, clientId:partyId, type:'return_credit',
             amountCentimes:Number(debtReduction), direction:'credit',
             referenceType, referenceId:returnId, createdAt
-          }));
+          }),ledgerVersion:2});
           financialMovementIds.push(clientMovementId);
         } else {
           party.balance = Number(partyDebt - debtReduction) / 100;
