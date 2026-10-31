@@ -31,3 +31,19 @@ test('ranks exact and prefix matches above partial matches', () => {
   assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت الزيتون') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
   assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
 });
+
+test('invoice history search is connected to the shared multi-field query engine', () => {
+  assert.match(html, /id="invoiceListSearch"[^>]+oninput="renderInvoicesList\(\)"/);
+  assert.match(html, /filteredInvoices = invoices\.filter\(inv => inv && anasQueryMatches\(/);
+  assert.match(html, /inv\.id, inv\.customer, inv\.date, inv\.createdAt, inv\.invoiceDate, inv\.total/);
+});
+
+test('report table and report-entry filtering use Arabic-aware all-token matching', () => {
+  assert.match(html, /function anasFilterCurrentReport\(query\)[\s\S]*?const q = anasNormalizeQueryText\(query \|\| ''\)/);
+  assert.match(html, /anasQueryMatches\(\[row\.textContent \|\| ''\], q\)/);
+  assert.match(html, /anasQueryMatches\(\[node\.textContent \|\| ''\], q\)/);
+});
+
+test('quick-sale exact barcode auto-add normalizes Arabic and Persian digits', () => {
+  assert.match(html, /anasNormalizeQueryText\(list\[0\]\.barcode\|\|'\'\)===q/);
+});
