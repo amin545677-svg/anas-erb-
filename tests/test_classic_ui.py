@@ -66,7 +66,7 @@ class ClassicUIRegressionTests(unittest.TestCase):
     def test_mobile_pos_layout_is_scoped_and_scroll_safe(self):
         self.assertIn("#view-pos .sales-toolbar", self.css)
         self.assertIn("flex-wrap: wrap", self.css)
-        self.assertRegex(self.css, r"@media\\s*\\(max-width:\\s*600px\\)")
+        self.assertRegex(self.css, r"@media\s*\(max-width:\s*600px\)")
         self.assertIn("#view-pos .invoice-items-body", self.css)
         self.assertIn("overscroll-behavior-x: contain", self.css)
         self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", self.css)
