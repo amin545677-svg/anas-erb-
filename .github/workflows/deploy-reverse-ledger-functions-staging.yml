@@ -36,6 +36,10 @@ jobs:
               raise SystemExit("Bundled authorization policy is stale.")
           print("Staging-only config, V42 identity, and canonical bundled source checks passed.")
           PY
+          node --check functions/index.js
+          node --check functions/reverse-ledger-adapter.js
+          node --check functions/reverse-ledger-service.js
+          node --check functions/reverse-ledger-backup-service.js
 
       - name: Run reverse-ledger adapter and authorization tests
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js
@@ -60,7 +64,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
         run: |
           npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger \
+            --only firestore:rules,functions:executeReverseLedger,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
             --project anas-erp-staging-a25e1 \
             --config firebase.staging.json \
             --non-interactive
