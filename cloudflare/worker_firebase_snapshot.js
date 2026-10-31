@@ -183,6 +183,14 @@ function validateSnapshotData(data) {
       validateSnapshotNumber(movement, field, "stockMovements", { allowNegative: true });
     for (const field of ["previousStock", "newStock", "stockBefore", "stockAfter"])
       validateSnapshotNumber(movement, field, "stockMovements");
+    for (const field of ["originalSaleQuantityMicroUnits", "restoredInventoryCostCentimes", "inventoryBookValueCentimes"]) {
+      if (Object.prototype.hasOwnProperty.call(movement, field) && movement[field] !== null)
+        validateSnapshotNumber(movement, field, "stockMovements", { allowZero: field !== "originalSaleQuantityMicroUnits" });
+    }
+    if (Object.prototype.hasOwnProperty.call(movement, "originalSaleCostCentimes") && movement.originalSaleCostCentimes !== null)
+      validateSnapshotNumber(movement, "originalSaleCostCentimes", "stockMovements");
+    if (Object.prototype.hasOwnProperty.call(movement, "valuationVarianceCentimes"))
+      validateSnapshotNumber(movement, "valuationVarianceCentimes", "stockMovements", { allowNegative: true });
   }
   for (const transfer of data.warehouseTransfers || []) {
     if (!Object.prototype.hasOwnProperty.call(transfer, "quantity"))
