@@ -1,6 +1,6 @@
 'use strict';
 
-const { authorizeReverseOperation, PERMISSIONS } = require('../reverse-ledger/authorization.js');
+const { authorizeReverseOperation, PERMISSIONS } = require('./lib/authorization.js');
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
