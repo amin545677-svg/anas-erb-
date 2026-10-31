@@ -1,5 +1,9 @@
 {
   "firestore": {
     "rules": "firebase/firestore.staging.rules"
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
   }
 }
