@@ -254,6 +254,24 @@ test('Chromium settlement allocation UI enforces exact centimes and saves withou
   assert.equal(after.remaining,50);
   assert.equal(after.saveCalls,1);
   assert.ok(after.alerts.some(message=>message.includes('تم حفظ تخصيص الدفعة')));
+  await page.evaluate(() => {
+   window.__allocationArrayRef=AppData.settlementAllocations;
+   window.saveDB=()=>false;
+   const source=document.getElementById('alloc-source');
+   source.value='0';source.dispatchEvent(new Event('change',{bubbles:true}));
+   const amount=document.getElementById('alloc-amount');
+   amount.value='10.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  await page.click('#alloc-submit');
+  const rollback=await page.evaluate(()=>({
+   sameArray:AppData.settlementAllocations===window.__allocationArrayRef,
+   count:AppData.settlementAllocations.length,
+   amount:AppData.settlementAllocations[0]?.amountCentimes,
+   status:document.getElementById('alloc-status').textContent
+  }));
+  assert.deepEqual({sameArray:rollback.sameArray,count:rollback.count,amount:rollback.amount},
+   {sameArray:true,count:1,amount:2000});
+  assert.match(rollback.status,/تم التراجع/);
   const html=fs.readFileSync(path.join(process.cwd(),'index.html'),'utf8');
   assert.ok(html.includes('<!-- ANAS_REVERSE_LEDGER_UI_MODULES -->'));
   assert.ok(html.includes('<script src="./reverse-ledger/reverse-ledger-modal.js"></script>'));
