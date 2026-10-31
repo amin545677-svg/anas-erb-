@@ -456,3 +456,26 @@ test('previewReturnTransaction uses the exact BigInt posting engine without muta
  assert.strictEqual(state.customers[0],refs.customer);
  assert.strictEqual(state.products[0],refs.product);
 });
+
+test('explicit sale, purchase and invoice-cancellation operations delegate to the canonical atomic engine', () => {
+ const sale=saleReturnState();
+ const saleDoc=R.executeSaleReturn(sale,{invoiceId:'INV-RET',items:[{productId:'P-RET',quantity:'1'}],
+  settlementMode:'cash',reason:'explicit sale return'},{createId:()=> 'RET-EXPLICIT-SALE',persist:()=>true});
+ assert.equal(saleDoc.returnType,'SALE_RETURN');
+ assert.equal(saleDoc.totalCentimes,10);
+ assert.equal(R.validateReverseLedgerParity(sale),true);
+
+ const purchase=purchaseReturnState();
+ const purchaseDoc=R.executePurchaseReturn(purchase,{invoiceId:'PUR-RET',items:[{productId:'P-RET',quantity:'3'}],
+  settlementMode:'cash',reason:'explicit purchase return'},{createId:()=> 'RET-EXPLICIT-PURCHASE',persist:()=>true});
+ assert.equal(purchaseDoc.returnType,'PURCHASE_RETURN');
+ assert.equal(purchaseDoc.totalCentimes,30);
+ assert.equal(R.validateReverseLedgerParity(purchase),true);
+
+ const cancelled=saleReturnState();
+ const cancelDoc=R.executeInvoiceCancellation(cancelled,{invoiceType:'sales_invoice',invoiceId:'INV-RET',
+  reason:'explicit invoice cancellation'},{createId:()=> 'RET-EXPLICIT-CANCEL',persist:()=>true});
+ assert.equal(cancelDoc.returnType,'INVOICE_CANCEL');
+ assert.equal(cancelled.invoices[0].status,'CANCELLED');
+ assert.equal(R.validateReverseLedgerParity(cancelled),true);
+});
