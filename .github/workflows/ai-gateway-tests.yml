@@ -4,6 +4,8 @@ on:
     paths:
       - "cloudflare/worker_openai_ai.js"
       - "cloudflare/worker_openai_ai.test.mjs"
+      - "tests/worker_openai_ai.test.mjs"
+      - "index.html"
       - ".github/workflows/ai-gateway-tests.yml"
   push:
     branches:
@@ -28,3 +30,5 @@ jobs:
         run: node --check cloudflare/worker_openai_ai.js
       - name: Run AI gateway authentication tests
         run: node --test cloudflare/worker_openai_ai.test.mjs
+      - name: Run ERP contextual AI authentication regression
+        run: node --test tests/worker_openai_ai.test.mjs
