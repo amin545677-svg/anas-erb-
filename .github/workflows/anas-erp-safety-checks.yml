@@ -38,6 +38,8 @@ jobs:
         run: node tests/pos_cart_persistence_rollback_test.js
       - name: Test reverse-ledger schemas and allocation invariants
         run: node --test tests/reverse_ledger_primitives.test.js
+      - name: Test cumulative and WAC reverse-ledger valuation
+        run: node --test tests/reverse_ledger_valuation.test.js
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
