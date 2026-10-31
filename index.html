@@ -3013,11 +3013,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         // محرك استعلام موحد للبحث المحلي: تطبيع عربي/لاتيني، مطابقة جميع الكلمات، وترتيب النتائج.
         function anasNormalizeQueryText(value) {
             return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ar')
-                .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+                .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
                 .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
                 .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
                 .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
-                .replace(/\\s+/g, ' ').trim();
+                .replace(/\s+/g, ' ').trim();
         }
         function anasQueryMatches(fields, query) {
             const q = anasNormalizeQueryText(query);
