@@ -88,7 +88,7 @@ test("verified grant and open period produce a durable create-only reservation, 
       assert.equal(new Headers(init.headers).get("Authorization"),"Bearer service-access-token");
       if(init.method==="PATCH"){
         patchCount++; reservationUrl=target;
-        assert.match(target,/currentDocument\\.exists=false/);
+        assert.match(target,/currentDocument\.exists=false/);
         if(duplicate) return new Response(JSON.stringify({error:{status:"FAILED_PRECONDITION",message:"Document already exists"}}),{status:400});
         return new Response(JSON.stringify({updateTime:"2026-10-31T00:00:00.000000Z"}),{status:200});
       }
@@ -108,7 +108,7 @@ test("verified grant and open period produce a durable create-only reservation, 
     assert.equal(result.postingEnabled,false);
     assert.equal(result.reservation.ownerUid,"trusted-user-1");
     assert.equal(result.reservation.status,"RESERVED");
-    assert.match(reservationUrl,/currentDocument\\.exists=false/);
+    assert.match(reservationUrl,/currentDocument\.exists=false/);
     assert.equal(patchCount,1);
 
     duplicate=true;
