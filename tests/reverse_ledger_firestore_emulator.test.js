@@ -948,7 +948,7 @@ function settlementState() {
   return {
     invoices: [{
       id: 'INV-ALLOC-1', customerId: 'C-ALLOC-1',
-      total: '100.00', paid: '0.00', remaining: '100.00',
+      total: 100, paid: 0, remaining: 100,
       invoiceNumber: 'S-ALLOC-1', items: []
     }],
     purchases: [],
@@ -957,7 +957,7 @@ function settlementState() {
     suppliers: [],
     cashMovements: [{
       id: 'CASH-ALLOC-1', referenceType: 'customer_debt',
-      referenceId: 'C-ALLOC-1', amount: '100.00', type: 'add'
+      referenceId: 'C-ALLOC-1', amount: 100, type: 'add'
     }],
     supplierMovements: [],
     clientMovements: [
@@ -1084,14 +1084,14 @@ test('Firestore Emulator rejects allocation above invoice outstanding after paid
   const uid = 'emu-alloc-balance-' + crypto.randomUUID();
   const operationId = 'ALLOC-' + crypto.randomUUID();
   const state = settlementState();
-  state.invoices[0].paid = '25.00';
+  state.invoices[0].paid = 25;
   state.invoices.push({
     id: 'INV-ALLOC-2', customerId: 'C-ALLOC-1',
     total: '20.00', paid: '0.00', remaining: '20.00',
     invoiceNumber: 'S-ALLOC-2', items: []
   });
   state.customers[0].debt = '15.00';
-  state.cashMovements[0].amount = '80.00';
+  state.cashMovements[0].amount = 80;
   state.clientMovements = [
     {
       movementId: 'INVOICE-DEBIT-ALLOC-1', clientId: 'C-ALLOC-1',
