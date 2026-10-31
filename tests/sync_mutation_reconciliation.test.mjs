@@ -138,3 +138,21 @@ test("V42 parity: mixed sale from a secondary warehouse updates only that wareho
   assert.equal(result.snapshot.cashMovements.length, initial.cashMovements.length);
   assert.equal(result.snapshot.stockMovements.length, initial.stockMovements.length);
 });
+
+test("rejects fractional-cent collection amounts instead of silently rounding them", () => {
+  const op = { ...collection(), payload: { ...collection().payload, amount: 500.555 } };
+  const result = reconcilePendingMutations(cloud(), [op]);
+  assert.equal(result.snapshot.caisseBalance, 54000);
+  assert.equal(result.snapshot.customers[0].debt, 26000);
+  assert.equal(result.review[0].reason, "INVALID_AMOUNT");
+});
+
+test("quarantines a cash movement ID collision when the existing amount differs", () => {
+  const initial = cloud();
+  initial.cashMovements.push({ id: "cm_991", amount: 4000, customerId: "cust_s" });
+  const result = reconcilePendingMutations(initial, [collection()]);
+  assert.equal(result.snapshot.caisseBalance, 54000);
+  assert.equal(result.snapshot.customers[0].debt, 26000);
+  assert.equal(result.review[0].reason, "CASH_MOVEMENT_ID_COLLISION");
+  assert.deepEqual(result.appliedNow, []);
+});
