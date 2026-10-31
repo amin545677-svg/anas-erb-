@@ -198,3 +198,14 @@ test("contextual AI helper authenticates Firebase requests to the protected gate
   assert.match(handler, /['"]?Authorization['"]?\s*:\s*['"]Bearer ['"]\s*\+\s*firebaseIdToken/);
   assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
 });
+
+test("AI hub timeout remains active until the response stream is fully consumed", () => {
+  const streamIndex = appHtml.indexOf("answer=await anasAiReadEventStream(resp");
+  assert.notEqual(streamIndex, -1, "AI hub must consume streaming responses");
+  const timerStart = appHtml.lastIndexOf("timer=setTimeout(()=>controller.abort(),45000);", streamIndex);
+  assert.notEqual(timerStart, -1, "AI hub must start a bounded request timeout");
+  const earlyClear = appHtml.indexOf("clearTimeout(timer)", timerStart);
+  assert.ok(earlyClear === -1 || earlyClear > streamIndex, "timeout must not be cleared when response headers arrive");
+  const cleanup = appHtml.indexOf("if(timer!==null)clearTimeout(timer)", streamIndex);
+  assert.ok(cleanup > streamIndex, "timeout must be cleared after response consumption");
+});
