@@ -43,7 +43,7 @@ async function serviceAccessToken(env) {
   const privateKey = required(account.private_key, "service account private key", 8192).replace(/\\n/g,"\n");
   const now = Math.floor(Date.now()/1000);
   const head = enc(JSON.stringify({ alg:"RS256", typ:"JWT" }));
-  const claims = enc(JSON.stringify({ iss:email, sub:email, aud:"https://oauth2.googleapis.com/token",
+  const claims = enc(JSON.stringify({ iss:email, aud:"https://oauth2.googleapis.com/token",
     scope:"https://www.googleapis.com/auth/datastore", iat:now, exp:now+3600 }));
   const unsigned = head + "." + claims;
   const pem = privateKey.replaceAll("-----BEGIN PRIVATE KEY-----","").replaceAll("-----END PRIVATE KEY-----","").replaceAll("\n","").replaceAll("\r","").replaceAll("\t","").replaceAll(" ","");
@@ -63,6 +63,14 @@ async function serviceAccessToken(env) {
   return cachedAccessToken;
 }
 
+function decodeJwtPayload(token) {
+  const parts=String(token).split(".");
+  if(parts.length!==3) throw new Error("Firebase ID token format is invalid");
+  const normalized=parts[1].replace(/-/g,"+").replace(/_/g,"/");
+  const padded=normalized+"=".repeat((4-normalized.length%4)%4);
+  try { return JSON.parse(atob(padded)); }
+  catch { throw new Error("Firebase ID token claims are malformed"); }
+}
 async function verifiedUid(token, env) {
   if (!env.FIREBASE_API_KEY || !env.FIREBASE_PROJECT_ID) throw new Error("Firebase identity configuration is incomplete");
   const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" +
@@ -72,7 +80,21 @@ async function verifiedUid(token, env) {
   const data = await response.json().catch(()=>({}));
   const user = data.users?.[0];
   if (!response.ok || !user?.localId || user.disabled === true) throw new Error("Firebase identity is invalid, expired, or disabled");
-  return required(user.localId, "Firebase UID", 128);
+  const uid=required(user.localId,"Firebase UID",128);
+  const claims=decodeJwtPayload(token);
+  const now=Math.floor(Date.now()/1000);
+  if(claims.sub!==uid || claims.user_id!==uid ||
+     claims.aud!==env.FIREBASE_PROJECT_ID ||
+     claims.iss!=="https://securetoken.google.com/"+env.FIREBASE_PROJECT_ID)
+    throw new Error("Firebase token identity or project claims do not match");
+  if(!Number.isSafeInteger(claims.auth_time) || !Number.isSafeInteger(claims.iat) ||
+     !Number.isSafeInteger(claims.exp) || claims.auth_time<=0 ||
+     claims.iat<claims.auth_time || claims.exp<=claims.iat)
+    throw new Error("Firebase token time claims are invalid");
+  if(claims.auth_time>now || claims.iat>now)
+    throw new Error("Firebase token time claims are in the future");
+  if(claims.exp<=now) throw new Error("Firebase identity token is expired");
+  return uid;
 }
 function documentUrl(env, path) {
   return "https://firestore.googleapis.com/v1/projects/" + encodeURIComponent(env.FIREBASE_PROJECT_ID) +
