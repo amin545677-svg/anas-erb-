@@ -126,3 +126,15 @@ test('validates identifiers and safe integer boundaries', () => {
   assert.throws(() => authorizeReverseOperation(validContext({ operation: { operationId: 'short' } })), /operationId format/);
   assert.throws(() => authorizeReverseOperation(validContext({ liquidity: { cashAvailableCentimes: -1 } })), /non-negative safe integer/);
 });
+
+test('purchase return cash proceeds are inflows and do not require outgoing liquidity', () => {
+  const context = validContext({
+    operation: { type: 'PURCHASE_RETURN', cashRefundCentimes: 5000, cashDirection: 'inflow' },
+    liquidity: { cashAvailableCentimes: 0 }
+  });
+  assert.equal(authorizeReverseOperation(context).authorized, true);
+  assert.throws(() => authorizeReverseOperation(validContext({
+    operation: { cashRefundCentimes: 5000, cashDirection: 'outflow' },
+    liquidity: { cashAvailableCentimes: 0 }
+  })), /insufficient liquidity/);
+});
