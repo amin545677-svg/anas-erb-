@@ -130,6 +130,33 @@ test("malformed stock magnitudes are rejected before any Firestore write", async
   } finally { globalThis.fetch = oldFetch; }
 });
 
+test("invalid historical COGS and inventory valuation magnitudes are rejected before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid valuation movement must not reach Firestore");
+  };
+  try {
+    const invalidMovements = [
+      { id: "SALE-COST-BAD", productId: "p1", qty: -1, type: "SALE_OUT",
+        originalSaleQuantityMicroUnits: 1000000, originalSaleCostCentimes: -1 },
+      { id: "RETURN-VARIANCE-BAD", productId: "p1", qty: -1, type: "RETURN_OUT",
+        inventoryBookValueCentimes: 10, valuationVarianceCentimes: Number.MAX_SAFE_INTEGER + 1 }
+    ];
+    for (const movement of invalidMovements) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST",
+        body: { data: JSON.stringify({ products: [{ id: "p1", stock: 1 }], customers: [], stockMovements: [movement] }) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "invalid valuation metadata must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("malformed truck loads and warehouse transfers are rejected before persistence", async () => {
   const oldFetch = globalThis.fetch;
   let firestoreCalls = 0;
