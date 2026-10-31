@@ -10,7 +10,12 @@ const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function confirmHasibPayment()');
 const end = html.indexOf('\n        function printLastConfirmedInvoice(type)', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
-const source = helperSource + html.slice(start, end);
+const purchaseHelperStart = html.indexOf('function anasPurchaseToScaledInteger');
+const purchaseHelperEnd = html.indexOf('function anasPurchaseLineTotalForRecordCents', purchaseHelperStart);
+assert.ok(purchaseHelperStart >= 0 && purchaseHelperEnd > purchaseHelperStart,
+  'purchase centime helpers must be present and isolatable');
+const purchaseHelperSource = html.slice(purchaseHelperStart, purchaseHelperEnd);
+const source = helperSource + purchaseHelperSource + html.slice(start, end);
 
 function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, doubleConfirm = false} = {}) {
   const product = {id:'P-1', name:'Test product', stock:productStock, warehouseStock:{'فرع 1':12}};
