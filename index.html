@@ -4550,7 +4550,7 @@ function renderPurchasesTable() {
         function updateCashUI() {
             const balance = anasRoundCurrency(AppData.caisseBalance || 0);
             document.getElementById('cashCurrentBalanceDisplay').innerText = (Number.isFinite(balance) ? balance : 0).toLocaleString() + ' د.ج';
-            anasRenderCashLedger();
+            if (typeof anasRenderCashLedger === 'function') anasRenderCashLedger();
         }
 
         function anasCashLedgerEscape(value) {
