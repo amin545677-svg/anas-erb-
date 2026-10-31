@@ -39,7 +39,7 @@ class ClassicUIRegressionTests(unittest.TestCase):
         self.assertEqual(len(matches), 1, "classic stylesheet must be linked exactly once")
         self.assertEqual(matches[0].split("?", 1)[0], "./anas-classic-ui.css")
         self.assertTrue(CSS_PATH.is_file(), "linked stylesheet file must exist")
-        self.assertNotIn(r"\\n</head>", self.html, "HTML must not contain a literal escaped newline before head close")
+        self.assertNotIn(r"\n</head>", self.html, "HTML must not contain a literal escaped newline before head close")
 
     def test_responsive_breakpoints_cover_phone_and_desktop(self):
         self.assertRegex(self.css, r"@media\s*\(max-width:\s*420px\)")
