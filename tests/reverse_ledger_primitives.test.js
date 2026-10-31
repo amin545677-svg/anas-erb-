@@ -6,7 +6,7 @@ const R = require('../reverse-ledger/reverse-ledger.js');
 test('initializes new collections without rewriting legacy records', () => {
  const invoice={id:'S-1',total:100,paid:20}; const state={invoices:[invoice],customers:[{id:'C-1',debt:80}]};
  const next=R.ensureCollections(state);
- assert.deepEqual(next.clientMovements,[]); assert.deepEqual(next.settlementAllocations,[]); assert.deepEqual(next.returns,[]);
+ assert.deepEqual(next.clientMovements,[]); assert.deepEqual(next.settlementAllocations,[]); assert.deepEqual(next.returns,[]); assert.deepEqual(next.customerCreditMovements,[]);
  assert.equal(state.clientMovements,undefined); assert.equal(next.invoices[0],invoice);
 });
 test('fails closed on malformed collection shapes', () => assert.throws(()=>R.ensureCollections({returns:{}}),/returns must be an array/));
@@ -268,6 +268,14 @@ test('sale return routes excess to documented customer credit or cash refund', (
  assert.equal(cashState.cashMovements[0].type,'subtract');
  assert.equal(cashState.customers[0].debt,0);
  assert.equal(R.validateReverseLedgerParity(cashState),true);
+
+ const lowCash=saleReturnState();
+ lowCash.caisseBalance=0.05;
+ const beforeLowCash=JSON.stringify(lowCash);
+ assert.throws(()=>R.executeReturnTransaction(lowCash,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'cash short'},
+  {createId:()=> 'RET-SALE-LOW-CASH',persist:()=>true}),/cash balance is insufficient/);
+ assert.equal(JSON.stringify(lowCash),beforeLowCash);
 });
 
 test('purchase return checks current stock and records debt reduction plus supplier credit or cash', () => {
@@ -343,6 +351,15 @@ test('legacy unallocated settlements and failed persistence are rejected atomica
   items:[{productId:'P-RET',quantity:'1'}],reason:'legacy gate',settlementMode:'cash'},
   {createId:()=> 'RET-LEGACY',persist:()=>true}),/unallocated subsequent settlements/);
  assert.equal(JSON.stringify(legacySale),legacyBefore);
+
+ const legacySupplier=purchaseReturnState();
+ legacySupplier.supplierMovements.push({id:'LEGACY-SUP-PAY',supplierId:'SUP-RET',type:'payment',amount:0.10,
+  referenceType:'supplier_payment',referenceId:'LEGACY-SUP-PAY'});
+ const legacySupplierBefore=JSON.stringify(legacySupplier);
+ assert.throws(()=>R.executeReturnTransaction(legacySupplier,{originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',invoiceId:'PUR-RET',
+  items:[{productId:'P-RET',quantity:'1'}],reason:'legacy supplier gate',settlementMode:'cash'},
+  {createId:()=> 'RET-LEGACY-SUP',persist:()=>true}),/unallocated subsequent settlements/);
+ assert.equal(JSON.stringify(legacySupplier),legacySupplierBefore);
 
  const state=saleReturnState();
  const refs={app:state,customer:state.customers[0],product:state.products[0],cash:state.cashMovements,stock:state.stockMovements,
