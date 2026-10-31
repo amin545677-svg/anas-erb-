@@ -109,6 +109,19 @@ export function installV42RuntimeWiring({
     return businessCollections.some(key => changed(current[key], previous[key]));
   }
 
+  function hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections) {
+    const changed = (left, right) => JSON.stringify(left ?? null) !== JSON.stringify(right ?? null);
+    const businessCollections = [
+      "products", "customers", "suppliers", "invoices", "purchases",
+      "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
+      "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
+      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits"
+    ];
+    return businessCollections.some(key =>
+      !allowedCollections.has(key) && changed(current[key], previous[key])
+    );
+  }
+
   function persistPrepared(operation) {
     const queue = JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]");
     if (!Array.isArray(queue)) throw new Error("Pending mutation queue is malformed");
@@ -153,6 +166,13 @@ export function installV42RuntimeWiring({
       const ok = originalSaveDB.apply(this, args);
       if (ok === true) lastSnapshot = structuredClone(getAppData());
       return ok;
+    }
+
+    const allowedCollections = captured.operation.type === "SALE_INVOICE"
+      ? new Set(["products", "customers", "invoices"])
+      : new Set(["customers", "cashMovements"]);
+    if (hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections)) {
+      throw new Error("Unsupported additional business collection change; no local persistence was performed");
     }
 
     const beforeEntityMarker = captured.entity.syncOpId;
