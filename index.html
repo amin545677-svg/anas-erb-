@@ -5099,6 +5099,13 @@ function renderPurchasesTable() {
                         anasPurchaseCentsToCurrency(anasPurchaseToCents(m.amount)).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج',
                         'font-size:.78rem;color:#64748b;'));
                 }
+                const statement = document.createElement('button');
+                statement.type = 'button';
+                statement.className = 'btn-pos-hasib';
+                statement.style.cssText = 'align-self:flex-start;background:#1d4ed8;color:white;margin-top:4px;';
+                statement.textContent = '📄 كشف الحساب الكامل';
+                statement.onclick = () => showSupplierStatement(s.id);
+                card.appendChild(statement);
                 if (Number.isSafeInteger(balanceCents) && balanceCents > 0) {
                     const pay = document.createElement('button');
                     pay.type = 'button'; pay.className = 'btn-pos-hasib';
@@ -5110,6 +5117,128 @@ function renderPurchasesTable() {
                 cont.appendChild(card);
             });
         }
+        function showSupplierStatement(supplierId) {
+            if (!Array.isArray(AppData.suppliers)) { alert('سجل الموردين غير صالح.'); return; }
+            const matches = AppData.suppliers.filter(s => s && typeof s === 'object' && !Array.isArray(s) && s.id != null && String(s.id) === String(supplierId));
+            if (matches.length !== 1) { alert(matches.length ? 'معرّف المورد مكرر؛ تعذر فتح كشف الحساب.' : 'المورد غير موجود.'); return; }
+            if (!Array.isArray(AppData.supplierMovements)) { alert('دفتر الموردين غير متاح أو تالف؛ لم نعرض كشفاً غير مكتمل.'); return; }
+
+            const supplier = matches[0];
+            const rows = AppData.supplierMovements
+                .filter(m => m && typeof m === 'object' && !Array.isArray(m) && String(m.supplierId ?? '') === String(supplier.id))
+                .slice()
+                .sort((a,b) => {
+                    const da = Date.parse(a.date || '');
+                    const db = Date.parse(b.date || '');
+                    if (!Number.isFinite(da) && !Number.isFinite(db)) return String(a.id || '').localeCompare(String(b.id || ''));
+                    if (!Number.isFinite(da)) return 1;
+                    if (!Number.isFinite(db)) return -1;
+                    return da - db;
+                });
+
+            const sums = { opening_balance: 0, purchase: 0, payment: 0 };
+            const sumValid = { opening_balance: true, purchase: true, payment: true };
+            rows.forEach(m => {
+                if (!Object.prototype.hasOwnProperty.call(sums, m.type)) return;
+                const amount = anasPurchaseToCents(m.amount);
+                if (!Number.isSafeInteger(amount) || amount < 0 || !Number.isSafeInteger(sums[m.type] + amount)) sumValid[m.type] = false;
+                else sums[m.type] += amount;
+            });
+            const money = cents => Number.isSafeInteger(cents)
+                ? anasPurchaseCentsToCurrency(cents).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج'
+                : 'غير صالح';
+            const label = type => type === 'opening_balance' ? 'رصيد افتتاحي'
+                : type === 'purchase' ? 'فاتورة شراء'
+                : type === 'payment' ? 'تسديد'
+                : String(type || 'حركة غير مصنفة');
+
+            const overlay = document.createElement('div');
+            overlay.setAttribute('role','dialog');
+            overlay.setAttribute('aria-modal','true');
+            overlay.setAttribute('aria-label','كشف حساب المورد');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;';
+            const panel = document.createElement('section');
+            panel.style.cssText = 'width:min(900px,100%);max-height:90vh;overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#111827);border:1px solid var(--mp-border,#d1d5db);border-radius:16px;padding:16px;box-sizing:border-box;box-shadow:0 16px 48px #0005;';
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;';
+            const heading = document.createElement('h2');
+            heading.style.cssText = 'margin:0;font-size:18px;';
+            heading.textContent = 'كشف حساب المورد: ' + String(supplier.name || 'مورد بلا اسم');
+            const close = document.createElement('button');
+            close.type = 'button'; close.className = 'btn-pos-hasib'; close.textContent = 'إغلاق';
+            close.setAttribute('aria-label','إغلاق كشف الحساب');
+            const closeDialog = () => overlay.remove();
+            close.onclick = closeDialog;
+            header.append(heading,close);
+            panel.appendChild(header);
+
+            const currentCents = anasPurchaseToCents(supplier.balance ?? 0);
+            const summary = document.createElement('div');
+            summary.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:14px 0;';
+            const addSummary = (title,value) => {
+                const tile = document.createElement('div');
+                tile.style.cssText = 'padding:10px;border:1px solid var(--mp-border,#d1d5db);border-radius:10px;min-width:0;';
+                const caption = document.createElement('div');
+                caption.style.cssText = 'font-size:12px;color:var(--mp-text-muted,#64748b);margin-bottom:5px;';
+                caption.textContent = title;
+                const amount = document.createElement('strong');
+                amount.textContent = value;
+                tile.append(caption,amount);
+                summary.appendChild(tile);
+            };
+            addSummary('الرصيد الحالي',money(currentCents));
+            addSummary('الرصيد الافتتاحي',sumValid.opening_balance ? money(sums.opening_balance) : 'غير صالح');
+            addSummary('إجمالي فواتير الشراء',sumValid.purchase ? money(sums.purchase) : 'غير صالح');
+            addSummary('إجمالي التسديدات',sumValid.payment ? money(sums.payment) : 'غير صالح');
+            panel.appendChild(summary);
+
+            const count = document.createElement('p');
+            count.style.cssText = 'margin:8px 0;color:var(--mp-text-muted,#64748b);font-size:13px;';
+            count.textContent = 'عدد الحركات المسجلة: ' + rows.length + ' — مرتبة من الأقدم إلى الأحدث.';
+            panel.appendChild(count);
+
+            const tableWrap = document.createElement('div');
+            tableWrap.style.cssText = 'overflow:auto;border:1px solid var(--mp-border,#d1d5db);border-radius:10px;';
+            const table = document.createElement('table');
+            table.style.cssText = 'width:100%;border-collapse:collapse;min-width:560px;font-size:13px;';
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            ['التاريخ','نوع الحركة','المرجع','المبلغ','ملاحظات'].forEach(value => {
+                const th = document.createElement('th');
+                th.textContent = value;
+                th.style.cssText = 'padding:10px;text-align:right;background:rgba(100,116,139,.10);white-space:nowrap;';
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            if (!rows.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5; td.textContent = 'لا توجد حركات مسجلة لهذا المورد.';
+                td.style.cssText = 'padding:18px;text-align:center;color:var(--mp-text-muted,#64748b);';
+                tr.appendChild(td); tbody.appendChild(tr);
+            } else {
+                rows.forEach(m => {
+                    const tr = document.createElement('tr');
+                    [m.date ? String(m.date) : '—',label(m.type),String(m.referenceId || '—'),money(anasPurchaseToCents(m.amount)),String(m.note || '—')].forEach(value => {
+                        const td = document.createElement('td');
+                        td.textContent = value;
+                        td.style.cssText = 'padding:9px 10px;border-top:1px solid var(--mp-border,#e5e7eb);vertical-align:top;';
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                });
+            }
+            table.appendChild(tbody);
+            tableWrap.appendChild(table);
+            panel.appendChild(tableWrap);
+            overlay.appendChild(panel);
+            overlay.addEventListener('click',event => { if (event.target === overlay) closeDialog(); });
+            document.body.appendChild(overlay);
+            close.focus();
+        }
+
         function paySupplierDebt(supplierId) {
             if (!Array.isArray(AppData.suppliers)) { alert('سجل الموردين غير صالح؛ لم يتم تسجيل أي تسديد.'); return; }
             const matches = AppData.suppliers.filter(s => s && typeof s === 'object' && !Array.isArray(s) && s.id != null && String(s.id) === String(supplierId));
