@@ -74,6 +74,7 @@ class ClassicUIBrowserTests(unittest.TestCase):
             self.assertEqual(card.get_attribute("role"), "button")
             self.assertEqual(card.get_attribute("tabindex"), "0")
         first = cards.nth(0)
+        self.page.keyboard.press("Tab")
         first.focus()
         outline = first.evaluate("(e) => getComputedStyle(e).outlineStyle")
         self.assertEqual(outline, "solid")
