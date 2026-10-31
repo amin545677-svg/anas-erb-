@@ -875,3 +875,31 @@ test('trusted backup refuses a posted idempotency record that is absent from sna
   const backups = await user.collection('reverseLedgerBackups').get();
   assert.equal(backups.size, 0);
 });
+
+test('trusted restore preserves pending reservations created after the backup', async t => {
+  const uid = 'emu-backup-pending-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const user = db.collection('users').doc(uid);
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  const operationRef = db.collection('reverseLedgerOperations').doc(operationId);
+  const payload = JSON.stringify(validBackupState(50));
+  await snapshotRef.set({ payload });
+  t.after(() => cleanup(uid, [operationId]));
+
+  const handlers = createBackupHandlers();
+  const created = await handlers.createTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
+  });
+  await operationRef.set({
+    operationId, ownerUid: uid, operationType: 'SALE_RETURN',
+    invoiceId: 'INV-PENDING-AFTER-BACKUP', periodId: 'FY-2026-10',
+    status: 'RESERVED', schemaVersion: 1, createdAt: new Date().toISOString()
+  });
+  const restored = await handlers.restoreTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: { backupId: created.backupId }
+  });
+  assert.equal(restored.restoredOperations, 0);
+  assert.equal(restored.preservedPendingReservations, 1);
+  assert.equal((await operationRef.get()).get('status'), 'RESERVED');
+  assert.equal((await snapshotRef.get()).get('payload'), payload);
+});
