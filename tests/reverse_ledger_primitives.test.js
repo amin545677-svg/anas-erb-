@@ -113,7 +113,7 @@ test('posted return requires matching invoice-linked stock movements', () => {
    totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,stockMovementIds:['SM-1'],financialMovementIds:['CM-1']}]
  };
  assert.equal(R.validateReverseLedgerParity(state),true);
- assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[]}),/posted return stock movement is missing or mismatched/);
+ assert.throws(()=>R.validateReverseLedgerParity({...state,stockMovements:[state.stockMovements[0]]}),/posted return stock movement is missing or mismatched/);
  const orphanFinancial={...state,cashMovements:[...state.cashMovements,{id:'CM-ORPHAN',amount:1,referenceType:'sales_return',referenceId:'R-1'}]};
  assert.throws(()=>R.validateReverseLedgerParity(orphanFinancial),/unreferenced or ambiguous financial movements/);
 });
@@ -255,6 +255,16 @@ test('atomic sale return reduces invoice debt first and returns stock with exact
   items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'over return'},{createId:()=> 'RET-SALE-OVER',persist:()=>true}),/return exceeds remaining returnable micro-units/);
 });
 
+test('sale return refuses missing historical COGS and preserves state', () => {
+ const state=saleReturnState();
+ delete state.stockMovements[0].originalSaleCostCentimes;
+ const before=JSON.stringify(state);
+ assert.throws(()=>R.executeReturnTransaction(state,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'1'}],settlementMode:'cash',reason:'missing historical cost'},
+  {createId:()=> 'RET-SALE-NO-COST',persist:()=>true}),/original sale historical cost centimes/);
+ assert.equal(JSON.stringify(state),before);
+});
+
 test('sale return routes excess to documented customer credit or cash refund', () => {
  const creditState=saleReturnState();
  const creditDoc=R.executeReturnTransaction(creditState,{originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-RET',
@@ -285,6 +295,21 @@ test('sale return routes excess to documented customer credit or cash refund', (
   items:[{productId:'P-RET',quantity:'3'}],settlementMode:'cash',reason:'cash short'},
   {createId:()=> 'RET-SALE-LOW-CASH',persist:()=>true}),/cash balance is insufficient/);
  assert.equal(JSON.stringify(lowCash),beforeLowCash);
+});
+
+test('purchase return records negative WAC variance when supplier settlement is below carrying value', () => {
+ const state=purchaseReturnState();
+ state.products[0].buyPrice=0.12;
+ const doc=R.executeReturnTransaction(state,{originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',invoiceId:'PUR-RET',
+  items:[{productId:'P-RET',quantity:'1'}],settlementMode:'credit',reason:'WAC variance'},
+  {createId:()=> 'RET-PUR-VARIANCE',persist:()=>true});
+ assert.equal(doc.items[0].inventoryBookValueCentimes,12);
+ assert.equal(doc.items[0].valuationVarianceCentimes,-2);
+ assert.equal(state.stockMovements[0].inventoryBookValueCentimes,12);
+ assert.equal(state.stockMovements[0].valuationVarianceCentimes,-2);
+ assert.equal(state.products[0].stock,2);
+ assert.equal(state.products[0].buyPrice,0.12);
+ assert.equal(R.validateReverseLedgerParity(state),true);
 });
 
 test('purchase return checks current stock and records debt reduction plus supplier credit or cash', () => {
