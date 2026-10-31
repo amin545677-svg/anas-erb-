@@ -1,0 +1,17 @@
+/* ANAS ERP classic mobile polish — additive, no business logic changes. */
+@media (max-width: 768px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { min-width: 0; }
+  .top-navbar { min-height: 56px; height: auto; gap: 8px; padding-inline: 12px; }
+  .navbar-left, .navbar-right { min-width: 0; gap: 8px; }
+  .app-brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button, [role="button"], input[type="button"], input[type="submit"] { touch-action: manipulation; }
+  .btn-hamburger { min-width: 44px; min-height: 44px; justify-content: center; }
+  input, select, textarea { max-width: 100%; font-size: 16px; }
+  img, canvas, svg { max-width: 100%; }
+  table { max-width: 100%; }
+  :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
