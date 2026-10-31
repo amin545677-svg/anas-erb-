@@ -362,3 +362,12 @@
 - هذا الدمج لم يمس `main`؛ بقي `main` على `507f4a1bbd4e5071edbcb531c8232bd674494850`.
 - PR #249 ما زال مفتوحاً وDraft.
 - لم أقم بعكس دمج #248 تلقائياً حتى لا أزيل تغييراً ربما اعتمدته يدوياً. يلزم قرار صريح منك إن كنت تريد Revert للدمج على فرع Staging.
+
+
+### أحدث حالة PR بعد إعادة الفحص — 2026-10-31
+
+- PR #248: `merged` إلى `staging/firebase-snapshot-worker` عند `60db0968d5f8d1f2b9a9ec0a28a19829bf098d97`.
+- PR #249: `open` و`draft=false`، وقاعدته الحالية `staging/firebase-snapshot-worker` عند `60db0968...`; لم يُدمج.
+- رأس فرع `feat/atomic-reverse-ledger`: `a839a047b6915bd15cfba685f984baa658e8898c`.
+- جميع الفحوص على رأس PR #249 أعلاه نجحت: Safety Checks، Legacy Manual Suite، HTML Regression، Firebase Snapshot Worker Tests، Staging Test Gate، Service Worker Cache Regression، وWorkflow YAML Syntax.
+- سجل النشر الحي لWorker الحجز ما زال محجوباً لغياب أسرار Firebase Staging، ولا يعني نجاح اختبارات CI أن Worker نُشر أو أن الترحيل المالي أصبح فعالاً.
