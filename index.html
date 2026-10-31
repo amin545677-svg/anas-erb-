@@ -1530,7 +1530,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             <div class="card" style="margin:12px 0;padding:14px">
                 <h3 style="margin:0 0 8px">👥 دليل العملاء الاحترافي</h3>
                 <p style="font-size:12px;color:var(--text-muted,#64748b);margin:0 0 10px">ابحث بالاسم أو الهاتف أو العنوان، ثم عدّل بيانات العميل عند الحاجة.</p>
-                <input id="customerDirectorySearch" class="field-input" placeholder="🔎 ابحث عن عميل..." oninput="renderCustomerDirectory()">
+                <input id="customerDirectorySearch" class="field-input" placeholder="🔎 ابحث بالاسم أو الهاتف أو الرقم الجبائي..." oninput="renderCustomerDirectory()">
+                <div role="group" aria-label="تصفية العملاء حسب الرصيد" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">
+                    <button type="button" class="pill-select-btn" data-customer-debt-filter="all" onclick="setCustomerDirectoryDebtFilter('all')">كل العملاء</button>
+                    <button type="button" class="pill-select-btn" data-customer-debt-filter="debt" onclick="setCustomerDirectoryDebtFilter('debt')">عليهم ديون</button>
+                    <button type="button" class="pill-select-btn" data-customer-debt-filter="clear" onclick="setCustomerDirectoryDebtFilter('clear')">بدون ديون</button>
+                </div>
                 <div id="customerDirectoryList" style="margin-top:10px"></div>
             </div>
         </section>
@@ -4533,17 +4538,39 @@ function renderPurchasesTable() {
             }, 100);
         }
 
+        function anasCustomerDebtFilterMatches(customer, filter) {
+            const raw = customer && Object.prototype.hasOwnProperty.call(customer, 'debt') ? customer.debt : 0;
+            const debt = raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '') ? 0 : Number(raw);
+            if (!Number.isFinite(debt) || debt < 0) return filter === 'all';
+            if (filter === 'debt') return debt > 0;
+            if (filter === 'clear') return debt === 0;
+            return filter === 'all';
+        }
+
+        function setCustomerDirectoryDebtFilter(filter) {
+            if (!['all', 'debt', 'clear'].includes(filter)) return;
+            window.anasCustomerDirectoryDebtFilter = filter;
+            document.querySelectorAll('[data-customer-debt-filter]').forEach(button => {
+                const active = button.getAttribute('data-customer-debt-filter') === filter;
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                button.style.fontWeight = active ? '700' : '400';
+                button.style.borderColor = active ? 'var(--primary-color,#1e3a6d)' : '';
+            });
+            renderCustomerDirectory();
+        }
+
         function renderCustomerDirectory() {
             const box = document.getElementById('customerDirectoryList');
             if (!box) return;
             try {
                 const q = anasNormalizeQueryText(document.getElementById('customerDirectorySearch')?.value || '');
                 const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
+                const debtFilter = window.anasCustomerDirectoryDebtFilter || 'all';
                 const money = value => (Number(value) || 0).toLocaleString('fr-DZ', {maximumFractionDigits:2}) + ' د.ج';
                 const safe = value => escapeQuickText(String(value ?? ''));
                 const list = customers.filter(c => {
                     const fields = [c.name,c.phone,c.phone2,c.address,c.rc,c.nif,c.nis,c.art];
-                    return anasQueryMatches(fields, q);
+                    return anasCustomerDebtFilterMatches(c, debtFilter) && anasQueryMatches(fields, q);
                 });
                 const totalDebt = list.reduce((sum,c) => sum + Math.max(0, Number(c.debt)||0), 0);
                 box.innerHTML = `
