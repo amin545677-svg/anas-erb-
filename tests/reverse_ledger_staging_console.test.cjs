@@ -37,7 +37,7 @@ test('staging config example contains placeholders only and no private service-a
 });
 
 test('staging console inline JavaScript parses without browser globals at build time', () => {
-  const scripts = [...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/g)];
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length, 1, 'expected one inline console controller');
   assert.doesNotThrow(() => new vm.Script(scripts[0][1], { filename: 'staging/index.html:inline' }));
 });
