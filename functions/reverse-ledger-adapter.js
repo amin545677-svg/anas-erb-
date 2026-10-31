@@ -112,8 +112,7 @@ function buildAuthorizationOperation(request, invoice, postedDocument, state) {
     allocationsReconciled: true,
     legacyRecordsPresent: false,
     settlementMode: request.settlementMode,
-    cashRefundCentimes: request.originalInvoiceType === 'sales_invoice'
-      ? postedDocument.cashRefundCentimes : 0,
+    cashRefundCentimes: postedDocument.cashRefundCentimes,
     cashDirection: request.originalInvoiceType === 'sales_invoice' ? 'outflow' : 'inflow',
     creditIssueCentimes,
     purchaseReturnQuantityMicroUnits
@@ -128,13 +127,13 @@ function authorizePreparedReverseOperation({ projectId, uid, token, grant, perio
     postedDocument,
     state
   );
+  const invoiceRows = request.originalInvoiceType === 'sales_invoice' ? state.invoices : state.purchases;
+  const invoice = invoiceRows.find(row => row && String(row.id) === request.invoiceId);
+  const warehouse = String(invoice && (invoice.warehouseName || invoice.warehouse) || 'المخزن الرئيسي').trim();
   const stockAvailableMicroUnits = request.returnType === 'PURCHASE_RETURN'
     ? postedDocument.items.reduce((sum, item) => {
         const product = state.products.find(row => row && String(row.id) === item.productId);
         if (!product) throw new Error('purchase return product is missing');
-        const warehouse = String(
-          request.originalInvoiceType === 'sales_invoice' ? 'المخزن الرئيسي' : 'المخزن الرئيسي'
-        );
         const current = warehouse === 'المخزن الرئيسي'
           ? product.stock ?? 0 : product.warehouseStock?.[warehouse] ?? 0;
         return sum + toMicroUnits(current, 'available warehouse stock');
