@@ -61,7 +61,7 @@ function normalizeReverseRequest(input) {
   }
   const reason = requiredText(input.reason, 'reason', 500);
   if (reason.length < 3) throw new Error('reason must contain at least 3 characters');
-  const settlementMode = input.settlementMode;
+  const settlementMode = returnType === 'INVOICE_CANCEL' ? 'cash' : input.settlementMode;
   if (!['cash', 'credit'].includes(settlementMode)) {
     throw new Error('settlementMode must be cash or credit');
   }
