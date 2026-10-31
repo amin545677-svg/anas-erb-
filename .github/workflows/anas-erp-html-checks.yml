@@ -9,6 +9,8 @@ on:
       - "tests/validate_erp_html.py"
       - "reverse-ledger/**"
       - "tests/reverse_ledger_primitives.test.js"
+      - "tests/reverse_ledger_authorization.test.js"
+      - "tests/reverse_ledger_valuation.test.js"
       - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
@@ -42,3 +44,5 @@ jobs:
         run: node --test tests/reverse_ledger_primitives.test.js
       - name: Test reverse-ledger authorization policy gates
         run: node --test tests/reverse_ledger_authorization.test.js
+      - name: Test cumulative and WAC reverse-ledger valuation
+        run: node --test tests/reverse_ledger_valuation.test.js
