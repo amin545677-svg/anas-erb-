@@ -8,6 +8,7 @@ const functionsRequire = createRequire(require.resolve('../functions/package.jso
 const { initializeApp, deleteApp } = functionsRequire('firebase-admin/app');
 const { getFirestore, FieldValue } = functionsRequire('firebase-admin/firestore');
 const { createReverseLedgerHandler } = require('../functions/reverse-ledger-service.js');
+const { createReverseLedgerBackupHandlers } = require('../functions/reverse-ledger-backup-service.js');
 const ReverseLedger = require('../functions/lib/reverse-ledger.js');
 const { authorizePreparedReverseOperation, PERMISSIONS } = require('../functions/reverse-ledger-adapter.js');
 
@@ -692,4 +693,91 @@ test('real BigInt engine atomically cancels a partially paid purchase invoice wi
   assert.equal(postedState.returns[0].ledgerVersion, 2);
   assert.equal(ReverseLedger.validateReverseLedgerParity(postedState), true);
   assert.equal((await db.collection('reverseLedgerOperations').doc(operationId).get()).get('status'), 'POSTED');
+});
+
+function createBackupHandlers() {
+  return createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError: TestHttpsError, ReverseLedger });
+}
+function validBackupState(cash = 50) {
+  return {
+    customers: [], suppliers: [], invoices: [], purchases: [], products: [],
+    cashMovements: [], stockMovements: [], clientMovements: [], supplierMovements: [],
+    settlementAllocations: [], returns: [], customerCreditMovements: [], caisseBalance: cash
+  };
+}
+
+test('trusted backup and restore preserve snapshot plus Firestore operation idempotency records', async t => {
+  const uid = 'emu-backup-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const user = db.collection('users').doc(uid);
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  const operationRef = db.collection('reverseLedgerOperations').doc(operationId);
+  const initialState = validBackupState(50);
+  const initialPayload = JSON.stringify(initialState);
+  const reservation = {
+    operationId, ownerUid: uid, operationType: 'SALE_RETURN', invoiceId: 'INV-BACKUP-1',
+    periodId: 'FY-2026-10', status: 'RESERVED', schemaVersion: 1,
+    requestHash: 'a'.repeat(64), leaseId: 'LEASE-BACKUP-1',
+    expiresAtEpochMs: 2000000000000, createdAt: new Date().toISOString()
+  };
+  await snapshotRef.set({ payload: initialPayload, lastReverseOperationId: null });
+  await operationRef.set(reservation);
+  t.after(() => cleanup(uid, [operationId]));
+
+  const handlers = createBackupHandlers();
+  const created = await handlers.createTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
+  });
+  assert.equal(created.ok, true);
+  assert.equal(created.operationCount, 1);
+  const backupRef = user.collection('reverseLedgerBackups').doc(created.backupId);
+  const backup = await backupRef.get();
+  assert.equal(backup.get('ownerUid'), uid);
+  assert.equal(backup.get('operationCount'), 1);
+  assert.equal((await backupRef.collection('operations').doc(operationId).get()).get('record').requestHash, 'a'.repeat(64));
+
+  await snapshotRef.update({ payload: JSON.stringify(validBackupState(999)) });
+  await operationRef.delete();
+  const restored = await handlers.restoreTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: { backupId: created.backupId }
+  });
+  assert.equal(restored.ok, true);
+  assert.equal(restored.restoredOperations, 1);
+  assert.equal((await snapshotRef.get()).get('payload'), initialPayload);
+  const restoredOperation = await operationRef.get();
+  assert.equal(restoredOperation.get('status'), 'RESERVED');
+  assert.equal(restoredOperation.get('requestHash'), 'a'.repeat(64));
+});
+
+test('trusted restore refuses to roll back a posted operation missing from an older backup', async t => {
+  const uid = 'emu-backup-stale-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const user = db.collection('users').doc(uid);
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  const operationRef = db.collection('reverseLedgerOperations').doc(operationId);
+  const initialPayload = JSON.stringify(validBackupState(50));
+  await snapshotRef.set({ payload: initialPayload });
+  t.after(() => cleanup(uid, [operationId]));
+
+  const handlers = createBackupHandlers();
+  const created = await handlers.createTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
+  });
+  const newerPayload = JSON.stringify(validBackupState(75));
+  await snapshotRef.update({ payload: newerPayload });
+  await operationRef.set({
+    operationId, ownerUid: uid, operationType: 'SALE_RETURN', invoiceId: 'INV-BACKUP-2',
+    periodId: 'FY-2026-10', status: 'POSTED', schemaVersion: 1,
+    requestHash: 'b'.repeat(64), returnId: 'RET-POSTED-NEWER',
+    result: { document: { returnId: 'RET-POSTED-NEWER' } }
+  });
+
+  await assert.rejects(
+    () => handlers.restoreTrustedReverseLedgerBackup({
+      auth: { uid }, app: { appId: 'emulator-test-app' }, data: { backupId: created.backupId }
+    }),
+    error => error.code === 'failed-precondition'
+  );
+  assert.equal((await snapshotRef.get()).get('payload'), newerPayload);
+  assert.equal((await operationRef.get()).get('status'), 'POSTED');
 });
