@@ -371,9 +371,15 @@ function open() {
   byId('alloc-amount').value = '';
   if (byId('alloc-period-id')) byId('alloc-period-id').value = '';
   byId('alloc-draft-match').textContent = '—';
-  renderParties();
-  refresh();
   byId('modal-settlement-allocation').classList.add('active');
+  try {
+    renderParties();
+    refresh();
+  } catch (error) {
+    setStatus(error && error.message ? error.message : 'بيانات التطبيق غير جاهزة.', false);
+    const submitButton = byId('alloc-submit');
+    if (submitButton) submitButton.disabled = true;
+  }
 }
 window.ANASSettlementAllocationModal = Object.freeze({ open, close });
 window.openSettlementAllocationModal = open;
