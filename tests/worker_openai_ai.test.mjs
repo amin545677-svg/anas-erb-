@@ -209,3 +209,25 @@ test("AI hub timeout remains active until the response stream is fully consumed"
   const cleanup = appHtml.indexOf("if(timer!==null)clearTimeout(timer)", streamIndex);
   assert.ok(cleanup > streamIndex, "timeout must be cleared after response consumption");
 });
+
+test("PDF analysis sends a Firebase ID token to the protected AI gateway", () => {
+  const start = appHtml.indexOf("async function anasAskAiAboutPdf()");
+  const end = appHtml.indexOf("function parseSmartCsv", start);
+  assert.notEqual(start, -1, "PDF analysis handler must exist");
+  assert.ok(end > start, "PDF handler boundary must exist");
+  const handler = appHtml.slice(start, end);
+  assert.match(handler, /getIdToken/);
+  assert.match(handler, /Authorization.*firebaseIdToken/);
+  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+});
+
+test("Excel import analysis sends a Firebase ID token to the protected AI gateway", () => {
+  const start = appHtml.indexOf("box.querySelector('#smartImportAiAnalyze').onclick=async()=>{");
+  const end = appHtml.indexOf("box.querySelector('#smartImportCancel')", start);
+  assert.notEqual(start, -1, "Excel AI analysis handler must exist");
+  assert.ok(end > start, "Excel handler boundary must exist");
+  const handler = appHtml.slice(start, end);
+  assert.match(handler, /getIdToken/);
+  assert.match(handler, /Authorization.*firebaseIdToken/);
+  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+});
