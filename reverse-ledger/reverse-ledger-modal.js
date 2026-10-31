@@ -322,11 +322,17 @@ function open(mode) {
   byId('rev-reason-input').value = '';
   byId('rev-period-id').value = '';
   byId('rev-excess-mode').value = 'cash';
-  fillInvoices();
-  renderLines();
-  updatePreview();
   byId('modal-reverse-ledger').classList.add('active');
-  byId('rev-invoice-select').focus();
+  try {
+    fillInvoices();
+    renderLines();
+    updatePreview();
+    byId('rev-invoice-select').focus();
+  } catch (error) {
+    status(error && error.message ? error.message : 'بيانات التطبيق غير جاهزة.', false);
+    const submitButton = byId('rev-submit-btn');
+    if (submitButton) submitButton.disabled = true;
+  }
 }
 function close() {
   const modal = byId('modal-reverse-ledger');
