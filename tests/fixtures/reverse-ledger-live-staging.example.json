@@ -4,7 +4,10 @@
     "invoiceId": "REPLACE_WITH_STAGING_SALES_INVOICE_V2_ID",
     "partyId": "REPLACE_WITH_STAGING_CUSTOMER_ID",
     "expectedPaidCentimes": "REPLACE_WITH_PAID_CENTIMES",
-    "expectedAllocatedCentimes": "REPLACE_WITH_ALLOCATED_CENTIMES"
+    "expectedAllocatedCentimes": "REPLACE_WITH_ALLOCATED_CENTIMES",
+    "sourceMovementId": "REPLACE_WITH_STAGING_CUSTOMER_RECEIPT_MOVEMENT_ID",
+    "sourceMovementType": "customer_debt",
+    "periodId": "REPLACE_WITH_OPEN_STAGING_PERIOD_ID"
   },
   "operations": [
     {
@@ -14,7 +17,12 @@
         "invoiceId": "REPLACE_WITH_STAGING_SALES_INVOICE_V2_ID",
         "originalInvoiceType": "sales_invoice",
         "returnType": "SALE_RETURN",
-        "items": [{ "productId": "REPLACE_WITH_STAGING_PRODUCT_ID", "quantity": "0.100000" }],
+        "items": [
+          {
+            "productId": "REPLACE_WITH_STAGING_PRODUCT_ID",
+            "quantity": "0.100000"
+          }
+        ],
         "settlementMode": "credit",
         "reason": "Dedicated staging E2E partial sale return"
       }
@@ -26,7 +34,12 @@
         "invoiceId": "REPLACE_WITH_STAGING_PURCHASE_INVOICE_V2_ID",
         "originalInvoiceType": "purchase_invoice",
         "returnType": "PURCHASE_RETURN",
-        "items": [{ "productId": "REPLACE_WITH_STAGING_PURCHASE_PRODUCT_ID", "quantity": "0.100000" }],
+        "items": [
+          {
+            "productId": "REPLACE_WITH_STAGING_PURCHASE_PRODUCT_ID",
+            "quantity": "0.100000"
+          }
+        ],
         "settlementMode": "credit",
         "reason": "Dedicated staging E2E purchase return"
       }
@@ -44,7 +57,15 @@
     }
   ],
   "expectedFinancials": [
-    { "path": "caisseBalance", "unit": "centimes", "expected": "REPLACE_WITH_EXPECTED_CASH_CENTIMES" },
-    { "path": "products.0.stock", "unit": "microUnits", "expected": "REPLACE_WITH_EXPECTED_STOCK_MICRO_UNITS" }
+    {
+      "path": "caisseBalance",
+      "unit": "centimes",
+      "expected": "REPLACE_WITH_EXPECTED_CASH_CENTIMES"
+    },
+    {
+      "path": "products.0.stock",
+      "unit": "microUnits",
+      "expected": "REPLACE_WITH_EXPECTED_STOCK_MICRO_UNITS"
+    }
   ]
 }
