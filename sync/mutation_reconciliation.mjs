@@ -91,6 +91,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         review.push({ opId: op.opId, reason: "INVALID_AMOUNT", detail: error.message, operation: op });
         continue;
       }
+      const amountCents = moneyCents(amount);
       const movementId = payload.cashMovementId;
       if (typeof movementId !== "string" || !movementId.trim()) {
         review.push({ opId: op.opId, reason: "MISSING_CASH_MOVEMENT_ID", operation: op });
@@ -120,7 +121,6 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         continue;
       }
       const debtCents = moneyCents(customer.debt);
-      const amountCents = moneyCents(amount);
       if (debtCents === null || debtCents < amountCents) {
         review.push({ opId: op.opId, reason: "COLLECTION_EXCEEDS_RECORDED_DEBT_OR_INVALID_DEBT", operation: op });
         continue;
