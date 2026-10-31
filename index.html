@@ -3010,6 +3010,31 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             });
         }
 
+        // محرك استعلام موحد للبحث المحلي: تطبيع عربي/لاتيني، مطابقة جميع الكلمات، وترتيب النتائج.
+        function anasNormalizeQueryText(value) {
+            return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ar')
+                .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+                .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
+                .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+                .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+                .replace(/\\s+/g, ' ').trim();
+        }
+        function anasQueryMatches(fields, query) {
+            const q = anasNormalizeQueryText(query);
+            if (!q) return true;
+            const haystack = anasNormalizeQueryText((Array.isArray(fields) ? fields : [fields]).filter(v => v != null).join(' '));
+            return q.split(' ').filter(Boolean).every(token => haystack.includes(token));
+        }
+        function anasQueryScore(fields, query) {
+            const q = anasNormalizeQueryText(query);
+            if (!q) return 0;
+            const values = (Array.isArray(fields) ? fields : [fields]).map(anasNormalizeQueryText);
+            if (values.some(v => v === q)) return 100;
+            if (values.some(v => v.startsWith(q))) return 70;
+            if (values.some(v => v.includes(q))) return 50;
+            return 10;
+        }
+
         // بحث البيع: يعرض اقتراحات واضحة ولا يضيف السلعة تلقائياً أثناء الكتابة.
         let posSearchActiveIndex = -1;
         function normalizePosSearch(value) {
@@ -3023,11 +3048,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             posSearchActiveIndex = -1;
             if (!q) { results.hidden = true; results.innerHTML = ''; return; }
             const products = Array.isArray(AppData?.products) ? AppData.products : [];
-            const matches = products.filter(p => {
-                const name = normalizePosSearch(p.name);
-                const barcode = normalizePosSearch(p.barcode);
-                return name.includes(q) || barcode.includes(q);
-            }).slice(0, 12);
+            const matches = products.map((p, index) => ({p, index, score: anasQueryScore([p.name, p.barcode, p.sku, p.code], q)}))
+                .filter(item => anasQueryMatches([item.p.name, item.p.barcode, item.p.sku, item.p.code], q))
+                .sort((a, b) => b.score - a.score || a.index - b.index)
+                .slice(0, 12).map(item => item.p);
             const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
             if (!matches.length) {
                 results.innerHTML = '<div class="pos-search-empty">لا توجد منتجات مطابقة</div>';
@@ -4515,13 +4539,13 @@ function renderPurchasesTable() {
             const box = document.getElementById('customerDirectoryList');
             if (!box) return;
             try {
-                const q = String(document.getElementById('customerDirectorySearch')?.value || '').trim().toLocaleLowerCase();
+                const q = anasNormalizeQueryText(document.getElementById('customerDirectorySearch')?.value || '');
                 const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
                 const money = value => (Number(value) || 0).toLocaleString('fr-DZ', {maximumFractionDigits:2}) + ' د.ج';
                 const safe = value => escapeQuickText(String(value ?? ''));
                 const list = customers.filter(c => {
                     const fields = [c.name,c.phone,c.phone2,c.address,c.rc,c.nif,c.nis,c.art];
-                    return !q || fields.some(v => String(v ?? '').toLocaleLowerCase().includes(q));
+                    return anasQueryMatches(fields, q);
                 });
                 const totalDebt = list.reduce((sum,c) => sum + Math.max(0, Number(c.debt)||0), 0);
                 box.innerHTML = `
@@ -8356,8 +8380,10 @@ function closeQuickSale(){const p=document.getElementById('quickSalePanel');if(p
 function quickSalePrice(p){return Number(AppData.activePriceTier===2?(p.price2||p.price1):AppData.activePriceTier===3?(p.price3||p.price1):p.price1)||0;}
 function renderQuickSaleResults(){
  const box=document.getElementById('qsResults'); if(!box)return;
- const q=(document.getElementById('qsSearch')?.value||'').trim().toLowerCase();
- let list=(AppData.products||[]).filter(p=>!q||String(p.name||'').toLowerCase().includes(q)||String(p.barcode||'').toLowerCase().includes(q));
+ const q=anasNormalizeQueryText(document.getElementById('qsSearch')?.value||'');
+ let list=(AppData.products||[]).map((p,index)=>({p,index,score:anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
+  .filter(x=>anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
+  .sort((a,b)=>b.score-a.score||a.index-b.index).map(x=>x.p);
  if(q && list.length===1 && String(list[0].barcode||'').toLowerCase()===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
  list=list.slice(0,24);
  box.innerHTML=list.length?list.map(p=>`<button class="qs-product" onclick="quickSaleAdd(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><strong>${escapeQuickText(p.name||'منتج')}</strong><span>${quickSalePrice(p).toLocaleString('fr-DZ')} د.ج</span><div class="qs-muted">المخزون: ${Number(p.stock)||0} ${escapeQuickText(p.unit||'')}</div></button>`).join(''):'<div class="qs-muted">لا توجد منتجات مطابقة. جرّب اسمًا آخر أو الباركود.</div>';
@@ -8368,7 +8394,7 @@ function renderQuickSaleCart(){const box=document.getElementById('qsCart');if(!b
 function quickSaleChangeQty(i,delta){const it=posCart[i];if(!it)return;const p=(AppData.products||[]).find(x=>String(x.id)===String(it.id));const next=Number(it.qty)+delta;if(next<=0){posCart.splice(i,1)}else if(p&&next>Number(p.stock)){alert('لا توجد كمية كافية في المخزون.');return;}else it.qty=next;renderPosTable();renderQuickSaleCart();}
 function quickSaleClear(){if(!posCart.length)return;if(confirm('تفريغ سلة البيع السريع؟')){posCart=[];renderPosTable();renderQuickSaleCart();}}
 function quickSaleCheckout(){if(!posCart.length){alert('أضف منتجًا واحدًا على الأقل أولًا.');return;}closeQuickSale();openHasibModal();}
-function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=(e.target.value||'').trim().toLowerCase();const matches=(AppData.products||[]).filter(p=>String(p.name||'').toLowerCase().includes(q)||String(p.barcode||'').toLowerCase()===q);if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
+function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=anasNormalizeQueryText(e.target.value||'');const matches=(AppData.products||[]).filter(p=>anasQueryMatches([p.name,p.barcode,p.sku,p.code],q));if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 
@@ -8392,11 +8418,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(current() && !current().approvedAt && !confirm('توجد جلسة جرد غير معتمدة. بدء جلسة جديدة سيحفظ القديمة كمسودة. متابعة؟')) return;
     const scope=document.getElementById('anasStocktakeScope')?.value||'all';
     const category=(document.getElementById('anasStocktakeCategory')?.value||'').trim();
-    const q=(document.getElementById('anasStocktakeSearch')?.value||'').trim().toLowerCase();
+    const q=anasNormalizeQueryText(document.getElementById('anasStocktakeSearch')?.value||'');
     let ps=products().slice();
     if(scope==='low') ps=ps.filter(p=>safeNum(p.stock)<=safeNum(p.minStock ?? p.reorderLevel ?? p.minQty));
     if(scope==='category') ps=ps.filter(p=>String(p.category||p.categoryName||'').toLowerCase()===category.toLowerCase());
-    if(q) ps=ps.filter(p=>[name(p),p.id,p.sku,p.code,p.barcode].some(x=>String(x||'').toLowerCase().includes(q)));
+    if(q) ps=ps.filter(p=>anasQueryMatches([name(p),p.id,p.sku,p.code,p.barcode],q));
     if(!ps.length){ alert('لا توجد منتجات تطابق نطاق الجرد.'); return; }
     const now=new Date().toISOString();
     const s={id:'STK-'+Date.now(),name:(document.getElementById('anasStocktakeName')?.value||'جرد مخزني').trim(),createdAt:now,createdBy:currentUser(),scope,category,status:'draft',approvedAt:null,approvedBy:null,items:ps.map(p=>({productId:productId(p),productName:name(p),sku:p.sku||p.code||'',barcode:p.barcode||'',unit:p.unit||'',systemQty:safeNum(p.stock),physicalQty:null,buyPrice:safeNum(p.buyPrice),sellPrice:safeNum(p.sellPrice??p.price),variance:null}))};
@@ -8407,8 +8433,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(!wrap) return;
     const s=current();
     if(!s){wrap.innerHTML='<p style="padding:12px;color:#64748b">أنشئ جلسة جرد لبدء إدخال الكميات الفعلية.</p>'; if(status)status.textContent='لا توجد جلسة جرد مفتوحة.'; return;}
-    const q=(document.getElementById('anasStocktakeSearch')?.value||'').trim().toLowerCase();
-    const items=s.items.filter(i=>[i.productName,i.sku,i.barcode].some(x=>String(x||'').toLowerCase().includes(q)));
+    const q=anasNormalizeQueryText(document.getElementById('anasStocktakeSearch')?.value||'');
+    const items=s.items.filter(i=>anasQueryMatches([i.productName,i.sku,i.barcode],q));
     const counts=s.items.filter(i=>i.physicalQty!==null && i.physicalQty!==undefined).length;
     const variance=s.items.reduce((n,i)=>n+(i.physicalQty==null?0:safeNum(i.physicalQty)-safeNum(i.systemQty)),0);
     if(status)status.textContent=`${s.name} · ${s.id} · ${counts}/${s.items.length} صنفًا تم عده · صافي فرق الكمية: ${variance} · الحالة: ${s.approvedAt?'معتمد':'مسودة غير معتمدة'}`;
