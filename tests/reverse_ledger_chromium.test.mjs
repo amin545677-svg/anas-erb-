@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
-import fs from 'node:fs';
 import { chromium } from 'playwright';
 
 test('Chromium loads reverse-ledger primitives and enforces exact return ceilings', async () => {
