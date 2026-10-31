@@ -11,10 +11,15 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const projectId = "demo-anas-erp";
 const rules = await readFile(resolve("firebase/firestore.staging.rules"), "utf8");
+let environmentSequence = 0;
 
 async function createTestEnv() {
+  // Each test gets a distinct Firebase app/project namespace. The SDK freezes
+  // Firestore settings after first use; reusing the same project app after
+  // cleanup can otherwise fail with failed-precondition in later tests.
+  const isolatedProjectId = `${projectId}-snapshot-rules-${++environmentSequence}`;
   return initializeTestEnvironment({
-    projectId,
+    projectId: isolatedProjectId,
     firestore: { rules, host: "127.0.0.1", port: 8080 }
   });
 }
