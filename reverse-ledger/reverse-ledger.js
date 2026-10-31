@@ -320,6 +320,8 @@
     const customerCreditTotals = new Map();
     const supplierCreditTotals = new Map();
     const referencedCustomerCreditIds = new Set();
+    const referencedStockMovementIds = new Set();
+    const referencedFinancialMovementIds = new Set();
     for (const posted of docs) {
       if (posted.status !== 'POSTED' || !Array.isArray(posted.items)) continue;
       for (const item of posted.items) {
@@ -416,6 +418,7 @@
         const movementQty = quantityToMicroUnits(String(Math.abs(numericQty)), 'return stock movement quantity');
         if (movementQty !== BigInt(doc.items[i].quantityMicroUnits))
           throw new Error('posted return stock quantity does not match return document');
+        referencedStockMovementIds.add(String(recordId(matchesStock[0])));
       }
       const financialIds = Array.isArray(doc.financialMovementIds) ? doc.financialMovementIds : [];
       if (settled > 0n && !financialIds.length) throw new Error('posted return is missing financial movements');
@@ -473,7 +476,19 @@
       }
       if (financialTotal !== settled)
         throw new Error('posted return financial movements do not equal its settlement split');
+      for (const id of financialIds) referencedFinancialMovementIds.add(String(id));
 
+    }
+    const returnReferenceTypes = new Set(['sales_return','purchase_return','invoice_cancel']);
+    for (const movement of stockRows) {
+      if (movement && returnReferenceTypes.has(String(movement.referenceType || '')) &&
+          !referencedStockMovementIds.has(String(recordId(movement))))
+        throw new Error('orphan stock movement references a missing return document');
+    }
+    for (const movement of [...cashRows,...supplierRows,...clientRows,...customerCreditRows]) {
+      if (movement && returnReferenceTypes.has(String(movement.referenceType || '')) &&
+          !referencedFinancialMovementIds.has(String(recordId(movement))))
+        throw new Error('orphan financial movement references a missing return document');
     }
     const creditMovementIds = new Set();
     for (const movement of customerCreditRows) {
