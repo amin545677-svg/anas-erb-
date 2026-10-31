@@ -174,3 +174,58 @@ test("quarantines credit sales when customer debt would overflow safe integer ce
   assert.equal(result.snapshot.customers[0].debt, initial.customers[0].debt);
   assert.equal(result.review[0].reason, "INVALID_CUSTOMER_DEBT");
 });
+
+
+test("existing invoice is skipped only when its operation marker and full payload match", () => {
+  const op = saleOp({ opId: "invoice-marker-verified", total: 1000, paid: 1000 });
+  const initial = cloud();
+  const existing = structuredClone(op.payload.invoice);
+  existing.syncOpId = op.opId;
+  existing.syncCreatedAt = "2026-10-28T12:00:00.000Z";
+  initial.invoices.unshift(existing);
+
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.deepEqual(result.appliedNow, [{
+    opId: op.opId,
+    outcome: "already-applied",
+    reason: "VERIFIED_INVOICE_OPERATION_MARKER"
+  }]);
+  assert.equal(result.snapshot.products[0].stock, 90, "verified duplicate must not deduct stock twice");
+  assert.equal(result.snapshot.caisseBalance, 54000, "verified duplicate must not add cash twice");
+  assert.equal(result.snapshot.invoices.filter(item => item.id === op.payload.invoice.id).length, 1);
+});
+
+test("invoice ID collisions without the exact operation marker or with changed payload are quarantined", () => {
+  const cases = [
+    {
+      label: "legacy/unmarked invoice",
+      mutate: invoice => { delete invoice.syncOpId; }
+    },
+    {
+      label: "invoice marked by another operation",
+      mutate: invoice => { invoice.syncOpId = "different-operation"; }
+    },
+    {
+      label: "same marker but changed financial payload",
+      mutate: invoice => { invoice.syncOpId = "invoice-collision-guard"; invoice.total = 999; }
+    }
+  ];
+
+  for (const scenario of cases) {
+    const op = saleOp({ opId: "invoice-collision-guard", total: 1000, paid: 1000 });
+    const initial = cloud();
+    const existing = structuredClone(op.payload.invoice);
+    existing.syncOpId = op.opId;
+    scenario.mutate(existing);
+    initial.invoices.unshift(existing);
+
+    const result = reconcilePendingMutations(initial, [op]);
+    assert.equal(result.review.length, 1, scenario.label);
+    assert.equal(result.review[0].reason, "INVOICE_ID_COLLISION", scenario.label);
+    assert.deepEqual(result.appliedNow, [], scenario.label);
+    assert.equal(result.snapshot.products[0].stock, 90, scenario.label + ": stock must remain unchanged");
+    assert.equal(result.snapshot.caisseBalance, 54000, scenario.label + ": cash must remain unchanged");
+    assert.equal(result.snapshot.invoices[0].total, existing.total, scenario.label + ": existing audit data must remain unchanged");
+  }
+});
