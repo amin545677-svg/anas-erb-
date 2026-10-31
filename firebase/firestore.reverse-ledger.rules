@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reverse-ledger control plane is server-managed only.
+    // The Cloudflare Worker uses a dedicated service account; browser clients
+    // must never create grants, open/close periods, or reserve operation IDs.
+    match /reverseLedgerGrants/{uid} {
+      allow read, write: if false;
+    }
+    match /financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
+    }
+  }
+}
