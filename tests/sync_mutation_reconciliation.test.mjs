@@ -39,7 +39,7 @@ test("replaying the same operation ID is idempotent", () => {
   assert.equal(twice.snapshot.caisseBalance, 59000);
   assert.equal(twice.snapshot.customers[0].debt, 21000);
   assert.equal(twice.snapshot.cashMovements.filter(m => m.id === "cm_991").length, 1);
-  assert.deepEqual(twice.appliedNow, [{ opId: "op-deviceB-collection-5000", outcome: "already-applied" }]);
+  assert.deepEqual(twice.appliedNow, [{ opId: "op-deviceB-collection-5000", outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" }]);
 });
 
 test("quarantines a sale when cloud stock is insufficient but still replays a safe collection", () => {
