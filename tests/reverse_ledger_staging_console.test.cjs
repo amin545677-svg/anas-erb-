@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../staging/index.html'), 'utf8');
 const configExample = fs.readFileSync(path.join(__dirname, '../staging/config.example.js'), 'utf8');
 const gateway = fs.readFileSync(path.join(__dirname, '../staging/reverse-ledger-gateway.js'), 'utf8');
+const gateway = fs.readFileSync(path.join(__dirname, '../staging/reverse-ledger-gateway.js'), 'utf8');
 
 test('staging page is isolated from production V42 entrypoint and targets only the dedicated Firebase project', () => {
   assert.match(html, /ANAS_REVERSE_LEDGER_STAGING_CONFIG/);
