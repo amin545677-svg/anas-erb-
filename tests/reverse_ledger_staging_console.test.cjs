@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const html = fs.readFileSync(path.join(__dirname, '../staging/index.html'), 'utf8');
 const configExample = fs.readFileSync(path.join(__dirname, '../staging/config.example.js'), 'utf8');
@@ -33,4 +34,10 @@ test('staging config example contains placeholders only and no private service-a
   assert.match(configExample, /REPLACE_WITH_STAGING_WEB_API_KEY/);
   assert.match(configExample, /REPLACE_WITH_STAGING_RECAPTCHA_V3_SITE_KEY/);
   assert.doesNotMatch(configExample, /BEGIN PRIVATE KEY|client_email|private_key/);
+});
+
+test('staging console inline JavaScript parses without browser globals at build time', () => {
+  const scripts = [...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/g)];
+  assert.equal(scripts.length, 1, 'expected one inline console controller');
+  assert.doesNotThrow(() => new vm.Script(scripts[0][1], { filename: 'staging/index.html:inline' }));
 });
