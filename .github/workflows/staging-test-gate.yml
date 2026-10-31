@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "*.js"
       - "tests/**"
       - "functions/**"
       - "scripts/**"
@@ -16,6 +17,7 @@ on:
     branches: [staging/firebase-snapshot-worker, 'feat/**', 'fix/**', 'feature/**']
     paths:
       - "index.html"
+      - "*.js"
       - "tests/**"
       - "functions/**"
       - "scripts/**"
