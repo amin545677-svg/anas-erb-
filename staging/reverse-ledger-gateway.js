@@ -14,6 +14,7 @@
         root.ANASReverseLedgerStagingAuth = client.auth;
         root.ANASReverseLedgerStagingApp = client.app;
         root.ANASReverseLedgerServer = client.gateway;
+        root.ANASSettlementAllocationServer = client.settlementAllocationGateway;
         const status = root.document && root.document.getElementById('anasFirebaseAuthStatus');
         if (status) {
           status.textContent = 'تم تهيئة بوابة الترحيل العكسي على مشروع Staging مع App Check. سجّل الدخول بحساب Staging قبل طلب الترحيل.';
@@ -124,6 +125,7 @@
     appCheck.activate(config.appCheckSiteKey, true);
     const functions = firebase.functions(app, config.functionsRegion || 'us-central1');
     const callable = functions.httpsCallable('executeReverseLedger');
+    const settlementAllocationCallable = functions.httpsCallable('executeSettlementAllocation');
 
     const gateway = Object.freeze({
       execute: async function (request) {
@@ -147,7 +149,33 @@
       }
     });
 
-    return Object.freeze({ app, auth, appCheck, functions, gateway });
+    const settlementAllocationGateway = Object.freeze({
+      execute: async function (request) {
+        if (!auth.currentUser) throw new Error('Sign in to the dedicated Firebase staging account first');
+        if (!request || typeof request !== 'object' || Array.isArray(request)) {
+          throw new Error('Settlement allocation request must be an object');
+        }
+        if (typeof request.operationId !== 'string' || !OPERATION_ID.test(request.operationId)) {
+          throw new Error('operationId format is invalid');
+        }
+        requiredText(request.periodId, 'periodId', 128);
+        await auth.currentUser.getIdToken(true);
+        const appCheckToken = await appCheck.getToken(false);
+        if (!appCheckToken || typeof appCheckToken.token !== 'string' || !appCheckToken.token) {
+          throw new Error('A valid staging App Check token is required');
+        }
+        const response = await settlementAllocationCallable(request);
+        const data = response && response.data;
+        if (!data || data.ok !== true || data.status !== 'POSTED' ||
+            data.operationId !== request.operationId || !Array.isArray(data.allocations) ||
+            data.allocations.length < 1) {
+          throw new Error('The staging callable did not confirm settlement allocation as POSTED');
+        }
+        return Object.freeze(data);
+      }
+    });
+
+    return Object.freeze({ app, auth, appCheck, functions, gateway, settlementAllocationGateway });
   }
 
   return Object.freeze({ initialize, validateConfig, normalizeCallableResult, stagingProjectId: STAGING_PROJECT_ID });
