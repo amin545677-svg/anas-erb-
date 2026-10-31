@@ -1126,3 +1126,45 @@ test('Firestore Emulator rejects allocation above invoice outstanding after paid
   assert.equal(JSON.parse(snapshot.get('payload')).settlementAllocations.length, 0);
   assert.equal((await db.collection('reverseLedgerOperations').doc(operationId).get()).exists, false);
 });
+
+test('Firestore Emulator posts supplier payment allocation atomically to purchase invoice', async t => {
+  const uid = 'emu-supplier-alloc-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const state = settlementState();
+  state.invoices = [];
+  state.purchases = [{
+    id: 'PUR-ALLOC-1', supplierId: 'S-ALLOC-1',
+    total: '100.00', paid: '0.00', remaining: '100.00',
+    invoiceNumber: 'P-ALLOC-1', items: []
+  }];
+  state.customers = [];
+  state.suppliers = [{ id: 'S-ALLOC-1', name: 'Emulator Supplier', balance: '100.00' }];
+  state.clientMovements = [];
+  state.supplierMovements = [{
+    id: 'SUP-PAY-ALLOC-1', supplierId: 'S-ALLOC-1', supplierName: 'Emulator Supplier',
+    type: 'payment', amount: '100.00', referenceType: 'supplier_payment',
+    referenceId: 'SUP-PAY-ALLOC-1', date: '2026-10-31T10:05:00.000Z',
+    note: 'emulator supplier allocation source'
+  }];
+  await seed(uid, [], { state, permissions: ['settlement_allocation_post'] });
+  t.after(() => cleanup(uid, [operationId]));
+  const handler = createSettlementHandler();
+  const result = await handler(makeSettlementRequest(uid, operationId, {
+    partyType: 'supplier', partyId: 'S-ALLOC-1',
+    sourceMovementId: 'SUP-PAY-ALLOC-1', sourceMovementType: 'supplier_payment',
+    allocations: [{ invoiceId: 'PUR-ALLOC-1', amountCentimes: 10000 }]
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'POSTED');
+  assert.equal(result.allocations[0].partyType, 'supplier');
+  assert.equal(result.allocations[0].invoiceType, 'purchase_invoice');
+  assert.equal(result.allocations[0].invoiceId, 'PUR-ALLOC-1');
+  assert.equal(result.allocations[0].amountCentimes, 10000);
+  const snapshot = await db.collection('users').doc(uid).collection('snapshots').doc('latest').get();
+  const saved = JSON.parse(snapshot.get('payload'));
+  assert.equal(saved.settlementAllocations.length, 1);
+  assert.equal(saved.settlementAllocations[0].partyType, 'supplier');
+  assert.equal(saved.supplierMovements.filter(row => row.id === 'SUP-PAY-ALLOC-1').length, 1);
+  const operation = await db.collection('reverseLedgerOperations').doc(operationId).get();
+  assert.equal(operation.get('status'), 'POSTED');
+});
