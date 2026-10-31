@@ -63,7 +63,7 @@ test('rejects expired and future Firebase token time claims', () => {
     auth: { issuedAtSeconds: 1793400300 }
   })), /time claims are in the future/);
   assert.throws(() => authorizeReverseOperation(validContext({
-    auth: { authTimeSeconds: 1793400300 }
+    auth: { authTimeSeconds: 1793400300, issuedAtSeconds: 1793400301 }
   })), /time claims are in the future/);
   assert.throws(() => authorizeReverseOperation(validContext({
     auth: { expiresAtSeconds: 1793400100 }
