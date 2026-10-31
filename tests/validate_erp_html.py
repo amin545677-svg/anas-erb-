@@ -830,7 +830,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     sync_validator_end = source.find("\n        async function syncPushNow()", sync_validator_start)
     sync_validator = source[sync_validator_start:sync_validator_end] if sync_validator_start >= 0 and sync_validator_end > sync_validator_start else ""
     sync_guards = [
-        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
+        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
 
         "Object.prototype.hasOwnProperty.call(incoming, key)",
         "if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)",
