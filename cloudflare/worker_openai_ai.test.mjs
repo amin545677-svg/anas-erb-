@@ -74,3 +74,42 @@ test("rejects a correctly signed token with the wrong Firebase audience", async 
     assert.equal(calls, 0);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("rejects an expired Firebase token before contacting signing keys or OpenAI", async () => {
+  const originalFetch = globalThis.fetch; let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("network must not be called for expired tokens"); };
+  try {
+    const response = await worker.fetch(request(makeToken({ exp: Math.floor(Date.now() / 1000) - 1 })), { OPENAI_API_KEY: "test-key" });
+    assert.equal(response.status, 401);
+    assert.equal(calls, 0);
+    assert.match((await response.json()).error, /Invalid or expired Firebase session/);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a correctly signed token from a different Firebase issuer", async () => {
+  const originalFetch = globalThis.fetch; let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("network must not be called for wrong issuer"); };
+  try {
+    const response = await worker.fetch(request(makeToken({ iss: "https://securetoken.google.com/other-project" })), { OPENAI_API_KEY: "test-key" });
+    assert.equal(response.status, 401);
+    assert.equal(calls, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a token with a tampered RS256 signature before contacting OpenAI", async () => {
+  const originalFetch = globalThis.fetch; let openAiCalls = 0;
+  const validParts = makeToken().split(".");
+  validParts[2] = base64url("tampered-signature");
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("securetoken@system.gserviceaccount.com"))
+      return new Response(JSON.stringify({ keys: [jwk] }), { headers: { "Cache-Control": "max-age=300" } });
+    if (String(url) === "https://api.openai.com/v1/responses") openAiCalls++;
+    throw new Error("unexpected upstream request");
+  };
+  try {
+    const response = await worker.fetch(request(validParts.join(".")), { OPENAI_API_KEY: "test-key" });
+    assert.equal(response.status, 401);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
