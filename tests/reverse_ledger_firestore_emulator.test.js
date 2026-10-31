@@ -804,3 +804,74 @@ test('trusted restore refuses to overwrite a valid newer ERP snapshot even when 
   );
   assert.equal((await snapshotRef.get()).get('payload'), newerPayload);
 });
+
+test('trusted backup restores a posted operation only with its matching posted return in the snapshot', async t => {
+  const uid = 'emu-backup-posted-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const user = db.collection('users').doc(uid);
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  const operationRef = db.collection('reverseLedgerOperations').doc(operationId);
+  const state = makeRealEngineState();
+  const postedDocument = ReverseLedger.executeSaleReturn(state, {
+    invoiceId: 'INV-EMULATOR-1',
+    items: [{ productId: 'P-1', quantity: '1' }],
+    settlementMode: 'cash',
+    reason: 'trusted backup posted operation test'
+  }, { operatorId: uid, createId: () => 'RET-BACKUP-POSTED', persist: () => true });
+  assert.equal(ReverseLedger.validateReverseLedgerParity(state), true);
+  const requestHash = 'c'.repeat(64);
+  const operation = {
+    operationId, ownerUid: uid, operationType: 'SALE_RETURN',
+    invoiceId: 'INV-EMULATOR-1', periodId: 'FY-2026-10',
+    status: 'POSTED', schemaVersion: 1, requestHash,
+    returnId: postedDocument.returnId,
+    result: { ok: true, operationId, document: postedDocument }
+  };
+  await snapshotRef.set({ payload: JSON.stringify(state), lastReverseOperationId: operationId });
+  await operationRef.set(operation);
+  t.after(() => cleanup(uid, [operationId]));
+
+  const handlers = createBackupHandlers();
+  const created = await handlers.createTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
+  });
+  assert.equal(created.operationCount, 1);
+  await operationRef.delete();
+  await snapshotRef.update({ payload: '{corrupted-after-backup' });
+
+  const restored = await handlers.restoreTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: { backupId: created.backupId }
+  });
+  assert.equal(restored.restoredOperations, 1);
+  const restoredState = JSON.parse((await snapshotRef.get()).get('payload'));
+  assert.equal(ReverseLedger.validateReverseLedgerParity(restoredState), true);
+  assert.ok(restoredState.returns.some(row => row.returnId === postedDocument.returnId && row.status === 'POSTED'));
+  const restoredOperation = await operationRef.get();
+  assert.equal(restoredOperation.get('status'), 'POSTED');
+  assert.equal(restoredOperation.get('requestHash'), requestHash);
+  assert.equal(restoredOperation.get('returnId'), postedDocument.returnId);
+});
+
+test('trusted backup refuses a posted idempotency record that is absent from snapshot returns', async t => {
+  const uid = 'emu-backup-orphan-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const user = db.collection('users').doc(uid);
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  const operationRef = db.collection('reverseLedgerOperations').doc(operationId);
+  await snapshotRef.set({ payload: JSON.stringify(validBackupState(50)) });
+  await operationRef.set({
+    operationId, ownerUid: uid, operationType: 'SALE_RETURN',
+    invoiceId: 'INV-ORPHAN', periodId: 'FY-2026-10',
+    status: 'POSTED', schemaVersion: 1, requestHash: 'd'.repeat(64),
+    returnId: 'RET-ORPHAN', result: { document: { returnId: 'RET-ORPHAN' } }
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  await assert.rejects(
+    () => createBackupHandlers().createTrustedReverseLedgerBackup({
+      auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
+    }),
+    error => error.code === 'failed-precondition'
+  );
+  const backups = await user.collection('reverseLedgerBackups').get();
+  assert.equal(backups.size, 0);
+});
