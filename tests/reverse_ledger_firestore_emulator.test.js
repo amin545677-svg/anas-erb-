@@ -717,7 +717,7 @@ test('trusted backup and restore preserve snapshot plus Firestore operation idem
   const reservation = {
     operationId, ownerUid: uid, operationType: 'SALE_RETURN', invoiceId: 'INV-BACKUP-1',
     periodId: 'FY-2026-10', status: 'RESERVED', schemaVersion: 1,
-    requestHash: 'a'.repeat(64), leaseId: 'LEASE-BACKUP-1',
+    leaseId: 'LEASE-BACKUP-1',
     expiresAtEpochMs: 2000000000000, createdAt: new Date().toISOString()
   };
   await snapshotRef.set({ payload: initialPayload, lastReverseOperationId: null });
@@ -734,7 +734,7 @@ test('trusted backup and restore preserve snapshot plus Firestore operation idem
   const backup = await backupRef.get();
   assert.equal(backup.get('ownerUid'), uid);
   assert.equal(backup.get('operationCount'), 1);
-  assert.equal((await backupRef.collection('operations').doc(operationId).get()).get('record').requestHash, 'a'.repeat(64));
+  assert.equal((await backupRef.collection('operations').doc(operationId).get()).get('record').status, 'RESERVED');
 
   await snapshotRef.update({ payload: JSON.stringify(validBackupState(999)) });
   await operationRef.delete();
@@ -746,7 +746,7 @@ test('trusted backup and restore preserve snapshot plus Firestore operation idem
   assert.equal((await snapshotRef.get()).get('payload'), initialPayload);
   const restoredOperation = await operationRef.get();
   assert.equal(restoredOperation.get('status'), 'RESERVED');
-  assert.equal(restoredOperation.get('requestHash'), 'a'.repeat(64));
+  assert.equal(restoredOperation.get('requestHash'), undefined);
 });
 
 test('trusted restore refuses to roll back a posted operation missing from an older backup', async t => {
