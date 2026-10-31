@@ -7,7 +7,7 @@ const MAX_OPERATION_RECORDS = 300;
 const MAX_OPERATION_BYTES = 6 * 1024 * 1024;
 const MAX_SINGLE_OPERATION_BYTES = 200 * 1024;
 
-function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError }) {
+function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, ReverseLedger }) {
   function fail(code, message) { throw new HttpsError(code, message); }
   function requireContext(request) {
     if (!request || !request.auth || !request.auth.uid) {
@@ -43,6 +43,28 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError }) {
     }
     return record;
   }
+  function validateSnapshotParity(payload, records) {
+    const state = parseSnapshot(payload);
+    if (!ReverseLedger || typeof ReverseLedger.validateReverseLedgerParity !== 'function') {
+      fail('internal', 'Canonical reverse-ledger validator is unavailable.');
+    }
+    try { ReverseLedger.validateReverseLedgerParity(state); }
+    catch (error) {
+      fail('failed-precondition', 'Backup snapshot failed reverse-ledger parity validation: ' +
+        String(error && error.message || error).slice(0, 220));
+    }
+    for (const [operationId, record] of records) {
+      if (record.status !== 'POSTED') continue;
+      const returnId = record.returnId || record.result?.document?.returnId;
+      const returns = Array.isArray(state.returns) ? state.returns : [];
+      if (!returnId || !returns.some(row => row && row.ledgerVersion === 2 &&
+          row.status === 'POSTED' && String(row.returnId) === String(returnId))) {
+        fail('failed-precondition', 'Posted operation ' + operationId +
+          ' is not represented in the backup snapshot; backup/ledger parity is unsafe.');
+      }
+    }
+    return state;
+  }
   function operationMap(snapshot, uid) {
     if (snapshot.size > MAX_OPERATION_RECORDS) {
       fail('resource-exhausted', 'Reverse-ledger operation count exceeds the trusted backup limit.');
@@ -77,8 +99,8 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError }) {
         ]);
         if (!snapshotSnap.exists) fail('failed-precondition', 'A cloud snapshot is required before creating a trusted reverse-ledger backup.');
         const payload = snapshotSnap.get('payload');
-        parseSnapshot(payload);
         const records = operationMap(operationsSnap, uid);
+        validateSnapshotParity(payload, records);
         const entries = [...records.entries()];
         transaction.create(backupRef, {
           backupId: backupRef.id,
@@ -131,7 +153,6 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError }) {
         }
         if (!snapshotSnap.exists) fail('failed-precondition', 'A cloud snapshot is required before trusted restore.');
         const backupPayload = backupSnap.get('snapshotPayload');
-        parseSnapshot(backupPayload);
         const backupRecords = operationMap({
           size: backupOperationsSnap.size,
           docs: backupOperationsSnap.docs.map(doc => ({
@@ -145,6 +166,7 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError }) {
             }
           }))
         }, uid);
+        validateSnapshotParity(backupPayload, backupRecords);
         if (backupSnap.get('operationCount') !== backupRecords.size) {
           fail('failed-precondition', 'Trusted backup operation count does not match its manifest.');
         }
