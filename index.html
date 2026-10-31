@@ -1586,6 +1586,39 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <div class="box-total-green" id="cashCurrentBalanceDisplay">50,000.00 د.ج</div>
                 </div>
             </div>
+
+            <div class="panel-card-form" style="margin-top:14px;">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                    <h3 style="margin:0;color:var(--mp-navy);">📒 سجل الحركات النقدية المسجلة</h3>
+                    <span style="font-size:11px;color:#64748b;">عرض ومراجعة فقط</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px;">
+                    <input id="anasCashLedgerSearch" type="search" class="field-input" placeholder="ابحث بالبيان أو المستخدم أو المرجع..." oninput="anasRenderCashLedger()">
+                    <select id="anasCashLedgerType" class="field-input" onchange="anasRenderCashLedger()">
+                        <option value="all">كل الحركات</option>
+                        <option value="add">المقبوضات</option>
+                        <option value="subtract">المدفوعات</option>
+                        <option value="invalid">السجلات غير الصالحة</option>
+                    </select>
+                </div>
+                <div id="anasCashLedgerSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:10px;"></div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;min-width:620px;border-collapse:collapse;font-size:12px;">
+                        <thead><tr style="background:#f1f5f9;color:#334155;">
+                            <th style="padding:9px;border:1px solid #e2e8f0;">التاريخ</th>
+                            <th style="padding:9px;border:1px solid #e2e8f0;">النوع</th>
+                            <th style="padding:9px;border:1px solid #e2e8f0;">البيان</th>
+                            <th style="padding:9px;border:1px solid #e2e8f0;">المبلغ</th>
+                            <th style="padding:9px;border:1px solid #e2e8f0;">المستخدم</th>
+                            <th style="padding:9px;border:1px solid #e2e8f0;">المرجع</th>
+                        </tr></thead>
+                        <tbody id="anasCashLedgerRows"><tr><td colspan="6" style="padding:14px;text-align:center;color:#64748b;">لا توجد حركات مسجلة بعد</td></tr></tbody>
+                    </table>
+                </div>
+                <p style="font-size:11px;line-height:1.7;color:#64748b;margin:10px 0 0;">
+                    تنبيه محاسبي: يعرض هذا الجدول السجلات الموجودة فعلياً في cashMovements فقط. لا يفترض اكتمال دفتر الصندوق ولا يحسب رصيداً افتتاحياً أو إقفالاً يومياً من بيانات غير موثقة. لا يتم تعديل أي حركة من هذه الشاشة.
+                </p>
+            </div>
         </section>
 
         <!-- 8. شاشة المصروفات (مطابقة للفيديو) -->
@@ -4517,6 +4550,88 @@ function renderPurchasesTable() {
         function updateCashUI() {
             const balance = anasRoundCurrency(AppData.caisseBalance || 0);
             document.getElementById('cashCurrentBalanceDisplay').innerText = (Number.isFinite(balance) ? balance : 0).toLocaleString() + ' د.ج';
+            if (typeof anasRenderCashLedger === 'function') anasRenderCashLedger();
+        }
+
+        function anasCashLedgerEscape(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
+
+        function anasCashLedgerMoney(cents) {
+            if (!Number.isSafeInteger(cents)) return 'غير متاح';
+            return (cents / 100).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ج';
+        }
+
+        // Read-only ledger view. Invalid rows remain visible and are never silently converted to zero.
+        function anasRenderCashLedger() {
+            const body = document.getElementById('anasCashLedgerRows');
+            const summary = document.getElementById('anasCashLedgerSummary');
+            if (!body || !summary) return;
+            if (!Array.isArray(AppData.cashMovements)) {
+                summary.innerHTML = '<div style="padding:10px;border:1px solid #fecaca;border-radius:8px;color:#991b1b;">سجل الحركات غير متاح أو تالف؛ لم يتم استبداله.</div>';
+                body.innerHTML = '<tr><td colspan="6" style="padding:14px;text-align:center;color:#991b1b;">تعذر قراءة سجل الحركات</td></tr>';
+                return;
+            }
+            const all = AppData.cashMovements.map((movement, index) => {
+                const validObject = !!movement && typeof movement === 'object' && !Array.isArray(movement);
+                const type = validObject ? movement.type : '';
+                const cents = validObject ? anasToCents(movement.amount) : NaN;
+                const valid = validObject && (type === 'add' || type === 'subtract') &&
+                    Number.isSafeInteger(cents) && cents > 0;
+                const dateRaw = validObject ? movement.date : '';
+                const dateValue = dateRaw ? new Date(dateRaw) : null;
+                const timestamp = dateValue && Number.isFinite(dateValue.getTime()) ? dateValue.getTime() : -1;
+                const reference = validObject
+                    ? [movement.referenceType, movement.referenceId].filter(v => v != null && String(v).trim() !== '').join(' / ')
+                    : '';
+                return {
+                    index, valid, type, cents, timestamp,
+                    date: timestamp >= 0 ? dateValue.toLocaleString('ar-DZ') : 'تاريخ غير صالح',
+                    description: validObject ? String(movement.description || movement.desc || '—') : 'سجل غير صالح',
+                    user: validObject ? String(movement.userName || movement.userId || 'غير محدد') : '—',
+                    reference: reference || '—',
+                    searchable: validObject ? [movement.id, movement.description, movement.desc, movement.userName, movement.userId, reference].join(' ').toLocaleLowerCase() : ''
+                };
+            });
+            const query = String((document.getElementById('anasCashLedgerSearch') || {}).value || '').trim().toLocaleLowerCase();
+            const filter = String((document.getElementById('anasCashLedgerType') || {}).value || 'all');
+            const validRows = all.filter(row => row.valid);
+            const invalidCount = all.length - validRows.length;
+            const incoming = validRows.filter(row => row.type === 'add').reduce((sum, row) => sum + row.cents, 0);
+            const outgoing = validRows.filter(row => row.type === 'subtract').reduce((sum, row) => sum + row.cents, 0);
+            const safeIncoming = Number.isSafeInteger(incoming) ? incoming : NaN;
+            const safeOutgoing = Number.isSafeInteger(outgoing) ? outgoing : NaN;
+            summary.innerHTML = [
+                ['عدد السجلات', String(all.length), '#e2e8f0'],
+                ['إجمالي المقبوضات المسجلة', anasCashLedgerMoney(safeIncoming), '#bbf7d0'],
+                ['إجمالي المدفوعات المسجلة', anasCashLedgerMoney(safeOutgoing), '#fecaca'],
+                ['سجلات تحتاج مراجعة', String(invalidCount), invalidCount ? '#fecaca' : '#e2e8f0']
+            ].map(item => '<div style="padding:10px;border:1px solid ' + item[2] + ';border-radius:8px;background:#fff;">' +
+                '<div style="font-size:11px;color:#64748b;">' + anasCashLedgerEscape(item[0]) + '</div>' +
+                '<strong style="display:block;margin-top:4px;color:#0f172a;">' + anasCashLedgerEscape(item[1]) + '</strong></div>').join('');
+            const filtered = all.filter(row => {
+                const typeMatch = filter === 'all' || (filter === 'invalid' ? !row.valid : row.valid && row.type === filter);
+                return typeMatch && (!query || row.searchable.includes(query));
+            }).sort((a, b) => b.timestamp - a.timestamp || b.index - a.index);
+            if (!filtered.length) {
+                body.innerHTML = '<tr><td colspan="6" style="padding:14px;text-align:center;color:#64748b;">لا توجد نتائج مطابقة</td></tr>';
+                return;
+            }
+            body.innerHTML = filtered.map(row => {
+                const label = !row.valid ? 'غير صالح' : row.type === 'add' ? 'قبض' : 'صرف';
+                const color = !row.valid ? '#991b1b' : row.type === 'add' ? '#166534' : '#9a3412';
+                const amount = row.valid ? anasCashLedgerMoney(row.cents) : 'قيمة غير صالحة';
+                return '<tr>' +
+                    '<td style="padding:8px;border:1px solid #e2e8f0;white-space:nowrap;">' + anasCashLedgerEscape(row.date) + '</td>' +
+                    '<td style="padding:8px;border:1px solid #e2e8f0;color:' + color + ';font-weight:800;">' + label + '</td>' +
+                    '<td style="padding:8px;border:1px solid #e2e8f0;overflow-wrap:anywhere;">' + anasCashLedgerEscape(row.description) + '</td>' +
+                    '<td style="padding:8px;border:1px solid #e2e8f0;white-space:nowrap;">' + anasCashLedgerEscape(amount) + '</td>' +
+                    '<td style="padding:8px;border:1px solid #e2e8f0;">' + anasCashLedgerEscape(row.user) + '</td>' +
+                    '<td style="padding:8px;border:1px solid #e2e8f0;">' + anasCashLedgerEscape(row.reference) + '</td>' +
+                    '</tr>';
+            }).join('');
         }
 
         function selectCashOp(op) {
