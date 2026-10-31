@@ -104,9 +104,12 @@ test('posted return requires matching invoice-linked stock movements', () => {
   invoices:[{id:'S-1',customerObj:{id:'C-1'},items:[{id:'P-1',qty:2,price:10}]}],
   purchases:[],clientMovements:[],settlementAllocations:[],
   cashMovements:[{id:'CM-1',type:'subtract',amount:10,referenceType:'sales_return',referenceId:'R-1'}],supplierMovements:[],
-  stockMovements:[{id:'SM-1',productId:'P-1',qty:1,type:'RETURN_IN',referenceType:'sales_return',referenceId:'R-1'}],
+  stockMovements:[
+   {id:'SALE-ORIGINAL',productId:'P-1',qty:-2,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'S-1',originalSaleQuantityMicroUnits:2000000,originalSaleCostCentimes:500},
+   {id:'SM-1',productId:'P-1',qty:1,type:'RETURN_IN',referenceType:'sales_return',referenceId:'R-1',restoredInventoryCostCentimes:250}
+  ],
   returns:[{returnId:'R-1',ledgerVersion:2,originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000,originalLineTotalCentimes:2000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000,originalLineTotalCentimes:2000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0,restoredInventoryCostCentimes:250,inventoryBookValueCentimes:0,valuationVarianceCentimes:0}],
    totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,stockMovementIds:['SM-1'],financialMovementIds:['CM-1']}]
  };
  assert.equal(R.validateReverseLedgerParity(state),true);
@@ -122,9 +125,9 @@ test('posted purchase return reconciles the legacy single-line purchase schema',
   clientMovements:[],settlementAllocations:[],
   cashMovements:[{id:'CM-PUR-RET',type:'add',amount:10,referenceType:'purchase_return',referenceId:'R-PUR-1'}],
   supplierMovements:[],
-  stockMovements:[{id:'SM-PUR-RET',productId:'P-1',qty:-1,type:'RETURN_OUT',referenceType:'purchase_return',referenceId:'R-PUR-1'}],
+  stockMovements:[{id:'SM-PUR-RET',productId:'P-1',qty:-1,type:'RETURN_OUT',referenceType:'purchase_return',referenceId:'R-PUR-1',inventoryBookValueCentimes:1000,valuationVarianceCentimes:0}],
   returns:[{returnId:'R-PUR-1',ledgerVersion:2,originalInvoiceId:'PUR-1',originalInvoiceType:'purchase_invoice',returnType:'PURCHASE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000,originalLineTotalCentimes:2000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000,lineTotalCentimes:1000,originalLineTotalCentimes:2000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0,restoredInventoryCostCentimes:0,inventoryBookValueCentimes:1000,valuationVarianceCentimes:0}],
    totalCentimes:1000,debtReductionCentimes:0,cashRefundCentimes:1000,supplierCreditCentimes:0,
    stockMovementIds:['SM-PUR-RET'],financialMovementIds:['CM-PUR-RET']}]
  };
@@ -151,9 +154,12 @@ test('draft return ceiling accounts for all previously posted returns', () => {
   purchases:[],clientMovements:[],settlementAllocations:[],
   cashMovements:[{id:'CM-POSTED',type:'subtract',amount:10000,referenceType:'sales_return',referenceId:'R-POSTED'}],
   supplierMovements:[],
-  stockMovements:[{id:'SM-POSTED',productId:'P-1',qty:1,type:'RETURN_IN',referenceType:'sales_return',referenceId:'R-POSTED'}],
+  stockMovements:[
+   {id:'SALE-ORIGINAL-CEILING',productId:'P-1',qty:-2,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'S-CEILING',originalSaleQuantityMicroUnits:2000000,originalSaleCostCentimes:0},
+   {id:'SM-POSTED',productId:'P-1',qty:1,type:'RETURN_IN',referenceType:'sales_return',referenceId:'R-POSTED',restoredInventoryCostCentimes:0}
+  ],
   returns:[{returnId:'R-POSTED',ledgerVersion:2,originalInvoiceId:'S-CEILING',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',
-   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000000,lineTotalCentimes:1000000,originalLineTotalCentimes:2000000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
+   items:[{productId:'P-1',quantityMicroUnits:1000000,unitPriceCentimes:1000000,lineTotalCentimes:1000000,originalLineTotalCentimes:2000000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0,restoredInventoryCostCentimes:0,inventoryBookValueCentimes:0,valuationVarianceCentimes:0}],
    totalCentimes:1000000,debtReductionCentimes:0,cashRefundCentimes:1000000,supplierCreditCentimes:0,
    stockMovementIds:['SM-POSTED'],financialMovementIds:['CM-POSTED']}]
  };
