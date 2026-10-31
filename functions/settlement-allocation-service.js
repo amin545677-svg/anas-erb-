@@ -30,6 +30,15 @@ function toCentimes(value, label) {
   return Number(result);
 }
 
+function integerCentimes(value, label) {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^\\d+$/.test(value.trim())) {
+    const amount = BigInt(value.trim());
+    if (amount <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(amount);
+  }
+  throw new Error(label + ' must be a non-negative safe integer number of centimes');
+}
+
 function normalizeAllocationRequest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('allocation request is required');
   const allowed = new Set(['operationId', 'periodId', 'partyType', 'partyId', 'sourceMovementId', 'sourceMovementType', 'allocations']);
@@ -57,7 +66,7 @@ function normalizeAllocationRequest(input) {
     const invoiceId = requiredText(row.invoiceId, 'invoiceId');
     if (seen.has(invoiceId)) throw new Error('duplicate invoice allocation');
     seen.add(invoiceId);
-    const amountCentimes = toCentimes(row.amountCentimes, 'allocation amount');
+    const amountCentimes = integerCentimes(row.amountCentimes, 'allocation amount');
     if (!Number.isSafeInteger(amountCentimes) || amountCentimes <= 0) throw new Error('allocation amount must be positive safe integer centimes');
     return Object.freeze({ invoiceType, invoiceId, amountCentimes });
   });
@@ -93,7 +102,7 @@ function invoicePartyId(invoice, partyType) {
 
 function invoiceAmount(invoice, field) {
   const centsField = field + 'Centimes';
-  return own(invoice, centsField) ? toCentimes(invoice[centsField], field) : toCentimes(invoice[field], field);
+  return own(invoice, centsField) ? integerCentimes(invoice[centsField], field + ' centimes') : toCentimes(invoice[field], field);
 }
 
 function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError, ReverseLedger, now = Date.now }) {
@@ -172,7 +181,9 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
             String(source.referenceId ?? '') === '') fail('failed-precondition', 'Linked sales invoice source is malformed.');
         if (normalized.sourceMovementType === 'purchase_invoice' &&
             String(source.referenceId ?? '') === '') fail('failed-precondition', 'Linked purchase invoice source is malformed.');
-        const sourceAmount = toCentimes(source.amountCentimes ?? source.amount ?? source.amt, 'source movement amount');
+        const sourceAmount = source.amountCentimes != null
+          ? integerCentimes(source.amountCentimes, 'source movement amount centimes')
+          : toCentimes(source.amount ?? source.amt, 'source movement amount');
         const previousSourceAllocated = (state.settlementAllocations || [])
           .filter(row => row && row.partyType === normalized.partyType &&
             row.sourceMovementType === normalized.sourceMovementType &&
