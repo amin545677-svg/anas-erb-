@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: "22"
       - name: Run Hasib financial and stock invariants
-        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js
+        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/supplier_statement_ui_test.js
       - name: Syntax-check Chromium behavioral test
         run: node --check tests/purchase_supplier_chromium_staging.test.mjs
       - name: Install Playwright for real browser verification
