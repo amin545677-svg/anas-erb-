@@ -50,7 +50,9 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.equal(hosting.hosting.site, 'anas-erp-staging-a25e1');
   assert.equal(hosting.hosting.public, 'staging-site');
   assert.match(deployWorkflow, /workflow_dispatch:/);
-  assert.doesNotMatch(deployWorkflow, /^  push:/m);
+  assert.match(deployWorkflow, /push:\s*\n\s*branches:\s*\n\s*- feat\/reverse-ledger-firebase-functions-v2/);
+  assert.match(deployWorkflow, /paths:\s*\n\s*- ['"]staging\/\*\*['"]/);
+  assert.match(deployWorkflow, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/feat\/reverse-ledger-firebase-functions-v2'/);
   for (const secret of [
     'FIREBASE_STAGING_SERVICE_ACCOUNT',
     'FIREBASE_STAGING_WEB_API_KEY',
