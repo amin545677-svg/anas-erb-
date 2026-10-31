@@ -90,11 +90,11 @@ test('customer collection history is isolated by customer and includes valid deb
   ];
   const selected = anasGetCustomerDebtCollections('A', movements);
   assert.equal(selected.length, 2);
-  assert.deepEqual(selected.map(x => x.amount), [75, 100]);
+  assert.deepEqual(Array.from(selected, x => x.amount), [75, 100]);
 });
 
 test('customer collection history rejects invalid input and caps display to ten newest records', () => {
-  assert.deepEqual(anasGetCustomerDebtCollections('A', null), []);
+  assert.equal(anasGetCustomerDebtCollections('A', null).length, 0);
   const movements = Array.from({ length: 12 }, (_, i) => ({
     referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: i + 1,
     date: new Date(Date.UTC(2026, 0, i + 1)).toISOString()
