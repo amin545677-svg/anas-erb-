@@ -1634,7 +1634,13 @@ jobs:
           assert config.get("firestore", {}).get("rules") == "firebase/firestore.rules", "firebase.json does not point to Firestore rules"
           assert "request.auth != null" in rules, "Firestore rules must require authentication"
           assert "request.auth.uid == userId" in rules, "Firestore rules must restrict snapshots to their owner"
-          print("Firestore rules configuration and owner-only access checks passed")
+          for collection in ["reverseLedgerGrants", "financialPeriods", "reverseLedgerOperations", "reverseLedgerState", "reverseLedgerEntries"]:
+              block_start = rules.find("match /users/{userId}/" + collection + "/")
+              assert block_start >= 0, "Missing server-authoritative Firestore rule for " + collection
+              block_end = rules.find("\\n    }", block_start)
+              block = rules[block_start:block_end]
+              assert "allow read, write: if false;" in block, collection + " must deny browser reads and writes"
+          print("Firestore rules preserve owner-only snapshots and deny client access to authoritative reverse-ledger collections")
           PY
 
       - name: Exercise truck custody settlement and rollback with mocks
