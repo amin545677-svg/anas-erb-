@@ -1,0 +1,28 @@
+/* ANAS ERP — additive, classic RTL interface enhancements.
+   Load after existing styles. No application data, accounting, storage, or navigation logic changes. */
+:root { --ui-focus:#f59e0b; --ui-touch:44px; }
+html { -webkit-text-size-adjust:100%; }
+body { overflow-wrap:anywhere; }
+button, input, select, textarea { font:inherit; }
+button, [role="button"], a { touch-action:manipulation; }
+button:focus-visible, a:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline:3px solid var(--ui-focus); outline-offset:2px;
+}
+button:disabled, [aria-disabled="true"] { cursor:not-allowed; opacity:.55; }
+.top-navbar { min-height:54px; height:auto; gap:8px; }
+.navbar-left, .navbar-right { min-width:0; flex-wrap:wrap; }
+.app-brand-name { min-width:0; overflow-wrap:normal; }
+.btn-hamburger { min-width:var(--ui-touch); min-height:var(--ui-touch); justify-content:center; }
+img, svg, video, canvas { max-width:100%; }
+table { border-collapse:collapse; }
+@media (max-width:600px) {
+  .top-navbar { padding:6px 10px; }
+  .app-brand-name { font-size:1rem; }
+  input, select, textarea { max-width:100%; font-size:16px; }
+  button { max-width:100%; }
+  .user-quick-pill { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+}
+@media (prefers-reduced-motion:reduce) {
+  *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}
