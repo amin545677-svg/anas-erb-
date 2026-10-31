@@ -5,8 +5,9 @@ const byId = id => document.getElementById(id);
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const state = { partyType: 'customer', partyId: '', source: null, invoice: null, sources: [], invoices: [] };
 function data() {
-  if (typeof AppData === 'undefined' || !AppData || typeof AppData !== 'object') throw new Error('بيانات التطبيق غير جاهزة.');
-  return AppData;
+  const current = window.AppData;
+  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق غير جاهزة.');
+  return current;
 }
 function cents(value) {
   const raw = String(value ?? '').trim().replace(/\s/g, '').replace(',', '.');
