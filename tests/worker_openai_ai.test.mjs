@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { generateKeyPairSync, createSign, webcrypto } from "node:crypto";
+import { generateKeyPairSync, createSign } from "node:crypto";
 
 // Load the real Worker source without changing the app's package/module settings.
 const source = await readFile(resolve("cloudflare/worker_openai_ai.js"), "utf8");
@@ -23,7 +23,6 @@ function request(path, { method = "GET", origin, body } = {}) {
 const jwksUrl = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const firebaseJwk = { ...publicKey.export({ format: "jwk" }), kid: "test-firebase-key", alg: "RS256", use: "sig" };
-globalThis.crypto = webcrypto;
 function firebaseToken(overrides = {}) {
   const encode = value => Buffer.from(value).toString("base64url");
   const now = Math.floor(Date.now() / 1000);
