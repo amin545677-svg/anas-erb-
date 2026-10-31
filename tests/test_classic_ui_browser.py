@@ -106,5 +106,33 @@ class ClassicUIBrowserTests(unittest.TestCase):
         self.assertFalse(self.page.locator("#drawerMenu").evaluate("(e) => e.classList.contains('active')"))
         self.assertFalse(self.page.locator("#drawerOverlay").evaluate("(e) => e.classList.contains('active')"))
 
+    def test_mobile_pos_toolbar_and_invoice_area_fit_phone_layout(self):
+        self.page.set_viewport_size({"width": 390, "height": 844})
+        self.page.evaluate("openView('pos')")
+        self.page.wait_for_selector("#view-pos.active", timeout=5000)
+        for width in (360, 390):
+            with self.subTest(viewport_width=width):
+                self.page.set_viewport_size({"width": width, "height": 844})
+                metrics = self.page.evaluate("""() => {
+                  const toolbar = document.querySelector('#view-pos .sales-toolbar');
+                  const search = document.querySelector('#view-pos .search-field-box');
+                  const products = document.querySelector('#view-pos .quick-products-grid');
+                  const invoice = document.querySelector('#view-pos .invoice-items-body');
+                  return {
+                    viewport: document.documentElement.clientWidth,
+                    toolbarWidth: toolbar.getBoundingClientRect().width,
+                    toolbarWrap: getComputedStyle(toolbar).flexWrap,
+                    searchWidth: search.getBoundingClientRect().width,
+                    productColumns: getComputedStyle(products).gridTemplateColumns.split(' ').length,
+                    invoiceOverflowX: getComputedStyle(invoice).overflowX
+                  };
+                }""")
+                self.assertLessEqual(metrics["toolbarWidth"], metrics["viewport"] + 1, metrics)
+                self.assertEqual(metrics["toolbarWrap"], "wrap", metrics)
+                self.assertGreaterEqual(metrics["searchWidth"], width * 0.75, metrics)
+                self.assertEqual(metrics["productColumns"], 2, metrics)
+                self.assertIn(metrics["invoiceOverflowX"], ("auto", "scroll"), metrics)
+        self.page.evaluate("openView('dashboard')")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
