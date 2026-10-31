@@ -7204,9 +7204,22 @@ function renderPurchasesTable() {
             anasAiAppendMessage('user',question); input.value='';
             if(fallback){fallback.style.display='block';fallback.textContent=shareContext?'سيُرسل السؤال وملخص النشاط الذي وافقت عليه إلى خادم الذكاء الاصطناعي عبر HTTPS.':'سيُرسل السؤال فقط؛ لم تتم الموافقة على إرسال بيانات النشاط.';}
             if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ التحليل…';}
+            let firebaseIdToken="";
+            try{
+                const firebaseAuth=window.firebase?.auth?.();
+                const currentUser=firebaseAuth?.currentUser;
+                if(!currentUser||typeof currentUser.getIdToken!=='function')
+                    throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل استخدام المساعد السحابي.');
+                firebaseIdToken=await currentUser.getIdToken();
+                if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
+            }catch(err){
+                anasAiAppendMessage('ai',err.message||'تعذر التحقق من جلسة الدخول.');
+                if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}
+                return;
+            }
             try{
                 const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),45000);
-                let resp; try{resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'});} finally {clearTimeout(timer);}
+                let resp; try{resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'});} finally {clearTimeout(timer);}
                 if(!resp.ok){
                     const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
                     throw new Error(data.error||('HTTP '+resp.status));
