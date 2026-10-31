@@ -32,6 +32,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Check OpenAI Worker JavaScript syntax
         run: node --check cloudflare/worker_openai_ai.js
+      - name: Run Firebase authentication and gateway regression tests
+        run: node --test cloudflare/worker_openai_ai.test.mjs
       - name: Verify Cloudflare token and account access
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
