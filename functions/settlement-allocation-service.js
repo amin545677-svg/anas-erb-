@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { PERMISSIONS } = require('./lib/authorization.js');
+const { authorizeFinancialScope } = require('./lib/user-rbac-bridge.js');
 
 const MAX_SNAPSHOT_BYTES = 700 * 1024;
 const MAX_ALLOCATIONS = 200;
@@ -123,6 +124,11 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
   return async request => {
     if (!request.auth || !request.auth.uid) fail('unauthenticated', 'A verified Firebase user session is required.');
     if (!request.app) fail('failed-precondition', 'A valid Firebase App Check token is required.');
+    if (request.data && typeof request.data === 'object' &&
+        (Object.prototype.hasOwnProperty.call(request.data, 'tenantId') ||
+         Object.prototype.hasOwnProperty.call(request.data, 'storeId'))) {
+      fail('permission-denied', 'Client-supplied tenant/store scope is not trusted.');
+    }
     let normalized;
     try { normalized = normalizeAllocationRequest(request.data); }
     catch (error) { fail('invalid-argument', String(error.message || error).slice(0, 300)); }
@@ -158,7 +164,8 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         if (!periodSnap.exists || periodSnap.get('status') !== 'OPEN')
           fail('failed-precondition', 'The requested financial period is not OPEN.');
         const grant = grantSnap.data();
-        if (grant.uid !== uid || grant.active !== true || grant.schemaVersion !== 1 ||
+        const grantStatus = String(grant.status || (grant.active === true ? 'active' : '')).toLowerCase();
+        if (grant.uid !== uid || grantStatus !== 'active' || grant.schemaVersion !== 1 ||
             !Array.isArray(grant.permissions) || !grant.permissions.includes(PERMISSIONS.SETTLEMENT_ALLOCATION))
           fail('permission-denied', 'An active financial settlement-allocation permission is required.');
         if (grant.role && !['admin', 'owner', 'accountant', 'finance', 'financial_manager'].includes(String(grant.role).toLowerCase()))
@@ -180,6 +187,15 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         const sources = sourceRows(state, normalized);
         if (sources.length !== 1) fail('failed-precondition', 'Source movement is missing or ambiguous.');
         const source = sources[0];
+        if (source.tenantId || source.storeId || source.warehouseId) {
+          try {
+            authorizeFinancialScope({
+              uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: source, state
+            });
+          } catch (error) {
+            fail('permission-denied', String(error.message || error));
+          }
+        }
         if (normalized.sourceMovementType === 'sales_invoice' &&
             String(source.referenceId ?? '') === '') fail('failed-precondition', 'Linked sales invoice source is malformed.');
         if (normalized.sourceMovementType === 'purchase_invoice' &&
@@ -204,6 +220,13 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           const matches = invoices.filter(row => row && String(row.id) === allocation.invoiceId);
           if (matches.length !== 1) fail('failed-precondition', 'Target invoice is missing or ambiguous.');
           const invoice = matches[0];
+          try {
+            authorizeFinancialScope({
+              uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: invoice, state
+            });
+          } catch (error) {
+            fail('permission-denied', String(error.message || error));
+          }
           if (invoicePartyId(invoice, normalized.partyType) !== normalized.partyId)
             fail('failed-precondition', 'Target invoice belongs to a different customer or supplier.');
           if (normalized.sourceMovementType === 'sales_invoice' && String(source.referenceId) !== allocation.invoiceId)
