@@ -55,6 +55,13 @@ test('rejects invalid quantities and identical warehouses', () => {
   assert.ok(r.issues.some(x => x.code === 'INVALID_TRANSFER_ROUTE'));
 });
 
+
+test('reports extra movements attached to a transfer reference', () => {
+  const f = fixture();
+  f.movements.push({ id: 'TR-1-EXTRA', productId: 'P-1', qty: 0, type: 'UNKNOWN_TRANSFER_LEG', referenceType: 'warehouse_transfer', referenceId: 'TR-1' });
+  assert.ok(auditWarehouseTransfers(f.transfers, f.movements).issues.some(x => x.code === 'UNEXPECTED_TRANSFER_LEG_COUNT'));
+});
+
 test('rejects malformed collections instead of silently coercing them', () => {
   assert.throws(() => auditWarehouseTransfers({}, []), TypeError);
   assert.throws(() => auditWarehouseTransfers([], null), TypeError);
