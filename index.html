@@ -8680,7 +8680,7 @@ function renderPurchasesTable() {
                     throw new Error('طلب العملية العكسية غير صالح.');
                 const gateway = globalThis.ANASReverseLedgerServer;
                 if (!gateway || typeof gateway.execute !== 'function')
-                    throw new Error('التنفيذ معطّل: لا توجد بوابة ترحيل خادمية موثوقة ومتصلة. لم تتغير أي بيانات.');
+                    throw new Error('التنفيذ معطّل: لا توجد بوابة ترحيل خادمية موثوقة ومتصلة.');
                 const result = gateway.execute(request);
                 if (!result || typeof result.then !== 'function')
                     throw new Error('بوابة الترحيل الخادمية يجب أن تنفذ طلبًا غير متزامنًا موثقًا.');
