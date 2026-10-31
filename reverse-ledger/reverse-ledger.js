@@ -2,7 +2,11 @@
 (function(root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
-  if (root) root.ANASReverseLedger = api;
+  if (root) {
+    const browserApi = { ...api };
+    delete browserApi.executeReturnTransaction;
+    root.ANASReverseLedger = Object.freeze(browserApi);
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   const RETURN_TYPES = Object.freeze(['SALE_RETURN', 'PURCHASE_RETURN', 'INVOICE_CANCEL']);
   const PARTY_TYPES = Object.freeze(['customer', 'supplier']);
