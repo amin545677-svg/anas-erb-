@@ -389,17 +389,6 @@
         const qty = BigInt(safeInt(item.quantityMicroUnits, 'return quantity', false));
         const price = BigInt(safeInt(item.unitPriceCentimes, 'return unit price', true));
         const line = BigInt(safeInt(item.lineTotalCentimes, 'return line total', true));
-        const originalLineTotalCentimes = BigInt(safeInt(item.originalLineTotalCentimes, 'original line total centimes', true));
-        const originalQuantityMicroUnits = BigInt(safeInt(item.originalQuantityMicroUnits, 'original quantity micro-units', false));
-        const previouslyReturnedMicroUnits = BigInt(safeInt(item.previouslyReturnedMicroUnits ?? 0, 'previously returned micro-units', true));
-        if (originalQuantityMicroUnits !== originalQty || originalLineTotalCentimes !== originalLineTotal)
-          throw new Error('return valuation basis does not match the original invoice line');
-        const expectedLine = cumulativeDeltaCentimes(
-          originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits, qty
-        );
-        if (expectedLine !== line)
-          throw new Error('return line amount does not match cumulative centime valuation');
-        lineTotal += line;
         const originalItems = originalInvoiceItems(invoice, doc.originalInvoiceType);
         const originalMatches = originalItems.filter(x => invoiceItemProductId(x) === productId);
         if (originalMatches.length !== 1) throw new Error('return item is missing or ambiguous in original invoice');
@@ -411,13 +400,24 @@
           : originalMatches[0].total != null || originalMatches[0].lineTotal != null
             ? currencyToCentimes(originalMatches[0].total ?? originalMatches[0].lineTotal, 'original line total')
             : roundHalfUpRatio(originalQty * originalPrice, 1000000n);
-        if (price > originalPrice) throw new Error('return unit price exceeds original invoice unit price');
-        if (doc.returnType === 'INVOICE_CANCEL' && price !== originalPrice)
-          throw new Error('invoice cancellation must reverse the original unit price');
         const key = doc.originalInvoiceType + ':' + doc.originalInvoiceId + ':' + productId;
         const postedTotal = postedQuantities.get(key) || 0n;
         if (postedTotal > originalQty || (doc.status !== 'POSTED' && postedTotal + qty > originalQty))
           throw new Error('return exceeds remaining returnable micro-units');
+        if (price > originalPrice) throw new Error('return unit price exceeds original invoice unit price');
+        if (doc.returnType === 'INVOICE_CANCEL' && price !== originalPrice)
+          throw new Error('invoice cancellation must reverse the original unit price');
+        const originalLineTotalCentimes = BigInt(safeInt(item.originalLineTotalCentimes, 'original line total centimes', true));
+        const originalQuantityMicroUnits = BigInt(safeInt(item.originalQuantityMicroUnits, 'original quantity micro-units', false));
+        const previouslyReturnedMicroUnits = BigInt(safeInt(item.previouslyReturnedMicroUnits ?? 0, 'previously returned micro-units', true));
+        if (originalQuantityMicroUnits !== originalQty || originalLineTotalCentimes !== originalLineTotal)
+          throw new Error('return valuation basis does not match the original invoice line');
+        const expectedLine = cumulativeDeltaCentimes(
+          originalLineTotalCentimes, originalQuantityMicroUnits, previouslyReturnedMicroUnits, qty
+        );
+        if (expectedLine !== line)
+          throw new Error('return line amount does not match cumulative centime valuation');
+        lineTotal += line;
       }
       if (lineTotal !== BigInt(safeInt(doc.totalCentimes, 'return total', true)))
         throw new Error('return total does not match item totals');
