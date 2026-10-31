@@ -7396,7 +7396,13 @@ function renderPurchasesTable() {
             const status=document.getElementById('smartAiExcelStatus');
             if(status)status.textContent='⏳ جارٍ تحليل النص الذي اخترت إرساله…';
             try{
-                const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'chat',message:question.trim(),businessData:{documentText:text.slice(0,28000),source:'PDF text extracted in browser'},language:'ar'})});
+                const firebaseAuth=window.firebase?.auth?.();
+                const currentUser=firebaseAuth?.currentUser;
+                if(!currentUser||typeof currentUser.getIdToken!=='function')
+                    throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل استخدام تحليل PDF.');
+                const firebaseIdToken=await currentUser.getIdToken();
+                if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
+                const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify({type:'chat',message:question.trim(),businessData:{documentText:text.slice(0,28000),source:'PDF text extracted in browser'},language:'ar'})});
                 const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
                 if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
                 const answer=String(data.text||data.answer||'لم تصل إجابة نصية.');
@@ -7474,7 +7480,13 @@ function renderPurchasesTable() {
                 st.textContent='⏳ يجري تحليل أسماء الأعمدة وعينة من البيانات…';
                 try{
                     const sampleText='حلل ملف الجدول التالي. لا تنشئ بيانات جديدة. حدّد نوع البيانات (products أو customers أو suppliers أو invoices)، واقترح مطابقة الأعمدة مع الحقول المناسبة. أجب بالعربية وباختصار، واذكر أي أعمدة غير واضحة.\nعناوين الأعمدة: '+JSON.stringify(rows[0]||[])+'\nعينة أول 5 صفوف: '+JSON.stringify(rows.slice(1,6));
-                    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:sampleText,prompt:sampleText,message:sampleText})});
+                    const firebaseAuth=window.firebase?.auth?.();
+                    const currentUser=firebaseAuth?.currentUser;
+                    if(!currentUser||typeof currentUser.getIdToken!=='function')
+                        throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل تحليل Excel.');
+                    const firebaseIdToken=await currentUser.getIdToken();
+                    if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
+                    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify({text:sampleText,prompt:sampleText,message:sampleText})});
                     const raw=await resp.text(); let data; try{data=JSON.parse(raw)}catch{data={text:raw}};
                     if(!resp.ok) throw new Error(data.error||('HTTP '+resp.status));
                     const answer=data.text||data.answer||data.result||raw;
