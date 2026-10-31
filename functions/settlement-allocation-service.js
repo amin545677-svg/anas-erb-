@@ -32,7 +32,7 @@ function toCentimes(value, label) {
 
 function integerCentimes(value, label) {
   if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
-  if (typeof value === 'string' && /^\\d+$/.test(value.trim())) {
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
     const amount = BigInt(value.trim());
     if (amount <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(amount);
   }
