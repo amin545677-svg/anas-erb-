@@ -759,13 +759,56 @@
       if (Object.prototype.hasOwnProperty.call(product, 'warehouseStock') &&
           (!product.warehouseStock || typeof product.warehouseStock !== 'object' || Array.isArray(product.warehouseStock)))
         throw new Error('product warehouse stock map is malformed');
+      if (product.buyPrice == null || String(product.buyPrice).trim() === '')
+        throw new Error('verified current weighted-average inventory cost is missing; reverse posting is blocked');
+      const currentWacCentimes = currencyToCentimes(product.buyPrice, 'current weighted-average inventory cost');
       const currentRaw = warehouse === 'المخزن الرئيسي' ? (product.stock ?? 0) : (product.warehouseStock?.[warehouse] ?? 0);
       const currentUnits = quantityToMicroUnits(currentRaw, 'current product stock');
-      const delta = originalInvoiceType === 'sales_invoice' ? BigInt(line.quantityMicroUnits) : -BigInt(line.quantityMicroUnits);
+      const currentBookValue = roundHalfUpRatio(currentUnits * currentWacCentimes, 1000000n);
+      const quantity = BigInt(line.quantityMicroUnits);
+      const delta = originalInvoiceType === 'sales_invoice' ? quantity : -quantity;
       const nextUnits = currentUnits + delta;
       if (nextUnits < 0n || nextUnits > BigInt(Number.MAX_SAFE_INTEGER))
         throw new Error(originalInvoiceType === 'purchase_invoice' ? 'purchase return quantity is not available in current warehouse stock' : 'sale return produces an unsafe stock quantity');
-      stockDeltas.push({ product, line, currentUnits, nextUnits, warehouse });
+      let restoredInventoryCostCentimes = 0n;
+      let inventoryBookValueCentimes = 0n;
+      let valuationVarianceCentimes = 0n;
+      let nextBookValue;
+      if (originalInvoiceType === 'sales_invoice') {
+        const sourceMovements = (state.stockMovements || []).filter(row => row &&
+          row.type === 'SALE_OUT' && row.referenceType === 'sales_invoice' &&
+          String(row.referenceId) === String(invoice.id) && String(row.productId) === line.productId);
+        if (sourceMovements.length !== 1)
+          throw new Error('original SALE_OUT cost record is missing or ambiguous; historical inventory cost cannot be inferred');
+        const source = sourceMovements[0];
+        const sourceQuantity = BigInt(safeInt(source.originalSaleQuantityMicroUnits, 'original sale quantity micro-units', false));
+        const sourceCost = BigInt(safeInt(source.originalSaleCostCentimes, 'original sale historical cost centimes', true));
+        if (sourceQuantity !== BigInt(line.originalQuantityMicroUnits))
+          throw new Error('original SALE_OUT quantity basis does not match the invoice line');
+        const sourceMovementQuantity = quantityToMicroUnits(String(Math.abs(Number(source.qty ?? source.quantity))), 'original SALE_OUT quantity');
+        if (sourceMovementQuantity !== sourceQuantity)
+          throw new Error('original SALE_OUT movement quantity does not match its historical cost basis');
+        restoredInventoryCostCentimes = cumulativeDeltaCentimes(
+          sourceCost, sourceQuantity, BigInt(line.previouslyReturnedMicroUnits), quantity
+        );
+        nextBookValue = currentBookValue + restoredInventoryCostCentimes;
+      } else {
+        if (currentUnits <= 0n || quantity > currentUnits)
+          throw new Error('purchase return quantity is not available in current warehouse stock');
+        inventoryBookValueCentimes = cumulativeDeltaCentimes(currentBookValue, currentUnits, 0n, quantity);
+        if (inventoryBookValueCentimes > currentBookValue)
+          throw new Error('purchase return inventory book value exceeds current inventory value');
+        valuationVarianceCentimes = BigInt(line.lineTotalCentimes) - inventoryBookValueCentimes;
+        nextBookValue = currentBookValue - inventoryBookValueCentimes;
+      }
+      const nextWacCentimes = nextUnits === 0n ? 0n : roundHalfUpRatio(nextBookValue * 1000000n, nextUnits);
+      if (nextBookValue < 0n || nextWacCentimes > BigInt(Number.MAX_SAFE_INTEGER))
+        throw new Error('reverse inventory valuation exceeds the safe financial range');
+      stockDeltas.push({
+        product, line, currentUnits, nextUnits, warehouse,
+        currentWacCentimes, currentBookValue, nextBookValue, nextWacCentimes,
+        restoredInventoryCostCentimes, inventoryBookValueCentimes, valuationVarianceCentimes
+      });
     }
 
     const returnId = String(options.createId ? options.createId() :
@@ -808,6 +851,7 @@
     const invoiceSnapshot = { had:own(invoice,'status'), value:invoice.status };
     const productSnapshots = stockDeltas.map(({product}) => ({
       product, stock:{had:own(product,'stock'),value:product.stock},
+      buyPrice:{had:own(product,'buyPrice'),value:product.buyPrice},
       warehouseStock:{had:own(product,'warehouseStock'),value:product.warehouseStock,
         ref: product.warehouseStock && typeof product.warehouseStock === 'object' && !Array.isArray(product.warehouseStock) ? product.warehouseStock : null,
         entries: product.warehouseStock && typeof product.warehouseStock === 'object' && !Array.isArray(product.warehouseStock) ? {...product.warehouseStock} : null}
@@ -823,6 +867,7 @@
     const rollback = () => {
       for (const snap of productSnapshots) {
         restoreObjectField(snap.product,'stock',snap.stock);
+        restoreObjectField(snap.product,'buyPrice',snap.buyPrice);
         restoreObjectField(snap.product,'warehouseStock',snap.warehouseStock);
       }
       if (party && partySnapshot) for (const key of Object.keys(partySnapshot)) restoreObjectField(party,key,partySnapshot[key]);
@@ -843,19 +888,24 @@
           state[key] = [];
         }
       }
-      for (const {product,line,nextUnits,warehouse} of stockDeltas) {
+      for (const delta of stockDeltas) {
+        const {product,line,nextUnits,warehouse,nextWacCentimes,restoredInventoryCostCentimes,inventoryBookValueCentimes,valuationVarianceCentimes} = delta;
         const nextValue = Number(nextUnits) / 1000000;
         if (warehouse === 'المخزن الرئيسي') product.stock = nextValue;
         else {
           if (!product.warehouseStock) product.warehouseStock = {};
           product.warehouseStock[warehouse] = nextValue;
         }
+        product.buyPrice = Number(nextWacCentimes) / 100;
         const stockId = movementId('STOCK');
         state.stockMovements.unshift({
           id:stockId, productId:line.productId, productName:product.name || product.title || line.productId,
           qty:(originalInvoiceType === 'sales_invoice' ? 1 : -1) * (Number(BigInt(line.quantityMicroUnits))/1000000),
           type:originalInvoiceType === 'sales_invoice' ? 'RETURN_IN' : 'RETURN_OUT',
           referenceType, referenceId:returnId, warehouse, date:createdAt,
+          restoredInventoryCostCentimes:Number(restoredInventoryCostCentimes),
+          inventoryBookValueCentimes:Number(inventoryBookValueCentimes),
+          valuationVarianceCentimes:Number(valuationVarianceCentimes),
           note:(returnType === 'INVOICE_CANCEL' ? 'عكس كامل للفاتورة ' : 'مرتجع مرتبط بالفاتورة ') + String(invoice.id)
         });
         stockMovementIds.push(stockId);
@@ -920,7 +970,16 @@
       if (returnType === 'INVOICE_CANCEL') invoice.status = 'CANCELLED';
       const doc = makeReturnDocument({
         returnId, originalInvoiceId:String(invoice.id), originalInvoiceType, returnType,
-        items:lines, totalCentimes:Number(totalCentimes),
+        items:lines.map(line => {
+          const valuation = stockDeltas.find(row => row.line.productId === line.productId);
+          if (!valuation) throw new Error('return inventory valuation is missing for a product line');
+          return {
+            ...line,
+            restoredInventoryCostCentimes:Number(valuation.restoredInventoryCostCentimes),
+            inventoryBookValueCentimes:Number(valuation.inventoryBookValueCentimes),
+            valuationVarianceCentimes:Number(valuation.valuationVarianceCentimes)
+          };
+        }), totalCentimes:Number(totalCentimes),
         debtReductionCentimes:Number(debtReduction), cashRefundCentimes:Number(cashRefund),
         supplierCreditCentimes:Number(supplierCredit), customerCreditCentimes:Number(customerCredit),
         stockMovementIds, financialMovementIds, status:'POSTED', createdAt, operatorId, reason
