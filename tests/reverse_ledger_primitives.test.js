@@ -36,6 +36,21 @@ test('return document validates exact BigInt micro-unit line totals', () => {
  const fractional=R.makeReturnDocument({...d,items:[{productId:'P-1',quantityMicroUnits:500000,unitPriceCentimes:1,lineTotalCentimes:5,originalLineTotalCentimes:30,originalQuantityMicroUnits:3000000,previouslyReturnedMicroUnits:0}],totalCentimes:5,debtReductionCentimes:5,cashRefundCentimes:0});
  assert.equal(fractional.items[0].lineTotalCentimes,5);
 });
+test('core return-document factory allocates cumulative centime rounding as 33 + 34 + 33', () => {
+ const build=(quantity,previous,lineTotal)=>R.makeReturnDocument({
+  returnId:'RET-CUM-'+previous,originalInvoiceType:'sales_invoice',originalInvoiceId:'INV-CUM',
+  returnType:'SALE_RETURN',status:'DRAFT',operatorId:'U-1',reason:'cumulative test',
+  items:[{productId:'P-1',quantityMicroUnits:quantity,unitPriceCentimes:33,lineTotalCentimes:lineTotal,
+    originalLineTotalCentimes:100,originalQuantityMicroUnits:3000000,previouslyReturnedMicroUnits:previous}],
+  totalCentimes:lineTotal,debtReductionCentimes:lineTotal,cashRefundCentimes:0,customerCreditCentimes:0,
+  supplierCreditCentimes:0,createdAt:'2026-10-31T00:00:00Z'
+ });
+ const parts=[build(1000000,0,33),build(1000000,1000000,34),build(1000000,2000000,33)];
+ assert.deepEqual(parts.map(x=>x.totalCentimes),[33,34,33]);
+ assert.equal(parts.reduce((sum,x)=>sum+x.totalCentimes,0),100);
+ assert.throws(()=>build(1000000,0,34),/cumulative centime valuation/);
+});
+
 test('returnable quantity ceiling is exact and rejects over-return', () => {
  assert.equal(R.computeReturnableMicroUnits(9007199254740990n,3000000n),9007199251740990n);
  assert.throws(()=>R.computeReturnableMicroUnits(3,4),/invalid return quantity ceiling/);
