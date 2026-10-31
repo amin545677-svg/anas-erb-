@@ -2149,6 +2149,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="font-size:12px;color:#475569;margin-bottom:10px;">يطبع آخر فاتورة محفوظة بتنسيق A4 مع بيانات المؤسسة والزبون والأصناف والمبالغ.</div>
                 <button class="btn-full-submit" style="margin:0;background:#1d4ed8;" onclick="printLatestLegalCustomerInvoice()">📄 إصدار / طباعة الفاتورة القانونية</button>
             </div>
+            <input id="invoiceListSearch" type="search" class="field-input" placeholder="ابحث برقم الفاتورة أو العميل أو التاريخ أو المبلغ..." aria-label="البحث في فواتير المبيعات" oninput="renderInvoicesList()" style="margin-top:10px;width:100%;">
+            <div id="invoiceListFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="invoicesListContainer" style="margin-top:10px;"></div>
         </section>
         <!-- إدارة حركة الشاحنات والحمولات - محفوظة محلياً -->
@@ -4709,12 +4711,27 @@ function renderPurchasesTable() {
             const cont = document.getElementById('invoicesListContainer');
             if (!cont) return;
             cont.innerHTML = '';
-            const invoices = Array.isArray(AppData.invoices) ? AppData.invoices.slice().reverse() : [];
-            if (!invoices.length) {
+            const allInvoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
+            const invoices = allInvoices.slice().reverse();
+            const query = anasNormalizeQueryText(document.getElementById('invoiceListSearch')?.value || '');
+            const filteredInvoices = invoices.filter(inv => anasQueryMatches([
+                inv.id, inv.customer, inv.date, inv.createdAt, inv.invoiceDate, inv.total,
+                inv.paid, inv.remaining, inv.paymentMethod, inv.status
+            ], query));
+            const filterStatus = document.getElementById('invoiceListFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredInvoices.length + ' من ' + allInvoices.length + ' فاتورة.'
+                : 'إجمالي الفواتير: ' + allInvoices.length + '.';
+            if (!allInvoices.length || !filteredInvoices.length) {
                 const empty = document.createElement('div'); empty.className='menu-action-card'; empty.style.cssText='display:block;text-align:center;padding:22px;color:#64748b';
-                empty.innerHTML = '<div style="font-size:32px">🧾</div><strong>لا توجد فواتير مبيعات محفوظة حتى الآن</strong><p style="margin:8px 0 0;font-size:13px">بعد تسجيل فاتورة وحفظها، ستظهر هنا تلقائيًا.</p>';
-                const create = document.createElement('button'); create.className='btn-pos-hasib'; create.style.marginTop='12px'; create.textContent='إنشاء فاتورة جديدة'; create.addEventListener('click', () => openView('pos'));
-                empty.appendChild(create); cont.appendChild(empty); return;
+                empty.innerHTML = !allInvoices.length
+                    ? '<div style="font-size:32px">🧾</div><strong>لا توجد فواتير مبيعات محفوظة حتى الآن</strong><p style="margin:8px 0 0;font-size:13px">بعد تسجيل فاتورة وحفظها، ستظهر هنا تلقائيًا.</p>'
+                    : '<div style="font-size:28px">🔎</div><strong>لا توجد فواتير مطابقة</strong><p style="margin:8px 0 0;font-size:13px">غيّر كلمات البحث أو امسحها لعرض جميع الفواتير.</p>';
+                if (!allInvoices.length) {
+                    const create = document.createElement('button'); create.className='btn-pos-hasib'; create.style.marginTop='12px'; create.textContent='إنشاء فاتورة جديدة'; create.addEventListener('click', () => openView('pos'));
+                    empty.appendChild(create);
+                }
+                cont.appendChild(empty); return;
             }
             const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
             invoices.forEach(inv => {
@@ -5905,12 +5922,12 @@ function renderPurchasesTable() {
             const root = document.getElementById('customReportContent');
             const status = document.getElementById('anasReportFilterStatus');
             if (!root) return;
-            const q = String(query || '').trim().toLocaleLowerCase();
+            const q = anasNormalizeQueryText(query || '');
             const rows = Array.from(root.querySelectorAll('tbody tr'));
             let shown = 0;
             if (rows.length) {
                 rows.forEach(row => {
-                    const match = !q || (row.textContent || '').toLocaleLowerCase().includes(q);
+                    const match = anasQueryMatches([row.textContent || ''], q);
                     row.hidden = !match;
                     if (match) shown++;
                 });
@@ -5922,7 +5939,7 @@ function renderPurchasesTable() {
             const candidates = Array.from(root.querySelectorAll('[data-report-entry], .anas-report-entry'));
             if (candidates.length) {
                 candidates.forEach(node => {
-                    const match = !q || (node.textContent || '').toLocaleLowerCase().includes(q);
+                    const match = anasQueryMatches([node.textContent || ''], q);
                     node.hidden = !match;
                     if (match) shown++;
                 });
@@ -8382,7 +8399,7 @@ function renderQuickSaleResults(){
  let list=(AppData.products||[]).map((p,index)=>({p,index,score:anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
   .filter(x=>anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
   .sort((a,b)=>b.score-a.score||a.index-b.index).map(x=>x.p);
- if(q && list.length===1 && String(list[0].barcode||'').toLowerCase()===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
+ if(q && list.length===1 && anasNormalizeQueryText(list[0].barcode||'')===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
  list=list.slice(0,24);
  box.innerHTML=list.length?list.map(p=>`<button class="qs-product" onclick="quickSaleAdd(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><strong>${escapeQuickText(p.name||'منتج')}</strong><span>${quickSalePrice(p).toLocaleString('fr-DZ')} د.ج</span><div class="qs-muted">المخزون: ${Number(p.stock)||0} ${escapeQuickText(p.unit||'')}</div></button>`).join(''):'<div class="qs-muted">لا توجد منتجات مطابقة. جرّب اسمًا آخر أو الباركود.</div>';
 }
