@@ -347,6 +347,21 @@
     const invoices = getInvoices(state);
     const ids = new Set();
     const postedQuantities = new Map();
+    const postedPriorByDocItem = new Map();
+    const orderedPostedDocs = docs.filter(doc => doc.status === 'POSTED')
+      .slice().sort((a,b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) ||
+        String(a.returnId || '').localeCompare(String(b.returnId || '')));
+    const runningPostedQuantities = new Map();
+    for (const posted of orderedPostedDocs) {
+      for (const item of (Array.isArray(posted.items) ? posted.items : [])) {
+        const key = posted.originalInvoiceType + ':' + posted.originalInvoiceId + ':' + String(item.productId);
+        const docItemKey = String(posted.returnId) + ':' + String(item.productId);
+        const previous = runningPostedQuantities.get(key) || 0n;
+        postedPriorByDocItem.set(docItemKey, previous);
+        const quantity = BigInt(safeInt(item.quantityMicroUnits, 'return quantity', false));
+        runningPostedQuantities.set(key, previous + quantity);
+      }
+    }
     const stockRows = state.stockMovements || [];
     const cashRows = state.cashMovements || [];
     const clientRows = state.clientMovements || [];
@@ -410,6 +425,11 @@
         const originalLineTotalCentimes = BigInt(safeInt(item.originalLineTotalCentimes, 'original line total centimes', true));
         const originalQuantityMicroUnits = BigInt(safeInt(item.originalQuantityMicroUnits, 'original quantity micro-units', false));
         const previouslyReturnedMicroUnits = BigInt(safeInt(item.previouslyReturnedMicroUnits ?? 0, 'previously returned micro-units', true));
+        const expectedPreviouslyReturned = doc.status === 'POSTED'
+          ? (postedPriorByDocItem.get(String(doc.returnId) + ':' + productId) ?? 0n)
+          : (postedQuantities.get(key) || 0n);
+        if (previouslyReturnedMicroUnits !== expectedPreviouslyReturned)
+          throw new Error('return cumulative basis does not match prior posted return quantities');
         if (originalQuantityMicroUnits !== originalQty || originalLineTotalCentimes !== originalLineTotal)
           throw new Error('return valuation basis does not match the original invoice line');
         const expectedLine = cumulativeDeltaCentimes(
