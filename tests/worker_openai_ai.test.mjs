@@ -172,7 +172,7 @@ test("oversized request stream is cancelled as soon as it crosses the byte limit
   try {
     const response = await worker.fetch(new Request("https://worker.test/", {
       method: "POST",
-      headers: { Origin: allowedOrigin, "Content-Type": "application/json" },
+      headers: { Origin: allowedOrigin, "Content-Type": "application/json", Authorization: "Bearer " + firebaseToken() },
       body,
       duplex: "half"
     }), { OPENAI_API_KEY: "test-secret" });
