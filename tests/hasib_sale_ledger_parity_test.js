@@ -10,7 +10,12 @@ const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function confirmHasibPayment()');
 const end = html.indexOf('\n        function printLastConfirmedInvoice(type)', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
-const source = helperSource + html.slice(start, end);
+const purchaseHelperStart = html.indexOf('function anasPurchaseToScaledInteger');
+const purchaseHelperEnd = html.indexOf('function anasPurchaseLineTotalForRecordCents', purchaseHelperStart);
+assert.ok(purchaseHelperStart >= 0 && purchaseHelperEnd > purchaseHelperStart,
+  'purchase centime helpers must be present and isolatable');
+const purchaseHelperSource = html.slice(purchaseHelperStart, purchaseHelperEnd);
+const source = helperSource + purchaseHelperSource + html.slice(start, end);
 
 function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, doubleConfirm = false} = {}) {
   const product = {id:'P-1', name:'Test product', stock:productStock, warehouseStock:{'فرع 1':12}};
@@ -30,6 +35,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   };
   const context = {
     AppData, posCart, lastConfirmedInvoice:null,
+    ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
     document:{getElementById:id=>elements[id] || null},
     wtTryEnsureData:()=>true,
     wtCurrentSaleWarehouse:()=>warehouse,
@@ -55,6 +61,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   assert.equal(r.AppData.invoices.length,1);
   const inv=r.AppData.invoices[0];
   assert.equal(inv.total,500.5);
+  assert.equal(inv.invoiceLedgerVersion,2,'new undiscounted sale invoices must be eligible for the v2 reverse-ledger policy');
   assert.equal(inv.paid,500.5);
   assert.equal(r.AppData.cashMovements.length,1,'cash sale must create exactly one independent cash ledger movement');
   assert.equal(r.AppData.cashMovements[0].amount,500.5);
@@ -374,14 +381,37 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const cancelStart=html.indexOf('function cancelInvoicePrompt()');
-  const cancelEnd=html.indexOf('\n        function ',cancelStart+20);
-  assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'invoice cancellation guard must be present');
+  const executeStart=html.indexOf('function anasExecuteReversePosting(');
+  const executeEnd=html.indexOf('\n        function cancelInvoicePrompt()',executeStart);
+  assert.ok(executeStart>=0&&executeEnd>executeStart,'reverse posting entry point must be present and isolatable');
+  for (const name of ['returnSalePrompt','returnPurchasePrompt','cancelInvoicePrompt']) {
+    const fnStart=html.indexOf('function '+name+'()');
+    const fnEnd=html.indexOf('\n        function ',fnStart+20);
+    assert.ok(fnStart>=0&&fnEnd>fnStart,'missing reverse UI handler: '+name);
+    assert.ok(html.slice(fnStart,fnEnd).includes('anasExecuteReversePosting('),
+      name+' must delegate through the single guarded reverse-posting entry point');
+  }
+  const customer={id:'C-CANCEL',name:'Customer',debt:0.20};
+  const invoice={id:'INV-CANCEL',customerId:'C-CANCEL',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
+    items:[{id:'P-CANCEL',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'};
+  const AppData={customers:[customer],suppliers:[],invoices:[invoice],purchases:[],
+    products:[{id:'P-CANCEL',name:'Tea',stock:0}],
+    cashMovements:[{id:'SALE-CASH-CANCEL',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
+    stockMovements:[{id:'SALE-STOCK-CANCEL',productId:'P-CANCEL',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
+    clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
+    caisseBalance:1,currentUser:{id:'U-CANCEL'}};
+  const before=JSON.stringify(AppData);
   const alerts=[];
-  const cancelContext={alert:m=>alerts.push(String(m))};
+  let localEngineCalls=0;
+  const cancelContext={AppData,ANASReverseLedger:{executeReturnTransaction(){localEngineCalls++;throw new Error('local engine must not run');}},
+    alert:m=>alerts.push(String(m))};
   vm.createContext(cancelContext);
-  vm.runInContext(html.slice(cancelStart,cancelEnd)+'\ncancelInvoicePrompt();',cancelContext,{timeout:1000});
-  assert.ok(alerts.some(m=>m.includes('لم تتغير أي بيانات')),
-    'invoice cancellation must fail closed rather than delete a sale without compensating ledger entries');
-  console.log('PASS: invoice cancellation remains blocked until an atomic compensating transaction exists');
+  vm.runInContext(html.slice(executeStart,executeEnd)+'\nglobalThis.__cancelResult = anasExecuteReversePosting({returnType:"INVOICE_CANCEL"});',
+    cancelContext,{timeout:1500});
+  assert.equal(cancelContext.__cancelResult,null,'missing server gateway must block the reversal');
+  assert.equal(localEngineCalls,0,'browser-local financial engine must never execute a reverse posting');
+  assert.equal(JSON.stringify(AppData),before,'blocked reverse posting must not mutate invoice, debt, stock, cash or ledgers');
+  assert.ok(alerts.some(m=>m.includes('لا توجد بوابة ترحيل خادمية موثوقة')),
+    'the operator must receive an explicit server-authorization block reason');
+  console.log('PASS: reverse posting fails closed without a trusted server gateway and preserves all local state');
 }

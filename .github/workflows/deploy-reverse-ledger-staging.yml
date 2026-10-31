@@ -1,0 +1,103 @@
+name: Deploy ANAS ERP Reverse Ledger Reservation Worker (Staging)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "feat/atomic-reverse-ledger"
+    paths:
+      - "cloudflare/worker_reverse_ledger.js"
+      - "cloudflare/wrangler-reverse-ledger-staging.toml"
+      - "tests/worker_reverse_ledger.test.mjs"
+      - "firebase/firestore.rules"
+      - "firebase/firestore.staging.rules"
+      - "firebase.staging.json"
+      - ".github/workflows/deploy-reverse-ledger-staging.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anas-erp-reverse-ledger-staging
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check Worker syntax
+        run: node --check cloudflare/worker_reverse_ledger.js
+      - name: Test Worker authentication, grants, transaction reservation and CORS
+        run: node --test tests/worker_reverse_ledger.test.mjs
+
+  deploy-staging:
+    needs: test
+    if: github.ref == 'refs/heads/feat/atomic-reverse-ledger'
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require isolated staging credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FIREBASE_STAGING_API_KEY: ${{ secrets.FIREBASE_STAGING_API_KEY }}
+          FIREBASE_STAGING_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
+        run: |
+          missing=""
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FIREBASE_STAGING_API_KEY FIREBASE_STAGING_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing dedicated staging secrets:$missing"
+            exit 1
+          fi
+          echo "All isolated staging credentials are present."
+
+      - name: Authenticate to the isolated Firebase Staging project
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
+
+      - name: Deploy only the Staging Firestore security rules
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
+
+      - name: Deploy only the staging reservation Worker and configure secrets
+        working-directory: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FIREBASE_STAGING_API_KEY: ${{ secrets.FIREBASE_STAGING_API_KEY }}
+          FIREBASE_STAGING_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          umask 077
+          DEPLOY_LOG="$RUNNER_TEMP/reverse-ledger-staging-deploy.log"
+          printf '%s' "$FIREBASE_STAGING_API_KEY" | npx --yes wrangler@4.156.0 secret put FIREBASE_API_KEY --config wrangler-reverse-ledger-staging.toml
+          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT_JSON" | npx --yes wrangler@4.156.0 secret put FIREBASE_SERVICE_ACCOUNT_JSON --config wrangler-reverse-ledger-staging.toml
+          npx --yes wrangler@4.156.0 deploy --config wrangler-reverse-ledger-staging.toml 2>&1 | tee "$DEPLOY_LOG"
+          WORKER_URL="$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' "$DEPLOY_LOG" | tail -n 1)"
+          test -n "$WORKER_URL" || (echo "::error::Could not resolve the staging Worker URL." && exit 1)
+          echo "WORKER_URL=$WORKER_URL" >> "$GITHUB_ENV"
+          echo "Staging reservation Worker deployed; posting remains intentionally disabled."
+
+      - name: Verify live staging health and fail-closed routes
+        env:
+          WORKER_ORIGIN: https://anas-erp-staging-a25e1.web.app
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -H "Origin: $WORKER_ORIGIN" "$WORKER_URL/health" > "$RUNNER_TEMP/reverse-ledger-health.json"
+          jq -e '.ok == true and .service == "anas-erp-reverse-ledger-reservation" and .configured == true and .postingEnabled == false' "$RUNNER_TEMP/reverse-ledger-health.json"
+          STATUS="$(curl --silent --output "$RUNNER_TEMP/reverse-ledger-no-auth.json" --write-out '%{http_code}' -X POST -H "Origin: $WORKER_ORIGIN" -H "Content-Type: application/json" -d '{}' "$WORKER_URL/reserve")"
+          test "$STATUS" = "401" || (echo "::error::Unauthenticated reservation route returned $STATUS instead of 401." && exit 1)
+          STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' -H "Origin: https://attacker.invalid" "$WORKER_URL/health")"
+          test "$STATUS" = "403" || (echo "::error::Untrusted origin returned $STATUS instead of 403." && exit 1)
+          echo "PASS: live staging health, configured secrets, posting-disabled status, authentication guard and CORS guard."

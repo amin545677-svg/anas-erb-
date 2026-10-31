@@ -1,23 +1,11 @@
-name: ANAS ERP Safety Checks
+name: ANAS ERP Safety Checks (Legacy Manual Suite)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "index.html"
-      - "tests/**"
-      - "cloudflare/**"
-      - "firebase/**"
-      - ".github/workflows/anas-erp-safety-checks.yml"
-      - ".github/workflows/deploy-firebase-worker.yml"
   pull_request:
-    paths:
-      - "index.html"
-      - "tests/**"
-      - "cloudflare/**"
-      - "firebase/**"
-      - ".github/workflows/anas-erp-safety-checks.yml"
-      - ".github/workflows/deploy-firebase-worker.yml"
+  push:
+    branches:
+      - main
+      - "feat/**"
   workflow_dispatch:
 
 permissions:
@@ -48,6 +36,14 @@ jobs:
         run: node tests/product_delete_stock_guard_test.js
       - name: Test POS cart persistence rollback
         run: node tests/pos_cart_persistence_rollback_test.js
+      - name: Test reverse-ledger schemas and allocation invariants
+        run: node --test tests/reverse_ledger_primitives.test.js
+      - name: Test cumulative and WAC reverse-ledger valuation
+        run: node --test tests/reverse_ledger_valuation.test.js
+      - name: Check trusted reverse-ledger reservation Worker syntax
+        run: node --check cloudflare/worker_reverse_ledger.js
+      - name: Test trusted reverse-ledger reservation Worker security
+        run: node --test tests/worker_reverse_ledger.test.mjs
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
@@ -78,10 +74,10 @@ jobs:
               "invoice reset handler keeps safety guard": any("تنبيه أمني" in body and "إلغاء المسح الشامل" in body for body in function_bodies("autoResetAllInvoicesNow")),
               "legacy destructive purchase handler is not active under the UI name": len(function_bodies("old_clearAllPurchaseInvoices")) == 1,
               "legacy destructive reset handler is not active under the UI name": len(function_bodies("old_autoResetAllInvoicesNow")) == 1,
-              "invoice cancellation is guarded": len(function_bodies("cancelInvoicePrompt")) == 1 and "لم تتغير أي بيانات" in function_bodies("cancelInvoicePrompt")[0],
+              "invoice cancellation routes through fail-closed server gateway": len(function_bodies("cancelInvoicePrompt")) == 1 and "anasExecuteReversePosting" in function_source("cancelInvoicePrompt") and "returnType:'INVOICE_CANCEL'" in function_source("cancelInvoicePrompt") and "request.reason" in function_source("cancelInvoicePrompt"),
               "legacy destructive cancellation is renamed": len(function_bodies("old_cancelInvoicePrompt")) == 1,
-              "sales return does not falsely claim posting": len(function_bodies("returnSalePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnSalePrompt")[0],
-              "purchase return does not falsely claim posting": len(function_bodies("returnPurchasePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnPurchasePrompt")[0],
+              "sales return routes through fail-closed server gateway": len(function_bodies("returnSalePrompt")) == 1 and "anasExecuteReversePosting" in function_source("returnSalePrompt") and "returnType:'SALE_RETURN'" in function_source("returnSalePrompt") and "originalInvoiceType:'sales_invoice'" in function_source("returnSalePrompt"),
+              "purchase return routes through fail-closed server gateway": len(function_bodies("returnPurchasePrompt")) == 1 and "anasExecuteReversePosting" in function_source("returnPurchasePrompt") and "returnType:'PURCHASE_RETURN'" in function_source("returnPurchasePrompt") and "originalInvoiceType:'purchase_invoice'" in function_source("returnPurchasePrompt"),
               "legacy sales return prompt is renamed": len(function_bodies("old_returnSalePrompt")) == 1,
               "legacy purchase return prompt is renamed": len(function_bodies("old_returnPurchasePrompt")) == 1,
               "only one active quick-product renderer": len(function_bodies("renderQuickProducts")) == 1,
@@ -931,125 +927,7 @@ jobs:
           print("Document center capabilities and explicit-send guard passed")
           PY
       - name: Exercise customer debt settlement and cash rollback with mocks
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          s = Path("index.html").read_text(encoding="utf-8")
-          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
-          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
-          start = s.find("function collectCustDebt(cId)")
-          end = s.find("function openGoogleMaps(loc)", start)
-          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
-          assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
-          function_js = s[helper_start:helper_end] + s[start:end]
-          js = r"""
-          /*INSERT_CUSTOMER_DEBT_FUNCTION*/
-          const assert = require('node:assert/strict');
-          global.alert = () => {};
-          global.renderCustomersDebts = () => {};
-          global.updateCashUI = () => {};
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50, currentUser: { id: 'u1', name: 'Admin' } };
-          global.prompt = () => '40';
-          global.saveDB = () => true;
-          collectCustDebt('c1');
-          assert.equal(AppData.customers[0].debt, 60, 'successful collection reduces customer debt');
-          assert.equal(AppData.caisseBalance, 90, 'successful collection increases cash');
-          assert.equal(AppData.cashMovements.length, 1, 'successful collection creates a cash ledger entry');
-          assert.equal(AppData.cashMovements[0].amount, 40);
-          assert.equal(AppData.cashMovements[0].referenceType, 'customer_debt');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
-          global.prompt = () => '40';
-          global.saveDB = () => false;
-          collectCustDebt('c1');
-          assert.equal(AppData.customers[0].debt, 100, 'failed save restores customer debt');
-          assert.equal(AppData.caisseBalance, 50, 'failed save restores cash balance');
-          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'failed save removes a newly created ledger');
-
-          // Failed persistence must restore original representations, not coerce legacy numeric strings.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: '100' }], caisseBalance: '50' };
-          global.prompt = () => '40';
-          global.saveDB = () => false;
-          collectCustDebt('c1');
-          assert.equal(AppData.customers[0].debt, '100', 'failed save must restore exact original debt value and type');
-          assert.equal(AppData.caisseBalance, '50', 'failed save must restore exact original cash value and type');
-          assert.equal(typeof AppData.customers[0].debt, 'string');
-          assert.equal(typeof AppData.caisseBalance, 'string');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }] };
-          global.prompt = () => '40';
-          global.saveDB = () => false;
-          collectCustDebt('c1');
-          assert.equal(Object.hasOwn(AppData, 'caisseBalance'), false, 'failed save must not leave a new cash balance property');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
-          global.prompt = () => '101';
-          let saveCalled = false;
-          global.saveDB = () => { saveCalled = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(saveCalled, false, 'invalid amount must not be persisted');
-          assert.equal(AppData.customers[0].debt, 100);
-          assert.equal(AppData.caisseBalance, 50);
-          // Duplicate customer IDs must never credit one arbitrary customer's account.
-          global.AppData = { customers: [{ id: 'dup', name: 'A', debt: 20 }, { id: 'dup', name: 'B', debt: 30 }], caisseBalance: 5 };
-          global.prompt = () => '10';
-          let duplicateSave = false;
-          global.saveDB = () => { duplicateSave = true; return true; };
-          collectCustDebt('dup');
-          assert.equal(duplicateSave, false, 'duplicate customer IDs must be rejected before persistence');
-          assert.deepEqual(AppData.customers.map(x => x.debt), [20, 30]);
-          assert.equal(AppData.caisseBalance, 5);
-
-          // Malformed persisted cash values and ledgers must fail closed, not normalize to zero or erase history.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 'not-a-number', cashMovements: [] };
-          let malformedBalanceSave = false;
-          global.saveDB = () => { malformedBalanceSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(malformedBalanceSave, false, 'malformed cash balance must block debt collection');
-          assert.equal(AppData.customers[0].debt, 100);
-
-          for (const invalidBalance of [true, [5]]) {
-            global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: invalidBalance, cashMovements: [] };
-            let coercedBalanceSave = false;
-            global.saveDB = () => { coercedBalanceSave = true; return true; };
-            collectCustDebt('c1');
-            assert.equal(coercedBalanceSave, false, 'boolean/array cash balances must block debt collection');
-            assert.equal(AppData.customers[0].debt, 100, 'invalid cash balance must not change customer debt');
-            assert.deepEqual(AppData.cashMovements, [], 'invalid cash balance must not create a ledger entry');
-            assert.deepEqual(AppData.caisseBalance, invalidBalance, 'invalid cash balance must remain untouched');
-          }
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 5, cashMovements: [{ id: 'legacy' }, null] };
-          let malformedLedgerSave = false;
-          global.saveDB = () => { malformedLedgerSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(malformedLedgerSave, false, 'malformed cash movement ledger must block debt collection');
-          assert.equal(AppData.cashMovements[1], null, 'existing malformed history must not be silently overwritten');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: Number.MAX_SAFE_INTEGER };
-          global.prompt = () => '1';
-          let unsafeDebtSave = false;
-          global.saveDB = () => { unsafeDebtSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(unsafeDebtSave, false, 'unsafe cash arithmetic must block debt collection');
-          assert.equal(AppData.customers[0].debt, 100);
-          assert.equal(AppData.caisseBalance, Number.MAX_SAFE_INTEGER);
-          // A finite but unsafe customer debt can make a small subtraction silently lose precision.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 1e16 }], caisseBalance: 5 };
-          global.prompt = () => '1';
-          let unsafeCustomerDebtSave = false;
-          global.saveDB = () => { unsafeCustomerDebtSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(unsafeCustomerDebtSave, false, 'unsafe customer debt must be rejected before persistence');
-          assert.equal(AppData.customers[0].debt, 1e16, 'unsafe customer debt must remain unchanged');
-          assert.equal(AppData.caisseBalance, 5, 'cash must not change when customer debt is unsafe');
-          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'unsafe customer debt must not create a cash ledger entry');
-          console.log('Customer debt settlement tests passed: ledger entry, rollback, invalid amount, and unsafe debt guards');
-          """
-          js = js.replace("/*INSERT_CUSTOMER_DEBT_FUNCTION*/", function_js)
-          Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
-          PY
-          node /tmp/anas-customer-debt-test.js
+        run: node tests/customer_debt_collection_guard_test.js
       - name: Exercise supplier save validation and rollback
         run: |
           python - <<'PY'
@@ -1760,7 +1638,13 @@ jobs:
           assert config.get("firestore", {}).get("rules") == "firebase/firestore.rules", "firebase.json does not point to Firestore rules"
           assert "request.auth != null" in rules, "Firestore rules must require authentication"
           assert "request.auth.uid == userId" in rules, "Firestore rules must restrict snapshots to their owner"
-          print("Firestore rules configuration and owner-only access checks passed")
+          for collection in ["reverseLedgerGrants", "financialPeriods", "reverseLedgerOperations", "reverseLedgerState", "reverseLedgerEntries"]:
+              block_start = rules.find("match /users/{userId}/" + collection + "/")
+              assert block_start >= 0, "Missing server-authoritative Firestore rule for " + collection
+              block_end = rules.find("\\n    }", block_start)
+              block = rules[block_start:block_end]
+              assert "allow read, write: if false;" in block, collection + " must deny browser reads and writes"
+          print("Firestore rules preserve owner-only snapshots and deny client access to authoritative reverse-ledger collections")
           PY
 
       - name: Exercise truck custody settlement and rollback with mocks
@@ -2470,6 +2354,9 @@ jobs:
           const data={invoices:[{id:'INV-1',total:100}],purchases:[{id:'PUR-1',total:50}]};
           const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
             saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
+            anasReverseInvoiceChoices:()=>[{id:'INV-1'}],
+            anasReadReversePrompt:()=>({invoiceType:'sales_invoice',invoiceId:'INV-1',reason:'regression test',items:[],settlementMode:'credit'}),
+            anasExecuteReversePosting:()=>{alerts.push('safe server gateway guard');return null;},
             document:{getElementById:()=>({classList:{contains:()=>true}})}};
           vm.runInNewContext(Object.values(sources).join('\n')+
             '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);

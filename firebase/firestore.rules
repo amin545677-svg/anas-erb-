@@ -2,10 +2,41 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each signed-in user can access only their own ANAS ERP snapshots.
+    // User-owned snapshots remain a backup/sync surface, not the authority for
+    // reverse financial postings.
     match /users/{userId}/snapshots/{snapshotId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
+    }
+
+    // Top-level control-plane documents used by the trusted reverse-ledger Worker.
+    // This is the deployed rules file referenced by firebase.json.
+    match /reverseLedgerGrants/{uid} {
+      allow read, write: if false;
+    }
+    match /financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
+    }
+
+    // These collections are server-authoritative. Service-account access
+    // bypasses Firestore Rules; browser clients never read or write them.
+    match /users/{userId}/reverseLedgerGrants/{grantId} {
+      allow read, write: if false;
+    }
+    match /users/{userId}/financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /users/{userId}/reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
+    }
+    match /users/{userId}/reverseLedgerState/{stateId} {
+      allow read, write: if false;
+    }
+    match /users/{userId}/reverseLedgerEntries/{entryId} {
+      allow read, write: if false;
     }
   }
 }

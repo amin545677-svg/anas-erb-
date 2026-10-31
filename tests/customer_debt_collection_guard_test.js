@@ -21,15 +21,18 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
   const alerts = [];
   let saves = 0;
   const customer = { id: customerId, name: 'Test customer', debt };
+  const invoice = { id: 'INV-1', customerId: customerId, total: debt, paid: 0, remaining: debt };
   const appData = {
-    customers: [customer],
+    customers: [customer], invoices: [invoice],
     caisseBalance: cash,
     cashMovements: movements.map(m => ({ ...m }))
   };
+  let promptCount = 0;
   const context = {
     AppData: appData,
+    ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
     alert: message => alerts.push(String(message)),
-    prompt: () => amount,
+    prompt: () => (++promptCount === 1 ? amount : JSON.stringify([{ invoiceId: 'INV-1', amount }])) ,
     saveDB: () => { saves++; return saveResult; },
     updateCashUI() {},
     renderCustomersDebts() {},
@@ -69,7 +72,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
   const result = runCollection({ movements: [{ id: baseId, amount: 1 }], amount: '25', math: deterministicMath });
   assert.equal(result.saves, 1);
   assert.equal(result.appData.cashMovements.length, 2);
-  assert.equal(result.appData.cashMovements[1].id, baseId + '-1', 'new movement ID collision must be resolved with a suffix');
+  assert.equal(result.appData.cashMovements[0].id, baseId + '-1', 'new movement ID collision must be resolved with a suffix');
   assert.equal(new Set(result.appData.cashMovements.map(m => m.id)).size, 2);
 }
 

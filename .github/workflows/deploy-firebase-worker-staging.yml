@@ -11,6 +11,8 @@ on:
       - 'firebase/**'
       - 'firebase.staging.json'
       - 'tests/worker_firebase_snapshot*.mjs'
+      - 'tests/firebase_restore_contract_test.js'
+      - 'tests/hasib_sale_ledger_parity_test.js'
       - '.github/workflows/deploy-firebase-worker-staging.yml'
   pull_request:
     branches:
@@ -20,6 +22,8 @@ on:
       - 'firebase/**'
       - 'firebase.staging.json'
       - 'tests/worker_firebase_snapshot*.mjs'
+      - 'tests/firebase_restore_contract_test.js'
+      - 'tests/hasib_sale_ledger_parity_test.js'
       - '.github/workflows/deploy-firebase-worker-staging.yml'
 
 permissions:

@@ -11,6 +11,24 @@ const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
 const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
 
+test("staging Wrangler config is isolated from production Worker identity and origins", async () => {
+  const [staging, production] = await Promise.all([
+    readFile(resolve("cloudflare/wrangler-staging.toml"), "utf8"),
+    readFile(resolve("cloudflare/wrangler.toml"), "utf8")
+  ]);
+  assert.match(staging, /^name = "anas-erp-firebase-snapshot-staging"$/m);
+  assert.match(staging, /^FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"$/m);
+  assert.match(staging, /^ALLOWED_ORIGINS = "https:\/\/anas-erp-staging-a25e1\.web\.app,https:\/\/anas-erp-staging-a25e1\.firebaseapp\.com"$/m);
+  assert.match(staging, /^required = \["FIREBASE_API_KEY"\]$/m);
+  assert.match(production, /^name = "anas-erp-firebase-snapshot"$/m);
+  assert.match(production, /^FIREBASE_PROJECT_ID = "anas-erb"$/m);
+  assert.match(production, /^ALLOWED_ORIGINS = "https:\/\/amin545677-svg\.github\.io"$/m);
+  assert.doesNotMatch(staging, /anas-erb|amin545677-svg\.github\.io/);
+  assert.notEqual(staging.match(/^name = "([^"]+)"$/m)?.[1], production.match(/^name = "([^"]+)"$/m)?.[1]);
+  assert.notEqual(staging.match(/^FIREBASE_PROJECT_ID = "([^"]+)"$/m)?.[1], production.match(/^FIREBASE_PROJECT_ID = "([^"]+)"$/m)?.[1]);
+});
+
+
 function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = new Headers({ Origin: allowedOrigin });
   if (auth) headers.set("Authorization", "Bearer firebase-test-token");
@@ -109,6 +127,33 @@ test("malformed stock magnitudes are rejected before any Firestore write", async
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /integrity validation/i);
     assert.equal(firestoreCalls, 0, "invalid stock magnitudes must not be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("invalid historical COGS and inventory valuation magnitudes are rejected before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid valuation movement must not reach Firestore");
+  };
+  try {
+    const invalidMovements = [
+      { id: "SALE-COST-BAD", productId: "p1", qty: -1, type: "SALE_OUT",
+        originalSaleQuantityMicroUnits: 1000000, originalSaleCostCentimes: -1 },
+      { id: "RETURN-VARIANCE-BAD", productId: "p1", qty: -1, type: "RETURN_OUT",
+        inventoryBookValueCentimes: 10, valuationVarianceCentimes: Number.MAX_SAFE_INTEGER + 1 }
+    ];
+    for (const movement of invalidMovements) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST",
+        body: { data: JSON.stringify({ products: [{ id: "p1", stock: 1 }], customers: [], stockMovements: [movement] }) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "invalid valuation metadata must never be persisted");
   } finally { globalThis.fetch = oldFetch; }
 });
 

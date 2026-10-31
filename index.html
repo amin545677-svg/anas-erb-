@@ -2161,6 +2161,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         </div>
 
         <div class="drawer-cat-heading">معالجات متقدمة</div>
+        <div class="drawer-nav-row" onclick="closeDrawer(); openSettlementAllocationModal();"><span class="row-icon">⇄</span> تخصيص دفعات العملاء والموردين</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('invoices-list');"><span class="row-icon">✏️</span> تعديل فاتورة مبيعات</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('purchases');"><span class="row-icon">✏️</span> تعديل فاتورة مشتريات</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); cancelInvoicePrompt();"><span class="row-icon">✕</span> الغاء فاتورة مبيعات / مشتريات</div>
@@ -2520,6 +2521,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
     <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="./reverse-ledger/reverse-ledger.js"></script>
 <script>
         // Escape untrusted values before inserting them into HTML templates.
         function anasEscapeHTML(value) {
@@ -2540,6 +2542,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             customers: [],
             suppliers: [],
             supplierMovements: [],
+            clientMovements: [],
+            settlementAllocations: [],
+            returns: [],
             posScreensCarts: { 1: [], 2: [], 3: [], 4: [], 'quote': [] },
             purchases: [],
             invoices: [],
@@ -2556,7 +2561,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             AppData = saved ? JSON.parse(saved) : initialDB;
             if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
             // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
-            ['products','customers','suppliers','supplierMovements','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
+            ['products','customers','suppliers','supplierMovements','clientMovements','settlementAllocations','returns','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
                 if (!Object.prototype.hasOwnProperty.call(AppData, k)) {
                     AppData[k] = Array.isArray(initialDB[k]) ? initialDB[k] : [];
                 } else if (!Array.isArray(AppData[k])) {
@@ -2754,6 +2759,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 nextCarts = currentCarts ? { ...currentCarts } : {};
                 nextCarts[AppData.activePosScreenTab] = posCart;
                 const snapshot = { ...AppData, posScreensCarts: nextCarts };
+                if (typeof window !== 'undefined') {
+                    if (!globalThis.ANASReverseLedger || typeof globalThis.ANASReverseLedger.validateReverseLedgerParity !== 'function')
+                        throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُوقف الحفظ لحماية البيانات.');
+                    globalThis.ANASReverseLedger.validateReverseLedgerParity(snapshot);
+                }
                 serialized = JSON.stringify(snapshot);
                 localStorage.setItem(ANAS_DB_KEY, serialized);
             } catch (e) {
@@ -3696,10 +3706,46 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
                 paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
+                invoiceLedgerVersion: discountCents === 0 ? 2 : 1,
                 oldDebt, newDebt
             };
 
+            let immediateCashMovementId = null;
+            const hadClientMovements = Object.prototype.hasOwnProperty.call(AppData, 'clientMovements');
+            const clientMovementsBefore = hadClientMovements
+                ? (Array.isArray(AppData.clientMovements) ? AppData.clientMovements.slice() : AppData.clientMovements) : null;
+            const hadSettlementAllocations = Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations');
+            const settlementAllocationsBefore = hadSettlementAllocations
+                ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
+            const hadCustomerLedgerVersion = registeredCustomer && Object.prototype.hasOwnProperty.call(cust, 'ledgerVersion');
+            const oldCustomerLedgerVersion = registeredCustomer ? cust.ledgerVersion : undefined;
             try {
+                if (registeredCustomer && (remainingCents > 0 || oldDebtCents > 0 || paidCents > 0)) {
+                    if (!Array.isArray(AppData.clientMovements)) {
+                        if (Object.prototype.hasOwnProperty.call(AppData, 'clientMovements')) throw new Error('دفتر حركات العملاء تالف.');
+                        AppData.clientMovements = [];
+                    }
+                    if (!Array.isArray(AppData.settlementAllocations)) {
+                        if (Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations')) throw new Error('دفتر تخصيص الدفعات تالف.');
+                        AppData.settlementAllocations = [];
+                    }
+                    const existingClientRows = AppData.clientMovements.filter(row => row && String(row.clientId) === String(cust.id));
+                    if (cust.ledgerVersion !== 2) {
+                        if (existingClientRows.length) throw new Error('يوجد دفتر عميل سابق غير مختوم؛ يلزم تدقيقه قبل البيع الآجل.');
+                        cust.ledgerVersion = 2;
+                        if (oldDebtCents > 0) {
+                            const opening = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
+                                movementId: 'CL-OPEN-' + String(cust.id) + '-' + Date.now().toString(36),
+                                clientId: String(cust.id), type: 'opening_balance', amountCentimes: oldDebtCents,
+                                direction: 'debit', referenceType: 'opening_balance', referenceId: String(cust.id),
+                                createdAt: new Date().toISOString()
+                            });
+                            AppData.clientMovements.push(opening);
+                        }
+                    } else {
+                        globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
+                    }
+                }
                 if (remainingCents > 0 && registeredCustomer) {
                     cust.debt = newDebt;
                     cust.debtDate = new Date().toISOString().slice(0, 10);
@@ -3720,6 +3766,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
                     const cashMovementId = 'SALE-CASH-' + invObj.id;
                     if (existingCashMovementIds.has(cashMovementId)) throw new Error('معرّف حركة الصندوق موجود مسبقًا.');
+                    immediateCashMovementId = cashMovementId;
                     AppData.cashMovements.unshift({
                         id: cashMovementId, type: 'add', amount: anasCentsToCurrency(paidCents),
                         description: 'تحصيل نقدي من فاتورة البيع ' + invObj.id,
@@ -3734,17 +3781,45 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     const product = saleProducts.get(id);
                     const movementId = 'SALE-STOCK-' + invObj.id + '-' + id;
                     if (existingStockMovementIds.has(movementId)) throw new Error('معرّف حركة المخزون موجود مسبقًا.');
+                    const saleUnitCostCentimes = anasToCents(product.buyPrice);
+                    let originalSaleCostCentimes = null;
+                    if (Number.isSafeInteger(qtyUnits) && qtyUnits > 0 && Number.isSafeInteger(saleUnitCostCentimes) && saleUnitCostCentimes >= 0) {
+                        const saleCostProduct = BigInt(qtyUnits) * BigInt(saleUnitCostCentimes);
+                        const roundedSaleCost = (saleCostProduct + 500000n) / 1000000n;
+                        if (roundedSaleCost <= BigInt(Number.MAX_SAFE_INTEGER)) originalSaleCostCentimes = Number(roundedSaleCost);
+                    }
                     AppData.stockMovements.unshift({
                         id: movementId, productId: product.id,
                         productName: product.name || product.title || id,
                         qty: anasQtyFromUnits(-qtyUnits), type: 'SALE_OUT',
                         referenceType: 'sales_invoice', referenceId: invObj.id,
+                        originalSaleQuantityMicroUnits: qtyUnits,
+                        originalSaleCostCentimes,
                         warehouse: saleWarehouse, date: new Date().toISOString(),
                         note: 'بيع من الفاتورة ' + invObj.id
                     });
                 }
                 AppData.invoices = oldInvoices;
                 AppData.invoices.unshift(invObj);
+                if (registeredCustomer && remainingCents > 0) {
+                    const debit = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
+                        movementId: 'CL-INV-' + invObj.id, clientId: String(cust.id),
+                        type: 'invoice_debit', amountCentimes: remainingCents, direction: 'debit',
+                        referenceType: 'sales_invoice', referenceId: String(invObj.id),
+                        createdAt: new Date().toISOString()
+                    });
+                    AppData.clientMovements.push(debit);
+                }
+                if (registeredCustomer && paidCents > 0) {
+                    if (!immediateCashMovementId) throw new Error('حركة قبض الفاتورة غير موجودة.');
+                    const allocation = globalThis.ANASReverseLedger.sealSettlementAllocation(AppData, {
+                        allocationId: 'ALLOC-SALE-' + invObj.id, partyType: 'customer',
+                        partyId: String(cust.id), invoiceType: 'sales_invoice', invoiceId: String(invObj.id),
+                        sourceMovementId: immediateCashMovementId, sourceMovementType: 'sales_invoice',
+                        amountCentimes: paidCents, createdAt: new Date().toISOString()
+                    });
+                    AppData.settlementAllocations.push(allocation);
+                }
                 // Empty the cart before persistence so a repeated click cannot post the same sale twice.
                 posCart = [];
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
@@ -3761,14 +3836,25 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (registeredCustomer) {
                     if (hasDebtField) cust.debt = rawDebt; else delete cust.debt;
                     if (hadDebtDate) cust.debtDate = oldDebtDate; else delete cust.debtDate;
+                    if (hadCustomerLedgerVersion) cust.ledgerVersion = oldCustomerLedgerVersion;
+                    else delete cust.ledgerVersion;
                 }
                 if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;
                 if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
                 if (hadStockMovements) AppData.stockMovements = stockMovementsBefore; else delete AppData.stockMovements;
                 AppData.invoices = invoicesBefore;
                 if (!hadInvoicesArray) delete AppData.invoices;
+                if (hadClientMovements) AppData.clientMovements = clientMovementsBefore;
+                else delete AppData.clientMovements;
+                if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore;
+                else delete AppData.settlementAllocations;
                 posCart = oldCart;
-                alert('لم يتم تأكيد البيع لأن الحفظ فشل. أُعيدت تغييرات المخزون والحسابات والسلة داخل التطبيق. لا تغلق التطبيق قبل تصدير نسخة احتياطية.');
+                try {
+                    if (typeof updateCashUI === 'function') updateCashUI();
+                    if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
+                    if (typeof renderPosTable === 'function') renderPosTable();
+                } catch (_) {}
+                alert('لم يتم تأكيد الفاتورة لأن ختم الدفتر أو الحفظ فشل. أُعيدت الحالة والدفاتر إلى ما قبل العملية.');
                 console.error('Anas ERP invoice transaction failed:', e);
                 return;
             }
@@ -4207,6 +4293,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                         anasPurchaseToCents(cashLinks[0].amount) !== anasPurchaseToCents(movement.amount)) {
                         fail('تسديد المورد غير مرتبط بحركة صندوق مطابقة');
                     }
+                } else if (movement.type === 'return_credit') {
+                    const returnDocs = (incoming.returns || []).filter(doc =>
+                        doc && doc.ledgerVersion === 2 && doc.status === 'POSTED' &&
+                        ['purchase_return','invoice_cancel'].includes(referenceType) &&
+                        (doc.returnType === 'PURCHASE_RETURN' || doc.returnType === 'INVOICE_CANCEL') &&
+                        String(doc.returnId) === referenceId && doc.originalInvoiceType === 'purchase_invoice');
+                    const linkedPurchase = returnDocs.length === 1
+                        ? purchases.filter(row => String(row.id ?? '') === String(returnDocs[0].originalInvoiceId) &&
+                            String(row.supplierId ?? '') === String(movement.supplierId ?? ''))
+                        : [];
+                    const expectedCredit = returnDocs.length === 1
+                        ? Number(returnDocs[0].debtReductionCentimes || 0) + Number(returnDocs[0].supplierCreditCentimes || 0)
+                        : NaN;
+                    if (returnDocs.length !== 1 || linkedPurchase.length !== 1 ||
+                        !Number.isSafeInteger(expectedCredit) || expectedCredit <= 0 ||
+                        anasPurchaseToCents(movement.amount) !== expectedCredit) {
+                        fail('قيد دائن لمرتجع مشتريات لا يطابق مستند المرتجع أو المورد أو قيمة التسوية');
+                    }
                 } else if (movement.type === 'opening_balance') {
                     const openingSupplierId = String(movement.supplierId ?? '');
                     if (referenceType !== 'supplier_opening_balance' ||
@@ -4401,7 +4505,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
 
                 const purchase = {
-                    ledgerVersion: 1, id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
+                    ledgerVersion: 1, invoiceLedgerVersion: 2,
+                    id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
                     name, cost: anasPurchaseCentsToCurrency(costCents), qty: anasPurchaseQtyFromUnits(qtyUnits),
                     total: anasPurchaseCentsToCurrency(totalCents), paid: anasPurchaseCentsToCurrency(paidCents),
                     remaining: anasPurchaseCentsToCurrency(remainingCents),
@@ -4769,99 +4874,195 @@ function renderPurchasesTable() {
         }
 
         function collectCustDebt(cId) {
-            if (!Array.isArray(AppData.customers)) { alert('سجل العملاء غير صالح؛ لم يتم تسجيل أي قبض.'); return; }
-            const customerMatches = AppData.customers.filter(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined && x.id !== null && String(x.id).trim() !== '' && String(x.id) === String(cId));
-            if (customerMatches.length !== 1) {
-                alert(customerMatches.length ? 'تعذر تسجيل القبض: معرّف العميل مكرر؛ أصلح السجلات قبل المتابعة.' : 'تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.');
-                return;
+            if (cId === undefined || cId === null || String(cId).trim() === '') {
+                alert('تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.'); return;
             }
-            const c = customerMatches[0];
-            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
-                ((typeof AppData.caisseBalance !== 'number' && typeof AppData.caisseBalance !== 'string') ||
-                 AppData.caisseBalance === null || AppData.caisseBalance === '' ||
-                 (typeof AppData.caisseBalance === 'string' && AppData.caisseBalance.trim() === '') ||
-                 !Number.isFinite(Number(AppData.caisseBalance)))) {
-                alert('رصيد الصندوق المخزن غير صالح؛ أُوقف القبض لحماية الحسابات.');
-                return;
+            const matches = Array.isArray(AppData.customers)
+                ? AppData.customers.filter(x => x && typeof x === 'object' && !Array.isArray(x) && x.id != null && String(x.id).trim() !== '' && String(x.id) === String(cId))
+                : [];
+            if (matches.length !== 1) { alert(matches.length ? 'معرّف العميل مكرر؛ أوقفنا القبض.' : 'تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.'); return; }
+            const customer = matches[0];
+            const previousDebtCents = anasToCents(customer.debt);
+            const cashCents = anasToCents(AppData.caisseBalance ?? 0);
+            if (!Number.isSafeInteger(previousDebtCents) || previousDebtCents <= 0 ||
+                !Number.isSafeInteger(cashCents) || cashCents < 0) {
+                alert('رصيد العميل أو الصندوق غير صالح؛ لم يتم تسجيل القبض.'); return;
             }
             if (Object.prototype.hasOwnProperty.call(AppData, 'cashMovements') &&
                 (!Array.isArray(AppData.cashMovements) || AppData.cashMovements.some(m => !m || typeof m !== 'object' || Array.isArray(m)))) {
-                alert('سجل حركات الصندوق تالف؛ أُوقف القبض دون استبدال السجل.');
-                return;
+                alert('سجل حركات الصندوق تالف؛ أُوقف القبض دون استبدال السجل.'); return;
             }
             const movementIds = new Set();
             for (const movement of (Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [])) {
-                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
-                const movementId = String(movement.id);
-                if (movementIds.has(movementId)) {
-                    alert('سجل حركات الصندوق يحتوي على معرّفات مكررة؛ أُوقف القبض لحماية التدقيق المالي. أصلح السجل قبل المتابعة.');
-                    return;
+                if (!movement || typeof movement !== 'object' || Array.isArray(movement)) {
+                    alert('سجل حركات الصندوق تالف؛ أُوقف القبض دون استبدال السجل.'); return;
                 }
-                movementIds.add(movementId);
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const id = String(movement.id);
+                if (movementIds.has(id)) {
+                    alert('سجل حركات الصندوق يحتوي على معرّفات مكررة؛ أُوقف القبض لحماية التدقيق المالي.'); return;
+                }
+                movementIds.add(id);
             }
-            const hadCustomerDebt = Object.prototype.hasOwnProperty.call(c, 'debt');
-            const previousDebtValue = c.debt;
-            const previousDebtCents = anasToCents(c.debt);
-            if (c.debt === null || c.debt === '' || (typeof c.debt === 'string' && c.debt.trim() === '') ||
-                !Number.isSafeInteger(previousDebtCents) || previousDebtCents <= 0) { alert('لا يوجد دين صالح للتحصيل لهذا العميل، أو أن رصيد الدين يتجاوز المجال الرقمي الآمن. أصلح الرصيد قبل تسجيل القبض.'); return; }
-            const previousDebt = anasCentsToCurrency(previousDebtCents);
-            const rawAmount = prompt('المبلغ المقبوض من ' + c.name + ' (المستحق: ' + previousDebt + '):', String(previousDebt));
+            if (Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations') && !Array.isArray(AppData.settlementAllocations)) {
+                alert('دفتر تخصيص الدفعات تالف؛ أُوقف القبض دون استبدال السجل.'); return;
+            }
+            const existingAllocations = Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations : [];
+            const eligible = (Array.isArray(AppData.invoices) ? AppData.invoices : []).filter(inv =>
+                inv && String(inv.customerId ?? inv.customerObj?.id ?? '') === String(customer.id));
+            const invoiceBalance = invoice => {
+                const total = anasToCents(invoice.total);
+                const paid = anasToCents(invoice.paid);
+                const originalRemaining = anasToCents(invoice.remaining);
+                if (![total, paid, originalRemaining].every(Number.isSafeInteger) ||
+                    total <= 0 || paid < 0 || originalRemaining < 0 || paid + originalRemaining !== total)
+                    throw new Error('invoice has an invalid original paid/remaining balance');
+                let priorLaterAllocations = 0;
+                for (const allocation of existingAllocations) {
+                    if (allocation && allocation.partyType === 'customer' && allocation.invoiceType === 'sales_invoice' &&
+                        String(allocation.invoiceId) === String(invoice.id) && allocation.sourceMovementType === 'customer_debt') {
+                        if (!Number.isSafeInteger(allocation.amountCentimes) || allocation.amountCentimes <= 0 ||
+                            !Number.isSafeInteger(priorLaterAllocations + allocation.amountCentimes))
+                            throw new Error('invoice has invalid prior customer settlement allocations');
+                        priorLaterAllocations += allocation.amountCentimes;
+                    }
+                }
+                const currentRemaining = total - paid - priorLaterAllocations;
+                if (currentRemaining < 0) throw new Error('invoice customer allocations exceed its outstanding amount');
+                return { total, paid, remaining: currentRemaining };
+            };
+            const choices = eligible.map(inv => {
+                try {
+                    const balance = invoiceBalance(inv);
+                    return { invoiceId: String(inv.id), total: anasCentsToCurrency(balance.total),
+                        paidAtPosting: anasCentsToCurrency(balance.paid), currentlyOutstanding: anasCentsToCurrency(balance.remaining) };
+                } catch (_) { return { invoiceId: String(inv.id), invalidBalance: true }; }
+            }).filter(row => !row.invalidBalance && row.currentlyOutstanding > 0);
+            if (!choices.length) { alert('لا توجد فواتير لهذا العميل ذات متبقٍ صالح قابل للتخصيص.'); return; }
+            const rawAmount = prompt('المبلغ المقبوض من ' + String(customer.name || customer.id) + ' (المستحق: ' +
+                anasCentsToCurrency(previousDebtCents).toFixed(2) + ' د.ج):', anasCentsToCurrency(previousDebtCents).toFixed(2));
             if (rawAmount === null) return;
-            const parsedAmount = Number(String(rawAmount).trim().replace(',', '.'));
-            const amountCents = anasToCents(parsedAmount);
-            const amt = anasCentsToCurrency(amountCents);
-            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > previousDebtCents || !Number.isFinite(amt)) {
-                alert('المبلغ غير صالح؛ أدخل مبلغاً أكبر من صفر ولا يتجاوز الدين المستحق.');
-                return;
+            const amountCents = anasToCents(String(rawAmount).trim().replace(',', '.'));
+            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > previousDebtCents ||
+                !Number.isSafeInteger(cashCents + amountCents)) {
+                alert('مبلغ القبض غير صالح أو يتجاوز الدين أو المجال المالي الآمن.'); return;
             }
-
-            const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
-            const previousCashBalanceValue = AppData.caisseBalance;
-            const previousBalanceCents = anasToCents(hadCashBalance ? previousCashBalanceValue : 0);
-            const nextBalanceCents = previousBalanceCents + amountCents;
+            const allocationPrompt = 'خصّص المبلغ يدوياً بصيغة JSON، مثال: [{"invoiceId":"INV-1","amount":"0.15"}].\n' +
+                'يجب أن يساوي مجموع التخصيصات مبلغ القبض تماماً. الفواتير المتاحة: ' + JSON.stringify(choices);
+            const rawAllocations = prompt(allocationPrompt, '');
+            if (rawAllocations === null) return;
+            let requested;
+            try { requested = JSON.parse(rawAllocations); } catch (_) { alert('صيغة التخصيص غير صحيحة؛ استخدم JSON صالحاً.'); return; }
+            if (!Array.isArray(requested) || !requested.length) { alert('يجب تحديد فاتورة واحدة على الأقل ومبلغها صراحةً.'); return; }
+            const invoiceRows = [];
+            const seenInvoices = new Set();
+            let allocatedCents = 0;
+            for (const entry of requested) {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry) || entry.invoiceId == null) {
+                    alert('يوجد سطر تخصيص غير صالح.'); return;
+                }
+                const invoiceId = String(entry.invoiceId);
+                if (seenInvoices.has(invoiceId)) { alert('لا تكرر الفاتورة في قائمة التخصيص.'); return; }
+                seenInvoices.add(invoiceId);
+                const found = eligible.filter(inv => String(inv.id) === invoiceId);
+                if (found.length !== 1) { alert('الفاتورة ' + invoiceId + ' غير موجودة أو معرّفها مكرر.'); return; }
+                const invoice = found[0];
+                let balance;
+                try { balance = invoiceBalance(invoice); }
+                catch (_) { alert('رصيد الفاتورة ' + invoiceId + ' غير صالح أو سجل تخصيصاتها غير متطابق.'); return; }
+                const amount = anasToCents(String(entry.amount ?? '').trim().replace(',', '.'));
+                if (!Number.isSafeInteger(amount) || amount <= 0 || amount > balance.remaining) {
+                    alert('تخصيص الفاتورة ' + invoiceId + ' غير صالح أو يتجاوز متبقيها الفعلي بعد التسويات السابقة.'); return;
+                }
+                if (!Number.isSafeInteger(allocatedCents + amount)) { alert('مجموع التخصيصات خارج المجال المالي الآمن.'); return; }
+                allocatedCents += amount;
+                invoiceRows.push({ invoice, invoiceId, total: balance.total, paid: balance.paid, remaining: balance.remaining, amount });
+            }
+            if (allocatedCents !== amountCents) {
+                alert('مجموع تخصيصات الفواتير يجب أن يساوي مبلغ سند القبض تماماً؛ لا يوجد توزيع تلقائي.'); return;
+            }
             const nextDebtCents = previousDebtCents - amountCents;
-            if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0 ||
-                !Number.isSafeInteger(nextBalanceCents) || nextBalanceCents > Number.MAX_SAFE_INTEGER ||
-                !Number.isSafeInteger(nextDebtCents) || nextDebtCents < 0) {
-                alert('رصيد الصندوق أو نتيجة القبض خارج المجال المالي الآمن؛ لم يتم تسجيل القبض.');
-                return;
-            }
-            const hadMovements = Array.isArray(AppData.cashMovements);
-            const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
-            c.debt = anasCentsToCurrency(nextDebtCents);
-            AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
-            if (!hadMovements) AppData.cashMovements = [];
-            const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+            const nextCashCents = cashCents + amountCents;
+            const hadDebt = Object.prototype.hasOwnProperty.call(customer, 'debt');
+            const oldDebtValue = customer.debt;
+            const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const oldCashBalance = AppData.caisseBalance;
+            const hadCashMovements = Object.prototype.hasOwnProperty.call(AppData, 'cashMovements');
+            const cashMovementsBefore = hadCashMovements ? (Array.isArray(AppData.cashMovements) ? AppData.cashMovements.slice() : AppData.cashMovements) : null;
+            const hadClientMovements = Object.prototype.hasOwnProperty.call(AppData, 'clientMovements');
+            const clientMovementsBefore = hadClientMovements ? (Array.isArray(AppData.clientMovements) ? AppData.clientMovements.slice() : AppData.clientMovements) : null;
+            const hadSettlementAllocations = Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations');
+            const settlementAllocationsBefore = hadSettlementAllocations ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
+            const hadLedgerVersion = Object.prototype.hasOwnProperty.call(customer, 'ledgerVersion');
+            const oldLedgerVersion = customer.ledgerVersion;
+            const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
             let movementId = baseMovementId;
             let movementSuffix = 1;
             while (movementIds.has(movementId)) movementId = baseMovementId + '-' + (movementSuffix++);
-            AppData.cashMovements.push({
-                id: movementId,
-                type: 'add',
-                amount: amt,
-                description: 'تحصيل دين من العميل ' + String(c.name || c.id),
-                referenceType: 'customer_debt',
-                referenceId: String(c.id),
-                date: new Date().toISOString(),
-                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
-                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
-            });
-
-            let saved = false;
-            try { saved = saveDB() === true; }
-            catch (err) { console.error('ANAS customer debt collection save failed', err); }
-            if (!saved) {
-                if (hadCustomerDebt) c.debt = previousDebtValue; else delete c.debt;
-                if (hadCashBalance) AppData.caisseBalance = previousCashBalanceValue; else delete AppData.caisseBalance;
-                if (hadMovements) AppData.cashMovements = previousMovements;
-                else delete AppData.cashMovements;
-                if (typeof updateCashUI === 'function') updateCashUI();
-                alert('تعذر حفظ قبض الدين؛ أُعيد رصيد العميل والصندوق وسجل الحركات إلى حالتهم السابقة.');
+            try {
+                if (!Array.isArray(AppData.clientMovements)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData, 'clientMovements')) throw new Error('دفتر حركات العملاء تالف.');
+                    AppData.clientMovements = [];
+                }
+                if (!Array.isArray(AppData.settlementAllocations)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations')) throw new Error('دفتر تخصيص الدفعات تالف.');
+                    AppData.settlementAllocations = [];
+                }
+                const existingRows = AppData.clientMovements.filter(row => row && String(row.clientId) === String(customer.id));
+                if (customer.ledgerVersion !== 2) {
+                    if (existingRows.length) throw new Error('دفتر العميل يحتوي على حركات غير مختومة؛ يلزم التدقيق اليدوي.');
+                    customer.ledgerVersion = 2;
+                    const opening = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
+                        movementId: 'CL-OPEN-' + String(customer.id) + '-' + Date.now().toString(36),
+                        clientId: String(customer.id), type: 'opening_balance', amountCentimes: previousDebtCents,
+                        direction: 'debit', referenceType: 'opening_balance', referenceId: String(customer.id),
+                        createdAt: new Date().toISOString()
+                    });
+                    AppData.clientMovements.push(opening);
+                } else {
+                    globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
+                }
+                customer.debt = anasCentsToCurrency(nextDebtCents);
+                AppData.caisseBalance = anasCentsToCurrency(nextCashCents);
+                if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
+                AppData.cashMovements.unshift({
+                    id: movementId, type: 'add', amount: anasCentsToCurrency(amountCents),
+                    description: 'تحصيل دين مخصص يدوياً من العميل ' + String(customer.name || customer.id),
+                    referenceType: 'customer_debt', referenceId: String(customer.id),
+                    date: new Date().toISOString(),
+                    userId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : null,
+                    userName: AppData.currentUser?.name || 'غير محدد'
+                });
+                const receipt = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
+                    movementId: 'CL-REC-' + movementId, clientId: String(customer.id), type: 'receipt',
+                    amountCentimes: amountCents, direction: 'credit', referenceType: 'customer_debt',
+                    referenceId: String(customer.id), createdAt: new Date().toISOString()
+                });
+                AppData.clientMovements.push(receipt);
+                for (const row of invoiceRows) {
+                    const allocation = globalThis.ANASReverseLedger.sealSettlementAllocation(AppData, {
+                        allocationId: 'ALLOC-' + movementId + '-' + row.invoiceId,
+                        partyType: 'customer', partyId: String(customer.id), invoiceType: 'sales_invoice',
+                        invoiceId: row.invoiceId, sourceMovementId: movementId, sourceMovementType: 'customer_debt',
+                        amountCentimes: row.amount, createdAt: new Date().toISOString()
+                    });
+                    AppData.settlementAllocations.push(allocation);
+                }
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند القبض.');
+            } catch (error) {
+                if (hadDebt) customer.debt = oldDebtValue; else delete customer.debt;
+                if (hadLedgerVersion) customer.ledgerVersion = oldLedgerVersion; else delete customer.ledgerVersion;
+                if (hadCashBalance) AppData.caisseBalance = oldCashBalance; else delete AppData.caisseBalance;
+                if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
+                if (hadClientMovements) AppData.clientMovements = clientMovementsBefore; else delete AppData.clientMovements;
+                if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore; else delete AppData.settlementAllocations;
+                try { if (typeof updateCashUI === 'function') updateCashUI(); if (typeof renderCustomersDebts === 'function') renderCustomersDebts(); } catch (_) {}
+                alert('لم يتم اعتماد القبض: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الحالة والدفاتر إلى ما قبل العملية.');
                 return;
             }
             if (typeof updateCashUI === 'function') updateCashUI();
-            renderCustomersDebts();
-            alert('تم تسجيل قبض الدين وحركة الصندوق بنجاح ✅');
+            if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
+            alert('تم تسجيل القبض وتخصيصه يدوياً للفواتير المحددة بنجاح.');
         }
         function openGoogleMaps(loc) {
             if(!loc) return;
@@ -5116,81 +5317,212 @@ function renderPurchasesTable() {
             if (matches.length !== 1) { alert(matches.length ? 'معرّف المورد مكرر؛ أوقفنا التسديد.' : 'المورد غير موجود؛ لم يتم تسجيل أي تسديد.'); return; }
             const supplier = matches[0];
             const balanceCents = anasPurchaseToCents(supplier.balance ?? 0);
-            if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0) { alert('لا يوجد رصيد مستحق صالح للتسديد لهذا المورد.'); return; }
-            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
-                (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
-                 String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)))) {
-                alert('رصيد الصندوق غير صالح؛ أوقفنا التسديد.'); return;
+            const cashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
+            if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0 ||
+                !Number.isSafeInteger(cashCents) || cashCents < 0) {
+                alert('رصيد المورد أو الصندوق غير صالح؛ لم يتم تسجيل أي تسديد.'); return;
             }
-            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين']]) {
+            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين'],['purchases','فواتير الشراء'],['settlementAllocations','دفتر تخصيص الدفعات']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData,field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(x => !x || typeof x !== 'object' || Array.isArray(x)))) {
                     alert('سجل ' + label + ' تالف؛ لم يتم تسجيل أي تسديد.'); return;
                 }
             }
-            const raw = prompt('مبلغ التسديد للمورد ' + String(supplier.name || '') + ' (المستحق: ' +
-                anasPurchaseCentsToCurrency(balanceCents).toFixed(2) + ' د.ج):', anasPurchaseCentsToCurrency(balanceCents).toFixed(2));
-            if (raw === null) return;
-            const amountCents = anasPurchaseToCents(String(raw).trim().replace(',', '.'));
-            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > balanceCents) {
-                alert('مبلغ التسديد غير صالح أو يتجاوز رصيد المورد المستحق.'); return;
+            const supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
+            const allocations = Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations : [];
+            const supplierIdText = String(supplier.id);
+            const supplierPurchases = (Array.isArray(AppData.purchases) ? AppData.purchases : [])
+                .filter(p => p && String(p.supplierId ?? p.supplier?.id ?? '') === supplierIdText);
+            if (!supplierPurchases.length) {
+                alert('لا توجد فواتير شراء مرتبطة بهذا المورد يمكن تخصيص التسديد عليها. لم تتغير أي بيانات.'); return;
             }
-            const cashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
+            // A prior supplier payment without complete invoice allocation makes invoice-level balances uncertain.
+            for (const movement of supplierMovements.filter(m =>
+                String(m.supplierId ?? '') === supplierIdText && m.type === 'payment' &&
+                String(m.referenceType || '') === 'supplier_payment')) {
+                const linked = allocations.filter(a => a && a.partyType === 'supplier' &&
+                    String(a.partyId) === supplierIdText && a.sourceMovementType === 'supplier_payment' &&
+                    String(a.sourceMovementId) === String(movement.id));
+                const allocated = linked.reduce((sum,a) => {
+                    if (!Number.isSafeInteger(a.amountCentimes) || a.amountCentimes <= 0 || !Number.isSafeInteger(sum + a.amountCentimes))
+                        return NaN;
+                    return sum + a.amountCentimes;
+                },0);
+                const source = anasPurchaseToCents(movement.amount);
+                if (!Number.isSafeInteger(source) || allocated !== source) {
+                    alert('يوجد تسديد سابق للمورد غير مخصص بالكامل لفواتير محددة؛ يلزم تسويته يدوياً قبل أي تسديد جديد.'); return;
+                }
+            }
+            const invoiceBalance = invoice => {
+                const total = anasPurchaseToCents(invoice.total);
+                const paid = anasPurchaseToCents(invoice.paid);
+                const originalRemaining = anasPurchaseToCents(invoice.remaining);
+                if (![total,paid,originalRemaining].every(Number.isSafeInteger) ||
+                    total <= 0 || paid < 0 || originalRemaining < 0 || paid + originalRemaining !== total)
+                    throw new Error('فاتورة الشراء لا تحتوي على لقطة أصلية صحيحة للمدفوع والمتبقي');
+                const later = allocations.filter(a => a && a.partyType === 'supplier' &&
+                    String(a.partyId) === supplierIdText && a.invoiceType === 'purchase_invoice' &&
+                    String(a.invoiceId) === String(invoice.id) && a.sourceMovementType === 'supplier_payment')
+                    .reduce((sum,a) => {
+                        if (!Number.isSafeInteger(a.amountCentimes) || a.amountCentimes <= 0 || !Number.isSafeInteger(sum + a.amountCentimes))
+                            throw new Error('تخصيص لاحق غير صالح في دفتر المورد');
+                        return sum + a.amountCentimes;
+                    },0);
+                const current = total - paid - later;
+                if (current < 0) throw new Error('تخصيصات المورد تتجاوز المتبقي الأصلي للفاتورة');
+                return { total, paid, remaining: current };
+            };
+            const choices = [];
+            for (const invoice of supplierPurchases) {
+                try {
+                    const balance = invoiceBalance(invoice);
+                    if (balance.remaining > 0) choices.push({
+                        invoiceId: String(invoice.id), total: anasPurchaseCentsToCurrency(balance.total),
+                        paidAtPosting: anasPurchaseCentsToCurrency(balance.paid),
+                        currentlyOutstanding: anasPurchaseCentsToCurrency(balance.remaining)
+                    });
+                } catch (error) {
+                    alert('تعذر التحقق من فاتورة المورد ' + String(invoice.id) + ': ' + (error?.message || 'رصيد غير صالح') + '. أوقفنا التسديد.');
+                    return;
+                }
+            }
+            if (!choices.length) { alert('لا توجد فواتير شراء ذات متبقٍ حالي صالح قابل للتخصيص.'); return; }
+            const rawAllocations = prompt(
+                'أدخل تخصيصات سند الصرف يدوياً بصيغة JSON. مثال: [{"invoiceId":"PUR-1","amount":"0.20"}].\n' +
+                'مجموع المبالغ هو قيمة سند الصرف، ويجب ألا يتجاوز مستحق المورد أو رصيد الصندوق. الفواتير المتاحة: ' +
+                JSON.stringify(choices), '');
+            if (rawAllocations === null) return;
+            let requested;
+            try { requested = JSON.parse(rawAllocations); }
+            catch (_) { alert('صيغة تخصيص دفعة المورد غير صحيحة؛ استخدم JSON صالحاً.'); return; }
+            if (!Array.isArray(requested) || !requested.length) {
+                alert('يجب تحديد فاتورة شراء واحدة على الأقل ومبلغها صراحةً؛ لا يوجد توزيع تلقائي.'); return;
+            }
+            const invoiceRows = [];
+            const seenInvoices = new Set();
+            let amountCents = 0;
+            for (const entry of requested) {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry) || entry.invoiceId == null) {
+                    alert('يوجد سطر تخصيص غير صالح في سند المورد.'); return;
+                }
+                const invoiceId = String(entry.invoiceId);
+                if (seenInvoices.has(invoiceId)) { alert('لا تكرر فاتورة الشراء في قائمة التخصيص.'); return; }
+                seenInvoices.add(invoiceId);
+                const found = supplierPurchases.filter(p => String(p.id) === invoiceId);
+                if (found.length !== 1) { alert('فاتورة الشراء ' + invoiceId + ' غير موجودة أو معرّفها مكرر أو لا تخص هذا المورد.'); return; }
+                let outstanding;
+                try { outstanding = invoiceBalance(found[0]); }
+                catch (error) { alert('رصيد فاتورة الشراء ' + invoiceId + ' غير صالح: ' + (error?.message || 'خطأ دفتر الموردين')); return; }
+                const cents = anasPurchaseToCents(String(entry.amount ?? '').trim().replace(',', '.'));
+                if (!Number.isSafeInteger(cents) || cents <= 0 || cents > outstanding.remaining) {
+                    alert('تخصيص الفاتورة ' + invoiceId + ' غير صالح أو يتجاوز متبقيها الفعلي بعد الدفعات السابقة.'); return;
+                }
+                if (!Number.isSafeInteger(amountCents + cents)) { alert('مجموع تخصيصات المورد خارج المجال المالي الآمن.'); return; }
+                amountCents += cents;
+                invoiceRows.push({ invoice: found[0], invoiceId, amount: cents });
+            }
+            if (amountCents <= 0 || amountCents > balanceCents) {
+                alert('مجموع التخصيصات غير صالح أو يتجاوز رصيد المورد المستحق.'); return;
+            }
+            if (amountCents > cashCents) {
+                alert('رصيد الصندوق لا يكفي لسند الصرف؛ لم يتم تنفيذ أي حركة.'); return;
+            }
             const nextCashCents = cashCents - amountCents;
             const nextSupplierCents = balanceCents - amountCents;
-            if (!Number.isSafeInteger(cashCents) || cashCents < amountCents ||
-                !Number.isSafeInteger(nextCashCents) || nextCashCents < 0 ||
+            if (!Number.isSafeInteger(nextCashCents) || nextCashCents < 0 ||
                 !Number.isSafeInteger(nextSupplierCents) || nextSupplierCents < 0) {
-                alert('رصيد الصندوق لا يكفي أو نتيجة التسديد غير صالحة؛ لم يتم تنفيذ الحركة.'); return;
+                alert('نتيجة التسديد خارج المجال المالي الآمن؛ لم يتم تنفيذ الحركة.'); return;
             }
             const movementId = 'SUP-PAY-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
             const cashId = 'SUP-CASH-' + movementId;
-            const existingIds = new Set();
-            let duplicateLedgerId = false;
-            for (const collection of [AppData.cashMovements || [], AppData.supplierMovements || []]) {
+            const usedIds = new Set();
+            for (const collection of [AppData.cashMovements || [], supplierMovements]) {
                 for (const row of collection) if (row.id != null && String(row.id).trim()) {
                     const id = String(row.id);
-                    if (existingIds.has(id)) duplicateLedgerId = true;
-                    existingIds.add(id);
+                    if (usedIds.has(id)) { alert('توجد معرّفات مكررة في دفاتر الموردين أو الصندوق؛ أوقفنا التسديد.'); return; }
+                    usedIds.add(id);
                 }
             }
-            if (duplicateLedgerId) { alert('توجد معرّفات مكررة في دفاتر الموردين أو الصندوق؛ أوقفنا التسديد حتى إصلاح السجل.'); return; }
-            if (existingIds.has(movementId) || existingIds.has(cashId)) { alert('تعارض معرّف حركة التسديد؛ أعد المحاولة بعد مراجعة السجلات.'); return; }
-            let previous;
-            try { previous = JSON.parse(JSON.stringify(AppData)); }
-            catch (_) { alert('تعذر تجهيز التراجع؛ لم يتم تغيير البيانات.'); return; }
+            if (usedIds.has(movementId) || usedIds.has(cashId) ||
+                allocations.some(a => String(a.allocationId || '') === 'ALLOC-' + movementId + '-' + invoiceRows[0].invoiceId)) {
+                alert('تعارض معرّف سند الصرف؛ أوقفنا التسديد.'); return;
+            }
+            const hadBalance = Object.prototype.hasOwnProperty.call(supplier,'balance');
+            const oldBalance = supplier.balance;
+            const hadCash = Object.prototype.hasOwnProperty.call(AppData,'caisseBalance');
+            const oldCash = AppData.caisseBalance;
+            const snapshots = {};
+            for (const key of ['supplierMovements','cashMovements','settlementAllocations']) {
+                snapshots[key] = {
+                    had: Object.prototype.hasOwnProperty.call(AppData,key),
+                    array: Array.isArray(AppData[key]) ? AppData[key] : null,
+                    rows: Array.isArray(AppData[key]) ? AppData[key].slice() : null
+                };
+            }
             try {
-                AppData.supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
-                AppData.cashMovements = Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [];
+                if (!Array.isArray(AppData.supplierMovements)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'supplierMovements')) throw new Error('دفتر الموردين تالف.');
+                    AppData.supplierMovements = [];
+                }
+                if (!Array.isArray(AppData.cashMovements)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'cashMovements')) throw new Error('دفتر الصندوق تالف.');
+                    AppData.cashMovements = [];
+                }
+                if (!Array.isArray(AppData.settlementAllocations)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'settlementAllocations')) throw new Error('دفتر تخصيص الدفعات تالف.');
+                    AppData.settlementAllocations = [];
+                }
                 supplier.balance = anasPurchaseCentsToCurrency(nextSupplierCents);
                 AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
+                const timestamp = new Date().toISOString();
                 AppData.supplierMovements.unshift({
-                    id: movementId, supplierId: String(supplier.id), supplierName: String(supplier.name || ''),
+                    id: movementId, supplierId: supplierIdText, supplierName: String(supplier.name || ''),
                     type: 'payment', amount: anasPurchaseCentsToCurrency(amountCents),
                     referenceType: 'supplier_payment', referenceId: movementId,
-                    date: new Date().toISOString(), note: 'تسديد رصيد مستحق للمورد'
+                    date: timestamp, note: 'تسديد مورد مخصص صراحةً لفواتير شراء محددة'
                 });
                 AppData.cashMovements.unshift({
                     id: cashId, type: 'subtract', amount: anasPurchaseCentsToCurrency(amountCents),
                     description: 'تسديد مستحقات المورد ' + String(supplier.name || supplier.id),
                     referenceType: 'supplier_payment', referenceId: movementId,
-                    date: new Date().toISOString(),
+                    date: timestamp,
                     userId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : null,
                     userName: AppData.currentUser?.name || 'غير محدد'
                 });
-                if (balanceCents - nextSupplierCents !== amountCents || cashCents - nextCashCents !== amountCents ||
+                if (balanceCents - nextSupplierCents !== amountCents ||
+                    cashCents - nextCashCents !== amountCents ||
                     anasPurchaseToCents(AppData.supplierMovements[0].amount) !== amountCents ||
-                    anasPurchaseToCents(AppData.cashMovements[0].amount) !== amountCents) throw new Error('فشل التطابق المالي بين المورد والصندوق.');
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
-            } catch (err) {
-                AppData = previous;
-                try { renderSuppliersDebts(); updateCashUI(); } catch (_) {}
-                alert('لم يتم اعتماد التسديد: ' + (err?.message || 'فشل الحفظ') + '. أُعيدت البيانات السابقة.');
+                    anasPurchaseToCents(AppData.cashMovements[0].amount) !== amountCents)
+                    throw new Error('فشل التطابق المالي بين المورد والصندوق.');
+                for (const row of invoiceRows) {
+                    const allocation = globalThis.ANASReverseLedger.sealSettlementAllocation(AppData, {
+                        allocationId: 'ALLOC-' + movementId + '-' + row.invoiceId,
+                        partyType: 'supplier', partyId: supplierIdText, invoiceType: 'purchase_invoice',
+                        invoiceId: row.invoiceId, sourceMovementId: movementId, sourceMovementType: 'supplier_payment',
+                        amountCentimes: row.amount, createdAt: timestamp
+                    });
+                    AppData.settlementAllocations.push(allocation);
+                }
+                globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند صرف المورد.');
+            } catch (error) {
+                if (hadBalance) supplier.balance = oldBalance; else delete supplier.balance;
+                if (hadCash) AppData.caisseBalance = oldCash; else delete AppData.caisseBalance;
+                for (const key of Object.keys(snapshots)) {
+                    const snap = snapshots[key];
+                    if (!snap.had) { delete AppData[key]; continue; }
+                    if (snap.array) {
+                        snap.array.splice(0, snap.array.length, ...snap.rows);
+                        AppData[key] = snap.array;
+                    } else AppData[key] = AppData[key];
+                }
+                try { if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
+                alert('لم يتم اعتماد التسديد: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الأرصدة والدفاتر إلى ما قبل العملية.');
                 return;
             }
-            renderSuppliersDebts();
+            if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
             if (typeof updateCashUI === 'function') updateCashUI();
-            alert('تم تسديد المورد وتحديث دفتر الموردين والصندوق بنجاح.');
+            alert('تم تسجيل سند صرف المورد وتخصيصه يدوياً لفواتير الشراء المحددة بنجاح.');
         }
 
         function openAddSupplierModal() { 
@@ -6550,7 +6882,7 @@ function renderPurchasesTable() {
             if (!w) { alert('اسمح بفتح نافذة الطباعة لهذا الملف ثم أعد المحاولة.'); return; }
             const styles = `<style>body{font-family:Arial,sans-serif;direction:rtl;padding:18px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:7px;text-align:right;font-size:12px}th{background:#eee}button,input{display:none!important} [hidden]{display:none!important}</style>`;
             w.document.open();
-            w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</title>' + styles + '</head><body><h1>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</h1>' + root.innerHTML + '</body></html>');
+            w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</title>' + styles + '</head><body><h1>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</h1>' + root.innerHTML + '<script src="./reverse-ledger/reverse-ledger-modal.js"><\/script></body></html>');
             w.document.close();
             w.focus();
             setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
@@ -6919,7 +7251,7 @@ function renderPurchasesTable() {
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
@@ -6946,6 +7278,7 @@ function renderPurchasesTable() {
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
                 ['supplierMovements', incoming.supplierMovements || [], true],
+                ['customerCreditMovements', incoming.customerCreditMovements || [], true],
                 ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
@@ -7126,6 +7459,10 @@ function renderPurchasesTable() {
                     incoming.suppliers.filter(s => String(s.id ?? '') === String(purchase.supplierId)).length !== 1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ أُلغي الاسترجاع لحماية الحسابات.');
             }
+            if (typeof window !== 'undefined') {
+                if (!globalThis.ANASReverseLedger || typeof globalThis.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُلغي الاسترجاع.');
+                globalThis.ANASReverseLedger.validateReverseLedgerParity(incoming);
+            }
             anasValidatePurchaseLedgerParity(incoming, 'cloud');
             // Keep cloud restore as strict as file-backup restore for warehouse transfer vouchers.
             for (const transfer of (incoming.warehouseTransfers || [])) {
@@ -7250,6 +7587,9 @@ function renderPurchasesTable() {
                 if (!Array.isArray(AppData.products)) AppData.products = [];
                 if (!Array.isArray(AppData.customers)) AppData.customers = [];
                 if (!Array.isArray(AppData.suppliers)) AppData.suppliers = [];
+                if (!Array.isArray(AppData.clientMovements)) AppData.clientMovements = [];
+                if (!Array.isArray(AppData.settlementAllocations)) AppData.settlementAllocations = [];
+                if (!Array.isArray(AppData.returns)) AppData.returns = [];
                 if (!Array.isArray(AppData.invoices)) AppData.invoices = [];
                 if (!Array.isArray(AppData.purchases)) AppData.purchases = [];
                 if (!Array.isArray(AppData.expenses)) AppData.expenses = [];
@@ -7296,7 +7636,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','customerCreditMovements','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
@@ -7322,6 +7662,7 @@ function renderPurchasesTable() {
                 ['warehouseTransfers', incoming.warehouseTransfers || [], false],
                 ['stockMovements', incoming.stockMovements || [], false],
                 ['supplierMovements', incoming.supplierMovements || [], true],
+                ['customerCreditMovements', incoming.customerCreditMovements || [], true],
                 ['purchases', incoming.purchases || [], false],
                 ['stocktakeRecords', incoming.stocktakeRecords || [], true]
             ];
@@ -7412,6 +7753,10 @@ function renderPurchasesTable() {
                 if (purchase.supplierId != null && String(purchase.supplierId).trim() !== '' &&
                     incoming.suppliers.filter(s=>String(s.id??'')===String(purchase.supplierId)).length!==1)
                     throw new Error('فاتورة شراء تشير إلى مورد مفقود أو مكرر؛ رُفض الاسترجاع لحماية الحسابات.');
+            }
+            if (typeof window !== 'undefined') {
+                if (!globalThis.ANASReverseLedger || typeof globalThis.ANASReverseLedger.validateReverseLedgerParity !== 'function') throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ رُفض الاسترجاع.');
+                globalThis.ANASReverseLedger.validateReverseLedgerParity(incoming);
             }
             anasValidatePurchaseLedgerParity(incoming, 'backup');
             // Preserve stock ledger integrity: movement deltas may be signed, balances may not.
@@ -7546,7 +7891,7 @@ function renderPurchasesTable() {
                     const previousFatalLoadError = anasStartupFatalLoadError;
                     AppData = incoming;
                     if (!AppData.posScreensCarts) AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
-                    for (const key of ['invoices','purchases','expenses','users','trucks','returns']) if (!Array.isArray(AppData[key])) AppData[key] = [];
+                    for (const key of ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations']) if (!Array.isArray(AppData[key])) AppData[key] = [];
                     const activeTab = AppData.activePosScreenTab || 1;
                     posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
                     // A validated restore is the explicit repair path for a corrupt startup snapshot.
@@ -8320,18 +8665,104 @@ function renderPurchasesTable() {
         function old_autoResetAllInvoicesNow() {
             autoResetAllInvoicesNow();
         }
-        function cancelInvoicePrompt() {
-            alert('تنبيه أمني: إلغاء الفاتورة غير متاح مؤقتًا؛ حذف السجل وحده قد يفسد المخزون والحسابات. لم تتغير أي بيانات.');
+        function anasReverseInvoiceChoices(invoiceType) {
+            const rows = invoiceType === 'sales_invoice'
+                ? (Array.isArray(AppData.invoices) ? AppData.invoices : [])
+                : (Array.isArray(AppData.purchases) ? AppData.purchases : []);
+            return rows.filter(row => row && row.id != null).map(row => ({
+                invoiceId: String(row.id), date: row.date || '',
+                party: invoiceType === 'sales_invoice' ? (row.customer || row.customerObj?.name || '') : (row.supplierName || ''),
+                total: row.total, paidAtPosting: row.paid, remainingAtPosting: row.remaining,
+                items: (globalThis.ANASReverseLedger.originalInvoiceItems
+                    ? globalThis.ANASReverseLedger.originalInvoiceItems(row, invoiceType) : (row.items || []))
+                    .map(item => ({ productId: String(item.productId ?? item.id ?? item.product?.id ?? ''),
+                        quantity: item.qty ?? item.quantity, unitPrice: item.price ?? item.unitPrice ?? item.cost }))
+            }));
         }
 
-        // These legacy prompts did not perform a real return or update inventory/accounting.
-        // Avoid claiming a return was posted when no return transaction exists.
+        function anasExecuteReversePosting(request) {
+            // Never post a financial reversal by mutating browser-local AppData.
+            // The server adapter must verify Firebase identity, trusted grants, OPEN
+            // fiscal period, ledger parity, stock/liquidity and a durable operationId
+            // reservation before committing one atomic backend transaction.
+            try {
+                if (!request || typeof request !== 'object' || Array.isArray(request))
+                    throw new Error('طلب العملية العكسية غير صالح.');
+                const gateway = globalThis.ANASReverseLedgerServer;
+                if (!gateway || typeof gateway.execute !== 'function')
+                    throw new Error('التنفيذ معطّل: لا توجد بوابة ترحيل خادمية موثوقة ومتصلة.');
+                const result = gateway.execute(request);
+                if (!result || typeof result.then !== 'function')
+                    throw new Error('بوابة الترحيل الخادمية يجب أن تنفذ طلبًا غير متزامنًا موثقًا.');
+                return result.then(response => {
+                    if (!response || response.ok !== true || !response.document)
+                        throw new Error(response && response.error ? String(response.error) : 'لم يؤكد الخادم نجاح الترحيل.');
+                    alert('أكد الخادم ترحيل المستند العكسي. رقم المستند: ' + String(response.document.returnId || '—'));
+                    return response.document;
+                }).catch(error => {
+                    const detail = (error && error.message ? String(error.message) : 'فشل التفويض أو الترحيل').replace(/[.؟!،\s]+$/u, '');
+                    alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + detail + '. لم يتم اعتماد أي نجاح محلي.');
+                    return null;
+                });
+            } catch (error) {
+                const detail = (error && error.message ? String(error.message) : 'فشل التفويض أو الترحيل').replace(/[.؟!،\s]+$/u, '');
+                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + detail + '. لم يتم اعتماد أي نجاح محلي.');
+                return null;
+            }
+        }
+
+        function anasReadReversePrompt(promptText, choices) {
+            const raw = prompt(promptText + '\nالفواتير المتاحة: ' + JSON.stringify(choices), '');
+            if (raw === null) return null;
+            let value;
+            try { value = JSON.parse(raw); }
+            catch (_) { alert('صيغة JSON غير صحيحة؛ لم تتغير أي بيانات.'); return null; }
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                alert('يجب إدخال كائن JSON صالح؛ لم تتغير أي بيانات.'); return null;
+            }
+            return value;
+        }
+
+        function cancelInvoicePrompt() {
+            const choices = [
+                ...anasReverseInvoiceChoices('sales_invoice').map(row => ({...row, invoiceType:'sales_invoice'})),
+                ...anasReverseInvoiceChoices('purchase_invoice').map(row => ({...row, invoiceType:'purchase_invoice'}))
+            ];
+            const request = anasReadReversePrompt(
+                'إلغاء كامل لفاتورة مؤهلة فقط. أدخل JSON مثل: {"invoiceType":"sales_invoice","invoiceId":"INV-1","reason":"سبب الإلغاء"}.',
+                choices);
+            if (!request) return;
+            if (!['sales_invoice','purchase_invoice'].includes(request.invoiceType) || request.invoiceId == null || !String(request.reason || '').trim()) {
+                alert('حدد نوع الفاتورة ومعرّفها وسبب الإلغاء صراحةً.'); return;
+            }
+            return anasExecuteReversePosting({
+                originalInvoiceType:request.invoiceType, returnType:'INVOICE_CANCEL',
+                invoiceId:String(request.invoiceId), reason:String(request.reason)
+            });
+        }
+
         function returnSalePrompt() {
-            alert('إرجاع المبيعات غير متاح بعد كعملية محاسبية كاملة. لم يتم تعديل الفاتورة أو المخزون أو الحسابات.');
+            const request = anasReadReversePrompt(
+                'أدخل مرتجع المبيعات بصيغة JSON مثل: {"invoiceId":"INV-1","items":[{"productId":"P-1","quantity":"1"}],"settlementMode":"cash","reason":"سبب المرتجع"}. استخدم settlementMode cash لرد نقدي أو credit لرصيد دائن موثق للعميل.',
+                anasReverseInvoiceChoices('sales_invoice'));
+            if (!request) return;
+            return anasExecuteReversePosting({
+                originalInvoiceType:'sales_invoice', returnType:'SALE_RETURN',
+                invoiceId:String(request.invoiceId ?? ''), items:request.items,
+                settlementMode:request.settlementMode, reason:String(request.reason || '')
+            });
         }
 
         function returnPurchasePrompt() {
-            alert('إرجاع المشتريات غير متاح بعد كعملية محاسبية كاملة. لم يتم تعديل الفاتورة أو المخزون أو الحسابات.');
+            const request = anasReadReversePrompt(
+                'أدخل مرتجع المشتريات بصيغة JSON مثل: {"invoiceId":"PUR-1","items":[{"productId":"P-1","quantity":"1"}],"settlementMode":"cash","reason":"سبب المرتجع"}. cash يعيد المبلغ إلى الصندوق، وcredit يسجله رصيدًا دائنًا للمورد.',
+                anasReverseInvoiceChoices('purchase_invoice'));
+            if (!request) return;
+            return anasExecuteReversePosting({
+                originalInvoiceType:'purchase_invoice', returnType:'PURCHASE_RETURN',
+                invoiceId:String(request.invoiceId ?? ''), items:request.items,
+                settlementMode:request.settlementMode, reason:String(request.reason || '')
+            });
         }
 
         function old_cancelInvoicePrompt() {
@@ -8343,6 +8774,15 @@ function renderPurchasesTable() {
         function old_returnPurchasePrompt() {
             returnPurchasePrompt();
         }
+        function openSettlementAllocationModal() {
+            const modal = globalThis.ANASSettlementAllocationModal;
+            if (!modal || typeof modal.open !== 'function') {
+                alert('واجهة تخصيص الدفعات غير محمّلة. أعد تحميل التطبيق بعد الاتصال بالإنترنت.');
+                return false;
+            }
+            return modal.open();
+        }
+
         function anasFormatZReportCashBalance(value) {
             const normalizedBalance = anasRoundCurrency(value);
             return Number.isFinite(normalizedBalance) ? normalizedBalance.toLocaleString() : 'غير صالح';
@@ -9601,7 +10041,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       const previousFatalLoadError=anasStartupFatalLoadError;
       AppData=restored;
       if(!AppData.posScreensCarts)AppData.posScreensCarts={1:[],2:[],3:[],4:[]};
-      for(const key of ['invoices','purchases','expenses','users','trucks','returns','supplierMovements'])if(!Array.isArray(AppData[key]))AppData[key]=[];
+      for(const key of ['invoices','purchases','expenses','users','trucks','returns','supplierMovements','clientMovements','settlementAllocations'])if(!Array.isArray(AppData[key]))AppData[key]=[];
       const activeTab=AppData.activePosScreenTab||1;
       posCart=Array.isArray(AppData.posScreensCarts[activeTab])?AppData.posScreensCarts[activeTab]:[];
       anasStartupIntegrityIssues=[];
@@ -9738,5 +10178,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         });
       })();
     </script>
+    <!-- ANAS_REVERSE_LEDGER_UI_MODULES -->
+    <script src="./reverse-ledger/reverse-ledger-modal.js"></script>
+    <script src="./reverse-ledger/settlement-allocation-modal.js"></script>
 </body>
 </html>
