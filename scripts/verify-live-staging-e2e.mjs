@@ -137,24 +137,81 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
       allocationRows: allocationRows.length
     };
 
+    await page.evaluate(() => {
+      const gateway = window.ANASReverseLedgerServer;
+      if (!gateway || typeof gateway.execute !== 'function') throw new Error('Trusted staging gateway is unavailable.');
+      window.__anasE2EOriginalExecute = gateway.execute.bind(gateway);
+      window.__anasE2ELastRequest = null;
+      window.__anasE2ELastResult = null;
+      window.ANASReverseLedgerServer = Object.freeze({
+        ...gateway,
+        execute: async request => {
+          const operationId = window.__anasE2ENextOperationId;
+          if (!operationId) throw new Error('E2E operation ID was not armed.');
+          const actualRequest = { ...request, operationId };
+          window.__anasE2ELastRequest = structuredClone(actualRequest);
+          const result = await window.__anasE2EOriginalExecute(actualRequest);
+          window.__anasE2ELastResult = result;
+          return result;
+        }
+      });
+    });
+
     for (const row of fixture.operations) {
       const request = row.request;
-      const posted = await page.evaluate(async req => {
-        const result = await window.ANASReverseLedgerServer.execute(req);
-        return result;
-      }, request);
-      if (!posted || posted.ok !== true || posted.document?.status !== 'POSTED' ||
-          posted.operationId !== request.operationId) {
-        throw new Error('Callable did not return POSTED for ' + request.operationId);
+      const modeButton = request.returnType === 'SALE_RETURN' ? '#sale-return' :
+        request.returnType === 'PURCHASE_RETURN' ? '#purchase-return' : '#invoice-cancel';
+      await page.locator(modeButton).click();
+      await page.locator('#modal-reverse-ledger.active').waitFor({ state: 'visible' });
+      const invoiceOption = await page.locator('#rev-invoice-select').evaluate((select, invoiceId) => {
+        const match = [...select.options].find(option => option.textContent.includes(invoiceId));
+        return match ? match.value : null;
+      }, request.invoiceId);
+      if (invoiceOption === null) throw new Error('Reverse modal did not list fixture invoice ' + request.invoiceId);
+      await page.locator('#rev-invoice-select').selectOption(invoiceOption);
+      if (request.returnType !== 'INVOICE_CANCEL') {
+        for (const item of request.items) {
+          const selector = '#rev-items-body input[aria-label="' + 'كمية الإرجاع للصنف ' + item.productId + '"]';
+          await page.locator(selector).fill(String(item.quantity));
+        }
+      }
+      await page.locator('#rev-period-id').fill(request.periodId);
+      await page.locator('#rev-reason-input').fill(request.reason);
+      await page.locator('#rev-excess-mode').selectOption(request.settlementMode);
+      await page.evaluate(operationId => { window.__anasE2ENextOperationId = operationId; }, request.operationId);
+      await page.waitForFunction(() => {
+        const button = document.getElementById('rev-submit-btn');
+        return button && !button.disabled;
+      });
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('#rev-submit-btn').click();
+      await page.waitForFunction(() => {
+        const modal = document.getElementById('modal-reverse-ledger');
+        return modal && !modal.classList.contains('active') &&
+          document.getElementById('rev-eligibility-status')?.textContent.includes('أكد الخادم نجاح الترحيل');
+      });
+      const captured = await page.evaluate(() => ({
+        request: window.__anasE2ELastRequest,
+        result: window.__anasE2ELastResult
+      }));
+      const actual = captured.request;
+      const posted = captured.result;
+      if (!actual || !posted || posted.ok !== true || posted.document?.status !== 'POSTED' ||
+          posted.operationId !== request.operationId || actual.invoiceId !== request.invoiceId ||
+          actual.returnType !== request.returnType) {
+        throw new Error('Modal-to-callable path did not confirm POSTED for ' + request.operationId);
+      }
+      if (stable({ ...actual, operationId: request.operationId }) !== stable(request)) {
+        throw new Error('Reverse modal submitted a payload different from the approved E2E fixture for ' + request.operationId);
       }
       const [replayA, replayB] = await page.evaluate(async req => {
         const gateway = window.ANASReverseLedgerServer;
         return await Promise.all([gateway.execute(req), gateway.execute(req)]);
-      }, request);
+      }, actual);
       if (stable(replayA) !== stable(posted) || stable(replayB) !== stable(posted)) {
         throw new Error('Concurrent duplicate replay returned a different result for ' + request.operationId);
       }
-      const mismatch = { ...request, reason: request.reason + ' [different-payload]' };
+      const mismatch = { ...actual, reason: request.reason + ' [different-payload]' };
       const mismatchResult = await page.evaluate(async req => {
         try { await window.ANASReverseLedgerServer.execute(req); return { rejected: false }; }
         catch (error) { return { rejected: true, code: String(error.code || ''), message: String(error.message || '') }; }
