@@ -46,7 +46,7 @@ async function serviceAccessToken(env) {
   const claims = enc(JSON.stringify({ iss:email, sub:email, aud:"https://oauth2.googleapis.com/token",
     scope:"https://www.googleapis.com/auth/datastore", iat:now, exp:now+3600 }));
   const unsigned = head + "." + claims;
-  const pem = privateKey.replaceAll("-----BEGIN PRIVATE KEY-----","").replaceAll("-----END PRIVATE KEY-----","").replaceAll("\\n","").replaceAll("\\r","").replaceAll("\\t","").replaceAll(" ","");
+  const pem = privateKey.replaceAll("-----BEGIN PRIVATE KEY-----","").replaceAll("-----END PRIVATE KEY-----","").replaceAll("\n","").replaceAll("\r","").replaceAll("\t","").replaceAll(" ","");
   const binary = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
   const key = await crypto.subtle.importKey("pkcs8", binary,
     { name:"RSASSA-PKCS1-v1_5", hash:"SHA-256" }, false, ["sign"]);
