@@ -63,10 +63,11 @@
     return config;
   }
 
-  function normalizeCallableResult(data) {
-    if (!data || data.ok !== true || !data.document || typeof data.document !== 'object' ||
-        Array.isArray(data.document) || !data.document.returnId) {
-      throw new Error('The staging callable did not return a confirmed posted document');
+  function normalizeCallableResult(data, expectedOperationId) {
+    if (!data || data.ok !== true || data.operationId !== expectedOperationId ||
+        !data.document || typeof data.document !== 'object' || Array.isArray(data.document) ||
+        data.document.status !== 'POSTED' || !data.document.returnId) {
+      throw new Error('The staging callable did not confirm this operation as POSTED');
     }
     return Object.freeze({ ok: true, operationId: data.operationId, document: data.document });
   }
@@ -142,7 +143,7 @@
           throw new Error('A valid staging App Check token is required');
         }
         const response = await callable(request);
-        return normalizeCallableResult(response && response.data);
+        return normalizeCallableResult(response && response.data, request.operationId);
       }
     });
 
