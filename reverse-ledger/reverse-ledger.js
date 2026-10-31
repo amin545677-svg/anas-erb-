@@ -868,6 +868,6 @@
     ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument,
     sealClientMovement, sealSettlementAllocation, sealReturnDocument,
     computeReturnableMicroUnits, validateSettlementAllocations, validateClientMovements,
-    validateReturns, validateReverseLedgerParity, executeReturnTransaction, appendUnique, RETURN_TYPES, PARTY_TYPES
+    validateReturns, validateReverseLedgerParity, executeReturnTransaction, originalInvoiceItems, appendUnique, RETURN_TYPES, PARTY_TYPES
   });
 });
