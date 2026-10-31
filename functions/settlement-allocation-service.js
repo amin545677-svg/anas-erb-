@@ -187,14 +187,12 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         const sources = sourceRows(state, normalized);
         if (sources.length !== 1) fail('failed-precondition', 'Source movement is missing or ambiguous.');
         const source = sources[0];
-        if (source.tenantId || source.storeId || source.warehouseId) {
-          try {
-            authorizeFinancialScope({
-              uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: source, state
-            });
-          } catch (error) {
-            fail('permission-denied', String(error.message || error));
-          }
+        try {
+          authorizeFinancialScope({
+            uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: source, state
+          });
+        } catch (error) {
+          fail('permission-denied', String(error.message || error));
         }
         if (normalized.sourceMovementType === 'sales_invoice' &&
             String(source.referenceId ?? '') === '') fail('failed-precondition', 'Linked sales invoice source is malformed.');
