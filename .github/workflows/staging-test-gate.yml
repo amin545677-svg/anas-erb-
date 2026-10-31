@@ -59,7 +59,7 @@ jobs:
       - name: Run trusted reverse-ledger authorization, server adapter and reservation Worker tests
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_server_transaction.test.js tests/worker_reverse_ledger.test.mjs
       - name: Install Firestore Rules emulator test dependencies
-        run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@4.0.1 firebase@10.12.2
+        run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
       - name: Run real Firestore Emulator transaction, concurrency and security-rules tests
         run: npx --yes firebase-tools@14.22.0 emulators:exec --only firestore --project demo-anas-erp --config firebase.staging.json "node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs"
       - name: Syntax-check Chromium behavioral tests
