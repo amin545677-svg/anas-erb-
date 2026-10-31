@@ -2,10 +2,6 @@ name: Deploy ANAS ERP Reverse Ledger Console (Staging)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
 
 permissions:
   contents: read
@@ -95,7 +91,7 @@ jobs:
             }
           }
           fs.writeFileSync('staging-site/config.js',
-            'window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = ' + JSON.stringify(config) + ';\\n',
+            'window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = ' + JSON.stringify(config) + ';\n',
             { mode: 0o600 });
           NODE
           test -f staging-site/index.html
