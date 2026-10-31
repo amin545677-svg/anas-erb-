@@ -5,6 +5,10 @@ on:
     paths:
       - "index.html"
       - "tests/**"
+      - "functions/**"
+      - "reverse-ledger/**"
+      - "firebase.staging.json"
+      - "firebase/firestore.staging.rules"
       - ".github/workflows/staging-test-gate.yml"
   push:
     branches: [staging/firebase-snapshot-worker, 'feat/**', 'fix/**']
@@ -30,6 +34,12 @@ jobs:
           node-version: "22"
       - name: Run Hasib financial and stock invariants
         run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/reverse_ledger_primitives.test.js
+      - name: Verify deployable Functions bundle matches canonical ledger modules
+        run: |
+          cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js
+          cmp reverse-ledger/authorization.js functions/lib/authorization.js
+          node --check functions/index.js
+          node --check functions/reverse-ledger-adapter.js
       - name: Run trusted reverse-ledger authorization and server adapter tests
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js
       - name: Syntax-check Chromium behavioral tests
