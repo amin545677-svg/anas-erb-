@@ -158,3 +158,39 @@ test("E2E mock: device A publishes V1, device B gets 409, reconciles V1, and pub
   assert.ok(worker.requests.some(r => r.method === "POST"));
   assert.ok(worker.requests.some(r => r.method === "GET" && r.search === ""));
 });
+
+test("E2E mock: first cloud initialization accepts a null revision and uses create-only compare-and-swap", async () => {
+  const worker = createMockFirebaseWorker();
+  const empty = initialSnapshot();
+  const transport = createFirebaseSnapshotTransport({
+    baseUrl: "https://firebase-snapshot.mock",
+    getIdToken: async () => "token-first-device",
+    emptySnapshot: empty,
+    fetchImpl: worker.fetchImpl
+  });
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify({ ...initialSnapshot(), localDeviceMarker: "offline-v0" }),
+    [MUTATION_KEYS.pending]: JSON.stringify([collectionOperation()]),
+    [MUTATION_KEYS.rescue]: null,
+    [MUTATION_KEYS.quarantined]: JSON.stringify([]),
+    [MUTATION_KEYS.revision]: JSON.stringify(null)
+  });
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: () => transport.pullCloud(),
+    pushCloud: args => transport.pushCloud(args),
+    maxConflictRetries: 3
+  });
+
+  const result = await orchestrator.reconcileAndSync();
+  assert.equal(result.status, "synced");
+  assert.equal(result.attempts, 1);
+  assert.deepEqual(result.applied, ["op-device-b-collection-5000"]);
+  assert.equal(worker.read().data.caisseBalance, 59000);
+  assert.equal(worker.read().data.customers[0].debt, 21000);
+  assert.equal(worker.read().data.cashMovements.filter(m => m.id === "cm-device-b-001").length, 1);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.equal(storage.getItem(MUTATION_KEYS.rescue), null);
+  assert.equal(worker.requests.filter(request => request.method === "POST").length, 1);
+  assert.equal(JSON.parse(worker.requests.find(request => request.method === "POST").body).revision, null);
+});
