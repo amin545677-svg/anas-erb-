@@ -77,6 +77,16 @@ jobs:
       - name: Install Firebase Functions dependencies
         run: npm install --prefix functions --omit=dev --no-audit --no-fund
 
+      - name: Deploy staging Firestore rules and reverse-ledger callable only
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
+        run: |
+          npx --yes firebase-tools@14 deploy \
+            --only firestore:rules,functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
+            --project anas-erp-staging-a25e1 \
+            --config firebase.staging.json \
+            --non-interactive
+
       - name: Bootstrap isolated Staging finance test account
         env:
           ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
@@ -90,13 +100,3 @@ jobs:
             exit 0
           fi
           node scripts/bootstrap-staging-account.mjs
-
-      - name: Deploy staging Firestore rules and reverse-ledger callable only
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
-        run: |
-          npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
-            --project anas-erp-staging-a25e1 \
-            --config firebase.staging.json \
-            --non-interactive
