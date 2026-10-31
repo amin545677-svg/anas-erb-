@@ -45,11 +45,11 @@ function validateFixture(fixture) {
   for (const type of REQUIRED_TYPES) if (!types.has(type)) throw new Error('Fixture is missing required operation type: ' + type);
   const saleReturn = fixture.operations.find(x => x?.request?.returnType === 'SALE_RETURN')?.request;
   const cancellation = fixture.operations.find(x => x?.request?.returnType === 'INVOICE_CANCEL')?.request;
-  if (saleReturn?.invoiceId !== cancellation?.invoiceId ||
-      saleReturn?.originalInvoiceType !== 'sales_invoice' ||
+  if (saleReturn?.originalInvoiceType !== 'sales_invoice' ||
       cancellation?.originalInvoiceType !== 'sales_invoice' ||
-      saleReturn?.invoiceId !== fixture.saleSettlement?.invoiceId) {
-    throw new Error('SALE_RETURN, settlement allocation and INVOICE_CANCEL must target the same sales invoice.');
+      saleReturn?.invoiceId !== fixture.saleSettlement?.invoiceId ||
+      cancellation?.invoiceId === saleReturn?.invoiceId) {
+    throw new Error('SALE_RETURN and its allocation must target one sales invoice; INVOICE_CANCEL must target a separate eligible sales invoice because a posted partial return blocks later cancellation.');
   }
   if (!fixture.saleSettlement || !fixture.saleSettlement.invoiceId || !fixture.saleSettlement.partyId ||
       !fixture.saleSettlement.sourceMovementId || !fixture.saleSettlement.sourceMovementType ||
@@ -192,7 +192,7 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
     evidence.saleSettlement = {
       invoiceId: String(invoice.id), partyId: String(settlement.partyId), sourceMovementId: String(settlement.sourceMovementId),
       paidCentimes: paid.toString(), allocatedCentimes: allocated.toString(), allocationRows: allocationRows.length,
-      allocationPostedThroughModal: true, partialReturnValidated: true, fullCancellationTargetsSameInvoice: true
+      allocationPostedThroughModal: true, partialReturnValidated: true, fullCancellationTargetsSeparateEligibleInvoice: true
     };
     const saleReturnRequest = fixture.operations.find(x => x.request.returnType === 'SALE_RETURN').request;
     for (const line of saleReturnRequest.items) {
