@@ -1,0 +1,227 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * Live, opt-in E2E verifier for the isolated ANAS ERP Firebase Staging console.
+ * It never creates users, grants, periods, invoices, or financial fixtures.
+ * A dedicated staging account and pre-seeded version-2 invoices are required.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import { chromium } from 'playwright';
+
+const STAGING_PROJECT = 'anas-erp-staging-a25e1';
+const REQUIRED_TYPES = ['SALE_RETURN', 'PURCHASE_RETURN', 'INVOICE_CANCEL'];
+const required = (name) => {
+  const value = process.env[name];
+  if (!value || !String(value).trim()) throw new Error('Missing required environment variable: ' + name);
+  return String(value).trim();
+};
+const stable = value => {
+  if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + stable(value[k])).join(',') + '}';
+  return JSON.stringify(value);
+};
+const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
+
+function scaledUnits(value, scale, label) {
+  const raw = String(value ?? '').trim();
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/.exec(raw);
+  if (!match) throw new Error(label + ' is not a non-negative decimal');
+  const places = scale === 100n ? 2 : 6;
+  if ((match[2] || '').length > places) throw new Error(label + ' exceeds permitted precision');
+  return BigInt(match[1]) * scale + BigInt((match[2] || '').padEnd(places, '0') || '0');
+}
+function getPath(root, dotted) {
+  return dotted.split('.').reduce((value, key) => value == null ? undefined : value[key], root);
+}
+function validateFixture(fixture) {
+  if (!fixture || fixture.projectId !== STAGING_PROJECT || !Array.isArray(fixture.operations)) {
+    throw new Error('Fixture must target ' + STAGING_PROJECT + ' and contain operations[].');
+  }
+  const types = new Set(fixture.operations.map(x => x?.request?.returnType));
+  for (const type of REQUIRED_TYPES) if (!types.has(type)) throw new Error('Fixture is missing required operation type: ' + type);
+  if (!fixture.saleSettlement || !fixture.saleSettlement.invoiceId || !fixture.saleSettlement.expectedPaidCentimes) {
+    throw new Error('Fixture must prove the sale invoice settlement allocation before reverse posting.');
+  }
+  for (const row of fixture.operations) {
+    const r = row && row.request;
+    if (!r || !r.operationId || !r.periodId || !r.invoiceId || !r.originalInvoiceType || !r.returnType || !r.reason) {
+      throw new Error('Each operation requires a complete trusted callable request.');
+    }
+    if (r.returnType !== 'INVOICE_CANCEL' && (!Array.isArray(r.items) || !r.items.length)) {
+      throw new Error('Return operations require explicit item quantities.');
+    }
+    if (r.returnType === 'INVOICE_CANCEL' && Object.prototype.hasOwnProperty.call(r, 'items')) {
+      throw new Error('INVOICE_CANCEL must derive lines from the original invoice; omit items.');
+    }
+  }
+  if (!Array.isArray(fixture.expectedFinancials) || !fixture.expectedFinancials.length) {
+    throw new Error('Fixture must include expectedFinancials[] for exact centime/micro-unit checks.');
+  }
+}
+function assertFinancials(snapshot, rows, label) {
+  for (const row of rows) {
+    const actual = getPath(snapshot, row.path);
+    const scale = row.unit === 'centimes' ? 100n : row.unit === 'microUnits' ? 1000000n : null;
+    if (!scale) throw new Error('Unsupported financial assertion unit: ' + row.unit);
+    const actualUnits = scaledUnits(actual, scale, label + '.' + row.path);
+    const expected = BigInt(row.expected);
+    const delta = actualUnits - expected;
+    if (delta !== 0n) throw new Error(label + ' mismatch at ' + row.path + ': delta=' + delta.toString() + ' ' + row.unit);
+  }
+}
+async function verifyLiveStaging({ url, email, password, fixturePath, evidencePath }) {
+  const origin = new URL(url);
+  if (origin.protocol !== 'https:' || origin.hostname !== 'anas-erp-staging-a25e1.web.app') {
+    throw new Error('Refusing non-Staging origin; expected https://anas-erp-staging-a25e1.web.app');
+  }
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+  validateFixture(fixture);
+  let browser;
+  const evidence = {
+    projectId: STAGING_PROJECT,
+    origin: origin.origin,
+    startedAt: new Date().toISOString(),
+    operations: [],
+    idempotency: [],
+    backupRestore: null
+  };
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    page.setDefaultTimeout(30000);
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    const response = await page.goto(origin.href, { waitUntil: 'domcontentloaded' });
+    if (!response || response.status() !== 200) throw new Error('Staging console did not return HTTP 200.');
+    await page.locator('#email').waitFor();
+    await page.locator('#email').fill(email);
+    await page.locator('#password').fill(password);
+    await page.locator('#sign-in').click();
+    await page.locator('#workspace').waitFor({ state: 'visible' });
+    await page.locator('#load-snapshot').click();
+    await page.getByText('حالة القراءة: نجاح').waitFor();
+
+    const initial = await page.evaluate(async () => {
+      const app = firebase.app('anas-erp-reverse-ledger-staging');
+      const user = firebase.auth(app).currentUser;
+      if (!user) throw new Error('Staging authentication session is missing.');
+      const doc = await firebase.firestore(app).collection('users').doc(user.uid)
+        .collection('snapshots').doc('latest').get();
+      if (!doc.exists || typeof doc.get('payload') !== 'string') throw new Error('Staging snapshot is missing.');
+      return { uid: user.uid, payload: doc.get('payload') };
+    });
+    let state = JSON.parse(initial.payload);
+    const invoice = (state.invoices || []).find(x => String(x.id) === String(fixture.saleSettlement.invoiceId));
+    if (!invoice) throw new Error('Pre-seeded sale invoice for allocation proof was not found.');
+    const paid = scaledUnits(invoice.paid ?? invoice.total, 100n, 'sale invoice paid');
+    if (paid !== BigInt(fixture.saleSettlement.expectedPaidCentimes)) {
+      throw new Error('Sale settlement allocation does not match expected centimes.');
+    }
+    const allocationRows = (state.settlementAllocations || []).filter(row =>
+      row && row.invoiceType === 'sales_invoice' &&
+      String(row.invoiceId) === String(fixture.saleSettlement.invoiceId) &&
+      String(row.partyId) === String(fixture.saleSettlement.partyId) &&
+      row.partyType === 'customer' && row.sourceMovementType === 'customer_debt');
+    const allocated = allocationRows.reduce((sum, row) => sum + BigInt(row.amountCentimes || 0), 0n);
+    if (allocated !== BigInt(fixture.saleSettlement.expectedAllocatedCentimes)) {
+      throw new Error('Settlement allocation proof mismatch; expected exact allocated centimes.');
+    }
+    evidence.saleSettlement = {
+      invoiceId: String(invoice.id),
+      paidCentimes: paid.toString(),
+      allocatedCentimes: allocated.toString(),
+      allocationRows: allocationRows.length
+    };
+
+    for (const row of fixture.operations) {
+      const request = row.request;
+      const posted = await page.evaluate(async req => {
+        const result = await window.ANASReverseLedgerServer.execute(req);
+        return result;
+      }, request);
+      if (!posted || posted.ok !== true || posted.document?.status !== 'POSTED' ||
+          posted.operationId !== request.operationId) {
+        throw new Error('Callable did not return POSTED for ' + request.operationId);
+      }
+      const [replayA, replayB] = await page.evaluate(async req => {
+        const gateway = window.ANASReverseLedgerServer;
+        return await Promise.all([gateway.execute(req), gateway.execute(req)]);
+      }, request);
+      if (stable(replayA) !== stable(posted) || stable(replayB) !== stable(posted)) {
+        throw new Error('Concurrent duplicate replay returned a different result for ' + request.operationId);
+      }
+      const mismatch = { ...request, reason: request.reason + ' [different-payload]' };
+      const mismatchResult = await page.evaluate(async req => {
+        try { await window.ANASReverseLedgerServer.execute(req); return { rejected: false }; }
+        catch (error) { return { rejected: true, code: String(error.code || ''), message: String(error.message || '') }; }
+      }, mismatch);
+      if (!mismatchResult.rejected || !/already-exists/.test(mismatchResult.code + ' ' + mismatchResult.message)) {
+        throw new Error('Different payload reuse was not rejected as already-exists for ' + request.operationId);
+      }
+      evidence.operations.push({
+        operationId: request.operationId,
+        type: request.returnType,
+        status: posted.document.status,
+        returnId: posted.document.returnId
+      });
+      evidence.idempotency.push({
+        operationId: request.operationId,
+        sequentialReplay: 'same-result',
+        concurrentReplayCount: 2,
+        mismatchedPayload: 'already-exists'
+      });
+    }
+
+    const beforeBackup = await page.evaluate(async () => {
+      const app = firebase.app('anas-erp-reverse-ledger-staging');
+      const uid = firebase.auth(app).currentUser.uid;
+      const doc = await firebase.firestore(app).collection('users').doc(uid)
+        .collection('snapshots').doc('latest').get();
+      return doc.get('payload');
+    });
+    state = JSON.parse(beforeBackup);
+    assertFinancials(state, fixture.expectedFinancials, 'before-backup');
+    const beforeHash = sha256(beforeBackup);
+    await page.locator('#create-backup').click();
+    await page.getByText(/تم إنشاء النسخة الموثوقة/).waitFor();
+    const backupId = await page.locator('#created-backup-id').inputValue();
+    if (!/^BKP-[A-Za-z0-9-]{12,100}$/.test(backupId)) throw new Error('Trusted backup ID is malformed.');
+    await page.locator('#restore-backup').click();
+    await page.getByText(/اكتملت الاستعادة والتحقق/).waitFor();
+    const afterRestore = await page.evaluate(async () => {
+      const app = firebase.app('anas-erp-reverse-ledger-staging');
+      const uid = firebase.auth(app).currentUser.uid;
+      const doc = await firebase.firestore(app).collection('users').doc(uid)
+        .collection('snapshots').doc('latest').get();
+      return doc.get('payload');
+    });
+    const afterHash = sha256(afterRestore);
+    if (beforeHash !== afterHash) throw new Error('Snapshot payload changed during same-state backup/restore.');
+    assertFinancials(JSON.parse(afterRestore), fixture.expectedFinancials, 'after-restore');
+    evidence.backupRestore = { backupId, beforeSnapshotSha256: beforeHash, afterSnapshotSha256: afterHash, exactMatch: true, centimeDelta: '0', microUnitDelta: '0' };
+    if (pageErrors.length) throw new Error('Browser page errors: ' + pageErrors.join(' | '));
+    evidence.result = 'PASS';
+    evidence.completedAt = new Date().toISOString();
+    if (evidencePath) fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 });
+    return evidence;
+  } finally {
+    if (browser) await browser.close();
+  }
+}
+
+export { verifyLiveStaging, validateFixture, assertFinancials };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const evidence = await verifyLiveStaging({
+    url: required('ANAS_STAGING_URL'),
+    email: required('ANAS_STAGING_EMAIL'),
+    password: required('ANAS_STAGING_PASSWORD'),
+    fixturePath: required('ANAS_STAGING_E2E_FIXTURE'),
+    evidencePath: process.env.ANAS_STAGING_EVIDENCE_PATH || ''
+  });
+  process.stdout.write(JSON.stringify(evidence, null, 2) + '\n');
+}
