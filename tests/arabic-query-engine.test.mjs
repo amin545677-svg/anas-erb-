@@ -31,3 +31,25 @@ test('ranks exact and prefix matches above partial matches', () => {
   assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت الزيتون') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
   assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
 });
+
+
+const customerFilterMatch = html.match(/        function anasCustomerDebtFilterMatches\([\s\S]*?(?=        function setCustomerDirectoryDebtFilter)/);
+assert.ok(customerFilterMatch, 'customer debt filter helper must exist');
+const customerFilterContext = {};
+vm.runInNewContext(customerFilterMatch[0] + '\nthis.match = anasCustomerDebtFilterMatches;', customerFilterContext);
+const anasCustomerDebtFilterMatches = customerFilterContext.match;
+
+test('customer debt filter separates positive debt from zero balance', () => {
+  assert.equal(anasCustomerDebtFilterMatches({ debt: 125.5 }, 'debt'), true);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: 0 }, 'clear'), true);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: 0 }, 'debt'), false);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: 125.5 }, 'clear'), false);
+});
+
+test('customer debt filter handles legacy empty balances and fails closed on malformed balances', () => {
+  assert.equal(anasCustomerDebtFilterMatches({}, 'clear'), true);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: '' }, 'clear'), true);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: 'not-a-number' }, 'all'), true);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: 'not-a-number' }, 'debt'), false);
+  assert.equal(anasCustomerDebtFilterMatches({ debt: -1 }, 'clear'), false);
+});
