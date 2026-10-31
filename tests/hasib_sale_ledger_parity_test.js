@@ -375,10 +375,16 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const cancelStart=html.indexOf('function anasReverseInvoiceChoices(');
-  const returnPurchaseStart=html.indexOf('function returnPurchasePrompt()',cancelStart);
-  const cancelEnd=html.indexOf('\n        function ',returnPurchaseStart+30);
-  assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'atomic reverse-posting UI handlers must be present');
+  const executeStart=html.indexOf('function anasExecuteReversePosting(');
+  const executeEnd=html.indexOf('\n        function cancelInvoicePrompt()',executeStart);
+  assert.ok(executeStart>=0&&executeEnd>executeStart,'reverse posting entry point must be present and isolatable');
+  for (const name of ['returnSalePrompt','returnPurchasePrompt','cancelInvoicePrompt']) {
+    const fnStart=html.indexOf('function '+name+'()');
+    const fnEnd=html.indexOf('\n        function ',fnStart+20);
+    assert.ok(fnStart>=0&&fnEnd>fnStart,'missing reverse UI handler: '+name);
+    assert.ok(html.slice(fnStart,fnEnd).includes('anasExecuteReversePosting('),
+      name+' must delegate through the single guarded reverse-posting entry point');
+  }
   const customer={id:'C-CANCEL',name:'Customer',debt:0.20};
   const invoice={id:'INV-CANCEL',customerId:'C-CANCEL',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
     items:[{id:'P-CANCEL',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'};
@@ -388,22 +394,18 @@ function assertAccountingIdentity(result, openingDebt = 0) {
     stockMovements:[{id:'SALE-STOCK-CANCEL',productId:'P-CANCEL',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
     clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
     caisseBalance:1,currentUser:{id:'U-CANCEL'}};
+  const before=JSON.stringify(AppData);
   const alerts=[];
-  const cancelContext={AppData,ANASReverseLedger:require('../reverse-ledger/reverse-ledger.js'),
-    prompt:()=>JSON.stringify({invoiceType:'sales_invoice',invoiceId:'INV-CANCEL',reason:'duplicate invoice'}),
-    saveDB:()=>true,anasValidatePurchaseLedgerParity:()=>true,
-    alert:m=>alerts.push(String(m)),renderInvoicesTable(){},renderPurchasesTable(){},
-    renderCustomersDebts(){},renderSuppliersDebts(){},updateCashUI(){},updateDashboardStats(){},updateUIState(){}};
+  let localEngineCalls=0;
+  const cancelContext={AppData,ANASReverseLedger:{executeReturnTransaction(){localEngineCalls++;throw new Error('local engine must not run');}},
+    alert:m=>alerts.push(String(m))};
   vm.createContext(cancelContext);
-  vm.runInContext(html.slice(cancelStart,cancelEnd)+'\nglobalThis.__cancelResult = cancelInvoicePrompt();',cancelContext,{timeout:1500});
-  assert.equal(cancelContext.__cancelResult.returnType,'INVOICE_CANCEL');
-  assert.equal(AppData.invoices[0].status,'CANCELLED');
-  assert.equal(AppData.invoices[0].paid,0.10);
-  assert.equal(AppData.invoices[0].remaining,0.20);
-  assert.equal(AppData.customers[0].debt,0);
-  assert.equal(AppData.products[0].stock,3);
-  assert.equal(AppData.caisseBalance,0.90);
-  assert.equal(AppData.returns.length,1);
-  assert.ok(alerts.some(m=>m.includes('تم ترحيل المستند العكسي ذريًا بنجاح')));
-  console.log('PASS: invoice cancellation UI posts an atomic compensating transaction without deleting the original invoice');
+  vm.runInContext(html.slice(executeStart,executeEnd)+'\nglobalThis.__cancelResult = anasExecuteReversePosting({returnType:"INVOICE_CANCEL"});',
+    cancelContext,{timeout:1500});
+  assert.equal(cancelContext.__cancelResult,null,'missing server gateway must block the reversal');
+  assert.equal(localEngineCalls,0,'browser-local financial engine must never execute a reverse posting');
+  assert.equal(JSON.stringify(AppData),before,'blocked reverse posting must not mutate invoice, debt, stock, cash or ledgers');
+  assert.ok(alerts.some(m=>m.includes('لا توجد بوابة ترحيل خادمية موثوقة')),
+    'the operator must receive an explicit server-authorization block reason');
+  console.log('PASS: reverse posting fails closed without a trusted server gateway and preserves all local state');
 }
