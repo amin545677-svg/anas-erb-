@@ -8774,6 +8774,15 @@ function renderPurchasesTable() {
         function old_returnPurchasePrompt() {
             returnPurchasePrompt();
         }
+        function openSettlementAllocationModal() {
+            const modal = globalThis.ANASSettlementAllocationModal;
+            if (!modal || typeof modal.open !== 'function') {
+                alert('واجهة تخصيص الدفعات غير محمّلة. أعد تحميل التطبيق بعد الاتصال بالإنترنت.');
+                return false;
+            }
+            return modal.open();
+        }
+
         function anasFormatZReportCashBalance(value) {
             const normalizedBalance = anasRoundCurrency(value);
             return Number.isFinite(normalizedBalance) ? normalizedBalance.toLocaleString() : 'غير صالح';
