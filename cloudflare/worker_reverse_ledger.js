@@ -254,7 +254,9 @@ async function handle(request,env) {
   } catch(error) {
     const message=String(error?.message||"Authorization failed");
     const status=/already reserved|duplicate posting/i.test(message)?409:
-      /permission|not OPEN|grant|Unsupported|invalid|format/i.test(message)?403:503;
+      /Firebase identity|Firebase token|Firebase UID/i.test(message)?401:
+      /missing required permission|financial period is not OPEN|authorization grant/i.test(message)?403:
+      /client-supplied financial fields|Unsupported reverse operation|operationId format| is invalid/i.test(message)?400:503;
     return json({error:message,posted:false},status,accepted);
   }
 }
