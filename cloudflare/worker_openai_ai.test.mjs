@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { generateKeyPairSync, createSign, webcrypto } from "node:crypto";
+import { generateKeyPairSync, createSign } from "node:crypto";
 
 const source = await readFile(new URL("./worker_openai_ai.js", import.meta.url), "utf8");
 const workerModule = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
@@ -9,7 +9,6 @@ const worker = workerModule.default;
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const jwk = publicKey.export({ format: "jwk" });
 Object.assign(jwk, { kid: "test-firebase-key", alg: "RS256", use: "sig" });
-globalThis.crypto = webcrypto;
 
 function base64url(value) { return Buffer.from(value).toString("base64url"); }
 function makeToken(overrides = {}) {
