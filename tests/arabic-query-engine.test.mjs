@@ -53,3 +53,21 @@ test('customer debt filter handles legacy empty balances and fails closed on mal
   assert.equal(anasCustomerDebtFilterMatches({ debt: 'not-a-number' }, 'debt'), false);
   assert.equal(anasCustomerDebtFilterMatches({ debt: -1 }, 'clear'), false);
 });
+
+
+const debtSaveMatch = html.match(/        function anasCustomerDebtForSave\([\s\S]*?(?=        function saveNewCustomerMpos)/);
+assert.ok(debtSaveMatch, 'customer debt preservation helper must exist');
+const debtSaveContext = {};
+vm.runInNewContext(debtSaveMatch[0] + '\nthis.resolve = anasCustomerDebtForSave;', debtSaveContext);
+const anasCustomerDebtForSave = debtSaveContext.resolve;
+
+test('editing a customer profile preserves the stored debt instead of accepting edited form input', () => {
+  assert.equal(anasCustomerDebtForSave(true, { debt: 8400 }, 0), 8400);
+  assert.equal(anasCustomerDebtForSave(true, { debt: 8400 }, 999999), 8400);
+  assert.equal(anasCustomerDebtForSave(true, {}, 999999), 0);
+});
+
+test('creating a customer keeps the explicitly supplied opening debt', () => {
+  assert.equal(anasCustomerDebtForSave(false, null, 1250), 1250);
+  assert.equal(anasCustomerDebtForSave(false, null, 0), 0);
+});
