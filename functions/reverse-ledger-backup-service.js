@@ -34,7 +34,11 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
     const record = doc.data();
     if (!record || record.ownerUid !== uid || record.operationId !== doc.id ||
         !['RESERVED', 'POSTED'].includes(record.status) ||
-        typeof record.requestHash !== 'string' || !/^[a-f0-9]{64}$/.test(record.requestHash)) {
+        (record.requestHash != null &&
+          (typeof record.requestHash !== 'string' || !/^[a-f0-9]{64}$/.test(record.requestHash))) ||
+        (record.status === 'POSTED' &&
+          (!record.requestHash || !record.result || !record.result.document ||
+           !record.returnId || String(record.result.document.returnId) !== String(record.returnId)))) {
       fail('failed-precondition', 'A reverse-ledger idempotency record is malformed or belongs to another user.');
     }
     const bytes = Buffer.byteLength(JSON.stringify(record), 'utf8');
@@ -182,7 +186,7 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
             }
             continue;
           }
-          if (current.requestHash !== saved.requestHash) {
+          if (current.requestHash && saved.requestHash && current.requestHash !== saved.requestHash) {
             fail('already-exists', 'Backup operationId conflicts with a different financial request.');
           }
           if (current.status === 'POSTED' && saved.status !== 'POSTED') {
