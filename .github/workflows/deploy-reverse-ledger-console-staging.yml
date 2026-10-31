@@ -1,4 +1,5 @@
 name: Deploy ANAS ERP Reverse Ledger Console (Staging)
+# Scoped push-trigger probe: 2026-10-31 live Staging preflight.
 
 on:
   workflow_dispatch:
