@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 import { chromium } from 'playwright';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -59,13 +60,17 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
       if (name !== 'users' || sub !== 'snapshots' || id !== 'latest' || uid !== 'staging-test-user') throw new Error('unexpected snapshot path');
       return { exists: true, get(field) { return field === 'payload' ? ${JSON.stringify(snapshotPayload)} : undefined; } };
     } }; } }; } }; } }; } };
-    const functions = { httpsCallable(name) { return async data => {
-      calls.push({ name, data });
-      if (name === 'createTrustedReverseLedgerBackup') return { data: { ok: true, backupId: 'BKP-STAGING-00000001', operationCount: 0 } };
-      if (name === 'restoreTrustedReverseLedgerBackup') return { data: { ok: true, restoredOperations: 0 } };
-      if (name === 'executeReverseLedger') return { data: { ok: true, operationId: data.operationId, document: { returnId: 'RET-STAGING-1', status: 'POSTED' } } };
-      throw new Error('unexpected callable ' + name);
-    } }; };
+    const functions = {
+      httpsCallable(name) {
+        return async data => {
+          calls.push({ name, data });
+          if (name === 'createTrustedReverseLedgerBackup') return { data: { ok: true, backupId: 'BKP-STAGING-00000001', operationCount: 0 } };
+          if (name === 'restoreTrustedReverseLedgerBackup') return { data: { ok: true, restoredOperations: 0 } };
+          if (name === 'executeReverseLedger') return { data: { ok: true, operationId: data.operationId, document: { returnId: 'RET-STAGING-1', status: 'POSTED' } } };
+          throw new Error('unexpected callable ' + name);
+        };
+      }
+    };
     globalThis.__stagingCalls = calls;
     globalThis.firebase = {
       initializeApp: () => app,
@@ -77,6 +82,8 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
     };
   })();`;
 
+  assert.doesNotThrow(() => new vm.Script(fakeSdk, { filename: 'fake-firebase-sdk.js' }));
+
   let browser;
   t.after(async () => {
     if (browser) await browser.close();
@@ -86,7 +93,9 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const pageErrors = [];
+  const consoleErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
   await page.route('https://www.gstatic.com/firebasejs/**', async route => {
     if (route.request().url().endsWith('/firebase-app-compat.js')) {
       await route.fulfill({ status: 200, contentType: 'application/javascript', body: fakeSdk });
@@ -95,9 +104,11 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
     }
   });
   await page.goto(origin + '/staging/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('config-status').textContent.includes('تم التحقق'));
   await page.locator('#email').fill('staging@example.test');
   await page.locator('#password').fill('staging-only-password');
   await page.locator('#sign-in').click();
+  await page.locator('#workspace').waitFor({ state: 'visible' });
   await page.locator('#load-snapshot').click();
   await page.getByText('حالة القراءة: نجاح').waitFor();
   assert.equal(await page.locator('#sale-return').isEnabled(), true);
@@ -108,7 +119,7 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   await page.getByText(/اكتملت الاستعادة والتحقق/).waitFor();
   await page.locator('#sale-return').click();
   await page.locator('#modal-reverse-ledger.active').waitFor();
-  assert.deepEqual(pageErrors, []);
+  assert.deepEqual(pageErrors, []);\n  assert.deepEqual(consoleErrors, []);
   const calls = await page.evaluate(() => globalThis.__stagingCalls.map(row => row.name));
   assert.deepEqual(calls, ['createTrustedReverseLedgerBackup', 'restoreTrustedReverseLedgerBackup']);
 });
