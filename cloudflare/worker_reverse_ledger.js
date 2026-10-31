@@ -123,11 +123,35 @@ async function firestoreRequest(env, path, init={}) {
   const data = await response.json().catch(()=>({}));
   return { response, data };
 }
-async function readDocument(env,path) {
-  const {response,data} = await firestoreRequest(env,path);
+async function readDocument(env,path,transaction) {
+  const suffix=transaction ? "?transaction="+encodeURIComponent(transaction) : "";
+  const {response,data} = await firestoreRequest(env,path+suffix);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("Trusted Firestore read failed");
-  return decodeFields(data.fields || {});
+  return { fields:decodeFields(data.fields || {}), name:data.name, updateTime:data.updateTime || null };
+}
+async function firestoreAction(env,action,init={}) {
+  const token=await serviceAccessToken(env);
+  const base=documentUrl(env,"").replace(/\\/$/,"");
+  const response=await fetch(base+":"+action,{
+    ...init,headers:{Authorization:"Bearer "+token,"Content-Type":"application/json",...(init.headers||{})}
+  });
+  const data=await response.json().catch(()=>({}));
+  return {response,data};
+}
+async function beginTransaction(env) {
+  const {response,data}=await firestoreAction(env,"beginTransaction",{
+    method:"POST",body:JSON.stringify({options:{readWrite:{}}})
+  });
+  if(!response.ok || !data.transaction) throw new Error("Trusted Firestore transaction could not begin");
+  return data.transaction;
+}
+async function commitTransaction(env,transaction,writes) {
+  return firestoreAction(env,"commit",{method:"POST",body:JSON.stringify({transaction,writes})});
+}
+async function rollbackTransaction(env,transaction) {
+  if(!transaction)return;
+  try{await firestoreAction(env,"rollback",{method:"POST",body:JSON.stringify({transaction})});}catch{}
 }
 function firestoreFields(value) {
   if (typeof value === "string") return { stringValue:value };
@@ -141,6 +165,10 @@ function firestoreFields(value) {
   return { nullValue:null };
 }
 async function reserveOperation(env, uid, requestData) {
+  if (!record(requestData)) throw new Error("Request body must be an object");
+  const allowed = new Set(["operationId", "type", "invoiceId", "periodId"]);
+  const unknown = Object.keys(requestData).filter(key => !allowed.has(key));
+  if (unknown.length) throw new Error("Unsupported or client-supplied financial fields: " + unknown.join(", "));
   const operationId = required(requestData.operationId,"operationId",160);
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$/.test(operationId)) throw new Error("operationId format is invalid");
   const type = required(requestData.type,"operation type",40);
@@ -148,32 +176,43 @@ async function reserveOperation(env, uid, requestData) {
   if (!permission) throw new Error("Unsupported reverse operation type");
   const invoiceId = required(requestData.invoiceId,"invoice ID",160);
   const periodId = required(requestData.periodId,"financial period ID",128);
-  const [grant,period] = await Promise.all([
-    readDocument(env,"reverseLedgerGrants/"+encodeURIComponent(uid)),
-    readDocument(env,"financialPeriods/"+encodeURIComponent(periodId))
-  ]);
-  if (!grant || grant.uid !== uid || grant.active !== true || grant.schemaVersion !== 1 ||
-      !Array.isArray(grant.permissions) || grant.permissions.some(p=>typeof p!=="string"))
-    throw new Error("Active trusted authorization grant is missing or invalid");
-  if (!grant.permissions.includes(permission)) throw new Error("Missing required permission: "+permission);
-  if (!period || period.periodId !== periodId || period.status !== "OPEN")
-    throw new Error("Financial period is not OPEN");
-  const reservation = {
-    operationId, ownerUid:uid, operationType:type, invoiceId, periodId,
-    status:"RESERVED", schemaVersion:1, createdAt:new Date().toISOString()
-  };
-  const {response,data} = await firestoreRequest(env,"reverseLedgerOperations/"+encodeURIComponent(operationId)+"?currentDocument.exists=false",{
-    method:"PATCH", headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ fields:Object.fromEntries(Object.entries(reservation).map(([k,v])=>[k,firestoreFields(v)])) })
-  });
-  // Firestore REST PATCH supports create-only preconditions via currentDocument.exists=false.
-  if (response.status === 409 || response.status === 400) {
-    const msg = String(data.error?.message || "");
-    if (/exists|precondition|already exists|FAILED_PRECONDITION/i.test(msg))
-      throw new Error("Operation ID is already reserved; duplicate posting is blocked");
+  const transaction = await beginTransaction(env);
+  try {
+    const [grantDoc,periodDoc,existingOperation] = await Promise.all([
+      readDocument(env,"reverseLedgerGrants/"+encodeURIComponent(uid),transaction),
+      readDocument(env,"financialPeriods/"+encodeURIComponent(periodId),transaction),
+      readDocument(env,"reverseLedgerOperations/"+encodeURIComponent(operationId),transaction)
+    ]);
+    if(existingOperation) throw new Error("Operation ID is already reserved; duplicate posting is blocked");
+    const grant=grantDoc?.fields;
+    const period=periodDoc?.fields;
+    if (!grant || grant.uid !== uid || grant.active !== true || grant.schemaVersion !== 1 ||
+        !Array.isArray(grant.permissions) || grant.permissions.some(p=>typeof p!=="string"))
+      throw new Error("Active trusted authorization grant is missing or invalid");
+    if (!grant.permissions.includes(permission)) throw new Error("Missing required permission: "+permission);
+    if (!period || period.periodId !== periodId || period.status !== "OPEN")
+      throw new Error("Financial period is not OPEN");
+    const reservation = {
+      operationId, ownerUid:uid, operationType:type, invoiceId, periodId,
+      status:"RESERVED", schemaVersion:1, createdAt:new Date().toISOString()
+    };
+    const name=documentUrl(env,"reverseLedgerOperations/"+encodeURIComponent(operationId));
+    const write={
+      update:{name,fields:Object.fromEntries(Object.entries(reservation).map(([k,v])=>[k,firestoreFields(v)]))},
+      currentDocument:{exists:false}
+    };
+    const committed=await commitTransaction(env,transaction,[write]);
+    if(!committed.response.ok) {
+      const code=String(committed.data.error?.status||"");
+      if(code==="ALREADY_EXISTS"||code==="ABORTED"||code==="FAILED_PRECONDITION")
+        throw new Error("Operation ID is already reserved or a trusted grant/period changed; retry with a new verified operation");
+      throw new Error("Atomic Firestore operation reservation failed");
+    }
+    return reservation;
+  } catch(error) {
+    await rollbackTransaction(env,transaction);
+    throw error;
   }
-  if (!response.ok) throw new Error("Atomic operation reservation failed");
-  return reservation;
 }
 async function readLimited(request) {
   const reader=request.body?.getReader(); if(!reader) return "";
