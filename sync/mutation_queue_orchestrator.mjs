@@ -29,6 +29,13 @@ const uniqueByOpId = items => {
 const statusOf = response => response?.status ?? response?.httpStatus ?? 200;
 const isConflict = error => statusOf(error) === 409 || error?.status === 409 || error?.httpStatus === 409;
 
+// These postings are committed by trusted financial callables, never by snapshot replay.
+const SERVER_POSTED_FINANCIAL_TYPES = new Set([
+  "CUSTOMER_SETTLEMENT_ALLOCATION",
+  "SUPPLIER_SETTLEMENT_ALLOCATION"
+]);
+const isServerPostedFinancial = item => SERVER_POSTED_FINANCIAL_TYPES.has(item?.type ?? item?.operationType);
+
 function captureStorage(storage, keys) {
   return Object.fromEntries(keys.map(key => [key, storage.getItem(key)]));
 }
@@ -109,7 +116,12 @@ export function createMutationQueueOrchestrator({
     recoverInterruptedLocalMutation(storage);
     recoverPreparedMutationsOnBoot(storage);
     const pendingAtStart = readJson(storage, MUTATION_KEYS.pending, []);
-    const capturedIds = new Set(pendingAtStart.filter(x => x?.status === "PENDING").map(x => x?.opId).filter(Boolean));
+    const protectedPending = pendingAtStart.filter(x => x?.status === "PENDING" && isServerPostedFinancial(x));
+    if (protectedPending.length) {
+      return { status: "protected-financial-pending", retained: protectedPending.length,
+        operationIds: protectedPending.map(x => x.opId).filter(Boolean) };
+    }
+    const capturedIds = new Set(pendingAtStart.filter(x => x?.status === "PENDING" && !isServerPostedFinancial(x)).map(x => x?.opId).filter(Boolean));
     const appData = readJson(storage, MUTATION_KEYS.appData, null);
     if (!appData) throw new Error("Local AppData is missing");
     const revision = readJson(storage, MUTATION_KEYS.revision, null);
@@ -138,7 +150,7 @@ export function createMutationQueueOrchestrator({
       const before = captureStorage(storage, keys);
       const pending = readJson(storage, MUTATION_KEYS.pending, []);
       if (!Array.isArray(pending)) throw new Error("Pending queue must be an array");
-      const replayable = pending.filter(item => item?.status === "PENDING");
+      const replayable = pending.filter(item => item?.status === "PENDING" && !isServerPostedFinancial(item));
       const capturedIds = new Set(replayable.map(item => item?.opId).filter(Boolean));
       let cloud;
       try {
