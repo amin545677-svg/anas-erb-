@@ -28,8 +28,8 @@ test('staging UI uses callable endpoints for trusted backup and restore', () => 
   assert.match(html, /httpsCallable\(name\)/);
   assert.match(html, /createTrustedReverseLedgerBackup/);
   assert.match(html, /restoreTrustedReverseLedgerBackup/);
-  assert.match(html, /reverse-ledger-gateway\\.js/);
-  assert.match(gateway, /httpsCallable\\('executeReverseLedger'\\)/);
+  assert.ok(html.includes('reverse-ledger-gateway.js'));
+  assert.ok(gateway.includes("httpsCallable('executeReverseLedger')"));
 });
 
 test('staging config example contains placeholders only and no private service-account material', () => {
