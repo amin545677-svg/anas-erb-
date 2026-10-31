@@ -2,11 +2,33 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Staging: authenticated users can access only their own latest ANAS ERP snapshot.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function hasReverseLedgerGrant(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid)/reverseLedgerGrants/$(uid));
+    }
+
+    // Snapshot writes are disabled for users with a trusted reverse-ledger grant.
+    // Their financial state may only be changed by the Admin-SDK transaction function.
+    // Snapshot reads remain available to the signed-in owner.
     match /users/{uid}/snapshots/{snapshotId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == uid
-        && snapshotId == "latest";
+      allow read: if isOwner(uid) && snapshotId == "latest";
+      allow write: if isOwner(uid) && snapshotId == "latest" && !hasReverseLedgerGrant(uid);
+    }
+
+    // Grants and financial-period controls are server-managed only.
+    match /users/{uid}/reverseLedgerGrants/{grantId} {
+      allow read, write: if false;
+    }
+    match /users/{uid}/financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+
+    // Idempotency records and posted operation results are server-managed only.
+    match /users/{uid}/reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
     }
   }
 }
