@@ -9,9 +9,10 @@
     const issues = [];
     const transferIds = new Set();
     const movementIds = new Set();
-    const expectedMovementIds = new Set();
+    const movementsByReference = new Map();
     let checked = 0;
 
+    // Build one index in O(M); avoid rescanning the complete ledger for every transfer.
     for (const movement of movements) {
       if (!movement || typeof movement !== 'object' || Array.isArray(movement)) {
         issues.push({ code: 'INVALID_MOVEMENT', message: 'يوجد سجل حركة مخزون غير صالح.' });
@@ -21,6 +22,11 @@
         const id = String(movement.id).trim();
         if (movementIds.has(id)) issues.push({ code: 'DUPLICATE_MOVEMENT_ID', id, message: 'معرّف حركة مخزون مكرر: ' + id });
         movementIds.add(id);
+      }
+      if (movement.referenceType === 'warehouse_transfer') {
+        const referenceId = String(movement.referenceId || '').trim();
+        if (!movementsByReference.has(referenceId)) movementsByReference.set(referenceId, []);
+        movementsByReference.get(referenceId).push(movement);
       }
     }
 
@@ -52,9 +58,10 @@
         issues.push({ code: 'MISSING_PRODUCT_ID', id, message: 'السند ' + id + ' لا يحتوي معرّف منتج.' });
       }
 
-      const related = movements.filter(m => m && String(m.referenceType || '') === 'warehouse_transfer' && String(m.referenceId || '') === id);
+      const related = movementsByReference.get(id) || [];
       const out = related.filter(m => m.type === 'WAREHOUSE_TRANSFER_OUT');
       const incoming = related.filter(m => m.type === 'WAREHOUSE_TRANSFER_IN');
+      if (related.length !== 2) issues.push({ code: 'UNEXPECTED_TRANSFER_LEG_COUNT', id, message: 'السند ' + id + ': يجب أن يرتبط بحركتي مخزون فقط.' });
       if (out.length !== 1) issues.push({ code: 'OUT_LEG_COUNT', id, message: 'السند ' + id + ': يجب وجود حركة خروج واحدة فقط.' });
       if (incoming.length !== 1) issues.push({ code: 'IN_LEG_COUNT', id, message: 'السند ' + id + ': يجب وجود حركة دخول واحدة فقط.' });
 
@@ -71,16 +78,13 @@
       };
       if (out.length === 1 && !matches(out[0], 'out')) issues.push({ code: 'OUT_LEG_MISMATCH', id, message: 'بيانات حركة الخروج لا تطابق سند التحويل ' + id });
       if (incoming.length === 1 && !matches(incoming[0], 'in')) issues.push({ code: 'IN_LEG_MISMATCH', id, message: 'بيانات حركة الدخول لا تطابق سند التحويل ' + id });
-
-      expectedMovementIds.add(id + '-OUT');
-      expectedMovementIds.add(id + '-IN');
     }
 
-    for (const movement of movements) {
-      if (!movement || movement.referenceType !== 'warehouse_transfer') continue;
-      const id = String(movement.referenceId || '').trim();
-      if (!transferIds.has(id)) {
-        issues.push({ code: 'ORPHAN_TRANSFER_MOVEMENT', id: movement.id == null ? '' : String(movement.id), message: 'حركة تحويل بلا سند مرجعي: ' + (movement.id || id || 'غير معروف') });
+    for (const [referenceId, related] of movementsByReference) {
+      if (!transferIds.has(referenceId)) {
+        for (const movement of related) {
+          issues.push({ code: 'ORPHAN_TRANSFER_MOVEMENT', id: movement.id == null ? '' : String(movement.id), message: 'حركة تحويل بلا سند مرجعي: ' + (movement.id || referenceId || 'غير معروف') });
+        }
       }
     }
 
