@@ -736,7 +736,7 @@ test('trusted backup and restore preserve snapshot plus Firestore operation idem
   assert.equal(backup.get('operationCount'), 1);
   assert.equal((await backupRef.collection('operations').doc(operationId).get()).get('record').status, 'RESERVED');
 
-  await snapshotRef.update({ payload: JSON.stringify(validBackupState(999)) });
+  await snapshotRef.update({ payload: '{corrupted-snapshot-json' });
   await operationRef.delete();
   const restored = await handlers.restoreTrustedReverseLedgerBackup({
     auth: { uid }, app: { appId: 'emulator-test-app' }, data: { backupId: created.backupId }
