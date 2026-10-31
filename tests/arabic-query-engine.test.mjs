@@ -71,3 +71,36 @@ test('creating a customer keeps the explicitly supplied opening debt', () => {
   assert.equal(anasCustomerDebtForSave(false, null, 1250), 1250);
   assert.equal(anasCustomerDebtForSave(false, null, 0), 0);
 });
+
+
+const collectionsMatch = html.match(/        function anasGetCustomerDebtCollections\([\s\S]*?(?=        function anasRenderCustomerDebtCollections)/);
+assert.ok(collectionsMatch, 'read-only customer collection history selector must exist');
+const collectionsContext = {};
+vm.runInNewContext(collectionsMatch[0] + '\nthis.select = anasGetCustomerDebtCollections;', collectionsContext);
+const anasGetCustomerDebtCollections = collectionsContext.select;
+
+test('customer collection history is isolated by customer and includes valid debt receipts only', () => {
+  const movements = [
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: 100, date: '2026-01-01T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'B', type: 'add', amount: 200, date: '2026-01-02T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'remove', amount: 50, date: '2026-01-03T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: -5, date: '2026-01-04T10:00:00Z' },
+    { referenceType: 'cash_sale', referenceId: 'A', type: 'add', amount: 500, date: '2026-01-05T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: 75, date: '2026-01-06T10:00:00Z' }
+  ];
+  const selected = anasGetCustomerDebtCollections('A', movements);
+  assert.equal(selected.length, 2);
+  assert.deepEqual(selected.map(x => x.amount), [75, 100]);
+});
+
+test('customer collection history rejects invalid input and caps display to ten newest records', () => {
+  assert.deepEqual(anasGetCustomerDebtCollections('A', null), []);
+  const movements = Array.from({ length: 12 }, (_, i) => ({
+    referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: i + 1,
+    date: new Date(Date.UTC(2026, 0, i + 1)).toISOString()
+  }));
+  const selected = anasGetCustomerDebtCollections('A', movements);
+  assert.equal(selected.length, 10);
+  assert.equal(selected[0].amount, 12);
+  assert.equal(selected[9].amount, 3);
+});
