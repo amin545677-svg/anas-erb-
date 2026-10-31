@@ -4714,7 +4714,7 @@ function renderPurchasesTable() {
             const allInvoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
             const invoices = allInvoices.slice().reverse();
             const query = anasNormalizeQueryText(document.getElementById('invoiceListSearch')?.value || '');
-            const filteredInvoices = invoices.filter(inv => anasQueryMatches([
+            const filteredInvoices = invoices.filter(inv => inv && anasQueryMatches([
                 inv.id, inv.customer, inv.date, inv.createdAt, inv.invoiceDate, inv.total,
                 inv.paid, inv.remaining, inv.paymentMethod, inv.status
             ], query));
