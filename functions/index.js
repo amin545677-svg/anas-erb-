@@ -7,6 +7,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const ReverseLedger = require('./lib/reverse-ledger.js');
 const { authorizePreparedReverseOperation } = require('./reverse-ledger-adapter.js');
 const { createReverseLedgerHandler } = require('./reverse-ledger-service.js');
+const { createReverseLedgerBackupHandlers } = require('./reverse-ledger-backup-service.js');
 
 if (!getApps().length) initializeApp();
 
@@ -31,3 +32,24 @@ exports.executeReverseLedger = onCall({
   maxInstances: 10,
   timeoutSeconds: 60
 }, executeReverseLedger);
+
+const reverseLedgerBackupHandlers = createReverseLedgerBackupHandlers({
+  db: getFirestore(),
+  FieldValue,
+  HttpsError,
+  ReverseLedger
+});
+
+exports.createTrustedReverseLedgerBackup = onCall({
+  region: 'us-central1',
+  enforceAppCheck: true,
+  maxInstances: 5,
+  timeoutSeconds: 60
+}, reverseLedgerBackupHandlers.createTrustedReverseLedgerBackup);
+
+exports.restoreTrustedReverseLedgerBackup = onCall({
+  region: 'us-central1',
+  enforceAppCheck: true,
+  maxInstances: 5,
+  timeoutSeconds: 60
+}, reverseLedgerBackupHandlers.restoreTrustedReverseLedgerBackup);
