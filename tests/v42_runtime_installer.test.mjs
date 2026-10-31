@@ -478,3 +478,74 @@ test("runtime wiring still permits nonfinancial settings persistence", () => {
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   installer.uninstall();
 });
+
+
+test("runtime wiring rejects unrelated business writes bundled with a supported sale or collection", () => {
+  {
+    const initial = fixture();
+    const current = structuredClone(initial);
+    current.invoices.push({
+      id: "invoice-with-extra-purchase",
+      items: [{ id: "item_a", qty: 1, price: 100 }],
+      total: 100, paid: 100, remaining: 0
+    });
+    current.purchases = [{ id: "purchase-unrelated-to-sale", qty: 1, cost: 50, total: 50 }];
+    const storage = new MemoryStorage({
+      [MUTATION_KEYS.appData]: JSON.stringify(initial),
+      [MUTATION_KEYS.pending]: "[]"
+    });
+    let persisted = false;
+    const installer = installV42RuntimeWiring({
+      windowObject: {}, storage,
+      orchestrator: { pushCurrent: async () => ({}), reconcileAndSync: async () => ({}) },
+      getAppData: () => current, setAppData: () => {},
+      getSaveDB: () => () => { persisted = true; return true; }, setSaveDB: () => {},
+      mapMutation: ({ entity }) => ({ type: "SALE_INVOICE", payload: { invoice: structuredClone(entity) } })
+    });
+    installer.install();
+    assert.throws(() => installer.wrappedSaveDB(), /Unsupported additional business collection change/);
+    assert.equal(persisted, false, "sale must not persist alongside an unsupported purchase");
+    assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+    installer.uninstall();
+  }
+
+  {
+    const initial = fixture();
+    const current = structuredClone(initial);
+    current.caisseBalance += 50;
+    current.customers[0].debt -= 50;
+    current.cashMovements.push({
+      id: "collection-with-extra-stock-change",
+      type: "add",
+      referenceType: "customer_debt",
+      referenceId: "cust_1",
+      amount: 50
+    });
+    current.products[0].warehouseStock = { "مخزن ثانوي": 4 };
+    const storage = new MemoryStorage({
+      [MUTATION_KEYS.appData]: JSON.stringify(initial),
+      [MUTATION_KEYS.pending]: "[]"
+    });
+    let persisted = false;
+    const installer = installV42RuntimeWiring({
+      windowObject: {}, storage,
+      orchestrator: { pushCurrent: async () => ({}), reconcileAndSync: async () => ({}) },
+      getAppData: () => current, setAppData: () => {},
+      getSaveDB: () => () => { persisted = true; return true; }, setSaveDB: () => {},
+      mapMutation: ({ entity }) => ({
+        type: "DEBT_COLLECTION",
+        payload: {
+          customerId: entity.referenceId,
+          amount: entity.amount,
+          cashMovementId: entity.id,
+          cashMovement: structuredClone(entity)
+        }
+      })
+    });
+    installer.install();
+    assert.throws(() => installer.wrappedSaveDB(), /Unsupported additional business collection change/);
+    assert.equal(persisted, false, "collection must not persist alongside an unsupported warehouse-stock change");
+    assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+    installer.uninstall();
+  }
+});
