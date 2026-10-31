@@ -45,14 +45,20 @@ function validateFixture(fixture) {
   for (const type of REQUIRED_TYPES) if (!types.has(type)) throw new Error('Fixture is missing required operation type: ' + type);
   const saleReturn = fixture.operations.find(x => x?.request?.returnType === 'SALE_RETURN')?.request;
   const cancellation = fixture.operations.find(x => x?.request?.returnType === 'INVOICE_CANCEL')?.request;
-  if (saleReturn?.invoiceId !== cancellation?.invoiceId ||
-      saleReturn?.originalInvoiceType !== 'sales_invoice' ||
+  if (saleReturn?.originalInvoiceType !== 'sales_invoice' ||
       cancellation?.originalInvoiceType !== 'sales_invoice' ||
-      saleReturn?.invoiceId !== fixture.saleSettlement?.invoiceId) {
-    throw new Error('SALE_RETURN, settlement allocation and INVOICE_CANCEL must target the same sales invoice.');
+      saleReturn?.invoiceId !== fixture.saleSettlement?.invoiceId ||
+      cancellation?.invoiceId === saleReturn?.invoiceId) {
+    throw new Error('SALE_RETURN and its allocation must target one sales invoice; INVOICE_CANCEL must target a separate eligible sales invoice because a posted partial return blocks later cancellation.');
   }
-  if (!fixture.saleSettlement || !fixture.saleSettlement.invoiceId || !fixture.saleSettlement.expectedPaidCentimes) {
-    throw new Error('Fixture must prove the sale invoice settlement allocation before reverse posting.');
+  if (!fixture.saleSettlement || !fixture.saleSettlement.invoiceId || !fixture.saleSettlement.partyId ||
+      !fixture.saleSettlement.sourceMovementId || !fixture.saleSettlement.sourceMovementType ||
+      !fixture.saleSettlement.expectedPaidCentimes || !fixture.saleSettlement.expectedAllocatedCentimes ||
+      !fixture.saleSettlement.periodId) {
+    throw new Error('Fixture must provide an unpaid/part-paid invoice, a real receipt source, period ID and exact allocation centimes.');
+  }
+  if (!['customer_debt', 'sales_invoice'].includes(fixture.saleSettlement.sourceMovementType)) {
+    throw new Error('Sale settlement sourceMovementType must be customer_debt or sales_invoice.');
   }
   for (const row of fixture.operations) {
     const r = row && row.request;
@@ -123,21 +129,71 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
       return { uid: user.uid, payload: doc.get('payload') };
     });
     let state = JSON.parse(initial.payload);
-    const invoice = (state.invoices || []).find(x => String(x.id) === String(fixture.saleSettlement.invoiceId));
+    const settlement = fixture.saleSettlement;
+    const invoice = (state.invoices || []).find(x => String(x.id) === String(settlement.invoiceId));
     if (!invoice) throw new Error('Pre-seeded sale invoice for allocation proof was not found.');
-    const paid = scaledUnits(invoice.paid ?? invoice.total, 100n, 'sale invoice paid');
-    if (paid !== BigInt(fixture.saleSettlement.expectedPaidCentimes)) {
-      throw new Error('Sale settlement allocation does not match expected centimes.');
-    }
-    const allocationRows = (state.settlementAllocations || []).filter(row =>
-      row && row.invoiceType === 'sales_invoice' &&
-      String(row.invoiceId) === String(fixture.saleSettlement.invoiceId) &&
-      String(row.partyId) === String(fixture.saleSettlement.partyId) &&
-      row.partyType === 'customer' && row.sourceMovementType === 'customer_debt');
+    const paid = scaledUnits(invoice.paid ?? 0, 100n, 'sale invoice paid');
+    if (paid !== BigInt(settlement.expectedPaidCentimes)) throw new Error('Sale invoice paid amount does not match fixture centimes.');
+    const sourceRows = (state.cashMovements || []).filter(row => row &&
+      String(row.id ?? row.movementId) === String(settlement.sourceMovementId) &&
+      row.referenceType === settlement.sourceMovementType &&
+      (settlement.sourceMovementType !== 'customer_debt' || String(row.referenceId) === String(settlement.partyId)));
+    if (sourceRows.length !== 1) throw new Error('Expected exactly one real customer receipt source movement.');
+    const sourceAmount = scaledUnits(sourceRows[0].amountCentimes != null ? String(BigInt(sourceRows[0].amountCentimes) / 100n) + '.' + String(BigInt(sourceRows[0].amountCentimes) % 100n).padStart(2, '0') : sourceRows[0].amount ?? sourceRows[0].amt, 100n, 'receipt source amount');
+    const priorSourceAllocated = (state.settlementAllocations || []).filter(row => row &&
+      row.partyType === 'customer' && String(row.partyId) === String(settlement.partyId) &&
+      row.sourceMovementType === settlement.sourceMovementType &&
+      String(row.sourceMovementId) === String(settlement.sourceMovementId))
+      .reduce((sum, row) => sum + BigInt(row.amountCentimes || 0), 0n);
+    const expectedAllocation = BigInt(settlement.expectedAllocatedCentimes);
+    if (priorSourceAllocated !== 0n) throw new Error('Staging E2E receipt source must start without pre-made settlement allocations.');
+    if (sourceAmount !== expectedAllocation) throw new Error('Fixture allocation amount must equal the source movement remaining centimes exactly.');
+    if (expectedAllocation <= 0n) throw new Error('Fixture allocation amount must be positive.');
+
+    await page.locator('#settlement-allocation').click();
+    await page.locator('#modal-settlement-allocation.active').waitFor({ state: 'visible' });
+    await page.locator('#alloc-party-type').selectOption('customer');
+    await page.locator('#alloc-party').selectOption(String(settlement.partyId));
+    const sourceOption = await page.locator('#alloc-source').evaluate((select, sourceId) => {
+      const option = [...select.options].find(row => row.textContent.includes(sourceId));
+      return option ? option.value : null;
+    }, String(settlement.sourceMovementId));
+    if (sourceOption === null) throw new Error('Settlement modal did not list the real receipt source movement.');
+    await page.locator('#alloc-source').selectOption(sourceOption);
+    const invoiceNumber = String(invoice.invoiceNumber ?? invoice.number ?? invoice.code ?? invoice.id);
+    const invoiceOption = await page.locator('#alloc-invoice').evaluate((select, number) => {
+      const option = [...select.options].find(row => row.textContent.includes(number));
+      return option ? option.value : null;
+    }, invoiceNumber);
+    if (invoiceOption === null) throw new Error('Settlement modal did not list the target invoice.');
+    await page.locator('#alloc-invoice').selectOption(invoiceOption);
+    const whole = expectedAllocation / 100n;
+    const fraction = (expectedAllocation % 100n).toString().padStart(2, '0');
+    await page.locator('#alloc-amount').fill(whole.toString() + '.' + fraction);
+    await page.locator('#alloc-period-id').fill(String(settlement.periodId));
+    await page.waitForFunction(() => { const button = document.getElementById('alloc-submit'); return button && !button.disabled; });
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#alloc-submit').click();
+    await page.waitForFunction(details => (window.AppData?.settlementAllocations || []).some(row =>
+      row && row.partyType === 'customer' && String(row.partyId) === details.partyId &&
+      String(row.sourceMovementId) === details.sourceMovementId && String(row.invoiceId) === details.invoiceId &&
+      BigInt(row.amountCentimes) === BigInt(details.amountCentimes)), {
+        partyId: String(settlement.partyId), sourceMovementId: String(settlement.sourceMovementId),
+        invoiceId: String(settlement.invoiceId), amountCentimes: expectedAllocation.toString()
+      });
+    await page.locator('#alloc-close').click();
+    state = await page.evaluate(() => window.AppData);
+    const allocationRows = (state.settlementAllocations || []).filter(row => row &&
+      row.invoiceType === 'sales_invoice' && String(row.invoiceId) === String(settlement.invoiceId) &&
+      String(row.partyId) === String(settlement.partyId) && row.partyType === 'customer' &&
+      row.sourceMovementType === settlement.sourceMovementType);
     const allocated = allocationRows.reduce((sum, row) => sum + BigInt(row.amountCentimes || 0), 0n);
-    if (allocated !== BigInt(fixture.saleSettlement.expectedAllocatedCentimes)) {
-      throw new Error('Settlement allocation proof mismatch; expected exact allocated centimes.');
-    }
+    if (allocated !== expectedAllocation) throw new Error('Server-posted settlement allocation total differs from the exact fixture centimes.');
+    evidence.saleSettlement = {
+      invoiceId: String(invoice.id), partyId: String(settlement.partyId), sourceMovementId: String(settlement.sourceMovementId),
+      paidCentimes: paid.toString(), allocatedCentimes: allocated.toString(), allocationRows: allocationRows.length,
+      allocationPostedThroughModal: true, partialReturnValidated: true, fullCancellationTargetsSeparateEligibleInvoice: true
+    };
     const saleReturnRequest = fixture.operations.find(x => x.request.returnType === 'SALE_RETURN').request;
     for (const line of saleReturnRequest.items) {
       const sourceLine = (invoice.items || []).find(item =>

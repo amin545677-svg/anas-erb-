@@ -8,6 +8,7 @@ const ReverseLedger = require('./lib/reverse-ledger.js');
 const { authorizePreparedReverseOperation } = require('./reverse-ledger-adapter.js');
 const { createReverseLedgerHandler } = require('./reverse-ledger-service.js');
 const { createReverseLedgerBackupHandlers } = require('./reverse-ledger-backup-service.js');
+const { createSettlementAllocationHandler } = require('./settlement-allocation-service.js');
 
 if (!getApps().length) initializeApp();
 
@@ -32,6 +33,22 @@ exports.executeReverseLedger = onCall({
   maxInstances: 10,
   timeoutSeconds: 60
 }, executeReverseLedger);
+
+
+const executeSettlementAllocation = createSettlementAllocationHandler({
+  db: getFirestore(),
+  getUser: uid => getAuth().getUser(uid),
+  FieldValue,
+  HttpsError,
+  ReverseLedger
+});
+
+exports.executeSettlementAllocation = onCall({
+  region: 'us-central1',
+  enforceAppCheck: true,
+  maxInstances: 10,
+  timeoutSeconds: 60
+}, executeSettlementAllocation);
 
 const reverseLedgerBackupHandlers = createReverseLedgerBackupHandlers({
   db: getFirestore(),

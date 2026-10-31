@@ -6,7 +6,9 @@
     "node": "22"
   },
   "scripts": {
-    "test:adapter": "node --test ../tests/reverse_ledger_server_adapter.test.js"
+    "test:adapter": "node --test ../tests/reverse_ledger_server_adapter.test.js",
+    "test:allocation": "node --test ../tests/settlement_allocation_server.test.js",
+    "test": "node --test ../tests/settlement_allocation_server.test.js ../tests/reverse_ledger_server_adapter.test.js ../tests/reverse_ledger_authorization.test.js ../tests/reverse_ledger_primitives.test.js"
   },
   "dependencies": {
     "firebase-admin": "^13.5.0",

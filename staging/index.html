@@ -29,6 +29,7 @@
   <script src="./config.js"></script>
   <script src="../reverse-ledger/reverse-ledger.js"></script>
   <script src="../reverse-ledger/reverse-ledger-modal.js"></script>
+  <script src="../reverse-ledger/settlement-allocation-modal.js"></script>
   <script src="./reverse-ledger-gateway.js"></script>
 </head>
 <body>
@@ -66,6 +67,7 @@
       <button id="sale-return" type="button" disabled>مرتجع مبيعات</button>
       <button id="purchase-return" type="button" disabled>مرتجع مشتريات</button>
       <button id="invoice-cancel" type="button" disabled>إلغاء فاتورة</button>
+      <button id="settlement-allocation" type="button" disabled>تخصيص دفعة</button>
     </div>
   </section>
 
@@ -123,7 +125,7 @@
       if (!user) {
         loadedUid = null;
         window.AppData = undefined;
-        $('sale-return').disabled = $('purchase-return').disabled = $('invoice-cancel').disabled = true;
+        $('sale-return').disabled = $('purchase-return').disabled = $('invoice-cancel').disabled = $('settlement-allocation').disabled = true;
         message('snapshot-status', 'سجّل الدخول بحساب Staging ثم اقرأ النسخة السحابية.', false);
       } else {
         message('snapshot-status', 'تم تسجيل الدخول: ' + user.uid + '. اقرأ النسخة السحابية قبل فتح أي عملية.', true);
@@ -155,7 +157,10 @@
     $('sale-return').disabled = false;
     $('purchase-return').disabled = false;
     $('invoice-cancel').disabled = false;
+    $('settlement-allocation').disabled = false;
   }
+  window.ANASReloadStagingSnapshot = loadSnapshot;
+
   async function callable(name, data) {
     if (!auth.currentUser) throw new Error('انتهت جلسة Staging؛ سجّل الدخول مجدداً.');
     await auth.currentUser.getIdToken(true);
@@ -186,6 +191,10 @@
   $('invoice-cancel').addEventListener('click', () => {
     if (loadedUid !== auth.currentUser?.uid || !window.AppData) return message('snapshot-status','أعد قراءة نسخة الحساب الحالي.',false);
     window.ANASReverseLedgerModal.open('INVOICE_CANCEL');
+  });
+  $('settlement-allocation').addEventListener('click', () => {
+    if (loadedUid !== auth.currentUser?.uid || !window.AppData) return message('snapshot-status','أعد قراءة نسخة الحساب الحالي.',false);
+    window.ANASSettlementAllocationModal.open();
   });
   $('create-backup').addEventListener('click', async () => {
     const button = $('create-backup'); button.disabled = true;

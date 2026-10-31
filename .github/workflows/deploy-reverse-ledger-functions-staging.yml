@@ -1,13 +1,15 @@
 name: Deploy Reverse Ledger Firebase Functions (Staging)
 # Scoped push-trigger probe: 2026-10-31 live Staging preflight.
+# PR #262 verification: deploy both trusted financial callables to isolated Staging only.
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - feat/reverse-ledger-firebase-functions-v2
+      - feature/atomic-settlement-allocation
     paths:
       - 'functions/**'
+      - 'scripts/**'
       - 'reverse-ledger/**'
       - 'firebase.staging.json'
       - 'firebase/firestore.staging.rules'
@@ -18,7 +20,7 @@ permissions:
 
 jobs:
   deploy-reverse-ledger-staging:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feature/atomic-settlement-allocation')
     environment: staging
     runs-on: ubuntu-latest
     steps:
@@ -29,6 +31,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Run fail-closed staging callable readiness preflight
+        run: node scripts/check-staging-readiness.mjs
 
       - name: Verify staging-only configuration and canonical bundled sources
         run: |
@@ -52,9 +57,10 @@ jobs:
           node --check functions/reverse-ledger-adapter.js
           node --check functions/reverse-ledger-service.js
           node --check functions/reverse-ledger-backup-service.js
+          node --check functions/settlement-allocation-service.js
 
       - name: Run reverse-ledger adapter and authorization tests
-        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js
+        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
       - name: Require staging service account
         env:
@@ -76,7 +82,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
         run: |
           npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
+            --only firestore:rules,functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
             --project anas-erp-staging-a25e1 \
             --config firebase.staging.json \
             --non-interactive

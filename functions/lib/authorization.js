@@ -16,7 +16,8 @@ const PERMISSIONS = Object.freeze({
   CASH_REFUND: 'reverse_cash_refund',
   CREDIT_ISSUE: 'reverse_credit_issue',
   LIQUIDITY_OVERRIDE: 'reverse_liquidity_override',
-  LEGACY_RECONCILE: 'reverse_legacy_reconcile'
+  LEGACY_RECONCILE: 'reverse_legacy_reconcile',
+  SETTLEMENT_ALLOCATION: 'settlement_allocation_post'
 });
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 

@@ -5,8 +5,11 @@ const byId = id => document.getElementById(id);
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const state = { partyType: 'customer', partyId: '', source: null, invoice: null, sources: [], invoices: [] };
 function data() {
-  if (typeof AppData === 'undefined' || !AppData || typeof AppData !== 'object') throw new Error('بيانات التطبيق غير جاهزة.');
-  return AppData;
+  // The production shell keeps AppData as a top-level lexical binding to preserve V42.
+  // The isolated staging console assigns window.AppData after authentication and snapshot load.
+  const current = window.AppData || (typeof AppData !== 'undefined' ? AppData : null);
+  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق غير جاهزة.');
+  return current;
 }
 function cents(value) {
   const raw = String(value ?? '').trim().replace(/\s/g, '').replace(',', '.');
@@ -48,12 +51,30 @@ function allocatedToSource(source) {
     String(row.partyId) === state.partyId)
     .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
 }
-function allocatedToInvoice(invoice) {
+function invoiceAllocations(invoice) {
   const invoiceType = state.partyType === 'customer' ? 'sales_invoice' : 'purchase_invoice';
   return allocations().filter(row => row && row.partyType === state.partyType &&
     row.invoiceType === invoiceType && String(row.invoiceId) === String(invoice.id) &&
-    String(row.partyId) === state.partyId)
+    String(row.partyId) === state.partyId);
+}
+function invoicePaid(invoice) {
+  if (Number.isSafeInteger(invoice.paidCentimes) && invoice.paidCentimes >= 0) return BigInt(invoice.paidCentimes);
+  return cents(invoice.paid ?? 0);
+}
+function allocatedToInvoice(invoice) {
+  const laterType = state.partyType === 'customer' ? 'customer_debt' : 'supplier_payment';
+  const laterAllocated = invoiceAllocations(invoice).filter(row => row.sourceMovementType === laterType)
     .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
+  return invoicePaid(invoice) + laterAllocated;
+}
+function sourceInvoiceRemaining(invoice) {
+  const initialType = state.partyType === 'customer' ? 'sales_invoice' : 'purchase_invoice';
+  if (state.source && state.source.sourceMovementType === initialType) {
+    const initialAllocated = invoiceAllocations(invoice).filter(row => row.sourceMovementType === initialType)
+      .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
+    return invoicePaid(invoice) - initialAllocated;
+  }
+  return invoiceTotal(invoice) - allocatedToInvoice(invoice);
 }
 function collectSources() {
   const db = data();
@@ -153,7 +174,7 @@ function renderInvoices() {
   const rows = invoicesForParty();
   state.invoices = rows.filter(invoice => {
     if (state.source?.linkedInvoiceId && String(invoice.id) !== state.source.linkedInvoiceId) return false;
-    try { return invoiceTotal(invoice) > allocatedToInvoice(invoice); } catch (_) { return false; }
+    try { return sourceInvoiceRemaining(invoice) > 0n; } catch (_) { return false; }
   });
   state.invoices.forEach((invoice, index) => select.add(new Option(invoiceLabel(invoice), String(index))));
   state.invoice = null;
@@ -167,7 +188,7 @@ function renderInvoices() {
 function renderInvoiceBalance() {
   const node = byId('alloc-invoice-remaining');
   if (!state.invoice) { node.textContent = '—'; return; }
-  const remaining = invoiceTotal(state.invoice) - allocatedToInvoice(state.invoice);
+  const remaining = sourceInvoiceRemaining(state.invoice);
   node.textContent = money(remaining);
 }
 function renderMatch() {
@@ -221,8 +242,8 @@ function validateDraft() {
   const amount = cents(byId('alloc-amount').value);
   if (amount <= 0n) throw new Error('مبلغ التخصيص يجب أن يكون أكبر من صفر.');
   const sourceRemaining = state.source.amountCentimes - state.source.assignedCentimes;
-  const invoiceRemaining = invoiceTotal(state.invoice) - allocatedToInvoice(state.invoice);
-  if (amount > sourceRemaining) throw new Error('مبلغ التخصيص يتجاوز الرصيد غير المخصص لحركة الدفع.');
+  const invoiceRemaining = sourceInvoiceRemaining(state.invoice);
+  if (amount !== sourceRemaining) throw new Error('يجب أن يساوي مجموع التخصيصات كامل الرصيد المتبقي لحركة القبض أو الدفع؛ فرق السنتيم يجب أن يكون صفراً.');
   if (amount > invoiceRemaining) throw new Error('مبلغ التخصيص يتجاوز الرصيد المشتق للفاتورة.');
   return amount;
 }
@@ -253,50 +274,38 @@ function makeId() {
     : Date.now().toString(36) + Math.random().toString(36).slice(2);
   return 'ALLOC-' + random;
 }
-function submit() {
+async function submit() {
   let amount;
   try { amount = validateDraft(); }
   catch (error) { status(error.message || String(error), false); return; }
-  const db = data();
-  const engine = window.ANASReverseLedger;
-  if (!engine || typeof engine.sealSettlementAllocation !== 'function' ||
-      typeof engine.validateReverseLedgerParity !== 'function') {
-    status('محرك تخصيص الدفعات غير متاح؛ لم تتغير البيانات.', false);
+  const gateway = window.ANASSettlementAllocationServer;
+  if (!gateway || typeof gateway.execute !== 'function') {
+    status('بوابة تخصيص الدفعات السحابية غير متاحة؛ لم تتغير أي بيانات.', false);
     return;
   }
-  const collectionHad = own(db, 'settlementAllocations');
-  let rows = db.settlementAllocations;
-  if (rows === undefined) rows = [];
-  if (!Array.isArray(rows)) { status('دفتر التخصيصات تالف؛ لم تتغير البيانات.', false); return; }
-  const before = rows.slice();
-  const reference = rows;
-  const invoiceType = state.partyType === 'customer' ? 'sales_invoice' : 'purchase_invoice';
+  const periodId = String(byId('alloc-period-id')?.value || '').trim();
+  if (!periodId) { status('أدخل معرّف الفترة المالية المفتوحة قبل الترحيل.', false); return; }
+  const button = byId('alloc-submit');
+  button.disabled = true;
+  button.textContent = 'جارٍ التحقق والترحيل الخادمي…';
+  const request = {
+    operationId: makeId(), periodId, partyType: state.partyType, partyId: state.partyId,
+    sourceMovementId: state.source.sourceMovementId, sourceMovementType: state.source.sourceMovementType,
+    allocations: [{ invoiceId: String(state.invoice.id), amountCentimes: Number(amount) }]
+  };
   try {
-    const record = engine.sealSettlementAllocation(db, {
-      allocationId: makeId(),
-      partyType: state.partyType,
-      partyId: state.partyId,
-      invoiceType,
-      invoiceId: String(state.invoice.id),
-      sourceMovementId: state.source.sourceMovementId,
-      sourceMovementType: state.source.sourceMovementType,
-      amountCentimes: Number(amount),
-      createdAt: new Date().toISOString()
-    });
-    rows.push(record);
-    db.settlementAllocations = rows;
-    engine.validateReverseLedgerParity(db);
-    if (typeof window.saveDB !== 'function' || window.saveDB() !== true) {
-      throw new Error('تعذر حفظ التخصيص محلياً؛ تم التراجع عن التغيير.');
-    }
-    window.alert('تم حفظ تخصيص الدفعة بنجاح. لم يتم تعديل الفاتورة الأصلية؛ الرصيد يُشتق من دفتر التخصيصات.');
+    const result = await gateway.execute(request);
+    if (!result || result.ok !== true || result.status !== 'POSTED' || result.operationId !== request.operationId ||
+        !Array.isArray(result.allocations) || result.allocations.length !== 1) throw new Error('لم يؤكد الخادم ترحيل تخصيص الدفعة.');
+    if (typeof window.ANASReloadStagingSnapshot !== 'function') throw new Error('تم الترحيل الخادمي لكن دالة تحديث النسخة غير متاحة؛ أعد قراءة النسخة السحابية قبل أي عملية مالية أخرى.');
+    await window.ANASReloadStagingSnapshot();
+    window.alert('تم ترحيل تخصيص الدفعة سحابياً والتحقق منه. لم يُعدّل رصيد الفاتورة محلياً.');
     refresh();
+    button.textContent = 'اعتماد التخصيص';
   } catch (error) {
-    reference.splice(0, reference.length, ...before);
-    if (collectionHad) db.settlementAllocations = reference;
-    else delete db.settlementAllocations;
-    status(error && error.message ? error.message : 'فشل التخصيص وتمت الاستعادة.', false);
-  }
+    status(error && error.message ? error.message : 'فشل التخصيص الخادمي؛ لم يُعتمد أي تغيير محلي.', false);
+    button.textContent = 'إعادة المحاولة';
+  } finally { button.disabled = false; }
 }
 function close() {
   const modal = byId('modal-settlement-allocation');
@@ -323,7 +332,7 @@ function mount() {
   overlay.setAttribute('aria-labelledby', 'alloc-title');
   overlay.innerHTML = '<div class="alloc-dialog"><div class="alloc-head"><h2 id="alloc-title">تخصيص الدفعات على الفواتير</h2><button type="button" id="alloc-close" aria-label="إغلاق">×</button></div>'+
     '<div class="alloc-body"><div class="alloc-grid"><label>نوع الطرف<select id="alloc-party-type"><option value="customer">عميل</option><option value="supplier">مورد</option></select></label><label>العميل / المورد<select id="alloc-party"><option value="">اختر الطرف...</option></select></label></div>'+
-    '<label>حركة القبض أو الدفع<select id="alloc-source"><option value="">اختر حركة...</option></select></label><label>الفاتورة المستحقة<select id="alloc-invoice"><option value="">اختر الفاتورة...</option></select></label>'+
+    '<label>حركة القبض أو الدفع<select id="alloc-source"><option value="">اختر حركة...</option></select></label><label>الفاتورة المستحقة<select id="alloc-invoice"><option value="">اختر الفاتورة...</option></select></label><label>الفترة المالية المفتوحة (معرّف الخادم)<input id="alloc-period-id" maxlength="128" autocomplete="off" placeholder="مثال: FY-2026-10"></label>'+
     '<div class="alloc-card"><strong>مطابقة مصدر الدفعة</strong><div id="alloc-assigned-total">—</div><div class="alloc-track"><div id="alloc-match-fill" class="alloc-fill"></div></div><div id="alloc-match-label">اختر حركة لعرض المطابقة.</div><small>الرصيد غير المخصص للمصدر: <strong id="alloc-source-remaining">—</strong></small><small>الرصيد المشتق للفاتورة: <strong id="alloc-invoice-remaining">—</strong></small></div>'+
     '<div class="alloc-grid"><label>مبلغ التخصيص (د.ج)<input id="alloc-amount" inputmode="decimal" autocomplete="off" placeholder="0.00"></label><div class="alloc-card"><strong>المطابقة بعد التخصيص</strong><span id="alloc-draft-match">—</span></div></div>'+
     '<div id="alloc-status" class="alloc-status" role="status" aria-live="polite">اختر الطرف ومصدر الدفعة للبدء.</div><div class="alloc-actions"><button type="button" id="alloc-submit" disabled>حفظ التخصيص</button><button type="button" id="alloc-close-bottom">إغلاق</button></div>'+
@@ -349,7 +358,8 @@ function mount() {
   byId('alloc-close-bottom').addEventListener('click', close);
   overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && overlay.classList.contains('active')) close(); });
-  renderParties();
+  // Do not read account data while mounting: the staging console is unauthenticated
+  // until its operator signs in and explicitly loads the cloud snapshot.
 }
 function open() {
   mount();
@@ -359,10 +369,17 @@ function open() {
   state.invoice = null;
   byId('alloc-party-type').value = state.partyType;
   byId('alloc-amount').value = '';
+  if (byId('alloc-period-id')) byId('alloc-period-id').value = '';
   byId('alloc-draft-match').textContent = '—';
-  renderParties();
-  refresh();
   byId('modal-settlement-allocation').classList.add('active');
+  try {
+    renderParties();
+    refresh();
+  } catch (error) {
+    status(error && error.message ? error.message : 'بيانات التطبيق غير جاهزة.', false);
+    const submitButton = byId('alloc-submit');
+    if (submitButton) submitButton.disabled = true;
+  }
 }
 window.ANASSettlementAllocationModal = Object.freeze({ open, close });
 window.openSettlementAllocationModal = open;
