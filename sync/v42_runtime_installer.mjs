@@ -92,6 +92,26 @@ export function installV42RuntimeWiring({
     return { entity, operation };
   }
 
+  function hasUnsupportedBusinessDelta(current, previous) {
+    const changed = (left, right) => JSON.stringify(left ?? null) !== JSON.stringify(right ?? null);
+    if (changed(current.caisseBalance, previous.caisseBalance)) return true;
+    const changedField = (key, field) => {
+      const before = new Map((Array.isArray(previous[key]) ? previous[key] : [])
+        .filter(item => item?.id != null).map(item => [String(item.id), item?.[field] ?? null]));
+      const after = new Map((Array.isArray(current[key]) ? current[key] : [])
+        .filter(item => item?.id != null).map(item => [String(item.id), item?.[field] ?? null]));
+      if (before.size !== after.size) return true;
+      for (const [id, value] of after) if (!before.has(id) || changed(value, before.get(id))) return true;
+      return false;
+    };
+    return changedField("customers", "debt") ||
+      changedField("suppliers", "debt") ||
+      changedField("products", "stock") ||
+      changed(current.stockMovements, previous.stockMovements) ||
+      changed(current.invoices, previous.invoices) ||
+      changed(current.cashMovements, previous.cashMovements);
+  }
+
   function persistPrepared(operation) {
     const queue = JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]");
     if (!Array.isArray(queue)) throw new Error("Pending mutation queue is malformed");
@@ -130,6 +150,9 @@ export function installV42RuntimeWiring({
     const previous = readStoredAppData() || lastSnapshot || {};
     const captured = makeOperation(current, previous);
     if (!captured) {
+      if (hasUnsupportedBusinessDelta(current, previous)) {
+        throw new Error("Unsupported V42 financial or inventory change; no local persistence was performed");
+      }
       const ok = originalSaveDB.apply(this, args);
       if (ok === true) lastSnapshot = structuredClone(getAppData());
       return ok;
