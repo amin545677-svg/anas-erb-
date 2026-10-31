@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - staging/firebase-snapshot-worker
+      - feat/reverse-ledger-firebase-functions-v2
     paths:
       - 'cloudflare/**'
       - 'firebase/**'
@@ -49,7 +50,7 @@ jobs:
 
   deploy-staging-worker:
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/staging/firebase-snapshot-worker'
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/firebase-snapshot-worker') || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
     environment: staging
     runs-on: ubuntu-latest
     env:
