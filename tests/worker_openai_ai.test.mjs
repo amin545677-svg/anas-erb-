@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { generateKeyPairSync, createSign } from "node:crypto";
 
 // Load the real Worker source without changing the app's package/module settings.
 const source = await readFile(resolve("cloudflare/worker_openai_ai.js"), "utf8");
@@ -11,7 +12,7 @@ const { default: worker } = await import(moduleUrl);
 function request(path, { method = "GET", origin, body } = {}) {
   const headers = new Headers();
   if (origin) headers.set("Origin", origin);
-  if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (body !== undefined) { headers.set("Content-Type", "application/json"); headers.set("Authorization", "Bearer " + firebaseToken()); }
   return new Request("https://worker.test" + path, {
     method,
     headers,
@@ -19,6 +20,25 @@ function request(path, { method = "GET", origin, body } = {}) {
   });
 }
 
+const jwksUrl = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const firebaseJwk = { ...publicKey.export({ format: "jwk" }), kid: "test-firebase-key", alg: "RS256", use: "sig" };
+function firebaseToken(overrides = {}) {
+  const encode = value => Buffer.from(value).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const header = encode(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "test-firebase-key" }));
+  const claims = encode(JSON.stringify({ aud: "anas-erb", iss: "https://securetoken.google.com/anas-erb", sub: "test-user", iat: now, exp: now + 3600, auth_time: now, ...overrides }));
+  const input = header + "." + claims;
+  const signer = createSign("RSA-SHA256"); signer.update(input); signer.end();
+  return input + "." + signer.sign(privateKey).toString("base64url");
+}
+function installFetch(mock = async () => { throw new Error("unexpected upstream request"); }) {
+  globalThis.fetch = async (url, init) => {
+    if (String(url) === jwksUrl) return new Response(JSON.stringify({ keys: [firebaseJwk] }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
+    return mock(url, init);
+  };
+}
+installFetch();
 const allowedOrigin = "https://amin545677-svg.github.io";
 
 test("health reports service status without exposing the API key", async () => {
@@ -54,7 +74,7 @@ test("missing API key returns a safe configuration error", async () => {
 
 test("invalid JSON is rejected before calling OpenAI", async () => {
   const oldFetch = globalThis.fetch;
-  globalThis.fetch = async () => { throw new Error("upstream must not be called"); };
+  installFetch(async () => { throw new Error("upstream must not be called"); });
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin, body: "{bad json"
@@ -74,7 +94,7 @@ test("empty question is rejected", async () => {
 
 test("successful request returns only the expected answer contract", async () => {
   const oldFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
+  installFetch(async (url, init) => {
     assert.equal(url, "https://api.openai.com/v1/responses");
     assert.match(init.headers.Authorization, /^Bearer test-secret$/);
     const body = JSON.parse(init.body);
@@ -82,7 +102,7 @@ test("successful request returns only the expected answer contract", async () =>
     return new Response(JSON.stringify({
       output: [{ type: "message", content: [{ type: "output_text", text: "تحليل تجريبي" }] }]
     }), { status: 200, headers: { "Content-Type": "application/json" } });
-  };
+  });
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin, body: { message: "حلل المبيعات", language: "ar" }
@@ -97,7 +117,7 @@ test("successful request returns only the expected answer contract", async () =>
 
 test("streaming requests forward text deltas as server-sent events", async () => {
   const oldFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
+  installFetch(async (url, init) => {
     assert.equal(url, "https://api.openai.com/v1/responses");
     assert.equal(JSON.parse(init.body).stream, true);
     const payload = [
@@ -111,7 +131,7 @@ test("streaming requests forward text deltas as server-sent events", async () =>
         controller.close();
       }
     }), { status: 200, headers: { "Content-Type": "text/event-stream" } });
-  };
+  });
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin,
@@ -147,11 +167,11 @@ test("oversized request stream is cancelled as soon as it crosses the byte limit
       controller.enqueue(new Uint8Array(120 * 1024 + 1));
     },
     cancel() { cancelled = true; }
-  });
+  }, { highWaterMark: 0 });
   try {
     const response = await worker.fetch(new Request("https://worker.test/", {
       method: "POST",
-      headers: { Origin: allowedOrigin, "Content-Type": "application/json" },
+      headers: { Origin: allowedOrigin, "Content-Type": "application/json", Authorization: "Bearer " + firebaseToken() },
       body,
       duplex: "half"
     }), { OPENAI_API_KEY: "test-secret" });
@@ -162,4 +182,30 @@ test("oversized request stream is cancelled as soon as it crosses the byte limit
   } finally {
     globalThis.fetch = oldFetch;
   }
+});
+
+
+const appHtml = await readFile(resolve("index.html"), "utf8");
+test("contextual AI helper authenticates Firebase requests to the protected gateway", () => {
+  const helperRoot = appHtml.indexOf("const fab=document.getElementById('anasContextAiFab')");
+  const helperStart = appHtml.indexOf("send.addEventListener('click',async function(){", helperRoot);
+  const helperEnd = appHtml.indexOf("\n  });\n})();", helperStart);
+  assert.notEqual(helperRoot, -1, "contextual AI helper must exist");
+  assert.notEqual(helperStart, -1, "contextual AI send handler must exist");
+  assert.notEqual(helperEnd, -1, "contextual AI send handler must be closed");
+  const handler = appHtml.slice(helperStart, helperEnd);
+  assert.match(handler, /currentUser\?\.getIdToken|currentUser\.getIdToken/);
+  assert.match(handler, /['"]?Authorization['"]?\s*:\s*['"]Bearer ['"]\s*\+\s*firebaseIdToken/);
+  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+});
+
+test("AI hub timeout remains active until the response stream is fully consumed", () => {
+  const streamIndex = appHtml.indexOf("answer=await anasAiReadEventStream(resp");
+  assert.notEqual(streamIndex, -1, "AI hub must consume streaming responses");
+  const timerStart = appHtml.lastIndexOf("timer=setTimeout(()=>controller.abort(),45000);", streamIndex);
+  assert.notEqual(timerStart, -1, "AI hub must start a bounded request timeout");
+  const earlyClear = appHtml.indexOf("clearTimeout(timer)", timerStart);
+  assert.ok(earlyClear === -1 || earlyClear > streamIndex, "timeout must not be cleared when response headers arrive");
+  const cleanup = appHtml.indexOf("if(timer!==null)clearTimeout(timer)", streamIndex);
+  assert.ok(cleanup > streamIndex, "timeout must be cleared after response consumption");
 });

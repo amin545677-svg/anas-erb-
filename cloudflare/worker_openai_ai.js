@@ -10,6 +10,61 @@ const MAX_BODY_BYTES = 120 * 1024;
 const MAX_BUSINESS_DATA_CHARS = 30000;
 const DEFAULT_ORIGINS = "https://amin545677-svg.github.io";
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const DEFAULT_FIREBASE_PROJECT_ID = "anas-erb";
+const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const CLOCK_SKEW_SECONDS = 60;
+let firebaseJwksCache = null;
+let firebaseJwksExpiresAt = 0;
+
+function decodeBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+function decodeJwtJson(value) { return JSON.parse(new TextDecoder().decode(decodeBase64Url(value))); }
+async function getFirebaseJwks(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && firebaseJwksCache && now < firebaseJwksExpiresAt) return firebaseJwksCache;
+  const response = await fetch(FIREBASE_JWKS_URL, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Firebase signing keys are temporarily unavailable.");
+  const data = await response.json();
+  if (!Array.isArray(data.keys) || !data.keys.length) throw new Error("Firebase signing keys response is invalid.");
+  const cacheControl = response.headers.get("Cache-Control") || "";
+  const maxAge = Number((cacheControl.match(/max-age=(\d+)/i) || [])[1] || 300);
+  firebaseJwksCache = data;
+  firebaseJwksExpiresAt = now + Math.max(60, Math.min(maxAge, 86400)) * 1000;
+  return data;
+}
+async function verifyFirebaseIdToken(request, env) {
+  const authorization = request.headers.get("Authorization") || "";
+  const match = authorization.match(/^Bearer\s+([^\s]+)$/i);
+  if (!match) return { ok: false, status: 401, error: "Authentication required. Sign in to ANAS ERP and retry." };
+  const projectId = env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID;
+  try {
+    const parts = match[1].split(".");
+    if (parts.length !== 3) throw new Error("Malformed token.");
+    const header = decodeJwtJson(parts[0]);
+    const claims = decodeJwtJson(parts[1]);
+    if (header.alg !== "RS256" || typeof header.kid !== "string" || !header.kid) throw new Error("Unsupported token signing method.");
+    const now = Math.floor(Date.now() / 1000);
+    if (claims.aud !== projectId || claims.iss !== "https://securetoken.google.com/" + projectId) throw new Error("Token issuer or audience mismatch.");
+    if (typeof claims.sub !== "string" || !claims.sub || claims.sub.length > 128) throw new Error("Token subject is invalid.");
+    if (!Number.isFinite(claims.exp) || claims.exp <= now) throw new Error("Token has expired.");
+    if (!Number.isFinite(claims.iat) || claims.iat > now + CLOCK_SKEW_SECONDS) throw new Error("Token issue time is invalid.");
+    if (!Number.isFinite(claims.auth_time) || claims.auth_time > now + CLOCK_SKEW_SECONDS) throw new Error("Token authentication time is invalid.");
+    let jwks = await getFirebaseJwks();
+    let jwk = jwks.keys.find(key => key.kid === header.kid && key.use === "sig" && key.alg === "RS256");
+    if (!jwk) { jwks = await getFirebaseJwks(true); jwk = jwks.keys.find(key => key.kid === header.kid && key.use === "sig" && key.alg === "RS256"); }
+    if (!jwk) throw new Error("No matching Firebase signing key.");
+    const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+    const signingInput = new TextEncoder().encode(parts[0] + "." + parts[1]);
+    const valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, publicKey, decodeBase64Url(parts[2]), signingInput);
+    if (!valid) throw new Error("Token signature is invalid.");
+    return { ok: true, uid: claims.sub };
+  } catch (_) { return { ok: false, status: 401, error: "Invalid or expired Firebase session. Sign in again and retry." }; }
+}
 
 function allowedOrigins(env) {
   return (env.ALLOWED_ORIGINS || DEFAULT_ORIGINS)
@@ -22,7 +77,7 @@ function json(data, status, origin) {
     "Cache-Control": "no-store",
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Accept"
+    "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization"
   };
   if (origin) headers["Access-Control-Allow-Origin"] = origin;
   return new Response(JSON.stringify(data), { status, headers });
@@ -74,7 +129,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": origin,
           "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type,Accept",
+          "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
           "Access-Control-Max-Age": "86400",
           "Vary": "Origin"
         }
@@ -107,6 +162,7 @@ export default {
     if (request.method !== "POST" || (url.pathname !== "/" && url.pathname !== "/chat")) {
       return json({ error: "Not found" }, 404, origin);
     }
+    // Fail closed on missing server configuration before authentication; no upstream call is possible.
     if (!env.OPENAI_API_KEY) {
       return json({ error: "AI gateway is missing the OPENAI_API_KEY secret." }, 503, origin);
     }
@@ -140,6 +196,9 @@ export default {
         return json({ error: "Business summary is too large. Send a smaller summary." }, 413, origin);
       }
     }
+
+    const identity = await verifyFirebaseIdToken(request, env);
+    if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
 
     const instructions = [
       "أنت مساعد ANAS ERP التجاري، وتجيب بالعربية الواضحة ما لم يطلب المستخدم لغة أخرى.",
@@ -232,7 +291,7 @@ export default {
         "X-Accel-Buffering": "no",
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
         "Vary": "Origin"
       }});
     }
