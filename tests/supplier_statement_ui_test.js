@@ -63,7 +63,7 @@ function harness({ suppliers, supplierMovements }) {
   assert.match(text, /إجمالي التسديدات/);
   assert.ok(text.indexOf('PUR-1') < text.indexOf('PUR-2') && text.indexOf('PUR-2') < text.indexOf('PAY-1'), 'movements should be chronological');
   assert.ok(text.includes('<img src=x onerror=alert(1)>'), 'untrusted note must be rendered as literal text');
-  assert.equal(dialog.children[0].children[1].textContent, 'إغلاق');
+  assert.equal(dialog.children[0].children[0].children[1].textContent, 'إغلاق');
   console.log('PASS: full supplier statement shows every movement, exact summary buckets, and chronological order');
 }
 
