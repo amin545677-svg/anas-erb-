@@ -247,6 +247,10 @@ function validateDraft() {
   if (amount > invoiceRemaining) throw new Error('مبلغ التخصيص يتجاوز الرصيد المشتق للفاتورة.');
   return amount;
 }
+function isTrustedSettlementGatewayAvailable() {
+  const gateway = window.ANASSettlementAllocationServer;
+  return !!gateway && typeof gateway.execute === 'function';
+}
 function updateDraft() {
   const button = byId('alloc-submit');
   try {
@@ -259,8 +263,17 @@ function updateDraft() {
     byId('alloc-match-fill').style.width = Math.max(0, Math.min(100, percent)) + '%';
     byId('alloc-match-label').textContent = 'المطابقة بعد الحفظ: ' + percent.toFixed(2) + '%';
     byId('alloc-draft-match').textContent = 'سيبقى غير مخصص: ' + money(remaining);
-    button.disabled = false;
-    status('المطابقة صحيحة: المبلغ لا يتجاوز رصيد الحركة ولا رصيد الفاتورة.', true);
+    const isExactMatch = remaining === 0n;
+    const hasValidRows = !!state.source && !!state.invoice && amount > 0n;
+    const canSubmit = isExactMatch && hasValidRows && isTrustedSettlementGatewayAvailable();
+    button.disabled = !canSubmit;
+    if (canSubmit) {
+      status('المطابقة صحيحة والبوابة الخادمية الموثوقة متاحة.', true);
+    } else if (!isTrustedSettlementGatewayAvailable()) {
+      status('بوابة تخصيص الدفعات السحابية الموثوقة غير متاحة؛ يبقى الترحيل معطلاً.', false);
+    } else {
+      status('تعذر اعتماد التخصيص؛ تحقق من تطابق المبلغ وصحة الصفوف.', false);
+    }
   } catch (error) {
     renderMatch();
     byId('alloc-draft-match').textContent = '—';
