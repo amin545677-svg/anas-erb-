@@ -130,7 +130,8 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   await page.getByText(/اكتملت الاستعادة والتحقق/).waitFor();
   await page.locator('#sale-return').click();
   await page.locator('#modal-reverse-ledger.active').waitFor();
-  assert.deepEqual(pageErrors, []);\n  assert.deepEqual(consoleErrors, []);
+  assert.deepEqual(pageErrors, []);
+  assert.deepEqual(consoleErrors, []);
   const calls = await page.evaluate(() => globalThis.__stagingCalls.map(row => row.name));
   assert.deepEqual(calls, ['executeReverseLedger', 'createTrustedReverseLedgerBackup', 'restoreTrustedReverseLedgerBackup']);
 });
