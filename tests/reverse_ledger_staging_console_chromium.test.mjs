@@ -134,8 +134,8 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
     allocations: [{ invoiceId: 'INV-STAGE-1', amountCentimes: 1000 }]
   }));
   assert.equal(allocationPosted.status, 'POSTED');
-  await page.locator('#alloc-close').click();
-  await page.locator('#modal-settlement-allocation.active').waitFor({ state: 'detached' });
+  await page.locator('#modal-settlement-allocation #alloc-close').click();
+  await page.waitForFunction(() => !document.getElementById('modal-settlement-allocation')?.classList.contains('active'));
   await page.locator('#create-backup').click();
   await page.getByText(/تم إنشاء النسخة الموثوقة/).waitFor();
   assert.equal(await page.locator('#backup-id').inputValue(), 'BKP-STAGING-00000001');
