@@ -4573,6 +4573,35 @@ function renderPurchasesTable() {
             renderCustomerDirectory();
         }
 
+        function anasGetCustomerDebtCollections(customerId, movements) {
+            if (!Array.isArray(movements) || customerId === undefined || customerId === null || String(customerId).trim() === '') return [];
+            return movements.filter(m => {
+                if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
+                const amount = Number(m.amount);
+                return m.referenceType === 'customer_debt' &&
+                    String(m.referenceId ?? '') === String(customerId) &&
+                    m.type === 'add' && Number.isFinite(amount) && amount > 0;
+            }).slice().sort((a, b) => {
+                const dateA = Date.parse(a.date);
+                const dateB = Date.parse(b.date);
+                return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
+            }).slice(0, 10);
+        }
+
+        function anasRenderCustomerDebtCollections(customer, movements) {
+            const rows = anasGetCustomerDebtCollections(customer && customer.id, movements);
+            const safe = value => escapeQuickText(String(value ?? ''));
+            const money = value => Number(value).toLocaleString('fr-DZ', {maximumFractionDigits:2}) + ' د.ج';
+            const content = rows.length ? rows.map(m => {
+                const parsedDate = Date.parse(m.date);
+                const date = Number.isFinite(parsedDate) ? new Date(parsedDate).toLocaleString('fr-DZ') : 'تاريخ غير محدد';
+                return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--border-color,#e2e8f0)">' +
+                    '<div style="min-width:0"><strong>' + safe(date) + '</strong><div style="font-size:11px;color:var(--text-muted,#64748b)">' + safe(m.userName || 'مستخدم غير محدد') + '</div></div>' +
+                    '<strong style="white-space:nowrap;color:#16a34a">' + money(Number(m.amount)) + '</strong></div>';
+            }).join('') : '<p style="font-size:12px;color:var(--text-muted,#64748b)">لا توجد حركات تحصيل مسجلة لهذا العميل في سجل الصندوق.</p>';
+            return '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--text-muted,#64748b)">سجل تحصيل الديون المسجل (' + rows.length + ' آخر حركات)</summary><div style="margin-top:7px">' + content + '</div></details>';
+        }
+
         function renderCustomerDirectory() {
             const box = document.getElementById('customerDirectoryList');
             if (!box) return;
@@ -4606,6 +4635,7 @@ function renderPurchasesTable() {
                         <button type="button" class="pill-select-btn" onclick="editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))">✏️ تعديل البيانات</button>
                       </div>
                       <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--text-muted,#64748b)">عرض البيانات الإدارية</summary><div style="font-size:12px;line-height:1.9;margin-top:7px;overflow-wrap:anywhere">RC: ${safe(c.rc||'—')} · NIF: ${safe(c.nif||'—')}<br>NIS: ${safe(c.nis||'—')} · Art: ${safe(c.art||'—')}<br>GPS: ${safe(c.location||'—')}</div></details>
+                      ${anasRenderCustomerDebtCollections(c, AppData.cashMovements)}
                     </article>`).join('') : `<div class="card" style="margin:0;padding:22px;text-align:center"><div style="font-size:30px">👥</div><strong>${customers.length ? 'لا توجد نتائج مطابقة' : 'لا يوجد عملاء مسجلون'}</strong><p style="font-size:13px;color:var(--text-muted,#64748b)">${customers.length ? 'غيّر كلمات البحث وحاول مجدداً.' : 'أضف أول عميل، وسيظهر هنا تلقائياً.'}</p>${customers.length ? '<button class="pill-select-btn" onclick="clearCustomerDirectorySearch()">مسح البحث</button>' : '<button class="pill-select-btn" onclick="openAddCustomerModal()">➕ إضافة أول عميل</button>'}</div>`);
             } catch (err) {
                 console.error('Customer directory render error:', err);
