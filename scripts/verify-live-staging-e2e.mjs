@@ -43,6 +43,14 @@ function validateFixture(fixture) {
   }
   const types = new Set(fixture.operations.map(x => x?.request?.returnType));
   for (const type of REQUIRED_TYPES) if (!types.has(type)) throw new Error('Fixture is missing required operation type: ' + type);
+  const saleReturn = fixture.operations.find(x => x?.request?.returnType === 'SALE_RETURN')?.request;
+  const cancellation = fixture.operations.find(x => x?.request?.returnType === 'INVOICE_CANCEL')?.request;
+  if (saleReturn?.invoiceId !== cancellation?.invoiceId ||
+      saleReturn?.originalInvoiceType !== 'sales_invoice' ||
+      cancellation?.originalInvoiceType !== 'sales_invoice' ||
+      saleReturn?.invoiceId !== fixture.saleSettlement?.invoiceId) {
+    throw new Error('SALE_RETURN, settlement allocation and INVOICE_CANCEL must target the same sales invoice.');
+  }
   if (!fixture.saleSettlement || !fixture.saleSettlement.invoiceId || !fixture.saleSettlement.expectedPaidCentimes) {
     throw new Error('Fixture must prove the sale invoice settlement allocation before reverse posting.');
   }
@@ -130,11 +138,24 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
     if (allocated !== BigInt(fixture.saleSettlement.expectedAllocatedCentimes)) {
       throw new Error('Settlement allocation proof mismatch; expected exact allocated centimes.');
     }
+    const saleReturnRequest = fixture.operations.find(x => x.request.returnType === 'SALE_RETURN').request;
+    for (const line of saleReturnRequest.items) {
+      const sourceLine = (invoice.items || []).find(item =>
+        String(item.productId ?? item.id ?? item.product?.id ?? '') === String(line.productId));
+      if (!sourceLine) throw new Error('Partial return product is absent from the allocated sales invoice: ' + line.productId);
+      const originalQuantity = scaledUnits(sourceLine.qty ?? sourceLine.quantity, 1000000n, 'original invoice quantity');
+      const requestedQuantity = scaledUnits(line.quantity, 1000000n, 'partial return quantity');
+      if (requestedQuantity <= 0n || requestedQuantity >= originalQuantity) {
+        throw new Error('SALE_RETURN must be strictly partial for product ' + line.productId);
+      }
+    }
     evidence.saleSettlement = {
       invoiceId: String(invoice.id),
       paidCentimes: paid.toString(),
       allocatedCentimes: allocated.toString(),
-      allocationRows: allocationRows.length
+      allocationRows: allocationRows.length,
+      partialReturnValidated: true,
+      fullCancellationTargetsSameInvoice: true
     };
 
     await page.evaluate(() => {
@@ -163,10 +184,14 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
         request.returnType === 'PURCHASE_RETURN' ? '#purchase-return' : '#invoice-cancel';
       await page.locator(modeButton).click();
       await page.locator('#modal-reverse-ledger.active').waitFor({ state: 'visible' });
-      const invoiceOption = await page.locator('#rev-invoice-select').evaluate((select, invoiceId) => {
-        const match = [...select.options].find(option => option.textContent.includes(invoiceId));
+      const invoiceOption = await page.locator('#rev-invoice-select').evaluate((select, details) => {
+        const expectedPrefix = details.requestType === 'INVOICE_CANCEL'
+          ? (details.originalInvoiceType === 'sales_invoice' ? 'مبيعات — ' : 'مشتريات — ')
+          : '';
+        const match = [...select.options].find(option =>
+          option.textContent.includes(details.invoiceId) && (!expectedPrefix || option.textContent.startsWith(expectedPrefix)));
         return match ? match.value : null;
-      }, request.invoiceId);
+      }, { invoiceId: request.invoiceId, requestType: request.returnType, originalInvoiceType: request.originalInvoiceType });
       if (invoiceOption === null) throw new Error('Reverse modal did not list fixture invoice ' + request.invoiceId);
       await page.locator('#rev-invoice-select').selectOption(invoiceOption);
       if (request.returnType !== 'INVOICE_CANCEL') {
