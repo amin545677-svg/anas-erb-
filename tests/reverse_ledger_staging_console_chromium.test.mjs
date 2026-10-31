@@ -21,6 +21,7 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   fs.copyFileSync(path.join(repoRoot, 'staging/reverse-ledger-gateway.js'), path.join(stagingDir, 'reverse-ledger-gateway.js'));
   fs.copyFileSync(path.join(repoRoot, 'reverse-ledger/reverse-ledger.js'), path.join(reverseDir, 'reverse-ledger.js'));
   fs.copyFileSync(path.join(repoRoot, 'reverse-ledger/reverse-ledger-modal.js'), path.join(reverseDir, 'reverse-ledger-modal.js'));
+  fs.copyFileSync(path.join(repoRoot, 'reverse-ledger/settlement-allocation-modal.js'), path.join(reverseDir, 'settlement-allocation-modal.js'));
 
   const snapshotPayload = JSON.stringify({ invoices: [], purchases: [], products: [], customers: [], suppliers: [], returns: [] });
   const server = http.createServer((req, res) => {
@@ -67,6 +68,7 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
           if (name === 'createTrustedReverseLedgerBackup') return { data: { ok: true, backupId: 'BKP-STAGING-00000001', operationCount: 0 } };
           if (name === 'restoreTrustedReverseLedgerBackup') return { data: { ok: true, restoredOperations: 0 } };
           if (name === 'executeReverseLedger') return { data: { ok: true, operationId: data.operationId, document: { returnId: 'RET-STAGING-1', status: 'POSTED' } } };
+          if (name === 'executeSettlementAllocation') return { data: { ok: true, status: 'POSTED', operationId: data.operationId, allocations: [{ allocationId: 'ALLOC-STAGING-1', amountCentimes: data.allocations[0].amountCentimes }] } };
           throw new Error('unexpected callable ' + name);
         };
       }
@@ -112,6 +114,9 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   await page.locator('#load-snapshot').click();
   await page.getByText('حالة القراءة: نجاح').waitFor();
   assert.equal(await page.locator('#sale-return').isEnabled(), true);
+  assert.equal(await page.locator('#settlement-allocation').isEnabled(), true);
+  await page.locator('#settlement-allocation').click();
+  await page.locator('#modal-settlement-allocation.active').waitFor();
   const posted = await page.evaluate(() => window.ANASReverseLedgerServer.execute({
     operationId: 'REV-STAGING-00000001',
     periodId: 'FY-2026-10',
@@ -123,6 +128,12 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
     reason: 'Chromium callable smoke test'
   }));
   assert.equal(posted.document.returnId, 'RET-STAGING-1');
+  const allocationPosted = await page.evaluate(() => window.ANASSettlementAllocationServer.execute({
+    operationId: 'ALLOC-STAGING-00000001', periodId: 'FY-2026-10', partyType: 'customer', partyId: 'C-1',
+    sourceMovementId: 'CASH-1', sourceMovementType: 'customer_debt',
+    allocations: [{ invoiceId: 'INV-STAGE-1', amountCentimes: 1000 }]
+  }));
+  assert.equal(allocationPosted.status, 'POSTED');
   await page.locator('#create-backup').click();
   await page.getByText(/تم إنشاء النسخة الموثوقة/).waitFor();
   assert.equal(await page.locator('#backup-id').inputValue(), 'BKP-STAGING-00000001');
@@ -133,5 +144,5 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(consoleErrors, []);
   const calls = await page.evaluate(() => globalThis.__stagingCalls.map(row => row.name));
-  assert.deepEqual(calls, ['executeReverseLedger', 'createTrustedReverseLedgerBackup', 'restoreTrustedReverseLedgerBackup']);
+  assert.deepEqual(calls, ['executeReverseLedger', 'executeSettlementAllocation', 'createTrustedReverseLedgerBackup', 'restoreTrustedReverseLedgerBackup']);
 });
