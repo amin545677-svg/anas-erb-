@@ -11,6 +11,10 @@ on:
       - "tests/reverse_ledger_primitives.test.js"
       - "tests/reverse_ledger_authorization.test.js"
       - "tests/reverse_ledger_valuation.test.js"
+      - "cloudflare/worker_reverse_ledger.js"
+      - "cloudflare/wrangler-reverse-ledger-staging.toml"
+      - "tests/worker_reverse_ledger.test.mjs"
+      - "firebase/firestore.rules"
       - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
@@ -46,3 +50,7 @@ jobs:
         run: node --test tests/reverse_ledger_authorization.test.js
       - name: Test cumulative and WAC reverse-ledger valuation
         run: node --test tests/reverse_ledger_valuation.test.js
+      - name: Check trusted reverse-ledger reservation Worker syntax
+        run: node --check cloudflare/worker_reverse_ledger.js
+      - name: Test trusted reverse-ledger reservation Worker security
+        run: node --test tests/worker_reverse_ledger.test.mjs
