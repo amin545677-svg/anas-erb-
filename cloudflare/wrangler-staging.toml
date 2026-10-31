@@ -1,0 +1,12 @@
+name = "anas-erp-firebase-snapshot-staging"
+main = "worker_firebase_snapshot.js"
+compatibility_date = "2026-10-22"
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"
+WORKER_SERVICE_NAME = "anas-erp-firebase-snapshot-staging"
+ALLOWED_ORIGINS = "https://amin545677-svg.github.io"
+
+[secrets]
+required = ["FIREBASE_API_KEY"]

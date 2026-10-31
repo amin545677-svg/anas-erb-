@@ -308,7 +308,7 @@ export default {
     const url = new URL(request.url);
     if (!origin) return json({ error: "Origin is not allowed" }, 403, "https://amin545677-svg.github.io");
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ ok: true, service: "anas-erp-firebase-snapshot", configured: !!(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID) }, 200, origin);
+      return json({ ok: true, service: env.WORKER_SERVICE_NAME || "anas-erp-firebase-snapshot", configured: !!(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID) }, 200, origin);
     }
     if (url.pathname === "/snapshot") {
       if (request.method !== "GET" && request.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);

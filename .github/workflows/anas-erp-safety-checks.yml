@@ -173,6 +173,8 @@ jobs:
           node --check /tmp/anas-z-report-cash-test.js
           node /tmp/anas-z-report-cash-test.js
 
+      - name: Test Firebase Snapshot Worker environment identity
+        run: node tests/firebase_snapshot_worker_health_identity.test.mjs
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare/worker_firebase_snapshot.js
       - name: Check OpenAI AI Worker JavaScript syntax
