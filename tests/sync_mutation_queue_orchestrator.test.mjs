@@ -194,7 +194,7 @@ test("local mutation uses a recoverable write-ahead queue and adds opId to local
 
 test("entity-level cash movement ID prevents duplicate balance changes without appliedOpIds", () => {
   const cloud = baseCloud();
-  cloud.cashMovements.push({ id: "cm_991", amount: 5000 });
+  cloud.cashMovements.push({ id: "cm_991", amount: 5000, customerId: "cust_s", opId: "op-deviceB-collection-5000" });
   const result = reconcilePendingMutations(cloud, [collection()]);
   assert.equal(result.snapshot.caisseBalance, 54000);
   assert.equal(result.snapshot.customers[0].debt, 26000);
