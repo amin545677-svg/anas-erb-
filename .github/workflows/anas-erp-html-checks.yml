@@ -20,6 +20,7 @@ on:
       - "anas-classic-ui.css"
       - "tests/validate_erp_html.py"
       - "tests/test_classic_ui.py"
+      - "tests/test_classic_ui_browser.py"
       - ".github/workflows/anas-erp-html-checks.yml"
 
 permissions:
