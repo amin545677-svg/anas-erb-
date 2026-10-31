@@ -63,6 +63,20 @@ class ClassicUIRegressionTests(unittest.TestCase):
         self.assertIn("@media (prefers-reduced-motion: reduce)", self.css)
         self.assertIn("transition-duration: .01ms", self.css)
 
+    def test_mobile_pos_layout_is_scoped_and_scroll_safe(self):
+        self.assertIn("#view-pos .sales-toolbar", self.css)
+        self.assertIn("flex-wrap: wrap", self.css)
+        self.assertRegex(self.css, r"@media\\s*\\(max-width:\\s*600px\\)")
+        self.assertIn("#view-pos .invoice-items-body", self.css)
+        self.assertIn("overscroll-behavior-x: contain", self.css)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", self.css)
+
+    def test_drawer_respects_dynamic_viewport_and_safe_areas(self):
+        self.assertIn("height: 100dvh", self.css)
+        self.assertIn("env(safe-area-inset-top)", self.css)
+        self.assertIn("env(safe-area-inset-bottom)", self.css)
+        self.assertIn("min-height: 48px", self.css)
+
     def test_stylesheet_is_additive_and_does_not_override_business_logic(self):
         forbidden = ("<script", "localStorage", "firebase", "function ")
         for token in forbidden:
