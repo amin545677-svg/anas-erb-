@@ -42,7 +42,7 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   };`);
 
   const fakeSdk = `(() => {
-    const app = { name: 'anas-erp-reverse-ledger-staging', options: { projectId: 'anas-erp-staging-a25e1' } };
+    const app = { name: 'anas-erp-reverse-ledger-staging', options: { projectId: 'anas-erp-staging-a25e1', apiKey: 'public-staging-key', appId: '1:123:web:staging' } };
     let currentUser = null, authListener = null;
     const calls = [];
     const auth = {
@@ -74,7 +74,7 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
     globalThis.__stagingCalls = calls;
     globalThis.firebase = {
       initializeApp: () => app,
-      app: () => app,
+      app: name => { if (!name) { const error = new Error('app/no-app'); error.code = 'app/no-app'; throw error; } return app; },
       auth: () => auth,
       firestore: () => db,
       functions: () => functions,
