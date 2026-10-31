@@ -1078,3 +1078,51 @@ test('Firestore Emulator serializes two-device allocation races and prevents ove
   const allocated = state.settlementAllocations.reduce((sum, row) => sum + row.amountCentimes, 0);
   assert.equal(allocated, 10000);
 });
+
+
+test('Firestore Emulator rejects allocation above invoice outstanding after paid and prior settlements', async t => {
+  const uid = 'emu-alloc-balance-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const state = settlementState();
+  state.invoices[0].paid = '25.00';
+  state.invoices.push({
+    id: 'INV-ALLOC-2', customerId: 'C-ALLOC-1',
+    total: '20.00', paid: '0.00', remaining: '20.00',
+    invoiceNumber: 'S-ALLOC-2', items: []
+  });
+  state.customers[0].debt = '15.00';
+  state.cashMovements[0].amount = '80.00';
+  state.clientMovements = [
+    {
+      movementId: 'INVOICE-DEBIT-ALLOC-1', clientId: 'C-ALLOC-1',
+      type: 'invoice_debit', amountCentimes: 7500, direction: 'debit',
+      referenceType: 'sales_invoice', referenceId: 'INV-ALLOC-1',
+      createdAt: '2026-10-31T10:00:00.000Z', ledgerVersion: 2
+    },
+    {
+      movementId: 'INVOICE-DEBIT-ALLOC-2', clientId: 'C-ALLOC-1',
+      type: 'invoice_debit', amountCentimes: 2000, direction: 'debit',
+      referenceType: 'sales_invoice', referenceId: 'INV-ALLOC-2',
+      createdAt: '2026-10-31T10:01:00.000Z', ledgerVersion: 2
+    },
+    {
+      movementId: 'CASH-ALLOC-1', clientId: 'C-ALLOC-1',
+      type: 'receipt', amountCentimes: 8000, direction: 'credit',
+      referenceType: 'customer_debt', referenceId: 'C-ALLOC-1',
+      createdAt: '2026-10-31T10:05:00.000Z', ledgerVersion: 2
+    }
+  ];
+  await seed(uid, [], { state, permissions: ['settlement_allocation_post'] });
+  t.after(() => cleanup(uid, [operationId]));
+  const handler = createSettlementHandler();
+  await assert.rejects(
+    handler(makeSettlementRequest(uid, operationId, {
+      allocations: [{ invoiceId: 'INV-ALLOC-1', amountCentimes: 8000 }]
+    })),
+    error => error && error.code === 'failed-precondition' &&
+      /outstanding balance/.test(error.message)
+  );
+  const snapshot = await db.collection('users').doc(uid).collection('snapshots').doc('latest').get();
+  assert.equal(JSON.parse(snapshot.get('payload')).settlementAllocations.length, 0);
+  assert.equal((await db.collection('reverseLedgerOperations').doc(operationId).get()).exists, false);
+});
