@@ -9,7 +9,7 @@ function validContext(overrides = {}) {
     auth: {
       verified: true, uid: 'firebase-user-1', disabled: false,
       audience: 'anas-erb', issuer: 'https://securetoken.google.com/anas-erb',
-      authTimeSeconds: 1793400000, issuedAtSeconds: 1793400100
+      authTimeSeconds: 1793400000, issuedAtSeconds: 1793400100, expiresAtSeconds: 1793403700
     },
     grant: { uid: 'firebase-user-1', active: true, schemaVersion: 1, permissions: [
       PERMISSIONS.SALE_RETURN, PERMISSIONS.PURCHASE_RETURN, PERMISSIONS.INVOICE_CANCEL,
@@ -55,6 +55,21 @@ test('fails closed when identity is not verified or project claims mismatch', ()
   assert.throws(() => authorizeReverseOperation(validContext({ auth: { audience: 'other-project' } })), /audience or issuer/);
   assert.throws(() => authorizeReverseOperation(validContext({ auth: { disabled: true } })), /disabled/);
 });
+test('rejects expired and future Firebase token time claims', () => {
+  assert.throws(() => authorizeReverseOperation(validContext({
+    auth: { expiresAtSeconds: 1793400199 }
+  })), /identity token is expired/);
+  assert.throws(() => authorizeReverseOperation(validContext({
+    auth: { issuedAtSeconds: 1793400300 }
+  })), /time claims are in the future/);
+  assert.throws(() => authorizeReverseOperation(validContext({
+    auth: { authTimeSeconds: 1793400300 }
+  })), /time claims are in the future/);
+  assert.throws(() => authorizeReverseOperation(validContext({
+    auth: { expiresAtSeconds: 1793400100 }
+  })), /time claims are invalid/);
+});
+
 test('rejects missing, inactive, mismatched or malformed grants', () => {
   assert.throws(() => authorizeReverseOperation(validContext({ grant: { active: false } })), /grant is missing or mismatched/);
   assert.throws(() => authorizeReverseOperation(validContext({ grant: { uid: 'other-user' } })), /grant is missing or mismatched/);
