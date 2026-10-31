@@ -2500,7 +2500,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <button class="pill-select-btn" style="margin-top:4px; width:100%;" onclick="detectCustomerGPS()">📍 التقاط موقع المحل الحالي (GPS) فوراً</button>
             </div>
             <div class="field-group">
-                <label>رصيد دين سابق (إن وجد د.ج):</label>
+                <label id="newCustDebtLabel">رصيد دين سابق عند إنشاء العميل (د.ج):</label>
                 <input type="number" id="newCustDebtInput" class="field-input" value="0">
             </div>
             <button class="btn-full-submit" style="background:var(--mp-navy);" onclick="saveNewCustomerMpos()">💾 حفظ العميل</button>
@@ -4429,7 +4429,12 @@ function renderPurchasesTable() {
 
         
         let editingCustomerId = null;
-        function openAddCustomerModal() { 
+        function openAddCustomerModal() {
+            const debtField = document.getElementById('newCustDebtInput');
+            if (debtField) { debtField.readOnly = false; debtField.removeAttribute('aria-readonly'); }
+            const debtLabel = document.getElementById('newCustDebtLabel');
+            if (debtLabel) debtLabel.textContent = 'رصيد دين سابق عند إنشاء العميل (د.ج):';
+ 
             editingCustomerId = null;
             const title = document.querySelector('#addCustomerModal h3'); if(title) title.textContent='➕ إضافة عميل جديد';
             const saveBtn = document.querySelector('#addCustomerModal .btn-full-submit'); if(saveBtn) saveBtn.textContent='💾 حفظ العميل';
@@ -4444,6 +4449,13 @@ function renderPurchasesTable() {
             document.getElementById('newCustLocationInput').value = '';
             document.getElementById('newCustDebtInput').value = '0';
             document.getElementById('addCustomerModal').classList.add('active'); 
+        }
+
+        function anasCustomerDebtForSave(isEditing, existingCustomer, requestedDebt) {
+            if (!isEditing) return requestedDebt;
+            return existingCustomer && Object.prototype.hasOwnProperty.call(existingCustomer, 'debt')
+                ? existingCustomer.debt
+                : 0;
         }
 
         function saveNewCustomerMpos() {
@@ -4496,7 +4508,9 @@ function renderPurchasesTable() {
             const existing = editing ? matches[0] : null;
             const previousCustomers = AppData.customers.slice();
             const previousExisting = existing ? {...existing} : null;
-            const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt, debtDate: debt > 0 ? new Date().toISOString().slice(0, 10) : ""};
+            const preservedDebt = anasCustomerDebtForSave(editing, existing, debt);
+            const preservedDebtDate = editing && existing ? (existing.debtDate ?? "") : (debt > 0 ? new Date().toISOString().slice(0, 10) : "");
+            const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt: preservedDebt, debtDate: preservedDebtDate};
 
             if (editing) {
                 Object.assign(existing, data);
@@ -4606,6 +4620,10 @@ function renderPurchasesTable() {
             editingCustomerId=c.id;
             const fields={newCustNameInput:c.name,newCustPhoneInput:c.phone,newCustPhone2Input:c.phone2,newCustRCInput:c.rc,newCustNIFInput:c.nif,newCustNISInput:c.nis,newCustArtInput:c.art,newCustAddressInput:c.address,newCustLocationInput:c.location,newCustDebtInput:c.debt??0};
             Object.entries(fields).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val??'';});
+            const debtField=document.getElementById('newCustDebtInput');
+            if(debtField){debtField.readOnly=true;debtField.setAttribute('aria-readonly','true');}
+            const debtLabel=document.getElementById('newCustDebtLabel');
+            if(debtLabel)debtLabel.textContent='رصيد العميل الحالي (يُعدّل عبر التحصيل أو القيد المحاسبي فقط):';
             const title=document.querySelector('#addCustomerModal h3');if(title)title.textContent='✏️ تعديل بيانات العميل';
             const saveBtn=document.querySelector('#addCustomerModal .btn-full-submit');if(saveBtn)saveBtn.textContent='💾 حفظ التعديلات';
             document.getElementById('addCustomerModal').classList.add('active');
