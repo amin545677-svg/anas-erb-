@@ -1,0 +1,24 @@
+name: ANAS ERP Warehouse Transfer Audit Tests
+on:
+  pull_request:
+    paths:
+      - 'warehouse-transfer-audit.js'
+      - 'scripts/test-warehouse-transfer-audit.cjs'
+      - '.github/workflows/warehouse-transfer-audit-tests.yml'
+      - 'index.html'
+  push:
+    branches: [main]
+    paths:
+      - 'warehouse-transfer-audit.js'
+      - 'scripts/test-warehouse-transfer-audit.cjs'
+      - '.github/workflows/warehouse-transfer-audit-tests.yml'
+      - 'index.html'
+jobs:
+  warehouse-transfer-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --test scripts/test-warehouse-transfer-audit.cjs
