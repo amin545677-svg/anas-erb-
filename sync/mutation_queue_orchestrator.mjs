@@ -143,8 +143,14 @@ export function createMutationQueueOrchestrator({
       let cloud;
       try {
         cloud = await pullCloud();
-        if (!cloud || !cloud.data || !Number.isInteger(cloud.revision) && typeof cloud.revision !== "string") {
-          throw new Error("Cloud response must include data and a revision");
+        const hasRevision = cloud && Object.prototype.hasOwnProperty.call(cloud, "revision");
+        const validRevision = hasRevision && (
+          cloud.revision === null ||
+          Number.isInteger(cloud.revision) ||
+          (typeof cloud.revision === "string" && cloud.revision.length > 0)
+        );
+        if (!cloud || !cloud.data || !validRevision) {
+          throw new Error("Cloud response must include data and a valid revision (string, integer, or null for create-only)");
         }
         writeJson(storage, MUTATION_KEYS.rescue, {
           schema: 1, phase: "PRE_RECONCILE", before,
