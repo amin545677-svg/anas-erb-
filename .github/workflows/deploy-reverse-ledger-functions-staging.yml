@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/reverse-ledger-firebase-functions-v2
+      - feature/atomic-settlement-allocation
     paths:
       - 'functions/**'
       - 'reverse-ledger/**'
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   deploy-reverse-ledger-staging:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feature/atomic-settlement-allocation')
     environment: staging
     runs-on: ubuntu-latest
     steps:
