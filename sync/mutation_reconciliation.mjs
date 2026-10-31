@@ -73,11 +73,6 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
     }
     seenPending.add(op.opId);
 
-    if (applied.has(op.opId)) {
-      appliedNow.push({ opId: op.opId, outcome: "already-applied" });
-      continue;
-    }
-
     const payload = op.payload;
     if (!payload || typeof payload !== "object") {
       review.push({ opId: op.opId, reason: "INVALID_PAYLOAD", operation: op });
@@ -113,6 +108,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         } else {
           review.push({ opId: op.opId, reason: "CASH_MOVEMENT_ID_COLLISION", operation: op });
         }
+        continue;
+      }
+      if (applied.has(op.opId)) {
+        review.push({ opId: op.opId, reason: "APPLIED_OPERATION_ENTITY_MISSING", operation: op });
         continue;
       }
       const customer = findById(snapshot.customers, payload.customerId);
@@ -188,6 +187,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         } else {
           review.push({ opId: op.opId, reason: "INVOICE_ID_COLLISION", operation: op });
         }
+        continue;
+      }
+      if (applied.has(op.opId)) {
+        review.push({ opId: op.opId, reason: "APPLIED_OPERATION_ENTITY_MISSING", operation: op });
         continue;
       }
       const items = Array.isArray(invoice.items) ? invoice.items : [];
