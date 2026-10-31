@@ -48,12 +48,30 @@ function allocatedToSource(source) {
     String(row.partyId) === state.partyId)
     .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
 }
-function allocatedToInvoice(invoice) {
+function invoiceAllocations(invoice) {
   const invoiceType = state.partyType === 'customer' ? 'sales_invoice' : 'purchase_invoice';
   return allocations().filter(row => row && row.partyType === state.partyType &&
     row.invoiceType === invoiceType && String(row.invoiceId) === String(invoice.id) &&
-    String(row.partyId) === state.partyId)
+    String(row.partyId) === state.partyId);
+}
+function invoicePaid(invoice) {
+  if (Number.isSafeInteger(invoice.paidCentimes) && invoice.paidCentimes >= 0) return BigInt(invoice.paidCentimes);
+  return cents(invoice.paid ?? 0);
+}
+function allocatedToInvoice(invoice) {
+  const laterType = state.partyType === 'customer' ? 'customer_debt' : 'supplier_payment';
+  const laterAllocated = invoiceAllocations(invoice).filter(row => row.sourceMovementType === laterType)
     .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
+  return invoicePaid(invoice) + laterAllocated;
+}
+function sourceInvoiceRemaining(invoice) {
+  const initialType = state.partyType === 'customer' ? 'sales_invoice' : 'purchase_invoice';
+  if (state.source && state.source.sourceMovementType === initialType) {
+    const initialAllocated = invoiceAllocations(invoice).filter(row => row.sourceMovementType === initialType)
+      .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
+    return invoicePaid(invoice) - initialAllocated;
+  }
+  return invoiceTotal(invoice) - allocatedToInvoice(invoice);
 }
 function collectSources() {
   const db = data();
@@ -153,7 +171,7 @@ function renderInvoices() {
   const rows = invoicesForParty();
   state.invoices = rows.filter(invoice => {
     if (state.source?.linkedInvoiceId && String(invoice.id) !== state.source.linkedInvoiceId) return false;
-    try { return invoiceTotal(invoice) > allocatedToInvoice(invoice); } catch (_) { return false; }
+    try { return sourceInvoiceRemaining(invoice) > 0n; } catch (_) { return false; }
   });
   state.invoices.forEach((invoice, index) => select.add(new Option(invoiceLabel(invoice), String(index))));
   state.invoice = null;
@@ -167,7 +185,7 @@ function renderInvoices() {
 function renderInvoiceBalance() {
   const node = byId('alloc-invoice-remaining');
   if (!state.invoice) { node.textContent = '—'; return; }
-  const remaining = invoiceTotal(state.invoice) - allocatedToInvoice(state.invoice);
+  const remaining = sourceInvoiceRemaining(state.invoice);
   node.textContent = money(remaining);
 }
 function renderMatch() {
@@ -221,7 +239,7 @@ function validateDraft() {
   const amount = cents(byId('alloc-amount').value);
   if (amount <= 0n) throw new Error('مبلغ التخصيص يجب أن يكون أكبر من صفر.');
   const sourceRemaining = state.source.amountCentimes - state.source.assignedCentimes;
-  const invoiceRemaining = invoiceTotal(state.invoice) - allocatedToInvoice(state.invoice);
+  const invoiceRemaining = sourceInvoiceRemaining(state.invoice);
   if (amount !== sourceRemaining) throw new Error('يجب أن يساوي مجموع التخصيصات كامل الرصيد المتبقي لحركة القبض أو الدفع؛ فرق السنتيم يجب أن يكون صفراً.');
   if (amount > invoiceRemaining) throw new Error('مبلغ التخصيص يتجاوز الرصيد المشتق للفاتورة.');
   return amount;
