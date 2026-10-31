@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "*.js"
       - "tests/**"
       - "functions/**"
       - "scripts/**"
@@ -16,6 +17,7 @@ on:
     branches: [staging/firebase-snapshot-worker, 'feat/**', 'fix/**', 'feature/**']
     paths:
       - "index.html"
+      - "*.js"
       - "tests/**"
       - "functions/**"
       - "scripts/**"
@@ -51,6 +53,36 @@ jobs:
         run: node scripts/check-staging-readiness.mjs
       - name: Run Hasib financial and stock invariants
         run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/reverse_ledger_primitives.test.js tests/reverse_ledger_rollback_identity.test.js
+      - name: Test read-only warehouse transfer ledger audit
+        run: node --test scripts/test-warehouse-transfer-audit.cjs
+      - name: Test warehouse, supplier, cashbox and Arabic query modules
+        run: |
+          node --test scripts/test-warehouse-transfer-audit.cjs
+          node - <<'NODE'
+          const assert = require('node:assert/strict');
+          const q = require('./arabic-query-engine.js');
+          const supplier = require('./supplier-account-statement.js');
+          const cash = require('./cashbox-readonly-ledger.js');
+          assert.equal(q.anasNormalizeQueryText('إِبْرَاهِيمـ ١٢٣'), 'ابراهيم 123');
+          assert.equal(q.anasQueryMatches(['زيت الزيتون', 'منتج غذائي'], 'الزيت منتج'), true);
+          assert.equal(q.anasQueryMatches(['زيت الزيتون', 'منتج غذائي'], 'الزيت دواء'), false);
+          const statement = supplier.buildSupplierStatement('S1', [{id:'S1',balance:15}], [
+            {id:'1',supplierId:'S1',type:'purchase',amount:10,date:'2026-01-01'},
+            {id:'2',supplierId:'S1',type:'payment',amount:2,date:'2026-02-01'}
+          ]);
+          assert.equal(statement.totals.purchase, 1000);
+          assert.equal(statement.totals.payment, 200);
+          const ledger = cash.buildCashLedger([
+            {type:'add',amount:10,date:'2026-01-01',description:'قبض'},
+            {type:'subtract',amount:3,date:'2026-01-02',description:'صرف'},
+            {type:'bad',amount:'x'}
+          ]);
+          assert.equal(ledger.total, 3);
+          assert.equal(ledger.invalid, 1);
+          assert.equal(ledger.incoming, 1000);
+          assert.equal(ledger.outgoing, 300);
+          console.log('Supplier, cashbox and Arabic query module assertions passed.');
+          NODE
       - name: Verify deployable Functions bundle matches canonical ledger modules
         run: |
           cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js

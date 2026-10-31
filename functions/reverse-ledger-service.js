@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { authorizeFinancialScope } = require('./lib/user-rbac-bridge.js');
 const {
   normalizeReverseRequest,
   buildTrustedReservation
@@ -34,6 +35,12 @@ function createReverseLedgerHandler({
   }
   if (!request.app) {
     throw new HttpsError('failed-precondition', 'A valid Firebase App Check token is required.');
+  }
+
+  if (request.data && typeof request.data === 'object' &&
+      (Object.prototype.hasOwnProperty.call(request.data, 'tenantId') ||
+       Object.prototype.hasOwnProperty.call(request.data, 'storeId'))) {
+    throw new HttpsError('permission-denied', 'Client-supplied tenant/store scope is not trusted.');
   }
 
   let normalized;
@@ -124,6 +131,18 @@ function createReverseLedgerHandler({
         throw new HttpsError('failed-precondition', 'Original invoice is missing or ambiguous.');
       }
       const invoice = invoiceMatches[0];
+      const permissionByReturnType = {
+        SALE_RETURN: 'reverse_sale_return',
+        PURCHASE_RETURN: 'reverse_purchase_return',
+        INVOICE_CANCEL: 'reverse_invoice_cancel'
+      };
+      const financialAction = permissionByReturnType[normalized.returnType];
+      if (!financialAction) throw new HttpsError('permission-denied', 'Unsupported financial operation permission.');
+      try {
+        authorizeFinancialScope({ uid, grant, action: financialAction, resource: invoice, state });
+      } catch (error) {
+        throw new HttpsError('permission-denied', String(error.message || error));
+      }
       if (invoice.invoiceLedgerVersion !== 2) {
         throw new HttpsError('failed-precondition', 'Invoice is not sealed in the version-2 ledger; reconcile it before reverse posting.');
       }

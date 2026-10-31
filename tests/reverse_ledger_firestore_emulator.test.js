@@ -107,7 +107,13 @@ async function seed(uid, operationIds = [], options = {}) {
   };
   await user.collection('snapshots').doc('latest').set({ payload: JSON.stringify(state) });
   await db.collection('reverseLedgerGrants').doc(uid).set({
-    uid, active: true, schemaVersion: 1, permissions: options.permissions || ['reverse_sale_return']
+    uid,
+    active: true,
+    status: options.status || 'ACTIVE',
+    schemaVersion: 1,
+    tenantId: options.tenantId || 'TENANT_DEFAULT',
+    storeIds: options.storeIds || ['STORE_DEFAULT'],
+    permissions: options.permissions || ['reverse_sale_return']
   });
   await db.collection('financialPeriods').doc('FY-2026-10').set({
     periodId: 'FY-2026-10', status: 'OPEN'
@@ -1167,4 +1173,106 @@ test('Firestore Emulator posts supplier payment allocation atomically to purchas
   assert.equal(saved.supplierMovements.filter(row => row.id === 'SUP-PAY-ALLOC-1').length, 1);
   const operation = await db.collection('reverseLedgerOperations').doc(operationId).get();
   assert.equal(operation.get('status'), 'POSTED');
+});
+
+
+test('Firestore Emulator accepts reverse posting for the grant tenant and assigned store', async t => {
+  const uid = 'emu-scope-allow-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const state = {
+    invoices: [{ id: 'INV-EMULATOR-1', invoiceLedgerVersion: 2, tenantId: 'TENANT_A', storeId: 'STORE_01' }],
+    purchases: [], products: [{ id: 'P-1', stock: 10 }], customers: [], suppliers: [],
+    returns: [], caisseBalance: 100
+  };
+  await seed(uid, [operationId], {
+    state, tenantId: 'TENANT_A', storeIds: ['STORE_01'], permissions: ['reverse_sale_return']
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  const result = await createHandler()(makeRequest(uid, operationId));
+  assert.equal(result.document.status, 'POSTED');
+});
+
+test('Firestore Emulator denies reverse posting across tenant boundaries', async t => {
+  const uid = 'emu-scope-tenant-deny-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const state = {
+    invoices: [{ id: 'INV-EMULATOR-1', invoiceLedgerVersion: 2, tenantId: 'TENANT_A', storeId: 'STORE_01' }],
+    purchases: [], products: [{ id: 'P-1', stock: 10 }], customers: [], suppliers: [],
+    returns: [], caisseBalance: 100
+  };
+  await seed(uid, [operationId], {
+    state, tenantId: 'TENANT_B', storeIds: ['STORE_01'], permissions: ['reverse_sale_return']
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  await assert.rejects(
+    createHandler()(makeRequest(uid, operationId)),
+    error => error && error.code === 'permission-denied'
+  );
+});
+
+test('Firestore Emulator denies reverse posting outside the assigned store', async t => {
+  const uid = 'emu-scope-store-deny-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const state = {
+    invoices: [{ id: 'INV-EMULATOR-1', invoiceLedgerVersion: 2, tenantId: 'TENANT_A', storeId: 'STORE_02' }],
+    purchases: [], products: [{ id: 'P-1', stock: 10 }], customers: [], suppliers: [],
+    returns: [], caisseBalance: 100
+  };
+  await seed(uid, [operationId], {
+    state, tenantId: 'TENANT_A', storeIds: ['STORE_01'], permissions: ['reverse_sale_return']
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  await assert.rejects(
+    createHandler()(makeRequest(uid, operationId)),
+    error => error && error.code === 'permission-denied'
+  );
+});
+
+test('Firestore Emulator accepts settlement allocation for the grant tenant and assigned store', async t => {
+  const uid = 'emu-alloc-scope-allow-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const state = settlementState();
+  state.invoices[0].tenantId = 'TENANT_A';
+  state.invoices[0].storeId = 'STORE_01';
+  await seed(uid, [], {
+    state, tenantId: 'TENANT_A', storeIds: ['STORE_01'],
+    permissions: ['settlement_allocation_post']
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  const result = await createSettlementHandler()(makeSettlementRequest(uid, operationId));
+  assert.equal(result.status, 'POSTED');
+});
+
+test('Firestore Emulator denies settlement allocation across tenant boundaries', async t => {
+  const uid = 'emu-alloc-scope-tenant-deny-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const state = settlementState();
+  state.invoices[0].tenantId = 'TENANT_A';
+  state.invoices[0].storeId = 'STORE_01';
+  await seed(uid, [], {
+    state, tenantId: 'TENANT_B', storeIds: ['STORE_01'],
+    permissions: ['settlement_allocation_post']
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  await assert.rejects(
+    createSettlementHandler()(makeSettlementRequest(uid, operationId)),
+    error => error && error.code === 'permission-denied'
+  );
+});
+
+test('Firestore Emulator denies settlement allocation outside the assigned store', async t => {
+  const uid = 'emu-alloc-scope-store-deny-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const state = settlementState();
+  state.invoices[0].tenantId = 'TENANT_A';
+  state.invoices[0].storeId = 'STORE_02';
+  await seed(uid, [], {
+    state, tenantId: 'TENANT_A', storeIds: ['STORE_01'],
+    permissions: ['settlement_allocation_post']
+  });
+  t.after(() => cleanup(uid, [operationId]));
+  await assert.rejects(
+    createSettlementHandler()(makeSettlementRequest(uid, operationId)),
+    error => error && error.code === 'permission-denied'
+  );
 });

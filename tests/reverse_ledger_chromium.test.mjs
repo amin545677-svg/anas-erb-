@@ -203,7 +203,7 @@ test('Chromium reverse modal previews exact centimes without mutating AppData or
  } finally { await browser.close(); }
 });
 
-test.skip('LEGACY: Chromium settlement allocation UI local-save contract is superseded by the server callable', async () => {
+test('Chromium settlement allocation UI fails closed without the trusted callable and never falls back to local save', async () => {
  const browser=await chromium.launch({headless:true});
  try {
   const page=await browser.newPage();
@@ -222,7 +222,6 @@ test.skip('LEGACY: Chromium settlement allocation UI local-save contract is supe
    window.__saveCalls=0;window.__alerts=[];
    window.saveDB=()=>{window.__saveCalls++;return true;};
    window.alert=message=>window.__alerts.push(String(message));
-   window.prompt=()=>{throw new Error('prompt must not be used');};
   });
   await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/settlement-allocation-modal.js')});
   await page.evaluate(() => {
@@ -231,52 +230,24 @@ test.skip('LEGACY: Chromium settlement allocation UI local-save contract is supe
    party.value='C-ALLOC-UI';party.dispatchEvent(new Event('change',{bubbles:true}));
    const source=document.getElementById('alloc-source');
    source.value='0';source.dispatchEvent(new Event('change',{bubbles:true}));
+   const invoice=document.getElementById('alloc-invoice');
+   if(invoice) { invoice.value='0'; invoice.dispatchEvent(new Event('change',{bubbles:true})); }
    const amount=document.getElementById('alloc-amount');
-   amount.value='20.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
+   amount.value='50.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
+   const period=document.getElementById('alloc-period-id');
+   if(period) period.value='FY-2026-10';
   });
-  const beforePost=await page.evaluate(()=>({
-   assigned:document.getElementById('alloc-assigned-total').textContent,
-   fill:document.getElementById('alloc-match-fill').style.width,
-   enabled:!document.getElementById('alloc-submit').disabled,
-   invoiceRemaining:document.getElementById('alloc-invoice-remaining').textContent
+  const submitDisabled=await page.locator('#alloc-submit').isDisabled();
+  const result=await page.evaluate(()=>({
+   allocations:AppData.settlementAllocations.length,
+   saveCalls:window.__saveCalls,
+   status:document.getElementById('alloc-status')?.textContent||'',
+   alerts:window.__alerts
   }));
-  assert.equal(beforePost.assigned,'20.00 د.ج / 50.00 د.ج');
-  assert.equal(beforePost.fill,'40%');
-  assert.equal(beforePost.enabled,true);
-  await page.click('#alloc-submit');
-  const after=await page.evaluate(()=>({
-   allocations:AppData.settlementAllocations.map(row=>({amountCentimes:row.amountCentimes,ledgerVersion:row.ledgerVersion})),
-   paid:AppData.invoices[0].paid,remaining:AppData.invoices[0].remaining,
-   saveCalls:window.__saveCalls,alerts:window.__alerts
-  }));
-  assert.deepEqual(after.allocations,[{amountCentimes:2000,ledgerVersion:2}]);
-  assert.equal(after.paid,50);
-  assert.equal(after.remaining,50);
-  assert.equal(after.saveCalls,1);
-  assert.ok(after.alerts.some(message=>message.includes('تم حفظ تخصيص الدفعة')));
-  await page.evaluate(() => {
-   window.__allocationArrayRef=AppData.settlementAllocations;
-   window.saveDB=()=>false;
-   const source=document.getElementById('alloc-source');
-   source.value='0';source.dispatchEvent(new Event('change',{bubbles:true}));
-   const amount=document.getElementById('alloc-amount');
-   amount.value='10.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
-  });
-  await page.click('#alloc-submit');
-  const rollback=await page.evaluate(()=>({
-   sameArray:AppData.settlementAllocations===window.__allocationArrayRef,
-   count:AppData.settlementAllocations.length,
-   amount:AppData.settlementAllocations[0]?.amountCentimes,
-   status:document.getElementById('alloc-status').textContent
-  }));
-  assert.deepEqual({sameArray:rollback.sameArray,count:rollback.count,amount:rollback.amount},
-   {sameArray:true,count:1,amount:2000});
-  assert.match(rollback.status,/تم التراجع/);
-  const html=fs.readFileSync(path.join(process.cwd(),'index.html'),'utf8');
-  assert.ok(html.includes('<!-- ANAS_REVERSE_LEDGER_UI_MODULES -->'));
-  assert.ok(html.includes('<script src="./reverse-ledger/reverse-ledger-modal.js"></script>'));
-  assert.ok(html.includes('<script src="./reverse-ledger/settlement-allocation-modal.js"></script>'));
-  assert.ok(html.includes('openSettlementAllocationModal()'));
-  console.log('CHROMIUM_SETTLEMENT_ALLOCATION_UI_REPORT '+JSON.stringify({...beforePost,allocationSaved:true,invoiceFieldsImmutable:after.paid===50&&after.remaining===50}));
+  assert.equal(submitDisabled,true,'posting must remain disabled when the trusted callable is absent');
+  assert.equal(result.allocations,0,'an untrusted local path must not post an allocation');
+  assert.equal(result.saveCalls,0,'the UI must never call saveDB as a fallback');
+  assert.match(result.status+' '+result.alerts.join(' '),/بوابة|خادمية|موثوقة|server|gateway/i);
+  console.log('CHROMIUM_SETTLEMENT_ALLOCATION_FAIL_CLOSED_REPORT '+JSON.stringify(result));
  } finally { await browser.close(); }
 });
