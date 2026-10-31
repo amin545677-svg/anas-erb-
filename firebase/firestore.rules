@@ -9,6 +9,18 @@ service cloud.firestore {
                          && request.auth.uid == userId;
     }
 
+    // Top-level control-plane documents used by the trusted reverse-ledger Worker.
+    // This is the deployed rules file referenced by firebase.json.
+    match /reverseLedgerGrants/{uid} {
+      allow read, write: if false;
+    }
+    match /financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
+    }
+
     // These collections are server-authoritative. Service-account access
     // bypasses Firestore Rules; browser clients never read or write them.
     match /users/{userId}/reverseLedgerGrants/{grantId} {
