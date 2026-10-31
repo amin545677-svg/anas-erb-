@@ -189,7 +189,7 @@ const appHtml = await readFile(resolve("index.html"), "utf8");
 test("contextual AI helper authenticates Firebase requests to the protected gateway", () => {
   const helperRoot = appHtml.indexOf("const fab=document.getElementById('anasContextAiFab')");
   const helperStart = appHtml.indexOf("send.addEventListener('click',async function(){", helperRoot);
-  const helperEnd = appHtml.indexOf("\\n  });\\n})();", helperStart);
+  const helperEnd = appHtml.indexOf("\n  });\n})();", helperStart);
   assert.notEqual(helperRoot, -1, "contextual AI helper must exist");
   assert.notEqual(helperStart, -1, "contextual AI send handler must exist");
   assert.notEqual(helperEnd, -1, "contextual AI send handler must be closed");
