@@ -10,6 +10,8 @@ on:
       - "cloudflare/wrangler-reverse-ledger-staging.toml"
       - "tests/worker_reverse_ledger.test.mjs"
       - "firebase/firestore.rules"
+      - "firebase/firestore.staging.rules"
+      - "firebase.staging.json"
       - ".github/workflows/deploy-reverse-ledger-staging.yml"
 
 permissions:
@@ -59,6 +61,14 @@ jobs:
             exit 1
           fi
           echo "All isolated staging credentials are present."
+
+      - name: Authenticate to the isolated Firebase Staging project
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_JSON }}
+
+      - name: Deploy only the Staging Firestore security rules
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
 
       - name: Deploy only the staging reservation Worker and configure secrets
         working-directory: cloudflare
