@@ -126,4 +126,7 @@ function authorizeReverseOperation(context) {
     reservationLeaseId: context.reservation.leaseId
   });
 }
-module.exports = Object.freeze({ PERMISSIONS, authorizeReverseOperation });
+const authorizationApi = Object.freeze({ PERMISSIONS, authorizeReverseOperation });
+if (typeof module === 'object' && module.exports) module.exports = authorizationApi;
+if (typeof globalThis !== 'undefined' && typeof window === 'undefined')
+  globalThis.ANASReverseLedgerAuthorization = authorizationApi;
