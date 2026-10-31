@@ -185,11 +185,15 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
       await page.locator(modeButton).click();
       await page.locator('#modal-reverse-ledger.active').waitFor({ state: 'visible' });
       const invoiceOption = await page.locator('#rev-invoice-select').evaluate((select, details) => {
+        const collection = details.originalInvoiceType === 'sales_invoice' ? window.AppData?.invoices : window.AppData?.purchases;
+        const invoice = (Array.isArray(collection) ? collection : []).find(row => String(row?.id) === String(details.invoiceId));
+        if (!invoice) return null;
+        const displayNumber = String(invoice.invoiceNumber ?? invoice.number ?? invoice.code ?? invoice.id);
         const expectedPrefix = details.requestType === 'INVOICE_CANCEL'
           ? (details.originalInvoiceType === 'sales_invoice' ? 'مبيعات — ' : 'مشتريات — ')
           : '';
         const match = [...select.options].find(option =>
-          option.textContent.includes(details.invoiceId) && (!expectedPrefix || option.textContent.startsWith(expectedPrefix)));
+          option.textContent.includes(displayNumber) && (!expectedPrefix || option.textContent.startsWith(expectedPrefix)));
         return match ? match.value : null;
       }, { invoiceId: request.invoiceId, requestType: request.returnType, originalInvoiceType: request.originalInvoiceType });
       if (invoiceOption === null) throw new Error('Reverse modal did not list fixture invoice ' + request.invoiceId);
