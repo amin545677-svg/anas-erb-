@@ -2344,6 +2344,9 @@ jobs:
           const data={invoices:[{id:'INV-1',total:100}],purchases:[{id:'PUR-1',total:50}]};
           const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
             saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
+            anasReverseInvoiceChoices:()=>[{id:'INV-1'}],
+            anasReadReversePrompt:()=>({invoiceType:'sales_invoice',invoiceId:'INV-1',reason:'regression test',items:[],settlementMode:'credit'}),
+            anasExecuteReversePosting:()=>{alerts.push('safe server gateway guard');return null;},
             document:{getElementById:()=>({classList:{contains:()=>true}})}};
           vm.runInNewContext(Object.values(sources).join('\n')+
             '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
