@@ -167,7 +167,7 @@ test("oversized request stream is cancelled as soon as it crosses the byte limit
       controller.enqueue(new Uint8Array(120 * 1024 + 1));
     },
     cancel() { cancelled = true; }
-  });
+  }, { highWaterMark: 0 });
   try {
     const response = await worker.fetch(new Request("https://worker.test/", {
       method: "POST",
