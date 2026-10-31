@@ -31,7 +31,7 @@ function nonNegativeSafeInteger(value, label) {
 function requirePermission(grant, permission) {
   if (!grant.permissions.includes(permission)) throw new Error('missing required permission: ' + permission);
 }
-function assertVerifiedPrincipal(auth, projectId) {
+function assertVerifiedPrincipal(auth, projectId, nowEpochMs) {
   if (!auth || auth.verified !== true) throw new Error('Firebase identity must be verified by the trusted server');
   const uid = requiredString(auth.uid, 'Firebase UID', 128);
   if (auth.disabled === true) throw new Error('Firebase account is disabled');
@@ -39,7 +39,13 @@ function assertVerifiedPrincipal(auth, projectId) {
     throw new Error('Firebase token audience or issuer does not match the configured project');
   if (!Number.isSafeInteger(auth.authTimeSeconds) || auth.authTimeSeconds <= 0 ||
       !Number.isSafeInteger(auth.issuedAtSeconds) || auth.issuedAtSeconds <= 0 ||
-      auth.issuedAtSeconds < auth.authTimeSeconds) throw new Error('Firebase token time claims are invalid');
+      !Number.isSafeInteger(auth.expiresAtSeconds) || auth.expiresAtSeconds <= 0 ||
+      auth.issuedAtSeconds < auth.authTimeSeconds || auth.expiresAtSeconds <= auth.issuedAtSeconds)
+    throw new Error('Firebase token time claims are invalid');
+  const nowSeconds = Math.floor(nowEpochMs / 1000);
+  if (auth.authTimeSeconds > nowSeconds || auth.issuedAtSeconds > nowSeconds)
+    throw new Error('Firebase token time claims are in the future');
+  if (auth.expiresAtSeconds <= nowSeconds) throw new Error('Firebase identity token is expired');
   return uid;
 }
 function assertGrant(grant, uid) {
@@ -61,7 +67,8 @@ function authorizeReverseOperation(context) {
   if (!context || typeof context !== 'object' || Array.isArray(context))
     throw new Error('trusted reverse authorization context is required');
   const projectId = requiredString(context.projectId, 'Firebase project ID', 128);
-  const uid = assertVerifiedPrincipal(context.auth, projectId);
+  const nowEpochMs = nonNegativeSafeInteger(context.nowEpochMs, 'authorization clock');
+  const uid = assertVerifiedPrincipal(context.auth, projectId, nowEpochMs);
   assertGrant(context.grant, uid);
 
   const operation = context.operation;
@@ -111,7 +118,6 @@ function authorizeReverseOperation(context) {
   if (type === 'PURCHASE_RETURN' && stockRequired > stockAvailable)
     throw new Error('purchase return exceeds available stock in the selected warehouse');
 
-  const nowEpochMs = nonNegativeSafeInteger(context.nowEpochMs, 'authorization clock');
   assertReservation(context.reservation, operationId, uid, nowEpochMs);
   return Object.freeze({
     authorized: true, uid, operationId, operationType: type,
