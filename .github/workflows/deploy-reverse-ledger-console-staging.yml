@@ -82,7 +82,7 @@ jobs:
             }
           }
           fs.writeFileSync('staging-site/config.js',
-            'window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = ' + JSON.stringify(config) + ';\\n',
+            'window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = ' + JSON.stringify(config) + ';\n',
             { mode: 0o600 });
           NODE
           test -f staging-site/index.html
@@ -110,5 +110,5 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error "$STAGING_ORIGIN/" | grep -q 'ANAS ERP — بيئة اختبار دفتر المرتجعات'
           curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -q '"projectId":"anas-erp-staging-a25e1"'
-          curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -q '"allowedOrigins":\["https://anas-erp-staging-a25e1.web.app"\]'
+          curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -Fq '"allowedOrigins":["https://anas-erp-staging-a25e1.web.app"]'
           echo "PASS: dedicated staging console and staging-only public Firebase configuration are live."
