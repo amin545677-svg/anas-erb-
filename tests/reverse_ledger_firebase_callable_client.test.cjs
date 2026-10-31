@@ -78,12 +78,12 @@ test('initializes the named staging app, App Check and callable endpoint', async
 
 test('blocks posting without a signed-in staging user or App Check token', async () => {
   const unsigned = fakeFirebase({ signedIn: false });
-  const clientA = Client.initialize(config, unsigned);
+  const clientA = Client.initialize(config, { firebase: unsigned.firebase, location });
   await assert.rejects(clientA.gateway.execute(request), /Sign in to the dedicated/);
   assert.equal(unsigned.calls.callable.length, 0);
 
   const noAppCheck = fakeFirebase({ missingAppCheck: true });
-  const clientB = Client.initialize(config, noAppCheck);
+  const clientB = Client.initialize(config, { firebase: noAppCheck.firebase, location });
   await assert.rejects(clientB.gateway.execute(request), /App Check token/);
   assert.equal(noAppCheck.calls.callable.length, 0);
 });
@@ -93,7 +93,7 @@ test('rejects malformed operation IDs and unconfirmed callable responses', async
   const client = Client.initialize(config, { firebase, location });
   await assert.rejects(client.gateway.execute({ ...request, operationId: 'bad' }), /operationId format/);
   const invalid = fakeFirebase({ result: { ok: true, document: {} } });
-  const invalidClient = Client.initialize(config, invalid);
+  const invalidClient = Client.initialize(config, { firebase: invalid.firebase, location });
   await assert.rejects(invalidClient.gateway.execute(request), /confirmed posted document/);
 });
 
