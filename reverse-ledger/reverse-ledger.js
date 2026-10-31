@@ -1034,6 +1034,18 @@
       throw error;
     }
   }
+  function previewReturnTransaction(state, input, options = {}) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('state must be an object');
+    // Preview against a detached JSON snapshot. The live AppData object and every
+    // nested record remain untouched; only the trusted server may commit a posting.
+    const previewState = JSON.parse(JSON.stringify(state));
+    const document = executeReturnTransaction(previewState, input, {
+      createId: () => 'PREVIEW-REVERSE-LEDGER',
+      operatorId: String(options.operatorId ?? state.currentUser?.id ?? 'preview'),
+      persist: () => true
+    });
+    return Object.freeze({ ...document, previewOnly: true });
+  }
   function validateReverseLedgerParity(state) {
     const data = ensureCollections(state);
     validateClientMovements(data);
@@ -1071,6 +1083,6 @@
     ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument,
     sealClientMovement, sealSettlementAllocation, sealReturnDocument,
     computeReturnableMicroUnits, validateSettlementAllocations, validateClientMovements,
-    validateReturns, validateReverseLedgerParity, executeReturnTransaction, originalInvoiceItems, appendUnique, RETURN_TYPES, PARTY_TYPES
+    validateReturns, validateReverseLedgerParity, executeReturnTransaction, previewReturnTransaction, originalInvoiceItems, appendUnique, RETURN_TYPES, PARTY_TYPES
   });
 });
