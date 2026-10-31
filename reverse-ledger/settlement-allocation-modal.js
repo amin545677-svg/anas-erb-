@@ -59,8 +59,8 @@ function collectSources() {
   const db = data();
   const found = [];
   if (state.partyType === 'customer') {
-    if (!Array.isArray(db.cashMovements)) throw new Error('دفتر حركات الصندوق غير صالح.');
-    for (const row of db.cashMovements) {
+    if (db.cashMovements !== undefined && !Array.isArray(db.cashMovements)) throw new Error('دفتر حركات الصندوق غير صالح.');
+    for (const row of (Array.isArray(db.cashMovements) ? db.cashMovements : [])) {
       if (!row || !['sales_invoice', 'customer_debt'].includes(row.referenceType)) continue;
       const id = rowId(row);
       if (id == null || String(id).trim() === '') continue;
@@ -231,10 +231,17 @@ function updateDraft() {
   try {
     const amount = validateDraft();
     const remaining = state.source.amountCentimes - state.source.assignedCentimes - amount;
+    const assignedAfter = state.source.assignedCentimes + amount;
+    const percent = state.source.amountCentimes > 0n
+      ? Number((assignedAfter * 10000n) / state.source.amountCentimes) / 100 : 0;
+    byId('alloc-assigned-total').textContent = money(assignedAfter) + ' / ' + money(state.source.amountCentimes);
+    byId('alloc-match-fill').style.width = Math.max(0, Math.min(100, percent)) + '%';
+    byId('alloc-match-label').textContent = 'المطابقة بعد الحفظ: ' + percent.toFixed(2) + '%';
     byId('alloc-draft-match').textContent = 'سيبقى غير مخصص: ' + money(remaining);
     button.disabled = false;
     status('المطابقة صحيحة: المبلغ لا يتجاوز رصيد الحركة ولا رصيد الفاتورة.', true);
   } catch (error) {
+    renderMatch();
     byId('alloc-draft-match').textContent = '—';
     button.disabled = true;
     status(error.message || String(error), false);
