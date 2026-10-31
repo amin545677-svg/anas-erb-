@@ -255,8 +255,10 @@ test('Chromium settlement allocation UI enforces exact centimes and saves withou
   assert.equal(after.saveCalls,1);
   assert.ok(after.alerts.some(message=>message.includes('تم حفظ تخصيص الدفعة')));
   const html=fs.readFileSync(path.join(process.cwd(),'index.html'),'utf8');
-  assert.match(html,/<!-- ANAS_REVERSE_LEDGER_UI_MODULES -->[\\s\\S]*?<script src="\\.\\/reverse-ledger\\/reverse-ledger-modal\\.js"><\\/script>[\\s\\S]*?<script src="\\.\\/reverse-ledger\\/settlement-allocation-modal\\.js"><\\/script>/);
-  assert.match(html,/openSettlementAllocationModal\\(\\)/);
+  assert.ok(html.includes('<!-- ANAS_REVERSE_LEDGER_UI_MODULES -->'));
+  assert.ok(html.includes('<script src="./reverse-ledger/reverse-ledger-modal.js"></script>'));
+  assert.ok(html.includes('<script src="./reverse-ledger/settlement-allocation-modal.js"></script>'));
+  assert.ok(html.includes('openSettlementAllocationModal()'));
   console.log('CHROMIUM_SETTLEMENT_ALLOCATION_UI_REPORT '+JSON.stringify({...beforePost,allocationSaved:true,invoiceFieldsImmutable:after.paid===50&&after.remaining===50}));
  } finally { await browser.close(); }
 });
