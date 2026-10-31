@@ -93,7 +93,9 @@ function fixture(options = {}) {
     caisseBalance: 100
   };
   const grant = {
-    uid, active: true, schemaVersion: 1,
+    uid, active: true, status: 'ACTIVE', schemaVersion: 1,
+    tenantId: 'TENANT_DEFAULT',
+    storeIds: ['STORE_DEFAULT'],
     permissions: ['reverse_sale_return']
   };
   const period = { periodId: 'FY-2026-10', status: 'OPEN' };
