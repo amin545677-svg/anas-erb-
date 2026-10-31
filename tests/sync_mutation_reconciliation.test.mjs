@@ -156,3 +156,21 @@ test("quarantines a cash movement ID collision when the existing amount differs"
   assert.equal(result.review[0].reason, "CASH_MOVEMENT_ID_COLLISION");
   assert.deepEqual(result.appliedNow, []);
 });
+
+test("quarantines collection when adding its cents would overflow the safe integer range", () => {
+  const initial = cloud();
+  initial.caisseBalance = Number.MAX_SAFE_INTEGER / 100;
+  const result = reconcilePendingMutations(initial, [collection()]);
+  assert.equal(result.snapshot.caisseBalance, initial.caisseBalance);
+  assert.equal(result.snapshot.customers[0].debt, 26000);
+  assert.equal(result.review[0].reason, "CASH_BALANCE_OVERFLOW");
+});
+
+test("quarantines credit sales when customer debt would overflow safe integer cents", () => {
+  const initial = cloud();
+  initial.customers[0].debt = Number.MAX_SAFE_INTEGER / 100;
+  const op = saleOp({ opId: "sale-debt-overflow", total: 1, paid: 0, customerId: "cust_s", quantity: 1 });
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.equal(result.snapshot.customers[0].debt, initial.customers[0].debt);
+  assert.equal(result.review[0].reason, "INVALID_CUSTOMER_DEBT");
+});
