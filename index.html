@@ -9014,15 +9014,30 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function'){
       try{payload.businessData=window.anasBuildBusinessSnapshot();}catch(e){answer.style.display='block';answer.textContent='تعذر إعداد الملخص التجاري. أرسل السؤال دون الملخص أو جرّب لاحقاً.';return;}
     }
-    send.disabled=true;send.textContent='جارٍ الاتصال…';answer.style.display='block';answer.textContent='جارٍ طلب المساعدة…';
-    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),45000);
+    let firebaseIdToken='';
     try{
-      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
+      const firebaseAuth=window.firebase?.auth?.();
+      const currentUser=firebaseAuth?.currentUser;
+      if(!currentUser||typeof currentUser.getIdToken!=='function')
+        throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل استخدام المساعد السحابي.');
+      firebaseIdToken=await currentUser.getIdToken();
+      if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
+    }catch(e){
+      answer.style.display='block';
+      answer.textContent=e.message||'تعذر التحقق من جلسة الدخول.';
+      return;
+    }
+    send.disabled=true;send.textContent='جارٍ الاتصال…';answer.style.display='block';answer.textContent='جارٍ طلب المساعدة…';
+    const controller=new AbortController();
+    let timer=null;
+    try{
+      timer=setTimeout(()=>controller.abort(),45000);
+      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'});
       const raw=await res.text();let data;try{data=JSON.parse(raw);}catch(_){data={text:raw};}
       if(!res.ok||data.error)throw new Error(data.error||('HTTP '+res.status));
       answer.textContent=String(data.text||data.answer||'لم تصل إجابة نصية من المساعد.');
     }catch(e){answer.textContent='تعذر الاتصال بالمساعد: '+(e.name==='AbortError'?'انتهت مهلة الاتصال.':(e.message||'خطأ غير معروف'))+'. تحقق من رابط الخادم وإعداده.';}
-    finally{clearTimeout(timer);send.disabled=false;send.textContent='إرسال السؤال';}
+    finally{if(timer!==null)clearTimeout(timer);send.disabled=false;send.textContent='إرسال السؤال';}
   });
 })();
 </script>
