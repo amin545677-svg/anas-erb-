@@ -97,9 +97,12 @@ test('purchase return rejects stock overdraw and inconsistent zero-stock valuati
     returnQuantityMicroUnits:1000001,supplierOriginalLineTotalCentimes:10,
     supplierOriginalQuantityMicroUnits:1000000
   }), /exceeds current stock/);
-  assert.throws(() => V.purchaseReturnInventoryValuation({
+  const fullRemoval = V.purchaseReturnInventoryValuation({
     currentStockMicroUnits:1000000,currentInventoryValueCentimes:10,
     returnQuantityMicroUnits:1000000,supplierOriginalLineTotalCentimes:10,
     supplierOriginalQuantityMicroUnits:1000000
-  }).nextInventoryValueCentimes, /./);
+  });
+  assert.equal(fullRemoval.nextStockMicroUnits,0n);
+  assert.equal(fullRemoval.nextInventoryValueCentimes,0n);
+  assert.equal(fullRemoval.nextWeightedAverageCostCentimes,0n);
 });
