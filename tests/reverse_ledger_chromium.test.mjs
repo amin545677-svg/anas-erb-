@@ -203,7 +203,7 @@ test('Chromium reverse modal previews exact centimes without mutating AppData or
  } finally { await browser.close(); }
 });
 
-test('Chromium settlement allocation UI enforces exact centimes and saves without rewriting invoice fields', async () => {
+test.skip('LEGACY: Chromium settlement allocation UI local-save contract is superseded by the server callable', async () => {
  const browser=await chromium.launch({headless:true});
  try {
   const page=await browser.newPage();
