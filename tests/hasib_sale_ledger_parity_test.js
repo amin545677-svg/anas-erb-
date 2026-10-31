@@ -376,7 +376,8 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 
 {
   const cancelStart=html.indexOf('function anasReverseInvoiceChoices(');
-  const cancelEnd=html.indexOf('\n        function old_cancelInvoicePrompt()',cancelStart);
+  const returnPurchaseStart=html.indexOf('function returnPurchasePrompt()',cancelStart);
+  const cancelEnd=html.indexOf('\n        function ',returnPurchaseStart+30);
   assert.ok(cancelStart>=0&&cancelEnd>cancelStart,'atomic reverse-posting UI handlers must be present');
   const customer={id:'C-CANCEL',name:'Customer',debt:0.20};
   const invoice={id:'INV-CANCEL',customerId:'C-CANCEL',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
