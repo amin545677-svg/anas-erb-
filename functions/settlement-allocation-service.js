@@ -80,7 +80,8 @@ function sourceRows(state, request) {
   const rows = Array.isArray(state.supplierMovements) ? state.supplierMovements : [];
   return rows.filter(row => row && String(recordId(row)) === request.sourceMovementId &&
     row.type === 'payment' && row.referenceType === request.sourceMovementType &&
-    String(row.supplierId ?? '') === request.partyId);
+    String(row.supplierId ?? '') === request.partyId &&
+    (request.sourceMovementType !== 'supplier_payment' || String(row.referenceId ?? '') === request.sourceMovementId));
 }
 
 function invoicePartyId(invoice, partyType) {
@@ -195,11 +196,26 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           if (normalized.sourceMovementType === 'purchase_invoice' && String(source.referenceId) !== allocation.invoiceId)
             fail('failed-precondition', 'A purchase-invoice payment can only be allocated to its linked invoice.');
           const total = invoiceAmount(invoice, 'total');
-          const alreadyAllocated = (state.settlementAllocations || [])
-            .filter(row => row && row.invoiceType === allocation.invoiceType && String(row.invoiceId) === allocation.invoiceId)
+          const paid = invoiceAmount(invoice, 'paid');
+          const invoiceRows = (state.settlementAllocations || []).filter(row =>
+            row && row.invoiceType === allocation.invoiceType && String(row.invoiceId) === allocation.invoiceId);
+          const initialSourceType = allocation.invoiceType;
+          const laterSourceType = normalized.partyType === 'customer' ? 'customer_debt' : 'supplier_payment';
+          const initialAllocated = invoiceRows.filter(row => row.sourceMovementType === initialSourceType)
             .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
-          if (alreadyAllocated + BigInt(allocation.amountCentimes) > BigInt(total))
-            fail('failed-precondition', 'Allocation exceeds the invoice-derived remaining balance.');
+          const laterAllocated = invoiceRows.filter(row => row.sourceMovementType === laterSourceType)
+            .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
+          const amount = BigInt(allocation.amountCentimes);
+          if (initialAllocated > BigInt(paid))
+            fail('failed-precondition', 'Initial invoice-linked allocations exceed the invoice paid amount.');
+          if (normalized.sourceMovementType === initialSourceType) {
+            if (initialAllocated + amount > BigInt(paid))
+              fail('failed-precondition', 'Initial allocation exceeds the invoice paid amount not yet allocated.');
+          } else if (BigInt(paid) + laterAllocated + amount > BigInt(total)) {
+            fail('failed-precondition', 'Allocation exceeds the invoice-derived outstanding balance after paid and prior settlements.');
+          }
+          if (initialAllocated + laterAllocated + amount > BigInt(total))
+            fail('failed-precondition', 'Total invoice allocations exceed the invoice total.');
           const record = ReverseLedger.sealSettlementAllocation(state, {
             allocationId: 'ALLOC-' + sha256(uid + ':' + normalized.operationId + ':' + allocation.invoiceId).slice(0, 28),
             partyType: normalized.partyType,
