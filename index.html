@@ -8060,10 +8060,8 @@ function renderPurchasesTable() {
             try{u=new URL(value);}catch(_){throw new Error('الرابط غير مكتمل أو غير صالح.');}
             if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/')
                 throw new Error('استخدم رابط HTTPS أساسيًا فقط دون مسار أو بيانات دخول أو معاملات إضافية.');
-            if(!/(^|\.)workers\.dev$/i.test(u.hostname)||u.hostname==='workers.dev')
-                throw new Error('استخدم رابط Cloudflare Worker المنشور الذي ينتهي بـ workers.dev، وليس example.com أو رابط Worker النسخ الاحتياطي.');
-            if(u.hostname==='anas-erp-firebase-snapshot.amin545677.workers.dev')
-                throw new Error('هذا رابط Worker النسخ الاحتياطي وليس بوابة الذكاء الاصطناعي. استخدم anas-erp-openai-ai.amin545677.workers.dev.');
+            if(u.hostname.toLowerCase()!=='anas-erp-openai-ai.amin545677.workers.dev')
+                throw new Error('يُسمح فقط ببوابة ANAS ERP AI الرسمية: anas-erp-openai-ai.amin545677.workers.dev.');
             return u.origin;
         }
         function anasSaveAiGateway(){
@@ -9242,7 +9240,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(!q){answer.style.display='block';answer.textContent='اكتب سؤالك أولاً.';return;}
     let savedUrl='';
     try{savedUrl=localStorage.getItem('anasErpAiGatewayUrlV1')||'';}catch(_){answer.style.display='block';answer.textContent='تعذر الوصول إلى إعدادات التخزين في المتصفح. اسمح للتطبيق باستخدام التخزين المحلي ثم أعد المحاولة.';return;}
-    const url=savedUrl.trim().replace(/\/$/,'');
+    let url='';
+    try{url=anasNormalizeAiGatewayUrl(savedUrl);}
+    catch(_){answer.style.display='block';answer.textContent='رابط بوابة الذكاء الاصطناعي غير موثوق أو غير صالح. افتح إعدادات ANAS ERP واحفظ رابط بوابة AI الرسمية.';return;}
     if(!url){answer.style.display='block';answer.textContent='لم يُضبط رابط خادم الذكاء الاصطناعي بعد. افتح الإعدادات ← ربط خادم الذكاء الاصطناعي، واحفظ رابط العامل الجديد أولاً.';return;}
     const payload={type:'chat',message:q+'\n\nسياق الشاشة: '+contextText,language:'ar'};
     if(include.checked&&typeof window.anasBuildBusinessSnapshot==='function'){
