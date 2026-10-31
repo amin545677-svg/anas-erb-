@@ -466,14 +466,17 @@
           if (sourceQuantity !== originalQty ||
               quantityToMicroUnits(String(Math.abs(Number(saleOutRows[0].qty ?? saleOutRows[0].quantity))), 'original SALE_OUT quantity') !== sourceQuantity)
             throw new Error('original SALE_OUT cost basis does not match the original invoice line');
-          const expectedRestoredCost = cumulativeDeltaCentimes(
-            sourceCost, sourceQuantity, previouslyReturnedMicroUnits, qty
-          );
-          if (restoredInventoryCostCentimes !== expectedRestoredCost ||
-              inventoryBookValueCentimes !== 0n || valuationVarianceCentimes !== 0)
-            throw new Error('sale return historical inventory cost does not reconcile');
-        } else if (restoredInventoryCostCentimes !== 0n ||
-            BigInt(line) - inventoryBookValueCentimes !== BigInt(valuationVarianceCentimes)) {
+          if (doc.status === 'POSTED') {
+            const expectedRestoredCost = cumulativeDeltaCentimes(
+              sourceCost, sourceQuantity, previouslyReturnedMicroUnits, qty
+            );
+            if (restoredInventoryCostCentimes !== expectedRestoredCost ||
+                inventoryBookValueCentimes !== 0n || valuationVarianceCentimes !== 0)
+              throw new Error('sale return historical inventory cost does not reconcile');
+          }
+        } else if (doc.status === 'POSTED' &&
+            (restoredInventoryCostCentimes !== 0n ||
+             BigInt(line) - inventoryBookValueCentimes !== BigInt(valuationVarianceCentimes))) {
           throw new Error('purchase return inventory book value and valuation variance do not reconcile');
         }
         lineTotal += line;
