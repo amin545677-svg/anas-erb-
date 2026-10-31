@@ -7,8 +7,13 @@
  */
 function normalizeMoneyV42(value) {
   const num = Number(value);
-  if (!Number.isFinite(num) || num < 0 || num > Number.MAX_SAFE_INTEGER) return null;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+  if (!Number.isFinite(num) || num < 0) return null;
+  const scaled = num * 100;
+  const cents = Math.round(scaled);
+  // Persist and compare integer cents only. Reject hidden fractional-cent values
+  // instead of silently rounding money supplied by another device.
+  if (!Number.isSafeInteger(cents) || Math.abs(scaled - cents) > 1e-7) return null;
+  return cents / 100;
 }
 function finiteAmount(value, label) {
   const amount = normalizeMoneyV42(value);
@@ -94,10 +99,19 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (!Array.isArray(snapshot.cashMovements)) snapshot.cashMovements = [];
       // Check the durable ledger entity before balances/customer state: another
       // device may already have applied this movement and changed the debt.
-      if (snapshot.cashMovements.some(movement => movement?.id === movementId)) {
-        applied.add(op.opId);
-        snapshot.appliedOpIds = [...applied];
-        appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
+      const existingMovement = snapshot.cashMovements.find(movement => movement?.id === movementId);
+      if (existingMovement) {
+        const existingAmountCents = moneyCents(existingMovement.amount);
+        const customerMatches = existingMovement.customerId == null ||
+          String(existingMovement.customerId) === String(payload.customerId);
+        const operationMatches = existingMovement.opId == null || existingMovement.opId === op.opId;
+        if (existingAmountCents === amountCents && customerMatches && operationMatches) {
+          applied.add(op.opId);
+          snapshot.appliedOpIds = [...applied];
+          appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
+        } else {
+          review.push({ opId: op.opId, reason: "CASH_MOVEMENT_ID_COLLISION", operation: op });
+        }
         continue;
       }
       const customer = findById(snapshot.customers, payload.customerId);
