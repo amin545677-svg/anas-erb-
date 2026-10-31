@@ -7199,7 +7199,7 @@ function renderPurchasesTable() {
                 cashBalanceDZD:{validRecords:cashBalance===null?0:1,invalidRecords:cashBalance===null?1:0}
             };
             const incompleteMetrics=Object.keys(quality).filter(key=>quality[key].invalidRecords>0);
-            // Aggregates only: no customer/product names or per-record balances leave the device.
+            // Minimize outbound business context: aggregates only; no customer/product names or per-record balances leave the device.
             return {
                 currency:'DZD',
                 counts:{
