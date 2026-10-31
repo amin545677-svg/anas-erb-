@@ -132,7 +132,7 @@ async function readDocument(env,path,transaction) {
 }
 async function firestoreAction(env,action,init={}) {
   const token=await serviceAccessToken(env);
-  const base=documentUrl(env,"").replace(/\\/$/,"");
+  const base=documentUrl(env,"").slice(0,-1);
   const response=await fetch(base+":"+action,{
     ...init,headers:{Authorization:"Bearer "+token,"Content-Type":"application/json",...(init.headers||{})}
   });
