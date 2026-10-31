@@ -17,6 +17,8 @@ on:
       - "manifest.webmanifest"
       - "sw.js"
       - "tests/validate_erp_html.py"
+      - "tests/ai_gateway_origin_guard_test.mjs"
+      - "tests/ai_business_snapshot_quality_test.mjs"
       - ".github/workflows/anas-erp-html-checks.yml"
 
 permissions:
