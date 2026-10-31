@@ -233,7 +233,7 @@ test('Chromium settlement allocation UI fails closed without the trusted callabl
    const invoice=document.getElementById('alloc-invoice');
    if(invoice) { invoice.value='0'; invoice.dispatchEvent(new Event('change',{bubbles:true})); }
    const amount=document.getElementById('alloc-amount');
-   amount.value='20.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
+   amount.value='50.00';amount.dispatchEvent(new Event('input',{bubbles:true}));
    const period=document.getElementById('alloc-period-id');
    if(period) period.value='FY-2026-10';
   });
