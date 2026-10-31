@@ -1297,6 +1297,224 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         else:
             errors.append("transaction-safety regression: " + label)
 
+
+    # Execute AI morning-brief and natural-language draft functions with synthetic data in an isolated Node VM.
+    # These tests validate behavior and AppData immutability; they never call the network or persistence layer.
+    ai_draft_fn = function_source("anasPrepareNaturalLanguageDraft")
+    ai_brief_fn = function_source("anasRefreshAiMorningBrief")
+    if not ai_draft_fn or not ai_brief_fn:
+        errors.append("AI behavioral runtime tests could not locate the draft or morning-brief function")
+    else:
+        ai_behavior_harness = r"""
+const vm = require('node:vm');
+process.on('uncaughtException', err => { console.error('AI_RUNTIME_FAILURE:', err.message); process.exit(1); });
+function makeNode(tag) {
+  const node = {
+    tagName: String(tag || 'div').toUpperCase(), children: [], dataset: {}, style: {}, attributes: {},
+    value: '', type: '', min: '', step: '', disabled: false, _text: '',
+    appendChild(child) { this.children.push(child); return child; },
+    append(...children) { this.children.push(...children); },
+    replaceChildren(...children) { this.children = children; this._text = ''; },
+    setAttribute(key, value) { this.attributes[key] = String(value); },
+    focus() {}, scrollIntoView() {},
+    querySelector(selector) {
+      const requested = selector.match(/^\[data-draft-field="([^"]+)"\]$/);
+      const match = (n) => {
+        if (requested && n.dataset && n.dataset.draftField === requested[1]) return n;
+        return (n.children || []).map(match).find(Boolean) || null;
+      };
+      return match(this);
+    },
+    get textContent() { return this._text + this.children.map(c => c.textContent || '').join(''); },
+    set textContent(value) { this._text = String(value ?? ''); this.children = []; }
+  };
+  return node;
+}
+const elements = {
+  anasAiQuestion: makeNode('textarea'),
+  anasAiNaturalDraft: makeNode('div'),
+  anasAiMorningBrief: makeNode('div')
+};
+const fixedNow = new Date('2026-10-27T12:00:00');
+class FixedDate extends Date {
+  constructor(...args) { super(...(args.length ? args : [fixedNow.getTime()])); }
+  static now() { return fixedNow.getTime(); }
+}
+const context = {
+  AppData: {
+    invoices: [
+      { id: 'SYN-1', date: 'not-a-date', createdAt: '2026-10-26', total: 10 },
+      { id: 'SYN-2', date: '2026-10-26', createdAt: '2026-10-26', total: 20 },
+      { id: 'SYN-3', date: 'invalid', createdAt: '', total: 99 }
+    ],
+    products: [], customers: [], syntheticMarker: 'UNCHANGED'
+  },
+  document: {
+    getElementById(id) { return elements[id] || null; },
+    createElement(tag) { return makeNode(tag); }
+  },
+  Date: FixedDate,
+  console,
+  Number, String, Math, Array, Object, JSON, RegExp
+};
+vm.createContext(context);
+vm.runInContext(__DRAFT_FN__ + '\n' + __BRIEF_FN__, context);
+const before = JSON.stringify(context.AppData);
+context.anasRefreshAiMorningBrief();
+const brief = elements.anasAiMorningBrief.textContent;
+if (!brief.includes('مجموع الفواتير المؤرخة أمس فقط = 30') || !brief.includes('من 2 فاتورة مؤرخة')) {
+  throw new Error('date fallback/deduplication failed: expected exactly two dated invoices totaling 30');
+}
+if (!brief.includes('1 فاتورة بلا تاريخ قابل للتحقق')) {
+  throw new Error('undated invoice was not classified exactly once');
+}
+const cases = [
+  { command: 'بيع ٢٫٥ كرتونة شاي', expectedQty: '2.5', expectedItem: 'شاي' },
+  { command: 'بيع 3 باكي شاي للعميل أحمد بسعر 250', expectedQty: '3', expectedItem: 'شاي', expectedCustomer: 'أحمد', expectedPrice: '250' },
+  { command: 'بيع ١٬٢٥٠ كرتونة شاي', expectedQty: '', expectedItem: 'شاي' }
+];
+for (const test of cases) {
+  elements.anasAiQuestion.value = test.command;
+  context.anasPrepareNaturalLanguageDraft();
+  const root = elements.anasAiNaturalDraft;
+  const field = (key) => root.querySelector('[data-draft-field="' + key + '"]');
+  if (!field('quantity') || field('quantity').value !== test.expectedQty) {
+    throw new Error('quantity extraction failed for synthetic command: ' + test.command);
+  }
+  if (!field('item') || field('item').value !== test.expectedItem) {
+    throw new Error('item extraction failed for synthetic command: ' + test.command + '; got=' + (field('item') && field('item').value));
+  }
+  if (test.expectedCustomer && (!field('customer') || field('customer').value !== test.expectedCustomer)) {
+    throw new Error('customer extraction failed for synthetic command: ' + test.command + '; got=' + (field('customer') && field('customer').value));
+  }
+  if (test.expectedPrice && (!field('unitPrice') || field('unitPrice').value !== test.expectedPrice)) {
+    throw new Error('unit price extraction failed for synthetic command: ' + test.command + '; got=' + (field('unitPrice') && field('unitPrice').value));
+  }
+  if (!root.textContent.includes('مسودة قابلة للتعديل أو الرفض فقط')) {
+    throw new Error('draft is not clearly marked review-only');
+  }
+}
+if (JSON.stringify(context.AppData) !== before) {
+  throw new Error('AI draft or morning brief mutated AppData');
+}
+console.log('PASS: AI behavioral tests validate date fallback/deduplication, Arabic decimal and colloquial-unit extraction, and AppData immutability');
+""";
+        ai_behavior_harness = ai_behavior_harness.replace("__DRAFT_FN__", json.dumps(ai_draft_fn))
+        ai_behavior_harness = ai_behavior_harness.replace("__BRIEF_FN__", json.dumps(ai_brief_fn))
+        with tempfile.TemporaryDirectory(prefix="anas-ai-behavior-") as temp:
+            test_path = Path(temp) / "ai-behavior.js"
+            test_path.write_text(ai_behavior_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                diagnostic = next((line.strip() for line in detail if "AI_RUNTIME_FAILURE:" in line), detail[0] if detail else "node test failed")
+                errors.append("AI behavioral runtime test failed: " + diagnostic)
+            else:
+                print(result.stdout.strip())
+
+
+    # Intercept the real AI request function with a fake fetch and synthetic records.
+    # Assert consent gates the actual serialized payload and no sensitive value is logged.
+    ai_ask_start = source.find("async function askAnasBusinessAI(){")
+    ai_ask_end = source.find("\n        // Load the spreadsheet parser", ai_ask_start)
+    ai_ask_fn = source[ai_ask_start:ai_ask_end] if ai_ask_start >= 0 and ai_ask_end > ai_ask_start else ""
+    ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
+    ai_append_fn = function_source("anasAiAppendMessage")
+    ai_fallback_fn = function_source("anasAiLocalFallback")
+    if not ai_ask_fn or not ai_snapshot_fn or not ai_append_fn or not ai_fallback_fn:
+        errors.append("AI payload runtime test could not locate functions: ask=" + str(bool(ai_ask_fn)) + ", snapshot=" + str(bool(ai_snapshot_fn)) + ", append=" + str(bool(ai_append_fn)) + ", fallback=" + str(bool(ai_fallback_fn)))
+    else:
+        ai_payload_harness = r"""
+const vm = require('node:vm');
+function makeNode(tag) {
+  const node = {
+    tagName: String(tag || 'div').toUpperCase(), children: [], dataset: {}, style: {}, attributes: {},
+    value: '', checked: false, disabled: false, textContent: '', scrollTop: 0,
+    appendChild(child) { this.children.push(child); return child; },
+    setAttribute(key, value) { this.attributes[key] = String(value); },
+    focus() {}, scrollIntoView() {}
+  };
+  return node;
+}
+const elements = {
+  anasAiQuestion: makeNode('textarea'),
+  anasAiAskBtn: makeNode('button'),
+  anasAiShareContext: makeNode('input'),
+  anasAiAnswerStyle: makeNode('select'),
+  anasAiOfflineFallback: makeNode('div'),
+  anasAiChatLog: makeNode('div')
+};
+elements.anasAiAnswerStyle.value = 'concise';
+const calls = [], consoleCalls = [];
+const context = {
+  AppData: {
+    products: [{name:'SYNTHETIC_PRIVATE_PRODUCT',stock:7,buyPrice:2}],
+    customers: [{name:'SYNTHETIC_PRIVATE_CUSTOMER',debt:1234}],
+    suppliers: [], invoices: [], purchases: [], truckTrips: [],
+    stockMovements: [], warehouseTransfers: [], warehouses: [], expenses: [],
+    caisseBalance: 55
+  },
+  document: {
+    getElementById(id) { return elements[id] || null; },
+    createElement(tag) { return makeNode(tag); },
+    createTextNode(value) { const n=makeNode('#text'); n.textContent=String(value); return n; }
+  },
+  localStorage: { getItem(key) { return key === 'anasErpAiGatewayUrlV1' ? 'https://synthetic.invalid/ai' : null; } },
+  navigator: { onLine: true },
+  console: { log(...args){consoleCalls.push(args)}, warn(...args){consoleCalls.push(args)}, error(...args){consoleCalls.push(args)} },
+  alert() {},
+  setTimeout() { return 1; }, clearTimeout() {},
+  AbortController: class { constructor(){this.signal={};} abort(){} },
+  fetch: async (_url, options) => {
+    calls.push(JSON.parse(options.body));
+    return {ok:true,status:200,headers:{get(){return 'application/json'}},text:async()=>JSON.stringify({text:'synthetic response'})};
+  },
+  anasNormalizeAiGatewayUrl(value) { return value; },
+  Number, String, Math, Array, Object, JSON, RegExp, Map
+};
+vm.createContext(context);
+vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ + '\nconst anasAiAnswerCache=new Map();\n' + __ASK_FN__, context);
+(async () => {
+  elements.anasAiQuestion.value = 'سؤال اصطناعي دون مشاركة';
+  elements.anasAiShareContext.checked = false;
+  await context.askAnasBusinessAI();
+  elements.anasAiQuestion.value = 'سؤال اصطناعي مع مشاركة';
+  elements.anasAiShareContext.checked = true;
+  await context.askAnasBusinessAI();
+  if (calls.length !== 2) throw new Error('expected two intercepted AI requests');
+  if (Object.prototype.hasOwnProperty.call(calls[0], 'businessData')) {
+    throw new Error('unchecked consent still included businessData');
+  }
+  if (!calls[1].businessData || !calls[1].businessData.counts || !calls[1].businessData.totals) {
+    throw new Error('checked consent did not include the aggregate business snapshot');
+  }
+  const serialized = JSON.stringify(calls[1].businessData);
+  if (serialized.includes('SYNTHETIC_PRIVATE_CUSTOMER') || serialized.includes('SYNTHETIC_PRIVATE_PRODUCT')) {
+    throw new Error('aggregate payload leaked synthetic customer or product identity');
+  }
+  if (Object.prototype.hasOwnProperty.call(calls[1].businessData, 'sampleProducts') ||
+      Object.prototype.hasOwnProperty.call(calls[1].businessData, 'topDebtors')) {
+    throw new Error('aggregate payload included per-record collections');
+  }
+  if (consoleCalls.length) throw new Error('AI request path emitted console output during the synthetic privacy test');
+  console.log('PASS: intercepted AI requests omit businessData without consent and send only identity-free aggregates with consent; no console output');
+})().catch(err => { console.error('AI_PAYLOAD_FAILURE:', err.message); process.exitCode = 1; });
+""";
+        ai_payload_harness = ai_payload_harness.replace("__SNAPSHOT_FN__", json.dumps(ai_snapshot_fn))
+        ai_payload_harness = ai_payload_harness.replace("__APPEND_FN__", json.dumps(ai_append_fn))
+        ai_payload_harness = ai_payload_harness.replace("__FALLBACK_FN__", json.dumps(ai_fallback_fn))
+        ai_payload_harness = ai_payload_harness.replace("__ASK_FN__", json.dumps(ai_ask_fn))
+        with tempfile.TemporaryDirectory(prefix="anas-ai-payload-") as temp:
+            test_path = Path(temp) / "ai-payload.js"
+            test_path.write_text(ai_payload_harness, encoding="utf-8")
+            result = subprocess.run(["node", str(test_path)], capture_output=True, text=True)
+            if result.returncode:
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                diagnostic = next((line.strip() for line in detail if "AI_PAYLOAD_FAILURE:" in line), detail[0] if detail else "node test failed")
+                errors.append("AI payload runtime test failed: " + diagnostic)
+            else:
+                print(result.stdout.strip())
+
     ai_privacy_checks = {
         "AI business context is opt-in and unchecked by default":
             'id="anasAiShareContext" type="checkbox"' in source
@@ -1322,6 +1540,238 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             print("PASS:", label)
         else:
             errors.append("AI privacy/UX regression: " + label)
+
+    # AI semantic guards cover malformed numbers, previous-day scoping, and review-only drafts.
+    ai_ux_checks = {
+        "AI hub collapses quick-action and answer grids below 360px":
+            "@media (max-width: 359px)" in source
+            and "#aiHubTabContent .anas-ai-grid { grid-template-columns: minmax(0, 1fr); }" in source
+            and "anas-ai-quick-actions" in source,
+        "AI hub provides 44px touch targets and keyboard-focus scrolling":
+            "min-height: 44px" in source
+            and "field.scrollIntoView({ block: 'center', behavior: 'auto' })" in source
+            and "scroll-margin-block: 18px" in source,
+        "AI hub contains chat scrolling and respects reduced motion":
+            "overscroll-behavior: contain" in source
+            and "-webkit-overflow-scrolling: touch" in source
+            and "prefers-reduced-motion: reduce" in source,
+        "AI context-sharing disclosure matches aggregate-only payload":
+            "دون أسماء العملاء أو المنتجات أو أرصدة الأفراد" in source
+            and "عينات محدودة من أسماء المنتجات والعملاء" not in source,
+        "AI center provides ready-to-use quick actions":
+            "تحليل مبيعات اليوم" in source
+            and "تلخيص الديون" in source
+            and "تنبيهات المخزون" in source
+            and "تدقيق البيانات" in source
+            and "anasSetAiPrompt(" in source,
+        "proactive business insights are computed locally":
+            "function anasRefreshAiProactiveInsights()" in source
+            and 'id="anasAiProactiveInsights"' in source
+            and "noStock.length" in source
+            and "debtors.length" in source
+            and "invalidStock.length" in source,
+        "proactive insights use text nodes rather than injected HTML":
+            "target.replaceChildren(list)" in source
+            and "li.textContent=note" in source,
+        "proactive insight rendering runs after the AI hub template is inserted":
+            source.find("anasRefreshAiProactiveInsights();", source.find("function renderAiHub()"))
+            < source.find("function triggerAiGeneration(section)"),
+        "AI numeric parsing rejects empty and non-numeric values":
+            "const strictNum=v=>" in source
+            and "const raw=String(v).trim();" in source
+            and "if(!/^-?" in source
+            and "Number.isFinite(n)?n:null" in source,
+        "AI numeric parsing rejects ambiguous thousands separators":
+            "raw.replace(',','.')" in source
+            and ",\\d{1,2}" in source,
+        "missing stock is not silently classified as zero":
+            "const missingStock=products.filter" in source
+            and "لم تُعامل القيم الفارغة كصفر" in source,
+        "morning brief filters invoices to the previous local calendar day":
+            "مبيعات أمس (" in source
+            and "yesterday.getFullYear()" in source
+            and "const dated=[],undated=[];" in source
+            and "'invoice_date'" in source,
+        "morning brief flags undated invoices and invalid totals":
+            "فاتورة بلا تاريخ قابل للتحقق" in source
+            and "تعذر قراءة إجمالي" in source,
+        "natural-language draft exposes editable review fields without saving":
+            "field.dataset.draftField=key" in source
+            and "مسودة قابلة للتعديل أو الرفض فقط" in source
+            and "لم تُحفظ فاتورة ولم يتغير المخزون أو الحساب" in source,
+        "natural-language draft supports Arabic-Indic digits":
+            "replace(/[٠-٩]/g" in source
+            and "replace(/[۰-۹]/g" in source,
+        "morning brief falls back across invalid date fields without truthiness selection":
+            "const dateCandidates=row?" in source
+            and "const parsed=parseInvoiceDate(candidate);" in source
+            and "if(parsed){date=parsed;break;}" in source,
+        "natural-language draft flags invalid quantity and unit price without saving":
+            "invalidNumeric.push('الكمية يجب أن تكون رقمًا أكبر من صفر')" in source
+            and "invalidNumeric.push('سعر الوحدة يجب أن يكون رقمًا غير سالب')" in source
+            and "لا يوجد اعتماد أو حفظ تلقائي" in source,
+        "natural-language draft recognizes additional Arabic and colloquial units":
+            "كرتونة|كرتون|باكي|باكية|باكيات|سربيس" in source,
+        "AI business context is minimized to aggregates without per-record identities":
+            "Minimize outbound business context: aggregates only" in source
+            and "sampleProducts:recentProducts" not in source
+            and "topDebtors:debtors" not in source
+            and "if(shareContext)payload.businessData=businessData;" in source,
+    }
+    for label, passed in ai_ux_checks.items():
+        if passed:
+            print("PASS:", label)
+        else:
+            errors.append("AI UX regression: " + label)
+
+    # Runtime behavioral test: proactive AI insights must classify data safely,
+    # render through textContent, and leave AppData unchanged.
+    insights_start = source.find("function anasRefreshAiProactiveInsights(){")
+    insights_end = source.find("function anasRefreshAiHubStatus(){", insights_start)
+    insights_fn = (
+        source[insights_start:insights_end]
+        if insights_start >= 0 and insights_end > insights_start
+        else ""
+    )
+
+    if not insights_fn:
+        errors.append("proactive insights runtime test could not locate the complete function")
+    else:
+        insights_harness = r"""
+const vm = require('node:vm');
+const insightsFunction = __INSIGHTS_FUNCTION__;
+
+class MockElement {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.style = {};
+    this._textContent = '';
+    this.textContentWrites = 0;
+    this.innerHTMLWrites = 0;
+  }
+  set textContent(value) {
+    this.textContentWrites++;
+    this._textContent = String(value);
+  }
+  get textContent() { return this._textContent; }
+  set innerHTML(value) {
+    this.innerHTMLWrites++;
+    this._innerHTML = String(value);
+  }
+  get innerHTML() { return this._innerHTML || ''; }
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+  replaceChildren(...children) {
+    this.children = children;
+  }
+}
+
+function collectText(node) {
+  return String(node.textContent || '') +
+    node.children.map(collectText).join('\n');
+}
+
+const target = new MockElement('div');
+const products = [
+  { id: 'zero', stock: 0 },
+  { id: 'negative', stock: -3 },
+  { id: 'healthy', stock: 12 },
+  { id: 'invalid', stock: 'غير معروف' },
+  { id: 'missing' },
+  { id: 'null-stock', stock: null },
+  { id: 'blank', stock: '' }
+];
+const customers = [
+  { id: 'debtor', debt: 2500 },
+  { id: 'zero-debt', debt: 0 },
+  { id: 'negative-debt', debt: -100 },
+  { id: 'invalid-debt', debt: 'غير صالح' },
+  { id: 'missing-debt' },
+  { id: 'null-debt', debt: null }
+];
+
+const AppData = { products, customers };
+const snapshotBefore = JSON.stringify(AppData);
+const context = {
+  AppData,
+  document: {
+    getElementById(id) {
+      return id === 'anasAiProactiveInsights' ? target : null;
+    },
+    createElement(tag) { return new MockElement(tag); }
+  },
+  Number, String, Math, Array, Object, JSON, RegExp
+};
+
+vm.createContext(context);
+vm.runInContext(insightsFunction, context);
+context.anasRefreshAiProactiveInsights();
+
+const output = collectText(target);
+const requiredMessages = [
+  '🔴 يوجد 2 منتجًا',
+  '💳 يوجد 1 عميلًا',
+  '1 قيمة مخزون غير رقمية',
+  'كمية المخزون غير متوفرة',
+  'تعذر تفسير رصيد الدين'
+];
+
+for (const message of requiredMessages) {
+  if (!output.includes(message))
+    throw new Error('missing expected insight: ' + message);
+}
+
+if (output.includes('يوجد 3 منتجًا بكميات صفرية'))
+  throw new Error('positive stock or missing values were misclassified as zero/negative');
+
+if (target.children.length !== 1 || target.children[0].tagName !== 'ul')
+  throw new Error('insights must render as one list container');
+
+const list = target.children[0];
+if (list.children.some(item => item.tagName !== 'li'))
+  throw new Error('insight list contains unexpected child elements');
+
+if (list.children.some(item => item.textContentWrites < 1))
+  throw new Error('each insight must be rendered through textContent');
+
+if (list.children.some(item => item.innerHTMLWrites !== 0))
+  throw new Error('insight renderer must not write content through innerHTML');
+
+if (JSON.stringify(AppData) !== snapshotBefore)
+  throw new Error('AppData changed during proactive insight generation');
+
+context.document.getElementById = () => null;
+context.anasRefreshAiProactiveInsights();
+
+if (JSON.stringify(AppData) !== snapshotBefore)
+  throw new Error('AppData changed when the target element was absent');
+
+console.log(
+  'PASS: proactive insights classify synthetic stock/debt safely, ' +
+  'render with textContent, tolerate a missing target, and preserve AppData'
+);
+"""
+        insights_harness = insights_harness.replace(
+            "__INSIGHTS_FUNCTION__", json.dumps(insights_fn)
+        )
+
+        with tempfile.TemporaryDirectory(prefix="anas-ai-insights-") as temp:
+            test_path = Path(temp) / "ai-proactive-insights.js"
+            test_path.write_text(insights_harness, encoding="utf-8")
+            result = subprocess.run(
+                ["node", str(test_path)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode:
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                diagnostic = detail[0] if detail else "Node runtime test failed"
+                errors.append("AI proactive insights runtime test failed: " + diagnostic)
+            else:
+                print(result.stdout.strip())
 
     if errors:
         for error in errors:

@@ -50,6 +50,50 @@
             user-select: text;
         }
 
+        /* AI hub mobile ergonomics: collapse grids, keep touch targets comfortable, and contain scrolling. */
+        #aiHubTabContent .anas-ai-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        #aiHubTabContent .anas-ai-quick-actions { gap: 7px; }
+        #aiHubTabContent .anas-ai-grid > * { min-width: 0; }
+        #aiHubTabContent .anas-ai-quick-actions button,
+        #aiHubTabContent #anasAiAskBtn,
+        #aiHubTabContent .anas-ai-draft-action {
+            min-height: 44px;
+            touch-action: manipulation;
+            overflow-wrap: anywhere;
+        }
+        #aiHubTabContent #anasAiQuestion,
+        #aiHubTabContent #anasAiNaturalDraft input,
+        #aiHubTabContent #anasAiNaturalDraft select {
+            max-width: 100%;
+            min-width: 0;
+            scroll-margin-block: 18px;
+        }
+        #aiHubTabContent #anasAiChatLog {
+            max-height: min(300px, 35dvh);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 359px) {
+            #aiHubTabContent .anas-ai-grid { grid-template-columns: minmax(0, 1fr); }
+            #aiHubTabContent .anas-ai-quick-actions button { width: 100%; }
+            #aiHubTabContent .anas-ai-section { padding: 9px !important; }
+        }
+        @media (max-width: 390px) {
+            #aiHubTabContent .anas-ai-card { padding: 11px !important; }
+            #aiHubTabContent .anas-ai-grid { gap: 7px; }
+            #aiHubTabContent .anas-ai-grid label,
+            #aiHubTabContent .anas-ai-grid select { min-width: 0; overflow-wrap: anywhere; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #aiHubTabContent * { scroll-behavior: auto !important; }
+        }
+
         body {
             background-color: var(--mp-bg);
             color: var(--mp-text-dark);
@@ -6885,15 +6929,40 @@ function renderPurchasesTable() {
             anasRefreshAiHubStatus();
             const cont = document.getElementById('aiHubTabContent');
             cont.innerHTML = `
-                <div class="card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
+                <div class="card anas-ai-card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:28px">🧠</span><div><h3 style="margin:0;font-weight:900">Anas AI — المساعد التجاري</h3><small style="color:var(--mp-text-muted)">تحليل محلي فوري + مساعد متصل عند إعداد الخادم</small></div></div>
                     <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">الفحص المحلي لا يرسل البيانات إلى الإنترنت. المساعد المتصل لا يعمل إلا بعد إعداد رابط الخادم.</p>
                     <button type="button" class="btn-full-submit" style="background:#0f766e;width:100%;margin:6px 0" onclick="anasRunLocalBusinessAudit()">🔎 فحص ذكي شامل للبيانات الآن</button>
                     <div id="anasLocalAuditResults" role="status" aria-live="polite" style="margin:8px 0;line-height:1.65;font-size:13px"></div>
-                    <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي عند الضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
+                    <section class="anas-ai-section" aria-label="اختصارات الذكاء الاصطناعي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;margin-bottom:8px;font-size:13px">⚡ مهام سريعة — اختر المهمة ثم أرسلها</strong>
+                      <div class="anas-ai-grid anas-ai-quick-actions" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px">
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#2563eb" onclick="anasSetAiPrompt('حلّل مبيعات اليوم من البيانات المتاحة فقط، واذكر الفترة ومصدر الأرقام وأي بيانات ناقصة.')">📈 تحليل مبيعات اليوم</button>
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#7c3aed" onclick="anasSetAiPrompt('لخّص الديون المستحقة، وحدد الأولويات دون اختراع بيانات أو اقتراح إجراءات تلقائية.')">💳 تلخيص الديون</button>
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#b45309" onclick="anasSetAiPrompt('راجع مؤشرات المخزون المتاحة واقترح تنبيهات عملية، وميّز بين النقص المؤكد والبيانات غير المتاحة.')">📦 تنبيهات المخزون</button>
+                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#0f766e" onclick="anasSetAiPrompt('راجع جودة البيانات التجارية وحدد التناقضات والمخاطر التي تستحق مراجعة بشرية.')">🛡️ تدقيق البيانات</button>
+                      </div>
+                    </section>
+                    <section class="anas-ai-section" aria-label="الملخص الصباحي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">🌅 ملخص بداية اليوم</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">ملخص محلي فوري من السجلات المتاحة، دون إرسال بيانات أو افتراض أن أرقام اليوم السابق مكتملة.</p>
+                      <div id="anasAiMorningBrief" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ تجهيز الملخص…</div>
+                    </section>
+                    <section class="anas-ai-section" aria-label="اقتراحات محلية استباقية" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">💡 تنبيهات ذكية محلية</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">تُحسب على هذا الجهاز من السجلات الحالية فقط؛ لا تُرسل البيانات إلى الخادم ولا تُعدّل السجلات.</p>
+                      <div id="anasAiProactiveInsights" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ فحص المؤشرات المحلية…</div>
+                    </section>
+                    <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي فقط بعد تفعيل موافقة مشاركة السياق والضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
                     <div id="anasAiChatLog" role="log" aria-live="polite" style="max-height:300px;overflow:auto;border:1px solid var(--mp-border);border-radius:12px;padding:10px;margin:10px 0;min-height:70px;background:rgba(148,163,184,.07)"><div style="color:var(--mp-text-muted);font-size:13px">جرّب: ما عدد العملاء والمنتجات؟ أو كيف أراجع الديون والمخزون؟</div></div>
+                    <section class="anas-ai-section" aria-label="تحويل الأمر إلى مسودة" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">🧾 أمر نصي → مسودة للمراجعة</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">اكتب أمرًا مثل «بيع 3 علب شاي للعميل أحمد بسعر 250». سنستخرج ما يمكن محليًا لعرضه للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون أو الحساب.</p>
+                      <button type="button" class="btn-full-submit anas-ai-draft-action" style="width:100%;background:#334155;font-size:12px;padding:9px" onclick="anasPrepareNaturalLanguageDraft()">استخراج مسودة من الأمر المكتوب</button>
+                      <div id="anasAiNaturalDraft" role="status" aria-live="polite" style="font-size:12px;line-height:1.7;margin-top:7px"></div>
+                    </section>
                     <textarea id="anasAiQuestion" rows="3" placeholder="اكتب سؤالك التجاري هنا…" style="width:100%;box-sizing:border-box;border:1px solid var(--mp-border);border-radius:10px;padding:11px;font:inherit;resize:vertical;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
-                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px">
+                    <div class="anas-ai-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px">
                       <label style="font-size:12px;font-weight:800">نمط الإجابة
                         <select id="anasAiAnswerStyle" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)">
                           <option value="concise">مختصرة</option><option value="detailed">مفصلة</option><option value="bullets">نقاط واضحة</option><option value="table">جدول عند ملاءمته</option>
@@ -6903,7 +6972,7 @@ function renderPurchasesTable() {
                     </div>
                     <label style="display:flex;align-items:flex-start;gap:9px;margin-top:10px;padding:10px;border:1px solid var(--mp-border);border-radius:10px;font-size:12px;line-height:1.6">
                       <input id="anasAiShareContext" type="checkbox" style="margin-top:3px;flex:0 0 auto">
-                      <span><strong>أوافق على إرسال ملخص بيانات النشاط مع سؤالي</strong><br>قد يتضمن أرقام المبيعات والديون والمخزون وعينات محدودة من أسماء المنتجات والعملاء. سيُرسل عبر HTTPS إلى مزود الذكاء الاصطناعي لمعالجة الطلب. اتركه غير محدد للتحليل العام فقط.</span>
+                      <span><strong>أوافق على إرسال ملخص بيانات النشاط مع سؤالي</strong><br>يتضمن مجاميع وأعدادًا تشغيلية فقط، دون أسماء العملاء أو المنتجات أو أرصدة الأفراد. سيُرسل عبر HTTPS إلى بوابة الذكاء الاصطناعي لمعالجة الطلب. اتركه غير محدد للتحليل العام فقط.</span>
                     </label>
                     <div id="anasAiOfflineFallback" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:9px;border-radius:9px;background:rgba(217,119,6,.10);font-size:12px;line-height:1.6"></div>
                     <button id="anasAiAskBtn" type="button" class="btn-full-submit" style="background:#6d28d9;margin-top:8px;width:100%" onclick="askAnasBusinessAI()">✨ اسأل Anas AI</button>
@@ -6947,6 +7016,16 @@ function renderPurchasesTable() {
                     </div>
                 </div>
             `;
+            // Keep the focused field visible when the mobile virtual keyboard opens.
+            cont.querySelectorAll('#anasAiQuestion, #anasAiNaturalDraft input, #anasAiNaturalDraft select').forEach(field => {
+                field.addEventListener('focus', () => {
+                    setTimeout(() => {
+                        try { field.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (_) {}
+                    }, 250);
+                });
+            });
+            anasRefreshAiProactiveInsights();
+            anasRefreshAiMorningBrief();
         }
 
         function triggerAiGeneration(section) {
@@ -7077,8 +7156,7 @@ function renderPurchasesTable() {
             const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
             const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
             const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
-            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name||p.title),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
-            const debtors=customers.filter(c=>num(c.debt)>0).sort((a,b)=>num(b.debt)-num(a.debt)).slice(0,20).map(c=>({name:anasAiSafeText(c.name),debt:num(c.debt)}));
+            // Minimize outbound business context: aggregates only, no customer/product names or per-record balances.
             return {
                 currency:'DZD',
                 counts:{
@@ -7094,14 +7172,13 @@ function renderPurchasesTable() {
                     cashBalanceDZD:num(AppData.caisseBalance)
                 },
                 truckTrips:{statusCounts:tripStatusCounts},
-                sampleProducts:recentProducts,topDebtors:debtors,
                 dataQualityNotes:[
                     'مجموع سجل المشتريات يعتمد على الحقل total أو cost × qty؛ يجب مطابقته مع فواتير الموردين قبل استخدامه محاسبيًا.',
                     'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
                     'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
                     'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
                 ],
-                note:'ملخص لحظي اختياري من التطبيق وقت السؤال. لا يتضمن أسماء الموردين أو تفاصيل رحلاتهم؛ راجع القيم قبل اتخاذ قرار مالي.'
+                note:'ملخص لحظي اختياري ومجرد من أسماء العملاء والمنتجات وأرصدة الأفراد. يتضمن مجاميع مالية وأعداد السجلات فقط؛ راجع القيم قبل اتخاذ قرار مالي.'
             };
         }
         function anasAiAppendMessage(role,text){
@@ -7115,6 +7192,147 @@ function renderPurchasesTable() {
             input.value=String(promptText||'');
             input.focus();
             input.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+        function anasPrepareNaturalLanguageDraft(){
+            const input=document.getElementById('anasAiQuestion'),target=document.getElementById('anasAiNaturalDraft');
+            if(!input||!target)return;
+            const original=String(input.value||'').trim();
+            if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
+            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const raw=normalizeDigits(original).replace(/٫/g,'.');
+            const number='(?<![\\d.,٫٬])(\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
+            const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة|كرتونة|كرتون|باكي|باكية|باكيات|سربيس)';
+            const qtyMatch=raw.match(new RegExp('(?:عدد|كمية|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
+            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
+            const productMatch=raw.match(new RegExp(unit+'\\s+(.+?)(?=\\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|طريقة الدفع|دفع)|$)','i'));
+            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+(.+?)(?=\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
+            const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\s*(?:هي|:)?\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\b/i);
+            const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
+            const draft={transaction,quantity:qtyMatch?qtyMatch[1].replace(',','.'):null,unitPrice:priceMatch?priceMatch[1].replace(',','.'):null,customer:customerMatch?customerMatch[1].trim():null,item:productMatch?productMatch[1].trim():null,payment:paymentMatch?paymentMatch[1]:null};
+            target.replaceChildren();
+            const form=document.createElement('div');form.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0';
+            const fields=[['نوع العملية','transaction',draft.transaction,'text'],['الكمية','quantity',draft.quantity,'number'],['الصنف','item',draft.item,'text'],['العميل','customer',draft.customer,'text'],['سعر الوحدة','unitPrice',draft.unitPrice,'number'],['طريقة الدفع','payment',draft.payment,'text']];
+            fields.forEach(([labelText,key,value,type])=>{
+                const wrap=document.createElement('label');wrap.style.cssText='display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;min-width:0';
+                const label=document.createElement('span');label.textContent=labelText;
+                const field=document.createElement('input');field.type=type;field.value=value==null?'':String(value);field.dataset.draftField=key;field.setAttribute('aria-label',labelText);field.style.cssText='width:100%;min-width:0;box-sizing:border-box;padding:8px;border:1px solid var(--mp-border);border-radius:8px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827);font:inherit';
+                if(type==='number'){field.min='0';field.step='any';}
+                wrap.append(label,field);form.appendChild(wrap);
+            });
+            target.appendChild(form);
+            const missing=fields.filter(([,key])=>!draft[key]).map(([labelText])=>labelText);
+            const invalidNumeric=[];
+            const qtyField=form.querySelector('[data-draft-field="quantity"]');
+            const priceField=form.querySelector('[data-draft-field="unitPrice"]');
+            if(qtyField&&qtyField.value!==''&&(!Number.isFinite(Number(qtyField.value))||Number(qtyField.value)<=0))invalidNumeric.push('الكمية يجب أن تكون رقمًا أكبر من صفر');
+            if(priceField&&priceField.value!==''&&(!Number.isFinite(Number(priceField.value))||Number(priceField.value)<0))invalidNumeric.push('سعر الوحدة يجب أن يكون رقمًا غير سالب');
+            const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';
+            note.textContent='مسودة قابلة للتعديل أو الرفض فقط؛ لا يوجد اعتماد أو حفظ تلقائي، ولم تُحفظ فاتورة ولم يتغير المخزون أو الحساب. تحقق من تطابق العميل والصنف مع السجلات، ومن السعر والضريبة وطريقة الدفع. '+(missing.length?'حقول تحتاج إلى استكمال أو تحقق: '+missing.join('، ')+'. ':'')+(invalidNumeric.length?'تحذيرات رقمية: '+invalidNumeric.join('؛ ')+'. ':'')+(!missing.length&&!invalidNumeric.length?'لا يعني استخراج الحقول أنها تحققت من السجلات.':'');
+            target.appendChild(note);
+        }
+        function anasRefreshAiMorningBrief(){
+            const target=document.getElementById('anasAiMorningBrief');if(!target)return;
+            const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
+            const products=Array.isArray(AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData.customers)?AppData.customers:[];
+            const strictNum=v=>{
+                if(typeof v==='number')return Number.isFinite(v)?v:null;
+                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object')return null;
+                const raw=String(v).trim();
+                if(!/^-?\d+(?:\.\d+|,\d{1,2})?$/.test(raw))return null;
+                const n=Number(raw.replace(',','.'));
+                return Number.isFinite(n)?n:null;
+            };
+            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const parseInvoiceDate=value=>{
+                if(value===null||value===undefined||value==='')return null;
+                if(value instanceof Date)return Number.isNaN(value.getTime())?null:new Date(value.getFullYear(),value.getMonth(),value.getDate());
+                if(typeof value==='number'&&Number.isFinite(value)){
+                    const ms=value>1e12?value:value>1e9?value*1000:NaN;
+                    if(!Number.isFinite(ms))return null;
+                    const d=new Date(ms);return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+                }
+                const raw=normalizeDigits(value).trim();
+                let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);
+                let y,month,day;
+                if(m){y=+m[1];month=+m[2];day=+m[3];}
+                else{
+                    m=raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:$|\s|،)/);
+                    if(!m)return null;
+                    day=+m[1];month=+m[2];y=+m[3];
+                }
+                if(month<1||month>12||day<1||day>31)return null;
+                const d=new Date(y,month-1,day);
+                if(d.getFullYear()!==y||d.getMonth()!==month-1||d.getDate()!==day)return null;
+                return d;
+            };
+            const now=new Date(),yesterday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-1);
+            const yesterdayKey=yesterday.getFullYear()+'-'+String(yesterday.getMonth()+1).padStart(2,'0')+'-'+String(yesterday.getDate()).padStart(2,'0');
+            const dated=[],undated=[];
+            invoices.forEach(row=>{
+                const dateCandidates=row?['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(key=>row[key]):[];
+                let date=null;
+                for(const candidate of dateCandidates){
+                    if(candidate===null||candidate===undefined||candidate==='')continue;
+                    const parsed=parseInvoiceDate(candidate);
+                    if(parsed){date=parsed;break;}
+                }
+                if(!date)undated.push(row);
+                else if(date.getFullYear()===yesterday.getFullYear()&&date.getMonth()===yesterday.getMonth()&&date.getDate()===yesterday.getDate())dated.push(row);
+            });
+            let sales=0,invalidAmounts=0;
+            dated.forEach(row=>{const total=strictNum(row&&row.total);if(total===null)invalidAmounts++;else sales+=total;});
+            const low=products.filter(p=>{
+                const q=strictNum(p&&p.stock);
+                const rawMin=p&&(p.minStock??p.min_stock??p.reorderLevel);
+                const min=strictNum(rawMin);
+                return q!==null&&min!==null&&q<=min;
+            });
+            const missingStock=products.filter(p=>!p||p.stock===undefined||p.stock===null||String(p.stock).trim()==='');
+            const invalidStock=products.filter(p=>p&&p.stock!==undefined&&p.stock!==null&&String(p.stock).trim()!==''&&strictNum(p.stock)===null);
+            const debts=customers.filter(c=>strictNum(c&&c.debt)!==null&&strictNum(c.debt)>0);
+            const invalidDebts=customers.filter(c=>c&&c.debt!==undefined&&c.debt!==null&&String(c.debt).trim()!==''&&strictNum(c.debt)===null);
+            const lines=[
+              'مبيعات أمس ('+yesterdayKey+'): مجموع الفواتير المؤرخة أمس فقط = '+sales.toLocaleString('fr-DZ')+' دج، من '+dated.length+' فاتورة مؤرخة.'
+            ];
+            if(undated.length)lines.push('تنبيه: '+undated.length+' فاتورة بلا تاريخ قابل للتحقق؛ قد تكون من أمس، لذلك لا يمكن ضمان اكتمال مجموع المبيعات.');
+            if(invalidAmounts)lines.push('تنبيه: تعذر قراءة إجمالي '+invalidAmounts+' فاتورة مؤرخة أمس؛ المجموع المعروض يستثني هذه القيم.');
+            lines.push('أصناف عند حد إعادة الطلب أو دونه (عند توفر كمية وحد أدنى رقميين): '+low.length+'.');
+            if(missingStock.length)lines.push('ملاحظة جودة بيانات: '+missingStock.length+' منتجًا بلا كمية مخزون؛ لم تُحسب كصفر.');
+            if(invalidStock.length)lines.push('ملاحظة جودة بيانات: '+invalidStock.length+' قيمة مخزون غير رقمية.');
+            lines.push('عملاء برصيد دين موجب مسجل: '+debts.length+' (ليس عدد الديون المستحقة اليوم؛ تواريخ الاستحقاق غير متحققة هنا).');
+            if(invalidDebts.length)lines.push('ملاحظة جودة بيانات: تعذر تفسير رصيد الدين لدى '+invalidDebts.length+' عميلًا.');
+            const list=document.createElement('ul');list.style.cssText='margin:4px 0;padding-inline-start:20px';
+            lines.forEach(line=>{const li=document.createElement('li');li.textContent=line;list.appendChild(li);});
+            target.replaceChildren(list);
+        }
+        function anasRefreshAiProactiveInsights(){
+            const target=document.getElementById('anasAiProactiveInsights'); if(!target)return;
+            const products=Array.isArray(AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData.customers)?AppData.customers:[];
+            const strictNum=v=>{
+                if(typeof v==='number')return Number.isFinite(v)?v:null;
+                if(v===null||v===undefined||typeof v==='boolean'||typeof v==='object')return null;
+                const raw=String(v).trim();
+                if(!/^-?\d+(?:\.\d+|,\d{1,2})?$/.test(raw))return null;
+                const n=Number(raw.replace(',','.'));
+                return Number.isFinite(n)?n:null;
+            };
+            const noStock=products.filter(p=>{const n=strictNum(p&&p.stock);return n!==null&&n<=0;});
+            const debtors=customers.filter(c=>{const n=strictNum(c&&c.debt);return n!==null&&n>0;}).sort((a,b)=>strictNum(b.debt)-strictNum(a.debt));
+            const invalidStock=products.filter(p=>p&&p.stock!==undefined&&p.stock!==null&&String(p.stock).trim()!==''&&strictNum(p.stock)===null);
+            const missingStock=products.filter(p=>!p||p.stock===undefined||p.stock===null||String(p.stock).trim()==='');
+            const invalidDebt=customers.filter(c=>c&&c.debt!==undefined&&c.debt!==null&&String(c.debt).trim()!==''&&strictNum(c.debt)===null);
+            const notes=[];
+            if(noStock.length)notes.push('🔴 يوجد '+noStock.length+' منتجًا بكميات صفرية أو سالبة مؤكدة رقميًا؛ راجع الجرد وحركات المخزون قبل إعادة الطلب.');
+            if(debtors.length)notes.push('💳 يوجد '+debtors.length+' عميلًا برصيد دين موجب رقميًا؛ راجع أعمار الديون وسجلات التسديد قبل التواصل.');
+            if(invalidStock.length)notes.push('⚠️ توجد '+invalidStock.length+' قيمة مخزون غير رقمية؛ صحح البيانات قبل الاعتماد على التقارير.');
+            if(missingStock.length)notes.push('ℹ️ كمية المخزون غير متوفرة لدى '+missingStock.length+' منتجًا؛ لم تُعامل القيم الفارغة كصفر.');
+            if(invalidDebt.length)notes.push('ℹ️ تعذر تفسير رصيد الدين لدى '+invalidDebt.length+' عميلًا؛ لم تُدرج هذه القيم ضمن الديون المؤكدة.');
+            if(!notes.length)notes.push('✅ لم تظهر مؤشرات صفرية/سالبة أو ديون موجبة ضمن الحقول الرقمية المتاحة. هذا لا يثبت خلو السجلات من الأخطاء.');
+            const list=document.createElement('ul'); list.style.cssText='margin:4px 0;padding-inline-start:20px;';
+            notes.forEach(note=>{const li=document.createElement('li');li.textContent=note;list.appendChild(li);});
+            target.replaceChildren(list);
         }
         function anasRefreshAiHubStatus(){
             const status=document.getElementById('anasAiHubConnectionStatus');
