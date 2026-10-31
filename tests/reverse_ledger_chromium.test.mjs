@@ -66,6 +66,8 @@ test('Chromium blocks browser-local reverse posting when trusted server gateway 
   assert.equal(result.unchanged,true);
   assert.equal(result.localEngineCalls,0);
   assert.ok(result.alerts.some(message=>message.includes('لا توجد بوابة ترحيل خادمية موثوقة')));
+  assert.ok(result.alerts.every(message=>!message.includes('لم تتغير أي بيانات.. لم تتغير أي بيانات')),
+   'fail-closed alert must not duplicate the unchanged-state suffix');
   console.log('CHROMIUM_REVERSE_LEDGER_FAIL_CLOSED_REPORT '+JSON.stringify(result));
  } finally {
   await browser.close();
