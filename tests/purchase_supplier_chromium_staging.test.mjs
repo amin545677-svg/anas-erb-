@@ -211,6 +211,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
 
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     assert.equal(state.purchases.length, 1, 'purchase must be posted through the DOM');
+    assert.equal(state.purchases[0].invoiceLedgerVersion, 2, 'new purchase invoices must carry the v2 reverse-ledger marker');
     const purchase = state.purchases[0];
     assert.equal(purchase.total, 0.30, '3 x 0.10 must equal exactly 0.30 DZD');
     assert.equal(purchase.paid, 0.10);
@@ -235,6 +236,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await page.locator('#view-purchases button[onclick="savePurchaseItem()"]').click();
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     assert.equal(state.purchases.length, 2);
+    assert.ok(state.purchases.every(row => row.invoiceLedgerVersion === 2), 'both new purchase invoices must remain v2 eligible');
     const secondPurchase = state.purchases.find(row => row.id !== purchase.id);
     assert.ok(secondPurchase);
     assert.equal(secondPurchase.total, 0.20);
