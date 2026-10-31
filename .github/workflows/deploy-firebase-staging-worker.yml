@@ -56,12 +56,16 @@ jobs:
           FIREBASE_STAGING_TEST_EMAIL: ${{ secrets.FIREBASE_STAGING_TEST_EMAIL }}
           FIREBASE_STAGING_TEST_PASSWORD: ${{ secrets.FIREBASE_STAGING_TEST_PASSWORD }}
         run: |
+          missing=""
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FIREBASE_STAGING_API_KEY FIREBASE_STAGING_TEST_EMAIL FIREBASE_STAGING_TEST_PASSWORD; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing required staging secret: $name"
-              exit 1
+              missing="$missing $name"
             fi
           done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required staging secrets:$missing"
+            exit 1
+          fi
           echo "All dedicated staging credentials are present."
 
       - name: Deploy isolated staging Worker
