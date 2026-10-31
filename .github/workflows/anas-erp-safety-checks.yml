@@ -1,6 +1,11 @@
 name: ANAS ERP Safety Checks (Legacy Manual Suite)
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feat/**"
   workflow_dispatch:
 
 permissions:
@@ -54,8 +59,7 @@ jobs:
               match = pattern.search(app)
               if not match:
                   return ""
-              end = app.find("
-        function ", match.end())
+              end = app.find("\n        function ", match.end())
               return app[match.start():end if end >= 0 else len(app)]
           checks = {
               "exactly one active purchase-invoice clear handler": len(function_bodies("clearAllPurchaseInvoices")) == 1,
@@ -130,8 +134,7 @@ jobs:
           helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("        function anasFormatZReportCashBalance(value) {")
-          end = s.find("
-        function printZReport()", start)
+          end = s.find("\n        function printZReport()", start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer currency helpers"
           assert start >= 0 and end > start, "Could not isolate Z-report cash formatter"
           function_js = s[helper_start:helper_end] + s[start:end]
@@ -453,23 +456,19 @@ jobs:
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = s.find("
-        function anasValidateIncomingSyncData", helper_start)
+          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
           purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = s.find("
-        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = s.find("
-        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("
-        function importDataBackup", start)
+          end = s.find("\n        function importDataBackup", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
@@ -535,8 +534,7 @@ this.validate = anasValidateBackupData;', ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
           assert "try { restoreSaved = saveDB() === true; }" in fn, "Restore must catch persistence exceptions"
@@ -590,23 +588,19 @@ importDataBackup({target:input});',ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = s.find("
-        function anasValidateIncomingSyncData", helper_start)
+          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
           purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = s.find("
-        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = s.find("
-        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("
-        function importDataBackup(e)", start)
+          end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
@@ -676,23 +670,19 @@ this.validateBackup=anasValidateBackupData;',ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = s.find("
-        function anasValidateIncomingSyncData", helper_start)
+          helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
           purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = s.find("
-        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = s.find("
-        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
-          end = s.find("
-        function importDataBackup(e)", start)
+          end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
           fn = s[start:end]
           js = r"""
@@ -1080,8 +1070,7 @@ Tea;"unfinished',';'),
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveNewSupplierMpos()")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate supplier save function"
           fn = s[start:end]
           helper_start = s.find("// Purchase-specific decimal parser")
@@ -1129,8 +1118,7 @@ Tea;"unfinished',';'),
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveNewCustomerMpos()")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate customer save function"
           fn = s[start:end]
           js = r"""
@@ -1178,8 +1166,7 @@ Tea;"unfinished',';'),
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveUserRecord()")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveUserRecord"
           fn = s[start:end]
           js = r"""
@@ -1231,8 +1218,7 @@ this.invoke=saveUserRecord;',ctx);
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function submitCashOperation()")
           mid = s.find("function submitExpenseOperation()", start)
-          end = s.find("
-        function ", mid + 10)
+          end = s.find("\n        function ", mid + 10)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
           helper_fn = s[helper_start:helper_end]
@@ -2151,18 +2137,15 @@ editSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
           from pathlib import Path
           app = Path("index.html").read_text(encoding="utf-8")
           helper_start = app.find("function anasValidateTruckExpenseLinks(incoming)")
-          helper_end = app.find("
-        function anasValidateIncomingSyncData", helper_start)
+          helper_end = app.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = app[helper_start:helper_end]
           purchase_helpers_start = app.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
-          purchase_helpers_end = app.find("
-        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          purchase_helpers_end = app.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = app[purchase_helpers_start:purchase_helpers_end]
           purchase_parity_start = app.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
-          purchase_parity_end = app.find("
-        function savePurchaseItem()", purchase_parity_start)
+          purchase_parity_end = app.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
           purchase_parity = app[purchase_parity_start:purchase_parity_end]
           start = app.find("        function anasValidateIncomingSyncData(incoming) {")
@@ -2342,8 +2325,7 @@ editSalesInvoice("I-UNSAFE-NEW-QTY");',ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function wtCreateTransfer(){")
-          end = s.find("
-        function ", start + 1)
+          end = s.find("\n        function ", start + 1)
           assert start >= 0 and end > start, "Could not isolate warehouse transfer function"
           function_js = s[start:end]
           assert "if(!Number.isFinite(available))" in function_js, "Invalid source balance guard missing"
@@ -2446,8 +2428,7 @@ wtCreateTransfer();', ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
           js = r"""
@@ -2506,8 +2487,7 @@ importDataBackup({target:input});',ctx);
           functions = {}
           for name in names:
               start = s.find("function " + name + "(")
-              end = s.find("
-        function ", start + 10)
+              end = s.find("\n        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               functions[name] = s[start:end]
           js = r"""
@@ -2547,8 +2527,7 @@ this.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoRes
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveDB()")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveDB"
           fn = s[start:end]
           js = r"""
@@ -2610,8 +2589,7 @@ this.result=saveDB();',ctx);
           s = Path("index.html").read_text(encoding="utf-8")
           def extract(name):
               start = s.find("function " + name + "(")
-              end = s.find("
-        function ", start + 10)
+              end = s.find("\n        function ", start + 10)
               assert start >= 0 and end > start, "Could not isolate " + name
               return s[start:end]
           names = ["switchPosScreen", "clearAllPosScreens", "clearPosCart", "setPosPriceTier", "saveAppSettings"]
@@ -2683,8 +2661,7 @@ this.invoke='+name+';',ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function saveSyncSettings()")
-          end = s.find("
-        function ", start + 10)
+          end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate saveSyncSettings"
           fn = s[start:end]
           js = r"""
@@ -2732,8 +2709,7 @@ this.invoke=saveSyncSettings;',ctx);
               end=s.find(end_marker,start+10)
               assert start>=0 and end>start, "Could not isolate "+label
               return s[start:end]
-          purchase=extract("function savePurchaseItem() {","
-        function ","purchase")
+          purchase=extract("function savePurchaseItem() {","\n        function ","purchase")
           purchase_helper_start=s.find("// Purchase-specific decimal parser")
           purchase_helper_end=s.find("function savePurchaseItem()",purchase_helper_start)
           assert purchase_helper_start>=0 and purchase_helper_end>purchase_helper_start, "Could not isolate purchase centime helpers"
@@ -2803,8 +2779,7 @@ this.runLoad=postTripStock;',ctx);
           import json
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("window.anasTruckRecordExpense = function(id){")
-          end = s.find("
-  window.anasTruckExportCSV", start)
+          end = s.find("\n  window.anasTruckExportCSV", start)
           assert start >= 0 and end > start, "Could not isolate truck expense integration"
           fn = s[start:end]
           js = "const fn = " + json.dumps(fn) + r"""
