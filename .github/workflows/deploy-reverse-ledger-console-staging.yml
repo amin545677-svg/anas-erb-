@@ -1,0 +1,114 @@
+name: Deploy ANAS ERP Reverse Ledger Console (Staging)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anas-erp-reverse-ledger-console-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging-console:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout isolated staging candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Require dedicated staging-only configuration
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+          FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
+          FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+        run: |
+          set -euo pipefail
+          for name in FIREBASE_STAGING_SERVICE_ACCOUNT FIREBASE_STAGING_WEB_API_KEY FIREBASE_STAGING_WEB_APP_ID FIREBASE_STAGING_APP_CHECK_SITE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required staging configuration: $name"
+              exit 1
+            fi
+          done
+          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
+          node -e "const x=require(process.argv[1]); if(x.project_id!=='anas-erp-staging-a25e1'||!x.client_email||!x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-staging-service-account.json"
+          echo "Dedicated staging service account verified for anas-erp-staging-a25e1."
+
+      - name: Authenticate only to Firebase Staging
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+
+      - name: Build isolated staging console with staging-only Firebase config
+        env:
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+          FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
+          FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+        run: |
+          set -euo pipefail
+          rm -rf staging-site
+          mkdir -p staging-site/reverse-ledger
+          cp staging/index.html staging-site/index.html
+          cp staging/reverse-ledger-gateway.js staging-site/reverse-ledger-gateway.js
+          cp reverse-ledger/reverse-ledger.js reverse-ledger/reverse-ledger-modal.js staging-site/reverse-ledger/
+          sed -i 's#../reverse-ledger/#./reverse-ledger/#g' staging-site/index.html
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = {
+            firebaseConfig: {
+              apiKey: process.env.FIREBASE_STAGING_WEB_API_KEY,
+              authDomain: 'anas-erp-staging-a25e1.firebaseapp.com',
+              projectId: 'anas-erp-staging-a25e1',
+              appId: process.env.FIREBASE_STAGING_WEB_APP_ID
+            },
+            appCheckSiteKey: process.env.FIREBASE_STAGING_APP_CHECK_SITE_KEY,
+            allowedOrigins: ['https://anas-erp-staging-a25e1.web.app'],
+            functionsRegion: 'us-central1'
+          };
+          for (const [key, value] of Object.entries({
+            apiKey: config.firebaseConfig.apiKey,
+            appId: config.firebaseConfig.appId,
+            appCheckSiteKey: config.appCheckSiteKey
+          })) {
+            if (typeof value !== 'string' || !value.trim() || value.length > 512) {
+              throw new Error('Invalid staging public config field: ' + key);
+            }
+          }
+          fs.writeFileSync('staging-site/config.js',
+            'window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = ' + JSON.stringify(config) + ';\\n',
+            { mode: 0o600 });
+          NODE
+          test -f staging-site/index.html
+          test -f staging-site/config.js
+          test -f staging-site/reverse-ledger-gateway.js
+          test -f staging-site/reverse-ledger/reverse-ledger.js
+          ! grep -q 'projectId:"anas-erb"' staging-site/config.js
+          grep -q 'anas-erp-staging-a25e1' staging-site/config.js
+          grep -q './reverse-ledger/reverse-ledger.js' staging-site/index.html
+          grep -q 'noindex,nofollow' staging-site/index.html
+
+      - name: Validate isolated hosting configuration
+        run: |
+          node -e "const c=require('./firebase.staging.hosting.json'); if(c.hosting.site!=='anas-erp-staging-a25e1'||c.hosting.public!=='staging-site') process.exit(1)"
+          node --check staging-site/config.js
+          node --check staging-site/reverse-ledger-gateway.js
+
+      - name: Deploy only the dedicated staging console
+        run: npx --yes firebase-tools@14.22.0 deploy --only hosting --config firebase.staging.hosting.json --project anas-erp-staging-a25e1 --non-interactive
+
+      - name: Verify live staging console and public config scope
+        env:
+          STAGING_ORIGIN: https://anas-erp-staging-a25e1.web.app
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$STAGING_ORIGIN/" | grep -q 'ANAS ERP — بيئة اختبار دفتر المرتجعات'
+          curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -q '"projectId":"anas-erp-staging-a25e1"'
+          curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -q '"allowedOrigins":\["https://anas-erp-staging-a25e1.web.app"\]'
+          echo "PASS: dedicated staging console and staging-only public Firebase configuration are live."
