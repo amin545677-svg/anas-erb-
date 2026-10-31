@@ -130,6 +130,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
         continue;
       }
+      if (cashCents + amountCents > Number.MAX_SAFE_INTEGER) {
+        review.push({ opId: op.opId, reason: "CASH_BALANCE_OVERFLOW", operation: op });
+        continue;
+      }
 
       customer.debt = fromMoneyCents(debtCents - amountCents);
       snapshot.caisseBalance = fromMoneyCents(cashCents + amountCents);
@@ -238,12 +242,12 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         }
         customer = matches[0];
         const debtCents = moneyCents(customer.debt ?? 0);
-        if (debtCents === null || debtCents + remainingCents > Number.MAX_SAFE_INTEGER * 100) {
+        if (debtCents === null || debtCents + remainingCents > Number.MAX_SAFE_INTEGER) {
           review.push({ opId: op.opId, reason: "INVALID_CUSTOMER_DEBT", operation: op });
           continue;
         }
       }
-      if (cashCents + paidCents > Number.MAX_SAFE_INTEGER * 100) {
+      if (cashCents + paidCents > Number.MAX_SAFE_INTEGER) {
         review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
         continue;
       }
