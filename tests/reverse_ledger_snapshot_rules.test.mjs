@@ -11,6 +11,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const projectId = "demo-anas-erp";
 const rules = await readFile(resolve("firebase/firestore.staging.rules"), "utf8");
+
 async function createTestEnv() {
   return initializeTestEnvironment({
     projectId,
@@ -18,47 +19,40 @@ async function createTestEnv() {
   });
 }
 
-// Seed all privileged fixtures before any authenticated Firestore client starts.
-// Reusing a client Firestore instance after changing its settings is prohibited by the SDK.
-test.before(async () => {
-  await testEnv.withSecurityRulesDisabled(async adminContext => {
-    const adminDb = adminContext.firestore();
-    await setDoc(doc(adminDb, "users", "snapshot-owner-after-grant", "snapshots", "latest"), {
-      payload: JSON.stringify({ marker: "authoritative-posted-state" })
-    });
-    await setDoc(doc(adminDb, "reverseLedgerGrants", "snapshot-owner-after-grant"), {
-      uid: "snapshot-owner-after-grant",
-      active: true,
-      schemaVersion: 1,
-      permissions: ["reverse_sale_return"]
-    });
-    await setDoc(doc(adminDb, "users", "snapshot-owner-isolated", "snapshots", "latest"), {
-      payload: JSON.stringify({ marker: "private" })
-    });
-  });
-});
-
 test("owner can use the legacy snapshot backup before a reverse-ledger grant exists", async t => {
   const testEnv = await createTestEnv();
   t.after(() => testEnv.cleanup());
+
   const uid = "snapshot-owner-before-grant";
   const db = testEnv.authenticatedContext(uid).firestore();
-  await assertSucceeds(setDoc(doc(db, "users", uid, "snapshots", "latest"), {
+  const snapshotRef = doc(db, "users", uid, "snapshots", "latest");
+
+  await assertSucceeds(setDoc(snapshotRef, {
     payload: JSON.stringify({ marker: "before-grant" })
   }));
-  const snapshot = await assertSucceeds(getDoc(doc(db, "users", uid, "snapshots", "latest")));
+  const snapshot = await assertSucceeds(getDoc(snapshotRef));
   assert.equal(snapshot.get("payload"), JSON.stringify({ marker: "before-grant" }));
 });
 
 test("a trusted reverse-ledger grant locks legacy snapshot writes but preserves owner reads", async t => {
   const testEnv = await createTestEnv();
   t.after(() => testEnv.cleanup());
+
   const uid = "snapshot-owner-after-grant";
+  await testEnv.withSecurityRulesDisabled(async adminContext => {
+    const adminDb = adminContext.firestore();
+    await setDoc(doc(adminDb, "users", uid, "snapshots", "latest"), {
+      payload: JSON.stringify({ marker: "authoritative-posted-state" })
+    });
+    await setDoc(doc(adminDb, "reverseLedgerGrants", uid), {
+      uid, active: true, schemaVersion: 1, permissions: ["reverse_sale_return"]
+    });
+  });
+
   const ownerDb = testEnv.authenticatedContext(uid).firestore();
   const snapshotRef = doc(ownerDb, "users", uid, "snapshots", "latest");
-
-  const before = await assertSucceeds(getDoc(snapshotRef));
-  assert.equal(before.get("payload"), JSON.stringify({ marker: "authoritative-posted-state" }));
+  const read = await assertSucceeds(getDoc(snapshotRef));
+  assert.equal(read.get("payload"), JSON.stringify({ marker: "authoritative-posted-state" }));
 
   await assertFails(setDoc(snapshotRef, {
     payload: JSON.stringify({ marker: "stale-legacy-worker-overwrite" })
@@ -68,9 +62,20 @@ test("a trusted reverse-ledger grant locks legacy snapshot writes but preserves 
   assert.equal(after.get("payload"), JSON.stringify({ marker: "authoritative-posted-state" }));
 });
 
-test("another user cannot read or overwrite the owner's snapshot", async () => {
+test("another user cannot read or overwrite the owner's snapshot", async t => {
+  const testEnv = await createTestEnv();
+  t.after(() => testEnv.cleanup());
+
+  const ownerUid = "snapshot-owner-isolated";
+  await testEnv.withSecurityRulesDisabled(async adminContext => {
+    const adminDb = adminContext.firestore();
+    await setDoc(doc(adminDb, "users", ownerUid, "snapshots", "latest"), {
+      payload: JSON.stringify({ marker: "private" })
+    });
+  });
+
   const otherDb = testEnv.authenticatedContext("different-user").firestore();
-  const ref = doc(otherDb, "users", "snapshot-owner-isolated", "snapshots", "latest");
+  const ref = doc(otherDb, "users", ownerUid, "snapshots", "latest");
   await assertFails(getDoc(ref));
   await assertFails(setDoc(ref, { payload: "{}" }));
 });
@@ -78,6 +83,7 @@ test("another user cannot read or overwrite the owner's snapshot", async () => {
 test("client users cannot read or mutate reverse-ledger control-plane documents", async t => {
   const testEnv = await createTestEnv();
   t.after(() => testEnv.cleanup());
+
   const uid = "snapshot-control-plane-user";
   const db = testEnv.authenticatedContext(uid).firestore();
   await assertFails(getDoc(doc(db, "reverseLedgerGrants", uid)));
