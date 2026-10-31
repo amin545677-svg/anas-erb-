@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const html = fs.readFileSync(path.join(__dirname, '../staging/index.html'), 'utf8');
 const configExample = fs.readFileSync(path.join(__dirname, '../staging/config.example.js'), 'utf8');
+const gateway = fs.readFileSync(path.join(__dirname, '../staging/reverse-ledger-gateway.js'), 'utf8');
 
 test('staging page is isolated from production V42 entrypoint and targets only the dedicated Firebase project', () => {
   assert.match(html, /ANAS_REVERSE_LEDGER_STAGING_CONFIG/);
@@ -26,7 +27,8 @@ test('staging UI uses callable endpoints for trusted backup and restore', () => 
   assert.match(html, /httpsCallable\(name\)/);
   assert.match(html, /createTrustedReverseLedgerBackup/);
   assert.match(html, /restoreTrustedReverseLedgerBackup/);
-  assert.match(html, /executeReverseLedger/);
+  assert.match(html, /reverse-ledger-gateway\\.js/);
+  assert.match(gateway, /httpsCallable\\('executeReverseLedger'\\)/);
 });
 
 test('staging config example contains placeholders only and no private service-account material', () => {
