@@ -2126,6 +2126,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div class="sub-header-title">ذمم العملاء (الكريدي)</div>
                 <div>👥</div>
             </div>
+            <input id="customerDebtSearch" type="search" class="field-input" placeholder="ابحث عن العميل أو الهاتف أو الرقم الجبائي..." aria-label="البحث في ذمم العملاء" oninput="renderCustomersDebts()" style="margin-top:10px;width:100%;">
+            <div id="customerDebtFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="custDebtsContainer" style="margin-top:10px;"></div>
         </section>
 
@@ -2135,6 +2137,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div class="sub-header-title">مستحقات الموردين</div>
                 <div>🤝</div>
             </div>
+            <input id="supplierDebtSearch" type="search" class="field-input" placeholder="ابحث عن المورد أو الهاتف أو الرقم الجبائي..." aria-label="البحث في مستحقات الموردين" oninput="renderSuppliersDebts()" style="margin-top:10px;width:100%;">
+            <div id="supplierDebtFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="suppDebtsContainer" style="margin-top:10px;"></div>
         </section>
 
@@ -4213,12 +4217,24 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.replaceChildren();
             const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
+            const query = anasNormalizeQueryText(document.getElementById('customerDebtSearch')?.value || '');
+            const filteredCustomers = customers.filter(c => c && anasQueryMatches([
+                c.name, c.phone, c.phone2, c.address, c.rc, c.nif, c.nis, c.art, c.debt
+            ], query));
+            const filterStatus = document.getElementById('customerDebtFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredCustomers.length + ' من ' + customers.length + ' عميلاً.'
+                : 'إجمالي العملاء: ' + customers.length + '.';
             if (!customers.length) {
                 cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا يوجد عملاء مسجلون بعد. استخدم «إضافة عميل جديد» أولاً.</div>';
                 return;
             }
+            if (!filteredCustomers.length) {
+                cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا توجد حسابات عملاء مطابقة. غيّر كلمات البحث أو امسحها.</div>';
+                return;
+            }
             const esc = value => anasEscapeHTML(String(value ?? ''));
-            customers.forEach((c, idx) => {
+            filteredCustomers.forEach((c, idx) => {
                 const days = getDebtAgeDays(c.debtDate);
                 const debt = Number(c.debt) || 0;
                 const isOverdue = days > 30 && debt > 0;
@@ -4591,7 +4607,21 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.replaceChildren();
             const suppliers = Array.isArray(AppData?.suppliers) ? AppData.suppliers : [];
-            suppliers.forEach(s => {
+            const query = anasNormalizeQueryText(document.getElementById('supplierDebtSearch')?.value || '');
+            const filteredSuppliers = suppliers.filter(s => s && anasQueryMatches([
+                s.name, s.phone, s.phone2, s.address, s.rc, s.nif, s.nis, s.art, s.balance
+            ], query));
+            const filterStatus = document.getElementById('supplierDebtFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredSuppliers.length + ' من ' + suppliers.length + ' مورداً.'
+                : 'إجمالي الموردين: ' + suppliers.length + '.';
+            if (!filteredSuppliers.length) {
+                cont.innerHTML = '<div class="menu-action-card" style="display:block;text-align:center;padding:18px;color:#64748b;">' +
+                    (suppliers.length ? 'لا توجد حسابات موردين مطابقة. غيّر كلمات البحث أو امسحها.' : 'لا يوجد موردون مسجلون بعد.') +
+                    '</div>';
+                return;
+            }
+            filteredSuppliers.forEach(s => {
                 const card = document.createElement('div');
                 card.className = 'menu-action-card';
                 card.style.cssText = 'margin-bottom:8px;flex-direction:column;align-items:stretch;gap:6px;';
