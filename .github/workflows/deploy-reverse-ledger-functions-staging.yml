@@ -1,0 +1,82 @@
+name: Deploy Reverse Ledger Firebase Functions (Staging)
+# Scoped push-trigger probe: 2026-10-31 live Staging preflight.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/reverse-ledger-firebase-functions-v2
+    paths:
+      - 'functions/**'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.json'
+      - 'firebase/firestore.staging.rules'
+      - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-reverse-ledger-staging:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify staging-only configuration and canonical bundled sources
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("firebase.staging.json").read_text(encoding="utf-8"))
+          assert config.get("functions", {}).get("source") == "functions"
+          assert config.get("firestore", {}).get("rules") == "firebase/firestore.staging.rules"
+          if Path("firebase.json").read_text(encoding="utf-8") != '{\n  "firestore": {\n    "rules": "firebase/firestore.rules"\n  }\n}\n':
+              raise SystemExit("Production firebase.json changed; refusing staging deployment.")
+          if Path("index.html").read_text(encoding="utf-8").find("V42") < 0:
+              raise SystemExit("V42 identity marker not found; refusing staging deployment.")
+          if Path("functions/lib/reverse-ledger.js").read_bytes() != Path("reverse-ledger/reverse-ledger.js").read_bytes():
+              raise SystemExit("Bundled reverse-ledger engine is stale.")
+          if Path("functions/lib/authorization.js").read_bytes() != Path("reverse-ledger/authorization.js").read_bytes():
+              raise SystemExit("Bundled authorization policy is stale.")
+          print("Staging-only config, V42 identity, and canonical bundled source checks passed.")
+          PY
+          node --check functions/index.js
+          node --check functions/reverse-ledger-adapter.js
+          node --check functions/reverse-ledger-service.js
+          node --check functions/reverse-ledger-backup-service.js
+
+      - name: Run reverse-ledger adapter and authorization tests
+        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js
+
+      - name: Require staging service account
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+        run: |
+          test -n "$FIREBASE_STAGING_SERVICE_ACCOUNT" || {
+            echo "::error::Missing FIREBASE_STAGING_SERVICE_ACCOUNT secret."
+            exit 1
+          }
+          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
+          node -e "const x=require(process.argv[1]); if(x.project_id!=='anas-erp-staging-a25e1'||!x.client_email||!x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-staging-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-staging-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Install Firebase Functions dependencies
+        run: npm install --prefix functions --omit=dev --no-audit --no-fund
+
+      - name: Deploy staging Firestore rules and reverse-ledger callable only
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
+        run: |
+          npx --yes firebase-tools@14 deploy \
+            --only firestore:rules,functions:executeReverseLedger,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
+            --project anas-erp-staging-a25e1 \
+            --config firebase.staging.json \
+            --non-interactive

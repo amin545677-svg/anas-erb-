@@ -1,0 +1,50 @@
+{
+  "projectId": "anas-erp-staging-a25e1",
+  "saleSettlement": {
+    "invoiceId": "REPLACE_WITH_STAGING_SALES_INVOICE_V2_ID",
+    "partyId": "REPLACE_WITH_STAGING_CUSTOMER_ID",
+    "expectedPaidCentimes": "REPLACE_WITH_PAID_CENTIMES",
+    "expectedAllocatedCentimes": "REPLACE_WITH_ALLOCATED_CENTIMES"
+  },
+  "operations": [
+    {
+      "request": {
+        "operationId": "REV-STAGE-SALE-RETURN-0001",
+        "periodId": "REPLACE_WITH_OPEN_STAGING_PERIOD_ID",
+        "invoiceId": "REPLACE_WITH_STAGING_SALES_INVOICE_V2_ID",
+        "originalInvoiceType": "sales_invoice",
+        "returnType": "SALE_RETURN",
+        "items": [{ "productId": "REPLACE_WITH_STAGING_PRODUCT_ID", "quantity": "0.100000" }],
+        "settlementMode": "credit",
+        "reason": "Dedicated staging E2E partial sale return"
+      }
+    },
+    {
+      "request": {
+        "operationId": "REV-STAGE-PURCHASE-RETURN-0001",
+        "periodId": "REPLACE_WITH_OPEN_STAGING_PERIOD_ID",
+        "invoiceId": "REPLACE_WITH_STAGING_PURCHASE_INVOICE_V2_ID",
+        "originalInvoiceType": "purchase_invoice",
+        "returnType": "PURCHASE_RETURN",
+        "items": [{ "productId": "REPLACE_WITH_STAGING_PURCHASE_PRODUCT_ID", "quantity": "0.100000" }],
+        "settlementMode": "credit",
+        "reason": "Dedicated staging E2E purchase return"
+      }
+    },
+    {
+      "request": {
+        "operationId": "REV-STAGE-INVOICE-CANCEL-0001",
+        "periodId": "REPLACE_WITH_OPEN_STAGING_PERIOD_ID",
+        "invoiceId": "REPLACE_WITH_STAGING_SALES_INVOICE_V2_ID",
+        "originalInvoiceType": "sales_invoice",
+        "returnType": "INVOICE_CANCEL",
+        "settlementMode": "cash",
+        "reason": "Dedicated staging E2E full invoice cancellation"
+      }
+    }
+  ],
+  "expectedFinancials": [
+    { "path": "caisseBalance", "unit": "centimes", "expected": "REPLACE_WITH_EXPECTED_CASH_CENTIMES" },
+    { "path": "products.0.stock", "unit": "microUnits", "expected": "REPLACE_WITH_EXPECTED_STOCK_MICRO_UNITS" }
+  ]
+}

@@ -2,14 +2,25 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Staging snapshot surface only; never treat this client-writable backup as ledger authority.
-    match /users/{uid}/snapshots/{snapshotId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == uid
-        && snapshotId == "latest";
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
     }
 
-    // Trusted reverse-ledger control plane: service accounts only (Admin SDK bypasses Rules).
+    function hasReverseLedgerGrant(uid) {
+      return exists(/databases/$(database)/documents/reverseLedgerGrants/$(uid));
+    }
+
+    // Staging snapshots remain readable by the owner. Direct writes are locked
+    // once a trusted reverse-ledger grant exists, so the ID-token snapshot Worker
+    // cannot overwrite a server-committed financial state.
+    // Staging snapshot surface only; never treat this client-writable backup as ledger authority.
+    match /users/{uid}/snapshots/{snapshotId} {
+      allow read: if isOwner(uid) && snapshotId == "latest";
+      allow write: if isOwner(uid) && snapshotId == "latest" && !hasReverseLedgerGrant(uid);
+    }
+
+    // Root control-plane documents are shared with the Cloudflare reservation Worker.
+    // Only trusted service accounts (Admin SDK / service-account REST) may access them.
     match /reverseLedgerGrants/{uid} {
       allow read, write: if false;
     }
@@ -26,6 +37,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /reverseLedgerEntries/{entryId} {
+      allow read, write: if false;
+    }
+
+    // Keep legacy nested control-plane paths closed as well.
+    match /users/{uid}/reverseLedgerGrants/{grantId} {
+      allow read, write: if false;
+    }
+    match /users/{uid}/financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /users/{uid}/reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
+    }
+    match /users/{uid}/reverseLedgerState/{stateId} {
+      allow read, write: if false;
+    }
+    match /users/{uid}/reverseLedgerEntries/{entryId} {
       allow read, write: if false;
     }
   }

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>ANAS ERP — Reverse Ledger Staging</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172033;background:#f1f5f9}
+    *{box-sizing:border-box}body{margin:0;padding:20px}.shell{max-width:980px;margin:auto}
+    header,.panel{background:#fff;border:1px solid #dbe3ed;border-radius:14px;padding:18px;margin-bottom:14px}
+    h1{font-size:1.25rem;margin:0 0 8px;color:#173765}h2{font-size:1rem;margin:0 0 12px}
+    p{line-height:1.7;color:#475569;margin:6px 0}.warning{border-right:4px solid #d97706;background:#fff7ed;padding:12px;border-radius:8px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    label{display:grid;gap:6px;font-weight:700;font-size:.88rem}
+    input{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;min-width:0}
+    button{border:0;border-radius:8px;padding:10px 15px;background:#1e3a6d;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+    button:disabled{background:#94a3b8;cursor:not-allowed}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .muted{font-size:.82rem;color:#64748b}.status{padding:10px;border-radius:8px;background:#eff6ff;color:#1e40af;white-space:pre-wrap;overflow-wrap:anywhere}
+    .hidden{display:none!important}code{overflow-wrap:anywhere}
+    @media(max-width:620px){body{padding:10px}.grid{grid-template-columns:1fr}.panel,header{padding:13px}}
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
+  <script src="./config.js"></script>
+  <script src="../reverse-ledger/reverse-ledger.js"></script>
+  <script src="../reverse-ledger/reverse-ledger-modal.js"></script>
+  <script src="./reverse-ledger-gateway.js"></script>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <h1>ANAS ERP — بيئة اختبار دفتر المرتجعات</h1>
+    <p>واجهة مستقلة لمشروع Firebase التجريبي. لا تتصل بقاعدة الإنتاج ولا تعدّل تطبيق V42.</p>
+    <div class="warning">تنبيه: لا تستخدم حساباً إنتاجياً أو بيانات عملاء حقيقية. الترحيل متاح فقط لحساب Staging مخوّل، وفاتورة تمت تسويتها إلى دفتر الإصدار الثاني، وفترة مالية مفتوحة.</div>
+  </header>
+
+  <section class="panel" id="config-panel">
+    <h2>تهيئة الاتصال</h2>
+    <p>تأكد من إنشاء <code>staging/config.js</code> محلياً/ضمن استضافة Staging وإضافة إعدادات Web App وApp Check العامة للمشروع <code>anas-erp-staging-a25e1</code>.</p>
+    <div class="status" id="config-status" role="status">جارٍ فحص إعدادات بيئة Staging…</div>
+  </section>
+
+  <section class="panel" id="auth-panel">
+    <h2>تسجيل الدخول التجريبي</h2>
+    <div class="grid">
+      <label>البريد الإلكتروني التجريبي<input id="email" type="email" autocomplete="username"></label>
+      <label>كلمة المرور<input id="password" type="password" autocomplete="current-password"></label>
+    </div>
+    <div class="actions">
+      <button id="sign-in" type="button">تسجيل الدخول</button>
+      <button id="sign-out" type="button" disabled>تسجيل الخروج</button>
+    </div>
+    <p class="muted">يجب أن يكون الحساب مفعّلاً في Firebase Authentication الخاص بمشروع Staging فقط.</p>
+  </section>
+
+  <section class="panel hidden" id="workspace">
+    <h2>حالة بيانات الحساب</h2>
+    <div class="status" id="snapshot-status" role="status">لم تُقرأ النسخة السحابية بعد.</div>
+    <div class="actions">
+      <button id="load-snapshot" type="button">قراءة / تحديث النسخة السحابية</button>
+      <button id="sale-return" type="button" disabled>مرتجع مبيعات</button>
+      <button id="purchase-return" type="button" disabled>مرتجع مشتريات</button>
+      <button id="invoice-cancel" type="button" disabled>إلغاء فاتورة</button>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="backup-panel">
+    <h2>النسخ الاحتياطي والاستعادة الموثوقة</h2>
+    <p class="muted">تُنفّذ العمليتان عبر Firebase Callable مع Auth وApp Check، ولا يُسمح بكتابة مستندات التحكم من المتصفح.</p>
+    <div class="grid">
+      <label>معرّف النسخة المراد استعادتها<input id="backup-id" maxlength="100" placeholder="BKP-…"></label>
+      <label>آخر نسخة منشأة<input id="created-backup-id" readonly></label>
+    </div>
+    <div class="actions">
+      <button id="create-backup" type="button">إنشاء نسخة موثوقة</button>
+      <button id="restore-backup" type="button">استعادة نسخة موثوقة</button>
+    </div>
+    <div class="status" id="backup-status" role="status">لم تُنفّذ عملية نسخ أو استعادة.</div>
+  </section>
+  <footer class="muted">Staging only · Firebase project: anas-erp-staging-a25e1 · No production credentials</footer>
+</main>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const STAGING_PROJECT = 'anas-erp-staging-a25e1';
+  let app, auth, db, functions, loadedUid = null;
+
+  function message(id, text, good) {
+    const node = $(id);
+    node.textContent = text;
+    node.style.background = good ? '#ecfdf5' : '#fff7ed';
+    node.style.color = good ? '#166534' : '#9a3412';
+  }
+  function requireRuntime() {
+    const config = window.ANAS_REVERSE_LEDGER_STAGING_CONFIG;
+    if (!config || !config.firebaseConfig || config.firebaseConfig.projectId !== STAGING_PROJECT) {
+      throw new Error('ملف config.js مفقود أو لا يشير إلى مشروع Staging المعتمد.');
+    }
+    if (!window.firebase || !firebase.initializeApp || !firebase.auth || !firebase.firestore ||
+        !firebase.functions || !firebase.appCheck || !window.ANASReverseLedgerServer) {
+      throw new Error('تعذر تحميل Firebase SDK أو بوابة الترحيل. تحقق من اتصال الشبكة وترتيب ملفات SDK.');
+    }
+    app = firebase.app('anas-erp-reverse-ledger-staging');
+    if (!app || app.options.projectId !== STAGING_PROJECT) throw new Error('رفض الاتصال: مشروع Firebase غير مطابق.');
+    auth = firebase.auth(app);
+    db = firebase.firestore(app);
+    functions = firebase.functions(app, config.functionsRegion || 'us-central1');
+    $('config-panel').classList.add('hidden');
+    $('workspace').classList.add('hidden');
+    $('backup-panel').classList.add('hidden');
+    message('config-status', 'تم التحقق من إعدادات مشروع Staging وبوابة App Check.', true);
+    auth.onAuthStateChanged(user => {
+      $('sign-out').disabled = !user;
+      $('sign-in').disabled = !!user;
+      $('workspace').classList.toggle('hidden', !user);
+      $('backup-panel').classList.toggle('hidden', !user);
+      if (!user) {
+        loadedUid = null;
+        window.AppData = undefined;
+        $('sale-return').disabled = $('purchase-return').disabled = $('invoice-cancel').disabled = true;
+        message('snapshot-status', 'سجّل الدخول بحساب Staging ثم اقرأ النسخة السحابية.', false);
+      } else {
+        message('snapshot-status', 'تم تسجيل الدخول: ' + user.uid + '. اقرأ النسخة السحابية قبل فتح أي عملية.', true);
+      }
+    });
+  }
+  async function loadSnapshot() {
+    const user = auth && auth.currentUser;
+    if (!user) throw new Error('يجب تسجيل الدخول أولاً.');
+    const snap = await db.collection('users').doc(user.uid).collection('snapshots').doc('latest').get();
+    if (!snap.exists || typeof snap.get('payload') !== 'string') throw new Error('لا توجد نسخة سحابية صالحة لهذا الحساب.');
+    const data = JSON.parse(snap.get('payload'));
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('محتوى النسخة السحابية غير صالح.');
+    for (const key of ['invoices','purchases','products','customers','suppliers']) {
+      if (!Array.isArray(data[key])) throw new Error('النسخة السحابية تفتقد المجموعة المطلوبة: ' + key);
+    }
+    window.AppData = data;
+    loadedUid = user.uid;
+    const summary = [
+      'الحساب: ' + user.uid,
+      'فواتير المبيعات: ' + data.invoices.length,
+      'فواتير المشتريات: ' + data.purchases.length,
+      'الأصناف: ' + data.products.length,
+      'العملاء: ' + data.customers.length,
+      'الموردون: ' + data.suppliers.length,
+      'حالة القراءة: نجاح'
+    ].join('\n');
+    message('snapshot-status', summary, true);
+    $('sale-return').disabled = false;
+    $('purchase-return').disabled = false;
+    $('invoice-cancel').disabled = false;
+  }
+  async function callable(name, data) {
+    if (!auth.currentUser) throw new Error('انتهت جلسة Staging؛ سجّل الدخول مجدداً.');
+    await auth.currentUser.getIdToken(true);
+    const result = await functions.httpsCallable(name)(data || {});
+    return result && result.data;
+  }
+  $('sign-in').addEventListener('click', async () => {
+    try {
+      await auth.signInWithEmailAndPassword($('email').value.trim(), $('password').value);
+      $('password').value = '';
+      message('snapshot-status', 'تم تسجيل الدخول. اقرأ النسخة السحابية.', true);
+    } catch (error) { message('snapshot-status', 'فشل تسجيل الدخول: ' + (error.message || error), false); }
+  });
+  $('sign-out').addEventListener('click', async () => {
+    try { await auth.signOut(); } catch (error) { message('snapshot-status', error.message || String(error), false); }
+  });
+  $('load-snapshot').addEventListener('click', async () => {
+    try { await loadSnapshot(); } catch (error) { message('snapshot-status', 'فشل قراءة النسخة: ' + (error.message || error), false); }
+  });
+  $('sale-return').addEventListener('click', () => {
+    if (loadedUid !== auth.currentUser?.uid || !window.AppData) return message('snapshot-status','أعد قراءة نسخة الحساب الحالي.',false);
+    window.ANASReverseLedgerModal.open('SALE_RETURN');
+  });
+  $('purchase-return').addEventListener('click', () => {
+    if (loadedUid !== auth.currentUser?.uid || !window.AppData) return message('snapshot-status','أعد قراءة نسخة الحساب الحالي.',false);
+    window.ANASReverseLedgerModal.open('PURCHASE_RETURN');
+  });
+  $('invoice-cancel').addEventListener('click', () => {
+    if (loadedUid !== auth.currentUser?.uid || !window.AppData) return message('snapshot-status','أعد قراءة نسخة الحساب الحالي.',false);
+    window.ANASReverseLedgerModal.open('INVOICE_CANCEL');
+  });
+  $('create-backup').addEventListener('click', async () => {
+    const button = $('create-backup'); button.disabled = true;
+    try {
+      const result = await callable('createTrustedReverseLedgerBackup', {});
+      if (!result || result.ok !== true || !result.backupId) throw new Error('لم يؤكد الخادم إنشاء النسخة.');
+      $('created-backup-id').value = result.backupId;
+      $('backup-id').value = result.backupId;
+      message('backup-status', 'تم إنشاء النسخة الموثوقة: ' + result.backupId + ' — سجلات العمليات: ' + result.operationCount, true);
+    } catch (error) { message('backup-status', 'فشل إنشاء النسخة: ' + (error.message || error), false); }
+    finally { button.disabled = false; }
+  });
+  $('restore-backup').addEventListener('click', async () => {
+    const button = $('restore-backup'); button.disabled = true;
+    try {
+      const backupId = $('backup-id').value.trim();
+      if (!backupId) throw new Error('أدخل معرّف النسخة أولاً.');
+      const result = await callable('restoreTrustedReverseLedgerBackup', { backupId });
+      if (!result || result.ok !== true) throw new Error('لم يؤكد الخادم الاستعادة.');
+      await loadSnapshot();
+      message('backup-status', 'اكتملت الاستعادة والتحقق. النسخة: ' + backupId + '. أُعيد تحميل الحالة السحابية.', true);
+    } catch (error) { message('backup-status', 'رُفضت الاستعادة أو فشلت: ' + (error.message || error), false); }
+    finally { button.disabled = false; }
+  });
+  try { requireRuntime(); }
+  catch (error) { message('config-status', error.message || String(error), false); }
+})();
+</script>
+</body>
+</html>
