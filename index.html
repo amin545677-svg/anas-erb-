@@ -2161,6 +2161,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         </div>
 
         <div class="drawer-cat-heading">معالجات متقدمة</div>
+        <div class="drawer-nav-row" onclick="closeDrawer(); openSettlementAllocationModal();"><span class="row-icon">⇄</span> تخصيص دفعات العملاء والموردين</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('invoices-list');"><span class="row-icon">✏️</span> تعديل فاتورة مبيعات</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); openView('purchases');"><span class="row-icon">✏️</span> تعديل فاتورة مشتريات</div>
         <div class="drawer-nav-row" onclick="closeDrawer(); cancelInvoicePrompt();"><span class="row-icon">✕</span> الغاء فاتورة مبيعات / مشتريات</div>
@@ -10168,5 +10169,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         });
       })();
     </script>
+    <!-- ANAS_REVERSE_LEDGER_UI_MODULES -->
+    <script src="./reverse-ledger/reverse-ledger-modal.js"></script>
+    <script src="./reverse-ledger/settlement-allocation-modal.js"></script>
 </body>
 </html>
