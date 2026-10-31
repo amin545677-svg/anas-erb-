@@ -5,7 +5,9 @@ const byId = id => document.getElementById(id);
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const state = { partyType: 'customer', partyId: '', source: null, invoice: null, sources: [], invoices: [] };
 function data() {
-  const current = window.AppData;
+  // The production shell keeps AppData as a top-level lexical binding to preserve V42.
+  // The isolated staging console assigns window.AppData after authentication and snapshot load.
+  const current = window.AppData || (typeof AppData !== 'undefined' ? AppData : null);
   if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق غير جاهزة.');
   return current;
 }
@@ -356,7 +358,8 @@ function mount() {
   byId('alloc-close-bottom').addEventListener('click', close);
   overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && overlay.classList.contains('active')) close(); });
-  renderParties();
+  // Do not read account data while mounting: the staging console is unauthenticated
+  // until its operator signs in and explicitly loads the cloud snapshot.
 }
 function open() {
   mount();
