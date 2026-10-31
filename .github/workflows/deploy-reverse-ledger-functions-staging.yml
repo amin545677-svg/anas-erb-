@@ -2,12 +2,23 @@ name: Deploy Reverse Ledger Firebase Functions (Staging)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/reverse-ledger-firebase-functions-v2
+    paths:
+      - 'functions/**'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.json'
+      - 'firebase/firestore.staging.rules'
+      - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
 
 permissions:
   contents: read
 
 jobs:
   deploy-reverse-ledger-staging:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
+    environment: staging
     runs-on: ubuntu-latest
     steps:
       - name: Checkout isolated branch
