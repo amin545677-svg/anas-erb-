@@ -3,9 +3,7 @@
 from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-import subprocess
 import threading
-import time
 import unittest
 
 from playwright.sync_api import sync_playwright
@@ -67,6 +65,21 @@ class ClassicUIBrowserTests(unittest.TestCase):
 
     def test_dashboard_cards_render(self):
         self.assertGreaterEqual(self.page.locator("#view-dashboard .grid-card-item").count(), 8)
+
+    def test_dashboard_cards_are_keyboard_operable(self):
+        cards = self.page.locator("#view-dashboard .dashboard-grid-8 > .grid-card-item")
+        self.assertEqual(cards.count(), 10)
+        for index in range(9):
+            card = cards.nth(index)
+            self.assertEqual(card.get_attribute("role"), "button")
+            self.assertEqual(card.get_attribute("tabindex"), "0")
+        first = cards.nth(0)
+        first.focus()
+        outline = first.evaluate("(e) => getComputedStyle(e).outlineStyle")
+        self.assertEqual(outline, "solid")
+        first.press("Enter")
+        self.page.wait_for_selector("#view-pos.active", timeout=5000)
+        self.page.evaluate("openView('dashboard')")
 
     def test_responsive_viewports_have_no_horizontal_document_overflow(self):
         for width, height in ((360, 800), (390, 844), (768, 1024), (1365, 900)):
