@@ -1,0 +1,30 @@
+name: ANAS ERP AI Gateway Tests
+on:
+  pull_request:
+    paths:
+      - "cloudflare/worker_openai_ai.js"
+      - "cloudflare/worker_openai_ai.test.mjs"
+      - ".github/workflows/ai-gateway-tests.yml"
+  push:
+    branches:
+      - "feat/ai-gateway-firebase-auth"
+    paths:
+      - "cloudflare/worker_openai_ai.js"
+      - "cloudflare/worker_openai_ai.test.mjs"
+      - ".github/workflows/ai-gateway-tests.yml"
+permissions:
+  contents: read
+jobs:
+  test-ai-gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check Worker syntax
+        run: node --check cloudflare/worker_openai_ai.js
+      - name: Run AI gateway authentication tests
+        run: node --test cloudflare/worker_openai_ai.test.mjs
