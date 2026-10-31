@@ -135,7 +135,19 @@ test('rejects malformed operation IDs and unconfirmed callable responses', async
   await assert.rejects(client.gateway.execute({ ...request, operationId: 'bad' }), /operationId format/);
   const invalid = fakeFirebase({ result: { ok: true, document: {} } });
   const invalidClient = Client.initialize(config, { firebase: invalid.firebase, location });
-  await assert.rejects(invalidClient.gateway.execute(request), /confirmed posted document/);
+  await assert.rejects(invalidClient.gateway.execute(request), /confirm this operation as POSTED/);
+
+  const wrongOperation = fakeFirebase({ result: {
+    ok: true, operationId: 'REV-STAGE-OTHER', document: { returnId: 'RET-STAGE-1', status: 'POSTED' }
+  } });
+  const wrongOperationClient = Client.initialize(config, { firebase: wrongOperation.firebase, location });
+  await assert.rejects(wrongOperationClient.gateway.execute(request), /confirm this operation as POSTED/);
+
+  const unposted = fakeFirebase({ result: {
+    ok: true, operationId: request.operationId, document: { returnId: 'RET-STAGE-1', status: 'PENDING' }
+  } });
+  const unpostedClient = Client.initialize(config, { firebase: unposted.firebase, location });
+  await assert.rejects(unpostedClient.gateway.execute(request), /confirm this operation as POSTED/);
 });
 
 test('propagates callable failures without reporting a local success', async () => {
