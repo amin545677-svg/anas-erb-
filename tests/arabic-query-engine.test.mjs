@@ -47,3 +47,15 @@ test('report table and report-entry filtering use Arabic-aware all-token matchin
 test('quick-sale exact barcode auto-add normalizes Arabic and Persian digits', () => {
   assert.match(html, /anasNormalizeQueryText\(list\[0\]\.barcode\|\|'\'\)===q/);
 });
+
+test('customer debt screen uses shared Arabic-aware query matching', () => {
+  assert.match(html, /id="customerDebtSearch"[^>]+oninput="renderCustomersDebts\(\)"/);
+  assert.match(html, /filteredCustomers = customers\.filter\(c => c && anasQueryMatches\(/);
+  assert.match(html, /c\.name, c\.phone, c\.phone2, c\.address, c\.rc, c\.nif, c\.nis, c\.art, c\.debt/);
+});
+
+test('supplier debt screen uses shared Arabic-aware query matching', () => {
+  assert.match(html, /id="supplierDebtSearch"[^>]+oninput="renderSuppliersDebts\(\)"/);
+  assert.match(html, /filteredSuppliers = suppliers\.filter\(s => s && anasQueryMatches\(/);
+  assert.match(html, /s\.name, s\.phone, s\.phone2, s\.address, s\.rc, s\.nif, s\.nis, s\.art, s\.balance/);
+});
