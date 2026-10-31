@@ -11,11 +11,12 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const projectId = "demo-anas-erp";
 const rules = await readFile(resolve("firebase/firestore.staging.rules"), "utf8");
-const testEnv = await initializeTestEnvironment({
-  projectId,
-  firestore: { rules, host: "127.0.0.1", port: 8080 }
-});
-test.after(async () => testEnv.cleanup());
+async function createTestEnv() {
+  return initializeTestEnvironment({
+    projectId,
+    firestore: { rules, host: "127.0.0.1", port: 8080 }
+  });
+}
 
 // Seed all privileged fixtures before any authenticated Firestore client starts.
 // Reusing a client Firestore instance after changing its settings is prohibited by the SDK.
@@ -37,7 +38,9 @@ test.before(async () => {
   });
 });
 
-test("owner can use the legacy snapshot backup before a reverse-ledger grant exists", async () => {
+test("owner can use the legacy snapshot backup before a reverse-ledger grant exists", async t => {
+  const testEnv = await createTestEnv();
+  t.after(() => testEnv.cleanup());
   const uid = "snapshot-owner-before-grant";
   const db = testEnv.authenticatedContext(uid).firestore();
   await assertSucceeds(setDoc(doc(db, "users", uid, "snapshots", "latest"), {
@@ -47,7 +50,9 @@ test("owner can use the legacy snapshot backup before a reverse-ledger grant exi
   assert.equal(snapshot.get("payload"), JSON.stringify({ marker: "before-grant" }));
 });
 
-test("a trusted reverse-ledger grant locks legacy snapshot writes but preserves owner reads", async () => {
+test("a trusted reverse-ledger grant locks legacy snapshot writes but preserves owner reads", async t => {
+  const testEnv = await createTestEnv();
+  t.after(() => testEnv.cleanup());
   const uid = "snapshot-owner-after-grant";
   const ownerDb = testEnv.authenticatedContext(uid).firestore();
   const snapshotRef = doc(ownerDb, "users", uid, "snapshots", "latest");
@@ -70,7 +75,9 @@ test("another user cannot read or overwrite the owner's snapshot", async () => {
   await assertFails(setDoc(ref, { payload: "{}" }));
 });
 
-test("client users cannot read or mutate reverse-ledger control-plane documents", async () => {
+test("client users cannot read or mutate reverse-ledger control-plane documents", async t => {
+  const testEnv = await createTestEnv();
+  t.after(() => testEnv.cleanup());
   const uid = "snapshot-control-plane-user";
   const db = testEnv.authenticatedContext(uid).firestore();
   await assertFails(getDoc(doc(db, "reverseLedgerGrants", uid)));
