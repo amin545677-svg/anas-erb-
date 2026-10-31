@@ -939,3 +939,142 @@ test('trusted restore preserves pending reservations created after the backup', 
   assert.equal((await operationRef.get()).get('status'), 'RESERVED');
   assert.equal((await snapshotRef.get()).get('payload'), payload);
 });
+
+
+// Atomic settlement-allocation callable integration tests use the same Firestore Emulator.
+const { createSettlementAllocationHandler } = require('../functions/settlement-allocation-service.js');
+
+function settlementState() {
+  return {
+    invoices: [{
+      id: 'INV-ALLOC-1', customerId: 'C-ALLOC-1',
+      total: '100.00', paid: '0.00', remaining: '100.00',
+      invoiceNumber: 'S-ALLOC-1', items: []
+    }],
+    purchases: [],
+    products: [],
+    customers: [{ id: 'C-ALLOC-1', name: 'Emulator Customer', debt: '0.00', ledgerVersion: 2 }],
+    suppliers: [],
+    cashMovements: [{
+      id: 'CASH-ALLOC-1', referenceType: 'customer_debt',
+      referenceId: 'C-ALLOC-1', amount: '100.00', type: 'add'
+    }],
+    supplierMovements: [],
+    clientMovements: [
+      {
+        movementId: 'INVOICE-DEBIT-ALLOC-1', clientId: 'C-ALLOC-1',
+        type: 'invoice_debit', amountCentimes: 10000, direction: 'debit',
+        referenceType: 'sales_invoice', referenceId: 'INV-ALLOC-1',
+        createdAt: '2026-10-31T10:00:00.000Z', ledgerVersion: 2
+      },
+      {
+        movementId: 'CASH-ALLOC-1', clientId: 'C-ALLOC-1',
+        type: 'receipt', amountCentimes: 10000, direction: 'credit',
+        referenceType: 'customer_debt', referenceId: 'C-ALLOC-1',
+        createdAt: '2026-10-31T10:05:00.000Z', ledgerVersion: 2
+      }
+    ],
+    settlementAllocations: [],
+    returns: [],
+    stockMovements: [],
+    customerCreditMovements: [],
+    caisseBalance: 100
+  };
+}
+
+function makeSettlementRequest(uid, operationId, overrides = {}) {
+  return {
+    auth: { uid, token: { aud: PROJECT_ID } },
+    app: { appId: 'emulator-test-app' },
+    data: {
+      operationId,
+      periodId: 'FY-2026-10',
+      partyType: 'customer',
+      partyId: 'C-ALLOC-1',
+      sourceMovementId: 'CASH-ALLOC-1',
+      sourceMovementType: 'customer_debt',
+      allocations: [{ invoiceId: 'INV-ALLOC-1', amountCentimes: 10000 }],
+      ...overrides
+    }
+  };
+}
+
+function createSettlementHandler() {
+  return createSettlementAllocationHandler({
+    db,
+    getUser: async () => ({ disabled: false, displayName: 'Firestore Emulator Operator' }),
+    FieldValue,
+    HttpsError: TestHttpsError,
+    ReverseLedger,
+    now: () => 1793441100000
+  });
+}
+
+async function seedSettlement(uid) {
+  return seed(uid, [], {
+    state: settlementState(),
+    permissions: ['settlement_allocation_post']
+  });
+}
+
+test('Firestore Emulator posts settlement allocation atomically and replays the identical operation', async t => {
+  const uid = 'emu-alloc-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const { user } = await seedSettlement(uid);
+  t.after(() => cleanup(uid, [operationId]));
+  const handler = createSettlementHandler();
+  const request = makeSettlementRequest(uid, operationId);
+
+  const first = await handler(request);
+  assert.equal(first.ok, true);
+  assert.equal(first.status, 'POSTED');
+  assert.equal(first.allocations.length, 1);
+  const snapshot = await user.collection('snapshots').doc('latest').get();
+  const state = JSON.parse(snapshot.get('payload'));
+  assert.equal(state.settlementAllocations.length, 1);
+  assert.equal(state.settlementAllocations[0].ledgerVersion, 2);
+  const operation = await db.collection('reverseLedgerOperations').doc(operationId).get();
+  assert.equal(operation.get('status'), 'POSTED');
+  assert.equal(operation.get('operationType'), 'SETTLEMENT_ALLOCATION');
+  assert.equal(operation.get('requestHash').length, 64);
+
+  const replay = await handler(request);
+  assert.deepEqual(replay, first);
+  const afterReplay = await user.collection('snapshots').doc('latest').get();
+  assert.equal(JSON.parse(afterReplay.get('payload')).settlementAllocations.length, 1);
+});
+
+test('Firestore Emulator rejects reuse of allocation operationId with a different payload', async t => {
+  const uid = 'emu-alloc-reuse-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  await seedSettlement(uid);
+  t.after(() => cleanup(uid, [operationId]));
+  const handler = createSettlementHandler();
+  await handler(makeSettlementRequest(uid, operationId));
+  await assert.rejects(
+    handler(makeSettlementRequest(uid, operationId, {
+      allocations: [{ invoiceId: 'INV-ALLOC-1', amountCentimes: 9999 }]
+    })),
+    error => error && error.code === 'already-exists'
+  );
+});
+
+test('Firestore Emulator serializes two-device allocation races and prevents over-allocation', async t => {
+  const uid = 'emu-alloc-race-' + crypto.randomUUID();
+  const leftId = 'ALLOC-' + crypto.randomUUID();
+  const rightId = 'ALLOC-' + crypto.randomUUID();
+  const { user } = await seedSettlement(uid);
+  t.after(() => cleanup(uid, [leftId, rightId]));
+  const handler = createSettlementHandler();
+  const results = await Promise.allSettled([
+    handler(makeSettlementRequest(uid, leftId)),
+    handler(makeSettlementRequest(uid, rightId))
+  ]);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.status === 'rejected').length, 1);
+  const snapshot = await user.collection('snapshots').doc('latest').get();
+  const state = JSON.parse(snapshot.get('payload'));
+  assert.equal(state.settlementAllocations.length, 1);
+  const allocated = state.settlementAllocations.reduce((sum, row) => sum + row.amountCentimes, 0);
+  assert.equal(allocated, 10000);
+});
