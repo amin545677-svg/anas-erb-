@@ -763,7 +763,7 @@ test('trusted restore refuses to roll back a posted operation missing from an ol
   const created = await handlers.createTrustedReverseLedgerBackup({
     auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
   });
-  const newerPayload = JSON.stringify(validBackupState(75));
+  const newerPayload = '{corrupted-snapshot-json';
   await snapshotRef.update({ payload: newerPayload });
   await operationRef.set({
     operationId, ownerUid: uid, operationType: 'SALE_RETURN', invoiceId: 'INV-BACKUP-2',
@@ -780,4 +780,27 @@ test('trusted restore refuses to roll back a posted operation missing from an ol
   );
   assert.equal((await snapshotRef.get()).get('payload'), newerPayload);
   assert.equal((await operationRef.get()).get('status'), 'POSTED');
+});
+
+test('trusted restore refuses to overwrite a valid newer ERP snapshot even when no reverse operation is missing', async t => {
+  const uid = 'emu-backup-newer-' + crypto.randomUUID();
+  const user = db.collection('users').doc(uid);
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  const initialPayload = JSON.stringify(validBackupState(50));
+  await snapshotRef.set({ payload: initialPayload });
+  t.after(() => cleanup(uid, []));
+
+  const handlers = createBackupHandlers();
+  const created = await handlers.createTrustedReverseLedgerBackup({
+    auth: { uid }, app: { appId: 'emulator-test-app' }, data: {}
+  });
+  const newerPayload = JSON.stringify(validBackupState(75));
+  await snapshotRef.update({ payload: newerPayload });
+  await assert.rejects(
+    () => handlers.restoreTrustedReverseLedgerBackup({
+      auth: { uid }, app: { appId: 'emulator-test-app' }, data: { backupId: created.backupId }
+    }),
+    error => error.code === 'failed-precondition'
+  );
+  assert.equal((await snapshotRef.get()).get('payload'), newerPayload);
 });
