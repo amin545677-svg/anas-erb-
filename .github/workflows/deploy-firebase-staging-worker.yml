@@ -80,8 +80,6 @@ jobs:
           echo "Staging Worker URL resolved and deployment secret configured."
 
       - name: Verify staging health endpoint
-        env:
-          WORKER_URL: ${{ env.WORKER_URL }}
         run: |
           curl --fail --silent --show-error \
             -H "Origin: https://anas-erp-staging-a25e1.web.app" \
@@ -111,9 +109,6 @@ jobs:
           echo "Dedicated staging test user authenticated."
 
       - name: Verify authenticated snapshot read, create, conflict and restore
-        env:
-          WORKER_URL: ${{ env.WORKER_URL }}
-          FIREBASE_STAGING_ID_TOKEN: ${{ env.FIREBASE_STAGING_ID_TOKEN }}
         run: |
           node <<'NODE'
           const assert = require('node:assert/strict');
