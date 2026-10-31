@@ -11,6 +11,24 @@ const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
 const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
 
+test("staging Wrangler config is isolated from production Worker identity and origins", async () => {
+  const [staging, production] = await Promise.all([
+    readFile(resolve("cloudflare/wrangler-staging.toml"), "utf8"),
+    readFile(resolve("cloudflare/wrangler.toml"), "utf8")
+  ]);
+  assert.match(staging, /^name = "anas-erp-firebase-snapshot-staging"$/m);
+  assert.match(staging, /^FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"$/m);
+  assert.match(staging, /^ALLOWED_ORIGINS = "https:\/\/anas-erp-staging-a25e1\.web\.app,https:\/\/anas-erp-staging-a25e1\.firebaseapp\.com"$/m);
+  assert.match(staging, /^required = \["FIREBASE_API_KEY"\]$/m);
+  assert.match(production, /^name = "anas-erp-firebase-snapshot"$/m);
+  assert.match(production, /^FIREBASE_PROJECT_ID = "anas-erb"$/m);
+  assert.match(production, /^ALLOWED_ORIGINS = "https:\/\/amin545677-svg\.github\.io"$/m);
+  assert.doesNotMatch(staging, /anas-erb|amin545677-svg\.github\.io/);
+  assert.notEqual(staging.match(/^name = "([^"]+)"$/m)?.[1], production.match(/^name = "([^"]+)"$/m)?.[1]);
+  assert.notEqual(staging.match(/^FIREBASE_PROJECT_ID = "([^"]+)"$/m)?.[1], production.match(/^FIREBASE_PROJECT_ID = "([^"]+)"$/m)?.[1]);
+});
+
+
 function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = new Headers({ Origin: allowedOrigin });
   if (auth) headers.set("Authorization", "Bearer firebase-test-token");
