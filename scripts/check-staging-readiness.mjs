@@ -37,14 +37,16 @@ requireText('functions/settlement-allocation-service.js', "status: 'POSTED'", 'O
 requireText('functions/settlement-allocation-service.js', 'requestHash', 'Operation idempotency hash is enforced');
 requireText('staging/reverse-ledger-gateway.js', 'executeSettlementAllocation', 'Staging gateway exposes allocation callable');
 requireText('staging/reverse-ledger-gateway.js', 'httpsCallable', 'Staging gateway uses Firebase callable transport');
-const modal = requireText('reverse-ledger/settlement-allocation-modal.js', 'ANASSettlementAllocationServer.execute', 'Allocation modal calls trusted gateway');
+const modal = requireText('reverse-ledger/settlement-allocation-modal.js', 'ANASSettlementAllocationServer', 'Allocation modal requires trusted gateway');
+requireText('reverse-ledger/settlement-allocation-modal.js', 'gateway.execute(request)', 'Allocation modal invokes callable adapter');
 requirePattern('reverse-ledger/settlement-allocation-modal.js', /async function submit\([\s\S]*?gateway\.execute\(request\)/, 'Allocation submit awaits server result');
 if (/saveDB\s*\(/.test(modal)) throw new Error('Staging readiness contract failed: modal must not persist allocations through saveDB().');
 checks.push({ label: 'Allocation modal has no local saveDB posting', file: 'reverse-ledger/settlement-allocation-modal.js', ok: true });
 const deploy = requireText('.github/workflows/deploy-reverse-ledger-functions-staging.yml', 'functions:executeSettlementAllocation', 'Staging deployment allowlists allocation callable');
 requireText('.github/workflows/deploy-reverse-ledger-functions-staging.yml', 'anas-erp-staging-a25e1', 'Deployment targets isolated Staging project');
 requireText('scripts/verify-live-staging-e2e.mjs', 'allocationPostedThroughModal: true', 'Live E2E records browser allocation proof');
-requireText('tests/reverse_ledger_firestore_emulator.test.js', 'executeSettlementAllocation', 'Firestore Emulator covers allocation callable');
+requireText('tests/reverse_ledger_firestore_emulator.test.js', 'createSettlementHandler', 'Firestore Emulator covers allocation callable');
+requireText('tests/reverse_ledger_firestore_emulator.test.js', 'serializes two-device allocation races', 'Firestore Emulator covers concurrent allocation ceiling');
 requireText('tests/settlement_allocation_modal_chromium.test.mjs', 'uses the callable', 'Chromium covers allocation modal gateway');
 requireText('index.html', 'V42', 'Production shell retains V42 identity');
 
