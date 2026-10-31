@@ -55,7 +55,7 @@ test('settlement allocation modal uses the callable, rejects safely, and reloads
       document.getElementById('alloc-period-id').value = 'FY-2026-10';
     });
     await page.click('#alloc-submit');
-    await page.waitForFunction(() => document.getElementById('alloc-status').textContent.includes('لم يتم الترحيل'));
+    await page.waitForFunction(() => document.getElementById('alloc-status').textContent.includes('server rejected'));
     assert.equal(await page.evaluate(() => AppData.settlementAllocations.length), 0);
     assert.equal(await page.evaluate(() => window.localWrites), 0);
     await page.click('#alloc-submit');
