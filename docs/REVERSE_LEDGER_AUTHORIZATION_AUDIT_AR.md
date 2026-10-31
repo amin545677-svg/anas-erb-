@@ -28,6 +28,7 @@
 - `reverse_credit_issue`
 - `reverse_liquidity_override`
 - `reverse_legacy_reconcile`
+- `settlement_allocation_post`
 
 ## حدود السلامة وعدم الادعاء
 
