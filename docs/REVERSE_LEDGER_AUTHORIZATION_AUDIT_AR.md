@@ -371,3 +371,8 @@
 - رأس فرع `feat/atomic-reverse-ledger`: `a839a047b6915bd15cfba685f984baa658e8898c`.
 - جميع الفحوص على رأس PR #249 أعلاه نجحت: Safety Checks، Legacy Manual Suite، HTML Regression، Firebase Snapshot Worker Tests، Staging Test Gate، Service Worker Cache Regression، وWorkflow YAML Syntax.
 - سجل النشر الحي لWorker الحجز ما زال محجوباً لغياب أسرار Firebase Staging، ولا يعني نجاح اختبارات CI أن Worker نُشر أو أن الترحيل المالي أصبح فعالاً.
+
+
+### تصحيح حالة Draft النهائية
+
+أعاد فحص GitHub REST الأخير حالة PR #249 على أنها `open` و`draft=true`، مع بقاء القاعدة `staging/firebase-snapshot-worker` والرأس `a1d1bf3d...`. هذا هو أحدث وضع معتمد؛ السطر السابق الذي ذكر `draft=false` كان قراءة وسيطة متغيرة وتم تصحيحه هنا. PR #248 يظل مدمجاً في Staging، و`main` ثابت على SHA المجمد.
