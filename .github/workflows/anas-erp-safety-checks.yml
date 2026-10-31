@@ -1060,7 +1060,12 @@ jobs:
           end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate customer save function"
           fn = s[start:end]
+          helper_start = s.find("function anasCustomerDebtForSave(")
+          helper_end = s.find("\n        function ", helper_start + 10)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate customer debt helper"
+          helper_fn = s[helper_start:helper_end]
           js = r"""
+          /*INSERT_CUSTOMER_DEBT_HELPER*/
           /*INSERT_CUSTOMER_SAVE_FUNCTION*/
           const assert = require('node:assert/strict');
           global.alert = () => {};
@@ -1093,6 +1098,7 @@ jobs:
           assert.equal(AppData.customers[0].debt,5,'failed edit must restore prior debt');
           console.log('Customer save validation/rollback tests passed');
           """
+          js = js.replace("/*INSERT_CUSTOMER_DEBT_HELPER*/", helper_fn)
           js = js.replace("/*INSERT_CUSTOMER_SAVE_FUNCTION*/", fn)
           Path("/tmp/anas-customer-save-test.js").write_text(js, encoding="utf-8")
           PY
