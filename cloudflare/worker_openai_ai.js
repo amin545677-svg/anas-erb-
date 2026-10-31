@@ -162,12 +162,13 @@ export default {
     if (request.method !== "POST" || (url.pathname !== "/" && url.pathname !== "/chat")) {
       return json({ error: "Not found" }, 404, origin);
     }
-    const identity = await verifyFirebaseIdToken(request, env);
-    if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
-
+    // Fail closed on missing server configuration before authentication; no upstream call is possible.
     if (!env.OPENAI_API_KEY) {
       return json({ error: "AI gateway is missing the OPENAI_API_KEY secret." }, 503, origin);
     }
+
+    const identity = await verifyFirebaseIdToken(request, env);
+    if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
 
     let raw;
     try {
