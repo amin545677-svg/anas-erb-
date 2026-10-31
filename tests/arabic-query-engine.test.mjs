@@ -4,10 +4,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const match = html.match(/        \/\/ محرك استعلام موحد[\\s\\S]*?(?=        \/\/ بحث البيع:)/);
+const match = html.match(/        \/\/ محرك استعلام موحد[\s\S]*?(?=        \/\/ بحث البيع:)/);
 assert.ok(match, 'shared query engine must exist in index.html');
 const context = {};
-vm.runInNewContext(match[0] + '\\nthis.api = { anasNormalizeQueryText, anasQueryMatches, anasQueryScore };', context);
+vm.runInNewContext(match[0] + '\nthis.api = { anasNormalizeQueryText, anasQueryMatches, anasQueryScore };', context);
 const { anasNormalizeQueryText, anasQueryMatches, anasQueryScore } = context.api;
 
 test('normalizes Arabic alef variants, diacritics and tatweel', () => {
