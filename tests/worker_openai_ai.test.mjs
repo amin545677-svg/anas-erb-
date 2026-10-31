@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { generateKeyPairSync, createSign, webcrypto } from "node:crypto";
 
 // Load the real Worker source without changing the app's package/module settings.
 const source = await readFile(resolve("cloudflare/worker_openai_ai.js"), "utf8");
@@ -11,7 +12,7 @@ const { default: worker } = await import(moduleUrl);
 function request(path, { method = "GET", origin, body } = {}) {
   const headers = new Headers();
   if (origin) headers.set("Origin", origin);
-  if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (body !== undefined) { headers.set("Content-Type", "application/json"); headers.set("Authorization", "Bearer " + firebaseToken()); }
   return new Request("https://worker.test" + path, {
     method,
     headers,
@@ -19,6 +20,26 @@ function request(path, { method = "GET", origin, body } = {}) {
   });
 }
 
+const jwksUrl = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const firebaseJwk = { ...publicKey.export({ format: "jwk" }), kid: "test-firebase-key", alg: "RS256", use: "sig" };
+globalThis.crypto = webcrypto;
+function firebaseToken(overrides = {}) {
+  const encode = value => Buffer.from(value).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const header = encode(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "test-firebase-key" }));
+  const claims = encode(JSON.stringify({ aud: "anas-erb", iss: "https://securetoken.google.com/anas-erb", sub: "test-user", iat: now, exp: now + 3600, auth_time: now, ...overrides }));
+  const input = header + "." + claims;
+  const signer = createSign("RSA-SHA256"); signer.update(input); signer.end();
+  return input + "." + signer.sign(privateKey).toString("base64url");
+}
+function installFetch(mock = async () => { throw new Error("unexpected upstream request"); }) {
+  installFetch(async (url, init) => {
+    if (String(url) === jwksUrl) return new Response(JSON.stringify({ keys: [firebaseJwk] }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
+    return mock(url, init);
+  };
+}
+installFetch();
 const allowedOrigin = "https://amin545677-svg.github.io";
 
 test("health reports service status without exposing the API key", async () => {
@@ -54,7 +75,7 @@ test("missing API key returns a safe configuration error", async () => {
 
 test("invalid JSON is rejected before calling OpenAI", async () => {
   const oldFetch = globalThis.fetch;
-  globalThis.fetch = async () => { throw new Error("upstream must not be called"); };
+  installFetch(async () => { throw new Error("upstream must not be called"); });
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin, body: "{bad json"
