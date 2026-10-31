@@ -33,8 +33,8 @@ test("reservation endpoint requires Firebase bearer token",async()=>{
   assert.equal(r.status,401);
 });
 test("reservation endpoint rejects malformed JSON and non-object payloads",async()=>{
-  const noAuth=request("/reserve",{method:"POST",auth:false});
-  const r=await worker.fetch(new Request(noAuth.url,{method:"POST",headers:noAuth.headers,body:"{"}),env);
+  const malformed=request("/reserve",{method:"POST",body:{}});
+  const r=await worker.fetch(new Request(malformed.url,{method:"POST",headers:malformed.headers,body:"{"}),env);
   assert.equal(r.status,400);
 });
 test("browser cannot call a local or direct posting route",async()=>{
