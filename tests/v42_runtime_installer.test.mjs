@@ -357,3 +357,63 @@ test("runtime wrapper passes every invoice line to reconciliation and quarantine
   assert.equal(storage.json(MUTATION_KEYS.quarantined)[0].reason, "INSUFFICIENT_CLOUD_STOCK");
   assert.equal(installer.uninstall(), true);
 });
+
+
+test("runtime wiring fails closed for unsupported cash movements before local persistence", () => {
+  const initial = fixture();
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]"
+  });
+  const current = structuredClone(initial);
+  current.caisseBalance -= 250;
+  current.cashMovements.push({
+    id: "expense-001", type: "subtract", referenceType: "expense",
+    referenceId: "supplier_1", amount: 250
+  });
+  let persisted = false;
+  const windowObject = {};
+  const orchestrator = {
+    pushCurrent: async () => ({ status: "pushed" }),
+    reconcileAndSync: async () => ({ status: "synced" })
+  };
+  const installer = installV42RuntimeWiring({
+    windowObject, storage, orchestrator,
+    getAppData: () => current,
+    setAppData: () => {},
+    getSaveDB: () => () => { persisted = true; storage.setItem(MUTATION_KEYS.appData, JSON.stringify(current)); return true; },
+    setSaveDB: () => {},
+    mapMutation: () => { throw new Error("mapper must not classify an expense as a collection"); }
+  });
+  installer.install();
+  assert.throws(() => installer.wrappedSaveDB(),
+    /Unsupported cash movement/);
+  assert.equal(persisted, false, "unsupported movement must not reach original saveDB");
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.equal(JSON.parse(storage.getItem(MUTATION_KEYS.appData)).cashMovements.length, 0);
+  installer.uninstall();
+});
+
+test("runtime wiring rejects multiple appended business entities before local persistence", () => {
+  const initial = fixture();
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]"
+  });
+  const current = structuredClone(initial);
+  current.invoices.push({ id: "invoice-1", items: [], total: 10 });
+  current.invoices.push({ id: "invoice-2", items: [], total: 20 });
+  let persisted = false;
+  const installer = installV42RuntimeWiring({
+    windowObject: {}, storage,
+    orchestrator: { pushCurrent: async () => ({}), reconcileAndSync: async () => ({}) },
+    getAppData: () => current, setAppData: () => {},
+    getSaveDB: () => () => { persisted = true; return true; }, setSaveDB: () => {},
+    mapMutation: () => ({ type: "SALE_INVOICE", payload: { invoice: {} } })
+  });
+  installer.install();
+  assert.throws(() => installer.wrappedSaveDB(), /Unsupported multi-entity V42 save/);
+  assert.equal(persisted, false);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  installer.uninstall();
+});
