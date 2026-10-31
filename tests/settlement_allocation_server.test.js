@@ -26,6 +26,7 @@ test('normalizes a multi-invoice allocation request with exact integer centimes'
   assert.equal(result.allocations.length, 2);
   assert.equal(result.allocations[0].invoiceType, 'sales_invoice');
   assert.equal(result.allocations[1].amountCentimes, 2550);
+  assert.equal(normalizeAllocationRequest({ ...base, allocations: [{ invoiceId: 'INV-1', amountCentimes: '12550' }] }).allocations[0].amountCentimes, 12550);
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.allocations), true);
 });
@@ -49,7 +50,7 @@ test('rejects malformed IDs, party/source mismatch, duplicate invoices and fract
   ] }), /duplicate invoice/);
   assert.throws(() => normalizeAllocationRequest({ ...base, allocations: [
     { invoiceId: 'INV-1', amountCentimes: '1.001' }
-  ] }), /non-negative amount/);
+  ] }), /safe integer number of centimes/);
   assert.throws(() => normalizeAllocationRequest({ ...base, extra: true }), /unsupported allocation request fields/);
 });
 
