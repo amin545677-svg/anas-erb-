@@ -8653,18 +8653,101 @@ function renderPurchasesTable() {
         function old_autoResetAllInvoicesNow() {
             autoResetAllInvoicesNow();
         }
-        function cancelInvoicePrompt() {
-            alert('تنبيه أمني: إلغاء الفاتورة غير متاح مؤقتًا؛ حذف السجل وحده قد يفسد المخزون والحسابات. لم تتغير أي بيانات.');
+        function anasReverseInvoiceChoices(invoiceType) {
+            const rows = invoiceType === 'sales_invoice'
+                ? (Array.isArray(AppData.invoices) ? AppData.invoices : [])
+                : (Array.isArray(AppData.purchases) ? AppData.purchases : []);
+            return rows.filter(row => row && row.id != null).map(row => ({
+                invoiceId: String(row.id), date: row.date || '',
+                party: invoiceType === 'sales_invoice' ? (row.customer || row.customerObj?.name || '') : (row.supplierName || ''),
+                total: row.total, paidAtPosting: row.paid, remainingAtPosting: row.remaining,
+                items: (globalThis.ANASReverseLedger.originalInvoiceItems
+                    ? globalThis.ANASReverseLedger.originalInvoiceItems(row, invoiceType) : (row.items || []))
+                    .map(item => ({ productId: String(item.productId ?? item.id ?? item.product?.id ?? ''),
+                        quantity: item.qty ?? item.quantity, unitPrice: item.price ?? item.unitPrice ?? item.cost }))
+            }));
         }
 
-        // These legacy prompts did not perform a real return or update inventory/accounting.
-        // Avoid claiming a return was posted when no return transaction exists.
+        function anasExecuteReversePosting(request) {
+            try {
+                if (!globalThis.ANASReverseLedger || typeof globalThis.ANASReverseLedger.executeReturnTransaction !== 'function')
+                    throw new Error('محرك الترحيل العكسي غير محمّل؛ لم تتغير أي بيانات.');
+                const doc = globalThis.ANASReverseLedger.executeReturnTransaction(AppData, request, {
+                    operatorId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : 'system',
+                    persist: () => typeof saveDB === 'function' && saveDB() === true,
+                    validateSupplierParity: state => anasValidatePurchaseLedgerParity(state, 'runtime')
+                });
+                try {
+                    if (typeof renderInvoicesTable === 'function') renderInvoicesTable();
+                    if (typeof renderPurchasesTable === 'function') renderPurchasesTable();
+                    if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
+                    if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
+                    if (typeof updateCashUI === 'function') updateCashUI();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                    if (typeof updateUIState === 'function') updateUIState();
+                } catch (_) {}
+                alert('تم ترحيل المستند العكسي ذريًا بنجاح. رقم المستند: ' + doc.returnId +
+                    ' — القيمة: ' + (doc.totalCentimes / 100).toFixed(2) + ' دج.');
+                return doc;
+            } catch (error) {
+                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + (error?.message || 'فشل التحقق أو الحفظ') +
+                    '. أُعيدت الأرصدة والمخزون والدفاتر إلى ما قبل العملية.');
+                return null;
+            }
+        }
+
+        function anasReadReversePrompt(promptText, choices) {
+            const raw = prompt(promptText + '\\nالفواتير المتاحة: ' + JSON.stringify(choices), '');
+            if (raw === null) return null;
+            let value;
+            try { value = JSON.parse(raw); }
+            catch (_) { alert('صيغة JSON غير صحيحة؛ لم تتغير أي بيانات.'); return null; }
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                alert('يجب إدخال كائن JSON صالح؛ لم تتغير أي بيانات.'); return null;
+            }
+            return value;
+        }
+
+        function cancelInvoicePrompt() {
+            const choices = [
+                ...anasReverseInvoiceChoices('sales_invoice').map(row => ({...row, invoiceType:'sales_invoice'})),
+                ...anasReverseInvoiceChoices('purchase_invoice').map(row => ({...row, invoiceType:'purchase_invoice'}))
+            ];
+            const request = anasReadReversePrompt(
+                'إلغاء كامل لفاتورة مؤهلة فقط. أدخل JSON مثل: {"invoiceType":"sales_invoice","invoiceId":"INV-1","reason":"سبب الإلغاء"}.',
+                choices);
+            if (!request) return;
+            if (!['sales_invoice','purchase_invoice'].includes(request.invoiceType) || request.invoiceId == null || !String(request.reason || '').trim()) {
+                alert('حدد نوع الفاتورة ومعرّفها وسبب الإلغاء صراحةً.'); return;
+            }
+            return anasExecuteReversePosting({
+                originalInvoiceType:request.invoiceType, returnType:'INVOICE_CANCEL',
+                invoiceId:String(request.invoiceId), reason:String(request.reason)
+            });
+        }
+
         function returnSalePrompt() {
-            alert('إرجاع المبيعات غير متاح بعد كعملية محاسبية كاملة. لم يتم تعديل الفاتورة أو المخزون أو الحسابات.');
+            const request = anasReadReversePrompt(
+                'أدخل مرتجع المبيعات بصيغة JSON مثل: {"invoiceId":"INV-1","items":[{"productId":"P-1","quantity":"1"}],"settlementMode":"cash","reason":"سبب المرتجع"}. استخدم settlementMode cash لرد نقدي أو credit لرصيد دائن موثق للعميل.',
+                anasReverseInvoiceChoices('sales_invoice'));
+            if (!request) return;
+            return anasExecuteReversePosting({
+                originalInvoiceType:'sales_invoice', returnType:'SALE_RETURN',
+                invoiceId:String(request.invoiceId ?? ''), items:request.items,
+                settlementMode:request.settlementMode, reason:String(request.reason || '')
+            });
         }
 
         function returnPurchasePrompt() {
-            alert('إرجاع المشتريات غير متاح بعد كعملية محاسبية كاملة. لم يتم تعديل الفاتورة أو المخزون أو الحسابات.');
+            const request = anasReadReversePrompt(
+                'أدخل مرتجع المشتريات بصيغة JSON مثل: {"invoiceId":"PUR-1","items":[{"productId":"P-1","quantity":"1"}],"settlementMode":"cash","reason":"سبب المرتجع"}. cash يعيد المبلغ إلى الصندوق، وcredit يسجله رصيدًا دائنًا للمورد.',
+                anasReverseInvoiceChoices('purchase_invoice'));
+            if (!request) return;
+            return anasExecuteReversePosting({
+                originalInvoiceType:'purchase_invoice', returnType:'PURCHASE_RETURN',
+                invoiceId:String(request.invoiceId ?? ''), items:request.items,
+                settlementMode:request.settlementMode, reason:String(request.reason || '')
+            });
         }
 
         function old_cancelInvoicePrompt() {
