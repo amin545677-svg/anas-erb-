@@ -57,6 +57,7 @@ function saleReturnInventoryValuation(input) {
   if (!input || typeof input !== 'object') throw new Error('sale return valuation input is required');
   const stock = nonNegative(input.currentStockMicroUnits, 'current stock');
   const book = nonNegative(input.currentInventoryValueCentimes, 'current inventory value');
+  if (stock === 0n && book !== 0n) throw new Error('zero stock must not retain inventory book value');
   const quantity = positive(input.returnQuantityMicroUnits, 'return quantity');
   const historicalCost = cumulativeDeltaCentimes(
     input.originalSaleCostCentimes,
