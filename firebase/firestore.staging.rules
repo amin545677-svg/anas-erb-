@@ -2,11 +2,31 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Staging: authenticated users can access only their own latest ANAS ERP snapshot.
+    // Staging snapshot surface only; never treat this client-writable backup as ledger authority.
     match /users/{uid}/snapshots/{snapshotId} {
       allow read, write: if request.auth != null
         && request.auth.uid == uid
         && snapshotId == "latest";
+    }
+
+    // Trusted reverse-ledger control plane: service accounts only (Admin SDK bypasses Rules).
+    match /reverseLedgerGrants/{uid} {
+      allow read, write: if false;
+    }
+    match /financialPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerOperations/{operationId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerApprovals/{approvalId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerState/{stateId} {
+      allow read, write: if false;
+    }
+    match /reverseLedgerEntries/{entryId} {
+      allow read, write: if false;
     }
   }
 }
