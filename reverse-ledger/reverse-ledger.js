@@ -450,6 +450,32 @@
         );
         if (expectedLine !== line)
           throw new Error('return line amount does not match cumulative centime valuation');
+        const restoredInventoryCostCentimes = BigInt(safeInt(item.restoredInventoryCostCentimes ?? 0, 'restored inventory cost centimes', true));
+        const inventoryBookValueCentimes = BigInt(safeInt(item.inventoryBookValueCentimes ?? 0, 'inventory book value centimes', true));
+        const valuationVarianceCentimes = item.valuationVarianceCentimes ?? 0;
+        if (!Number.isSafeInteger(valuationVarianceCentimes))
+          throw new Error('return valuation variance must be a safe signed integer');
+        if (doc.originalInvoiceType === 'sales_invoice') {
+          const saleOutRows = stockRows.filter(row => row && row.type === 'SALE_OUT' &&
+            row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id) &&
+            String(row.productId) === productId);
+          if (saleOutRows.length !== 1)
+            throw new Error('original SALE_OUT cost record is missing or ambiguous');
+          const sourceQuantity = BigInt(safeInt(saleOutRows[0].originalSaleQuantityMicroUnits, 'original sale quantity micro-units', false));
+          const sourceCost = BigInt(safeInt(saleOutRows[0].originalSaleCostCentimes, 'original sale historical cost centimes', true));
+          if (sourceQuantity !== originalQty ||
+              quantityToMicroUnits(String(Math.abs(Number(saleOutRows[0].qty ?? saleOutRows[0].quantity))), 'original SALE_OUT quantity') !== sourceQuantity)
+            throw new Error('original SALE_OUT cost basis does not match the original invoice line');
+          const expectedRestoredCost = cumulativeDeltaCentimes(
+            sourceCost, sourceQuantity, previouslyReturnedMicroUnits, qty
+          );
+          if (restoredInventoryCostCentimes !== expectedRestoredCost ||
+              inventoryBookValueCentimes !== 0n || valuationVarianceCentimes !== 0)
+            throw new Error('sale return historical inventory cost does not reconcile');
+        } else if (restoredInventoryCostCentimes !== 0n ||
+            BigInt(line) - inventoryBookValueCentimes !== BigInt(valuationVarianceCentimes)) {
+          throw new Error('purchase return inventory book value and valuation variance do not reconcile');
+        }
         lineTotal += line;
       }
       if (lineTotal !== BigInt(safeInt(doc.totalCentimes, 'return total', true)))
@@ -499,6 +525,16 @@
         const movementQty = quantityToMicroUnits(String(Math.abs(numericQty)), 'return stock movement quantity');
         if (movementQty !== BigInt(doc.items[i].quantityMicroUnits))
           throw new Error('posted return stock quantity does not match return document');
+        const item = doc.items[i];
+        if (doc.originalInvoiceType === 'sales_invoice' &&
+            safeInt(matchesStock[0].restoredInventoryCostCentimes, 'stock movement restored inventory cost', true) !==
+              safeInt(item.restoredInventoryCostCentimes, 'return restored inventory cost', true))
+          throw new Error('sale return stock movement historical cost does not match its return document');
+        if (doc.originalInvoiceType === 'purchase_invoice' &&
+            (safeInt(matchesStock[0].inventoryBookValueCentimes, 'stock movement inventory book value', true) !==
+              safeInt(item.inventoryBookValueCentimes, 'return inventory book value', true) ||
+             matchesStock[0].valuationVarianceCentimes !== item.valuationVarianceCentimes))
+          throw new Error('purchase return stock movement valuation does not match its return document');
         referencedStockMovementIds.add(String(recordId(matchesStock[0])));
       }
       const financialIds = Array.isArray(doc.financialMovementIds) ? doc.financialMovementIds : [];
