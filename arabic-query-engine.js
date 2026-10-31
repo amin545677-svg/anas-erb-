@@ -1,12 +1,14 @@
 (function(root){
 'use strict';
+const slash=String.fromCharCode(92);
+const marks=new RegExp('['+String.fromCharCode(0x064B)+'-'+String.fromCharCode(0x065F)+String.fromCharCode(0x0670)+String.fromCharCode(0x0640)+']','g');
+const spaces=new RegExp(slash+'s+','g');
 function anasNormalizeQueryText(value){
- return String(value??'').normalize('NFKC').toLocaleLowerCase('ar')
- .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g,'')
+ return String(value??'').normalize('NFKC').toLocaleLowerCase('ar').replace(marks,'')
  .replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي')
  .replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660))
  .replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0))
- .replace(/\\s+/g,' ').trim();
+ .replace(spaces,' ').trim();
 }
 function anasQueryMatches(fields,query){
  const q=anasNormalizeQueryText(query);if(!q)return true;
@@ -17,7 +19,7 @@ function anasQueryMatches(fields,query){
 function anasQueryScore(fields,query){
  const q=anasNormalizeQueryText(query);if(!q)return 0;
  const values=(Array.isArray(fields)?fields:[fields]).map(anasNormalizeQueryText);
- if(values.some(v=>v===q))return 100;if(values.some(v=>v.startsWith(q)))return 70;if(values.some(v=>v.includes(q)))return 50;return 10;
+ if(values.some(v=>v===q))return 100;if(values.some(v=>v.startsWith(q))return 70;if(values.some(v=>v.includes(q))return 50;return 10;
 }
 root.anasNormalizeQueryText=anasNormalizeQueryText;root.anasQueryMatches=anasQueryMatches;root.anasQueryScore=anasQueryScore;
 if(typeof module!=='undefined'&&module.exports)module.exports={anasNormalizeQueryText,anasQueryMatches,anasQueryScore};
