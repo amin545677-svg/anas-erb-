@@ -48,7 +48,7 @@
       "request": {
         "operationId": "REV-STAGE-INVOICE-CANCEL-0001",
         "periodId": "REPLACE_WITH_OPEN_STAGING_PERIOD_ID",
-        "invoiceId": "REPLACE_WITH_STAGING_SALES_INVOICE_V2_ID",
+        "invoiceId": "REPLACE_WITH_SEPARATE_STAGING_SALES_INVOICE_V2_ID",
         "originalInvoiceType": "sales_invoice",
         "returnType": "INVOICE_CANCEL",
         "settlementMode": "cash",
