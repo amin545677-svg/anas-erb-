@@ -3705,6 +3705,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
                 paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
+                invoiceLedgerVersion: discountCents === 0 ? 2 : 1,
                 oldDebt, newDebt
             };
 
@@ -4494,7 +4495,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
 
                 const purchase = {
-                    ledgerVersion: 1, id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
+                    ledgerVersion: 1, invoiceLedgerVersion: 2,
+                    id: purchaseId, productId: existingProduct ? existingProduct.id : AppData.products[AppData.products.length - 1].id,
                     name, cost: anasPurchaseCentsToCurrency(costCents), qty: anasPurchaseQtyFromUnits(qtyUnits),
                     total: anasPurchaseCentsToCurrency(totalCents), paid: anasPurchaseCentsToCurrency(paidCents),
                     remaining: anasPurchaseCentsToCurrency(remainingCents),
