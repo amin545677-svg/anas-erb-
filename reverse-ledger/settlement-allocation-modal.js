@@ -376,7 +376,7 @@ function open() {
     renderParties();
     refresh();
   } catch (error) {
-    setStatus(error && error.message ? error.message : 'بيانات التطبيق غير جاهزة.', false);
+    status(error && error.message ? error.message : 'بيانات التطبيق غير جاهزة.', false);
     const submitButton = byId('alloc-submit');
     if (submitButton) submitButton.disabled = true;
   }
