@@ -1,4 +1,5 @@
 name: Deploy Reverse Ledger Firebase Functions (Staging)
+# Scoped push-trigger probe: 2026-10-31 live Staging preflight.
 
 on:
   workflow_dispatch:
