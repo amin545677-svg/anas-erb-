@@ -52,9 +52,10 @@ jobs:
           node --check functions/reverse-ledger-adapter.js
           node --check functions/reverse-ledger-service.js
           node --check functions/reverse-ledger-backup-service.js
+          node --check functions/settlement-allocation-service.js
 
       - name: Run reverse-ledger adapter and authorization tests
-        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js
+        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
       - name: Require staging service account
         env:
@@ -76,7 +77,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
         run: |
           npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
+            --only firestore:rules,functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
             --project anas-erp-staging-a25e1 \
             --config firebase.staging.json \
             --non-interactive
