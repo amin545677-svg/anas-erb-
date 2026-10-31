@@ -1761,7 +1761,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <!-- شاشة أرصدة كل مخزن -->
         <section id="view-warehouse-stock" class="page-view">
             <div class="sub-header-bar"><button class="btn-arrow-back" onclick="openView('inventory')">‹</button><div class="sub-header-title">أرصدة المخازن</div></div>
-            <div class="content-area" style="padding:14px;"><div class="field-group"><label>اختر المخزن</label><select id="wsWarehouse" class="field-input" onchange="wtRenderWarehouseStock()"></select></div><div id="wsList"></div></div>
+            <div class="content-area" style="padding:14px;"><div class="field-group"><label>اختر المخزن</label><select id="wsWarehouse" class="field-input" onchange="wtRenderWarehouseStock()"></select></div><div id="wsList"></div><div class="menu-action-card" style="display:block;margin-top:14px;padding:14px;"><strong>🧾 تدقيق سجل التحويلات</strong><p style="font-size:13px;color:#64748b;">مطابقة سندات التحويل مع حركتي الخروج والدخول، وكشف التكرار والحركات اليتيمة دون تعديل الأرصدة.</p><button class="btn-pos-hasib" style="width:100%;" onclick="wtAuditTransfers()">بدء التدقيق الآن</button><div id="wsAudit" aria-live="polite" style="margin-top:10px;"></div></div></div>
         </section>
 
         <!-- 10. شاشة الاستعلامات والتقارير الشاملة (المطابقة حرفياً للفيديو) -->
@@ -5137,6 +5137,15 @@ function renderPurchasesTable() {
         function wtPrintVoucher(id){const d=(AppData.warehouseTransfers||[]).find(x=>String(x.id)===String(id));if(!d){alert('السند غير موجود.');return;}const w=window.open('','_blank');if(!w){alert('اسمح بفتح نافذة الطباعة من إعدادات المتصفح.');return;}w.document.write(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>سند تحويل ${wtEsc(d.number)}</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#111}h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{border:1px solid #444;padding:12px;text-align:right}.sign{display:flex;justify-content:space-between;margin-top:60px}</style><h2>سند تحويل بين المخازن</h2><p>رقم السند: ${wtEsc(d.number)}</p><p>التاريخ: ${wtEsc(new Date(d.date).toLocaleString('ar-DZ'))}</p><table><tr><th>المخزن المصدر</th><td>${wtEsc(d.from)}</td></tr><tr><th>المخزن الوجهة</th><td>${wtEsc(d.to)}</td></tr><tr><th>المنتج</th><td>${wtEsc(d.productName)}</td></tr><tr><th>الكمية</th><td>${Number(d.quantity)} ${wtEsc(d.unit)}</td></tr><tr><th>سعر الشراء للوحدة</th><td>${d.buyPrice==null?'غير محدد':wtMoney(d.buyPrice)+' د.ج'}</td></tr><tr><th>إجمالي الشراء</th><td>${d.buyTotal==null?'غير محدد':wtMoney(d.buyTotal)+' د.ج'}</td></tr><tr><th>سعر البيع للوحدة</th><td>${d.salePrice==null?'غير محدد':wtMoney(d.salePrice)+' د.ج'}</td></tr><tr><th>إجمالي البيع</th><td>${d.saleTotal==null?'غير محدد':wtMoney(d.saleTotal)+' د.ج'}</td></tr><tr><th>المسؤول</th><td>${wtEsc(d.user)}</td></tr><tr><th>ملاحظة</th><td>${wtEsc(d.note||'—')}</td></tr></table><div class="sign"><span>توقيع المسلم: __________</span><span>توقيع المستلم: __________</span></div><script>window.onload=()=>window.print()<\/script></html>`);w.document.close();}
         function wtInitStockScreen(){if(!wtTryEnsureData())return;const sel=document.getElementById('wsWarehouse');if(!sel)return;const old=sel.value,wh=wtWarehouses();sel.innerHTML=wh.map(n=>`<option value="${wtEsc(n)}">${wtEsc(n)}</option>`).join('');if(wh.includes(old))sel.value=old;wtRenderWarehouseStock();}
         function wtRenderWarehouseStock(){const sel=document.getElementById('wsWarehouse'),box=document.getElementById('wsList');if(!sel||!box)return;const wh=sel.value;box.innerHTML=(AppData.products||[]).map(p=>`<div class="menu-action-card" style="margin:7px 0;"><strong>${wtEsc(p.name)}</strong><br><span>الرصيد في ${wtEsc(wh)}: <b>${wtBalanceLabel(p,wh)} ${wtEsc(p.unit||'')}</b></span></div>`).join('')||'<p>لا توجد منتجات.</p>';}
+        function wtAuditTransfers(){
+            const box=document.getElementById('wsAudit');if(!box)return;
+            try{
+                if(typeof window.anasAuditWarehouseTransfers!=='function')throw new Error('تعذر تحميل وحدة تدقيق التحويلات. أعد تحميل الصفحة ثم حاول مجدداً.');
+                const result=window.anasAuditWarehouseTransfers(AppData.warehouseTransfers||[],AppData.stockMovements||[]);
+                const summary=result.ok?'لا توجد تعارضات في سجلات التحويل التي تمت مراجعتها.':'تم العثور على '+result.issueCount+' ملاحظة تتطلب المراجعة.';
+                box.innerHTML='<div style="padding:12px;border:1px solid '+(result.ok?'#86efac':'#fca5a5')+';border-radius:9px;background:'+(result.ok?'#f0fdf4':'#fef2f2')+';"><strong>'+wtEsc(summary)+'</strong><div style="margin-top:5px;">السندات المفحوصة: '+result.checked+' · الملاحظات: '+result.issueCount+'</div>'+(result.issues.length?'<ul style="padding-right:20px;margin:8px 0;">'+result.issues.map(x=>'<li>'+wtEsc(x.message)+'</li>').join('')+'</ul>':'')+'</div>';
+            }catch(e){box.textContent='تعذر إكمال التدقيق: '+(e.message||e);}
+        }
 
         function renderInventoryList() {
             const cont = document.getElementById('inventoryItemsContainer');
@@ -9336,5 +9345,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         });
       })();
     </script>
+<script src="./warehouse-transfer-audit.js"></script>
 </body>
 </html>
