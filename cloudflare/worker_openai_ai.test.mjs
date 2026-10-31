@@ -113,3 +113,47 @@ test("rejects a token with a tampered RS256 signature before contacting OpenAI",
     assert.equal(openAiCalls, 0);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("explains incomplete business metrics and unavailable cash balance instead of presenting false totals", async () => {
+  const originalFetch = globalThis.fetch;
+  let openAiPayload = null;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes("securetoken@system.gserviceaccount.com"))
+      return new Response(JSON.stringify({ keys: [jwk] }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      openAiPayload = JSON.parse(options.body);
+      return new Response(JSON.stringify({ output: [{ type: "message", content: [{ type: "output_text", text: "المجاميع جزئية ورصيد الصندوق غير متاح." }] }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    throw new Error("unexpected URL: " + url);
+  };
+  try {
+    const businessData = {
+      totals: { invoiceTotalsDZD: 1200, cashBalanceDZD: null },
+      dataQuality: {
+        hasIncompleteFinancialData: true,
+        incompleteMetrics: ["cashBalanceDZD"],
+        metricCoverage: { cashBalanceDZD: { validRecords: 0, invalidRecords: 1 } }
+      }
+    };
+    const token = makeToken();
+    const response = await worker.fetch(new Request("https://worker.test/", {
+      method: "POST",
+      headers: {
+        Origin: "https://amin545677-svg.github.io",
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+      },
+      body: JSON.stringify({ message: "حلل البيانات المالية", businessData })
+    }), { OPENAI_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" });
+    assert.equal(response.status, 200);
+    assert.ok(openAiPayload);
+    assert.match(openAiPayload.instructions, /dataQuality\.hasIncompleteFinancialData/);
+    assert.match(openAiPayload.instructions, /metricCoverage/);
+    assert.match(openAiPayload.instructions, /cashBalanceDZD/);
+    assert.match(openAiPayload.instructions, /لا تستبدل القيمة المفقودة بصفر/);
+    assert.match(openAiPayload.input, /"hasIncompleteFinancialData":true/);
+    assert.match(openAiPayload.input, /"cashBalanceDZD":null/);
+    assert.equal(openAiPayload.store, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
