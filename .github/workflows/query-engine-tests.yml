@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - 'feat/query-engine-arabic-search-v1'
+      - 'feat/customer-directory-debt-filters'
     paths:
       - 'index.html'
       - 'tests/arabic-query-engine.test.mjs'
