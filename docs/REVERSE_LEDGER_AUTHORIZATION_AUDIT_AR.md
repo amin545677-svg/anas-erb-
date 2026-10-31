@@ -279,3 +279,72 @@
 - `main` يبقى عند `507f4a1bbd4e5071edbcb531c8232bd674494850`.
 - PR #248 وPR #249 يبقيان Draft.
 - هوية ANAS ERP الإنتاجية تبقى V42.
+
+
+## استكمال التكامل المحاسبي والحجز الذري — 2026-10-31
+
+### تكامل Cumulative Delta داخل النواة
+
+- تم تعديل `reverse-ledger/reverse-ledger.js` بحيث لا يحسب قيمة سطر المرتجع من ضرب كمية عائمة في سعر الوحدة.
+- كل سطر مرتجع يحمل الآن أساس التقييم: `originalLineTotalCentimes` و`originalQuantityMicroUnits` و`previouslyReturnedMicroUnits`.
+- يحسب المحرك فرق القيمة التراكمية باستخدام BigInt، ويرفض أي قيمة لا تطابق أساس الفاتورة.
+- يعيد `validateReturns()` بناء الكميات السابقة من مستندات POSTED مرتبة زمنياً، ويرفض تزوير `previouslyReturnedMicroUnits`.
+- أضيف اختبار تكاملي لمصنع المستندات يثبت 100 سنتيم / 3 وحدات = 33 + 34 + 33، ويرفض إسناد 34 سنتيم إلى الشريحة الأولى.
+
+### تكلفة المبيعات التاريخية وWAC
+
+- تسجيل حركة `SALE_OUT` الجديدة يحفظ `originalSaleQuantityMicroUnits` و`originalSaleCostCentimes` من متوسط تكلفة المنتج وقت البيع.
+- مرتجع المبيعات يعيد المخزون بتكلفة البيع التاريخية المحفوظة، لا بسعر البيع ولا بـWAC الحالي.
+- بعد المرتجع يعاد حساب `product.buyPrice` من قيمة المخزون الدفترية الجديدة والكمية الجديدة.
+- إذا كانت حركة البيع التاريخية مفقودة أو لا تطابق الفاتورة، يرفض المحرك المرتجع دون أي تعديل.
+- مرتجع المشتريات يخصم قيمة المخزون وفق WAC الحالي، ويسجل `inventoryBookValueCentimes` و`valuationVarianceCentimes` على مستند المرتجع وحركة المخزون.
+- إشارة فرق التقييم: الموجب يعني تسوية المورد أعلى من القيمة الدفترية المستبعدة، والسالب يعني أنها أقل.
+- تم توسيع فحص Snapshot Worker للتحقق من سلامة مقادير COGS والتقييم، مع السماح بالقيمة التاريخية `null` في حركات البيع القديمة التي لا تملك أساس تكلفة محفوظاً.
+
+### بوابة الحجز الخادمية
+
+- تم تحويل فحص Grant والفترة ووجود `operationId` إلى Firestore read-write transaction واحدة.
+- تقرأ المعاملة وثيقة Grant والفترة وسجل العملية داخل transaction، ثم تنشئ الحجز بشرط `currentDocument.exists=false` ضمن commit نفسه.
+- فشل الصلاحية أو إغلاق الفترة يؤدي إلى rollback ولا ينشئ حجزاً.
+- تم التحقق من Firebase UID ومطابقة `sub/user_id/aud/iss/auth_time/iat/exp`، كما أزيل `sub` غير الضروري من JWT الخاص بحساب الخدمة لتجنب طلب Domain-Wide Delegation.
+- رفض Worker أي حقول مالية يرسلها العميل؛ الطلب لا يقبل إلا `operationId/type/invoiceId/periodId`.
+- الحجز **لا يرحّل الدفاتر**: `postingEnabled=false`، ولا يوجد endpoint للترحيل. هذا قيد أمان مقصود حتى يكتمل مصدر الحالة المالية الخادمي وترحيل البيانات الموثوق.
+
+### قواعد Firestore والنشر إلى Staging
+
+- أضيفت قيود صريحة في `firebase/firestore.rules` و`firebase/firestore.staging.rules` تمنع العميل من قراءة أو تعديل `reverseLedgerGrants` و`financialPeriods` و`reverseLedgerOperations` وغيرها من مجموعات التحكم.
+- أضيف Workflow مستقل لنشر قواعد Staging فقط ثم Worker الحجز المعزول والتحقق من `/health` ورفض الطلب غير المصادق ورفض Origin غير الموثوق.
+- اختبارات النشر المحلية وWorker نجحت، لكن النشر الحي لم يتم لأن أسرار Firebase Staging التالية غير موجودة في GitHub Actions:
+  - `FIREBASE_STAGING_API_KEY`
+  - `FIREBASE_STAGING_SERVICE_ACCOUNT_JSON`
+- أظهر سجل التشغيل أن `CLOUDFLARE_API_TOKEN` و`CLOUDFLARE_ACCOUNT_ID` متوفران. لا تُرسل مفاتيح أو JSON الخدمة في المحادثة؛ أضفهما من إعدادات أسرار المستودع.
+
+### إثبات CI على الالتزام
+
+**SHA:** `f998a61053dd17724f214ecaf78de61a1f1d1096`
+
+- ANAS ERP Safety Checks: SUCCESS — run `41152725108`.
+- ANAS ERP HTML Regression Checks: SUCCESS — run `41152724967`.
+- Firebase Snapshot Worker Tests: SUCCESS — run `41152724919`; `57 passed / 0 failed`.
+- Staging Test Gate: SUCCESS — run `41152724962`.
+- Service Worker Cache Regression: SUCCESS — run `41152724964`.
+- Workflow YAML Syntax Validation: SUCCESS — run `41152725082`.
+- Legacy Manual Safety Suite: SUCCESS — run `41152725062`.
+- Safety suite: `30 passed / 0 failed`.
+- Chromium fail-closed: `5 passed / 0 failed`; `CHROMIUM_REVERSE_LEDGER_FAIL_CLOSED_REPORT` يثبت `responseIsNull=true` و`unchanged=true` و`localEngineCalls=0`.
+- HTML Regression sub-suites: `26 + 13 + 9 + 12` اختبارات ناجحة دون إخفاق.
+
+### ما لا يزال يمنع اعتماد الترحيل
+
+1. Worker الحجز لا ينفذ ترحيلاً محاسبياً؛ يلزم بناء posting endpoint خادمي واحد يشتق المبالغ من الحالة الأصلية الموثوقة ويكتب جميع الدفاتر والمخزون والصندوق ومستند العملية في Firestore transaction واحدة.
+2. يلزم إنشاء/اعتماد `reverseLedgerState/current` كمصدر حالة خادمي، وعدم استخدام snapshot القابل لكتابة المستخدم كمرجع محاسبي.
+3. يلزم تهيئة Grants والفترات المالية من مسؤول مخول، ثم نشر قواعد Staging وWorker بعد إضافة سري Firebase المذكورين.
+4. يلزم تنفيذ سيناريوهات Chromium الاثني عشر وإنتاج `CHROMIUM_REVERSE_LEDGER_FULL_REPORT` ذي الحقول العشرة؛ تقرير الرفض المغلق لا يثبت نجاح الترحيل.
+5. يلزم اختبار إعادة التحميل/التصدير/الاستعادة بعد ترحيل الحالة الخادمية، واختبار تنافس جهازين على العملية نفسها.
+
+### حماية الفرع والإنتاج
+
+- `main` تم التحقق من استعادته إلى البصمة المجمدة `507f4a1bbd4e5071edbcb531c8232bd674494850`.
+- PR #248 وPR #249 لا يزالان مفتوحين وDraft.
+- هوية التطبيق الإنتاجية ما زالت ANAS ERP v42.
+- لا دمج ولا نشر إنتاج، ولا تفعيل لزر الترحيل.
