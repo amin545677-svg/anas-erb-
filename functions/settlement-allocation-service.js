@@ -302,4 +302,4 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
   };
 }
 
-module.exports = Object.freeze({ normalizeAllocationRequest, createSettlementAllocationHandler });
+module.exports = Object.freeze({ toCentimes, integerCentimes, normalizeAllocationRequest, createSettlementAllocationHandler });
