@@ -34,7 +34,7 @@ test('Chromium loads reverse-ledger primitives and enforces exact return ceiling
 test('Chromium blocks browser-local reverse posting when trusted server gateway is absent', async () => {
  const html = fs.readFileSync(path.join(process.cwd(),'index.html'),'utf8');
  const start = html.indexOf('function anasExecuteReversePosting(');
- const end = html.indexOf('\\n        function ', start + 30);
+ const end = html.indexOf('\n        function ', start + 30);
  assert.ok(start >= 0 && end > start, 'guarded reverse posting entry point must be present');
  const browser = await chromium.launch({headless:true});
  try {
