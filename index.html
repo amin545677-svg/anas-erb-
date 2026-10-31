@@ -2126,6 +2126,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div class="sub-header-title">ذمم العملاء (الكريدي)</div>
                 <div>👥</div>
             </div>
+            <input id="customerDebtSearch" type="search" class="field-input" placeholder="ابحث عن العميل أو الهاتف أو الرقم الجبائي..." aria-label="البحث في ذمم العملاء" oninput="renderCustomersDebts()" style="margin-top:10px;width:100%;">
+            <div id="customerDebtFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="custDebtsContainer" style="margin-top:10px;"></div>
         </section>
 
@@ -2135,6 +2137,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div class="sub-header-title">مستحقات الموردين</div>
                 <div>🤝</div>
             </div>
+            <input id="supplierDebtSearch" type="search" class="field-input" placeholder="ابحث عن المورد أو الهاتف أو الرقم الجبائي..." aria-label="البحث في مستحقات الموردين" oninput="renderSuppliersDebts()" style="margin-top:10px;width:100%;">
+            <div id="supplierDebtFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="suppDebtsContainer" style="margin-top:10px;"></div>
         </section>
 
@@ -2149,6 +2153,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="font-size:12px;color:#475569;margin-bottom:10px;">يطبع آخر فاتورة محفوظة بتنسيق A4 مع بيانات المؤسسة والزبون والأصناف والمبالغ.</div>
                 <button class="btn-full-submit" style="margin:0;background:#1d4ed8;" onclick="printLatestLegalCustomerInvoice()">📄 إصدار / طباعة الفاتورة القانونية</button>
             </div>
+            <input id="invoiceListSearch" type="search" class="field-input" placeholder="ابحث برقم الفاتورة أو العميل أو التاريخ أو المبلغ..." aria-label="البحث في فواتير المبيعات" oninput="renderInvoicesList()" style="margin-top:10px;width:100%;">
+            <div id="invoiceListFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="invoicesListContainer" style="margin-top:10px;"></div>
         </section>
         <!-- إدارة حركة الشاحنات والحمولات - محفوظة محلياً -->
@@ -3010,11 +3016,34 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             });
         }
 
+        // محرك استعلام موحد للبحث المحلي: تطبيع عربي/لاتيني، مطابقة جميع الكلمات، وترتيب النتائج.
+        function anasNormalizeQueryText(value) {
+            return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ar')
+                .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+                .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
+                .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+                .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+                .replace(/\s+/g, ' ').trim();
+        }
+        function anasQueryMatches(fields, query) {
+            const q = anasNormalizeQueryText(query);
+            if (!q) return true;
+            const haystack = anasNormalizeQueryText((Array.isArray(fields) ? fields : [fields]).filter(v => v != null).join(' '));
+            return q.split(' ').filter(Boolean).every(token => haystack.includes(token));
+        }
+        function anasQueryScore(fields, query) {
+            const q = anasNormalizeQueryText(query);
+            if (!q) return 0;
+            const values = (Array.isArray(fields) ? fields : [fields]).map(anasNormalizeQueryText);
+            if (values.some(v => v === q)) return 100;
+            if (values.some(v => v.startsWith(q))) return 70;
+            if (values.some(v => v.includes(q))) return 50;
+            return 10;
+        }
+
         // بحث البيع: يعرض اقتراحات واضحة ولا يضيف السلعة تلقائياً أثناء الكتابة.
         let posSearchActiveIndex = -1;
-        function normalizePosSearch(value) {
-            return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ar').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').trim();
-        }
+        function normalizePosSearch(value) { return anasNormalizeQueryText(value); }
         function handlePosSearch(query) {
             const input = document.getElementById('posSearchField');
             const results = document.getElementById('posSearchResults');
@@ -3023,11 +3052,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             posSearchActiveIndex = -1;
             if (!q) { results.hidden = true; results.innerHTML = ''; return; }
             const products = Array.isArray(AppData?.products) ? AppData.products : [];
-            const matches = products.filter(p => {
-                const name = normalizePosSearch(p.name);
-                const barcode = normalizePosSearch(p.barcode);
-                return name.includes(q) || barcode.includes(q);
-            }).slice(0, 12);
+            const matches = products.map((p, index) => ({p, index, score: anasQueryScore([p.name, p.barcode, p.sku, p.code], q)}))
+                .filter(item => anasQueryMatches([item.p.name, item.p.barcode, item.p.sku, item.p.code], q))
+                .sort((a, b) => b.score - a.score || a.index - b.index)
+                .slice(0, 12).map(item => item.p);
             const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
             if (!matches.length) {
                 results.innerHTML = '<div class="pos-search-empty">لا توجد منتجات مطابقة</div>';
@@ -4189,12 +4217,24 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.replaceChildren();
             const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
+            const query = anasNormalizeQueryText(document.getElementById('customerDebtSearch')?.value || '');
+            const filteredCustomers = customers.filter(c => c && anasQueryMatches([
+                c.name, c.phone, c.phone2, c.address, c.rc, c.nif, c.nis, c.art, c.debt
+            ], query));
+            const filterStatus = document.getElementById('customerDebtFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredCustomers.length + ' من ' + customers.length + ' عميلاً.'
+                : 'إجمالي العملاء: ' + customers.length + '.';
             if (!customers.length) {
                 cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا يوجد عملاء مسجلون بعد. استخدم «إضافة عميل جديد» أولاً.</div>';
                 return;
             }
+            if (!filteredCustomers.length) {
+                cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا توجد حسابات عملاء مطابقة. غيّر كلمات البحث أو امسحها.</div>';
+                return;
+            }
             const esc = value => anasEscapeHTML(String(value ?? ''));
-            customers.forEach((c, idx) => {
+            filteredCustomers.forEach((c, idx) => {
                 const days = getDebtAgeDays(c.debtDate);
                 const debt = Number(c.debt) || 0;
                 const isOverdue = days > 30 && debt > 0;
@@ -4515,13 +4555,13 @@ function renderPurchasesTable() {
             const box = document.getElementById('customerDirectoryList');
             if (!box) return;
             try {
-                const q = String(document.getElementById('customerDirectorySearch')?.value || '').trim().toLocaleLowerCase();
+                const q = anasNormalizeQueryText(document.getElementById('customerDirectorySearch')?.value || '');
                 const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
                 const money = value => (Number(value) || 0).toLocaleString('fr-DZ', {maximumFractionDigits:2}) + ' د.ج';
                 const safe = value => escapeQuickText(String(value ?? ''));
                 const list = customers.filter(c => {
                     const fields = [c.name,c.phone,c.phone2,c.address,c.rc,c.nif,c.nis,c.art];
-                    return !q || fields.some(v => String(v ?? '').toLocaleLowerCase().includes(q));
+                    return anasQueryMatches(fields, q);
                 });
                 const totalDebt = list.reduce((sum,c) => sum + Math.max(0, Number(c.debt)||0), 0);
                 box.innerHTML = `
@@ -4567,7 +4607,21 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.replaceChildren();
             const suppliers = Array.isArray(AppData?.suppliers) ? AppData.suppliers : [];
-            suppliers.forEach(s => {
+            const query = anasNormalizeQueryText(document.getElementById('supplierDebtSearch')?.value || '');
+            const filteredSuppliers = suppliers.filter(s => s && anasQueryMatches([
+                s.name, s.phone, s.phone2, s.address, s.rc, s.nif, s.nis, s.art, s.balance
+            ], query));
+            const filterStatus = document.getElementById('supplierDebtFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredSuppliers.length + ' من ' + suppliers.length + ' مورداً.'
+                : 'إجمالي الموردين: ' + suppliers.length + '.';
+            if (!filteredSuppliers.length) {
+                cont.innerHTML = '<div class="menu-action-card" style="display:block;text-align:center;padding:18px;color:#64748b;">' +
+                    (suppliers.length ? 'لا توجد حسابات موردين مطابقة. غيّر كلمات البحث أو امسحها.' : 'لا يوجد موردون مسجلون بعد.') +
+                    '</div>';
+                return;
+            }
+            filteredSuppliers.forEach(s => {
                 const card = document.createElement('div');
                 card.className = 'menu-action-card';
                 card.style.cssText = 'margin-bottom:8px;flex-direction:column;align-items:stretch;gap:6px;';
@@ -4687,12 +4741,27 @@ function renderPurchasesTable() {
             const cont = document.getElementById('invoicesListContainer');
             if (!cont) return;
             cont.innerHTML = '';
-            const invoices = Array.isArray(AppData.invoices) ? AppData.invoices.slice().reverse() : [];
-            if (!invoices.length) {
+            const allInvoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
+            const invoices = allInvoices.slice().reverse();
+            const query = anasNormalizeQueryText(document.getElementById('invoiceListSearch')?.value || '');
+            const filteredInvoices = invoices.filter(inv => inv && anasQueryMatches([
+                inv.id, inv.customer, inv.date, inv.createdAt, inv.invoiceDate, inv.total,
+                inv.paid, inv.remaining, inv.paymentMethod, inv.status
+            ], query));
+            const filterStatus = document.getElementById('invoiceListFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredInvoices.length + ' من ' + allInvoices.length + ' فاتورة.'
+                : 'إجمالي الفواتير: ' + allInvoices.length + '.';
+            if (!allInvoices.length || !filteredInvoices.length) {
                 const empty = document.createElement('div'); empty.className='menu-action-card'; empty.style.cssText='display:block;text-align:center;padding:22px;color:#64748b';
-                empty.innerHTML = '<div style="font-size:32px">🧾</div><strong>لا توجد فواتير مبيعات محفوظة حتى الآن</strong><p style="margin:8px 0 0;font-size:13px">بعد تسجيل فاتورة وحفظها، ستظهر هنا تلقائيًا.</p>';
-                const create = document.createElement('button'); create.className='btn-pos-hasib'; create.style.marginTop='12px'; create.textContent='إنشاء فاتورة جديدة'; create.addEventListener('click', () => openView('pos'));
-                empty.appendChild(create); cont.appendChild(empty); return;
+                empty.innerHTML = !allInvoices.length
+                    ? '<div style="font-size:32px">🧾</div><strong>لا توجد فواتير مبيعات محفوظة حتى الآن</strong><p style="margin:8px 0 0;font-size:13px">بعد تسجيل فاتورة وحفظها، ستظهر هنا تلقائيًا.</p>'
+                    : '<div style="font-size:28px">🔎</div><strong>لا توجد فواتير مطابقة</strong><p style="margin:8px 0 0;font-size:13px">غيّر كلمات البحث أو امسحها لعرض جميع الفواتير.</p>';
+                if (!allInvoices.length) {
+                    const create = document.createElement('button'); create.className='btn-pos-hasib'; create.style.marginTop='12px'; create.textContent='إنشاء فاتورة جديدة'; create.addEventListener('click', () => openView('pos'));
+                    empty.appendChild(create);
+                }
+                cont.appendChild(empty); return;
             }
             const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
             invoices.forEach(inv => {
@@ -5883,12 +5952,12 @@ function renderPurchasesTable() {
             const root = document.getElementById('customReportContent');
             const status = document.getElementById('anasReportFilterStatus');
             if (!root) return;
-            const q = String(query || '').trim().toLocaleLowerCase();
+            const q = anasNormalizeQueryText(query || '');
             const rows = Array.from(root.querySelectorAll('tbody tr'));
             let shown = 0;
             if (rows.length) {
                 rows.forEach(row => {
-                    const match = !q || (row.textContent || '').toLocaleLowerCase().includes(q);
+                    const match = anasQueryMatches([row.textContent || ''], q);
                     row.hidden = !match;
                     if (match) shown++;
                 });
@@ -5900,7 +5969,7 @@ function renderPurchasesTable() {
             const candidates = Array.from(root.querySelectorAll('[data-report-entry], .anas-report-entry'));
             if (candidates.length) {
                 candidates.forEach(node => {
-                    const match = !q || (node.textContent || '').toLocaleLowerCase().includes(q);
+                    const match = anasQueryMatches([node.textContent || ''], q);
                     node.hidden = !match;
                     if (match) shown++;
                 });
@@ -8356,9 +8425,11 @@ function closeQuickSale(){const p=document.getElementById('quickSalePanel');if(p
 function quickSalePrice(p){return Number(AppData.activePriceTier===2?(p.price2||p.price1):AppData.activePriceTier===3?(p.price3||p.price1):p.price1)||0;}
 function renderQuickSaleResults(){
  const box=document.getElementById('qsResults'); if(!box)return;
- const q=(document.getElementById('qsSearch')?.value||'').trim().toLowerCase();
- let list=(AppData.products||[]).filter(p=>!q||String(p.name||'').toLowerCase().includes(q)||String(p.barcode||'').toLowerCase().includes(q));
- if(q && list.length===1 && String(list[0].barcode||'').toLowerCase()===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
+ const q=anasNormalizeQueryText(document.getElementById('qsSearch')?.value||'');
+ let list=(AppData.products||[]).map((p,index)=>({p,index,score:anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
+  .filter(x=>anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
+  .sort((a,b)=>b.score-a.score||a.index-b.index).map(x=>x.p);
+ if(q && list.length===1 && anasNormalizeQueryText(list[0].barcode||'')===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
  list=list.slice(0,24);
  box.innerHTML=list.length?list.map(p=>`<button class="qs-product" onclick="quickSaleAdd(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><strong>${escapeQuickText(p.name||'منتج')}</strong><span>${quickSalePrice(p).toLocaleString('fr-DZ')} د.ج</span><div class="qs-muted">المخزون: ${Number(p.stock)||0} ${escapeQuickText(p.unit||'')}</div></button>`).join(''):'<div class="qs-muted">لا توجد منتجات مطابقة. جرّب اسمًا آخر أو الباركود.</div>';
 }
@@ -8368,7 +8439,7 @@ function renderQuickSaleCart(){const box=document.getElementById('qsCart');if(!b
 function quickSaleChangeQty(i,delta){const it=posCart[i];if(!it)return;const p=(AppData.products||[]).find(x=>String(x.id)===String(it.id));const next=Number(it.qty)+delta;if(next<=0){posCart.splice(i,1)}else if(p&&next>Number(p.stock)){alert('لا توجد كمية كافية في المخزون.');return;}else it.qty=next;renderPosTable();renderQuickSaleCart();}
 function quickSaleClear(){if(!posCart.length)return;if(confirm('تفريغ سلة البيع السريع؟')){posCart=[];renderPosTable();renderQuickSaleCart();}}
 function quickSaleCheckout(){if(!posCart.length){alert('أضف منتجًا واحدًا على الأقل أولًا.');return;}closeQuickSale();openHasibModal();}
-function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=(e.target.value||'').trim().toLowerCase();const matches=(AppData.products||[]).filter(p=>String(p.name||'').toLowerCase().includes(q)||String(p.barcode||'').toLowerCase()===q);if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
+function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=anasNormalizeQueryText(e.target.value||'');const matches=(AppData.products||[]).filter(p=>anasQueryMatches([p.name,p.barcode,p.sku,p.code],q));if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 
@@ -8392,11 +8463,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(current() && !current().approvedAt && !confirm('توجد جلسة جرد غير معتمدة. بدء جلسة جديدة سيحفظ القديمة كمسودة. متابعة؟')) return;
     const scope=document.getElementById('anasStocktakeScope')?.value||'all';
     const category=(document.getElementById('anasStocktakeCategory')?.value||'').trim();
-    const q=(document.getElementById('anasStocktakeSearch')?.value||'').trim().toLowerCase();
+    const q=anasNormalizeQueryText(document.getElementById('anasStocktakeSearch')?.value||'');
     let ps=products().slice();
     if(scope==='low') ps=ps.filter(p=>safeNum(p.stock)<=safeNum(p.minStock ?? p.reorderLevel ?? p.minQty));
     if(scope==='category') ps=ps.filter(p=>String(p.category||p.categoryName||'').toLowerCase()===category.toLowerCase());
-    if(q) ps=ps.filter(p=>[name(p),p.id,p.sku,p.code,p.barcode].some(x=>String(x||'').toLowerCase().includes(q)));
+    if(q) ps=ps.filter(p=>anasQueryMatches([name(p),p.id,p.sku,p.code,p.barcode],q));
     if(!ps.length){ alert('لا توجد منتجات تطابق نطاق الجرد.'); return; }
     const now=new Date().toISOString();
     const s={id:'STK-'+Date.now(),name:(document.getElementById('anasStocktakeName')?.value||'جرد مخزني').trim(),createdAt:now,createdBy:currentUser(),scope,category,status:'draft',approvedAt:null,approvedBy:null,items:ps.map(p=>({productId:productId(p),productName:name(p),sku:p.sku||p.code||'',barcode:p.barcode||'',unit:p.unit||'',systemQty:safeNum(p.stock),physicalQty:null,buyPrice:safeNum(p.buyPrice),sellPrice:safeNum(p.sellPrice??p.price),variance:null}))};
@@ -8407,8 +8478,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(!wrap) return;
     const s=current();
     if(!s){wrap.innerHTML='<p style="padding:12px;color:#64748b">أنشئ جلسة جرد لبدء إدخال الكميات الفعلية.</p>'; if(status)status.textContent='لا توجد جلسة جرد مفتوحة.'; return;}
-    const q=(document.getElementById('anasStocktakeSearch')?.value||'').trim().toLowerCase();
-    const items=s.items.filter(i=>[i.productName,i.sku,i.barcode].some(x=>String(x||'').toLowerCase().includes(q)));
+    const q=anasNormalizeQueryText(document.getElementById('anasStocktakeSearch')?.value||'');
+    const items=s.items.filter(i=>anasQueryMatches([i.productName,i.sku,i.barcode],q));
     const counts=s.items.filter(i=>i.physicalQty!==null && i.physicalQty!==undefined).length;
     const variance=s.items.reduce((n,i)=>n+(i.physicalQty==null?0:safeNum(i.physicalQty)-safeNum(i.systemQty)),0);
     if(status)status.textContent=`${s.name} · ${s.id} · ${counts}/${s.items.length} صنفًا تم عده · صافي فرق الكمية: ${variance} · الحالة: ${s.approvedAt?'معتمد':'مسودة غير معتمدة'}`;

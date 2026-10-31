@@ -1,0 +1,29 @@
+name: ANAS ERP Query Engine Tests
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/arabic-query-engine.test.mjs'
+      - '.github/workflows/query-engine-tests.yml'
+  push:
+    branches:
+      - 'feat/query-engine-arabic-search-v1'
+    paths:
+      - 'index.html'
+      - 'tests/arabic-query-engine.test.mjs'
+      - '.github/workflows/query-engine-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  query-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test shared Arabic-aware query engine
+        run: node --test tests/arabic-query-engine.test.mjs
