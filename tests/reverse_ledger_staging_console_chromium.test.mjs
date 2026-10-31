@@ -112,6 +112,17 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   await page.locator('#load-snapshot').click();
   await page.getByText('حالة القراءة: نجاح').waitFor();
   assert.equal(await page.locator('#sale-return').isEnabled(), true);
+  const posted = await page.evaluate(() => window.ANASReverseLedgerServer.execute({
+    operationId: 'REV-STAGING-00000001',
+    periodId: 'FY-2026-10',
+    invoiceId: 'INV-STAGE-1',
+    originalInvoiceType: 'sales_invoice',
+    returnType: 'SALE_RETURN',
+    items: [{ productId: 'P-1', quantity: '1' }],
+    settlementMode: 'cash',
+    reason: 'Chromium callable smoke test'
+  }));
+  assert.equal(posted.document.returnId, 'RET-STAGING-1');
   await page.locator('#create-backup').click();
   await page.getByText(/تم إنشاء النسخة الموثوقة/).waitFor();
   assert.equal(await page.locator('#backup-id').inputValue(), 'BKP-STAGING-00000001');
@@ -121,5 +132,5 @@ test('staging console signs in, reads cloud snapshot, uses trusted backup callab
   await page.locator('#modal-reverse-ledger.active').waitFor();
   assert.deepEqual(pageErrors, []);\n  assert.deepEqual(consoleErrors, []);
   const calls = await page.evaluate(() => globalThis.__stagingCalls.map(row => row.name));
-  assert.deepEqual(calls, ['createTrustedReverseLedgerBackup', 'restoreTrustedReverseLedgerBackup']);
+  assert.deepEqual(calls, ['executeReverseLedger', 'createTrustedReverseLedgerBackup', 'restoreTrustedReverseLedgerBackup']);
 });
