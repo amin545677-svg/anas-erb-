@@ -157,10 +157,37 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         continue;
       }
       if (!Array.isArray(snapshot.invoices)) snapshot.invoices = [];
-      if (snapshot.invoices.some(item => item?.id === invoice.id)) {
-        applied.add(op.opId);
-        snapshot.appliedOpIds = [...applied];
-        appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "INVOICE_ENTITY_EXISTS" });
+      const matchingInvoices = snapshot.invoices.filter(item => item?.id === invoice.id);
+      if (matchingInvoices.length) {
+        const existingInvoice = matchingInvoices[0];
+        const existingCopy = structuredClone(existingInvoice);
+        const incomingCopy = structuredClone(invoice);
+        // The V42 bridge writes syncOpId into the invoice before saveDB. Require
+        // that durable marker and compare the complete invoice payload before
+        // treating an existing ID as proof that this operation already landed.
+        delete existingCopy.syncOpId;
+        delete existingCopy.syncCreatedAt;
+        delete incomingCopy.syncOpId;
+        delete incomingCopy.syncCreatedAt;
+        const stableJson = value => {
+          if (Array.isArray(value)) return "[" + value.map(stableJson).join(",") + "]";
+          if (value && typeof value === "object") {
+            return "{" + Object.keys(value).sort().map(key =>
+              JSON.stringify(key) + ":" + stableJson(value[key])
+            ).join(",") + "}";
+          }
+          return JSON.stringify(value);
+        };
+        const sameInvoice = stableJson(existingCopy) === stableJson(incomingCopy);
+        if (matchingInvoices.length === 1 &&
+            existingInvoice.syncOpId === op.opId &&
+            sameInvoice) {
+          applied.add(op.opId);
+          snapshot.appliedOpIds = [...applied];
+          appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "VERIFIED_INVOICE_OPERATION_MARKER" });
+        } else {
+          review.push({ opId: op.opId, reason: "INVOICE_ID_COLLISION", operation: op });
+        }
         continue;
       }
       const items = Array.isArray(invoice.items) ? invoice.items : [];
