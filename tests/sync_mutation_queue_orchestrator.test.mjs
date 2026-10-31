@@ -264,3 +264,29 @@ test("recovery restores a pre-reconcile rescue snapshot after an interrupted mer
   assert.equal(storage.getItem(MUTATION_KEYS.revision), "1");
   assert.equal(storage.getItem(MUTATION_KEYS.rescue), null);
 });
+
+test("first-time cloud snapshot creation accepts a null Firestore revision and pins the returned revision", async () => {
+  const storage = seededStorage([], { ...baseCloud(), appliedOpIds: [] });
+  const initialCloud = baseCloud();
+  const accepted = [];
+  const createdRevision = "2026-10-31T08:00:00.000000Z";
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => ({ data: structuredClone(initialCloud), revision: null }),
+    pushCloud: async ({ data, baseRevision }) => {
+      accepted.push({ data: structuredClone(data), baseRevision });
+      return { status: 200, revision: createdRevision };
+    }
+  });
+
+  const result = await orchestrator.reconcileAndSync();
+
+  assert.equal(result.status, "synced");
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].baseRevision, null,
+    "a missing Firestore document must be created with the exists=false precondition");
+  assert.deepEqual(accepted[0].data.products, initialCloud.products);
+  assert.equal(storage.getItem(MUTATION_KEYS.revision), JSON.stringify(createdRevision));
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.equal(storage.getItem(MUTATION_KEYS.rescue), null);
+});
