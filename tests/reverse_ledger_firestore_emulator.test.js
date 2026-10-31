@@ -817,7 +817,7 @@ test('trusted backup restores a posted operation only with its matching posted r
     items: [{ productId: 'P-1', quantity: '1' }],
     settlementMode: 'cash',
     reason: 'trusted backup posted operation test'
-  }, { operatorId: uid, createId: () => 'RET-BACKUP-POSTED', persist: () => true });
+  }, { operatorId: uid, createId: (() => { let n = 0; return () => 'RET-BACKUP-POSTED-' + (++n); })(), persist: () => true });
   assert.equal(ReverseLedger.validateReverseLedgerParity(state), true);
   const requestHash = 'c'.repeat(64);
   const operation = {
