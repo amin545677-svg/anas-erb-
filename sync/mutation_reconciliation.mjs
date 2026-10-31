@@ -100,7 +100,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         const existingAmountCents = moneyCents(existingMovement.amount);
         const customerMatches = existingMovement.customerId == null ||
           String(existingMovement.customerId) === String(payload.customerId);
-        const operationMatches = existingMovement.opId == null || existingMovement.opId === op.opId;
+        const operationMatches = existingMovement.opId === op.opId;
         if (existingAmountCents === amountCents && customerMatches && operationMatches) {
           applied.add(op.opId);
           snapshot.appliedOpIds = [...applied];
