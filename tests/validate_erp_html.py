@@ -1445,7 +1445,7 @@ const elements = {
   anasAiChatLog: makeNode('div')
 };
 elements.anasAiAnswerStyle.value = 'concise';
-const calls = [], consoleCalls = [];
+const calls = [], requestHeaders = [], consoleCalls = [];
 const context = {
   AppData: {
     products: [{name:'SYNTHETIC_PRIVATE_PRODUCT',stock:7,buyPrice:2}],
@@ -1460,6 +1460,7 @@ const context = {
     createTextNode(value) { const n=makeNode('#text'); n.textContent=String(value); return n; }
   },
   localStorage: { getItem(key) { return key === 'anasErpAiGatewayUrlV1' ? 'https://synthetic.invalid/ai' : null; } },
+  window: { firebase: { auth() { return { currentUser: { async getIdToken() { return 'synthetic-firebase-id-token'; } } }; } } },
   navigator: { onLine: true },
   console: { log(...args){consoleCalls.push(args)}, warn(...args){consoleCalls.push(args)}, error(...args){consoleCalls.push(args)} },
   alert() {},
@@ -1467,6 +1468,7 @@ const context = {
   AbortController: class { constructor(){this.signal={};} abort(){} },
   fetch: async (_url, options) => {
     calls.push(JSON.parse(options.body));
+    requestHeaders.push(options.headers || {});
     return {ok:true,status:200,headers:{get(){return 'application/json'}},text:async()=>JSON.stringify({text:'synthetic response'})};
   },
   anasNormalizeAiGatewayUrl(value) { return value; },
@@ -1482,6 +1484,9 @@ vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ 
   elements.anasAiShareContext.checked = true;
   await context.askAnasBusinessAI();
   if (calls.length !== 2) throw new Error('expected two intercepted AI requests');
+  if (requestHeaders.some(headers => headers.Authorization !== 'Bearer synthetic-firebase-id-token')) {
+    throw new Error('AI request did not include the synthetic Firebase bearer token');
+  }
   if (Object.prototype.hasOwnProperty.call(calls[0], 'businessData')) {
     throw new Error('unchecked consent still included businessData');
   }
