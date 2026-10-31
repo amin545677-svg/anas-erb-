@@ -51,6 +51,8 @@ jobs:
         run: node scripts/check-staging-readiness.mjs
       - name: Run Hasib financial and stock invariants
         run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/reverse_ledger_primitives.test.js tests/reverse_ledger_rollback_identity.test.js
+      - name: Test read-only warehouse transfer ledger audit
+        run: node --test scripts/test-warehouse-transfer-audit.cjs
       - name: Verify deployable Functions bundle matches canonical ledger modules
         run: |
           cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js
