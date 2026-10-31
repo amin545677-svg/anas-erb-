@@ -2,6 +2,14 @@ name: Deploy ANAS ERP Reverse Ledger Console (Staging)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/reverse-ledger-firebase-functions-v2
+    paths:
+      - 'staging/**'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.hosting.json'
+      - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
 
 permissions:
   contents: read
@@ -12,6 +20,7 @@ concurrency:
 
 jobs:
   deploy-staging-console:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
     environment: staging
     runs-on: ubuntu-latest
     steps:
