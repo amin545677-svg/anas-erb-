@@ -209,10 +209,10 @@ function saleReturnState() {
  const customer={id:'C-RET',name:'Customer',debt:0.20};
  const invoice={id:'INV-RET',customerId:'C-RET',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
   items:[{id:'P-RET',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'};
- const product={id:'P-RET',name:'Tea',stock:0};
+ const product={id:'P-RET',name:'Tea',stock:0,buyPrice:0.05};
  return {customers:[customer],suppliers:[],invoices:[invoice],purchases:[],products:[product],
   cashMovements:[{id:'SALE-CASH-RET',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'INV-RET'}],
-  stockMovements:[{id:'SALE-STOCK-RET',productId:'P-RET',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-RET'}],
+  stockMovements:[{id:'SALE-STOCK-RET',productId:'P-RET',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-RET',originalSaleQuantityMicroUnits:3000000,originalSaleCostCentimes:15}],
   clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
   caisseBalance:1,currentUser:{id:'U-RET'}};
 }
@@ -220,7 +220,7 @@ function purchaseReturnState(stock=3) {
  const supplier={id:'SUP-RET',name:'Supplier',balance:0.20};
  const invoice={id:'PUR-RET',supplierId:'SUP-RET',total:0.30,paid:0.10,remaining:0.20,
   productId:'P-RET',qty:3,cost:0.10,warehouse:'المخزن الرئيسي'};
- const product={id:'P-RET',name:'Tea',stock};
+ const product={id:'P-RET',name:'Tea',stock,buyPrice:0.10};
  return {customers:[],suppliers:[supplier],invoices:[],purchases:[invoice],products:[product],
   cashMovements:[{id:'PUR-CASH-RET',type:'subtract',amount:0.10,referenceType:'purchase_invoice',referenceId:'PUR-RET'}],
   stockMovements:[{id:'PUR-STOCK-RET',productId:'P-RET',qty:3,type:'PURCHASE_IN',referenceType:'purchase_invoice',referenceId:'PUR-RET'}],
@@ -238,6 +238,8 @@ test('atomic sale return reduces invoice debt first and returns stock with exact
  assert.equal(doc.cashRefundCentimes,0);
  assert.equal(state.customers[0].debt,0.10);
  assert.equal(state.products[0].stock,1);
+ assert.equal(state.products[0].buyPrice,0.05);
+ assert.equal(state.stockMovements[0].restoredInventoryCostCentimes,5);
  assert.equal(state.stockMovements[0].type,'RETURN_IN');
  assert.equal(state.stockMovements[0].qty,1);
  assert.equal(state.invoices[0].paid,0.10);
