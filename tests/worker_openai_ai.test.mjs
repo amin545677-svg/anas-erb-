@@ -194,7 +194,7 @@ test("contextual AI helper authenticates Firebase requests to the protected gate
   assert.notEqual(helperStart, -1, "contextual AI send handler must exist");
   assert.notEqual(helperEnd, -1, "contextual AI send handler must be closed");
   const handler = appHtml.slice(helperStart, helperEnd);
-  assert.match(handler, /currentUser\\?\.getIdToken|currentUser\.getIdToken/);
-  assert.match(handler, /Authorization:\\s*'Bearer '\\s*\\+\\s*firebaseIdToken/);
+  assert.match(handler, /currentUser\?\.getIdToken|currentUser\.getIdToken/);
+  assert.match(handler, /Authorization:\s*'Bearer '\s*\+\s*firebaseIdToken/);
   assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
 });
