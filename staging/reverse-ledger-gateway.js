@@ -81,18 +81,41 @@
       throw new Error('Firebase App, Auth, App Check and Functions compat SDKs must be loaded');
     }
 
-    let app;
-    try {
-      app = firebase.app(APP_NAME);
-      if (!app || !app.options || app.options.projectId !== STAGING_PROJECT_ID) {
-        throw new Error('Existing named Firebase app is not the dedicated staging project');
+    function assertStagingApp(candidate, label) {
+      if (!candidate || !candidate.options ||
+          candidate.options.projectId !== STAGING_PROJECT_ID ||
+          candidate.options.apiKey !== config.firebaseConfig.apiKey ||
+          candidate.options.appId !== config.firebaseConfig.appId) {
+        throw new Error(label + ' does not match the dedicated staging Firebase web app');
       }
-    } catch (error) {
-      if (error && error.message === 'Existing named Firebase app is not the dedicated staging project') throw error;
-      app = firebase.initializeApp(config.firebaseConfig, APP_NAME);
+      return candidate;
     }
-    if (!app.options || app.options.projectId !== STAGING_PROJECT_ID) {
-      throw new Error('Firebase staging app project ID mismatch');
+
+    let app = null;
+    // In the isolated staging build, the ERP's default Firebase app is already
+    // initialized with the staging web config. Reuse it so the existing login
+    // UI and the reverse-ledger callable share the exact same Auth session.
+    // On production/default-app pages, never reuse that app: create or reuse a
+    // separately named staging app, preserving the production Firebase session.
+    try {
+      const defaultApp = firebase.app();
+      if (defaultApp && defaultApp.options &&
+          defaultApp.options.projectId === STAGING_PROJECT_ID) {
+        app = assertStagingApp(defaultApp, 'Default Firebase app');
+      }
+    } catch (_) {
+      // No default app is initialized yet; continue with the isolated named app.
+    }
+
+    if (!app) {
+      try {
+        app = assertStagingApp(firebase.app(APP_NAME), 'Named Firebase app');
+      } catch (error) {
+        if (error && /does not match the dedicated staging Firebase web app/.test(error.message || '')) {
+          throw error;
+        }
+        app = assertStagingApp(firebase.initializeApp(config.firebaseConfig, APP_NAME), 'New named Firebase app');
+      }
     }
 
     const auth = firebase.auth(app);
