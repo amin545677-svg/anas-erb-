@@ -40,7 +40,7 @@ function escapeText(value) {
   }[ch]));
 }
 function appData() {
-  if (!window.AppData || typeof AppData !== 'object') throw new Error('بيانات التطبيق غير جاهزة.');
+  if (typeof AppData === 'undefined' || !AppData || typeof AppData !== 'object') throw new Error('بيانات التطبيق غير جاهزة.');
   return AppData;
 }
 function invoiceRows(mode) {
