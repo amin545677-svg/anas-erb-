@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Run fail-closed staging callable readiness preflight
+        run: node scripts/check-staging-readiness.mjs
+
       - name: Verify staging-only configuration and canonical bundled sources
         run: |
           python - <<'PY'
