@@ -56,6 +56,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
   assert.equal(r.AppData.invoices.length,1);
   const inv=r.AppData.invoices[0];
   assert.equal(inv.total,500.5);
+  assert.equal(inv.invoiceLedgerVersion,2,'new undiscounted sale invoices must be eligible for the v2 reverse-ledger policy');
   assert.equal(inv.paid,500.5);
   assert.equal(r.AppData.cashMovements.length,1,'cash sale must create exactly one independent cash ledger movement');
   assert.equal(r.AppData.cashMovements[0].amount,500.5);
