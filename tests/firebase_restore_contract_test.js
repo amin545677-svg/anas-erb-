@@ -23,7 +23,11 @@ const backupValidator = extractFunctionBlock(
 );
 
 function validate(incoming, current = {}) {
-  const context = { AppData: current, candidate: incoming, result: null };
+  const context = {
+    AppData: current, candidate: incoming, result: null,
+    // This suite isolates backup schema/restore guards; purchase-ledger parity has dedicated tests.
+    anasValidatePurchaseLedgerParity: () => true
+  };
   vm.createContext(context);
   vm.runInContext(
     truckExpenseValidator + '\n' + backupValidator + '\nresult = anasValidateBackupData(candidate);',
