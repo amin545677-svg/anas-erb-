@@ -417,6 +417,42 @@ test('real BigInt engine: concurrent same-ID requests with different payloads re
   assert.equal(operation.get('requestHash').length, 64);
 });
 
+test('real BigInt engine: distinct concurrent returns cannot cumulatively exceed the original invoice quantity', async t => {
+  const uid = 'emu-' + crypto.randomUUID();
+  const firstId = 'REV-' + crypto.randomUUID();
+  const secondId = 'REV-' + crypto.randomUUID();
+  const { user } = await seed(uid, [firstId, secondId], {
+    state: makeRealEngineState(),
+    permissions: [PERMISSIONS.SALE_RETURN]
+  });
+  t.after(() => cleanup(uid, [firstId, secondId]));
+  const handler = createRealEngineHandler();
+  // Each request independently asks to return 2 of the 3 originally sold units.
+  // One may commit; the transaction retry must observe that only 1 unit remains.
+  const [first, second] = await Promise.allSettled([
+    handler(makeRequest(uid, firstId, { items: [{ productId: 'P-1', quantity: '2' }] })),
+    handler(makeRequest(uid, secondId, { items: [{ productId: 'P-1', quantity: '2' }] }))
+  ]);
+  assert.equal([first, second].filter(x => x.status === 'fulfilled').length, 1);
+  assert.equal([first, second].filter(x => x.status === 'rejected').length, 1);
+  const rejected = [first, second].find(x => x.status === 'rejected');
+  assert.equal(rejected.reason.code, 'failed-precondition');
+
+  const snapshot = await user.collection('snapshots').doc('latest').get();
+  const state = JSON.parse(snapshot.get('payload'));
+  assert.equal(state.returns.length, 1);
+  assert.equal(state.returns[0].items.reduce((sum, item) => sum + item.quantityMicroUnits, 0), 2000000);
+  assert.equal(state.products[0].stock, 2);
+  assert.equal(state.customers[0].debt, 0);
+  assert.equal(ReverseLedger.validateReverseLedgerParity(state), true);
+
+  const operations = await Promise.all([firstId, secondId].map(id =>
+    db.collection('reverseLedgerOperations').doc(id).get()
+  ));
+  assert.equal(operations.filter(doc => doc.get('status') === 'POSTED').length, 1);
+  assert.equal(operations.filter(doc => doc.get('status') === 'RESERVED').length, 1);
+});
+
 test('callable handler rejects missing Auth and missing App Check before any Firestore mutation', async t => {
   const uid = 'emu-' + crypto.randomUUID();
   const operationId = 'REV-' + crypto.randomUUID();
