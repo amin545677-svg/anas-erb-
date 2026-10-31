@@ -1,0 +1,265 @@
+/* ANAS ERP — Classic UI refresh (additive presentation layer only) */
+:root {
+  --anas-ui-page: #f1f5f9;
+  --anas-ui-surface: #ffffff;
+  --anas-ui-line: #d7e0eb;
+  --anas-ui-ink: #172b4d;
+  --anas-ui-muted: #64748b;
+  --anas-ui-shadow: 0 5px 18px rgba(20, 43, 77, .07);
+}
+html { scroll-behavior: smooth; }
+body { background: var(--mp-bg, var(--anas-ui-page)); color: var(--anas-text, var(--anas-ui-ink)); }
+button, input, select, textarea { font: inherit; }
+button, [role="button"], .grid-card-item, .menu-action-card, .drawer-nav-row {
+  touch-action: manipulation;
+}
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, .35);
+  outline-offset: 2px;
+}
+.top-navbar {
+  min-height: 58px;
+  height: auto;
+  padding: 8px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
+  box-shadow: 0 3px 12px rgba(12, 31, 59, .18);
+}
+.app-brand-name { letter-spacing: 0; }
+.main-container {
+  width: min(100% - 24px, 1180px);
+  max-width: 1180px;
+  padding: 16px 0 28px;
+}
+.dashboard-grid-8 { gap: 14px; margin-top: 12px; }
+.grid-card-item {
+  min-width: 0;
+  min-height: 126px;
+  padding: 18px 14px;
+  border-color: var(--anas-ui-line);
+  border-radius: 14px;
+  box-shadow: var(--anas-ui-shadow);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.grid-card-item:hover, .menu-action-card:hover {
+  border-color: #9fb4cf;
+  box-shadow: 0 8px 22px rgba(20, 43, 77, .10);
+}
+.grid-card-item .card-icon-box { font-size: 2rem; }
+.grid-card-item .card-title-text { line-height: 1.45; }
+.sub-header-bar {
+  min-height: 54px;
+  height: auto;
+  box-shadow: 0 2px 8px rgba(12, 31, 59, .12);
+}
+.sub-header-bar .btn-arrow-back,
+.sub-header-bar .btn-header-action,
+.btn-hamburger, .btn-bell-envelope {
+  min-width: 40px;
+  min-height: 40px;
+  justify-content: center;
+  border-radius: 9px;
+}
+.menu-action-card, .panel-card-form {
+  border-color: var(--anas-ui-line);
+  border-radius: 12px;
+  box-shadow: var(--anas-ui-shadow);
+}
+.field-input, .input-pos-search {
+  min-height: 42px;
+  border-color: #cbd5e1;
+}
+.drawer-sidebar {
+  width: min(320px, 88vw);
+  right: min(-340px, -92vw);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.drawer-sidebar.active { right: 0; }
+.drawer-nav-row { min-height: 46px; }
+.bottom-totals-bar {
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+@media (min-width: 700px) {
+  .dashboard-grid-8 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .action-menu-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .dashboard-grid-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+  .grid-card-item { min-height: 148px; }
+  .sales-toolbar { gap: 10px; padding: 12px 14px; }
+  .quick-products-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .main-container { width: calc(100% - 16px); padding-top: 10px; }
+  .dashboard-grid-8 { gap: 9px; }
+  .grid-card-item { min-height: 108px; padding: 12px 7px; }
+  .grid-card-item .card-title-text { font-size: .94rem; }
+  .navbar-left, .navbar-right { gap: 7px; }
+  .app-brand-name { font-size: 1.08rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* Dashboard hierarchy and responsive navigation refinement */
+#view-dashboard { min-width: 0; }
+#view-dashboard .dashboard-grid-8 { align-items: stretch; }
+#view-dashboard .grid-card-item {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  justify-content: center;
+}
+#view-dashboard .grid-card-item::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 3px;
+  background: #d4a72c;
+  opacity: .0;
+  transition: opacity .18s ease;
+}
+#view-dashboard .grid-card-item:hover::after,
+#view-dashboard .grid-card-item:focus-visible::after { opacity: 1; }
+#view-dashboard .grid-card-item .card-title-text { overflow-wrap: anywhere; }
+.drawer-overlay { backdrop-filter: blur(2px); }
+.drawer-sidebar { overscroll-behavior: contain; }
+.drawer-nav-row:focus-visible, .drawer-nav-row:hover {
+  background: #eff5fc;
+  color: #17345f;
+}
+@media (max-width: 360px) {
+  .dashboard-grid-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-card-item { min-height: 100px; }
+  .grid-card-item .card-icon-box { width: 44px; height: 44px; font-size: 1.65rem; }
+  .grid-card-item .card-title-text { font-size: .86rem; }
+  .user-quick-pill { max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+:root[data-anas-theme="dark"] body {
+  background: var(--anas-bg, #0b1120);
+  color: var(--anas-text, #f3f6fc);
+}
+:root[data-anas-theme="dark"] #view-dashboard .grid-card-item {
+  background: var(--anas-surface, #151f32);
+  border-color: var(--anas-border, #3b4b65);
+}
+:root[data-anas-theme="dark"] #view-dashboard .grid-card-item .card-icon-box {
+  background: #20324d;
+  color: #d9e8ff;
+}
+:root[data-anas-theme="dark"] .drawer-nav-row:hover,
+:root[data-anas-theme="dark"] .drawer-nav-row:focus-visible {
+  background: #243650;
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard .grid-card-item::after { transition: none; }
+}
+
+
+/* Mobile POS: preserve control access without widening the document */
+.drawer-sidebar {
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.drawer-nav-row {
+  flex: 0 0 auto;
+  min-height: 48px;
+}
+#view-pos { min-width: 0; }
+#view-pos .sales-toolbar {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+#view-pos .search-field-box,
+#view-pos .pos-search-wrap { min-width: 0; }
+#view-pos .input-pos-search { box-sizing: border-box; }
+#view-pos .invoice-table-header,
+#view-pos .invoice-table-row {
+  grid-template-columns: minmax(105px, 2.2fr) minmax(60px, 1fr) minmax(95px, 1.3fr) minmax(75px, 1fr);
+}
+#view-pos .invoice-table-header {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+#view-pos .invoice-items-body {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#view-pos .invoice-table-row { min-width: 335px; }
+#view-pos .pos-qty-controls button {
+  min-width: 32px;
+  min-height: 32px;
+}
+#view-pos .bottom-totals-bar {
+  box-sizing: border-box;
+  padding-left: max(10px, env(safe-area-inset-left));
+  padding-right: max(10px, env(safe-area-inset-right));
+}
+.field-input, .input-pos-search, select, textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  #view-pos .sales-toolbar {
+    gap: 7px;
+    padding: 8px;
+    align-items: center;
+  }
+  #view-pos .sales-toolbar > .btn-pos-hasib,
+  #view-pos .sales-toolbar > .btn-multi-tab,
+  #view-pos .sales-toolbar > .btn-scanner-icon {
+    min-height: 42px;
+    flex: 0 0 auto;
+  }
+  #view-pos .sales-toolbar > .search-field-box {
+    order: 5;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  #view-pos .sales-toolbar > .btn-scanner-icon { margin-inline-start: auto; }
+  #view-pos .input-pos-search { min-height: 44px; font-size: 16px; }
+  #view-pos .quick-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 180px;
+    gap: 7px;
+  }
+  #view-pos .quick-product-btn {
+    min-width: 0;
+    min-height: 48px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #view-pos .invoice-table-header {
+    grid-template-columns: minmax(105px, 2.2fr) minmax(60px, 1fr) minmax(95px, 1.3fr) minmax(75px, 1fr);
+  }
+  #view-pos .bottom-totals-bar { gap: 8px; }
+  #view-pos .bottom-totals-bar .box-total-green {
+    min-width: 0 !important;
+    max-width: 52vw;
+    font-size: .92rem;
+  }
+}
+@media (max-width: 360px) {
+  #view-pos .sales-toolbar > .btn-pos-hasib {
+    padding: 7px 8px;
+    font-size: .82rem;
+  }
+  #view-pos .invoice-table-header { font-size: .76rem; }
+}

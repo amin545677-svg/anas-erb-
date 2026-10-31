@@ -6,7 +6,10 @@ on:
       - "index.html"
       - "manifest.webmanifest"
       - "sw.js"
+      - "anas-classic-ui.css"
       - "tests/validate_erp_html.py"
+      - "tests/test_classic_ui.py"
+      - "tests/test_classic_ui_browser.py"
       - ".github/workflows/anas-erp-html-checks.yml"
   push:
     branches: [main]
@@ -14,7 +17,10 @@ on:
       - "index.html"
       - "manifest.webmanifest"
       - "sw.js"
+      - "anas-classic-ui.css"
       - "tests/validate_erp_html.py"
+      - "tests/test_classic_ui.py"
+      - "tests/test_classic_ui_browser.py"
       - ".github/workflows/anas-erp-html-checks.yml"
 
 permissions:
@@ -36,3 +42,11 @@ jobs:
           node-version: "22"
       - name: Validate ANAS ERP HTML and inline JavaScript
         run: python tests/validate_erp_html.py
+      - name: Validate classic UI stylesheet and responsive theme contracts
+        run: python tests/test_classic_ui.py
+      - name: Install isolated Chromium browser test dependencies
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Run responsive Chromium and drawer smoke tests
+        run: python tests/test_classic_ui_browser.py
