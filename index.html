@@ -3780,15 +3780,20 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     const product = saleProducts.get(id);
                     const movementId = 'SALE-STOCK-' + invObj.id + '-' + id;
                     if (existingStockMovementIds.has(movementId)) throw new Error('معرّف حركة المخزون موجود مسبقًا.');
-                    const saleUnitCostCentimes = anasPurchaseToCents(product.buyPrice);
-                    const originalSaleCostCentimes = anasPurchaseStockValueCents(qtyUnits, saleUnitCostCentimes);
+                    const saleUnitCostCentimes = anasToCents(product.buyPrice);
+                    let originalSaleCostCentimes = null;
+                    if (Number.isSafeInteger(qtyUnits) && qtyUnits > 0 && Number.isSafeInteger(saleUnitCostCentimes) && saleUnitCostCentimes >= 0) {
+                        const saleCostProduct = BigInt(qtyUnits) * BigInt(saleUnitCostCentimes);
+                        const roundedSaleCost = (saleCostProduct + 500000n) / 1000000n;
+                        if (roundedSaleCost <= BigInt(Number.MAX_SAFE_INTEGER)) originalSaleCostCentimes = Number(roundedSaleCost);
+                    }
                     AppData.stockMovements.unshift({
                         id: movementId, productId: product.id,
                         productName: product.name || product.title || id,
                         qty: anasQtyFromUnits(-qtyUnits), type: 'SALE_OUT',
                         referenceType: 'sales_invoice', referenceId: invObj.id,
                         originalSaleQuantityMicroUnits: qtyUnits,
-                        originalSaleCostCentimes: Number.isSafeInteger(originalSaleCostCentimes) ? originalSaleCostCentimes : null,
+                        originalSaleCostCentimes,
                         warehouse: saleWarehouse, date: new Date().toISOString(),
                         note: 'بيع من الفاتورة ' + invObj.id
                     });
