@@ -1034,6 +1034,38 @@
       throw error;
     }
   }
+  function executeSaleReturn(state, input, options = {}) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('sale return request is required');
+    return executeReturnTransaction(state, {
+      invoiceId: input.invoiceId,
+      items: input.items,
+      settlementMode: input.settlementMode,
+      reason: input.reason,
+      originalInvoiceType: 'sales_invoice',
+      returnType: 'SALE_RETURN'
+    }, options);
+  }
+  function executePurchaseReturn(state, input, options = {}) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('purchase return request is required');
+    return executeReturnTransaction(state, {
+      invoiceId: input.invoiceId,
+      items: input.items,
+      settlementMode: input.settlementMode,
+      reason: input.reason,
+      originalInvoiceType: 'purchase_invoice',
+      returnType: 'PURCHASE_RETURN'
+    }, options);
+  }
+  function executeInvoiceCancellation(state, input, options = {}) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('invoice cancellation request is required');
+    const originalInvoiceType = input.originalInvoiceType || input.invoiceType;
+    return executeReturnTransaction(state, {
+      invoiceId: input.invoiceId,
+      reason: input.reason,
+      originalInvoiceType,
+      returnType: 'INVOICE_CANCEL'
+    }, options);
+  }
   function previewReturnTransaction(state, input, options = {}) {
     if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('state must be an object');
     // Preview against a detached JSON snapshot. The live AppData object and every
@@ -1083,6 +1115,6 @@
     ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument,
     sealClientMovement, sealSettlementAllocation, sealReturnDocument,
     computeReturnableMicroUnits, validateSettlementAllocations, validateClientMovements,
-    validateReturns, validateReverseLedgerParity, executeReturnTransaction, previewReturnTransaction, originalInvoiceItems, appendUnique, RETURN_TYPES, PARTY_TYPES
+    validateReturns, validateReverseLedgerParity, executeReturnTransaction, executeSaleReturn, executePurchaseReturn, executeInvoiceCancellation, previewReturnTransaction, originalInvoiceItems, appendUnique, RETURN_TYPES, PARTY_TYPES
   });
 });
