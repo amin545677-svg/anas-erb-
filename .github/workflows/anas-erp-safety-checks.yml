@@ -37,7 +37,7 @@ jobs:
       - name: Test POS cart persistence rollback
         run: node tests/pos_cart_persistence_rollback_test.js
       - name: Test reverse-ledger schemas and allocation invariants
-        run: node --test tests/reverse_ledger_primitives.test.js
+        run: node --test tests/reverse_ledger_primitives.test.js tests/reverse_ledger_rollback_identity.test.js
       - name: Test cumulative and WAC reverse-ledger valuation
         run: node --test tests/reverse_ledger_valuation.test.js
       - name: Check trusted reverse-ledger reservation Worker syntax
