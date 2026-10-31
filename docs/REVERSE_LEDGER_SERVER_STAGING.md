@@ -96,7 +96,7 @@ Both writes commit or neither commits. Repeating the same operation ID with the 
 
 The staging Firestore rules allow snapshot reads by the owner but deny direct snapshot writes once a trusted reverse-ledger grant document exists. This is necessary: otherwise the legacy snapshot Worker could overwrite a transactionally posted financial state after the reverse operation commits.
 
-Consequently, do not activate a grant for a user until a trusted server-side backup/restore route is available for that user. The existing snapshot Worker remains usable for users without a reverse-ledger grant. This is a deliberate fail-closed boundary, not a silent compatibility claim.
+Consequently, do not activate a grant for a user until a trusted server-side backup/restore route is available and verified for that user. `createTrustedReverseLedgerBackup` stores the validated snapshot plus the user's operation/idempotency records in an Admin-SDK-only backup archive. `restoreTrustedReverseLedgerBackup` restores both transactionally, rejects stale backups that would omit a posted operation, refuses request-hash conflicts or posted-record downgrades, and preserves pending Worker reservations. The existing snapshot Worker remains usable for users without a reverse-ledger grant. This is a deliberate fail-closed boundary, not a silent compatibility claim.
 
 ## Deploying to staging
 
@@ -104,7 +104,7 @@ The manual workflow `Deploy Reverse Ledger Firebase Functions (Staging)` via `.g
 
 - `FIREBASE_STAGING_SERVICE_ACCOUNT`: full JSON service-account key for project `anas-erp-staging-a25e1`, with the permissions required to deploy Firebase Functions v2 and Firestore rules.
 
-The workflow verifies the staging project, checks that the bundled engine and authorization policy exactly match the canonical source files, installs the Functions dependencies, then deploys only the staging Firestore rules and `executeReverseLedger` function.
+The workflow verifies the staging project, checks that the bundled engine and authorization policy exactly match the canonical source files, installs the Functions dependencies, then deploys only the staging Firestore rules plus `executeReverseLedger`, `createTrustedReverseLedgerBackup`, and `restoreTrustedReverseLedgerBackup`.
 
 No production deployment is configured. Do not put service-account JSON, private keys, or API tokens in source control or chat.
 
@@ -117,5 +117,5 @@ Still required before enabling real posting:
 - 
 - Provision and verify a dedicated staging user, server-managed grant, and open financial period.
 - Add the Firebase Web SDK callable client and App Check initialization to the staging UI only.
-- Add an Admin-SDK backup/restore route before enabling grants for users who depend on snapshot uploads.
+- Complete the Firestore Emulator backup/restore tests, including pending reservation preservation and rejection of stale backups that omit posted operations.
 - Verify the live staging function and Firestore rules with a dedicated test account before any user grant is activated.
