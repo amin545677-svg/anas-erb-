@@ -60,7 +60,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
         run: |
           npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger \
+            --only firestore:rules,functions:executeReverseLedger,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
             --project anas-erp-staging-a25e1 \
             --config firebase.staging.json \
             --non-interactive
