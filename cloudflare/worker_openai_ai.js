@@ -129,7 +129,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": origin,
           "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type,Accept",
+          "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
           "Access-Control-Max-Age": "86400",
           "Vary": "Origin"
         }
@@ -290,7 +290,7 @@ export default {
         "X-Accel-Buffering": "no",
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
         "Vary": "Origin"
       }});
     }
