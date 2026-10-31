@@ -108,6 +108,35 @@ The workflow verifies the staging project, checks that the bundled engine and au
 
 No production deployment is configured. Do not put service-account JSON, private keys, or API tokens in source control or chat.
 
+## Staging browser callable client
+
+The isolated client lives at `staging/reverse-ledger-gateway.js`; it is intentionally **not loaded by the production V42 page**. A staging-only UI must load the Firebase compat SDKs (including App Check) before this client, then inject a dedicated staging configuration:
+
+```html
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
+<script>
+window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = {
+  firebaseConfig: {
+    apiKey: "STAGING_WEB_APP_API_KEY",
+    authDomain: "anas-erp-staging-a25e1.firebaseapp.com",
+    projectId: "anas-erp-staging-a25e1",
+    appId: "STAGING_WEB_APP_ID"
+  },
+  appCheckSiteKey: "STAGING_RECAPTCHA_V3_SITE_KEY",
+  allowedOrigins: ["https://YOUR-STAGING-HOST"],
+  functionsRegion: "us-central1"
+};
+</script>
+<script src="./staging/reverse-ledger-gateway.js"></script>
+```
+
+The staging page must sign users in through `ANASReverseLedgerStagingAuth` (the named staging Firebase app), not the production app's default `auth` instance. Once signed in, the client exposes `ANASReverseLedgerServer.execute(request)`, matching the modal's existing gateway contract. It refreshes the staging ID token, requires an App Check token, calls `executeReverseLedger`, and reports success only when the callable returns a posted document with a return ID. The callable can create the idempotency record in its own Firestore transaction, so this client does not treat the Cloudflare reservation response as a posted financial result.
+
+The client hard-rejects any Firebase project other than `anas-erp-staging-a25e1`, requires HTTPS (except localhost), and requires an explicit exact-origin allowlist. The configuration contains public web-app/App Check identifiers only; never embed service-account credentials. The staging client and its tests do not alter the production V42 page or its Firebase configuration.
+
 ## Verification completed and remaining gates
 
 The Staging Test Gate now runs a deterministic in-memory transaction harness and a real Firestore Emulator suite. The emulator suite covers snapshot/result commit, same-operation replay, concurrent duplicate requests, competing operations against the same invoice, mismatched replay, authorization abort, no-prior-reservation creation, snapshot read-after-write, trusted backup creation, restoration of pending and posted operation records, posted-return parity, stale-snapshot rejection, and refusal to omit posted operations. It also executes sales return, purchase return, and full invoice cancellation end-to-end with the canonical BigInt engine against reconciled `invoiceLedgerVersion: 2` invoices, checking debt, cash, stock, historical COGS, WAC book value, and valuation variance. The in-memory harness additionally verifies that a simulated commit failure leaves both records unchanged.
