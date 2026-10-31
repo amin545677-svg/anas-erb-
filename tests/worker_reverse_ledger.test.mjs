@@ -80,27 +80,46 @@ const realEnv = {...env,FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({
 })};
 const validBody = {operationId:"RET-OP-20261031-0001",type:"SALE_RETURN",invoiceId:"INV-1001",periodId:"FY-2026-10"};
 
-test("verified grant and open period produce a durable create-only reservation, never a posting",async()=>{
+test("verified grant and open period produce a durable transactional create-only reservation, never a posting",async()=>{
   const oldFetch=globalThis.fetch;
-  let reservationUrl="", patchCount=0, duplicate=false;
+  let commitCount=0,rollbackCount=0,existing=false,readCount=0;
   globalThis.fetch=async(url,init={})=>{
-    const target=String(url);
+    const target=String(url),method=init.method||"GET";
     if(target.includes("identitytoolkit.googleapis.com"))
       return new Response(JSON.stringify({users:[{localId:"trusted-user-1",disabled:false}]}),{status:200});
     if(target.includes("oauth2.googleapis.com/token"))
       return new Response(JSON.stringify({access_token:"service-access-token",expires_in:3600}),{status:200});
     if(target.includes("firestore.googleapis.com")){
       assert.equal(new Headers(init.headers).get("Authorization"),"Bearer service-access-token");
-      if(init.method==="PATCH"){
-        patchCount++; reservationUrl=target;
-        assert.match(target,/currentDocument\.exists=false/);
-        if(duplicate) return new Response(JSON.stringify({error:{status:"FAILED_PRECONDITION",message:"Document already exists"}}),{status:400});
-        return new Response(JSON.stringify({updateTime:"2026-10-31T00:00:00.000000Z"}),{status:200});
-      }
-      if(target.endsWith("/reverseLedgerGrants/trusted-user-1"))
+      if(target.endsWith("/documents:beginTransaction"))
+        return new Response(JSON.stringify({transaction:"tx-1"}),{status:200});
+      if(target.includes("/reverseLedgerGrants/trusted-user-1?transaction=")){
+        readCount++;
         return new Response(JSON.stringify(firestoreDoc({uid:"trusted-user-1",active:true,schemaVersion:1,permissions:["reverse_sale_return"]})),{status:200});
-      if(target.endsWith("/financialPeriods/FY-2026-10"))
+      }
+      if(target.includes("/financialPeriods/FY-2026-10?transaction=")){
+        readCount++;
         return new Response(JSON.stringify(firestoreDoc({periodId:"FY-2026-10",status:"OPEN"})),{status:200});
+      }
+      if(target.includes("/reverseLedgerOperations/RET-OP-20261031-0001?transaction=")){
+        readCount++;
+        if(existing) return new Response(JSON.stringify(firestoreDoc({status:"RESERVED"})),{status:200});
+        return new Response(JSON.stringify({error:{status:"NOT_FOUND"}}),{status:404});
+      }
+      if(target.endsWith("/documents:commit")){
+        commitCount++;
+        const payload=JSON.parse(init.body);
+        assert.equal(payload.transaction,"tx-1");
+        assert.equal(payload.writes.length,1);
+        assert.equal(payload.writes[0].currentDocument.exists,false);
+        assert.match(payload.writes[0].update.name,/reverseLedgerOperations\\/RET-OP-20261031-0001$/);
+        assert.equal(payload.writes[0].update.fields.status.stringValue,"RESERVED");
+        return new Response(JSON.stringify({writeResults:[{updateTime:"2026-10-31T00:00:00.000000Z"}]}),{status:200});
+      }
+      if(target.endsWith("/documents:rollback")){
+        rollbackCount++;
+        return new Response("{}",{status:200});
+      }
     }
     throw new Error("Unexpected network request: "+target);
   };
@@ -113,14 +132,16 @@ test("verified grant and open period produce a durable create-only reservation, 
     assert.equal(result.postingEnabled,false);
     assert.equal(result.reservation.ownerUid,"trusted-user-1");
     assert.equal(result.reservation.status,"RESERVED");
-    assert.match(reservationUrl,/currentDocument\.exists=false/);
-    assert.equal(patchCount,1);
+    assert.equal(commitCount,1);
+    assert.equal(rollbackCount,0);
+    assert.equal(readCount,3);
 
-    duplicate=true;
+    existing=true;
     const second=await worker.fetch(request("/reserve",{method:"POST",body:validBody}),realEnv);
     assert.equal(second.status,409);
     assert.match((await second.json()).error,/already reserved/i);
-    assert.equal(patchCount,2);
+    assert.equal(commitCount,1,"duplicate operation must not create a second reservation");
+    assert.equal(rollbackCount,1,"duplicate read transaction must be rolled back");
   } finally { globalThis.fetch=oldFetch; }
 });
 
@@ -132,10 +153,16 @@ test("a grant without the exact operation permission cannot reserve an operation
       return new Response(JSON.stringify({users:[{localId:"trusted-user-1"}]}),{status:200});
     if(target.includes("oauth2.googleapis.com/token"))
       return new Response(JSON.stringify({access_token:"service-access-token",expires_in:3600}),{status:200});
-    if(target.endsWith("/reverseLedgerGrants/trusted-user-1"))
+    if(target.endsWith("/documents:beginTransaction"))
+      return new Response(JSON.stringify({transaction:"tx-no-permission"}),{status:200});
+    if(target.includes("/reverseLedgerGrants/trusted-user-1?transaction="))
       return new Response(JSON.stringify(firestoreDoc({uid:"trusted-user-1",active:true,schemaVersion:1,permissions:[]})),{status:200});
-    if(target.endsWith("/financialPeriods/FY-2026-10"))
+    if(target.includes("/financialPeriods/FY-2026-10?transaction="))
       return new Response(JSON.stringify(firestoreDoc({periodId:"FY-2026-10",status:"OPEN"})),{status:200});
+    if(target.includes("/reverseLedgerOperations/RET-OP-20261031-0001?transaction="))
+      return new Response(JSON.stringify({error:{status:"NOT_FOUND"}}),{status:404});
+    if(target.endsWith("/documents:rollback"))
+      return new Response("{}",{status:200});
     throw new Error("No reservation write is permitted for a grant without permission");
   };
   try {
