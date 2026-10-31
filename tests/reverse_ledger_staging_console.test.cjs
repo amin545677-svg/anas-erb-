@@ -7,6 +7,8 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../staging/index.html'), 'utf8');
 const configExample = fs.readFileSync(path.join(__dirname, '../staging/config.example.js'), 'utf8');
 const gateway = fs.readFileSync(path.join(__dirname, '../staging/reverse-ledger-gateway.js'), 'utf8');
+const hosting = JSON.parse(fs.readFileSync(path.join(__dirname, '../firebase.staging.hosting.json'), 'utf8'));
+const deployWorkflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-reverse-ledger-console-staging.yml'), 'utf8');
 
 test('staging page is isolated from production V42 entrypoint and targets only the dedicated Firebase project', () => {
   assert.match(html, /ANAS_REVERSE_LEDGER_STAGING_CONFIG/);
@@ -43,3 +45,20 @@ test('staging console inline JavaScript parses without browser globals at build 
   assert.equal(scripts.length, 1, 'expected one inline console controller');
   assert.doesNotThrow(() => new vm.Script(scripts[0][1], { filename: 'staging/index.html:inline' }));
 });
+
+test('staging console deployment is manual, isolated and requires dedicated staging credentials', () => {
+  assert.equal(hosting.hosting.site, 'anas-erp-staging-a25e1');
+  assert.equal(hosting.hosting.public, 'staging-site');
+  assert.match(deployWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(deployWorkflow, /^  push:/m);
+  for (const secret of [
+    'FIREBASE_STAGING_SERVICE_ACCOUNT',
+    'FIREBASE_STAGING_WEB_API_KEY',
+    'FIREBASE_STAGING_WEB_APP_ID',
+    'FIREBASE_STAGING_APP_CHECK_SITE_KEY'
+  ]) assert.ok(deployWorkflow.includes(secret), 'missing staging deployment requirement: ' + secret);
+  assert.match(deployWorkflow, /--only hosting/);
+  assert.match(deployWorkflow, /--project anas-erp-staging-a25e1/);
+  assert.doesNotMatch(deployWorkflow, /--project anas-erb(?:\\s|$)/);
+});
+
