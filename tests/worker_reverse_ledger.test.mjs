@@ -42,7 +42,7 @@ test("browser cannot call a local or direct posting route",async()=>{
   assert.equal(r.status,404);
 });
 test("Firestore control-plane rules deny every browser client",async()=>{
-  const rules=await readFile(resolve("firebase/firestore.reverse-ledger.rules"),"utf8");
+  const rules=await readFile(resolve("firebase/firestore.rules"),"utf8");
   assert.match(rules,/match \/reverseLedgerGrants\/{uid}\s*\{\s*allow read, write: if false;/);
   assert.match(rules,/match \/financialPeriods\/{periodId}\s*\{\s*allow read, write: if false;/);
   assert.match(rules,/match \/reverseLedgerOperations\/{operationId}\s*\{\s*allow read, write: if false;/);
