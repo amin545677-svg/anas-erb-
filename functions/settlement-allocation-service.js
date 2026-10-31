@@ -21,8 +21,11 @@ function requiredText(value, label, max = 160) {
 }
 
 function toCentimes(value, label) {
-  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
-  const raw = String(value ?? '').trim();
+  if ((typeof value !== 'string' && typeof value !== 'number') ||
+      (typeof value === 'number' && !Number.isFinite(value))) {
+    throw new Error(label + ' must be a finite currency amount');
+  }
+  const raw = String(value).trim();
   const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,2}))?$/.exec(raw);
   if (!match) throw new Error(label + ' must be a non-negative amount with at most two decimals');
   const result = BigInt(match[1]) * 100n + BigInt((match[2] || '').padEnd(2, '0'));
