@@ -89,14 +89,14 @@ test('posted returns reject a one-micro-unit over-return without mutating the so
    totalCentimes:2000001,debtReductionCentimes:0,cashRefundCentimes:0,stockMovementIds:[],financialMovementIds:[]}]
  };
  const before=JSON.stringify(state);
- assert.throws(()=>R.validateReverseLedgerParity(state),/return quantity exceeds remaining original quantity/);
+ assert.throws(()=>R.validateReverseLedgerParity(state),/return exceeds remaining returnable micro-units/);
  assert.equal(JSON.stringify(state),before,'rejected validation must not mutate incoming data');
  const draftState={...state,returns:[]};
  assert.throws(()=>R.sealReturnDocument(draftState,{
   returnId:'R-DRAFT-OVER',originalInvoiceId:'S-1',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'DRAFT',
-  items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001}],
+  items:[{productId:'P-1',quantityMicroUnits:2000001,unitPriceCentimes:1000000,lineTotalCentimes:2000001,originalLineTotalCentimes:200000000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:0}],
   totalCentimes:2000001,debtReductionCentimes:0,cashRefundCentimes:0,createdAt:'2026-10-30T12:00:00Z',operatorId:'U-1',reason:'over ceiling'
- }),/return exceeds remaining returnable micro-units/);
+ }),/return quantity exceeds remaining original quantity/);
 });
 test('posted return requires matching invoice-linked stock movements', () => {
  const state={
@@ -160,9 +160,9 @@ test('draft return ceiling accounts for all previously posted returns', () => {
  const before=JSON.stringify(state);
  assert.throws(()=>R.sealReturnDocument(state,{
   returnId:'R-DRAFT',originalInvoiceId:'S-CEILING',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'DRAFT',
-  items:[{productId:'P-1',quantityMicroUnits:1000001,unitPriceCentimes:1000000,lineTotalCentimes:1000001}],
+  items:[{productId:'P-1',quantityMicroUnits:1000001,unitPriceCentimes:1000000,lineTotalCentimes:1000001,originalLineTotalCentimes:2000000,originalQuantityMicroUnits:2000000,previouslyReturnedMicroUnits:1000000}],
   totalCentimes:1000001,debtReductionCentimes:0,cashRefundCentimes:0,createdAt:'2026-10-30T12:03:00Z',operatorId:'U-1',reason:'remaining ceiling'
- }),/return exceeds remaining returnable micro-units/);
+ }),/return quantity exceeds remaining original quantity/);
  assert.equal(JSON.stringify(state),before,'failed draft sealing must not mutate existing posted return state');
 });
 
