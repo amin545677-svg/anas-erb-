@@ -91,7 +91,7 @@ test('permits insufficient cash only with separately authorized and operation-bo
   assert.throws(() => authorizeReverseOperation({ ...context, liquidityOverride: { ...context.liquidityOverride, operationId: 'OTHER-OP-0000001' } }), /explicit authorized liquidity approval/);
 });
 test('requires explicit credit permission and credit settlement mode', () => {
-  assert.throws(() => authorizeReverseOperation(validContext({ operation: { creditIssueCentimes: 200, settlementMode: 'cash' } })), /missing required permission: reverse_credit_issue/);
+  assert.throws(() => authorizeReverseOperation(validContext({ operation: { creditIssueCentimes: 200, settlementMode: 'credit' }, grant: { permissions: [PERMISSIONS.SALE_RETURN] } })), /missing required permission: reverse_credit_issue/);
   assert.throws(() => authorizeReverseOperation(validContext({ operation: { creditIssueCentimes: 200 } })), /explicit credit settlement mode/);
 });
 test('purchase returns cannot exceed stock in the selected warehouse', () => {
