@@ -170,7 +170,7 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
   };
   vm.createContext(context);
   const source = extractFunction("confirmHasibPayment", "");
-  vm.runInContext([extractFunction("anasToCents"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
   context.__run();
   return { snapshot: context.AppData, alerts, cart: context.posCart, invoice: context.lastConfirmedInvoice };
 }
