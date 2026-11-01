@@ -59,15 +59,17 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
       req.onerror = () => reject(req.error);
     });
     return { localMatches: local === payload, localChecksumValid, checksumValid: record.checksum === await S.checksum(record.payload),
-      revision: record.revision, payload: finance };
+      revision: record.revision };
   });
   assert.equal(first.localMatches, true);
   assert.equal(first.localChecksumValid, true);
   assert.equal(first.checksumValid, true);
   assert.equal(first.revision, 1);
 
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
   const recovery = await page.evaluate(async () => {
-    localStorage.clear();
     const result = await window.ANASResilientStorage.hydrate(null);
     const data = result.data;
     return { recovered: result.recoveredFromIndexedDB, invoice: data.invoices[0].totalCentimes.toString(),
