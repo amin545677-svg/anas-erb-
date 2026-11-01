@@ -6,25 +6,25 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'tests/**'
       - 'functions/**'
       - 'scripts/**'
       - 'reverse-ledger/**'
       - 'firebase.staging.json'
       - 'firebase/firestore.staging.rules'
       - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
+      - 'tests/**'
   push:
     branches:
       - staging/unified-release-candidate
       - feature/atomic-settlement-allocation
     paths:
-      - 'tests/**'
       - 'functions/**'
       - 'scripts/**'
       - 'reverse-ledger/**'
       - 'firebase.staging.json'
       - 'firebase/firestore.staging.rules'
       - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
+      - 'tests/**'
 
 permissions:
   contents: read
