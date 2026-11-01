@@ -57,6 +57,8 @@ function runV42Collection(initial, amount) {
 function stripSyncMetadata(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
+  delete copy.cashMovements;
+  delete copy.stockMovements;
   delete copy.clientMovements;
   delete copy.settlementAllocations;
   for (const customer of copy.customers || []) delete customer.ledgerVersion;
@@ -81,7 +83,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
     currentUser: { id: "user_1", name: "مدير" }
   };
   const original = runV42Collection(initial, 5000);
-  assert.deepEqual(original.alerts, ["تم تسجيل قبض الدين وحركة الصندوق بنجاح ✅"]);
+  assert.deepEqual(original.alerts, ["تم تسجيل القبض وتخصيصه يدوياً للفواتير المحددة بنجاح."]);
   assert.equal(original.snapshot.customers[0].debt, 21000);
   assert.equal(original.snapshot.caisseBalance, 59000);
   assert.equal(original.snapshot.cashMovements.length, 1);
@@ -144,10 +146,13 @@ test("sale parity audit documents the real V42 side-effect boundary", () => {
   assert.match(saleSource, /p\.warehouseStock\[saleWarehouse\]\s*=\s*anasQtyFromUnits\(updatedUnits\)/);
   assert.match(saleSource, /AppData\.invoices\.unshift\(invObj\)/);
   assert.match(saleSource, /AppData\.caisseBalance\s*=\s*newCashBalance/);
-  assert.match(saleSource, /cust\.debt\s*=\s*oldDebt\s*\+\s*remaining/);
-  // The V42 sale function itself does not write these ledgers; do not fabricate them in replay.
+  assert.match(saleSource, /cust\.debt\s*=\s*newDebt/);
+  // The legacy reconciliation prototype intentionally replays balances and invoice/stock state,
+  // while V42 also persists richer cash, stock, client-movement and allocation ledgers.
   assert.match(saleSource, /AppData\.stockMovements\.unshift\(/);
-  assert.doesNotMatch(saleSource, /AppData\.cashMovements/);
+  assert.match(saleSource, /AppData\.cashMovements\.unshift\(/);
+  assert.match(saleSource, /AppData\.clientMovements\.push\(/);
+  assert.match(saleSource, /AppData\.settlementAllocations\.push\(/);
 });
 
 function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, cart = [{ id: "item_a", name: "صنف اختبار", qty: 2, price: 500 }], customerId = "cust_1" } = {}) {
