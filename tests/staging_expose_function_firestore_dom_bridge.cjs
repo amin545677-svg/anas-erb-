@@ -53,7 +53,7 @@ function fixtureState() {
     }],
     purchases: [],
     products: [{ id: 'P-DOM-1', name: 'DOM product', stock: 0, buyPrice: '10.00' }],
-    customers: [{ id: 'C-DOM-1', name: 'DOM customer', debt: '50.00', ledgerVersion: 2 }],
+    customers: [{ id: 'C-DOM-1', name: 'DOM customer', debt: '100.00', ledgerVersion: 2 }],
     suppliers: [],
     cashMovements: [{
       id: 'CASH-DOM-1', type: 'add', amount: '50.00',
@@ -79,6 +79,7 @@ function fixtureState() {
     referenceType: 'sales_invoice', referenceId: 'INV-DOM-1',
     createdAt: '2026-10-31T10:00:00.000Z'
   }));
+  state.customers[0].debt = '50.00';
   state.clientMovements.push(ReverseLedger.sealClientMovement(state, {
     movementId: 'CASH-DOM-1', clientId: 'C-DOM-1',
     type: 'receipt', amountCentimes: 5000, direction: 'credit',
