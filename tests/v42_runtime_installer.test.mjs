@@ -77,8 +77,8 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
   });
   const alerts = [];
   const elements = {
-    hasibCustomerSelect: { value: "cust_1" },
-    hasibPaidAmount: { value: "400" }
+    hasibCustomerSelect: { value: "" },
+    hasibPaidAmount: { value: "1000" }
   };
   const context = {
     AppData: structuredClone(initial),
@@ -142,7 +142,7 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
       return {
         type: "SALE_INVOICE",
         payload: {
-          customerId: entity.customerObj?.id ?? "cust_1",
+          customerId: entity.customerObj?.id ?? null,
           warehouse: entity.warehouse,
           invoice: entity
         }
@@ -168,8 +168,8 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
   assert.deepEqual(eventOrder, ["push", "pull", "push"]);
   assert.equal(cloud.revision, 2);
   assert.equal(cloud.data.products[0].stock, 88);
-  assert.equal(cloud.data.caisseBalance, 54400);
-  assert.equal(cloud.data.customers[0].debt, 26600);
+  assert.equal(cloud.data.caisseBalance, 55000);
+  assert.equal(cloud.data.customers[0].debt, 26000);
   assert.equal(cloud.data.invoices.length, 1);
   assert.equal(cloud.data.invoices[0].syncOpId, queueAfterSave[0].opId);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
