@@ -5,11 +5,8 @@ const vm = require('node:vm');
 const { buildSupplierStatement } = require('../supplier-account-statement.js');
 assert.equal(typeof buildSupplierStatement, 'function', 'standalone supplier statement module must load');
 
-const html = fs.readFileSync('index.html', 'utf8');
-const start = html.indexOf('function showSupplierStatement(supplierId)');
-const end = html.indexOf('function paySupplierDebt(supplierId)', start);
-assert.ok(start >= 0 && end > start, 'supplier statement function must be present and isolatable');
-const source = html.slice(start, end);
+const source = fs.readFileSync(require('node:path').join(__dirname, '..', 'supplier-account-statement.js'), 'utf8');
+assert.match(source, /root\.showSupplierStatement\s*=\s*showSupplierStatement/);
 
 class FakeElement {
   constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.style = {}; this.listeners = {}; this._text = ''; }
@@ -65,7 +62,7 @@ function harness({ suppliers, supplierMovements }) {
   assert.match(text, /إجمالي التسديدات/);
   assert.ok(text.indexOf('PUR-1') < text.indexOf('PUR-2') && text.indexOf('PUR-2') < text.indexOf('PAY-1'), 'movements should be chronological');
   assert.ok(text.includes('<img src=x onerror=alert(1)>'), 'untrusted note must be rendered as literal text');
-  assert.equal(dialog.children[0].children[0].children[1].textContent, 'إغلاق');
+  assert.equal(dialog.children[0].children[1].textContent, 'إغلاق');
   console.log('PASS: full supplier statement shows every movement, exact summary buckets, and chronological order');
 }
 
