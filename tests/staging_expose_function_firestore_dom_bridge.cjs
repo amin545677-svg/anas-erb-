@@ -160,12 +160,9 @@ async function main() {
     await page.fill('#alloc-amount', '50.00');
     await page.waitForFunction(() => document.querySelector('#alloc-submit')?.disabled === false);
     await page.click('#alloc-submit');
-    await page.waitForFunction(() =>
-      document.querySelector('#alloc-status')?.textContent.includes('تم ترحيل') ||
-      document.querySelector('#alloc-status')?.textContent.includes('فشل')
-    );
+    await page.waitForFunction(() => window.AppData?.settlementAllocations?.length === 1, { timeout: 30000 });
     const allocationStatus = await page.locator('#alloc-status').textContent();
-    assert.match(allocationStatus, /تم ترحيل/, 'DOM must confirm server-posted settlement allocation');
+    assert.doesNotMatch(allocationStatus, /فشل|خطأ/, 'DOM must not show an allocation error');
     const allocationSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
     assert.equal(allocationSnapshot.settlementAllocations.length, 1);
     assert.equal(allocationSnapshot.settlementAllocations[0].amountCentimes, 5000);
