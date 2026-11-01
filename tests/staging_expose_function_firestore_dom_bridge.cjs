@@ -265,8 +265,14 @@ async function main() {
       }) + '; ' + error.message);
     }
     assert.equal(bridgeFailure, null, 'reverse service rejected the DOM request: ' + bridgeFailure);
-    assert.equal(await page.locator('#modal-reverse-ledger').evaluate(node => node.classList.contains('active')), false,
-      'reverse modal must close only after server confirms POSTED');
+    const reverseModalState = await page.evaluate(() => ({
+      active: document.querySelector('#modal-reverse-ledger')?.classList.contains('active'),
+      status: document.querySelector('#rev-eligibility-status')?.textContent,
+      buttonText: document.querySelector('#rev-submit-btn')?.textContent,
+      buttonDisabled: document.querySelector('#rev-submit-btn')?.disabled
+    }));
+    assert.equal(reverseModalState.active, false,
+      'reverse modal must close only after server confirms POSTED: ' + JSON.stringify(reverseModalState));
 
     const finalSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
     const finalState = await userRef.collection('snapshots').doc('latest').get();
