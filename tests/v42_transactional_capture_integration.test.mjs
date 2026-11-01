@@ -6,6 +6,7 @@ import { createMutationEnvelope } from "../sync/mutation_capture.mjs";
 import { createMutationQueueOrchestrator, MUTATION_KEYS } from "../sync/mutation_queue_orchestrator.mjs";
 
 const v42Source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledger.js", import.meta.url), "utf8");
 
 function extractFunction(name, signature) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -145,7 +146,7 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
   const fn = kind === "sale"
     ? extractFunction("confirmHasibPayment", "")
     : extractFunction("collectCustDebt", "cId");
-  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", fn, kind === "sale" ? "globalThis.__run = confirmHasibPayment;" : "globalThis.__run = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", fn, kind === "sale" ? "globalThis.__run = confirmHasibPayment;" : "globalThis.__run = collectCustDebt;"].join("\n"), context);
 
   let threw = false;
   try {
