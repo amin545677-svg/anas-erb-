@@ -232,10 +232,24 @@ async function main() {
     await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
     await page.waitForFunction(() => document.querySelector('#rev-submit-btn')?.disabled === false);
     await page.click('#rev-submit-btn');
-    await page.waitForFunction(async () => {
-      const state = await window.__anasBridgeState();
-      return state.operationIds.length === 2 || Boolean(state.failure);
-    }, { timeout: 30000 });
+    try {
+      await page.waitForFunction(async () => {
+        const state = await window.__anasBridgeState();
+        return state.operationIds.length === 2 || Boolean(state.failure);
+      }, { timeout: 30000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => ({
+        gatewayType: typeof window.ANASReverseLedgerServer?.execute,
+        buttonDisabled: document.querySelector('#rev-submit-btn')?.disabled,
+        buttonText: document.querySelector('#rev-submit-btn')?.textContent,
+        status: document.querySelector('#rev-eligibility-status')?.textContent,
+        previewTotal: document.querySelector('#rev-preview-total')?.textContent,
+        invoiceValue: document.querySelector('#rev-invoice-select')?.value
+      }));
+      throw new Error('reverse DOM bridge timed out: ' + JSON.stringify({
+        diagnostic, bridgeFailure, operationIds
+      }) + '; ' + error.message);
+    }
     assert.equal(bridgeFailure, null, 'reverse service rejected the DOM request: ' + bridgeFailure);
     assert.equal(await page.locator('#modal-reverse-ledger').evaluate(node => node.classList.contains('active')), false,
       'reverse modal must close only after server confirms POSTED');
