@@ -131,9 +131,9 @@ test("real HTTP 409 CAS recovery preserves Device B's cloud commit and replays D
   assert.equal(cloud.lastReverseOperationId, "device-b-reverse-op-0001");
   assert.equal(cloud.settlementAllocations.filter(row => row.id === "alloc-device-b-0001").length, 1);
   assert.equal(cloud.settlementAllocations.find(row => row.id === "alloc-device-b-0001").amountCentimes, 5000);
-  assert.equal(cloud.caisseBalance, 540);
-  assert.equal(cloud.customers[0].debt, 260);
-  assert.equal(cloud.cashMovements.filter(row => row.id === "cash-device-a-0001").length, 0);
+  assert.equal(cloud.caisseBalance, 590);
+  assert.equal(cloud.customers[0].debt, 210);
+  assert.equal(cloud.cashMovements.filter(row => row.id === "cash-device-a-0001").length, 1);
   assert.deepEqual(JSON.parse(storage.getItem(MUTATION_KEYS.pending)), []);
   assert.equal(storage.getItem(MUTATION_KEYS.revision), JSON.stringify("REV-3"));
 
