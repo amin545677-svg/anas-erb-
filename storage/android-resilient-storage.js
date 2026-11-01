@@ -9,6 +9,7 @@
   const APP_KEY = 'ANAS_THE_ENTERPRISE_V11_OFFLINE';
   const CACHE_KEY = '__ANAS_RESILIENT_MEM_STORE__';
   const MODE_KEY = 'ANAS_STORAGE_MODE';
+  const META_KEY = APP_KEY + '__META_V1';
   const VERSION = 1;
 
   const cache = global[CACHE_KEY] || (global[CACHE_KEY] = Object.create(null));
@@ -26,6 +27,11 @@
     return JSON.parse(value, (_, v) => v && typeof v === 'object' &&
       Object.keys(v).length === 1 && typeof v.__anas_bigint_v1__ === 'string'
       ? BigInt(v.__anas_bigint_v1__) : v);
+  }
+  function fastChecksum(payload) {
+    let hash = 0x811c9dc5;
+    for (const byte of new TextEncoder().encode(payload)) { hash ^= byte; hash = Math.imul(hash, 0x01000193); }
+    return 'fnv1a:' + (hash >>> 0).toString(16).padStart(8, '0');
   }
   async function checksum(payload) {
     const bytes = new TextEncoder().encode(payload);
@@ -87,7 +93,11 @@
   function setSync(key, value) {
     const text = String(value);
     cache[key] = text;
-    try { global.localStorage.setItem(key, text); }
+    const nextRevision = revision + 1;
+    try {
+      global.localStorage.setItem(key, text);
+      global.localStorage.setItem(META_KEY, JSON.stringify({ revision: nextRevision, checksum: fastChecksum(text), updatedAt: new Date().toISOString() }));
+    }
     catch (error) {
       mode = 'INDEXEDDB_FALLBACK_ACTIVE';
       try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
@@ -118,20 +128,36 @@
     // The caller must keep domain writes locked until this promise resolves.
     const local = typeof localPayload === 'string' ? localPayload : getSync(APP_KEY);
     let localValid = false;
-    if (typeof local === 'string') { try { decode(local); localValid = true; } catch (_) {} }
+    let localRevision = 0;
+    if (typeof local === 'string') {
+      try {
+        decode(local);
+        const rawMeta = global.localStorage && global.localStorage.getItem(META_KEY);
+        if (rawMeta) {
+          const meta = JSON.parse(rawMeta);
+          if (!Number.isSafeInteger(meta.revision) || meta.revision < 1 || meta.checksum !== fastChecksum(local)) throw new Error('local snapshot checksum mismatch');
+          localRevision = meta.revision;
+        }
+        localValid = true;
+      } catch (_) { localValid = false; }
+    }
     let record = null;
     try { record = await readIDB(); } catch (error) {
       global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
     }
     const idbValid = await validateRecord(record);
     let selected = localValid ? local : null;
-    if (idbValid && (!localValid || record.revision >= revision)) {
+    revision = Math.max(revision, localRevision, idbValid ? record.revision : 0);
+    if (idbValid && (!localValid || record.revision >= localRevision)) {
       selected = record.payload;
       revision = record.revision;
     }
     if (selected !== null) {
       cache[APP_KEY] = selected;
-      if (!idbValid) await persist(selected);
+      if (!idbValid || (localValid && localRevision > record.revision)) {
+        revision = Math.max(0, (localValid ? localRevision : 0) - 1);
+        await persist(selected);
+      }
       try { global.localStorage.setItem(APP_KEY, selected); } catch (_) {
         mode = 'INDEXEDDB_FALLBACK_ACTIVE';
         try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
@@ -146,6 +172,6 @@
 
   global.ANASResilientStorage = Object.freeze({
     APP_KEY, DB_NAME, STORE_NAME, getSync, setSync, removeSync, hydrate, persist,
-    ready, status, encode, decode, checksum
+    ready, status, encode, decode, checksum, fastChecksum
   });
 })(window);
