@@ -77,6 +77,11 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(!functionsWorkflow.slice(0, functionsWorkflow.indexOf('jobs:')).includes('id-token: write'));
   assert.ok(bootstrapScript.includes("credential.project_id !== PROJECT_ID"));
   assert.ok(bootstrapScript.includes('Dedicated Staging Admin SDK bootstrap credential file is unavailable.'));
+  assert.ok(bootstrapScript.includes(String.raw`!/^[^@\s]+@[^\s@]+\.[^\s@]+$/.test(email)`),
+    'bootstrap email validation must use real whitespace/domain regex escapes');
+  assert.ok(bootstrapScript.includes(String.raw`replace(/[\r\n]+/g, ' ').slice(0, 400) + '\n'`),
+    'bootstrap logs must sanitize real line breaks and emit a newline');
+
   assert.match(deployWorkflow, /--only hosting/);
   assert.match(deployWorkflow, /--project anas-erp-staging-a25e1/);
   assert.doesNotMatch(deployWorkflow, /--project anas-erb(?:\\s|$)/);
