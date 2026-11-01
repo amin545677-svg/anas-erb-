@@ -1,0 +1,79 @@
+# ANAS ERP Staging — GitHub OIDC setup
+
+This repository deploys only the isolated Firebase project `anas-erp-staging-a25e1`.
+The deployment workflows use GitHub Actions OIDC and do not require a downloaded service-account JSON key.
+
+## 1. Create the Google Cloud identity pool and provider
+
+Run these commands as a Google Cloud administrator. Use a dedicated pool/provider for this repository.
+
+```bash
+export PROJECT_ID="anas-erp-staging-a25e1"
+export POOL_ID="github-anas-erp-staging"
+export PROVIDER_ID="github-actions"
+export DEPLOYER_SA="anas-erp-staging-deployer"
+
+gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)"
+
+gcloud iam workload-identity-pools create "$POOL_ID" \
+  --project="$PROJECT_ID" \
+  --location="global" \
+  --display-name="ANAS ERP Staging GitHub Actions"
+
+gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \
+  --project="$PROJECT_ID" \
+  --location="global" \
+  --workload-identity-pool="$POOL_ID" \
+  --display-name="ANAS ERP Staging GitHub provider" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
+  --attribute-condition="assertion.repository == 'amin545677-svg/anas-erb-' && assertion.ref == 'refs/heads/staging/unified-release-candidate'"
+
+gcloud iam service-accounts create "$DEPLOYER_SA" \
+  --project="$PROJECT_ID" \
+  --display-name="ANAS ERP Staging deployer"
+```
+
+If the pool/provider or service account already exists, inspect and reuse it; do not create duplicates.
+
+## 2. Allow only this repository to impersonate the deployer
+
+Set `PROJECT_NUMBER` to the project number printed above.
+
+```bash
+export PROJECT_NUMBER="<PROJECT_NUMBER>"
+export MEMBER="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/attribute.repository/amin545677-svg/anas-erb-"
+
+gcloud iam service-accounts add-iam-policy-binding \
+  "${DEPLOYER_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --project="$PROJECT_ID" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="$MEMBER"
+```
+
+The provider condition restricts tokens to pushes or manual dispatches whose ref is exactly `refs/heads/staging/unified-release-candidate` in this repository. Do not remove that condition or grant this identity access to the production project.
+
+## 3. Grant deployment permissions
+
+Grant the deployer service account only the permissions required by the enabled Firebase operations in the staging project: Hosting deployment, Firestore Rules deployment, and the selected Cloud Functions deployment. Include `iam.serviceAccounts.actAs` only on the specific Functions runtime service account if required. Do not grant Owner or Editor as a shortcut. Validate the required role set against the actual deployment errors and the project's existing runtime service accounts.
+
+## 4. Configure GitHub Environment variables
+
+In repository Settings → Environments → `staging` → Environment variables, add:
+
+- `ANAS_STAGING_WIF_PROVIDER`: full provider resource name, for example `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID`.
+- `ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT`: `anas-erp-staging-deployer@anas-erp-staging-a25e1.iam.gserviceaccount.com` (or the exact dedicated deployer account selected above).
+
+The console workflow still requires these public Firebase web configuration inputs as GitHub Environment secrets:
+
+- `FIREBASE_STAGING_WEB_API_KEY`
+- `FIREBASE_STAGING_WEB_APP_ID`
+- `FIREBASE_STAGING_APP_CHECK_SITE_KEY`
+
+The Functions workflow's optional test-account bootstrap separately requires `ANAS_STAGING_EMAIL`, `ANAS_STAGING_PASSWORD`, and optionally `ANAS_STAGING_UID` / `STAGING_TEST_UID`. These are not deployment credentials and must never be committed.
+
+## 5. Run and verify
+
+After configuring the provider, IAM binding, service-account permissions, and Environment variables, dispatch each workflow from `staging/unified-release-candidate` or push a reviewed commit to that branch.
+
+A successful PR validation job is not a deployment. Accept deployment only when the deploy job itself is `success` and the workflow's live Hosting verification / Firebase deployment steps complete. Keep PR #263 Draft until both deployments and live acceptance evidence are complete.
