@@ -1489,7 +1489,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             <div class="card" style="margin:12px 0;padding:14px">
                 <h3 style="margin:0 0 8px">👥 دليل العملاء الاحترافي</h3>
                 <p style="font-size:12px;color:var(--text-muted,#64748b);margin:0 0 10px">ابحث بالاسم أو الهاتف أو العنوان، ثم عدّل بيانات العميل عند الحاجة.</p>
-                <input id="customerDirectorySearch" class="field-input" placeholder="🔎 ابحث عن عميل..." oninput="renderCustomerDirectory()">
+                <input id="customerDirectorySearch" class="field-input" placeholder="🔎 ابحث بالاسم أو الهاتف أو الرقم الجبائي..." oninput="renderCustomerDirectory()">
+                <div role="group" aria-label="تصفية العملاء حسب الرصيد" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">
+                    <button type="button" class="pill-select-btn" data-customer-debt-filter="all" onclick="setCustomerDirectoryDebtFilter('all')">كل العملاء</button>
+                    <button type="button" class="pill-select-btn" data-customer-debt-filter="debt" onclick="setCustomerDirectoryDebtFilter('debt')">عليهم ديون</button>
+                    <button type="button" class="pill-select-btn" data-customer-debt-filter="clear" onclick="setCustomerDirectoryDebtFilter('clear')">بدون ديون</button>
+                </div>
                 <div id="customerDirectoryList" style="margin-top:10px"></div>
             </div>
         </section>
@@ -2455,7 +2460,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <button class="pill-select-btn" style="margin-top:4px; width:100%;" onclick="detectCustomerGPS()">📍 التقاط موقع المحل الحالي (GPS) فوراً</button>
             </div>
             <div class="field-group">
-                <label>رصيد دين سابق (إن وجد د.ج):</label>
+                <label id="newCustDebtLabel">رصيد دين سابق عند إنشاء العميل (د.ج):</label>
                 <input type="number" id="newCustDebtInput" class="field-input" value="0">
             </div>
             <button class="btn-full-submit" style="background:var(--mp-navy);" onclick="saveNewCustomerMpos()">💾 حفظ العميل</button>
@@ -5101,6 +5106,10 @@ function renderPurchasesTable() {
         
         let editingCustomerId = null;
         function openAddCustomerModal() { 
+            const debtField = document.getElementById('newCustDebtInput');
+            if (debtField) { debtField.readOnly = false; debtField.removeAttribute('aria-readonly'); }
+            const debtLabel = document.getElementById('newCustDebtLabel');
+            if (debtLabel) debtLabel.textContent = 'رصيد دين سابق عند إنشاء العميل (د.ج):';
             editingCustomerId = null;
             const title = document.querySelector('#addCustomerModal h3'); if(title) title.textContent='➕ إضافة عميل جديد';
             const saveBtn = document.querySelector('#addCustomerModal .btn-full-submit'); if(saveBtn) saveBtn.textContent='💾 حفظ العميل';
@@ -5167,7 +5176,9 @@ function renderPurchasesTable() {
             const existing = editing ? matches[0] : null;
             const previousCustomers = AppData.customers.slice();
             const previousExisting = existing ? {...existing} : null;
-            const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt, debtDate: debt > 0 ? new Date().toISOString().slice(0, 10) : ""};
+            const preservedDebt = window.anasCustomerDebtForSave(editing, existing, debt);
+            const preservedDebtDate = editing && existing ? (existing.debtDate ?? "") : (debt > 0 ? new Date().toISOString().slice(0, 10) : "");
+            const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt: preservedDebt, debtDate: preservedDebtDate};
 
             if (editing) {
                 Object.assign(existing, data);
@@ -5213,13 +5224,14 @@ function renderPurchasesTable() {
             const box = document.getElementById('customerDirectoryList');
             if (!box) return;
             try {
-                const q = String(document.getElementById('customerDirectorySearch')?.value || '').trim().toLocaleLowerCase();
+                const q = window.anasNormalizeQueryText(document.getElementById('customerDirectorySearch')?.value || '');
                 const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
+                const debtFilter = window.anasCustomerDirectoryDebtFilter || 'all';
                 const money = value => (Number(value) || 0).toLocaleString('fr-DZ', {maximumFractionDigits:2}) + ' د.ج';
                 const safe = value => escapeQuickText(String(value ?? ''));
                 const list = customers.filter(c => {
                     const fields = [c.name,c.phone,c.phone2,c.address,c.rc,c.nif,c.nis,c.art];
-                    return !q || fields.some(v => String(v ?? '').toLocaleLowerCase().includes(q));
+                    return window.anasCustomerDebtFilterMatches(c, debtFilter) && window.anasQueryMatches(fields, q);
                 });
                 const totalDebt = list.reduce((sum,c) => sum + Math.max(0, Number(c.debt)||0), 0);
                 box.innerHTML = `
@@ -5241,6 +5253,7 @@ function renderPurchasesTable() {
                         <button type="button" class="pill-select-btn" onclick="editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))">✏️ تعديل البيانات</button>
                       </div>
                       <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--text-muted,#64748b)">عرض البيانات الإدارية</summary><div style="font-size:12px;line-height:1.9;margin-top:7px;overflow-wrap:anywhere">RC: ${safe(c.rc||'—')} · NIF: ${safe(c.nif||'—')}<br>NIS: ${safe(c.nis||'—')} · Art: ${safe(c.art||'—')}<br>GPS: ${safe(c.location||'—')}</div></details>
+                      ${window.anasRenderCustomerDebtCollections(c, AppData.cashMovements)}
                     </article>`).join('') : `<div class="card" style="margin:0;padding:22px;text-align:center"><div style="font-size:30px">👥</div><strong>${customers.length ? 'لا توجد نتائج مطابقة' : 'لا يوجد عملاء مسجلون'}</strong><p style="font-size:13px;color:var(--text-muted,#64748b)">${customers.length ? 'غيّر كلمات البحث وحاول مجدداً.' : 'أضف أول عميل، وسيظهر هنا تلقائياً.'}</p>${customers.length ? '<button class="pill-select-btn" onclick="clearCustomerDirectorySearch()">مسح البحث</button>' : '<button class="pill-select-btn" onclick="openAddCustomerModal()">➕ إضافة أول عميل</button>'}</div>`);
             } catch (err) {
                 console.error('Customer directory render error:', err);
@@ -5255,6 +5268,10 @@ function renderPurchasesTable() {
             editingCustomerId=c.id;
             const fields={newCustNameInput:c.name,newCustPhoneInput:c.phone,newCustPhone2Input:c.phone2,newCustRCInput:c.rc,newCustNIFInput:c.nif,newCustNISInput:c.nis,newCustArtInput:c.art,newCustAddressInput:c.address,newCustLocationInput:c.location,newCustDebtInput:c.debt??0};
             Object.entries(fields).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val??'';});
+            const debtField=document.getElementById('newCustDebtInput');
+            if(debtField){debtField.readOnly=true;debtField.setAttribute('aria-readonly','true');}
+            const debtLabel=document.getElementById('newCustDebtLabel');
+            if(debtLabel)debtLabel.textContent='رصيد العميل الحالي (يُعدّل عبر التحصيل أو القيد المحاسبي فقط):';
             const title=document.querySelector('#addCustomerModal h3');if(title)title.textContent='✏️ تعديل بيانات العميل';
             const saveBtn=document.querySelector('#addCustomerModal .btn-full-submit');if(saveBtn)saveBtn.textContent='💾 حفظ التعديلات';
             document.getElementById('addCustomerModal').classList.add('active');
@@ -10193,6 +10210,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     <script src="./supplier-account-statement.js"></script>
     <script src="./cashbox-readonly-ledger.js"></script>
     <script src="./arabic-query-engine.js"></script>
+    <script src="./customer-debt-protection.js"></script>
     <script src="./warehouse-transfer-audit.js"></script>
 </body>
 </html>
