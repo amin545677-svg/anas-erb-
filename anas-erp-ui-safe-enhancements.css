@@ -1,5 +1,5 @@
 /* ANAS ERP — additive, classic RTL interface enhancements.
-   Load after existing styles. No application data, accounting, storage, or navigation logic changes. */
+   Load AFTER existing styles. Does not modify application data or navigation logic. */
 :root { --ui-focus:#f59e0b; --ui-touch:44px; }
 html { -webkit-text-size-adjust:100%; }
 body { overflow-wrap:anywhere; }
