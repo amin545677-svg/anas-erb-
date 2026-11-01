@@ -8,12 +8,13 @@ import {
 const approvedAccount = 'staging-deployer@anas-erp-staging-a25e1.iam.gserviceaccount.com';
 
 function validIdentity(overrides = {}) {
+  const activeAccount = overrides.activeAccount ?? approvedAccount;
   return {
     projectId: STAGING_PROJECT_ID,
     googleCloudProjectId: STAGING_PROJECT_ID,
     describedProjectId: STAGING_PROJECT_ID,
-    activeAccount: approvedAccount,
-    activeAccounts: [approvedAccount],
+    activeAccount,
+    activeAccounts: overrides.activeAccounts ?? [activeAccount],
     expectedAccount: approvedAccount,
     ...overrides
   };
@@ -98,7 +99,8 @@ test('rejects user credentials rather than a service account', () => {
   assert.throws(
     () => validateStagingIdentity(validIdentity({
       activeAccount: 'human@example.com',
-      expectedAccount: 'human@example.com'
+      activeAccounts: ['human@example.com'],
+      expectedAccount: approvedAccount
     })),
     /not a service account/
   );
