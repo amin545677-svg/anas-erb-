@@ -49,19 +49,47 @@ export function validateStagingIdentity({
   return true;
 }
 
+export function expectedPrincipalFromCredential(credential) {
+  if (!credential || typeof credential !== 'object' || Array.isArray(credential)) {
+    throw new Error('Refusing deployment: Google credential configuration is invalid.');
+  }
+
+  if (credential.type === 'service_account') {
+    if (credential.project_id !== STAGING_PROJECT_ID) {
+      throw new Error('Refusing deployment: service-account credential project is not isolated staging.');
+    }
+    const email = credential.client_email || '';
+    if (!email.endsWith('.iam.gserviceaccount.com')) {
+      throw new Error('Refusing deployment: service-account credential has an invalid principal.');
+    }
+    return email;
+  }
+
+  if (credential.type === 'external_account') {
+    const raw = credential.service_account_impersonation_url || '';
+    let url;
+    try { url = new URL(raw); } catch {
+      throw new Error('Refusing deployment: OIDC credential lacks a valid service-account impersonation URL.');
+    }
+    if (url.protocol !== 'https:' || url.hostname !== 'iamcredentials.googleapis.com') {
+      throw new Error('Refusing deployment: OIDC impersonation endpoint is not trusted.');
+    }
+    const match = url.pathname.match(/\\/serviceAccounts\\/([^/:]+):generateAccessToken$/);
+    const email = match ? decodeURIComponent(match[1]) : '';
+    if (!email.endsWith('.iam.gserviceaccount.com')) {
+      throw new Error('Refusing deployment: OIDC credential has no approved service-account principal.');
+    }
+    return email;
+  }
+
+  throw new Error('Refusing deployment: unsupported Google credential type.');
+}
+
 function expectedPrincipalFromCredentials(credentialsPath) {
   if (!credentialsPath) return '';
   const credential = JSON.parse(readFileSync(credentialsPath, 'utf8'));
-
-  if (credential.type === 'service_account') {
-    return credential.client_email || '';
-  }
-
-  const impersonationUrl = credential.service_account_impersonation_url || '';
-  const match = impersonationUrl.match(/serviceAccounts\/([^/:]+):generateAccessToken/);
-  return match ? decodeURIComponent(match[1]) : '';
+  return expectedPrincipalFromCredential(credential);
 }
-
 function parseActiveAccounts(output) {
   return String(output)
     .split(/\r?\n/)
