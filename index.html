@@ -2616,7 +2616,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         let anasStartupFatalLoadError = false;
         try {
             const saved = window.ANASResilientStorage ? ANASResilientStorage.getSync(ANAS_DB_KEY) : localStorage.getItem(ANAS_DB_KEY);
-            AppData = saved ? (window.ANASResilientStorage ? ANASResilientStorage.decode(saved) : JSON.parse(saved)) : initialDB;
+            AppData = saved ? (typeof window !== 'undefined' && window.ANASResilientStorage ? ANASResilientStorage.decode(saved) : JSON.parse(saved)) : initialDB;
             if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
             // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
             ['products','customers','suppliers','supplierMovements','clientMovements','settlementAllocations','returns','invoices','purchaseInvoices','expenses','users','alerts','warehouseTransfers','warehouses','truckTrips'].forEach(k => {
@@ -2800,7 +2800,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         let anasStorageHydrationComplete = false;
         function saveDB() {
-            if (!anasStorageHydrationComplete) {
+            if (typeof anasStorageHydrationComplete !== 'undefined' && !anasStorageHydrationComplete) {
                 alert('جارٍ استعادة قاعدة البيانات من التخزين الآمن. انتظر اكتمال الإقلاع قبل الحفظ.');
                 return false;
             }
@@ -2828,7 +2828,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     globalThis.ANASReverseLedger.validateReverseLedgerParity(snapshot);
                 }
                 serialized = window.ANASResilientStorage ? ANASResilientStorage.encode(snapshot) : JSON.stringify(snapshot);
-                if (window.ANASResilientStorage) {
+                if (typeof window !== 'undefined' && window.ANASResilientStorage) {
                     ANASResilientStorage.setSync(ANAS_DB_KEY, serialized).catch(error => console.error('ANAS IndexedDB mirror write failed:', error));
                 } else {
                     localStorage.setItem(ANAS_DB_KEY, serialized);
