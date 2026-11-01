@@ -31,7 +31,7 @@ function requireEnv() {
   if (credential.type !== 'service_account' || credential.project_id !== PROJECT_ID ||
       !credential.client_email || !credential.private_key)
     throw new Error('Bootstrap credential must be a valid service account for the isolated Staging project.');
-  if (!email || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email))
+  if (!email || !/^[^@\s]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new Error('ANAS_STAGING_EMAIL is missing or invalid.');
   if (password.length < 12)
     throw new Error('ANAS_STAGING_PASSWORD must contain at least 12 characters.');
@@ -159,6 +159,6 @@ async function main() {
 }
 
 main().catch(error => {
-  process.stderr.write('STAGING_BOOTSTRAP_FAILED ' + String(error.message || error).replace(/[\\r\\n]+/g, ' ').slice(0, 400) + '\\n');
+  process.stderr.write('STAGING_BOOTSTRAP_FAILED ' + String(error.message || error).replace(/[\r\n]+/g, ' ').slice(0, 400) + '\n');
   process.exitCode = 1;
 });
