@@ -87,7 +87,7 @@ function assertFinancials(snapshot, rows, label) {
     if (delta !== 0n) throw new Error(label + ' mismatch at ' + row.path + ': delta=' + delta.toString() + ' ' + row.unit);
   }
 }
-async function verifyLiveStaging({ url, email, password, fixturePath, evidencePath }) {
+async function verifyLiveStaging({ url, email, password, expectedUid = '', fixturePath, evidencePath }) {
   const origin = new URL(url);
   if (origin.protocol !== 'https:' || origin.hostname !== 'anas-erp-staging-a25e1.web.app') {
     throw new Error('Refusing non-Staging origin; expected https://anas-erp-staging-a25e1.web.app');
@@ -116,6 +116,12 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
     await page.locator('#password').fill(password);
     await page.locator('#sign-in').click();
     await page.locator('#workspace').waitFor({ state: 'visible' });
+    const authenticatedUid = await page.evaluate(() => firebase.auth().currentUser?.uid || '');
+    if (!authenticatedUid) throw new Error('Firebase email/password sign-in completed without an authenticated UID.');
+    if (expectedUid && authenticatedUid !== expectedUid) {
+      throw new Error('Authenticated staging UID does not match the configured ANAS_STAGING_UID.');
+    }
+    evidence.authenticatedUid = authenticatedUid;
     await page.locator('#load-snapshot').click();
     await page.getByText('حالة القراءة: نجاح').waitFor();
 
@@ -360,6 +366,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     url: required('ANAS_STAGING_URL'),
     email: required('ANAS_STAGING_EMAIL'),
     password: required('ANAS_STAGING_PASSWORD'),
+    expectedUid: String(process.env.ANAS_STAGING_UID || process.env.STAGING_TEST_UID || '').trim(),
     fixturePath: required('ANAS_STAGING_E2E_FIXTURE'),
     evidencePath: process.env.ANAS_STAGING_EVIDENCE_PATH || ''
   });
