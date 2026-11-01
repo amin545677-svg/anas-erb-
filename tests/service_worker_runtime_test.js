@@ -91,6 +91,27 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   let response = await request(shellUrl, { mode: 'navigate' });
   assert.equal(response.body, 'network-latest', 'online navigation should use fresh network HTML');
   let cache = await caches.open('anas-erp-v54-25-r3');
+  const offlineAssets = [
+    './anas-erp-ui-safe-enhancements.css',
+    './reverse-ledger/reverse-ledger.js',
+    './reverse-ledger/reverse-ledger-modal.js',
+    './reverse-ledger/settlement-allocation-modal.js',
+    './storage/android-resilient-storage.js',
+    './supplier-account-statement.js',
+    './cashbox-readonly-ledger.js',
+    './arabic-query-engine.js',
+    './customer-debt-protection.js',
+    './warehouse-transfer-audit.js'
+  ];
+  for (const asset of offlineAssets) {
+    assert.ok(await cache.match(new URL(asset, baseUrl).href), asset + ' must be precached as an app-shell dependency');
+  }
+  offline = true;
+  for (const asset of offlineAssets) {
+    const offlineResponse = await request(new URL(asset, baseUrl).href);
+    assert.equal(offlineResponse.body, 'precache:' + asset, asset + ' must remain available when offline');
+  }
+  offline = false;
   assert.ok(await cache.match('https://example.test/app/reverse-ledger/reverse-ledger.js'), 'reverse-ledger runtime must be included in the offline app shell');
   networkBody = 'reverse-ledger-module-latest';
   response = await request('https://example.test/app/reverse-ledger/reverse-ledger.js');
