@@ -148,9 +148,6 @@ async function main() {
         return window.AppData;
       };
     });
-    await page.evaluate(() => {
-      window.AppData = window.__anasInitialFixture || window.AppData;
-    });
     await page.evaluate(state => { window.AppData = state; }, initial);
 
     // Drive the actual V42 settlement-allocation modal through its visible DOM.
@@ -181,7 +178,7 @@ async function main() {
     // Drive the real partial-sale-return modal and its visible submit control.
     await page.evaluate(() => window.ANASReverseLedgerModal.open('SALE_RETURN'));
     await page.waitForSelector('#modal-reverse-ledger.active');
-    await page.selectOption('#rev-invoice-select', 'INV-DOM-1');
+    await page.selectOption('#rev-invoice-select', '0');
     await page.fill('#rev-period-id', PERIOD);
     await page.fill('#rev-reason-input', 'Staging partial sale return');
     await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
