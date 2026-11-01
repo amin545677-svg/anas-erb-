@@ -96,8 +96,10 @@
     cache[key] = text;
     const nextRevision = Math.max(revision, requestedRevision) + 1;
     requestedRevision = nextRevision;
+    let localPayloadPersisted = false;
     try {
       global.localStorage.setItem(key, text);
+      localPayloadPersisted = true;
       global.localStorage.setItem(META_KEY, JSON.stringify({ revision: nextRevision, checksum: fastChecksum(text), updatedAt: new Date().toISOString() }));
     }
     catch (error) {
@@ -106,7 +108,7 @@
     }
     if (key === APP_KEY) {
       return persist(text, nextRevision).catch(error => {
-        mode = 'MEMORY_ONLY_DEGRADED';
+        mode = localPayloadPersisted ? 'LOCALSTORAGE_FALLBACK_ACTIVE' : 'MEMORY_ONLY_DEGRADED';
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
         throw error;
       });
