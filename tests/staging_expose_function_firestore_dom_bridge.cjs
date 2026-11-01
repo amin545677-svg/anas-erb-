@@ -3,7 +3,8 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+const fs = require('node:fs');
+const http = require('node:http');
 const { createRequire } = require('node:module');
 const { chromium } = require('playwright');
 const functionsRequire = createRequire(require.resolve('../functions/package.json'));
@@ -92,6 +93,7 @@ async function main() {
   const userRef = db.collection('users').doc(UID);
   const operationIds = [];
   let browser;
+  let server;
   try {
     const initial = fixtureState();
     await userRef.collection('snapshots').doc('latest').set({
@@ -106,9 +108,39 @@ async function main() {
       periodId: PERIOD, status: 'OPEN'
     });
 
+    server = http.createServer((req, res) => {
+      let pathname;
+      try { pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname); }
+      catch (_) { res.writeHead(400); res.end('Bad request'); return; }
+      const target = path.resolve(__dirname, '..', '.' + pathname);
+      const root = path.resolve(__dirname, '..');
+      if (target !== root && !target.startsWith(root + path.sep)) {
+        res.writeHead(403); res.end('Forbidden'); return;
+      }
+      fs.stat(target, (error, stat) => {
+        if (error || !stat.isFile()) { res.writeHead(404); res.end('Not found'); return; }
+        const ext = path.extname(target);
+        const types = {
+          '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+          '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+          '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
+          '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
+          '.woff2': 'font/woff2'
+        };
+        res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream' });
+        fs.createReadStream(target).pipe(res);
+      });
+    });
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
     browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    page.on('pageerror', error => { throw error; });
+    const context = await browser.newContext({ serviceWorkers: 'block' });
+    const page = await context.newPage();
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
     await page.exposeFunction('__anasExecuteSettlementAllocation', async data => {
       const result = await settlementHandler({
         auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
@@ -129,7 +161,7 @@ async function main() {
       return JSON.parse(snap.get('payload'));
     });
 
-    const indexUrl = pathToFileURL(path.resolve(__dirname, '../index.html')).href;
+    const indexUrl = 'http://127.0.0.1:' + address.port + '/index.html';
     await page.goto(indexUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() =>
       !!window.ANASSettlementAllocationModal && !!window.ANASReverseLedgerModal,
@@ -207,6 +239,7 @@ async function main() {
     const balanceCentimes = BigInt(Math.round(Number(customer.debt) * 100));
     const centimeDelta = (balanceCentimes - ledgerNet).toString();
     assert.equal(centimeDelta, '0', 'customer balance and sealed ledger must reconcile to zero centimes');
+    assert.equal(pageErrors.length, 0, 'Chromium page must not emit uncaught JavaScript errors: ' + pageErrors.join(' | '));
     assert.equal(finalSnapshot.settlementAllocations[0].amountCentimes, 5000);
     assert.equal(finalSnapshot.returns.length, 1);
     ReverseLedger.validateReverseLedgerParity(finalSnapshot);
@@ -217,6 +250,7 @@ async function main() {
     }) + '\n');
   } finally {
     if (browser) await browser.close().catch(() => {});
+    if (server) await new Promise(resolve => server.close(resolve));
     await db.recursiveDelete(userRef).catch(() => {});
     await db.collection('reverseLedgerGrants').doc(UID).delete().catch(() => {});
     await db.collection('financialPeriods').doc(PERIOD).delete().catch(() => {});
