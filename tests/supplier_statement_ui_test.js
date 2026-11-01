@@ -2,6 +2,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { buildSupplierStatement } = require('../supplier-account-statement.js');
+assert.equal(typeof buildSupplierStatement, 'function', 'standalone supplier statement module must load');
 
 const html = fs.readFileSync('index.html', 'utf8');
 const start = html.indexOf('function showSupplierStatement(supplierId)');
@@ -84,3 +86,13 @@ function harness({ suppliers, supplierMovements }) {
 }
 
 console.log('Supplier statement UI tests passed');
+
+{
+  const result = buildSupplierStatement('S1', [{ id: 'S1', name: 'مورد', balance: 8 }], [
+    { id: 'P1', supplierId: 'S1', type: 'purchase', amount: 12.5, date: '2026-01-01' },
+    { id: 'M1', supplierId: 'S1', type: 'payment', amount: 4.5, date: '2026-01-02' }
+  ]);
+  assert.equal(result.totals.purchase, 1250);
+  assert.equal(result.totals.payment, 450);
+  console.log('PASS: standalone supplier-account-statement.js exports exact centime totals');
+}
