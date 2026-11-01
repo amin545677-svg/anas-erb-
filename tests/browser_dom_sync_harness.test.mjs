@@ -87,7 +87,12 @@ async function openIsolatedPage(t) {
       { id: "browser-item-a", name: "صنف A", stock: 100, warehouseStock: {} },
       { id: "browser-item-b", name: "صنف B", stock: 100, warehouseStock: {} }
     ];
-    seed.invoices = [];
+    seed.invoices = [{
+      id: "browser-debt-invoice", customerId: "cust-browser-1",
+      total: 20000, paid: 0, remaining: 20000, invoiceLedgerVersion: 2
+    }];
+    seed.clientMovements = [];
+    seed.settlementAllocations = [];
     seed.cashMovements = [];
     seed.stockMovements = [];
     seed.appliedOpIds = [];
@@ -219,7 +224,9 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   await setMockCloudRoutes(page, mock);
   await installHarness(page, { firstPushConflict: true, cloudV1: cloud });
   await page.evaluate(() => {
-    window.prompt = () => "500.50";
+    window.prompt = message => String(message).startsWith("خصّص")
+      ? JSON.stringify([{ invoiceId: "browser-debt-invoice", amount: "500.50" }])
+      : "500.50";
     window.alert = () => {};
     collectCustDebt("cust-browser-1");
   });
