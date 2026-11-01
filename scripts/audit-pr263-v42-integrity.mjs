@@ -44,7 +44,7 @@ const unexpectedDuplicates = duplicateGroups.filter((paths) => !intentionalMirro
 assert.equal(unexpectedDuplicates.length, 0, 'Byte-identical duplicate source modules found: ' + JSON.stringify(unexpectedDuplicates));
 
 const storageSource = fs.readFileSync('storage/android-resilient-storage.js', 'utf8');
-const hasIndexedDb = /indexedDB\\s*\\.\\s*open\\s*\\(/i.test(storageSource);
+const hasIndexedDb = storageSource.includes('global.indexedDB.open(');
 assert.ok(hasIndexedDb, 'Android resilient storage module must open the IndexedDB database.');
 assert.ok(storageSource.includes('anas_erp_v42_resilient_db'), 'Canonical V42 resilient IndexedDB database name is missing.');
 const hasLocalStorage = /localStorage\s*\./i.test(candidateHtml);
