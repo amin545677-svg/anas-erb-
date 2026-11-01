@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { validateFixture, assertFinancials, verifyLiveStaging } from '../scripts/verify-live-staging-e2e.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -47,16 +47,22 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
   // execute the real transaction/rules regression suites, then exercise the
   // V42 Chromium DOM and fail-closed UI contract. No fake callable is injected
   // into the browser and no local client-side financial posting is permitted.
-  const emulatorOutput = execFileSync('npx', [
+  const emulator = spawnSync('npx', [
     '--yes', 'firebase-tools@14.22.0', 'emulators:exec',
     '--only', 'firestore', '--project', 'demo-anas-erp',
     '--config', 'firebase.staging.json',
     'node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs'
-  ], { cwd: root, encoding: 'utf8', timeout: 240000, maxBuffer: 20 * 1024 * 1024 });
+  ], {
+    cwd: root, encoding: 'utf8', timeout: 240000,
+    maxBuffer: 20 * 1024 * 1024, windowsHide: true
+  });
+  const emulatorOutput = String(emulator.stdout || '') + '\n' + String(emulator.stderr || '');
+  assert.equal(emulator.error, undefined, emulator.error && emulator.error.message);
+  assert.equal(emulator.signal, null, 'Firestore Emulator process must not be terminated by a signal');
+  assert.equal(emulator.status, 0, 'firebase emulators:exec must exit successfully\n' + emulatorOutput);
   assert.match(emulatorOutput, /Firestore Emulator UI websocket is running/i);
   assert.match(emulatorOutput, /Script exited successfully \(code 0\)/i);
-  assert.match(emulatorOutput, /# fail 0/);
-  assert.match(emulatorOutput, /# skipped 0/);
+  assert.doesNotMatch(emulatorOutput, /\b(?:ERROR|FATAL):|\bnot ok\b|\b# fail [1-9][0-9]*\b|AssertionError|UnhandledPromiseRejection/i);
 
   const chromiumOutput = execFileSync(process.execPath, [
     '--test', 'tests/reverse_ledger_chromium.test.mjs'
