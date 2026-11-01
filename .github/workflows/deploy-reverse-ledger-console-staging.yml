@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: anas-erp-reverse-ledger-console-staging
@@ -60,13 +61,14 @@ jobs:
 
       - name: Secret Presence Preflight (zero-leak, dual-scope)
         env:
-          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
           FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           node <<'NODE'
-          const names = ["FIREBASE_STAGING_SERVICE_ACCOUNT","FIREBASE_STAGING_WEB_API_KEY","FIREBASE_STAGING_WEB_APP_ID","FIREBASE_STAGING_APP_CHECK_SITE_KEY"];
+          const names = ["FIREBASE_STAGING_WEB_API_KEY","FIREBASE_STAGING_WEB_APP_ID","FIREBASE_STAGING_APP_CHECK_SITE_KEY","WIF_PROVIDER","DEPLOYER_SERVICE_ACCOUNT"];
           let missing = false;
           console.log('STAGING SECRET PRESENCE (values suppressed)');
           console.log('| Variable | Status |');
@@ -76,42 +78,26 @@ jobs:
             console.log('| ' + name + ' | ' + (present ? 'PRESENT' : 'MISSING') + ' |');
             if (!present) missing = true;
           }
-          const raw = process.env.FIREBASE_STAGING_SERVICE_ACCOUNT || '';
-          if (raw) {
-            let account;
-            try { account = JSON.parse(raw); }
-            catch { console.error('SERVICE ACCOUNT: INVALID JSON'); process.exit(1); }
-            if (account.type !== 'service_account' || !account.private_key || !account.client_email || account.project_id !== 'anas-erp-staging-a25e1') {
-              console.error('SERVICE ACCOUNT: INVALID REQUIRED FIELDS OR WRONG PROJECT');
-              process.exit(1);
-            }
-            console.log('SERVICE ACCOUNT: VALID / STAGING PROJECT');
-          }
           if (missing) { console.error('STAGING PREFLIGHT: BLOCKED'); process.exit(1); }
           NODE
 
-      - name: Require dedicated staging-only configuration
+      - name: Validate dedicated staging-only configuration
         env:
-          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
-          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
-          FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
-          FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
-          for name in FIREBASE_STAGING_SERVICE_ACCOUNT FIREBASE_STAGING_WEB_API_KEY FIREBASE_STAGING_WEB_APP_ID FIREBASE_STAGING_APP_CHECK_SITE_KEY; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Missing required staging configuration: $name"
-              exit 1
-            fi
-          done
-          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
-          node -e "const x=require(process.argv[1]); if(x.project_id!=='anas-erp-staging-a25e1'||!x.client_email||!x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-staging-service-account.json"
-          echo "Dedicated staging service account verified for anas-erp-staging-a25e1."
+          test -n "$WIF_PROVIDER" || { echo "::error::Missing ANAS_STAGING_WIF_PROVIDER environment variable."; exit 1; }
+          test -n "$DEPLOYER_SERVICE_ACCOUNT" || { echo "::error::Missing ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT environment variable."; exit 1; }
+          case "$WIF_PROVIDER" in projects/*/locations/global/workloadIdentityPools/*/providers/*) ;; *) echo "::error::Invalid Workload Identity Provider resource name."; exit 1 ;; esac
+          case "$DEPLOYER_SERVICE_ACCOUNT" in *@*.iam.gserviceaccount.com) ;; *) echo "::error::Invalid staging deployer service-account email."; exit 1 ;; esac
 
-      - name: Authenticate only to Firebase Staging
+      - name: Authenticate to Firebase Staging with GitHub OIDC
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
 
       - name: Build isolated staging console with staging-only Firebase config
         env:
