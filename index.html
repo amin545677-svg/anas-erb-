@@ -10611,6 +10611,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     <script>
       // Pre-boot hydration barrier: saveDB remains write-locked until IndexedDB has been inspected.
       (function startANASStorageHydration() {
+        if (document.body) { document.body.inert = true; document.body.setAttribute('aria-busy', 'true'); }
         const storage = window.ANASResilientStorage;
         if (!storage) { anasStartupFatalLoadError = true; return; }
         const localSnapshot = storage.getSync('ANAS_THE_ENTERPRISE_V11_OFFLINE');
@@ -10621,6 +10622,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
             posCart = AppData.posScreensCarts && Array.isArray(AppData.posScreensCarts[tab]) ? AppData.posScreensCarts[tab] : [];
           }
           anasStorageHydrationComplete = true;
+          if (document.body) { document.body.inert = false; document.body.removeAttribute('aria-busy'); }
           try { updateUIState(); } catch (error) { console.error('ANAS post-hydration UI refresh:', error); }
           try { checkSystemAlerts(); } catch (error) { console.error('ANAS post-hydration alerts refresh:', error); }
           try { updateDashboardStats(); } catch (error) { console.error('ANAS post-hydration dashboard refresh:', error); }
