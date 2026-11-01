@@ -3,8 +3,15 @@ name: Deploy ANAS ERP Reverse Ledger Console (Staging)
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'staging/**'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.hosting.json'
+      - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
   push:
     branches:
+      - staging/unified-release-candidate
       - feat/reverse-ledger-firebase-functions-v2
     paths:
       - 'staging/**'
@@ -20,8 +27,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-staging-console-pr:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'staging/unified-release-candidate'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate source without deployment credentials
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate isolated hosting configuration and console sources
+        run: |
+          node -e "const c=require('./firebase.staging.hosting.json'); if(c.hosting.site!=='anas-erp-staging-a25e1'||c.hosting.public!=='staging-site') process.exit(1)"
+          node --check staging/reverse-ledger-gateway.js
+          node --check reverse-ledger/reverse-ledger.js
+
   deploy-staging-console:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/reverse-ledger-firebase-functions-v2')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(fromJSON('["refs/heads/staging/unified-release-candidate","refs/heads/feat/reverse-ledger-firebase-functions-v2"]'), github.ref))
     environment: staging
     runs-on: ubuntu-latest
     steps:
