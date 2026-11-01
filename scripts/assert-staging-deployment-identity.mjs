@@ -32,7 +32,7 @@ export function runStagingIdentityGuard(env = process.env, run = execFileSync) {
     expectedPrincipalFromCredentials(env.GOOGLE_APPLICATION_CREDENTIALS);
   const activeAccount = run('gcloud', ['auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'], { encoding: 'utf8' }).trim();
   const describedProjectId = run('gcloud', ['projects', 'describe', STAGING_PROJECT_ID, '--format=value(projectId)'], { encoding: 'utf8' }).trim();
-  validateStagingIdentity({ projectId, activeAccount, expectedAccount, describedProjectId });
+  validateStagingIdentity({ projectId, googleCloudProjectId: env.GOOGLE_CLOUD_PROJECT || '', activeAccount, expectedAccount, describedProjectId });
   return { projectId, activeAccount, describedProjectId };
 }
 

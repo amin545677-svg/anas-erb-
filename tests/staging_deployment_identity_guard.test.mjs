@@ -27,7 +27,7 @@ test('rejects a project mismatch between configured and authenticated target', (
   }), /not the isolated staging project/);
 });
 
-test('rejects a principal other than the approved staging deployer', () => {
+test('rejects a conflicting GOOGLE_CLOUD_PROJECT environment override', () => {\n  assert.throws(() => validateStagingIdentity({\n    projectId: STAGING_PROJECT_ID,\n    googleCloudProjectId: 'anas-erp-production',\n    describedProjectId: STAGING_PROJECT_ID,\n    activeAccount: 'staging-deployer@anas-erp-staging-a25e1.iam.gserviceaccount.com'\n  }), /not the isolated staging project/);\n});\n\ntest('rejects a principal other than the approved staging deployer', () => {
   assert.throws(() => validateStagingIdentity({
     projectId: STAGING_PROJECT_ID,
     describedProjectId: STAGING_PROJECT_ID,
