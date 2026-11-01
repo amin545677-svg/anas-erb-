@@ -67,6 +67,11 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
   assert.equal(emulator.status, 0, 'firebase emulators:exec must exit successfully\n' + emulatorOutput);
   assert.match(emulatorOutput, /Firestore Emulator UI websocket is running/i);
   assert.match(emulatorOutput, /Script exited successfully \(code 0\)/i);
+  assert.match(emulatorOutput, /ANAS_EXPOSE_FUNCTION_FIRESTORE_DOM_E2E/);
+  assert.match(emulatorOutput, /"allocation":"POSTED"/);
+  assert.match(emulatorOutput, /"allocationCentimes":5000/);
+  assert.match(emulatorOutput, /"partialSaleReturn":"POSTED"/);
+  assert.match(emulatorOutput, /"centimeDelta":"0"/);
   assert.doesNotMatch(emulatorOutput, /\b(?:ERROR|FATAL):|\bnot ok\b|\b# fail [1-9][0-9]*\b|AssertionError|UnhandledPromiseRejection/i);
 
   const chromiumRun = spawnSync(process.execPath, [
