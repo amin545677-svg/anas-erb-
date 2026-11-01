@@ -14,10 +14,11 @@ on:
       - "firebase/firestore.staging.rules"
       - ".github/workflows/staging-test-gate.yml"
   push:
-    branches: [staging/firebase-snapshot-worker, 'feat/**', 'fix/**', 'feature/**']
+    branches: [staging/firebase-snapshot-worker, staging/unified-release-candidate, 'feat/**', 'fix/**', 'feature/**']
     paths:
       - "index.html"
       - "*.js"
+      - "sync/**"
       - "tests/**"
       - "functions/**"
       - "scripts/**"
