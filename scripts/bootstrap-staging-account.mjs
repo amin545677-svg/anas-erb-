@@ -155,7 +155,7 @@ async function main() {
     createdOrUpdated: true, claimsVerified: true, grantPermissions: permissions,
     snapshotVerified: true, periodId: 'FY-2026-10', periodStatus: 'OPEN',
     readWriteCheck: true
-  }) + '\\n');
+  }) + '\n');
 }
 
 main().catch(error => {
