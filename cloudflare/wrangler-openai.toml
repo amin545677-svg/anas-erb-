@@ -5,4 +5,5 @@ workers_dev = true
 
 [vars]
 OPENAI_MODEL = "gpt-4.1-mini"
+FIREBASE_PROJECT_ID = "anas-erb"
 ALLOWED_ORIGINS = "https://amin545677-svg.github.io"
