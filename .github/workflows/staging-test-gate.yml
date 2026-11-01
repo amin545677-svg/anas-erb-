@@ -47,6 +47,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: V42 integrity audit
+        run: node scripts/audit-pr263-v42-integrity.mjs
       - name: Set up Java for the Firestore Emulator
         uses: actions/setup-java@v4
         with:
