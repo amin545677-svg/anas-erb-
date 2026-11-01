@@ -251,3 +251,74 @@ test('Chromium settlement allocation UI fails closed without the trusted callabl
   console.log('CHROMIUM_SETTLEMENT_ALLOCATION_FAIL_CLOSED_REPORT '+JSON.stringify(result));
  } finally { await browser.close(); }
 });
+
+
+test('Unified V42 DOM mounts both financial modals and all admin/customer/sync modules without page errors', async () => {
+ const { createServer } = await import('node:http');
+ const { pathToFileURL } = await import('node:url');
+ const rootDir = process.cwd();
+ const server = createServer((req, res) => {
+  const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
+  const target = path.resolve(rootDir, '.' + pathname);
+  if (!target.startsWith(rootDir + path.sep) && target !== path.join(rootDir, 'index.html')) {
+   res.writeHead(403); res.end('forbidden'); return;
+  }
+  try {
+   const body = fs.readFileSync(target);
+   const ext = path.extname(target);
+   res.setHeader('content-type', ext === '.html' ? 'text/html; charset=utf-8' :
+    ext === '.mjs' ? 'text/javascript; charset=utf-8' : 'application/javascript; charset=utf-8');
+   res.end(body);
+  } catch (_) { res.writeHead(404); res.end('not found'); }
+ });
+ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+ const address = server.address();
+ const browser = await chromium.launch({headless:true});
+ const page = await browser.newPage();
+ const pageErrors = [];
+ const consoleErrors = [];
+ page.on('pageerror', error => pageErrors.push(error.message));
+ page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+ try {
+  await page.goto('http://127.0.0.1:' + address.port + '/index.html', { waitUntil:'load' });
+  await page.waitForFunction(() =>
+   document.getElementById('modal-settlement-allocation') &&
+   document.getElementById('modal-reverse-ledger')
+  , null, { timeout: 10000 });
+  const dom = await page.evaluate(() => ({
+   settlementModal: !!document.getElementById('modal-settlement-allocation'),
+   reverseModal: !!document.getElementById('modal-reverse-ledger'),
+   supplierStatement: typeof window.anasBuildSupplierStatement === 'function',
+   cashboxLedger: typeof window.anasBuildCashLedger === 'function',
+   arabicQuery: typeof window.anasNormalizeQueryText === 'function',
+   warehouseAudit: typeof window.anasAuditWarehouseTransfers === 'function',
+   customerDebt: typeof window.anasCustomerDebtForSave === 'function' &&
+    typeof window.anasCustomerDebtFilterMatches === 'function' &&
+    typeof window.anasRenderCustomerDebtCollections === 'function',
+   customerFilterButtons: document.querySelectorAll('[data-customer-debt-filter]').length,
+   reverseModalApi: typeof window.ANASReverseLedgerModal?.open === 'function',
+   settlementModalApi: typeof window.ANASSettlementAllocationModal?.open === 'function'
+  }));
+  const sync = await import(pathToFileURL(path.join(rootDir, 'sync/mutation_queue_orchestrator.mjs')).href);
+  assert.equal(typeof sync.createMutationQueueOrchestrator, 'function');
+  assert.equal(dom.settlementModal, true);
+  assert.equal(dom.reverseModal, true);
+  assert.equal(dom.supplierStatement, true);
+  assert.equal(dom.cashboxLedger, true);
+  assert.equal(dom.arabicQuery, true);
+  assert.equal(dom.warehouseAudit, true);
+  assert.equal(dom.customerDebt, true);
+  assert.equal(dom.customerFilterButtons, 3);
+  assert.equal(dom.reverseModalApi, true);
+  assert.equal(dom.settlementModalApi, true);
+  assert.deepEqual(pageErrors, []);
+  assert.deepEqual(consoleErrors, []);
+  console.log('UNIFIED_DOM_ZERO_CONSOLE_REPORT ' + JSON.stringify({
+   ...dom, syncQueue: true, uncaughtPageErrors: pageErrors.length, consoleErrors: consoleErrors.length
+  }));
+ } finally {
+  await page.close();
+  await browser.close();
+  await new Promise(resolve => server.close(resolve));
+ }
+});
