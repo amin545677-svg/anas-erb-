@@ -138,6 +138,8 @@ jobs:
           tests/v42_transactional_bridge.test.mjs
           tests/v42_transactional_capture_integration.test.mjs
           tests/firebase_snapshot_worker_health_identity.test.mjs
+      - name: Run Android WebView resilient storage Chromium acceptance
+        run: node --test tests/android_webview_storage_resilience.test.mjs
       - name: Run real DOM purchase, supplier settlement, reload and backup restore
         run: node --test tests/purchase_supplier_chromium_staging.test.mjs tests/reverse_ledger_chromium.test.mjs tests/reverse_ledger_staging_console_chromium.test.mjs tests/settlement_allocation_modal_chromium.test.mjs tests/verify_live_staging_e2e.playwright.test.mjs
       - name: Validate full ERP HTML and inline JavaScript
