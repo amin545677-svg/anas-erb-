@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'tests/**'
       - 'functions/**'
       - 'scripts/**'
       - 'reverse-ledger/**'
@@ -17,6 +18,7 @@ on:
       - staging/unified-release-candidate
       - feature/atomic-settlement-allocation
     paths:
+      - 'tests/**'
       - 'functions/**'
       - 'scripts/**'
       - 'reverse-ledger/**'
