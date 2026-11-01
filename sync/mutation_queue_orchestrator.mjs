@@ -138,8 +138,24 @@ export function createMutationQueueOrchestrator({
       const before = captureStorage(storage, keys);
       const pending = readJson(storage, MUTATION_KEYS.pending, []);
       if (!Array.isArray(pending)) throw new Error("Pending queue must be an array");
-      const replayable = pending.filter(item => item?.status === "PENDING");
-      const capturedIds = new Set(replayable.map(item => item?.opId).filter(Boolean));
+      const pendingAtStart = pending.filter(item => item?.status === "PENDING");
+      // These financial mutations are owned by the trusted reverse-ledger /
+      // settlement server path. Never replay them through the legacy snapshot
+      // reconciliation engine, even when an old client left them in its queue.
+      const SERVER_OWNED_MUTATION_TYPES = new Set([
+        "SALE_RETURN",
+        "PURCHASE_RETURN",
+        "INVOICE_CANCEL",
+        "CUSTOMER_SETTLEMENT_ALLOCATION",
+        "SUPPLIER_SETTLEMENT_ALLOCATION"
+      ]);
+      const serverOwned = pendingAtStart.filter(item => SERVER_OWNED_MUTATION_TYPES.has(item?.type));
+      const replayable = pendingAtStart.filter(item =>
+        !SERVER_OWNED_MUTATION_TYPES.has(item?.type)
+      );
+      // Retire only the queue records captured at the beginning of this attempt,
+      // and only after the cloud accepts the reconciled snapshot.
+      const capturedIds = new Set(pendingAtStart.map(item => item?.opId).filter(Boolean));
       let cloud;
       try {
         cloud = await pullCloud();
@@ -157,11 +173,20 @@ export function createMutationQueueOrchestrator({
           cloudRevision: cloud.revision, createdAt: new Date().toISOString()
         });
         const result = reconcile(cloud.data, replayable);
-        const quarantinedNow = result.review.map(item => ({
-          ...structuredClone(item),
-          status: "QUARANTINED",
-          quarantinedAt: new Date().toISOString()
-        }));
+        const quarantinedNow = [
+          ...serverOwned.map(operation => ({
+            opId: operation.opId,
+            reason: "SERVER_OWNED_FINANCIAL_MUTATION_NOT_REPLAYED_LOCALLY",
+            operation: structuredClone(operation),
+            status: "QUARANTINED",
+            quarantinedAt: new Date().toISOString()
+          })),
+          ...result.review.map(item => ({
+            ...structuredClone(item),
+            status: "QUARANTINED",
+            quarantinedAt: new Date().toISOString()
+          }))
+        ];
         const priorQuarantine = readJson(storage, MUTATION_KEYS.quarantined, []);
         if (!Array.isArray(priorQuarantine)) throw new Error("Quarantine store must be an array");
         const quarantineIds = new Set(priorQuarantine.map(item => item?.opId).filter(Boolean));
@@ -199,7 +224,8 @@ export function createMutationQueueOrchestrator({
           status: "synced", attempts: attempt, baseRevision: cloud.revision,
           applied: result.appliedNow.filter(item => item.outcome === "applied").map(item => item.opId),
           skippedDuplicate: result.appliedNow.filter(item => item.outcome === "already-applied").map(item => item.opId),
-          quarantined: quarantinedNow.map(item => ({ opId: item.opId, reason: item.reason }))
+          quarantined: quarantinedNow.map(item => ({ opId: item.opId, reason: item.reason })),
+          blockedServerOwned: serverOwned.map(item => ({ opId: item.opId, type: item.type }))
         };
       } catch (error) {
         // A network error after the remote server accepted a request is ambiguous.
