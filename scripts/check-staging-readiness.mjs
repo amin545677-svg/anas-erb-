@@ -46,6 +46,10 @@ if (/saveDB\s*\(/.test(modal)) throw new Error('Staging readiness contract faile
 checks.push({ label: 'Allocation modal has no local saveDB posting', file: 'reverse-ledger/settlement-allocation-modal.js', ok: true });
 const deploy = requireText('.github/workflows/deploy-reverse-ledger-functions-staging.yml', 'functions:executeSettlementAllocation', 'Staging deployment allowlists allocation callable');
 requireText('.github/workflows/deploy-reverse-ledger-functions-staging.yml', 'anas-erp-staging-a25e1', 'Deployment targets isolated Staging project');
+const consoleDeploy = requireText('.github/workflows/deploy-reverse-ledger-console-staging.yml', 'FIREBASE_STAGING_WEB_API_KEY', 'Console deploy requires dedicated staging runtime configuration');
+if (/FIREBASE_STAGING_SERVICE_ACCOUNT\\s*\\|\\|\\s*secrets\\.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT/.test(deploy)) throw new Error('Staging readiness contract failed: bootstrap credential must never be a deployment credential.');
+if (/FIREBASE_STAGING_SERVICE_ACCOUNT\\s*\\|\\|\\s*secrets\\.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT/.test(consoleDeploy)) throw new Error('Staging readiness contract failed: bootstrap credential must never be a console deployment credential.');
+checks.push({ label: 'Deployment and bootstrap credentials are isolated', file: '.github/workflows/deploy-reverse-ledger-functions-staging.yml', ok: true });
 requireText('scripts/verify-live-staging-e2e.mjs', 'allocationPostedThroughModal: true', 'Live E2E records browser allocation proof');
 requireText('tests/reverse_ledger_firestore_emulator.test.js', 'createSettlementHandler', 'Firestore Emulator covers allocation callable');
 requireText('tests/reverse_ledger_firestore_emulator.test.js', 'serializes two-device allocation races', 'Firestore Emulator covers concurrent allocation ceiling');
