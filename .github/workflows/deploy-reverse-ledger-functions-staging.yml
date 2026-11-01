@@ -61,31 +61,31 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Secret Presence Preflight (zero-leak, dual-scope)
+      - name: Secret Presence Preflight (service-account JSON preferred, OIDC fallback)
         env:
+          DEPLOY_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
           DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           node <<'NODE'
-          const names = ["WIF_PROVIDER","DEPLOYER_SERVICE_ACCOUNT"];
-          let missing = false;
-          console.log('STAGING SECRET PRESENCE (values suppressed)');
-          console.log('| Variable | Status |');
-          console.log('|---|---|');
-          for (const name of names) {
-            const present = Boolean((process.env[name] || '').trim());
-            console.log('| ' + name + ' | ' + (present ? 'PRESENT' : 'MISSING') + ' |');
-            if (!present) missing = true;
-          }
+          const json = process.env.DEPLOY_SERVICE_ACCOUNT_JSON || '';
           const provider = process.env.WIF_PROVIDER || '';
-          if (provider && !/^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider)) {
-            console.error('WIF_PROVIDER: INVALID RESOURCE NAME'); process.exit(1);
+          const deployer = process.env.DEPLOYER_SERVICE_ACCOUNT || '';
+          if (json.trim()) {
+            let credential;
+            try { credential = JSON.parse(json); } catch { console.error('STAGING PREFLIGHT: invalid service-account JSON'); process.exit(1); }
+            if (credential.type !== 'service_account' || credential.project_id !== 'anas-erp-staging-a25e1' || !credential.client_email || !credential.private_key) {
+              console.error('STAGING PREFLIGHT: service-account JSON must belong to isolated staging'); process.exit(1);
+            }
+            console.log('STAGING AUTH MODE: service-account JSON');
+          } else if (provider && deployer) {
+            if (!/^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) || !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(deployer)) {
+              console.error('STAGING PREFLIGHT: invalid OIDC configuration'); process.exit(1);
+            }
+            console.log('STAGING AUTH MODE: OIDC fallback');
+          } else {
+            console.error('STAGING PREFLIGHT: provide FIREBASE_STAGING_SERVICE_ACCOUNT or both OIDC variables'); process.exit(1);
           }
-          const serviceAccount = process.env.DEPLOYER_SERVICE_ACCOUNT || '';
-          if (serviceAccount && !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(serviceAccount)) {
-            console.error('DEPLOYER_SERVICE_ACCOUNT: INVALID EMAIL'); process.exit(1);
-          }
-          if (missing) { console.error('STAGING PREFLIGHT: BLOCKED'); process.exit(1); }
           NODE
 
       - name: Run fail-closed staging callable readiness preflight
@@ -118,7 +118,15 @@ jobs:
       - name: Run reverse-ledger adapter and authorization tests
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
-      - name: Authenticate to Firebase Staging with GitHub OIDC
+      - name: Authenticate to Firebase Staging with service-account JSON
+        if: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Authenticate to Firebase Staging with GitHub OIDC fallback
+        if: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT == '' && vars.ANAS_STAGING_WIF_PROVIDER != '' && vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
@@ -146,7 +154,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$ANAS_STAGING_EMAIL" ] || [ -z "$ANAS_STAGING_PASSWORD" ] || [ -z "$BOOTSTRAP_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::warning::Optional account bootstrap skipped. It requires ANAS_STAGING_EMAIL, ANAS_STAGING_PASSWORD and the separate FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT secret. OIDC remains the only deployment authentication."
+            echo "::warning::Optional account bootstrap skipped. It requires ANAS_STAGING_EMAIL, ANAS_STAGING_PASSWORD and the separate FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT secret. Configure FIREBASE_STAGING_SERVICE_ACCOUNT or the OIDC fallback for deployment authentication."
             exit 0
           fi
           credential_file="$RUNNER_TEMP/firebase-staging-bootstrap-service-account.json"
