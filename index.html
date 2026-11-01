@@ -10616,6 +10616,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if (!storage) { anasStartupFatalLoadError = true; return; }
         const localSnapshot = storage.getSync('ANAS_THE_ENTERPRISE_V11_OFFLINE');
         storage.hydrate(localSnapshot).then(result => {
+          if (result.payload === null && localSnapshot !== null) throw new Error('No valid local or IndexedDB snapshot; fail-closed startup.');
           if (result.payload !== null && result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
             AppData = result.data;
             const tab = AppData.activePosScreenTab || 1;
