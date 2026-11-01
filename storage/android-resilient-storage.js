@@ -103,6 +103,21 @@
       return value;
     } catch (_) { return null; }
   }
+  function canUseLocalStorage() {
+    try {
+      const storage = global.localStorage;
+      if (!storage) return false;
+      const probeKey = META_KEY + '__write_probe__';
+      const previous = storage.getItem(probeKey);
+      storage.setItem(probeKey, '1');
+      if (previous === null) storage.removeItem(probeKey);
+      else storage.setItem(probeKey, previous);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function setSync(key, value) {
     const text = String(value);
     cache[key] = text;
@@ -173,6 +188,10 @@
       global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
     }
     const idbValid = await validateRecord(record);
+    if (idbUnavailable && !canUseLocalStorage()) {
+      mode = 'MEMORY_ONLY_DEGRADED';
+      throw new Error('No writable durable storage is available: IndexedDB and localStorage are unavailable.');
+    }
     let selected = localValid ? local : null;
     revision = Math.max(revision, localRevision, idbValid ? record.revision : 0);
     requestedRevision = Math.max(requestedRevision, revision);
