@@ -1,7 +1,7 @@
 # ANAS ERP Staging — GitHub OIDC setup
 
 This repository deploys only the isolated Firebase project `anas-erp-staging-a25e1`.
-The deployment workflows use GitHub Actions OIDC and do not require a downloaded service-account JSON key.
+The Hosting and Functions deployment jobs use GitHub Actions OIDC and do not require a downloaded service-account JSON key. The optional Firebase Admin SDK test-account bootstrap is separate: Firebase Admin SDK does not currently support Workload Identity Federation directly, so that optional step requires its own dedicated Staging-only service-account key or must be skipped.
 
 ## 1. Create the Google Cloud identity pool and provider
 
@@ -51,7 +51,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --member="$MEMBER"
 ```
 
-The provider condition restricts tokens to pushes or manual dispatches whose ref is exactly `refs/heads/staging/unified-release-candidate` in this repository. Do not remove that condition or grant this identity access to the production project.
+The provider condition restricts tokens to pushes or manual dispatches whose ref is exactly `refs/heads/staging/unified-release-candidate` in this repository. The workflows also scope `id-token: write` to the deployment job and reject manual dispatches from other branches. Do not remove these restrictions or grant this identity access to the production project.
 
 ## 3. Grant deployment permissions
 
@@ -70,7 +70,7 @@ The console workflow still requires these public Firebase web configuration inpu
 - `FIREBASE_STAGING_WEB_APP_ID`
 - `FIREBASE_STAGING_APP_CHECK_SITE_KEY`
 
-The Functions workflow's optional test-account bootstrap separately requires `ANAS_STAGING_EMAIL`, `ANAS_STAGING_PASSWORD`, and optionally `ANAS_STAGING_UID` / `STAGING_TEST_UID`. These are not deployment credentials and must never be committed.
+The Functions workflow's optional test-account bootstrap separately requires `ANAS_STAGING_EMAIL`, `ANAS_STAGING_PASSWORD`, and `FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT` (a dedicated Staging-only Admin SDK service-account JSON secret), plus optionally `ANAS_STAGING_UID` / `STAGING_TEST_UID`. This key is not used by either deployment command. It is written to a temporary runner file only for the optional bootstrap step, validated against `anas-erp-staging-a25e1`, and deleted when that step exits. If you do not want any long-lived key, leave this secret unset and provision the isolated test account through a separately approved administrative process; the workflow will skip bootstrap rather than attempt unsupported Admin SDK WIF.
 
 ## 5. Run and verify
 
