@@ -131,6 +131,7 @@
     }
     if (selected !== null) {
       cache[APP_KEY] = selected;
+      if (!idbValid) await persist(selected);
       try { global.localStorage.setItem(APP_KEY, selected); } catch (_) {
         mode = 'INDEXEDDB_FALLBACK_ACTIVE';
         try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
