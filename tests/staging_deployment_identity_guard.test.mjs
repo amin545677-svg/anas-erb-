@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateStagingIdentity,
+  expectedPrincipalFromCredential,
   STAGING_PROJECT_ID
 } from '../scripts/assert-staging-deployment-identity.mjs';
 
@@ -104,4 +105,45 @@ test('rejects user credentials rather than a service account', () => {
     })),
     /not a service account/
   );
+});
+
+
+test('accepts a service-account credential only when its project and principal are staging-bound', () => {
+  assert.equal(expectedPrincipalFromCredential({
+    type: 'service_account',
+    project_id: STAGING_PROJECT_ID,
+    client_email: approvedAccount
+  }), approvedAccount);
+});
+
+test('rejects a service-account credential bound to production', () => {
+  assert.throws(() => expectedPrincipalFromCredential({
+    type: 'service_account',
+    project_id: 'anas-erp-production',
+    client_email: approvedAccount
+  }), /project is not isolated staging/);
+});
+
+test('extracts the impersonated principal from a trusted OIDC credential', () => {
+  assert.equal(expectedPrincipalFromCredential({
+    type: 'external_account',
+    service_account_impersonation_url:
+      'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' +
+      approvedAccount + ':generateAccessToken'
+  }), approvedAccount);
+});
+
+test('rejects an OIDC credential using an untrusted impersonation endpoint', () => {
+  assert.throws(() => expectedPrincipalFromCredential({
+    type: 'external_account',
+    service_account_impersonation_url:
+      'https://attacker.example/v1/projects/-/serviceAccounts/' +
+      approvedAccount + ':generateAccessToken'
+  }), /endpoint is not trusted/);
+});
+
+test('rejects unsupported credential types', () => {
+  assert.throws(() => expectedPrincipalFromCredential({
+    type: 'authorized_user'
+  }), /unsupported Google credential type/);
 });
