@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Secret Presence Preflight (zero-leak)
+      - name: Secret Presence Preflight (zero-leak, dual-scope)
         env:
           FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
@@ -66,46 +66,32 @@ jobs:
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
           ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
           ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
-          ANAS_STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
+          STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          names = [
-              "FIREBASE_STAGING_SERVICE_ACCOUNT",
-              "FIREBASE_STAGING_WEB_API_KEY",
-              "FIREBASE_STAGING_WEB_APP_ID",
-              "FIREBASE_STAGING_APP_CHECK_SITE_KEY",
-              "ANAS_STAGING_EMAIL",
-              "ANAS_STAGING_PASSWORD",
-              "ANAS_STAGING_UID",
-          ]
-          print("STAGING SECRET PRESENCE (values intentionally suppressed)")
-          print("| Variable | Status |")
-          print("|---|---|")
-          for name in names:
-              present = bool(os.environ.get(name, ""))
-              print(f"| {name} | {'PRESENT [length > 0]' if present else 'MISSING [empty]'} |")
-
-          service_account = os.environ.get("FIREBASE_STAGING_SERVICE_ACCOUNT", "")
-          if service_account:
-              try:
-                  parsed = json.loads(service_account)
-              except Exception:
-                  print("SERVICE ACCOUNT VALIDATION: INVALID JSON")
-                  sys.exit(1)
-              if parsed.get("project_id") != "anas-erp-staging-a25e1":
-                  print("SERVICE ACCOUNT VALIDATION: WRONG PROJECT (expected anas-erp-staging-a25e1)")
-                  sys.exit(1)
-              if not parsed.get("client_email") or not parsed.get("private_key"):
-                  print("SERVICE ACCOUNT VALIDATION: REQUIRED FIELDS MISSING")
-                  sys.exit(1)
-              print("SERVICE ACCOUNT VALIDATION: VALID JSON / expected staging project")
-          else:
-              print("SERVICE ACCOUNT VALIDATION: NOT RUN (secret empty)")
-          PY
+          node <<'NODE'
+          const names = ["FIREBASE_STAGING_SERVICE_ACCOUNT","FIREBASE_STAGING_WEB_API_KEY","FIREBASE_STAGING_WEB_APP_ID","FIREBASE_STAGING_APP_CHECK_SITE_KEY","ANAS_STAGING_EMAIL","ANAS_STAGING_PASSWORD","STAGING_UID"];
+          let missing = false;
+          console.log('STAGING SECRET PRESENCE (values suppressed)');
+          console.log('| Variable | Status |');
+          console.log('|---|---|');
+          for (const name of names) {
+            const present = Boolean((process.env[name] || '').trim());
+            console.log('| ' + name + ' | ' + (present ? 'PRESENT' : 'MISSING') + ' |');
+            if (!present) missing = true;
+          }
+          const raw = process.env.FIREBASE_STAGING_SERVICE_ACCOUNT || '';
+          if (raw) {
+            let account;
+            try { account = JSON.parse(raw); }
+            catch { console.error('SERVICE ACCOUNT: INVALID JSON'); process.exit(1); }
+            if (account.type !== 'service_account' || !account.private_key || !account.client_email || account.project_id !== 'anas-erp-staging-a25e1') {
+              console.error('SERVICE ACCOUNT: INVALID REQUIRED FIELDS OR WRONG PROJECT');
+              process.exit(1);
+            }
+            console.log('SERVICE ACCOUNT: VALID / STAGING PROJECT');
+          }
+          if (missing) { console.error('STAGING PREFLIGHT: BLOCKED'); process.exit(1); }
+          NODE
 
       - name: Require dedicated staging-only configuration
         env:
