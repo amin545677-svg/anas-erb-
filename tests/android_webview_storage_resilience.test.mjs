@@ -110,6 +110,26 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
   });
   assert.deepEqual(quota, { saved: true, checksumValid: true, mode: 'INDEXEDDB_FALLBACK_ACTIVE',
     invoice: '12345', revision: 2 });
+  const concurrent = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const one = S.encode({ invoices: [{ id: 'INV-RACE-3', totalCentimes: 300n }] });
+    const two = S.encode({ invoices: [{ id: 'INV-RACE-4', totalCentimes: 400n }] });
+    await Promise.all([S.setSync(S.APP_KEY, one), S.setSync(S.APP_KEY, two)]);
+    const record = await new Promise((resolve, reject) => {
+      const req = indexedDB.open(S.DB_NAME);
+      req.onsuccess = () => {
+        const get = req.result.transaction(S.STORE_NAME, 'readonly').objectStore(S.STORE_NAME).get(S.APP_KEY);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+    return { revision: record.revision, latestPayloadWins: record.payload === two,
+      localMirrorMatches: localStorage.getItem(S.APP_KEY) === two,
+      decodedAmount: S.decode(record.payload).invoices[0].totalCentimes.toString() };
+  });
+  assert.deepEqual(concurrent, { revision: 4, latestPayloadWins: true, localMirrorMatches: true, decodedAmount: '400' });
+
   await context.close();
-  console.log('ANDROID_WEBVIEW_STORAGE_RESILIENCE ' + JSON.stringify({ first, recovery, quota }));
+  console.log('ANDROID_WEBVIEW_STORAGE_RESILIENCE ' + JSON.stringify({ first, recovery, quota, concurrent }));
 });
