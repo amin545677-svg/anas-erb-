@@ -172,11 +172,11 @@ async function main() {
     const allocationSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
     assert.equal(allocationSnapshot.settlementAllocations.length, 1);
     assert.equal(allocationSnapshot.settlementAllocations[0].amountCentimes, 5000);
-    const allocationOperation = await db.collection('reverseLedgerOperations')
-      .doc(allocationSnapshot.settlementAllocations[0].operationId).get().catch(() => null);
-    // The allocation operation ID is returned to the exposed bridge and is also
-    // independently checked through its canonical Firestore operation record below.
     assert.equal(allocationSnapshot.settlementAllocations[0].ledgerVersion, 2);
+    assert.equal(operationIds.length, 1, 'settlement gateway must return its operation ID');
+    const allocationOperation = await db.collection('reverseLedgerOperations').doc(operationIds[0]).get();
+    assert.equal(allocationOperation.get('status'), 'POSTED');
+    assert.equal(allocationOperation.get('operationType'), 'SETTLEMENT_ALLOCATION');
 
     // Drive the real partial-sale-return modal and its visible submit control.
     await page.evaluate(() => window.ANASReverseLedgerModal.open('SALE_RETURN'));
@@ -201,8 +201,10 @@ async function main() {
     assert.equal(finalSnapshot.returns[0].status, 'POSTED');
     const postedReturn = finalSnapshot.returns[0];
     assert.equal(postedReturn.items[0].quantityMicroUnits, 1000000);
-    const postedOperation = await db.collection('reverseLedgerOperations').doc(postedReturn.operationId).get();
+    assert.equal(operationIds.length, 2, 'reverse gateway must return its operation ID');
+    const postedOperation = await db.collection('reverseLedgerOperations').doc(operationIds[1]).get();
     assert.equal(postedOperation.get('status'), 'POSTED');
+    assert.equal(postedOperation.get('operationType'), 'SALE_RETURN');
 
     const customer = finalSnapshot.customers.find(row => row.id === 'C-DOM-1');
     const ledgerNet = finalSnapshot.clientMovements
