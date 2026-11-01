@@ -43,6 +43,11 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
     return;
   }
 
+  // Remove the node:test worker marker so nested node --test commands execute
+  // their suites instead of being suppressed as recursive test-runner calls.
+  const childEnv = { ...process.env };
+  delete childEnv.NODE_TEST_CONTEXT;
+
   // No live credentials in CI: start an isolated local Firestore Emulator and
   // execute the real transaction/rules regression suites, then exercise the
   // V42 Chromium DOM and fail-closed UI contract. No fake callable is injected
@@ -54,7 +59,7 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
     'node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs && node tests/staging_expose_function_firestore_dom_bridge.cjs'
   ], {
     cwd: root, encoding: 'utf8', timeout: 240000,
-    maxBuffer: 20 * 1024 * 1024, windowsHide: true
+    maxBuffer: 20 * 1024 * 1024, windowsHide: true, env: childEnv
   });
   const emulatorOutput = String(emulator.stdout || '') + '\n' + String(emulator.stderr || '');
   assert.equal(emulator.error, undefined, emulator.error && emulator.error.message);
@@ -66,7 +71,7 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
 
   const chromiumRun = spawnSync(process.execPath, [
     '--test', 'tests/reverse_ledger_chromium.test.mjs'
-  ], { cwd: root, encoding: 'utf8', timeout: 180000, maxBuffer: 20 * 1024 * 1024 });
+  ], { cwd: root, encoding: 'utf8', timeout: 180000, maxBuffer: 20 * 1024 * 1024, env: childEnv });
   const chromiumOutput = String(chromiumRun.stdout || '') + '\n' + String(chromiumRun.stderr || '');
   assert.equal(chromiumRun.error, undefined, chromiumRun.error && chromiumRun.error.message);
   assert.equal(chromiumRun.status, 0, 'Chromium regression suite must pass\n' + chromiumOutput);
