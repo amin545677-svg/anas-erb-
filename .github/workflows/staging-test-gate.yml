@@ -5,6 +5,8 @@ on:
     paths:
       - "index.html"
       - "*.js"
+      - "*.css"
+      - "docs/**"
       - "tests/**"
       - "functions/**"
       - "scripts/**"
