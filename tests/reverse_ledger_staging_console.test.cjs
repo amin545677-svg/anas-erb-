@@ -80,9 +80,9 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(bootstrapScript.includes(String.raw`!/^[^@\s]+@[^\s@]+\.[^\s@]+$/.test(email)`),
     'bootstrap email validation must use real whitespace/domain regex escapes');
   assert.ok(bootstrapScript.includes(String.raw`replace(/[\r\n]+/g, ' ').slice(0, 400) + '\n'`),
+    'bootstrap logs must sanitize real line breaks and emit a newline');
   assert.ok(bootstrapScript.includes(String.raw`}) + '\n');`),
     'bootstrap success report must terminate with a real newline');
-    'bootstrap logs must sanitize real line breaks and emit a newline');
 
   assert.match(deployWorkflow, /--only hosting/);
   assert.match(deployWorkflow, /--project anas-erp-staging-a25e1/);
