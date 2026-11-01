@@ -61,40 +61,52 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Secret Presence Preflight (zero-leak, dual-scope)
+      - name: Secret Presence Preflight (service-account JSON preferred, OIDC fallback)
+        id: auth_preflight
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
           FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+          DEPLOY_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
           DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           node <<'NODE'
-          const names = ["FIREBASE_STAGING_WEB_API_KEY","FIREBASE_STAGING_WEB_APP_ID","FIREBASE_STAGING_APP_CHECK_SITE_KEY","WIF_PROVIDER","DEPLOYER_SERVICE_ACCOUNT"];
-          let missing = false;
-          console.log('STAGING SECRET PRESENCE (values suppressed)');
-          console.log('| Variable | Status |');
-          console.log('|---|---|');
-          for (const name of names) {
-            const present = Boolean((process.env[name] || '').trim());
-            console.log('| ' + name + ' | ' + (present ? 'PRESENT' : 'MISSING') + ' |');
-            if (!present) missing = true;
+          const fs = require('node:fs');
+          for (const name of ['FIREBASE_STAGING_WEB_API_KEY','FIREBASE_STAGING_WEB_APP_ID','FIREBASE_STAGING_APP_CHECK_SITE_KEY']) {
+            if (!(process.env[name] || '').trim()) { console.error('STAGING PREFLIGHT: missing ' + name); process.exit(1); }
           }
-          if (missing) { console.error('STAGING PREFLIGHT: BLOCKED'); process.exit(1); }
+          const json = process.env.DEPLOY_SERVICE_ACCOUNT_JSON || '';
+          const provider = process.env.WIF_PROVIDER || '';
+          const deployer = process.env.DEPLOYER_SERVICE_ACCOUNT || '';
+          if (json.trim()) {
+            let credential;
+            try { credential = JSON.parse(json); } catch { console.error('STAGING PREFLIGHT: invalid service-account JSON'); process.exit(1); }
+            if (credential.type !== 'service_account' || credential.project_id !== 'anas-erp-staging-a25e1' || !credential.client_email || !credential.private_key) {
+              console.error('STAGING PREFLIGHT: service-account JSON must belong to isolated staging'); process.exit(1);
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=json\\n');
+            console.log('STAGING AUTH MODE: service-account JSON');
+          } else if (provider && deployer) {
+            if (!/^projects\\/[^/]+\\/locations\\/global\\/workloadIdentityPools\\/[^/]+\\/providers\\/[^/]+$/.test(provider) || !/^[^@\\s]+@[^@\\s]+\\.iam\\.gserviceaccount\\.com$/.test(deployer)) {
+              console.error('STAGING PREFLIGHT: invalid OIDC configuration'); process.exit(1);
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=oidc\\n');
+            console.log('STAGING AUTH MODE: OIDC fallback');
+          } else {
+            console.error('STAGING PREFLIGHT: provide FIREBASE_STAGING_SERVICE_ACCOUNT or both OIDC variables'); process.exit(1);
+          }
           NODE
 
-      - name: Validate dedicated staging-only configuration
-        env:
-          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
-          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
-        run: |
-          set -euo pipefail
-          test -n "$WIF_PROVIDER" || { echo "::error::Missing ANAS_STAGING_WIF_PROVIDER environment variable."; exit 1; }
-          test -n "$DEPLOYER_SERVICE_ACCOUNT" || { echo "::error::Missing ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT environment variable."; exit 1; }
-          case "$WIF_PROVIDER" in projects/*/locations/global/workloadIdentityPools/*/providers/*) ;; *) echo "::error::Invalid Workload Identity Provider resource name."; exit 1 ;; esac
-          case "$DEPLOYER_SERVICE_ACCOUNT" in *@*.iam.gserviceaccount.com) ;; *) echo "::error::Invalid staging deployer service-account email."; exit 1 ;; esac
+      - name: Authenticate to Firebase Staging with service-account JSON
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          create_credentials_file: true
 
-      - name: Authenticate to Firebase Staging with GitHub OIDC
+      - name: Authenticate to Firebase Staging with GitHub OIDC fallback
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'oidc' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
