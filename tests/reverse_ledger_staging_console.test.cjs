@@ -56,7 +56,9 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.match(deployWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging\/unified-release-candidate\s*\n\s*- feat\/reverse-ledger-firebase-functions-v2/);
   assert.match(deployWorkflow, /paths:\s*\n\s*- ['"]staging\/\*\*['"]/);
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
-  assert.match(deployWorkflow, /github\.event_name == 'push' && contains\(fromJSON/);
+  assert.ok(deployWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
+  assert.ok(deployWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
+  assert.doesNotMatch(deployWorkflow.slice(0, deployWorkflow.indexOf('jobs:')), /id-token:\\s*write/);
   for (const secret of [
     'FIREBASE_STAGING_WEB_API_KEY',
     'FIREBASE_STAGING_WEB_APP_ID',
