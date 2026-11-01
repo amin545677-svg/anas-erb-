@@ -9,6 +9,8 @@ const configExample = fs.readFileSync(path.join(__dirname, '../staging/config.ex
 const gateway = fs.readFileSync(path.join(__dirname, '../staging/reverse-ledger-gateway.js'), 'utf8');
 const hosting = JSON.parse(fs.readFileSync(path.join(__dirname, '../firebase.staging.hosting.json'), 'utf8'));
 const deployWorkflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-reverse-ledger-console-staging.yml'), 'utf8');
+const functionsWorkflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-reverse-ledger-functions-staging.yml'), 'utf8');
+const bootstrapScript = fs.readFileSync(path.join(__dirname, '../scripts/bootstrap-staging-account.mjs'), 'utf8');
 
 test('staging page is isolated from production V42 entrypoint and targets only the dedicated Firebase project', () => {
   assert.match(html, /ANAS_REVERSE_LEDGER_STAGING_CONFIG/);
@@ -65,6 +67,14 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(deployWorkflow.includes('workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}'));
   assert.ok(deployWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.doesNotMatch(deployWorkflow, /FIREBASE_STAGING_SERVICE_ACCOUNT|credentials_json:/);
+  assert.ok(functionsWorkflow.includes('workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}'));
+  assert.ok(functionsWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
+  assert.ok(functionsWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
+  assert.ok(functionsWorkflow.includes('FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT'));
+  assert.ok(functionsWorkflow.includes('firebase-staging-bootstrap-service-account.json'));
+  assert.doesNotMatch(functionsWorkflow.slice(0, functionsWorkflow.indexOf('jobs:')), /id-token:\\s*write/);
+  assert.ok(bootstrapScript.includes("credential.project_id !== PROJECT_ID"));
+  assert.ok(bootstrapScript.includes('Dedicated Staging Admin SDK bootstrap credential file is unavailable.'));
   assert.match(deployWorkflow, /--only hosting/);
   assert.match(deployWorkflow, /--project anas-erp-staging-a25e1/);
   assert.doesNotMatch(deployWorkflow, /--project anas-erb(?:\\s|$)/);
