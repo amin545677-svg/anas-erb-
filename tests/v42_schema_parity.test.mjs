@@ -7,6 +7,7 @@ import { reconcilePendingMutations } from "../sync/mutation_reconciliation.mjs";
 // Execute the actual, unchanged V42 function extracted from index.html.
 // This is a source-level differential harness, not a production integration.
 const v42Source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledger.js", import.meta.url), "utf8");
 
 function extractFunction(name, signature) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -37,7 +38,9 @@ function runV42Collection(initial, amount) {
     Date: FixedDate,
     Math: fixedMath,
     Number, String, Set, Array, Object, JSON,
-    prompt: () => String(amount),
+    prompt: message => String(message).startsWith("خصّص")
+      ? JSON.stringify([{ invoiceId: "INV-DEBT-1", amount: String(amount) }])
+      : String(amount),
     alert: message => alerts.push(String(message)),
     saveDB: () => true,
     updateCashUI: () => {},
@@ -46,7 +49,7 @@ function runV42Collection(initial, amount) {
   };
   vm.createContext(context);
   const source = extractFunction("collectCustDebt", "cId");
-  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
   context.__run("cust_1");
   return { snapshot: context.AppData, alerts };
 }
@@ -54,6 +57,9 @@ function runV42Collection(initial, amount) {
 function stripSyncMetadata(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
+  delete copy.clientMovements;
+  delete copy.settlementAllocations;
+  for (const customer of copy.customers || []) delete customer.ledgerVersion;
   for (const invoice of copy.invoices || []) {
     delete invoice.syncOpId;
     delete invoice.syncCreatedAt;
@@ -70,6 +76,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
   const initial = {
     caisseBalance: 54000,
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 26000 }],
+    invoices: [{ id: "INV-DEBT-1", customerId: "cust_1", total: 26000, paid: 0, remaining: 26000, invoiceLedgerVersion: 2 }],
     cashMovements: [],
     currentUser: { id: "user_1", name: "مدير" }
   };
@@ -103,6 +110,7 @@ test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", () => {
   const initial = {
     caisseBalance: 1000,
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 2000 }],
+    invoices: [{ id: "INV-DEBT-1", customerId: "cust_1", total: 2000, paid: 0, remaining: 2000, invoiceLedgerVersion: 2 }],
     cashMovements: [],
     currentUser: null
   };
@@ -135,7 +143,7 @@ test("sale parity audit documents the real V42 side-effect boundary", () => {
   assert.match(saleSource, /const currentUnits = anasToQtyUnits\(saleWarehouse === 'المخزن الرئيسي' \? p\.stock : \(p\.warehouseStock\?\.\[saleWarehouse\] \?\? 0\)\)/);
   assert.match(saleSource, /p\.warehouseStock\[saleWarehouse\]\s*=\s*anasQtyFromUnits\(updatedUnits\)/);
   assert.match(saleSource, /AppData\.invoices\.unshift\(invObj\)/);
-  assert.match(saleSource, /AppData\.caisseBalance\s*=\s*oldCaisse\s*\+\s*paid/);
+  assert.match(saleSource, /AppData\.caisseBalance\s*=\s*newCashBalance/);
   assert.match(saleSource, /cust\.debt\s*=\s*oldDebt\s*\+\s*remaining/);
   // The V42 sale function itself does not write these ledgers; do not fabricate them in replay.
   assert.match(saleSource, /AppData\.stockMovements\.unshift\(/);
@@ -170,7 +178,7 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
   };
   vm.createContext(context);
   const source = extractFunction("confirmHasibPayment", "");
-  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
   context.__run();
   return { snapshot: context.AppData, alerts, cart: context.posCart, invoice: context.lastConfirmedInvoice };
 }
