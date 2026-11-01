@@ -16,7 +16,6 @@ on:
   push:
     branches:
       - staging/unified-release-candidate
-      - feature/atomic-settlement-allocation
     paths:
       - 'functions/**'
       - 'scripts/**'
@@ -135,6 +134,24 @@ jobs:
           workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
           service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
           create_credentials_file: true
+
+      - name: Install Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enforce staging deployment identity before any deploy action
+        env:
+          GCLOUD_PROJECT: anas-erp-staging-a25e1
+          GOOGLE_CLOUD_PROJECT: anas-erp-staging-a25e1
+          ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          configured_project="$(gcloud config get-value project 2>/dev/null || true)"
+          if [ -n "$configured_project" ] && [ "$configured_project" != "(unset)" ] && [ "$configured_project" != "$GCLOUD_PROJECT" ]; then
+            echo "Refusing deployment: pre-existing gcloud project differs from isolated staging."
+            exit 1
+          fi
+          gcloud config set project "$GCLOUD_PROJECT" --quiet
+          node scripts/assert-staging-deployment-identity.mjs
 
       - name: Install Firebase Functions dependencies
         run: npm install --prefix functions --omit=dev --no-audit --no-fund
