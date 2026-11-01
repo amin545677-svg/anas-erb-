@@ -87,3 +87,15 @@ test('customer collection renderer escapes untrusted labels', () => {
   assert.match(html, /&lt;img/);
   assert.doesNotMatch(html, /<img/);
 });
+
+test('Arabic query engine is wired into customer debt, supplier debt, invoices, quick sale and reports', () => {
+  assert.ok(html.includes('id="customerDebtSearch"'));
+  assert.ok(html.includes('id="supplierDebtSearch"'));
+  assert.ok(html.includes('id="invoiceListSearch"'));
+  assert.ok(html.includes('filteredCustomers = customers.filter(c => c && window.anasQueryMatches('));
+  assert.ok(html.includes('filteredSuppliers = suppliers.filter(s => s && window.anasQueryMatches('));
+  assert.ok(html.includes('filteredInvoices = invoices.filter(inv => inv && window.anasQueryMatches('));
+  assert.ok(html.includes('window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q)'));
+  assert.ok(html.includes("window.anasQueryMatches([row.textContent || ''], q)"));
+  assert.ok(html.includes("window.anasQueryMatches([node.textContent || ''], q)"));
+});
