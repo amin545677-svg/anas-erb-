@@ -9,12 +9,16 @@ const ROOT = process.cwd();
 let server, origin, browser;
 test.before(async () => {
   server = http.createServer((req, res) => {
-    const file = path.join(ROOT, req.url === '/storage/android-resilient-storage.js'
-      ? 'storage/android-resilient-storage.js' : 'index.html');
+    if (req.url === '/' || req.url === '/test.html') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      res.end('<!doctype html><html><head><meta charset="utf-8"></head><body><main id="storage-test">ready</main></body></html>');
+      return;
+    }
+    const file = path.join(ROOT, 'storage/android-resilient-storage.js');
+    if (req.url !== '/storage/android-resilient-storage.js') { res.writeHead(404).end(); return; }
     fs.readFile(file, (error, bytes) => {
       if (error) { res.writeHead(404).end(); return; }
-      const type = file.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8';
-      res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
       res.end(bytes);
     });
   });
@@ -42,6 +46,8 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
     const payload = S.encode(finance);
     await S.setSync(S.APP_KEY, payload);
     const local = localStorage.getItem(S.APP_KEY);
+    const localMeta = JSON.parse(localStorage.getItem(S.APP_KEY + '__META_V1'));
+    const localChecksumValid = localMeta.checksum === S.fastChecksum(local);
     const record = await new Promise((resolve, reject) => {
       const req = indexedDB.open(S.DB_NAME);
       req.onsuccess = () => {
@@ -52,10 +58,11 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
       };
       req.onerror = () => reject(req.error);
     });
-    return { localMatches: local === payload, checksumValid: record.checksum === await S.checksum(record.payload),
+    return { localMatches: local === payload, localChecksumValid, checksumValid: record.checksum === await S.checksum(record.payload),
       revision: record.revision, payload: finance };
   });
   assert.equal(first.localMatches, true);
+  assert.equal(first.localChecksumValid, true);
   assert.equal(first.checksumValid, true);
   assert.equal(first.revision, 1);
 
