@@ -88,7 +88,7 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
     }
   };
   vm.createContext(context);
-  vm.runInContext([extractFunction("anasToCents"), extractFunction("anasToQtyUnits"), extractFunction("anasCentsToCurrency"), extractFunction("anasQtyFromUnits"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
 
   let cloud = { data: cloudV1(), revision: 1 };
   const eventOrder = [];
