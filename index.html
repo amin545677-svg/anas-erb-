@@ -8209,6 +8209,7 @@ function wtAuditTransfers(){
         }
 
         function anasAiSafeText(v,max=120){ return String(v??'').replace(/[\r\n]+/g,' ').slice(0,max); }
+        // Minimize outbound business context: aggregates only; never export per-record identities.
         function anasBuildBusinessSnapshot(){
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
