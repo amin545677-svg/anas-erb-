@@ -58,6 +58,55 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Secret Presence Preflight (zero-leak)
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+          FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
+          FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+          ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
+          ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
+          ANAS_STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          names = [
+              "FIREBASE_STAGING_SERVICE_ACCOUNT",
+              "FIREBASE_STAGING_WEB_API_KEY",
+              "FIREBASE_STAGING_WEB_APP_ID",
+              "FIREBASE_STAGING_APP_CHECK_SITE_KEY",
+              "ANAS_STAGING_EMAIL",
+              "ANAS_STAGING_PASSWORD",
+              "ANAS_STAGING_UID",
+          ]
+          print("STAGING SECRET PRESENCE (values intentionally suppressed)")
+          print("| Variable | Status |")
+          print("|---|---|")
+          for name in names:
+              present = bool(os.environ.get(name, ""))
+              print(f"| {name} | {'PRESENT [length > 0]' if present else 'MISSING [empty]'} |")
+
+          service_account = os.environ.get("FIREBASE_STAGING_SERVICE_ACCOUNT", "")
+          if service_account:
+              try:
+                  parsed = json.loads(service_account)
+              except Exception:
+                  print("SERVICE ACCOUNT VALIDATION: INVALID JSON")
+                  sys.exit(1)
+              if parsed.get("project_id") != "anas-erp-staging-a25e1":
+                  print("SERVICE ACCOUNT VALIDATION: WRONG PROJECT (expected anas-erp-staging-a25e1)")
+                  sys.exit(1)
+              if not parsed.get("client_email") or not parsed.get("private_key"):
+                  print("SERVICE ACCOUNT VALIDATION: REQUIRED FIELDS MISSING")
+                  sys.exit(1)
+              print("SERVICE ACCOUNT VALIDATION: VALID JSON / expected staging project")
+          else:
+              print("SERVICE ACCOUNT VALIDATION: NOT RUN (secret empty)")
+          PY
+
       - name: Require dedicated staging-only configuration
         env:
           FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
