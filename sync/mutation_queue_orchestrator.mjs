@@ -28,6 +28,15 @@ const uniqueByOpId = items => {
 };
 const statusOf = response => response?.status ?? response?.httpStatus ?? 200;
 const isConflict = error => statusOf(error) === 409 || error?.status === 409 || error?.httpStatus === 409;
+const SERVER_OWNED_MUTATION_TYPES = new Set([
+  "SALE_RETURN",
+  "PURCHASE_RETURN",
+  "INVOICE_CANCEL",
+  "CUSTOMER_SETTLEMENT_ALLOCATION",
+  "SUPPLIER_SETTLEMENT_ALLOCATION"
+]);
+const mutationTypeOf = item => item?.type ?? item?.operationType;
+const isServerOwnedMutation = item => SERVER_OWNED_MUTATION_TYPES.has(mutationTypeOf(item));
 
 function captureStorage(storage, keys) {
   return Object.fromEntries(keys.map(key => [key, storage.getItem(key)]));
@@ -109,7 +118,22 @@ export function createMutationQueueOrchestrator({
     recoverInterruptedLocalMutation(storage);
     recoverPreparedMutationsOnBoot(storage);
     const pendingAtStart = readJson(storage, MUTATION_KEYS.pending, []);
-    const capturedIds = new Set(pendingAtStart.filter(x => x?.status === "PENDING").map(x => x?.opId).filter(Boolean));
+    if (!Array.isArray(pendingAtStart)) throw new Error("Pending queue must be an array");
+    const protectedPending = pendingAtStart.filter(item =>
+      item?.status === "PENDING" && isServerOwnedMutation(item)
+    );
+    if (protectedPending.length) {
+      return {
+        status: "protected-server-owned",
+        retained: protectedPending.length,
+        blockedServerOwned: protectedPending.map(item => ({
+          opId: item.opId, type: mutationTypeOf(item)
+        }))
+      };
+    }
+    const capturedIds = new Set(pendingAtStart.filter(x =>
+      x?.status === "PENDING" && !isServerOwnedMutation(x)
+    ).map(x => x?.opId).filter(Boolean));
     const appData = readJson(storage, MUTATION_KEYS.appData, null);
     if (!appData) throw new Error("Local AppData is missing");
     const revision = readJson(storage, MUTATION_KEYS.revision, null);
@@ -142,17 +166,8 @@ export function createMutationQueueOrchestrator({
       // These financial mutations are owned by the trusted reverse-ledger /
       // settlement server path. Never replay them through the legacy snapshot
       // reconciliation engine, even when an old client left them in its queue.
-      const SERVER_OWNED_MUTATION_TYPES = new Set([
-        "SALE_RETURN",
-        "PURCHASE_RETURN",
-        "INVOICE_CANCEL",
-        "CUSTOMER_SETTLEMENT_ALLOCATION",
-        "SUPPLIER_SETTLEMENT_ALLOCATION"
-      ]);
-      const serverOwned = pendingAtStart.filter(item => SERVER_OWNED_MUTATION_TYPES.has(item?.type));
-      const replayable = pendingAtStart.filter(item =>
-        !SERVER_OWNED_MUTATION_TYPES.has(item?.type)
-      );
+      const serverOwned = pendingAtStart.filter(isServerOwnedMutation);
+      const replayable = pendingAtStart.filter(item => !isServerOwnedMutation(item));
       // Retire only the queue records captured at the beginning of this attempt,
       // and only after the cloud accepts the reconciled snapshot.
       const capturedIds = new Set(pendingAtStart.map(item => item?.opId).filter(Boolean));
