@@ -4,6 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { buildCashLedger } = require('../cashbox-readonly-ledger.js');
+assert.equal(typeof buildCashLedger, 'function', 'standalone cashbox ledger module must load');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
@@ -45,4 +47,19 @@ test('cash balance refresh also refreshes the read-only ledger', () => {
   const end = html.indexOf('\n        function anasCashLedgerEscape', start);
   assert.ok(start >= 0 && end > start);
   assert.match(html.slice(start, end), /anasRenderCashLedger\(\)/);
+});
+
+
+test('standalone cashbox-readonly-ledger.js exports immutable ledger aggregation', () => {
+  const source = [
+    { id: 'C1', type: 'add', amount: 10, description: 'قبض' },
+    { id: 'C2', type: 'subtract', amount: 3, description: 'صرف' },
+    { id: 'BAD', type: 'unknown', amount: 'bad' }
+  ];
+  const result = buildCashLedger(source);
+  assert.equal(result.total, 3);
+  assert.equal(result.invalid, 1);
+  assert.equal(result.incoming, 1000);
+  assert.equal(result.outgoing, 300);
+  assert.equal(source.length, 3, 'read-only module must not mutate source movements');
 });
