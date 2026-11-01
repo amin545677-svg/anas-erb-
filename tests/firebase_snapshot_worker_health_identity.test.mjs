@@ -25,8 +25,9 @@ const staging = await health({
 assert.deepEqual(staging, {
   ok: true,
   service: "anas-erp-firebase-snapshot-staging",
+  projectId: "anas-erp-staging-a25e1",
   configured: true
-}, "staging health must identify the staging Worker");
+}, "staging health must identify the staging Worker and Firebase project");
 
 const productionFallback = await health({
   FIREBASE_API_KEY: "test-only-not-a-real-key",
