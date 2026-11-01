@@ -6,6 +6,7 @@ import { installV42RuntimeWiring } from "../sync/v42_runtime_installer.mjs";
 import { createMutationQueueOrchestrator, MUTATION_KEYS } from "../sync/mutation_queue_orchestrator.mjs";
 
 const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledger.js", import.meta.url), "utf8");
 
 function extractFunction(name, signature = "") {
   const escaped = name;
@@ -41,6 +42,18 @@ function fixture() {
   };
 }
 
+function collectionFixture() {
+  const data = fixture();
+  data.invoices = [{ id: "inv_1", customerId: "cust_1", total: 26000, paid: 0, remaining: 26000, invoiceLedgerVersion: 2 }];
+  return data;
+}
+
+function collectionCloudV1() {
+  const data = cloudV1();
+  data.invoices = [{ id: "inv_1", customerId: "cust_1", total: 26000, paid: 0, remaining: 26000, invoiceLedgerVersion: 2 }];
+  return data;
+}
+
 function cloudV1() {
   return {
     caisseBalance: 54000,
@@ -54,7 +67,7 @@ function cloudV1() {
 }
 
 test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/reconcile -> V2 push", async () => {
-  const initial = fixture();
+  const initial = collectionFixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
     [MUTATION_KEYS.pending]: "[]",
@@ -88,9 +101,9 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
     }
   };
   vm.createContext(context);
-  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
 
-  let cloud = { data: cloudV1(), revision: 1 };
+  let cloud = { data: collectionCloudV1(), revision: 1 };
   const eventOrder = [];
   let firstPush = true;
   const orchestrator = createMutationQueueOrchestrator({
@@ -183,7 +196,9 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     AppData: structuredClone(initial),
     Date, Math, Number, String, Set, Map, Array, Object, JSON,
     document: { getElementById: id => elements[id] || null },
-    prompt: () => "500.50",
+    prompt: message => String(message).startsWith("خصّص")
+      ? JSON.stringify([{ invoiceId: "inv_1", amount: "500.50" }])
+      : "500.50",
     alert: message => alerts.push(String(message)),
     console,
     updateCashUI: () => {},
@@ -194,7 +209,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     }
   };
   vm.createContext(context);
-  vm.runInContext([extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
 
   let cloud = { data: cloudV1(), revision: 1 };
   const eventOrder = [];
@@ -267,7 +282,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   assert.equal(cloud.data.cashMovements.filter(m => m.id === pending[0].payload.cashMovementId).length, 1);
   assert.equal(cloud.data.cashMovements.find(m => m.id === pending[0].payload.cashMovementId).amount, 500.5);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
-  assert.equal(alerts.some(message => message.includes("تم تسجيل قبض الدين")), true);
+  assert.equal(alerts.some(message => message.includes("تم تسجيل القبض وتخصيصه يدوياً")), true);
   assert.equal(installer.uninstall(), true);
 });
 
