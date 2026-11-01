@@ -1,5 +1,17 @@
 const CACHE = 'anas-erp-v54-25-r3';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './reverse-ledger/reverse-ledger.js'];
+const CORE = [
+  './', './index.html', './manifest.webmanifest', './icons/icon.svg',
+  './anas-erp-ui-safe-enhancements.css',
+  './reverse-ledger/reverse-ledger.js',
+  './reverse-ledger/reverse-ledger-modal.js',
+  './reverse-ledger/settlement-allocation-modal.js',
+  './storage/android-resilient-storage.js',
+  './supplier-account-statement.js',
+  './cashbox-readonly-ledger.js',
+  './arabic-query-engine.js',
+  './customer-debt-protection.js',
+  './warehouse-transfer-audit.js'
+];
 const CORE_URLS = new Set(CORE.map(path => new URL(path, self.location.href).href));
 
 self.addEventListener('install', event => {
