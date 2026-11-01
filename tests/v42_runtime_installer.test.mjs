@@ -67,7 +67,7 @@ function cloudV1() {
 }
 
 test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/reconcile -> V2 push", async () => {
-  const initial = collectionFixture();
+  const initial = fixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
     [MUTATION_KEYS.pending]: "[]",
@@ -182,7 +182,7 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
 
 
 test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movement and reconciles once after 409", async () => {
-  const initial = fixture();
+  const initial = collectionFixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
     [MUTATION_KEYS.pending]: "[]",
