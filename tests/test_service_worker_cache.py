@@ -35,6 +35,23 @@ class ServiceWorkerCacheRegressionTests(unittest.TestCase):
         self.assertIn("'./reverse-ledger/reverse-ledger.js'", SOURCE)
         self.assertIn("new URL(path, self.location.href)", SOURCE)
 
+    def test_all_local_html_runtime_dependencies_are_precached(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        core_match = re.search(r"const CORE = \[(.*?)\];", SOURCE, re.S)
+        self.assertIsNotNone(core_match, "service worker must declare an explicit core asset list")
+        core_assets = set(re.findall(r"['\\\"]([^'\\\"]+)['\\\"]", core_match.group(1)))
+        dependencies = re.findall(
+            r"<(?:script|link)\\b[^>]*?\\b(?:src|href)=['\\\"]([^'\\\"]+)['\\\"]",
+            html, re.I
+        )
+        local_dependencies = {asset for asset in dependencies if asset.startswith("./")}
+        self.assertTrue(local_dependencies, "application must expose local runtime dependencies")
+        missing = sorted(local_dependencies - core_assets)
+        self.assertEqual(
+            missing, [],
+            "offline app shell is missing local runtime dependencies: " + ", ".join(missing)
+        )
+
     def test_non_get_and_cross_origin_requests_are_not_intercepted(self):
         self.assertIn("if (request.method !== 'GET') return;", SOURCE)
         self.assertIn("if (url.origin !== self.location.origin) return;", SOURCE)
