@@ -66,7 +66,7 @@ function cloudV1() {
   };
 }
 
-test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/reconcile -> V2 push", async () => {
+test("runtime wiring fails closed for actual V42 sale with multiple ledger side effects", async () => {
   const initial = fixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
@@ -156,24 +156,16 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
   installer.install();
   context.runActualV42Sale();
 
-  const queueAfterSave = storage.json(MUTATION_KEYS.pending);
-  assert.equal(queueAfterSave.length, 1);
-  assert.equal(queueAfterSave[0].status, "PENDING");
-  assert.equal(context.AppData.invoices[0].syncOpId, queueAfterSave[0].opId);
-  assert.equal(storage.json(MUTATION_KEYS.appData).invoices[0].syncOpId, queueAfterSave[0].opId);
-
-  const result = await windowObject.anasFirebasePush();
-
-  assert.equal(result.status, "synced");
-  assert.deepEqual(eventOrder, ["push", "pull", "push"]);
-  assert.equal(cloud.revision, 2);
-  assert.equal(cloud.data.products[0].stock, 88);
-  assert.equal(cloud.data.caisseBalance, 55000);
-  assert.equal(cloud.data.customers[0].debt, 26000);
-  assert.equal(cloud.data.invoices.length, 1);
-  assert.equal(cloud.data.invoices[0].syncOpId, queueAfterSave[0].opId);
+  // Current V42 writes an invoice plus separate cash/stock/client ledger rows.
+  // The older PR260 prototype has no atomic replay contract for that multi-entity
+  // sale shape, so the correct behavior is fail-closed with a full V42 rollback.
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
-  assert.ok(statuses.some(item => item.code === "V42_SYNC_CONFLICT_RECONCILING"));
+  assert.equal(context.AppData.invoices.length, 0);
+  assert.equal(context.AppData.products[0].stock, 90);
+  assert.equal(context.AppData.caisseBalance, 54000);
+  assert.equal(context.AppData.customers[0].debt, 26000);
+  assert.ok(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")));
+  assert.equal(storage.json(MUTATION_KEYS.appData).invoices.length, 0);
 
   assert.equal(installer.uninstall(), true);
   assert.equal(await windowObject.anasFirebasePull(), "legacy-destructive-pull",
