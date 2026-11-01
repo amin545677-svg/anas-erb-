@@ -47,7 +47,7 @@ function fixtureState() {
     invoices: [{
       id: 'INV-DOM-1', invoiceNumber: 'DOM-INV-1', invoiceLedgerVersion: 2,
       customerId: 'C-DOM-1', customerObj: { id: 'C-DOM-1', name: 'DOM customer' },
-      total: '100.00', paid: '0.00', remaining: '100.00', discount: '0.00',
+      total: '100.00', paid: '50.00', remaining: '50.00', discount: '0.00',
       items: [{ id: 'P-DOM-1', productId: 'P-DOM-1', name: 'DOM product', qty: 2, price: '50.00' }],
       warehouse: 'المخزن الرئيسي', tenantId: 'TENANT_DEFAULT', storeId: 'STORE_DEFAULT'
     }],
