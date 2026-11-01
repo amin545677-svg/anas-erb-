@@ -196,6 +196,7 @@ function paritySnapshot(value) {
   delete copy.settlementAllocations;
   for (const customer of copy.customers || []) delete customer.ledgerVersion;
   for (const invoice of copy.invoices || []) {
+    if (invoice.customerObj && typeof invoice.customerObj === "object") delete invoice.customerObj.ledgerVersion;
     delete invoice.syncOpId;
     delete invoice.syncCreatedAt;
   }
