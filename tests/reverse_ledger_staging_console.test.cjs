@@ -58,7 +58,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
   assert.ok(deployWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
   assert.ok(deployWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
-  assert.doesNotMatch(deployWorkflow.slice(0, deployWorkflow.indexOf('jobs:')), /id-token:\\s*write/);
+  assert.ok(!deployWorkflow.slice(0, deployWorkflow.indexOf('jobs:')).includes('id-token: write'));
   for (const secret of [
     'FIREBASE_STAGING_WEB_API_KEY',
     'FIREBASE_STAGING_WEB_APP_ID',
@@ -74,7 +74,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(functionsWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
   assert.ok(functionsWorkflow.includes('FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT'));
   assert.ok(functionsWorkflow.includes('firebase-staging-bootstrap-service-account.json'));
-  assert.doesNotMatch(functionsWorkflow.slice(0, functionsWorkflow.indexOf('jobs:')), /id-token:\\s*write/);
+  assert.ok(!functionsWorkflow.slice(0, functionsWorkflow.indexOf('jobs:')).includes('id-token: write'));
   assert.ok(bootstrapScript.includes("credential.project_id !== PROJECT_ID"));
   assert.ok(bootstrapScript.includes('Dedicated Staging Admin SDK bootstrap credential file is unavailable.'));
   assert.match(deployWorkflow, /--only hosting/);
