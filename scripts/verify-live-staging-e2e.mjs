@@ -189,11 +189,6 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
       row.sourceMovementType === settlement.sourceMovementType);
     const allocated = allocationRows.reduce((sum, row) => sum + BigInt(row.amountCentimes || 0), 0n);
     if (allocated !== expectedAllocation) throw new Error('Server-posted settlement allocation total differs from the exact fixture centimes.');
-    evidence.saleSettlement = {
-      invoiceId: String(invoice.id), partyId: String(settlement.partyId), sourceMovementId: String(settlement.sourceMovementId),
-      paidCentimes: paid.toString(), allocatedCentimes: allocated.toString(), allocationRows: allocationRows.length,
-      allocationPostedThroughModal: true, partialReturnValidated: true, fullCancellationTargetsSeparateEligibleInvoice: true
-    };
     const saleReturnRequest = fixture.operations.find(x => x.request.returnType === 'SALE_RETURN').request;
     for (const line of saleReturnRequest.items) {
       const sourceLine = (invoice.items || []).find(item =>
@@ -207,11 +202,14 @@ async function verifyLiveStaging({ url, email, password, fixturePath, evidencePa
     }
     evidence.saleSettlement = {
       invoiceId: String(invoice.id),
+      partyId: String(settlement.partyId),
+      sourceMovementId: String(settlement.sourceMovementId),
       paidCentimes: paid.toString(),
       allocatedCentimes: allocated.toString(),
       allocationRows: allocationRows.length,
+      allocationPostedThroughModal: true,
       partialReturnValidated: true,
-      fullCancellationTargetsSameInvoice: true
+      fullCancellationTargetsSeparateEligibleInvoice: true
     };
 
     await page.evaluate(() => {
