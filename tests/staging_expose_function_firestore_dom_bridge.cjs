@@ -230,7 +230,21 @@ async function main() {
     await page.fill('#rev-period-id', PERIOD);
     await page.fill('#rev-reason-input', 'Staging partial sale return');
     await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
-    await page.waitForFunction(() => document.querySelector('#rev-submit-btn')?.disabled === false);
+    try {
+      await page.waitForFunction(() => document.querySelector('#rev-submit-btn')?.disabled === false, { timeout: 30000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => ({
+        buttonDisabled: document.querySelector('#rev-submit-btn')?.disabled,
+        status: document.querySelector('#rev-eligibility-status')?.textContent,
+        previewTotal: document.querySelector('#rev-preview-total')?.textContent,
+        invoiceValue: document.querySelector('#rev-invoice-select')?.value,
+        itemQuantity: document.querySelector('#rev-items-body input[data-line-index="0"]')?.value,
+        customerDebt: window.AppData?.customers?.find(row => row.id === 'C-DOM-1')?.debt,
+        allocations: window.AppData?.settlementAllocations?.length,
+        stock: window.AppData?.products?.find(row => row.id === 'P-DOM-1')?.stock
+      }));
+      throw new Error('reverse preview did not enable posting: ' + JSON.stringify(diagnostic) + '; ' + error.message);
+    }
     await page.click('#rev-submit-btn');
     try {
       await page.waitForFunction(async () => {
