@@ -74,7 +74,7 @@ export function expectedPrincipalFromCredential(credential) {
     if (url.protocol !== 'https:' || url.hostname !== 'iamcredentials.googleapis.com') {
       throw new Error('Refusing deployment: OIDC impersonation endpoint is not trusted.');
     }
-    const match = url.pathname.match(/\\/serviceAccounts\\/([^/:]+):generateAccessToken$/);
+    const match = url.pathname.match(/\/serviceAccounts\/([^/:]+):generateAccessToken$/);
     const email = match ? decodeURIComponent(match[1]) : '';
     if (!email.endsWith('.iam.gserviceaccount.com')) {
       throw new Error('Refusing deployment: OIDC credential has no approved service-account principal.');
