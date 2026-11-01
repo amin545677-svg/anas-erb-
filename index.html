@@ -2579,6 +2579,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="./reverse-ledger/reverse-ledger.js"></script>
+<script src="./storage/android-resilient-storage.js"></script>
 <script>
         // Escape untrusted values before inserting them into HTML templates.
         function anasEscapeHTML(value) {
@@ -2614,7 +2615,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         let anasStartupIntegrityIssues = [];
         let anasStartupFatalLoadError = false;
         try {
-            const saved = localStorage.getItem(ANAS_DB_KEY);
+            const saved = window.ANASResilientStorage ? ANASResilientStorage.getSync(ANAS_DB_KEY) : localStorage.getItem(ANAS_DB_KEY);
             AppData = saved ? JSON.parse(saved) : initialDB;
             if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData)) throw new Error('invalid saved data');
             // Initialize only absent legacy collections. Preserve present-but-invalid values and block writes.
@@ -2797,7 +2798,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
         }
 
+        let anasStorageHydrationComplete = false;
         function saveDB() {
+            if (!anasStorageHydrationComplete) {
+                alert('جارٍ استعادة قاعدة البيانات من التخزين الآمن. انتظر اكتمال الإقلاع قبل الحفظ.');
+                return false;
+            }
             if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length) {
                 alert('الحفظ موقوف لحماية البيانات الأصلية. أصلح البيانات التالفة أو استعد نسخة احتياطية سليمة قبل إجراء أي تغييرات.');
                 return false;
@@ -2822,7 +2828,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     globalThis.ANASReverseLedger.validateReverseLedgerParity(snapshot);
                 }
                 serialized = JSON.stringify(snapshot);
-                localStorage.setItem(ANAS_DB_KEY, serialized);
+                if (window.ANASResilientStorage) {
+                    ANASResilientStorage.setSync(ANAS_DB_KEY, serialized).catch(error => console.error('ANAS IndexedDB mirror write failed:', error));
+                } else {
+                    localStorage.setItem(ANAS_DB_KEY, serialized);
+                }
             } catch (e) {
                 alert(e && e.code === 'ANAS_INVALID_POS_CARTS'
                     ? e.message
@@ -10595,6 +10605,32 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           navigator.serviceWorker.register('./sw.js').catch(function (error) {
             console.warn('ANAS ERP offline support could not be enabled:', error);
           });
+        });
+      })();
+    </script>
+    <script>
+      // Pre-boot hydration barrier: saveDB remains write-locked until IndexedDB has been inspected.
+      (function startANASStorageHydration() {
+        const storage = window.ANASResilientStorage;
+        if (!storage) { anasStartupFatalLoadError = true; return; }
+        const localSnapshot = storage.getSync('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+        storage.hydrate(localSnapshot).then(result => {
+          if (result.payload !== null && result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+            AppData = result.data;
+            const tab = AppData.activePosScreenTab || 1;
+            posCart = AppData.posScreensCarts && Array.isArray(AppData.posScreensCarts[tab]) ? AppData.posScreensCarts[tab] : [];
+          }
+          anasStorageHydrationComplete = true;
+          try { updateUIState(); } catch (error) { console.error('ANAS post-hydration UI refresh:', error); }
+          try { checkSystemAlerts(); } catch (error) { console.error('ANAS post-hydration alerts refresh:', error); }
+          try { updateDashboardStats(); } catch (error) { console.error('ANAS post-hydration dashboard refresh:', error); }
+          try { renderQuickProducts(); } catch (error) { console.error('ANAS post-hydration product refresh:', error); }
+          console.info('ANAS storage hydration complete:', storage.status());
+        }).catch(error => {
+          anasStartupFatalLoadError = true;
+          anasStorageHydrationComplete = false;
+          console.error('ANAS storage hydration failed closed:', error);
+          alert('تعذر التحقق من نسخة التخزين الآمن. أُوقف الحفظ لحماية البيانات؛ لا تحذف بيانات التطبيق.');
         });
       })();
     </script>
