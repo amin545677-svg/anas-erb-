@@ -154,7 +154,7 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
   const fn = kind === "sale"
     ? extractFunction("confirmHasibPayment", "")
     : extractFunction("collectCustDebt", "cId");
-  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", fn, kind === "sale" ? "globalThis.__run = confirmHasibPayment;" : "globalThis.__run = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", fn, kind === "sale" ? "globalThis.__run = confirmHasibPayment;" : "globalThis.__run = collectCustDebt;"].join("\n"), context);
 
   let threw = false;
   try {
