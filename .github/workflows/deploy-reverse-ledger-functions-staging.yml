@@ -69,21 +69,13 @@ jobs:
           STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
         run: |
           node <<'NODE'
-          const required = [
-            'FIREBASE_STAGING_SERVICE_ACCOUNT',
-            'FIREBASE_STAGING_WEB_API_KEY',
-            'FIREBASE_STAGING_WEB_APP_ID',
-            'FIREBASE_STAGING_APP_CHECK_SITE_KEY',
-            'ANAS_STAGING_EMAIL',
-            'ANAS_STAGING_PASSWORD',
-            'STAGING_UID'
-          ];
+          const names = ["FIREBASE_STAGING_SERVICE_ACCOUNT","FIREBASE_STAGING_WEB_API_KEY","FIREBASE_STAGING_WEB_APP_ID","FIREBASE_STAGING_APP_CHECK_SITE_KEY","ANAS_STAGING_EMAIL","ANAS_STAGING_PASSWORD","STAGING_UID"];
           let missing = false;
-          console.log('STAGING SECRET PRESENCE (secret values suppressed)');
+          console.log('STAGING SECRET PRESENCE (values suppressed)');
           console.log('| Variable | Status |');
           console.log('|---|---|');
-          for (const name of required) {
-            const present = typeof process.env[name] === 'string' && process.env[name].trim().length > 0;
+          for (const name of names) {
+            const present = Boolean((process.env[name] || '').trim());
             console.log('| ' + name + ' | ' + (present ? 'PRESENT' : 'MISSING') + ' |');
             if (!present) missing = true;
           }
@@ -91,20 +83,14 @@ jobs:
           if (raw) {
             let account;
             try { account = JSON.parse(raw); }
-            catch { console.error('SERVICE ACCOUNT VALIDATION: INVALID JSON'); process.exit(1); }
-            if (account.type !== 'service_account' ||
-                typeof account.private_key !== 'string' || !account.private_key.trim() ||
-                typeof account.client_email !== 'string' || !account.client_email.trim() ||
-                account.project_id !== 'anas-erp-staging-a25e1') {
-              console.error('SERVICE ACCOUNT VALIDATION: INVALID REQUIRED FIELDS OR NON-STAGING PROJECT');
+            catch { console.error('SERVICE ACCOUNT: INVALID JSON'); process.exit(1); }
+            if (account.type !== 'service_account' || !account.private_key || !account.client_email || account.project_id !== 'anas-erp-staging-a25e1') {
+              console.error('SERVICE ACCOUNT: INVALID REQUIRED FIELDS OR WRONG PROJECT');
               process.exit(1);
             }
-            console.log('SERVICE ACCOUNT VALIDATION: VALID / STAGING PROJECT');
+            console.log('SERVICE ACCOUNT: VALID / STAGING PROJECT');
           }
-          if (missing) {
-            console.error('STAGING PREFLIGHT: BLOCKED; one or more required variables are missing.');
-            process.exit(1);
-          }
+          if (missing) { console.error('STAGING PREFLIGHT: BLOCKED'); process.exit(1); }
           NODE
 
       - name: Run fail-closed staging callable readiness preflight
