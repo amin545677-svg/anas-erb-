@@ -84,6 +84,12 @@ jobs:
           assert.equal(ledger.outgoing, 300);
           console.log('Supplier, cashbox and Arabic query module assertions passed.');
           NODE
+      - name: Run Arabic query, supplier statement, cashbox and RBAC regression suites
+        run: |
+          node --test tests/arabic-query-engine.test.mjs
+          node tests/supplier_statement_ui_test.js
+          node --test tests/cashbox_readonly_ledger_test.js
+          node --test tests/user-rbac-policy.test.mjs
       - name: Verify deployable Functions bundle matches canonical ledger modules
         run: |
           cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js
