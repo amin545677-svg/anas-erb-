@@ -105,3 +105,42 @@ test("server-owned queue entries remain pending when cloud CAS returns 409", asy
   assert.equal(read(storage, MUTATION_KEYS.pending)[0].opId, "cancel-1");
   assert.deepEqual(read(storage, MUTATION_KEYS.quarantined), []);
 });
+
+
+test("pushCurrent restores PREPARED intent then blocks all five server-owned financial types", async () => {
+  const types = [
+    "SALE_RETURN",
+    "PURCHASE_RETURN",
+    "INVOICE_CANCEL",
+    "CUSTOMER_SETTLEMENT_ALLOCATION",
+    "SUPPLIER_SETTLEMENT_ALLOCATION"
+  ];
+  const pending = types.map((type, index) => ({
+    opId: "server-owned-" + index,
+    ...(index === 4 ? { operationType: type } : { type }),
+    status: index === 0 ? "PREPARED" : "PENDING",
+    payload: {}
+  }));
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: json({
+      customers: [], cashMovements: [], appliedOpIds: ["server-owned-0"]
+    }),
+    [MUTATION_KEYS.pending]: json(pending),
+    [MUTATION_KEYS.revision]: json("rev-1")
+  });
+  let pushCalls = 0;
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => { throw new Error("pushCurrent must not pull or replay"); },
+    pushCloud: async () => { pushCalls++; return { status: 200, revision: "rev-2" }; }
+  });
+
+  const result = await orchestrator.pushCurrent();
+  assert.equal(result.status, "protected-server-owned");
+  assert.equal(result.retained, 5);
+  assert.deepEqual(result.blockedServerOwned.map(item => item.type), types);
+  assert.equal(pushCalls, 0);
+  const persisted = read(storage, MUTATION_KEYS.pending);
+  assert.equal(persisted.length, 5);
+  assert.ok(persisted.every(item => item.status === "PENDING"));
+});
