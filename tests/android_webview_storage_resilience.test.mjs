@@ -13,7 +13,8 @@ test.before(async () => {
       ? 'storage/android-resilient-storage.js' : 'index.html');
     fs.readFile(file, (error, bytes) => {
       if (error) { res.writeHead(404).end(); return; }
-      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
+      const type = file.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8';
+      res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
       res.end(bytes);
     });
   });
