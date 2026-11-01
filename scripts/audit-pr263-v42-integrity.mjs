@@ -43,7 +43,10 @@ const duplicateGroups = [...byHash.values()].filter((paths) => paths.length > 1)
 const unexpectedDuplicates = duplicateGroups.filter((paths) => !intentionalMirrors.has(paths.slice().sort().join('|')));
 assert.equal(unexpectedDuplicates.length, 0, 'Byte-identical duplicate source modules found: ' + JSON.stringify(unexpectedDuplicates));
 
-const hasIndexedDb = /indexedDB\s*\.\s*open\s*\(/i.test(candidateHtml);
+const storageSource = fs.readFileSync('storage/android-resilient-storage.js', 'utf8');
+const hasIndexedDb = /indexedDB\\s*\\.\\s*open\\s*\\(/i.test(storageSource);
+assert.ok(hasIndexedDb, 'Android resilient storage module must open the IndexedDB database.');
+assert.ok(storageSource.includes('anas_erp_v42_resilient_db'), 'Canonical V42 resilient IndexedDB database name is missing.');
 const hasLocalStorage = /localStorage\s*\./i.test(candidateHtml);
 const hasStorageErrorHandling = /try\s*\{[\s\S]{0,1200}(?:indexedDB|localStorage)[\s\S]{0,1200}\}\s*catch/i.test(candidateHtml);
 
