@@ -8220,30 +8220,67 @@ function wtAuditTransfers(){
             const warehouseTransfers=Array.isArray(AppData.warehouseTransfers)?AppData.warehouseTransfers:[];
             const warehouses=Array.isArray(AppData.warehouses)?AppData.warehouses:[];
             const expenses=Array.isArray(AppData.expenses)?AppData.expenses:[];
-            const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
-            let stockValueCents = 0;
-            for (const product of products) {
-                const stockUnits = anasPurchaseToQtyUnits(product.stock ?? 0);
-                const unitCostCents = stockUnits > 0 ? anasPurchaseToCents(product.buyPrice) : 0;
-                const valueCents = anasPurchaseStockValueCents(stockUnits, unitCostCents);
-                if (!Number.isSafeInteger(valueCents) || !Number.isSafeInteger(stockValueCents + valueCents)) { stockValueCents = NaN; break; }
-                stockValueCents += valueCents;
-            }
-            const stockValue = Number.isSafeInteger(stockValueCents) ? anasPurchaseCentsToCurrency(stockValueCents) : null;
-            const debtTotal=customers.reduce((sum,c)=>sum+Math.max(0,num(c.debt)),0);
-            const salesTotal=invoices.reduce((sum,i)=>sum+num(i.total),0);
-            const purchaseTotalCents = anasPurchaseAggregateCents(purchases);
-            const purchaseTotal = Number.isSafeInteger(purchaseTotalCents) ? anasPurchaseCentsToCurrency(purchaseTotalCents) : null;
-            const supplierDebtCents = suppliers.reduce((sum, supplier) => {
-                const cents = anasPurchaseToCents(supplier.balance ?? 0);
-                return Number.isSafeInteger(cents) && cents >= 0 && Number.isSafeInteger(sum + cents) ? sum + cents : NaN;
-            }, 0);
-            const supplierDebt = Number.isSafeInteger(supplierDebtCents) ? anasPurchaseCentsToCurrency(supplierDebtCents) : null;
-            const expensesTotal=expenses.reduce((sum,e)=>sum+num(e.amt),0);
-            const tripStatusCounts=truckTrips.reduce((acc,t)=>{const status=String(t.status||'غير محدد').slice(0,40);acc[status]=(acc[status]||0)+1;return acc;},{});
-            const tripCosts=truckTrips.reduce((sum,t)=>sum+num(t.cost),0);
-            const recentProducts=products.slice(0,40).map(p=>({name:anasAiSafeText(p.name||p.title),stock:num(p.stock),buyPrice:num(p.buyPrice),price1:num(p.price1)}));
-            const debtors=customers.filter(c=>num(c.debt)>0).sort((a,b)=>num(b.debt)-num(a.debt)).slice(0,20).map(c=>({name:anasAiSafeText(c.name),debt:num(c.debt)}));
+            const readNumber=value=>{
+                if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return null;
+                if(typeof value!=='number'&&typeof value!=='string')return null;
+                const parsed=typeof value==='number'?value:Number(value);
+                return Number.isFinite(parsed)?parsed:null;
+            };
+            const aggregate=(rows,readValue,transform=value=>value)=>{
+                let total=0,validRecords=0,invalidRecords=0;
+                rows.forEach(record=>{
+                    let raw=null;
+                    try{raw=readValue(record||{});}catch(_){raw=null;}
+                    const parsed=readNumber(raw);
+                    if(parsed===null){invalidRecords++;return;}
+                    const amount=transform(parsed);
+                    if(!Number.isFinite(amount)||!Number.isFinite(total+amount)){invalidRecords++;return;}
+                    total+=amount;validRecords++;
+                });
+                return {total,validRecords,invalidRecords};
+            };
+            const stock=aggregate(products,p=>{
+                const qty=anasPurchaseToQtyUnits(p.stock);
+                const cost=anasPurchaseToCents(p.buyPrice);
+                if(!Number.isSafeInteger(qty)||qty<0||!Number.isSafeInteger(cost)||cost<0)return null;
+                const cents=anasPurchaseStockValueCents(qty,cost);
+                return Number.isSafeInteger(cents)?cents/100:null;
+            });
+            const debts=aggregate(customers,c=>c.debt,value=>Math.max(0,value));
+            const sales=aggregate(invoices,i=>i.total);
+            const purchaseRows=purchases.map(row=>anasPurchaseLineTotalForRecordCents(row));
+            let purchaseCents=0,purchaseValid=0,purchaseInvalid=0;
+            purchaseRows.forEach(cents=>{
+                if(!Number.isSafeInteger(cents)||cents<0||!Number.isSafeInteger(purchaseCents+cents)){purchaseInvalid++;return;}
+                purchaseCents+=cents;purchaseValid++;
+            });
+            const purchase={total:purchaseCents/100,validRecords:purchaseValid,invalidRecords:purchaseInvalid};
+            const supplierRows=suppliers.map(s=>anasPurchaseToCents(s?.balance??0));
+            let supplierDebtCents=0,supplierDebtInvalid=0;
+            supplierRows.forEach(cents=>{
+                if(!Number.isSafeInteger(cents)||cents<0||!Number.isSafeInteger(supplierDebtCents+cents)){supplierDebtInvalid++;return;}
+                supplierDebtCents+=cents;
+            });
+            const supplierDebt=supplierDebtInvalid===0?supplierDebtCents/100:null;
+            const expense=aggregate(expenses,e=>e.amt);
+            const tripExpense=aggregate(truckTrips,t=>t.cost);
+            const cashBalance=readNumber(AppData.caisseBalance);
+            const tripStatusCounts=truckTrips.reduce((acc,t)=>{
+                const status=String(t.status||'غير محدد').slice(0,40);
+                acc[status]=(acc[status]||0)+1;
+                return acc;
+            },{});
+            const quality={
+                estimatedStockCostDZD:{validRecords:stock.validRecords,invalidRecords:stock.invalidRecords},
+                customerDebtsDZD:{validRecords:debts.validRecords,invalidRecords:debts.invalidRecords},
+                invoiceTotalsDZD:{validRecords:sales.validRecords,invalidRecords:sales.invalidRecords},
+                purchaseRecordsTotalDZD:{validRecords:purchase.validRecords,invalidRecords:purchase.invalidRecords},
+                recordedExpensesDZD:{validRecords:expense.validRecords,invalidRecords:expense.invalidRecords},
+                recordedTruckTripCostsDZD:{validRecords:tripExpense.validRecords,invalidRecords:tripExpense.invalidRecords},
+                cashBalanceDZD:{validRecords:cashBalance===null?0:1,invalidRecords:cashBalance===null?1:0},
+                supplierDebtsDZD:{validRecords:supplierDebtInvalid===0?suppliers.length:suppliers.length-supplierDebtInvalid,invalidRecords:supplierDebtInvalid}
+            };
+            const incompleteMetrics=Object.keys(quality).filter(key=>quality[key].invalidRecords>0);
             return {
                 currency:'DZD',
                 counts:{
@@ -8253,20 +8290,26 @@ function wtAuditTransfers(){
                     warehouses:warehouses.length,expenses:expenses.length
                 },
                 totals:{
-                    customerDebtsDZD:debtTotal,estimatedStockCostDZD:stockValue,
-                    invoiceTotalsDZD:salesTotal,purchaseRecordsTotalDZD:purchaseTotal,
-                    recordedExpensesDZD:expensesTotal,recordedTruckTripCostsDZD:tripCosts,
-                    cashBalanceDZD:num(AppData.caisseBalance)
+                    customerDebtsDZD:debts.total,estimatedStockCostDZD:stock.total,
+                    invoiceTotalsDZD:sales.total,purchaseRecordsTotalDZD:purchase.total,
+                    supplierDebtsDZD:supplierDebt,
+                    recordedExpensesDZD:expense.total,recordedTruckTripCostsDZD:tripExpense.total,
+                    cashBalanceDZD:cashBalance
+                },
+                dataQuality:{
+                    metricCoverage:quality,
+                    incompleteMetrics,
+                    hasIncompleteFinancialData:incompleteMetrics.length>0
                 },
                 truckTrips:{statusCounts:tripStatusCounts},
-                sampleProducts:recentProducts,topDebtors:debtors,
                 dataQualityNotes:[
-                    'إجمالي سجل المشتريات وقيمة المخزون تُحسب بوحدات صحيحة بالسنتيم والميكرو؛ إذا ظهرت قيمة غير صالحة فيجب إصلاح سجل المصدر قبل اعتمادها.',
+                    'المجاميع تستبعد السجلات ذات القيم الرقمية المفقودة أو غير الصالحة؛ راجع تغطية كل مؤشر قبل اعتبار الإجمالي كاملاً.',
+                    'إجمالي سجل المشتريات وقيمة المخزون يحافظان على حساب السنتيم والميكرو؛ راجع جودة السجلات قبل اعتماد أي مجموع جزئي.',
                     'تكاليف الشاحنات هي مجموع الحقل cost في سجلات الرحلات فقط، وقد لا تشمل كل مصاريف النقل.',
                     'عدد حركات المخزون والتحويلات وصفي ولا يثبت وحده صحة أرصدة المخازن.',
                     'لا تحسب الربح الصافي من هذه المجاميع؛ يلزم التحقق من المرتجعات والخصومات وتكلفة البضاعة المباعة والضرائب.'
                 ],
-                note:'ملخص لحظي اختياري من التطبيق وقت السؤال. لا يتضمن أسماء الموردين أو تفاصيل رحلاتهم؛ راجع القيم قبل اتخاذ قرار مالي.'
+                note:'ملخص لحظي اختياري ومجرد من أسماء العملاء والمنتجات وأرصدة الأفراد. القيم الجزئية والمفقودة موضحة في dataQuality؛ لا تعتبر أي مجموع جزئي رصيداً نهائياً.'
             };
         }
         function anasAiAppendMessage(role,text){
