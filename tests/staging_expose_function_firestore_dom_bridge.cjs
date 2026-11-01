@@ -265,6 +265,7 @@ async function main() {
       }) + '; ' + error.message);
     }
     assert.equal(bridgeFailure, null, 'reverse service rejected the DOM request: ' + bridgeFailure);
+    await page.waitForFunction(() => !document.querySelector('#modal-reverse-ledger')?.classList.contains('active'), { timeout: 10000 });
     const reverseModalState = await page.evaluate(() => ({
       active: document.querySelector('#modal-reverse-ledger')?.classList.contains('active'),
       status: document.querySelector('#rev-eligibility-status')?.textContent,
