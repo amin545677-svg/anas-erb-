@@ -37,7 +37,7 @@ function harness({ suppliers, supplierMovements }) {
     Date, Math, String, Number, Object, Array
   };
   vm.createContext(ctx);
-  vm.runInContext(source + '\nthis.openStatement = showSupplierStatement;', ctx, { timeout: 1500 });
+  vm.runInContext(source + '\nthis.openStatement = this.showSupplierStatement;', ctx, { timeout: 1500 });
   return { ctx, body, alerts };
 }
 
