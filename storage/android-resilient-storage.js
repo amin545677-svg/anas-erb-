@@ -14,6 +14,7 @@
 
   const cache = global[CACHE_KEY] || (global[CACHE_KEY] = Object.create(null));
   let revision = 0;
+  let requestedRevision = 0;
   let hydrated = false;
   let dbPromise = null;
   let writeQueue = Promise.resolve();
@@ -93,7 +94,8 @@
   function setSync(key, value) {
     const text = String(value);
     cache[key] = text;
-    const nextRevision = revision + 1;
+    const nextRevision = Math.max(revision, requestedRevision) + 1;
+    requestedRevision = nextRevision;
     try {
       global.localStorage.setItem(key, text);
       global.localStorage.setItem(META_KEY, JSON.stringify({ revision: nextRevision, checksum: fastChecksum(text), updatedAt: new Date().toISOString() }));
@@ -103,7 +105,7 @@
       try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
     }
     if (key === APP_KEY) {
-      return persist(text).catch(error => {
+      return persist(text, nextRevision).catch(error => {
         mode = 'MEMORY_ONLY_DEGRADED';
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
         throw error;
@@ -115,14 +117,23 @@
     delete cache[key];
     try { global.localStorage.removeItem(key); } catch (_) {}
   }
-  async function persist(payload) {
-    const nextRevision = revision + 1;
-    const record = { key: APP_KEY, payload, revision: nextRevision,
-      checksum: await checksum(payload), updatedAt: new Date().toISOString() };
-    await writeIDB(record);
-    revision = nextRevision;
-    cache[APP_KEY] = payload;
-    return { revision, checksum: record.checksum, mode };
+  function persist(payload, targetRevision) {
+    const task = writeQueue.then(async () => {
+      const nextRevision = Number.isSafeInteger(targetRevision)
+        ? targetRevision : Math.max(revision, requestedRevision) + 1;
+      requestedRevision = Math.max(requestedRevision, nextRevision);
+      const record = { key: APP_KEY, payload, revision: nextRevision,
+        checksum: await checksum(payload), updatedAt: new Date().toISOString() };
+      await writeIDB(record);
+      revision = Math.max(revision, nextRevision);
+      cache[APP_KEY] = payload;
+      try {
+        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: fastChecksum(payload), updatedAt: record.updatedAt }));
+      } catch (_) {}
+      return { revision, checksum: record.checksum, mode };
+    });
+    writeQueue = task.catch(() => {});
+    return task;
   }
   async function hydrate(localPayload) {
     // The caller must keep domain writes locked until this promise resolves.
@@ -148,6 +159,7 @@
     const idbValid = await validateRecord(record);
     let selected = localValid ? local : null;
     revision = Math.max(revision, localRevision, idbValid ? record.revision : 0);
+    requestedRevision = Math.max(requestedRevision, revision);
     if (idbValid && (!localValid || record.revision >= localRevision)) {
       selected = record.payload;
       revision = record.revision;
@@ -156,7 +168,8 @@
       cache[APP_KEY] = selected;
       if (!idbValid || (localValid && localRevision > record.revision)) {
         revision = Math.max(0, (localValid ? localRevision : 0) - 1);
-        await persist(selected);
+        requestedRevision = revision;
+        await persist(selected, localValid ? localRevision : undefined);
       }
       try {
         global.localStorage.setItem(APP_KEY, selected);
