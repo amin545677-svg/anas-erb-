@@ -89,7 +89,7 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=json\\n');
             console.log('STAGING AUTH MODE: service-account JSON');
           } else if (provider && deployer) {
-            if (!/^projects\\/[^/]+\\/locations\\/global\\/workloadIdentityPools\\/[^/]+\\/providers\\/[^/]+$/.test(provider) || !/^[^@\\s]+@[^@\\s]+\\.iam\\.gserviceaccount\\.com$/.test(deployer)) {
+            if (!/^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) || !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(deployer)) {
               console.error('STAGING PREFLIGHT: invalid OIDC configuration'); process.exit(1);
             }
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=oidc\\n');
