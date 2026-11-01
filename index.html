@@ -10212,5 +10212,18 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     <script src="./arabic-query-engine.js"></script>
     <script src="./customer-debt-protection.js"></script>
     <script src="./warehouse-transfer-audit.js"></script>
+    <!-- ANAS_V42_SYNC_QUEUE_API: expose the isolated queue API without starting sync automatically. -->
+    <script type="module">
+      import {
+        createMutationQueueOrchestrator,
+        commitLocalMutation,
+        recoverInterruptedLocalMutation
+      } from './sync/mutation_queue_orchestrator.mjs';
+      window.ANASMutationQueue = Object.freeze({
+        createMutationQueueOrchestrator,
+        commitLocalMutation,
+        recoverInterruptedLocalMutation
+      });
+    </script>
 </body>
 </html>
