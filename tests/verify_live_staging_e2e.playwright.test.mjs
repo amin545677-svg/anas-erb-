@@ -51,7 +51,7 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
     '--yes', 'firebase-tools@14.22.0', 'emulators:exec',
     '--only', 'firestore', '--project', 'demo-anas-erp',
     '--config', 'firebase.staging.json',
-    'node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs'
+    'node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs && node tests/staging_expose_function_firestore_dom_bridge.cjs'
   ], {
     cwd: root, encoding: 'utf8', timeout: 240000,
     maxBuffer: 20 * 1024 * 1024, windowsHide: true
@@ -64,9 +64,12 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
   assert.match(emulatorOutput, /Script exited successfully \(code 0\)/i);
   assert.doesNotMatch(emulatorOutput, /\b(?:ERROR|FATAL):|\bnot ok\b|\b# fail [1-9][0-9]*\b|AssertionError|UnhandledPromiseRejection/i);
 
-  const chromiumOutput = execFileSync(process.execPath, [
+  const chromiumRun = spawnSync(process.execPath, [
     '--test', 'tests/reverse_ledger_chromium.test.mjs'
   ], { cwd: root, encoding: 'utf8', timeout: 180000, maxBuffer: 20 * 1024 * 1024 });
+  const chromiumOutput = String(chromiumRun.stdout || '') + '\n' + String(chromiumRun.stderr || '');
+  assert.equal(chromiumRun.error, undefined, chromiumRun.error && chromiumRun.error.message);
+  assert.equal(chromiumRun.status, 0, 'Chromium regression suite must pass\n' + chromiumOutput);
   assert.match(chromiumOutput, /UNIFIED_DOM_ZERO_CONSOLE_REPORT/);
   assert.match(chromiumOutput, /# fail 0/);
   assert.match(chromiumOutput, /# skipped 0/);
