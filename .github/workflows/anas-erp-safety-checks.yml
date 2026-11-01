@@ -945,8 +945,6 @@ jobs:
           /*INSERT_PURCHASE_CENTIME_HELPERS*/
           /*INSERT_SUPPLIER_SAVE_FUNCTION*/
           const assert = require('node:assert/strict');
-          global.window = {};
-          require(process.cwd() + "/customer-debt-protection.js");
           global.alert = () => {};
           global.closeModal = () => {};
           global.renderSuppliersDebts = () => {};
@@ -990,6 +988,8 @@ jobs:
           js = r"""
           /*INSERT_CUSTOMER_SAVE_FUNCTION*/
           const assert = require('node:assert/strict');
+          global.window = {};
+          require(process.cwd() + "/customer-debt-protection.js");
           global.alert = () => {};
           global.closeModal = () => {};
           global.renderCustomersDebts = () => {};
