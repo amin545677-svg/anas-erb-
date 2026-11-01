@@ -57,8 +57,6 @@ function runV42Collection(initial, amount) {
 function stripSyncMetadata(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
-  delete copy.cashMovements;
-  delete copy.stockMovements;
   delete copy.clientMovements;
   delete copy.settlementAllocations;
   for (const customer of copy.customers || []) delete customer.ledgerVersion;
@@ -191,6 +189,11 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
 function paritySnapshot(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
+  delete copy.cashMovements;
+  delete copy.stockMovements;
+  delete copy.clientMovements;
+  delete copy.settlementAllocations;
+  for (const customer of copy.customers || []) delete customer.ledgerVersion;
   for (const invoice of copy.invoices || []) {
     delete invoice.syncOpId;
     delete invoice.syncCreatedAt;
