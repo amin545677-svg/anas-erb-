@@ -53,7 +53,8 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
     '--config', 'firebase.staging.json',
     'node --test tests/reverse_ledger_firestore_emulator.test.js tests/reverse_ledger_snapshot_rules.test.mjs'
   ], { cwd: root, encoding: 'utf8', timeout: 240000, maxBuffer: 20 * 1024 * 1024 });
-  assert.match(emulatorOutput, /All emulators ready/i);
+  assert.match(emulatorOutput, /Firestore Emulator UI websocket is running/i);
+  assert.match(emulatorOutput, /Script exited successfully \\(code 0\\)/i);
   assert.match(emulatorOutput, /# fail 0/);
   assert.match(emulatorOutput, /# skipped 0/);
 
