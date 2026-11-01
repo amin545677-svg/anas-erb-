@@ -49,3 +49,26 @@ test('collection history renderer escapes untrusted user labels', () => {
   assert.equal(html.includes('<img src=x'), false);
   assert.match(html, /&lt;img/);
 });
+
+
+test('missing and blank legacy balances are treated as clear without changing customer records', () => {
+  const missing = { id: 'C-missing' };
+  const blank = { id: 'C-blank', debt: '   ' };
+  assert.equal(debt.anasCustomerDebtFilterMatches(missing, 'clear'), true);
+  assert.equal(debt.anasCustomerDebtFilterMatches(blank, 'clear'), true);
+  assert.equal(debt.anasCustomerDebtFilterMatches({ id: 'C-bad', debt: -1 }, 'clear'), false);
+  assert.deepEqual(missing, { id: 'C-missing' });
+  assert.deepEqual(blank, { id: 'C-blank', debt: '   ' });
+});
+
+test('customer collection history returns a sorted copy and never mutates the source ledger', () => {
+  const movements = [
+    { referenceType: 'customer_debt', referenceId: 'C-1', type: 'add', amount: 10, date: '2026-02-01T00:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'C-1', type: 'add', amount: 20, date: '2026-03-01T00:00:00Z' }
+  ];
+  const before = structuredClone(movements);
+  const selected = debt.anasGetCustomerDebtCollections('C-1', movements);
+  assert.deepEqual(selected.map(item => item.amount), [20, 10]);
+  assert.deepEqual(movements, before);
+  assert.notEqual(selected, movements);
+});
