@@ -9579,9 +9579,11 @@ function closeQuickSale(){const p=document.getElementById('quickSalePanel');if(p
 function quickSalePrice(p){return Number(AppData.activePriceTier===2?(p.price2||p.price1):AppData.activePriceTier===3?(p.price3||p.price1):p.price1)||0;}
 function renderQuickSaleResults(){
  const box=document.getElementById('qsResults'); if(!box)return;
- const q=(document.getElementById('qsSearch')?.value||'').trim().toLowerCase();
- let list=(AppData.products||[]).filter(p=>!q||String(p.name||'').toLowerCase().includes(q)||String(p.barcode||'').toLowerCase().includes(q));
- if(q && list.length===1 && String(list[0].barcode||'').toLowerCase()===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
+ const q=window.anasNormalizeQueryText(document.getElementById('qsSearch')?.value||'');
+ let list=(AppData.products||[]).map((p,index)=>({p,index,score:window.anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
+  .filter(x=>window.anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
+  .sort((a,b)=>b.score-a.score||a.index-b.index).map(x=>x.p);
+ if(q && list.length===1 && window.anasNormalizeQueryText(list[0].barcode||'')===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
  list=list.slice(0,24);
  box.innerHTML=list.length?list.map(p=>`<button class="qs-product" onclick="quickSaleAdd(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><strong>${escapeQuickText(p.name||'منتج')}</strong><span>${quickSalePrice(p).toLocaleString('fr-DZ')} د.ج</span><div class="qs-muted">المخزون: ${Number(p.stock)||0} ${escapeQuickText(p.unit||'')}</div></button>`).join(''):'<div class="qs-muted">لا توجد منتجات مطابقة. جرّب اسمًا آخر أو الباركود.</div>';
 }
@@ -9591,7 +9593,7 @@ function renderQuickSaleCart(){const box=document.getElementById('qsCart');if(!b
 function quickSaleChangeQty(i,delta){const it=posCart[i];if(!it)return;const p=(AppData.products||[]).find(x=>String(x.id)===String(it.id));const next=Number(it.qty)+delta;if(next<=0){posCart.splice(i,1)}else if(p&&next>Number(p.stock)){alert('لا توجد كمية كافية في المخزون.');return;}else it.qty=next;renderPosTable();renderQuickSaleCart();}
 function quickSaleClear(){if(!posCart.length)return;if(confirm('تفريغ سلة البيع السريع؟')){posCart=[];renderPosTable();renderQuickSaleCart();}}
 function quickSaleCheckout(){if(!posCart.length){alert('أضف منتجًا واحدًا على الأقل أولًا.');return;}closeQuickSale();openHasibModal();}
-function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=(e.target.value||'').trim().toLowerCase();const matches=(AppData.products||[]).filter(p=>String(p.name||'').toLowerCase().includes(q)||String(p.barcode||'').toLowerCase()===q);if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
+function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=window.anasNormalizeQueryText(e.target.value||'');const matches=(AppData.products||[]).filter(p=>window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q));if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 
