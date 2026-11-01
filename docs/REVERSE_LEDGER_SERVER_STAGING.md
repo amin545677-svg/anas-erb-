@@ -91,20 +91,22 @@ Consequently, do not activate a grant for a user until a trusted server-side bac
 
 ## Deploying to staging
 
-The manual workflow `Deploy Reverse Ledger Firebase Functions (Staging)` via `.github/workflows/deploy-reverse-ledger-functions-staging.yml` requires the GitHub Actions secret:
+The workflow `Deploy Reverse Ledger Firebase Functions (Staging)` in `.github/workflows/deploy-reverse-ledger-functions-staging.yml` accepts either of two isolated Staging authentication modes:
 
-- `FIREBASE_STAGING_SERVICE_ACCOUNT`: full JSON service-account key for project `anas-erp-staging-a25e1`, with the permissions required to deploy Firebase Functions v2 and Firestore rules.
+- **Preferred: GitHub OIDC.** Configure the GitHub Environment `staging` variables `ANAS_STAGING_WIF_PROVIDER` and `ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT`. The Workload Identity Provider must restrict the repository and the exact ref `refs/heads/staging/unified-release-candidate`; the deployer service account must belong to project `anas-erp-staging-a25e1` and have only the permissions required for the selected Firebase deployment.
+- **Alternative: service-account JSON.** Configure `FIREBASE_STAGING_SERVICE_ACCOUNT` as a GitHub Environment secret containing a dedicated key for project `anas-erp-staging-a25e1`. The workflow validates its project identity before authentication.
 
-The workflow verifies the staging project, checks that the bundled engine and authorization policy exactly match the canonical source files, installs the Functions dependencies, then deploys only the staging Firestore rules plus `executeReverseLedger`, `createTrustedReverseLedgerBackup`, and `restoreTrustedReverseLedgerBackup`.
+The optional test-account bootstrap is a separate operation and must never be used as a deployment credential. It uses the distinct `FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT` secret only when the optional bootstrap inputs are configured; otherwise bootstrap is skipped.
+
+The workflow verifies the staging project and deployment identity, checks that the bundled engine and authorization policy exactly match the canonical source files, installs the Functions dependencies, then deploys only the staging Firestore rules plus `executeReverseLedger`, `executeSettlementAllocation`, `createTrustedReverseLedgerBackup`, and `restoreTrustedReverseLedgerBackup`.
 
 No production deployment is configured. Do not put service-account JSON, private keys, or API tokens in source control or chat.
 
 ## Deploying the isolated staging console
 
-The manual workflow `Deploy ANAS ERP Reverse Ledger Console (Staging)` in `.github/workflows/deploy-reverse-ledger-console-staging.yml` deploys only the standalone `staging/index.html` console to the Firebase Hosting site `anas-erp-staging-a25e1`. It builds a temporary `staging-site` directory, copies only the console, gateway and canonical reverse-ledger browser modules, and generates `config.js` from protected Actions secrets. It does not copy or deploy the production `index.html`.
+The workflow `Deploy ANAS ERP Reverse Ledger Console (Staging)` in `.github/workflows/deploy-reverse-ledger-console-staging.yml` deploys only the standalone `staging/index.html` console to the Firebase Hosting site `anas-erp-staging-a25e1`. It builds a temporary `staging-site` directory, copies only the console, gateway and canonical reverse-ledger browser modules, and generates `config.js` from protected Actions secrets. It does not copy or deploy the production `index.html`.
 
-Required GitHub Actions secrets:
-- `FIREBASE_STAGING_SERVICE_ACCOUNT`: service-account JSON for `anas-erp-staging-a25e1`, with Firebase Hosting deployment permission.
+Deployment authentication uses the same isolated Staging OIDC variables `ANAS_STAGING_WIF_PROVIDER` and `ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT`, or the alternative dedicated `FIREBASE_STAGING_SERVICE_ACCOUNT` secret. The console additionally requires these GitHub Environment secrets:
 - `FIREBASE_STAGING_WEB_API_KEY`: staging Web App API key.
 - `FIREBASE_STAGING_WEB_APP_ID`: staging Web App ID.
 - `FIREBASE_STAGING_APP_CHECK_SITE_KEY`: staging App Check reCAPTCHA v3 site key.
