@@ -111,6 +111,21 @@ jobs:
         run: npm install --no-save --package-lock=false playwright@1.56.1 @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
       - name: Install headless Chromium and system dependencies
         run: npx playwright install --with-deps chromium
+      - name: Run PR260 reconciliation, V42 runtime and PR261 Worker health tests
+        run: >-
+          node --test
+          tests/browser_dom_sync_harness.test.mjs
+          tests/firebase_snapshot_e2e_mock.test.mjs
+          tests/firebase_snapshot_transport.test.mjs
+          tests/mutation_capture.test.mjs
+          tests/sync_mutation_reconciliation.test.mjs
+          tests/v42_pre_sync_recovery_barrier.test.mjs
+          tests/v42_runtime_installer.test.mjs
+          tests/v42_runtime_installer_failure.test.mjs
+          tests/v42_schema_parity.test.mjs
+          tests/v42_transactional_bridge.test.mjs
+          tests/v42_transactional_capture_integration.test.mjs
+          tests/firebase_snapshot_worker_health_identity.test.mjs
       - name: Run real DOM purchase, supplier settlement, reload and backup restore
         run: node --test tests/purchase_supplier_chromium_staging.test.mjs tests/reverse_ledger_chromium.test.mjs tests/reverse_ledger_staging_console_chromium.test.mjs tests/settlement_allocation_modal_chromium.test.mjs tests/verify_live_staging_e2e.playwright.test.mjs
       - name: Validate full ERP HTML and inline JavaScript
