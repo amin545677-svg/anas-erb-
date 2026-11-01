@@ -114,6 +114,14 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
   });
   assert.equal(first.localMatches, true);
   assert.equal(first.localChecksumValid, true);
+  const fallbackChecksum = await page.evaluate(async () => {
+    const S=window.ANASResilientStorage, descriptor=Object.getOwnPropertyDescriptor(window,'crypto');
+    Object.defineProperty(window,'crypto',{configurable:true,value:{}});
+    try{return await S.checksum('ANAS ERP deterministic checksum');}
+    finally{if(descriptor)Object.defineProperty(window,'crypto',descriptor);else delete window.crypto;}
+  });
+  const nativeChecksum=await page.evaluate(()=>window.ANASResilientStorage.checksum('ANAS ERP deterministic checksum'));
+  assert.equal(fallbackChecksum,await nativeChecksum);
   assert.equal(first.checksumValid, true);
   assert.equal(first.revision, 1);
 
