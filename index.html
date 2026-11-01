@@ -2136,6 +2136,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div class="sub-header-title">ذمم العملاء (الكريدي)</div>
                 <div>👥</div>
             </div>
+            <input id="customerDebtSearch" type="search" class="field-input" placeholder="ابحث عن العميل أو الهاتف أو الرقم الجبائي..." aria-label="البحث في ذمم العملاء" oninput="renderCustomersDebts()" style="margin-top:10px;width:100%;">
+            <div id="customerDebtFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="custDebtsContainer" style="margin-top:10px;"></div>
         </section>
 
@@ -2145,6 +2147,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div class="sub-header-title">مستحقات الموردين</div>
                 <div>🤝</div>
             </div>
+            <input id="supplierDebtSearch" type="search" class="field-input" placeholder="ابحث عن المورد أو الهاتف أو الرقم الجبائي..." aria-label="البحث في مستحقات الموردين" oninput="renderSuppliersDebts()" style="margin-top:10px;width:100%;">
+            <div id="supplierDebtFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="suppDebtsContainer" style="margin-top:10px;"></div>
         </section>
 
@@ -2159,6 +2163,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="font-size:12px;color:#475569;margin-bottom:10px;">يطبع آخر فاتورة محفوظة بتنسيق A4 مع بيانات المؤسسة والزبون والأصناف والمبالغ.</div>
                 <button class="btn-full-submit" style="margin:0;background:#1d4ed8;" onclick="printLatestLegalCustomerInvoice()">📄 إصدار / طباعة الفاتورة القانونية</button>
             </div>
+            <input id="invoiceListSearch" type="search" class="field-input" placeholder="ابحث برقم الفاتورة أو العميل أو التاريخ أو المبلغ..." aria-label="البحث في فواتير المبيعات" oninput="renderInvoicesList()" style="margin-top:10px;width:100%;">
+            <div id="invoiceListFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="invoicesListContainer" style="margin-top:10px;"></div>
         </section>
         <!-- إدارة حركة الشاحنات والحمولات - محفوظة محلياً -->
@@ -4837,12 +4843,24 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.replaceChildren();
             const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];
+            const query = window.anasNormalizeQueryText(document.getElementById('customerDebtSearch')?.value || '');
+            const filteredCustomers = customers.filter(c => c && window.anasQueryMatches([
+                c.name, c.phone, c.phone2, c.address, c.rc, c.nif, c.nis, c.art, c.debt
+            ], query));
+            const filterStatus = document.getElementById('customerDebtFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredCustomers.length + ' من ' + customers.length + ' عميلاً.'
+                : 'إجمالي العملاء: ' + customers.length + '.';
             if (!customers.length) {
                 cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا يوجد عملاء مسجلون بعد. استخدم «إضافة عميل جديد» أولاً.</div>';
                 return;
             }
+            if (!filteredCustomers.length) {
+                cont.innerHTML = '<div class="card" style="padding:16px;text-align:center">لا توجد حسابات عملاء مطابقة. غيّر كلمات البحث أو امسحها.</div>';
+                return;
+            }
             const esc = value => anasEscapeHTML(String(value ?? ''));
-            customers.forEach((c, idx) => {
+            filteredCustomers.forEach((c, idx) => {
                 const days = getDebtAgeDays(c.debtDate);
                 const debt = Number(c.debt) || 0;
                 const isOverdue = days > 30 && debt > 0;
@@ -5328,7 +5346,21 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.replaceChildren();
             const suppliers = Array.isArray(AppData?.suppliers) ? AppData.suppliers : [];
-            suppliers.forEach(s => {
+            const query = window.anasNormalizeQueryText(document.getElementById('supplierDebtSearch')?.value || '');
+            const filteredSuppliers = suppliers.filter(s => s && window.anasQueryMatches([
+                s.name, s.phone, s.phone2, s.address, s.rc, s.nif, s.nis, s.art, s.balance
+            ], query));
+            const filterStatus = document.getElementById('supplierDebtFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredSuppliers.length + ' من ' + suppliers.length + ' مورداً.'
+                : 'إجمالي الموردين: ' + suppliers.length + '.';
+            if (!filteredSuppliers.length) {
+                cont.innerHTML = '<div class="menu-action-card" style="display:block;text-align:center;padding:18px;color:#64748b;">' +
+                    (suppliers.length ? 'لا توجد حسابات موردين مطابقة. غيّر كلمات البحث أو امسحها.' : 'لا يوجد موردون مسجلون بعد.') +
+                    '</div>';
+                return;
+            }
+            filteredSuppliers.forEach(s => {
                 const card = document.createElement('div');
                 card.className = 'menu-action-card';
                 card.style.cssText = 'margin-bottom:8px;flex-direction:column;align-items:stretch;gap:6px;';
@@ -5675,15 +5707,30 @@ function renderPurchasesTable() {
             const cont = document.getElementById('invoicesListContainer');
             if (!cont) return;
             cont.innerHTML = '';
-            const invoices = Array.isArray(AppData.invoices) ? AppData.invoices.slice().reverse() : [];
-            if (!invoices.length) {
+            const allInvoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
+            const invoices = allInvoices.slice().reverse();
+            const query = window.anasNormalizeQueryText(document.getElementById('invoiceListSearch')?.value || '');
+            const filteredInvoices = invoices.filter(inv => inv && window.anasQueryMatches([
+                inv.id, inv.customer, inv.date, inv.createdAt, inv.invoiceDate, inv.total,
+                inv.paid, inv.remaining, inv.paymentMethod, inv.status
+            ], query));
+            const filterStatus = document.getElementById('invoiceListFilterStatus');
+            if (filterStatus) filterStatus.textContent = query
+                ? 'نتائج البحث: ' + filteredInvoices.length + ' من ' + allInvoices.length + ' فاتورة.'
+                : 'إجمالي الفواتير: ' + allInvoices.length + '.';
+            if (!allInvoices.length || !filteredInvoices.length) {
                 const empty = document.createElement('div'); empty.className='menu-action-card'; empty.style.cssText='display:block;text-align:center;padding:22px;color:#64748b';
-                empty.innerHTML = '<div style="font-size:32px">🧾</div><strong>لا توجد فواتير مبيعات محفوظة حتى الآن</strong><p style="margin:8px 0 0;font-size:13px">بعد تسجيل فاتورة وحفظها، ستظهر هنا تلقائيًا.</p>';
-                const create = document.createElement('button'); create.className='btn-pos-hasib'; create.style.marginTop='12px'; create.textContent='إنشاء فاتورة جديدة'; create.addEventListener('click', () => openView('pos'));
-                empty.appendChild(create); cont.appendChild(empty); return;
+                empty.innerHTML = !allInvoices.length
+                    ? '<div style="font-size:32px">🧾</div><strong>لا توجد فواتير مبيعات محفوظة حتى الآن</strong><p style="margin:8px 0 0;font-size:13px">بعد تسجيل فاتورة وحفظها، ستظهر هنا تلقائيًا.</p>'
+                    : '<div style="font-size:28px">🔎</div><strong>لا توجد فواتير مطابقة</strong><p style="margin:8px 0 0;font-size:13px">غيّر كلمات البحث أو امسحها لعرض جميع الفواتير.</p>';
+                if (!allInvoices.length) {
+                    const create = document.createElement('button'); create.className='btn-pos-hasib'; create.style.marginTop='12px'; create.textContent='إنشاء فاتورة جديدة'; create.addEventListener('click', () => openView('pos'));
+                    empty.appendChild(create);
+                }
+                cont.appendChild(empty); return;
             }
             const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-            invoices.forEach(inv => {
+            filteredInvoices.forEach(inv => {
                 const card = document.createElement('div');
                 card.className = 'menu-action-card';
                 card.style.marginBottom = '8px';
