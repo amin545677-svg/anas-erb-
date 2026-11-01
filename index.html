@@ -6935,12 +6935,12 @@ function wtAuditTransfers(){
             const root = document.getElementById('customReportContent');
             const status = document.getElementById('anasReportFilterStatus');
             if (!root) return;
-            const q = String(query || '').trim().toLocaleLowerCase();
+            const q = window.anasNormalizeQueryText(query || '');
             const rows = Array.from(root.querySelectorAll('tbody tr'));
             let shown = 0;
             if (rows.length) {
                 rows.forEach(row => {
-                    const match = !q || (row.textContent || '').toLocaleLowerCase().includes(q);
+                    const match = window.anasQueryMatches([row.textContent || ''], q);
                     row.hidden = !match;
                     if (match) shown++;
                 });
@@ -6952,7 +6952,7 @@ function wtAuditTransfers(){
             const candidates = Array.from(root.querySelectorAll('[data-report-entry], .anas-report-entry'));
             if (candidates.length) {
                 candidates.forEach(node => {
-                    const match = !q || (node.textContent || '').toLocaleLowerCase().includes(q);
+                    const match = window.anasQueryMatches([node.textContent || ''], q);
                     node.hidden = !match;
                     if (match) shown++;
                 });
