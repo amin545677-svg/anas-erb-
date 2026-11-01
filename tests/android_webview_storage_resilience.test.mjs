@@ -31,6 +31,32 @@ test.after(async () => {
   if (server) await new Promise(resolve => server.close(resolve));
 });
 
+test('Chromium migrates a valid legacy V42 local snapshot into IndexedDB with a positive revision', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const legacy = JSON.stringify({ appName: 'Anas ERP', invoices: [{ id: 'LEGACY-1', total: 12.5 }] });
+    localStorage.setItem(S.APP_KEY, legacy);
+    const hydrated = await S.hydrate(legacy);
+    const record = await new Promise((resolve, reject) => {
+      const req = indexedDB.open(S.DB_NAME);
+      req.onsuccess = () => {
+        const get = req.result.transaction(S.STORE_NAME, 'readonly').objectStore(S.STORE_NAME).get(S.APP_KEY);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+    return { hydrated: hydrated.hydrated, dataPreserved: hydrated.data.invoices[0].total === 12.5,
+      revision: record.revision, checksumValid: record.checksum === await S.checksum(record.payload) };
+  });
+  assert.deepEqual(result, { hydrated: true, dataPreserved: true, revision: 1, checksumValid: true });
+  await context.close();
+});
+
 test('Chromium dual-writes, hydrates after localStorage clear, and survives quota errors without BigInt loss', async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
