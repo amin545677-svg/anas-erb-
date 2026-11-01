@@ -38,6 +38,12 @@ function fixture() {
   };
 }
 
+function collectionFixture() {
+  const data = fixture();
+  data.invoices = [{ id: "inv_1", customerId: "cust_1", total: 26000, paid: 0, remaining: 26000, invoiceLedgerVersion: 2 }];
+  return data;
+}
+
 function fixedDateContext() {
   const fixedNow = Date.UTC(2026, 9, 28, 12, 0, 0);
   class FixedDate extends Date {
@@ -75,7 +81,9 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
     wtTryEnsureData: () => true,
     wtCurrentSaleWarehouse: () => "المخزن الرئيسي",
     wtAvailableStock: product => Number(product.stock) || 0,
-    prompt: () => String(amount ?? 500.5),
+    prompt: message => String(message).startsWith("خصّص")
+      ? JSON.stringify([{ invoiceId: "inv_1", amount: String(amount ?? 500.5) }])
+      : String(amount ?? 500.5),
     alert: message => alerts.push(String(message)),
     updateCashUI: () => {},
     renderCustomersDebts: () => {},
@@ -218,7 +226,7 @@ test("V42 sale capture persists identity, survives 409 reconciliation, and drain
 });
 
 test("V42 debt collection capture preserves exact 500.50 DZD and survives 409 without duplicate movement", async () => {
-  const initial = fixture();
+  const initial = collectionFixture();
   const run = runV42WithCapture({ kind: "collection", initial, amount: 500.5 });
   assert.equal(run.saveCalls, 1);
   assert.equal(run.pending().length, 1);
@@ -249,7 +257,7 @@ test("V42 sale save failure rolls back stock, cash, debt and leaves no phantom p
 });
 
 test("V42 collection save failure rolls back customer debt and cash and leaves no phantom pending mutation", () => {
-  const initial = fixture();
+  const initial = collectionFixture();
   const run = runV42WithCapture({ kind: "collection", initial, amount: 500.5, failSave: true });
   assert.equal(run.saveCalls, 1);
   assert.equal(run.context.AppData.customers[0].debt, 26000);
@@ -263,7 +271,7 @@ test("queue promotion failure after durable save is detected and not silently tr
   const initial = fixture();
   const run = runV42WithCapture({ kind: "sale", initial, paid: 400, failQueuePromotion: true });
   assert.equal(run.threw, false, "V42 catches saveDB errors and reports rollback through its failure alert");
-  assert.ok(run.alerts.some(message => message.includes("لم يتم تأكيد البيع")),
+  assert.ok(run.alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")),
     "V42 must report the failed transaction after compensating rollback");
   assert.equal(run.context.AppData.products[0].stock, 90);
   assert.equal(run.context.AppData.caisseBalance, 54000);
