@@ -67,17 +67,15 @@ function harness({ suppliers, supplierMovements }) {
 
 {
   const h = harness({ suppliers: [{ id: 'S-1', name: 'Supplier', balance: 0 }, { id: 'S-1', name: 'Duplicate', balance: 0 }], supplierMovements: [] });
-  h.ctx.openStatement('S-1');
+  assert.throws(() => h.ctx.openStatement('S-1'), /مكرر/);
   assert.equal(h.body.children.length, 0);
-  assert.ok(h.alerts.some(message => message.includes('مكرر')));
   console.log('PASS: duplicate supplier identities fail closed without rendering a statement');
 }
 
 {
   const h = harness({ suppliers: [{ id: 'S-1', name: 'Supplier', balance: 0 }], supplierMovements: null });
-  h.ctx.openStatement('S-1');
+  assert.throws(() => h.ctx.openStatement('S-1'), /غير صالح/);
   assert.equal(h.body.children.length, 0);
-  assert.ok(h.alerts.some(message => message.includes('غير متاح')));
   console.log('PASS: malformed supplier ledger fails closed without rendering an incomplete statement');
 }
 
