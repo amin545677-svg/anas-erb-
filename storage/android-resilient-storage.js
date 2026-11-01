@@ -153,7 +153,9 @@
       } catch (_) { localValid = false; }
     }
     let record = null;
+    let idbUnavailable = false;
     try { record = await readIDB(); } catch (error) {
+      idbUnavailable = true;
       global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
     }
     const idbValid = await validateRecord(record);
@@ -166,7 +168,9 @@
     }
     if (selected !== null) {
       cache[APP_KEY] = selected;
-      if (!idbValid || (localValid && localRevision > record.revision)) {
+      if (idbUnavailable) {
+        mode = 'LOCALSTORAGE_FALLBACK_ACTIVE';
+      } else if (!idbValid || (localValid && localRevision > record.revision)) {
         revision = Math.max(0, (localValid ? localRevision : 0) - 1);
         requestedRevision = revision;
         await persist(selected, localValid && localRevision > 0 ? localRevision : undefined);
