@@ -169,7 +169,7 @@
       if (!idbValid || (localValid && localRevision > record.revision)) {
         revision = Math.max(0, (localValid ? localRevision : 0) - 1);
         requestedRevision = revision;
-        await persist(selected, localValid ? localRevision : undefined);
+        await persist(selected, localValid && localRevision > 0 ? localRevision : undefined);
       }
       try {
         global.localStorage.setItem(APP_KEY, selected);
