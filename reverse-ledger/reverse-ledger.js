@@ -232,6 +232,38 @@
       return BigInt(invoice[field + 'Centimes']);
     return currencyToCentimes(invoice[field], label);
   }
+  // Read-only compatibility view for historical invoices. This deliberately does not
+  // stamp invoiceLedgerVersion=2 or synthesize ledger movements/allocations.
+  function readLegacyInvoiceForLedgerV2(invoice, invoiceType) {
+    if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice))
+      throw new Error('legacy invoice must be an object');
+    if (!['sales_invoice', 'purchase_invoice'].includes(invoiceType))
+      throw new Error('legacy invoice type is invalid');
+    const invoiceId = String(invoice.id ?? '').trim();
+    if (!invoiceId) throw new Error('legacy invoice ID is missing');
+    const total = invoiceAmountCentimes(invoice, 'total', 'legacy invoice total');
+    const paid = invoiceAmountCentimes(invoice, 'paid', 'legacy invoice paid amount');
+    if (total < 0n || paid < 0n || paid > total)
+      throw new Error('legacy invoice paid amount is outside its total');
+    const remaining = total - paid;
+    const hasRemaining = Object.prototype.hasOwnProperty.call(invoice, 'remaining') ||
+      Object.prototype.hasOwnProperty.call(invoice, 'remainingCentimes');
+    if (hasRemaining) {
+      const declaredRemaining = invoiceAmountCentimes(invoice, 'remaining', 'legacy invoice remaining amount');
+      if (declaredRemaining !== remaining)
+        throw new Error('legacy invoice total, paid and remaining amounts do not reconcile');
+    }
+    return Object.freeze({
+      invoiceId,
+      invoiceType,
+      totalCentimes: total.toString(),
+      paidCentimes: paid.toString(),
+      remainingCentimes: remaining.toString(),
+      legacy: true,
+      requiresDocumentedSettlementAllocations: paid > 0n,
+      returnPostingAllowed: false
+    });
+  }
   function validateSettlementAllocations(state) {
     const data = ensureCollections(state);
     const invoices = getInvoices(data);
@@ -1112,7 +1144,7 @@
     return [...list, clone(record)];
   }
   return Object.freeze({
-    ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument,
+    ensureCollections, makeClientMovement, makeSettlementAllocation, makeReturnDocument, readLegacyInvoiceForLedgerV2,
     sealClientMovement, sealSettlementAllocation, sealReturnDocument,
     computeReturnableMicroUnits, validateSettlementAllocations, validateClientMovements,
     validateReturns, validateReverseLedgerParity, executeReturnTransaction, executeSaleReturn, executePurchaseReturn, executeInvoiceCancellation, previewReturnTransaction, originalInvoiceItems, appendUnique, RETURN_TYPES, PARTY_TYPES
