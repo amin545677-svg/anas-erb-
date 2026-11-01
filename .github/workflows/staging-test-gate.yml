@@ -99,7 +99,7 @@ jobs:
       - name: Run staging Firebase callable client and isolated browser console tests
         run: node --test tests/reverse_ledger_firebase_callable_client.test.cjs tests/reverse_ledger_staging_console.test.cjs
       - name: Run trusted reverse-ledger authorization, server adapter, reservation Worker and sync CAS integration tests
-        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_server_transaction.test.js tests/settlement_allocation_server.test.js tests/worker_reverse_ledger.test.mjs tests/reverse_ledger_sync_cas_integration.test.mjs
+        run: node --test tests/legacy_invoice_ledger_v2_migration.test.js tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_server_transaction.test.js tests/settlement_allocation_server.test.js tests/worker_reverse_ledger.test.mjs tests/reverse_ledger_sync_cas_integration.test.mjs
       - name: Install Firestore Rules emulator test dependencies
         run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
       - name: Run real Firestore Emulator transaction, concurrency and security-rules tests
