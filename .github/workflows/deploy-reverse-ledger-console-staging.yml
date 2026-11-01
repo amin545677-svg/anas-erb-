@@ -1,6 +1,7 @@
 name: Deploy ANAS ERP Reverse Ledger Console (Staging)
 # Security boundary: PRs validate without credentials; only trusted branch push or manual dispatch may deploy.
 # Deployments are serialized so queued candidate pushes cannot race the dedicated Hosting site.
+# The pull_request validation job is deliberately credential-free; deploy jobs remain push/dispatch-only.
 # Scoped push-trigger probe: 2026-10-31 live Staging preflight.
 
 on:
