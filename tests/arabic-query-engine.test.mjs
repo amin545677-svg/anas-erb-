@@ -5,8 +5,8 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const scriptTag = /<script\b[^>]*src=["']\.\/?arabic-query-engine\.js["'][^>]*><\/script>/i;
-assert.match(html, scriptTag, 'index.html must load the standalone Arabic query engine');
+assert.match(html, /<script\b[^>]*src=["']\.\/?arabic-query-engine\.js["'][^>]*><\/script>/i,
+  'index.html must load the standalone Arabic query engine');
 const { anasNormalizeQueryText, anasQueryMatches, anasQueryScore } = require('../arabic-query-engine.js');
 
 test('normalizes Arabic alef variants, diacritics and tatweel', () => {
@@ -26,13 +26,11 @@ test('ranks exact and prefix matches above partial matches', () => {
   assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت الزيتون') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
   assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
 });
-test('invoice history search is connected to the shared multi-field query engine', () => {
-  assert.match(html, /id="invoiceListSearch"[^>]+oninput="renderInvoicesList\(\)"/);
-  assert.match(html, /filteredInvoices = invoices\.filter\(inv => inv && anasQueryMatches\(/);
+test('customer directory calls the standalone Arabic normalization and matching exports', () => {
+  assert.match(html, /customerDirectorySearch/);
+  assert.match(html, /window\.anasNormalizeQueryText\(/);
+  assert.match(html, /window\.anasQueryMatches\(/);
 });
-test('report, customer and supplier screens use shared Arabic-aware matching', () => {
-  assert.match(html, /function anasFilterCurrentReport\(query\)/);
-  assert.match(html, /id="customerDebtSearch"/);
-  assert.match(html, /id="supplierDebtSearch"/);
-  assert.match(html, /anasQueryMatches\(/);
+test('standalone module is loaded after the main application scripts', () => {
+  assert.ok(html.indexOf('id="app"') < html.indexOf('arabic-query-engine.js'));
 });
