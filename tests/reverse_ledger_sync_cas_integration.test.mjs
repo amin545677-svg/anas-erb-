@@ -124,7 +124,7 @@ test("legacy mutation queue quarantines SALE_RETURN, PURCHASE_RETURN and INVOICE
     const result = await queue.reconcileAndSync();
     assert.equal(result.status, "synced", type);
     assert.deepEqual(cloud.returns, [], type + " must not be replayed by the legacy snapshot queue");
-    assert.equal(JSON.parse(storage.getItem(MUTATION_KEYS.quarantined))[0].reason, "UNSUPPORTED_OPERATION_TYPE", type);
+    assert.equal(JSON.parse(storage.getItem(MUTATION_KEYS.quarantined))[0].reason, "SERVER_OWNED_FINANCIAL_MUTATION_NOT_REPLAYED_LOCALLY", type);
     assert.deepEqual(JSON.parse(storage.getItem(MUTATION_KEYS.pending)), [], type);
   }
 });
