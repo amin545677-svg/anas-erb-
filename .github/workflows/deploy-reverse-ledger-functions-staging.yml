@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   validate-staging-candidate-pr:
@@ -60,10 +61,11 @@ jobs:
 
       - name: Secret Presence Preflight (zero-leak, dual-scope)
         env:
-          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           node <<'NODE'
-          const names = ["FIREBASE_STAGING_SERVICE_ACCOUNT"];
+          const names = ["WIF_PROVIDER","DEPLOYER_SERVICE_ACCOUNT"];
           let missing = false;
           console.log('STAGING SECRET PRESENCE (values suppressed)');
           console.log('| Variable | Status |');
@@ -73,16 +75,13 @@ jobs:
             console.log('| ' + name + ' | ' + (present ? 'PRESENT' : 'MISSING') + ' |');
             if (!present) missing = true;
           }
-          const raw = process.env.FIREBASE_STAGING_SERVICE_ACCOUNT || '';
-          if (raw) {
-            let account;
-            try { account = JSON.parse(raw); }
-            catch { console.error('SERVICE ACCOUNT: INVALID JSON'); process.exit(1); }
-            if (account.type !== 'service_account' || !account.private_key || !account.client_email || account.project_id !== 'anas-erp-staging-a25e1') {
-              console.error('SERVICE ACCOUNT: INVALID REQUIRED FIELDS OR WRONG PROJECT');
-              process.exit(1);
-            }
-            console.log('SERVICE ACCOUNT: VALID / STAGING PROJECT');
+          const provider = process.env.WIF_PROVIDER || '';
+          if (provider && !/^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider)) {
+            console.error('WIF_PROVIDER: INVALID RESOURCE NAME'); process.exit(1);
+          }
+          const serviceAccount = process.env.DEPLOYER_SERVICE_ACCOUNT || '';
+          if (serviceAccount && !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(serviceAccount)) {
+            console.error('DEPLOYER_SERVICE_ACCOUNT: INVALID EMAIL'); process.exit(1);
           }
           if (missing) { console.error('STAGING PREFLIGHT: BLOCKED'); process.exit(1); }
           NODE
@@ -117,24 +116,17 @@ jobs:
       - name: Run reverse-ledger adapter and authorization tests
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
-      - name: Require staging service account
-        env:
-          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
-        run: |
-          test -n "$FIREBASE_STAGING_SERVICE_ACCOUNT" || {
-            echo "::error::Missing FIREBASE_STAGING_SERVICE_ACCOUNT secret."
-            exit 1
-          }
-          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
-          node -e "const x=require(process.argv[1]); if(x.project_id!=='anas-erp-staging-a25e1'||!x.client_email||!x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-staging-service-account.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-staging-service-account.json" >> "$GITHUB_ENV"
+      - name: Authenticate to Firebase Staging with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
 
       - name: Install Firebase Functions dependencies
         run: npm install --prefix functions --omit=dev --no-audit --no-fund
 
       - name: Deploy staging Firestore rules and reverse-ledger callable only
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
         run: |
           npx --yes firebase-tools@14 deploy \
             --only firestore:rules,functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
@@ -147,7 +139,6 @@ jobs:
           ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
           ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
           ANAS_STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-staging-service-account.json
           GCLOUD_PROJECT: anas-erp-staging-a25e1
         run: |
           if [ -z "$ANAS_STAGING_EMAIL" ] || [ -z "$ANAS_STAGING_PASSWORD" ]; then
