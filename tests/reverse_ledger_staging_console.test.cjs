@@ -56,11 +56,15 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
   assert.match(deployWorkflow, /github\.event_name == 'push' && contains\(fromJSON/);
   for (const secret of [
-    'FIREBASE_STAGING_SERVICE_ACCOUNT',
     'FIREBASE_STAGING_WEB_API_KEY',
     'FIREBASE_STAGING_WEB_APP_ID',
     'FIREBASE_STAGING_APP_CHECK_SITE_KEY'
-  ]) assert.ok(deployWorkflow.includes(secret), 'missing staging deployment requirement: ' + secret);
+  ]) assert.ok(deployWorkflow.includes(secret), 'missing staging web configuration: ' + secret);
+  assert.match(deployWorkflow, /id-token: write/);
+  assert.match(deployWorkflow, /google-github-actions\\/auth@v2/);
+  assert.match(deployWorkflow, /workload_identity_provider:\\s*\\$\\{\\{ vars\\.ANAS_STAGING_WIF_PROVIDER \\}\\}/);
+  assert.match(deployWorkflow, /service_account:\\s*\\$\\{\\{ vars\\.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT \\}\\}/);
+  assert.doesNotMatch(deployWorkflow, /FIREBASE_STAGING_SERVICE_ACCOUNT|credentials_json:/);
   assert.match(deployWorkflow, /--only hosting/);
   assert.match(deployWorkflow, /--project anas-erp-staging-a25e1/);
   assert.doesNotMatch(deployWorkflow, /--project anas-erb(?:\\s|$)/);
