@@ -93,6 +93,7 @@ function fixtureState() {
 async function main() {
   const userRef = db.collection('users').doc(UID);
   const operationIds = [];
+  let bridgeFailure = null;
   let browser;
   let server;
   try {
@@ -143,19 +144,32 @@ async function main() {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     await page.exposeFunction('__anasExecuteSettlementAllocation', async data => {
-      const result = await settlementHandler({
-        auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
-      });
-      if (result && result.operationId) operationIds.push(result.operationId);
-      return result;
+      try {
+        const result = await settlementHandler({
+          auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
+        });
+        if (result && result.operationId) operationIds.push(result.operationId);
+        return result;
+      } catch (error) {
+        bridgeFailure = String(error && error.message || error);
+        throw error;
+      }
     });
     await page.exposeFunction('__anasExecuteReverseLedger', async data => {
-      const result = await reverseHandler({
-        auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
-      });
-      if (result && result.operationId) operationIds.push(result.operationId);
-      return result;
+      try {
+        const result = await reverseHandler({
+          auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
+        });
+        if (result && result.operationId) operationIds.push(result.operationId);
+        return result;
+      } catch (error) {
+        bridgeFailure = String(error && error.message || error);
+        throw error;
+      }
     });
+    await page.exposeFunction('__anasBridgeState', () => ({
+      operationIds: [...operationIds], failure: bridgeFailure
+    }));
     await page.exposeFunction('__anasReadCloudSnapshot', async () => {
       const snap = await userRef.collection('snapshots').doc('latest').get();
       assert.equal(snap.exists, true, 'Firestore snapshot must exist');
@@ -193,7 +207,11 @@ async function main() {
     await page.fill('#alloc-amount', '50.00');
     await page.waitForFunction(() => document.querySelector('#alloc-submit')?.disabled === false);
     await page.click('#alloc-submit');
-    await page.waitForFunction(() => window.AppData?.settlementAllocations?.length === 1, { timeout: 30000 });
+    await page.waitForFunction(async () => {
+      const state = await window.__anasBridgeState();
+      return state.operationIds.length === 1 || Boolean(state.failure);
+    }, { timeout: 30000 });
+    assert.equal(bridgeFailure, null, 'settlement service rejected the DOM request: ' + bridgeFailure);
     const allocationStatus = await page.locator('#alloc-status').textContent();
     assert.doesNotMatch(allocationStatus, /فشل|خطأ/, 'DOM must not show an allocation error');
     const allocationSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
