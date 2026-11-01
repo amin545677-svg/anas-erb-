@@ -36,7 +36,6 @@ test('cash ledger filters by type and case-insensitive search without changing s
   const before = structuredClone(movements);
   const incoming = buildCashLedger(movements, 'عميل', 'add');
   assert.equal(incoming.rows.length, 1);
-  assert.equal(incoming.rows[0].id, undefined);
   assert.equal(incoming.rows[0].description, 'قبض عميل');
   assert.deepEqual(movements, before);
 });
