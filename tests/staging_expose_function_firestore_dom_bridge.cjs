@@ -232,10 +232,11 @@ async function main() {
     await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
     await page.waitForFunction(() => document.querySelector('#rev-submit-btn')?.disabled === false);
     await page.click('#rev-submit-btn');
-    await page.waitForFunction(() =>
-      !document.querySelector('#modal-reverse-ledger')?.classList.contains('active') ||
-      document.querySelector('#rev-eligibility-status')?.textContent.includes('لم يتم الترحيل')
-    );
+    await page.waitForFunction(async () => {
+      const state = await window.__anasBridgeState();
+      return state.operationIds.length === 2 || Boolean(state.failure);
+    }, { timeout: 30000 });
+    assert.equal(bridgeFailure, null, 'reverse service rejected the DOM request: ' + bridgeFailure);
     assert.equal(await page.locator('#modal-reverse-ledger').evaluate(node => node.classList.contains('active')), false,
       'reverse modal must close only after server confirms POSTED');
 
