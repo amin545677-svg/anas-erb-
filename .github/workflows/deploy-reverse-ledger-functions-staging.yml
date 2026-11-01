@@ -62,6 +62,7 @@ jobs:
           node-version: "22"
 
       - name: Secret Presence Preflight (service-account JSON preferred, OIDC fallback)
+        id: auth_preflight
         env:
           DEPLOY_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
@@ -78,11 +79,13 @@ jobs:
               console.error('STAGING PREFLIGHT: service-account JSON must belong to isolated staging'); process.exit(1);
             }
             console.log('STAGING AUTH MODE: service-account JSON');
+            require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=json\\n');
           } else if (provider && deployer) {
             if (!/^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) || !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(deployer)) {
               console.error('STAGING PREFLIGHT: invalid OIDC configuration'); process.exit(1);
             }
             console.log('STAGING AUTH MODE: OIDC fallback');
+            require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=oidc\\n');
           } else {
             console.error('STAGING PREFLIGHT: provide FIREBASE_STAGING_SERVICE_ACCOUNT or both OIDC variables'); process.exit(1);
           }
@@ -119,14 +122,14 @@ jobs:
         run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
       - name: Authenticate to Firebase Staging with service-account JSON
-        if: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT != '' }}
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           create_credentials_file: true
 
       - name: Authenticate to Firebase Staging with GitHub OIDC fallback
-        if: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT == '' && vars.ANAS_STAGING_WIF_PROVIDER != '' && vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT != '' }}
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'oidc' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
