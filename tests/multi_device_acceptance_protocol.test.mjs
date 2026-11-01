@@ -92,7 +92,7 @@ test("isolated two-device acceptance: V0 -> V1 -> real HTTP 409 -> CAS -> exact 
       return;
     }
     cloud = structuredClone(body.data);
-    revision = "V1";
+    revision = body.baseRevision === "V0" ? "V1" : "V2";
     send(200, { saved:true, revision });
   });
   server.listen(0,"127.0.0.1");
@@ -149,7 +149,7 @@ test("isolated two-device acceptance: V0 -> V1 -> real HTTP 409 -> CAS -> exact 
   assert.equal(device2Observed409,true,"Device 2 must receive a real HTTP 409 Conflict");
   assert.equal(result.status,"synced",JSON.stringify(result));
   assert.equal(result.attempts,2,"CAS retry must pull V1 and then commit");
-  assert.equal(revision,"V1");
+  assert.equal(revision,"V2");
   assert.equal(cloud.invoices.filter(row => row.id==="SALE-DEVICE-1-0001").length,1,"Device 1 sale must not be lost or duplicated");
   assert.equal(cloud.cashMovements.filter(row => row.id==="CASH-DEVICE-2-001").length,1,"Device 2 receipt must be applied exactly once");
 
@@ -163,5 +163,5 @@ test("isolated two-device acceptance: V0 -> V1 -> real HTTP 409 -> CAS -> exact 
   assert.equal(final.cashCentimes - 5_900_000n,0n,"cash delta must be 0 centimes");
   assert.equal(final.customerDebtCentimes - 2_100_000n,0n,"debt delta must be 0 centimes");
   assert.deepEqual(JSON.parse(device2Storage.getItem(MUTATION_KEYS.pending)),[]);
-  assert.equal(device2Storage.getItem(MUTATION_KEYS.revision),JSON.stringify("V1"));
+  assert.equal(device2Storage.getItem(MUTATION_KEYS.revision),JSON.stringify("V2"));
 });
