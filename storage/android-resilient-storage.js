@@ -158,7 +158,10 @@
         revision = Math.max(0, (localValid ? localRevision : 0) - 1);
         await persist(selected);
       }
-      try { global.localStorage.setItem(APP_KEY, selected); } catch (_) {
+      try {
+        global.localStorage.setItem(APP_KEY, selected);
+        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: fastChecksum(selected), updatedAt: new Date().toISOString() }));
+      } catch (_) {
         mode = 'INDEXEDDB_FALLBACK_ACTIVE';
         try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
       }
