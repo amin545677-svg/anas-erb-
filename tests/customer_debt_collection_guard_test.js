@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const customerDebtProtection = require('../customer-debt-protection.js');
 
 const html = fs.readFileSync('index.html', 'utf8');
 const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
@@ -132,6 +133,7 @@ function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidVal
   const alerts = [];
   let saves = 0;
   const context = {
+    window: customerDebtProtection,
     AppData: appData, editingCustomerId: null,
     document: { getElementById: id => fields[id] || null },
     alert: message => alerts.push(String(message)),
