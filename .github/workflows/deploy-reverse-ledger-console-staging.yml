@@ -23,7 +23,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: anas-erp-reverse-ledger-console-staging
@@ -47,7 +46,10 @@ jobs:
           node --check reverse-ledger/reverse-ledger.js
 
   deploy-staging-console:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(fromJSON('["refs/heads/staging/unified-release-candidate","refs/heads/feat/reverse-ledger-firebase-functions-v2"]'), github.ref))
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate') || (github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate')
+    permissions:
+      contents: read
+      id-token: write
     environment: staging
     runs-on: ubuntu-latest
     steps:
