@@ -49,7 +49,7 @@ function runV42Collection(initial, amount) {
   };
   vm.createContext(context);
   const source = extractFunction("collectCustDebt", "cId");
-  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
   context.__run("cust_1");
   return { snapshot: context.AppData, alerts };
 }
@@ -182,7 +182,7 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
   };
   vm.createContext(context);
   const source = extractFunction("confirmHasibPayment", "");
-  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
   context.__run();
   return { snapshot: context.AppData, alerts, cart: context.posCart, invoice: context.lastConfirmedInvoice };
 }
