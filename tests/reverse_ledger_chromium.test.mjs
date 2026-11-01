@@ -283,7 +283,8 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
   await page.goto('http://127.0.0.1:' + address.port + '/index.html', { waitUntil:'load' });
   await page.waitForFunction(() =>
    document.getElementById('modal-settlement-allocation') &&
-   document.getElementById('modal-reverse-ledger')
+   document.getElementById('modal-reverse-ledger') &&
+   typeof window.ANASMutationQueue?.createMutationQueueOrchestrator === 'function'
   , null, { timeout: 10000 });
   const dom = await page.evaluate(() => ({
    settlementModal: !!document.getElementById('modal-settlement-allocation'),
@@ -297,10 +298,9 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
     typeof window.anasRenderCustomerDebtCollections === 'function',
    customerFilterButtons: document.querySelectorAll('[data-customer-debt-filter]').length,
    reverseModalApi: typeof window.ANASReverseLedgerModal?.open === 'function',
-   settlementModalApi: typeof window.ANASSettlementAllocationModal?.open === 'function'
+   settlementModalApi: typeof window.ANASSettlementAllocationModal?.open === 'function',
+   syncQueue: typeof window.ANASMutationQueue?.createMutationQueueOrchestrator === 'function'
   }));
-  const sync = await import(pathToFileURL(path.join(rootDir, 'sync/mutation_queue_orchestrator.mjs')).href);
-  assert.equal(typeof sync.createMutationQueueOrchestrator, 'function');
   assert.equal(dom.settlementModal, true);
   assert.equal(dom.reverseModal, true);
   assert.equal(dom.supplierStatement, true);
@@ -311,6 +311,7 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
   assert.equal(dom.customerFilterButtons, 3);
   assert.equal(dom.reverseModalApi, true);
   assert.equal(dom.settlementModalApi, true);
+  assert.equal(dom.syncQueue, true, 'the V42 shell must load the mutation queue API');
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(consoleErrors, []);
   console.log('UNIFIED_DOM_ZERO_CONSOLE_REPORT ' + JSON.stringify({
