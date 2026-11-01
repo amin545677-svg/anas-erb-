@@ -192,3 +192,30 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
   await context.close();
   console.log('ANDROID_WEBVIEW_STORAGE_RESILIENCE ' + JSON.stringify({ first, recovery, quota, concurrent }));
 });
+
+
+test('Chromium fails closed when both IndexedDB and writable LocalStorage are unavailable', async () => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined });
+    Storage.prototype.setItem = function() {
+      throw new DOMException('simulated storage denial', 'QuotaExceededError');
+    };
+  });
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    try {
+      await window.ANASResilientStorage.hydrate(null);
+      return { rejected: false };
+    } catch (error) {
+      return { rejected: true, message: error.message,
+        mode: window.ANASResilientStorage.status().mode };
+    }
+  });
+  assert.equal(result.rejected, true, 'startup must reject a memory-only storage state');
+  assert.match(result.message, /No writable durable storage is available/);
+  assert.equal(result.mode, 'MEMORY_ONLY_DEGRADED');
+  await context.close();
+});
