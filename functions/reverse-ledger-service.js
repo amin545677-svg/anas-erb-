@@ -144,7 +144,20 @@ function createReverseLedgerHandler({
         throw new HttpsError('permission-denied', String(error.message || error));
       }
       if (invoice.invoiceLedgerVersion !== 2) {
-        throw new HttpsError('failed-precondition', 'Invoice is not sealed in the version-2 ledger; reconcile it before reverse posting.');
+        let legacyRead;
+        try {
+          legacyRead = ReverseLedger.readLegacyInvoiceForLedgerV2(invoice, normalized.originalInvoiceType);
+        } catch (error) {
+          throw new HttpsError('failed-precondition',
+            'Legacy invoice cannot be safely reconciled in integer centimes: ' + String(error.message || error));
+        }
+        const allocationInstruction = legacyRead.requiresDocumentedSettlementAllocations
+          ? ' Document and reconcile every historical payment allocation before any return or cancellation.'
+          : ' Complete an explicit version-2 ledger reconciliation before any return or cancellation.';
+        throw new HttpsError('failed-precondition',
+          'Legacy invoice is readable without mutation (total=' + legacyRead.totalCentimes +
+          ', paid=' + legacyRead.paidCentimes + ', remaining=' + legacyRead.remainingCentimes +
+          ' centimes).' + allocationInstruction + ' No synthetic ledger entries were created.');
       }
 
       const nextState = cloneJson(state);
