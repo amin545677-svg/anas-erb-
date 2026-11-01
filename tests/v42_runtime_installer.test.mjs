@@ -101,7 +101,7 @@ test("runtime wiring fails closed for actual V42 sale with multiple ledger side 
     }
   };
   vm.createContext(context);
-  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
 
   let cloud = { data: collectionCloudV1(), revision: 1 };
   const eventOrder = [];
@@ -201,7 +201,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     }
   };
   vm.createContext(context);
-  vm.runInContext([reverseLedgerSource, extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
 
   let cloud = { data: cloudV1(), revision: 1 };
   const eventOrder = [];
