@@ -100,8 +100,12 @@ function parseActiveAccounts(output) {
 export function runStagingIdentityGuard(env = process.env, run = execFileSync) {
   const projectId = env.GCLOUD_PROJECT || '';
   const googleCloudProjectId = env.GOOGLE_CLOUD_PROJECT || '';
-  const expectedAccount = env.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT ||
-    expectedPrincipalFromCredentials(env.GOOGLE_APPLICATION_CREDENTIALS);
+  const credentialAccount = expectedPrincipalFromCredentials(env.GOOGLE_APPLICATION_CREDENTIALS);
+  const configuredAccount = env.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT || '';
+  if (configuredAccount && credentialAccount && configuredAccount !== credentialAccount) {
+    throw new Error('Refusing deployment: configured deployer does not match the authenticated credential principal.');
+  }
+  const expectedAccount = configuredAccount || credentialAccount;
 
   if (!expectedAccount) {
     throw new Error('Refusing deployment: expected staging deployer account is required.');
