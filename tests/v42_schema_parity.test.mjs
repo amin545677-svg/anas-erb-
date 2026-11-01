@@ -46,7 +46,7 @@ function runV42Collection(initial, amount) {
   };
   vm.createContext(context);
   const source = extractFunction("collectCustDebt", "cId");
-  vm.runInContext(source + "\nglobalThis.__run = collectCustDebt;", context);
+  vm.runInContext([extractFunction("anasToCents"), extractFunction("anasCentsToCurrency"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
   context.__run("cust_1");
   return { snapshot: context.AppData, alerts };
 }
@@ -132,13 +132,13 @@ test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", () => {
 
 test("sale parity audit documents the real V42 side-effect boundary", () => {
   const saleSource = extractFunction("confirmHasibPayment", "");
-  assert.match(saleSource, /p\.stock\s*=\s*\(Number\(p\.stock\)\|\|0\)-qty/);
+  assert.match(saleSource, /const currentUnits = anasToQtyUnits\(saleWarehouse === 'المخزن الرئيسي' \? p\.stock : \(p\.warehouseStock\?\.\[saleWarehouse\] \?\? 0\)\)/);
   assert.match(saleSource, /p\.warehouseStock\[saleWarehouse\]\s*=\s*\(Number\(p\.warehouseStock\[saleWarehouse\]\)\|\|0\)-qty/);
   assert.match(saleSource, /AppData\.invoices\.unshift\(invObj\)/);
   assert.match(saleSource, /AppData\.caisseBalance\s*=\s*oldCaisse\s*\+\s*paid/);
   assert.match(saleSource, /cust\.debt\s*=\s*oldDebt\s*\+\s*remaining/);
   // The V42 sale function itself does not write these ledgers; do not fabricate them in replay.
-  assert.doesNotMatch(saleSource, /AppData\.stockMovements/);
+  assert.match(saleSource, /AppData\.stockMovements\.unshift\(/);
   assert.doesNotMatch(saleSource, /AppData\.cashMovements/);
 });
 
@@ -170,7 +170,7 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
   };
   vm.createContext(context);
   const source = extractFunction("confirmHasibPayment", "");
-  vm.runInContext(source + "\nglobalThis.__run = confirmHasibPayment;", context);
+  vm.runInContext([extractFunction("anasToCents"), extractFunction("anasToQtyUnits"), extractFunction("anasCentsToCurrency"), extractFunction("anasQtyFromUnits"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = confirmHasibPayment;"].join("\n"), context);
   context.__run();
   return { snapshot: context.AppData, alerts, cart: context.posCart, invoice: context.lastConfirmedInvoice };
 }

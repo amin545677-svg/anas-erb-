@@ -88,7 +88,7 @@ test("runtime wiring: actual V42 sale -> PREPARED/saveDB/PENDING -> 409 -> pull/
     }
   };
   vm.createContext(context);
-  vm.runInContext(extractFunction("confirmHasibPayment") + "\nglobalThis.runActualV42Sale = confirmHasibPayment;", context);
+  vm.runInContext([extractFunction("anasToCents"), extractFunction("anasToQtyUnits"), extractFunction("anasCentsToCurrency"), extractFunction("anasQtyFromUnits"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
 
   let cloud = { data: cloudV1(), revision: 1 };
   const eventOrder = [];
@@ -194,7 +194,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     }
   };
   vm.createContext(context);
-  vm.runInContext(extractFunction("collectCustDebt", "cId") + "\nglobalThis.runActualV42Collection = collectCustDebt;", context);
+  vm.runInContext([extractFunction("anasToCents"), extractFunction("anasCentsToCurrency"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
 
   let cloud = { data: cloudV1(), revision: 1 };
   const eventOrder = [];
