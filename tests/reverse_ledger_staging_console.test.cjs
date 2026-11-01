@@ -69,8 +69,8 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   ]) assert.ok(deployWorkflow.includes(secret), 'missing staging web configuration: ' + secret);
   assert.ok(deployWorkflow.includes('id-token: write'));
   assert.ok(deployWorkflow.includes('google-github-actions/auth@v2'));
-  const serviceAccountFallback = 'credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT }}';
-  assert.ok(deployWorkflow.includes(serviceAccountFallback));
+  const serviceAccountCredential = 'credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}';
+  assert.ok(deployWorkflow.includes(serviceAccountCredential));
   assert.ok(deployWorkflow.includes('workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}'));
   assert.ok(deployWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(deployWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
@@ -79,7 +79,10 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(deployWorkflow.includes('STAGING AUTH MODE: OIDC fallback'));
   assert.ok(deployWorkflow.includes('auth_mode=json\\n'));
   assert.ok(deployWorkflow.includes('auth_mode=oidc\\n'));
-  assert.ok(functionsWorkflow.includes(serviceAccountFallback));
+  assert.ok(functionsWorkflow.includes(serviceAccountCredential));
+  const bootstrapFallback = 'secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT';
+  assert.ok(!deployWorkflow.includes(bootstrapFallback), 'console deploy must not reuse the bootstrap credential');
+  assert.ok(!functionsWorkflow.includes(bootstrapFallback), 'functions deploy must not reuse the bootstrap credential');
   assert.ok(functionsWorkflow.includes('workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}'));
   assert.ok(functionsWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(functionsWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
