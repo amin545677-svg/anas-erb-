@@ -31,6 +31,31 @@ test.after(async () => {
   if (server) await new Promise(resolve => server.close(resolve));
 });
 
+test('Chromium keeps the synchronous LocalStorage fallback usable when Android WebView exposes no IndexedDB', async () => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined });
+  });
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const initial = JSON.stringify({ appName: 'Anas ERP', invoices: [{ id: 'LOCAL-ONLY-1', total: 99 }] });
+    localStorage.setItem(S.APP_KEY, initial);
+    const hydrated = await S.hydrate(initial);
+    const next = JSON.stringify({ appName: 'Anas ERP', invoices: [{ id: 'LOCAL-ONLY-2', total: 123 }] });
+    let indexedDbWriteRejected = false;
+    try { await S.setSync(S.APP_KEY, next); } catch (_) { indexedDbWriteRejected = true; }
+    return { hydrated: hydrated.hydrated, recoveredInvoice: hydrated.data.invoices[0].id,
+      localWritePreserved: localStorage.getItem(S.APP_KEY) === next,
+      mode: S.status().mode, indexedDbWriteRejected };
+  });
+  assert.deepEqual(result, { hydrated: true, recoveredInvoice: 'LOCAL-ONLY-1',
+    localWritePreserved: true, mode: 'LOCALSTORAGE_FALLBACK_ACTIVE', indexedDbWriteRejected: true });
+  await context.close();
+});
+
 test('Chromium migrates a valid legacy V42 local snapshot into IndexedDB with a positive revision', async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
