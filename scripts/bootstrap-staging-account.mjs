@@ -3,7 +3,7 @@
 
 /**
  * Idempotent bootstrap for the isolated ANAS ERP Firebase Staging test account.
- * Requires Application Default Credentials from GitHub OIDC; never prints credentials.
+ * Requires a dedicated Staging-only Admin SDK service-account credential; never prints credentials.
  *
  * Auth and Firestore cannot participate in one cross-service transaction. This
  * script therefore uses an idempotent saga: ensure Auth identity/claims first,
@@ -24,7 +24,13 @@ function requireEnv() {
   if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== PROJECT_ID)
     throw new Error('Refusing to bootstrap a non-Staging GCLOUD_PROJECT.');
   if (!process.env.GOOGLE_APPLICATION_CREDENTIALS || !fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS))
-    throw new Error('Google OIDC Application Default Credentials file is unavailable.');
+    throw new Error('Dedicated Staging Admin SDK bootstrap credential file is unavailable.');
+  let credential;
+  try { credential = JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8')); }
+  catch { throw new Error('Staging Admin SDK bootstrap credential is not valid JSON.'); }
+  if (credential.type !== 'service_account' || credential.project_id !== PROJECT_ID ||
+      !credential.client_email || !credential.private_key)
+    throw new Error('Bootstrap credential must be a valid service account for the isolated Staging project.');
   if (!email || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email))
     throw new Error('ANAS_STAGING_EMAIL is missing or invalid.');
   if (password.length < 12)
