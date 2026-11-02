@@ -57,6 +57,7 @@ function runV42Collection(initial, amount) {
 function stripSyncMetadata(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
+  delete copy.appliedOperations; // cryptographic replay metadata is intentionally outside V42 business-state parity
   delete copy.clientMovements;
   delete copy.settlementAllocations;
   for (const customer of copy.customers || []) delete customer.ledgerVersion;
