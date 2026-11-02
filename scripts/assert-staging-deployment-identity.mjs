@@ -14,6 +14,7 @@ function requireStagingProject(value, source) {
 }
 
 export function validateStagingIdentity({
+  firebaseProjectId,
   projectId,
   googleCloudProjectId,
   activeAccount,
@@ -21,11 +22,12 @@ export function validateStagingIdentity({
   expectedAccount,
   describedProjectId
 }) {
+  requireStagingProject(firebaseProjectId, 'FIREBASE_PROJECT_ID');
   requireStagingProject(projectId, 'GCLOUD_PROJECT');
   requireStagingProject(googleCloudProjectId, 'GOOGLE_CLOUD_PROJECT');
   requireStagingProject(describedProjectId, 'gcloud config project');
 
-  if (!expectedAccount || !expectedAccount.endsWith('.iam.gserviceaccount.com')) {
+  if (!expectedAccount || !expectedAccount.endsWith('@' + STAGING_PROJECT_ID + '.iam.gserviceaccount.com')) {
     throw new Error('Refusing deployment: expected staging deployer account is required.');
   }
 
@@ -49,7 +51,20 @@ export function validateStagingIdentity({
   return true;
 }
 
-export function expectedPrincipalFromCredential(credential) {
+export function parseCredentialJson(raw) {
+  let credential;
+  try { credential = JSON.parse(String(raw)); }
+  catch { throw new Error('Refusing deployment: service-account JSON is malformed.'); }
+  if (!credential || typeof credential !== 'object' || Array.isArray(credential)) {
+    throw new Error('Refusing deployment: Google credential configuration is invalid.');
+  }
+  if (!['service_account', 'external_account'].includes(credential.type)) {
+    throw new Error('Refusing deployment: unsupported Google credential type.');
+  }
+  return credential;
+}
+
+export function expectedPrincipalFromCredential(credential, expectedWifProvider = '') {
   if (!credential || typeof credential !== 'object' || Array.isArray(credential)) {
     throw new Error('Refusing deployment: Google credential configuration is invalid.');
   }
@@ -59,13 +74,16 @@ export function expectedPrincipalFromCredential(credential) {
       throw new Error('Refusing deployment: service-account credential project is not isolated staging.');
     }
     const email = credential.client_email || '';
-    if (!email.endsWith('.iam.gserviceaccount.com')) {
+    if (!email.endsWith('@' + STAGING_PROJECT_ID + '.iam.gserviceaccount.com')) {
       throw new Error('Refusing deployment: service-account credential has an invalid principal.');
     }
     return email;
   }
 
   if (credential.type === 'external_account') {
+    if (!expectedWifProvider || credential.audience !== expectedWifProvider) {
+      throw new Error('Refusing deployment: OIDC audience does not match the approved staging WIF provider.');
+    }
     const raw = credential.service_account_impersonation_url || '';
     let url;
     try { url = new URL(raw); } catch {
@@ -76,7 +94,7 @@ export function expectedPrincipalFromCredential(credential) {
     }
     const match = url.pathname.match(/\/serviceAccounts\/([^/:]+):generateAccessToken$/);
     const email = match ? decodeURIComponent(match[1]) : '';
-    if (!email.endsWith('.iam.gserviceaccount.com')) {
+    if (!email.endsWith('@' + STAGING_PROJECT_ID + '.iam.gserviceaccount.com')) {
       throw new Error('Refusing deployment: OIDC credential has no approved service-account principal.');
     }
     return email;
@@ -85,10 +103,10 @@ export function expectedPrincipalFromCredential(credential) {
   throw new Error('Refusing deployment: unsupported Google credential type.');
 }
 
-function expectedPrincipalFromCredentials(credentialsPath) {
+function expectedPrincipalFromCredentials(credentialsPath, expectedWifProvider) {
   if (!credentialsPath) return '';
-  const credential = JSON.parse(readFileSync(credentialsPath, 'utf8'));
-  return expectedPrincipalFromCredential(credential);
+  const credential = parseCredentialJson(readFileSync(credentialsPath, 'utf8'));
+  return expectedPrincipalFromCredential(credential, expectedWifProvider);
 }
 function parseActiveAccounts(output) {
   return String(output)
@@ -98,9 +116,11 @@ function parseActiveAccounts(output) {
 }
 
 export function runStagingIdentityGuard(env = process.env, run = execFileSync) {
+  const firebaseProjectId = env.FIREBASE_PROJECT_ID || '';
   const projectId = env.GCLOUD_PROJECT || '';
   const googleCloudProjectId = env.GOOGLE_CLOUD_PROJECT || '';
-  const credentialAccount = expectedPrincipalFromCredentials(env.GOOGLE_APPLICATION_CREDENTIALS);
+  const wifProvider = env.ANAS_STAGING_WIF_PROVIDER || '';
+  const credentialAccount = expectedPrincipalFromCredentials(env.GOOGLE_APPLICATION_CREDENTIALS, wifProvider);
   const configuredAccount = env.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT || '';
   if (configuredAccount && credentialAccount && configuredAccount !== credentialAccount) {
     throw new Error('Refusing deployment: configured deployer does not match the authenticated credential principal.');
@@ -136,6 +156,7 @@ export function runStagingIdentityGuard(env = process.env, run = execFileSync) {
   }
 
   validateStagingIdentity({
+    firebaseProjectId,
     projectId,
     googleCloudProjectId,
     activeAccount,

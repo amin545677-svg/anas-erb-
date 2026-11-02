@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   validateStagingIdentity,
   expectedPrincipalFromCredential,
+  parseCredentialJson,
   STAGING_PROJECT_ID
 } from '../scripts/assert-staging-deployment-identity.mjs';
 
@@ -11,6 +12,7 @@ const approvedAccount = 'staging-deployer@anas-erp-staging-a25e1.iam.gserviceacc
 function validIdentity(overrides = {}) {
   const activeAccount = overrides.activeAccount ?? approvedAccount;
   return {
+    firebaseProjectId: STAGING_PROJECT_ID,
     projectId: STAGING_PROJECT_ID,
     googleCloudProjectId: STAGING_PROJECT_ID,
     describedProjectId: STAGING_PROJECT_ID,
@@ -127,10 +129,11 @@ test('rejects a service-account credential bound to production', () => {
 test('extracts the impersonated principal from a trusted OIDC credential', () => {
   assert.equal(expectedPrincipalFromCredential({
     type: 'external_account',
+    audience: 'projects/123456/locations/global/workloadIdentityPools/anas/providers/github',
     service_account_impersonation_url:
       'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' +
       approvedAccount + ':generateAccessToken'
-  }), approvedAccount);
+  }, 'projects/123456/locations/global/workloadIdentityPools/anas/providers/github'), approvedAccount);
 });
 
 test('rejects an OIDC credential using an untrusted impersonation endpoint', () => {
@@ -185,4 +188,50 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   );
   assert.match(workflow, /verify-live-staging-e2e\.mjs/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
+});
+
+test('Level 9 identity matrix: rejects empty Firebase project ID', () => {
+  assert.throws(() => validateStagingIdentity(validIdentity({ firebaseProjectId: '' })), /FIREBASE_PROJECT_ID/);
+});
+test('Level 9 identity matrix: rejects production-like project identifiers', () => {
+  for (const value of ['anas-erp-prod', 'anas-erp-main', 'anas-erp-live', 'anas-erp-v42']) {
+    assert.throws(() => validateStagingIdentity(validIdentity({
+      firebaseProjectId: value, projectId: value, googleCloudProjectId: value, describedProjectId: value
+    })));
+  }
+});
+test('Level 9 identity matrix: rejects any three-way project variable disagreement', () => {
+  assert.throws(() => validateStagingIdentity(validIdentity({ firebaseProjectId: 'other-project' })), /FIREBASE_PROJECT_ID/);
+  assert.throws(() => validateStagingIdentity(validIdentity({ projectId: 'other-project' })), /GCLOUD_PROJECT/);
+  assert.throws(() => validateStagingIdentity(validIdentity({ googleCloudProjectId: 'other-project' })), /GOOGLE_CLOUD_PROJECT/);
+});
+test('Level 9 identity matrix: rejects malformed service-account JSON', () => {
+  assert.throws(() => parseCredentialJson('{"type":"service_account"'), /malformed/);
+});
+test('Level 9 identity matrix: rejects cross-project client_email spoofing', () => {
+  assert.throws(() => expectedPrincipalFromCredential({
+    type: 'service_account', project_id: STAGING_PROJECT_ID,
+    client_email: 'attacker@other-project.iam.gserviceaccount.com'
+  }), /invalid principal/);
+});
+test('Level 9 identity matrix: rejects an expected deployer outside the staging project', () => {
+  assert.throws(() => validateStagingIdentity(validIdentity({
+    expectedAccount: 'deployer@other-project.iam.gserviceaccount.com'
+  })), /expected staging deployer/);
+});
+test('Level 9 identity matrix: accepts JSON mode only for exact staging project and principal', () => {
+  assert.equal(expectedPrincipalFromCredential({
+    type: 'service_account', project_id: STAGING_PROJECT_ID, client_email: approvedAccount
+  }), approvedAccount);
+});
+test('Level 9 identity matrix: accepts OIDC only for the configured audience and staging deployer', () => {
+  const provider = 'projects/123456/locations/global/workloadIdentityPools/anas/providers/github';
+  assert.equal(expectedPrincipalFromCredential({
+    type: 'external_account', audience: provider,
+    service_account_impersonation_url: 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' + approvedAccount + ':generateAccessToken'
+  }, provider), approvedAccount);
+  assert.throws(() => expectedPrincipalFromCredential({
+    type: 'external_account', audience: 'projects/123/other',
+    service_account_impersonation_url: 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' + approvedAccount + ':generateAccessToken'
+  }, provider), /audience does not match/);
 });

@@ -124,8 +124,10 @@ jobs:
 
       - name: Enforce staging deployment identity before any deploy action
         env:
+          FIREBASE_PROJECT_ID: anas-erp-staging-a25e1
           GCLOUD_PROJECT: anas-erp-staging-a25e1
           GOOGLE_CLOUD_PROJECT: anas-erp-staging-a25e1
+          ANAS_STAGING_WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
           ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
