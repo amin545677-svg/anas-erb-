@@ -7,6 +7,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const EXPECTED_MAIN_INDEX_BLOB = '526cd060b331cdd9cb2415033673f1943ce60a09';
+const EXPECTED_V42_DOM_IDS = 268;
+const EXPECTED_V42_FUNCTIONS = 258;
 const run = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
 run(['fetch', '--no-tags', '--depth=1', 'origin', 'main']);
@@ -19,6 +21,8 @@ const extract = (source, pattern) => [...new Set([...source.matchAll(pattern)].m
 const mainIds = extract(mainHtml, /\bid\s*=\s*["']([^"']+)["']/g);
 const candidateIds = new Set(extract(candidateHtml, /\bid\s*=\s*["']([^"']+)["']/g));
 const mainFunctions = extract(mainHtml, /(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g);
+assert.equal(mainIds.length, EXPECTED_V42_DOM_IDS, 'Production V42 DOM identifier baseline changed.');
+assert.equal(mainFunctions.length, EXPECTED_V42_FUNCTIONS, 'Production V42 function baseline changed.');
 const candidateFunctions = new Set(extract(candidateHtml, /(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g));
 const missingIds = mainIds.filter((id) => !candidateIds.has(id));
 const missingFunctions = mainFunctions.filter((name) => !candidateFunctions.has(name));
@@ -55,8 +59,8 @@ assert.ok(hasStorageErrorHandling, 'Storage operations lack a nearby try/catch f
 console.log(JSON.stringify({
   audit: 'PASS',
   productionMainBlob: mainBlob,
-  domIds: { checked: mainIds.length, missing: missingIds.length, retentionPercent: 100 },
-  functions: { checked: mainFunctions.length, missing: missingFunctions.length, retentionPercent: 100 },
+  domIds: { expected: EXPECTED_V42_DOM_IDS, checked: mainIds.length, candidate: candidateIds.size, missing: missingIds.length, retentionPercent: 100 },
+  functions: { expected: EXPECTED_V42_FUNCTIONS, checked: mainFunctions.length, candidate: candidateFunctions.size, missing: missingFunctions.length, retentionPercent: 100 },
   duplicateSourceGroups: duplicateGroups.length,
   unexpectedDuplicateSourceGroups: unexpectedDuplicates.length,
   androidStorageStaticSmoke: { indexedDbOpen: hasIndexedDb, localStorageFallback: hasLocalStorage, guardedStorageAccess: hasStorageErrorHandling },
