@@ -38,6 +38,7 @@ const requireText = (path, pattern, description) => {
 };
 requireText('reverse-ledger/reverse-ledger.js', /BigInt\(match\[1\]\)/, 'BigInt decimal parsing');
 requireText('reverse-ledger/reverse-ledger.js', /function signedQuantity\s*\(/, 'string-based signed quantity validation');
+requireText('reverse-ledger/reverse-ledger.js', /const toSafeIntegerNumber =/, 'bounded BigInt-to-safe-integer serialization');
 requireText('reverse-ledger/authorization.js', /authorizeReverseOperation/, 'reverse-operation authorization');
 requireText('reverse-ledger/authorization.js', /PERMISSIONS/, 'the canonical permission matrix');
 requireText('functions/reverse-ledger-service.js', /authorizeFinancialScope/, 'financial RBAC scope enforcement');
