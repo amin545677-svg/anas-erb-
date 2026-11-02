@@ -70,7 +70,12 @@ The console workflow still requires these public Firebase web configuration inpu
 - `FIREBASE_STAGING_WEB_APP_ID`
 - `FIREBASE_STAGING_APP_CHECK_SITE_KEY`
 
-The Functions workflow's optional test-account bootstrap separately requires `ANAS_STAGING_EMAIL`, `ANAS_STAGING_PASSWORD`, and `FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT` (a dedicated Staging-only Admin SDK service-account JSON secret), plus optionally `ANAS_STAGING_UID` / `STAGING_TEST_UID`. This key is not used by either deployment command. It is written to a temporary runner file only for the optional bootstrap step, validated against `anas-erp-staging-a25e1`, and deleted when that step exits. If you do not want any long-lived key, leave this secret unset and provision the isolated test account through a separately approved administrative process; the workflow will skip bootstrap rather than attempt unsupported Admin SDK WIF.
+The Functions workflow's optional test-account bootstrap separately requires `ANAS_STAGING_EMAIL`, `ANAS_STAGING_PASSWORD`, and `FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT` (a dedicated Staging-only Admin SDK service-account JSON secret), plus the following Environment variables so the trusted grant is scoped correctly:
+
+- `ANAS_STAGING_TENANT_ID`: the exact tenant ID used by the synthetic Staging records.
+- `ANAS_STAGING_STORE_IDS_JSON`: a JSON array of permitted Staging store IDs, for example `[\"staging-store-01\"]`.
+
+Optionally set `ANAS_STAGING_UID` / `STAGING_TEST_UID` to pin the test account UID. The bootstrap refuses to overwrite an existing grant with a different tenant or store scope. This key is not used by either deployment command. It is written to a temporary runner file only for the optional bootstrap step, validated against `anas-erp-staging-a25e1`, and deleted when that step exits. If you do not want any long-lived key, leave this secret unset and provision the isolated test account through a separately approved administrative process; the workflow will skip bootstrap rather than attempt unsupported Admin SDK WIF.
 
 ## 5. Run and verify
 
