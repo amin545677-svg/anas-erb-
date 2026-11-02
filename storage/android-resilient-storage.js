@@ -70,8 +70,90 @@
       }).join(',') + '}';
     } finally { seen.delete(value); }
   }
-  function encode(value) { return canonicalizeJson(value); }
+  // V2 is framed outside JSON so no legacy JSON object can impersonate the
+  // format marker. Every user value is represented by an explicit tagged node.
+  const V2_PREFIX = 'ANASERP2:';
+  function encodeNode(value, seen = new WeakSet()) {
+    if (value === null) return ['0'];
+    if (typeof value === 'string') return ['s', value.normalize('NFC')];
+    if (typeof value === 'boolean') return ['b', value];
+    if (typeof value === 'bigint') return ['i', value.toString()];
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || Object.is(value, -0)) {
+        const error = new TypeError('NON_CANONICAL_NUMERIC_VALUE');
+        error.code = 'NON_CANONICAL_NUMERIC_VALUE';
+        throw error;
+      }
+      return ['n', value];
+    }
+    if (typeof value !== 'object') throw new TypeError('NON_CANONICAL_JSON_TYPE');
+    if (seen.has(value)) throw new TypeError('NON_CANONICAL_CYCLE');
+    seen.add(value);
+    try {
+      if (Array.isArray(value)) {
+        const items = [];
+        for (let i = 0; i < value.length; i++) {
+          if (!Object.prototype.hasOwnProperty.call(value, i)) throw new TypeError('NON_CANONICAL_ARRAY_HOLE');
+          items.push(encodeNode(value[i], seen));
+        }
+        return ['a', items];
+      }
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
+      if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
+      const entries = Object.keys(value).map(originalKey => ({
+        originalKey, key: originalKey.normalize('NFC')
+      }));
+      const keys = new Set();
+      for (const entry of entries) {
+        if (keys.has(entry.key)) {
+          const error = new TypeError('UNICODE_NFC_KEY_COLLISION');
+          error.code = 'UNICODE_NFC_KEY_COLLISION';
+          throw error;
+        }
+        keys.add(entry.key);
+      }
+      entries.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+      return ['o', entries.map(({ key, originalKey }) => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, originalKey);
+        if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+          throw new TypeError('NON_CANONICAL_ACCESSOR');
+        }
+        return [key, encodeNode(descriptor.value, seen)];
+      })];
+    } finally { seen.delete(value); }
+  }
+  function decodeNode(node) {
+    if (!Array.isArray(node) || typeof node[0] !== 'string') throw new TypeError('INVALID_V2_NODE');
+    const tag = node[0];
+    if (tag === '0' && node.length === 1) return null;
+    if (tag === 's' && node.length === 2 && typeof node[1] === 'string' && node[1] === node[1].normalize('NFC')) return node[1];
+    if (tag === 'b' && node.length === 2 && typeof node[1] === 'boolean') return node[1];
+    if (tag === 'n' && node.length === 2 && typeof node[1] === 'number' && Number.isFinite(node[1]) && !Object.is(node[1], -0)) return node[1];
+    if (tag === 'i' && node.length === 2 && typeof node[1] === 'string' && /^-?(0|[1-9][0-9]*)$/.test(node[1])) return BigInt(node[1]);
+    if (tag === 'a' && node.length === 2 && Array.isArray(node[1])) return node[1].map(decodeNode);
+    if (tag === 'o' && node.length === 2 && Array.isArray(node[1])) {
+      const result = {};
+      let previousKey = null;
+      for (const entry of node[1]) {
+        if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' ||
+            entry[0] !== entry[0].normalize('NFC') ||
+            (previousKey !== null && entry[0] <= previousKey)) throw new TypeError('INVALID_V2_OBJECT_ENTRY');
+        previousKey = entry[0];
+        Object.defineProperty(result, entry[0], {
+          value: decodeNode(entry[1]), enumerable: true, configurable: true, writable: true
+        });
+      }
+      return result;
+    }
+    throw new TypeError('INVALID_V2_NODE');
+  }
+  function encode(value) { return V2_PREFIX + JSON.stringify(encodeNode(value)); }
   function decode(value) {
+    if (typeof value !== 'string') throw new TypeError('STORAGE_PAYLOAD_MUST_BE_STRING');
+    if (value.startsWith(V2_PREFIX)) return decodeNode(JSON.parse(value.slice(V2_PREFIX.length)));
+    // V1 compatibility: retain the historical BigInt marker decoder only for
+    // unframed legacy payloads. New writes can never emit this ambiguous form.
     return JSON.parse(value, (_, v) => v && typeof v === 'object' &&
       Object.keys(v).length === 1 && typeof v.__anas_bigint_v1__ === 'string'
       ? BigInt(v.__anas_bigint_v1__) : v);
