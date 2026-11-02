@@ -350,3 +350,109 @@ test('pre-hydration saveDB empty state cannot overwrite the validated IndexedDB 
   });
   await context.close();
 });
+
+
+test('torn LocalStorage JSON and IndexedDB bit-rot recover only a checksum-validated snapshot', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+    const baseline = S.encode({
+      invoices: [{ id: 'CHAOS-BASELINE', totalCentimes: 2100000n }],
+      cashCentimes: 5900000n,
+      debtCentimes: 2100000n
+    });
+    await S.setSync(S.APP_KEY, baseline);
+  });
+
+  // Simulate power loss while LocalStorage was being written.
+  await page.reload();
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const torn = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    localStorage.setItem(S.APP_KEY, '{"revision":5,"invoices":[{"id":"CHAOS-BASELINE"');
+    const result = await S.hydrate(null);
+    return {
+      recovered: result.recoveredFromIndexedDB,
+      invoice: result.data.invoices[0].totalCentimes.toString(),
+      cash: result.data.cashCentimes.toString(),
+      debt: result.data.debtCentimes.toString()
+    };
+  });
+  assert.deepEqual(torn, {
+    recovered: true, invoice: '2100000', cash: '5900000', debt: '2100000'
+  });
+
+  // Flip one centime in the IndexedDB payload without updating its SHA-256.
+  const bitRot = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(S.DB_NAME);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(S.STORE_NAME, 'readwrite');
+      const store = tx.objectStore(S.STORE_NAME);
+      const get = store.get(S.APP_KEY);
+      get.onsuccess = () => {
+        const record = get.result;
+        record.payload = record.payload.replace('2100000', '2100001');
+        store.put(record); // checksum deliberately remains unchanged
+      };
+      get.onerror = () => reject(get.error);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+    const restored = await S.hydrate(null);
+    const verified = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(S.DB_NAME);
+      request.onsuccess = () => {
+        const get = request.result.transaction(S.STORE_NAME, 'readonly')
+          .objectStore(S.STORE_NAME).get(S.APP_KEY);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+    return {
+      invoice: restored.data.invoices[0].totalCentimes.toString(),
+      checksumValid: verified.checksum === await S.checksum(verified.payload),
+      payloadRestored: S.decode(verified.payload).invoices[0].totalCentimes === 2100000n
+    };
+  });
+  assert.deepEqual(bitRot, {
+    invoice: '2100000', checksumValid: true, payloadRestored: true
+  });
+  await context.close();
+});
+
+test('Pure-JS SHA-256 fallback matches NIST FIPS 180-4 known-answer vectors', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const hashes = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'crypto');
+    Object.defineProperty(window, 'crypto', { configurable: true, value: {} });
+    try {
+      return {
+        empty: await S.checksum(''),
+        abc: await S.checksum('abc')
+      };
+    } finally {
+      if (descriptor) Object.defineProperty(window, 'crypto', descriptor);
+      else delete window.crypto;
+    }
+  });
+  assert.deepEqual(hashes, {
+    empty: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    abc: 'sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+  });
+  await context.close();
+});
