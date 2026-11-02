@@ -279,3 +279,27 @@ test("applied operation records are bound to the canonical payload and causal pa
   assert.equal(record.parentStateHash.length, 64);
   assert.equal(original.appliedOperations, undefined, "source snapshot remains unchanged");
 });
+
+
+test("money replay parses exact decimal centimes without binary-float scaling", () => {
+  const initial = cloud();
+  const op = { ...collection("exact-decimal-0-10"), payload: {
+    ...collection().payload, amount: "0.10"
+  }};
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.caisseBalance, 54000.1);
+  assert.equal(result.snapshot.customers[0].debt, 25999.9);
+});
+
+test("money replay quarantines fractional-cent, exponent and unsafe-range inputs", () => {
+  for (const [index, amount] of ["1.001", "1e2", "90071992547409.92", -0].entries()) {
+    const op = { ...collection("invalid-exact-money-" + index), payload: {
+      ...collection().payload, amount
+    }};
+    const result = reconcilePendingMutations(cloud(), [op]);
+    assert.equal(result.snapshot.caisseBalance, 54000, String(amount));
+    assert.equal(result.snapshot.customers[0].debt, 26000, String(amount));
+    assert.equal(result.review[0].reason, "INVALID_AMOUNT", String(amount));
+  }
+});
