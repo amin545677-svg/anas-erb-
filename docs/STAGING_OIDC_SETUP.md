@@ -77,7 +77,20 @@ The Functions workflow's optional test-account bootstrap separately requires `AN
 
 Optionally set `ANAS_STAGING_UID` / `STAGING_TEST_UID` to pin the test account UID. The bootstrap refuses to overwrite an existing grant with a different tenant or store scope. This key is not used by either deployment command. It is written to a temporary runner file only for the optional bootstrap step, validated against `anas-erp-staging-a25e1`, and deleted when that step exits. If you do not want any long-lived key, leave this secret unset and provision the isolated test account through a separately approved administrative process; the workflow will skip bootstrap rather than attempt unsupported Admin SDK WIF.
 
-## 5. Run and verify
+## 5. Rotate Staging web configuration safely
+
+The Firebase Web API key, Web App ID, and App Check site key are public client configuration values, not server credentials. They must still be scoped to the isolated Staging project and must never be confused with the Admin SDK or deployment identity.
+
+1. In Firebase Console, select only project `anas-erp-staging-a25e1`. Confirm the registered Web App and App Check provider belong to that project.
+2. In Google Cloud Console → APIs & Services → Credentials for the same project, create a replacement API key. Restrict its HTTP referrers to the exact Staging Hosting origin(s), and restrict API usage to the Firebase/Google APIs actually required by this client. Validate sign-in, token refresh, App Check and callable requests before revoking the old key.
+3. Obtain the Web App ID from the Staging Web App settings and the App Check site key from the Staging App Check provider configuration. Do not copy either value from Production.
+4. Replace the GitHub Environment `staging` values `FIREBASE_STAGING_WEB_API_KEY`, `FIREBASE_STAGING_WEB_APP_ID`, and `FIREBASE_STAGING_APP_CHECK_SITE_KEY`. Never put these values in source code, commits, issue comments, or chat.
+5. Run the dedicated Hosting deployment and verify the served `config.js` contains the Staging project ID and the exact Staging origin. Test Auth, App Check and callable invocation from the deployed Staging origin.
+6. Only after successful validation, disable/delete the superseded Staging API key. If the old key was exposed or mis-scoped, revoke it immediately and accept the temporary Staging outage until the replacement is installed.
+
+Do not rotate Production keys as part of this Staging procedure. Do not substitute an API key for a service-account credential: deployment still requires the dedicated Staging OIDC identity or Staging-only service-account credential.
+
+## 6. Run and verify
 
 After configuring the provider, IAM binding, service-account permissions, and Environment variables, dispatch each workflow from `staging/unified-release-candidate` or push a reviewed commit to that branch.
 
