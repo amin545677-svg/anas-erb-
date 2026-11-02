@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -13,6 +14,7 @@ test("JCS canonicalization is key-order invariant through three nested levels", 
   assert.equal(canonicalizeJson(a), canonicalizeJson(b));
   assert.equal(sha256Canonical(a), sha256Canonical(b));
   assert.match(sha256Canonical(a), /^[a-f0-9]{64}$/);
+  assert.equal(sha256Canonical(a), createHash("sha256").update(canonicalizeJson(a), "utf8").digest("hex"));
   assert.match(canonicalizeJson({ amount: 100003n }), /"100003n"/);
 });
 
