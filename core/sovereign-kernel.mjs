@@ -158,8 +158,10 @@ export function applyInventoryDomainMutation(state, operation) {
   if (operation.type === "PURCHASE") {
     const unitCost = payload.unitCostCentimes;
     if (typeof unitCost !== "bigint" || unitCost < 0n) throw new Error("INVALID_PURCHASE_UNIT_COST");
+    const MICRO_UNITS_PER_CARTON = 1_000_000n;
+    const purchaseValueCentimes = quantity * unitCost / MICRO_UNITS_PER_CARTON;
     product.stockMicroUnits = stock + quantity;
-    product.inventoryValueCentimes = book + (quantity * unitCost);
+    product.inventoryValueCentimes = book + purchaseValueCentimes;
   } else if (operation.type === "SALE") {
     if (quantity > stock) throw new Error("NEGATIVE_INVENTORY_MICRO_UNITS");
     const allocatedCost = book * quantity / stock;
