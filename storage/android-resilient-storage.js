@@ -151,7 +151,19 @@
   function encode(value) { return V2_PREFIX + JSON.stringify(encodeNode(value)); }
   function decode(value) {
     if (typeof value !== 'string') throw new TypeError('STORAGE_PAYLOAD_MUST_BE_STRING');
-    if (value.startsWith(V2_PREFIX)) return decodeNode(JSON.parse(value.slice(V2_PREFIX.length)));
+    if (value.startsWith(V2_PREFIX)) {
+      const encodedNode = value.slice(V2_PREFIX.length);
+      const decoded = decodeNode(JSON.parse(encodedNode));
+      // Enforce a single byte representation for every V2 value. This rejects
+      // alternate JSON spellings (whitespace, escaped NFC text, 1.0, -0n, etc.)
+      // instead of silently decoding them into a different canonical payload.
+      if (JSON.stringify(encodeNode(decoded)) !== encodedNode) {
+        const error = new TypeError('NON_CANONICAL_V2_PAYLOAD');
+        error.code = 'NON_CANONICAL_V2_PAYLOAD';
+        throw error;
+      }
+      return decoded;
+    }
     // V1 compatibility: retain the historical BigInt marker decoder only for
     // unframed legacy payloads. New writes can never emit this ambiguous form.
     return JSON.parse(value, (_, v) => v && typeof v === 'object' &&
