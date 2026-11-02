@@ -26,9 +26,8 @@ for (const file of files) {
   }
   const source = bytes.toString('utf8');
   if (source.includes('\uFFFD')) failures.push(file + ': invalid UTF-8 replacement character');
-  if (/\.(?:mjs|yml)$/i.test(file)) {
-    const offset = escapedNewlineOutsideLiteral(source, file);
-    if (offset >= 0) failures.push(file + ': escaped newline outside quoted literal at character ' + offset);
+  if (/\\.(?:js|mjs|yml)$/i.test(file) && suspiciousEscapedNewline(source, file)) {
+    failures.push(file + ': suspicious literal \\\\n used as a physical source separator');
   }
   try {
     if (/\.json$/i.test(file)) JSON.parse(source);
