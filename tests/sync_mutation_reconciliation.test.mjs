@@ -300,6 +300,10 @@ test("money replay quarantines fractional-cent, exponent and unsafe-range inputs
     const result = reconcilePendingMutations(cloud(), [op]);
     assert.equal(result.snapshot.caisseBalance, 54000, String(amount));
     assert.equal(result.snapshot.customers[0].debt, 26000, String(amount));
-    assert.equal(result.review[0].reason, "INVALID_AMOUNT", String(amount));
+    assert.equal(
+      result.review[0].reason,
+      Object.is(amount, -0) ? "NON_CANONICAL_NUMERIC_VALUE" : "INVALID_AMOUNT",
+      String(amount)
+    );
   }
 });
