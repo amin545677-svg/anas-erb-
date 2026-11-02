@@ -49,6 +49,8 @@ jobs:
           node-version: "22"
       - name: P0 binary source hygiene — run before all test suites
         run: node scripts/verify-binary-source-hygiene.mjs
+      - name: Level 11 canonical, causal CAS, rebase quarantine and zero-sum proofs
+        run: node --test tests/sovereign-kernel-level11.test.mjs
       - name: Syntax-check every repository script and test module
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check
       - name: Level 9 adversarial identity, valuation and idempotency proofs
