@@ -147,3 +147,16 @@ test('rejects unsupported credential types', () => {
     type: 'authorized_user'
   }), /unsupported Google credential type/);
 });
+
+test('staging Firebase deployments are serialized independently without cancelling in-flight deploys', async () => {
+  const functionsWorkflow = await (await import('node:fs/promises')).readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'
+  );
+  const consoleWorkflow = await (await import('node:fs/promises')).readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
+  );
+  assert.match(functionsWorkflow, /concurrency:\s*\n\s+group:\s*anas-erp-reverse-ledger-functions-staging\s*\n\s+cancel-in-progress:\s*false/);
+  assert.match(consoleWorkflow, /concurrency:\s*\n\s+group:\s*anas-erp-reverse-ledger-console-staging\s*\n\s+cancel-in-progress:\s*false/);
+  assert.doesNotMatch(functionsWorkflow, /group:\s*anas-erp-reverse-ledger-console-staging/);
+  assert.doesNotMatch(consoleWorkflow, /group:\s*anas-erp-reverse-ledger-functions-staging/);
+});
