@@ -104,7 +104,7 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
     await S.setSync(S.APP_KEY, payload);
     const local = localStorage.getItem(S.APP_KEY);
     const localMeta = JSON.parse(localStorage.getItem(S.APP_KEY + '__META_V1'));
-    const localChecksumValid = localMeta.checksum === S.fastChecksum(local);
+    const localChecksumValid = localMeta.checksum === await S.checksum(local) && localMeta.algorithm === 'SHA-256';
     const record = await new Promise((resolve, reject) => {
       const req = indexedDB.open(S.DB_NAME);
       req.onsuccess = () => {
@@ -115,11 +115,12 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
       };
       req.onerror = () => reject(req.error);
     });
-    return { localMatches: local === payload, localChecksumValid, checksumValid: record.checksum === await S.checksum(record.payload),
-      revision: record.revision };
+    return { localMatches: local === payload, localChecksumValid, localChecksumAlgorithm: localMeta.algorithm,
+      checksumValid: record.checksum === await S.checksum(record.payload), revision: record.revision };
   });
   assert.equal(first.localMatches, true);
   assert.equal(first.localChecksumValid, true);
+  assert.equal(first.localChecksumAlgorithm, 'SHA-256');
   const fallbackChecksum = await page.evaluate(async () => {
     const S=window.ANASResilientStorage, descriptor=Object.getOwnPropertyDescriptor(window,'crypto');
     Object.defineProperty(window,'crypto',{configurable:true,value:{}});
@@ -482,6 +483,11 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
       savedValue: second.invoice.total.toString(),
       readIsolation: second.invoice.customer.name,
       deterministic: S.encode(a) === S.encode(b),
+      nfcDeterministic: S.encode({ ['é']: 'café' }) === S.encode({ ['e\\u0301']: 'cafe\\u0301' }),
+      nfcKeyCollisionRejected: (() => {
+        try { S.encode({ ['é']: 1, ['e\\u0301']: 2 }); return false; }
+        catch (error) { return error.code === 'UNICODE_NFC_KEY_COLLISION'; }
+      })(),
       hashLength: (await S.checksum(S.encode(a))).replace('sha256:', '').length,
       nanRejected, infinityRejected, negativeZeroRejected
     };
@@ -490,6 +496,8 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
     savedValue: '100003',
     readIsolation: 'A',
     deterministic: true,
+    nfcDeterministic: true,
+    nfcKeyCollisionRejected: true,
     hashLength: 64,
     nanRejected: true,
     infinityRejected: true,
