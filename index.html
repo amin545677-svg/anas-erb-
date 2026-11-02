@@ -2829,7 +2829,18 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 serialized = typeof window !== 'undefined' && window.ANASResilientStorage ? ANASResilientStorage.encode(snapshot) : JSON.stringify(snapshot);
                 if (typeof window !== 'undefined' && window.ANASResilientStorage) {
-                    ANASResilientStorage.setSync(ANAS_DB_KEY, serialized).catch(error => console.error('ANAS IndexedDB mirror write failed:', error));
+                    ANASResilientStorage.setSync(ANAS_DB_KEY, serialized).catch(error => {
+                        console.error('ANAS durable storage write failed:', error);
+                        // IndexedDB can fail after a synchronous saveDB caller has returned.
+                        // Continue only when the complete LocalStorage payload + metadata
+                        // fallback was committed; otherwise freeze future business writes.
+                        if (error && error.durableFallback === true) {
+                            console.warn('ANAS storage degraded safely to LocalStorage fallback.');
+                            return;
+                        }
+                        anasStartupFatalLoadError = true;
+                        alert('فشل التخزين الدائم في IndexedDB وLocalStorage معاً. أُوقف الحفظ فوراً لحماية البيانات؛ لا تغلق التطبيق قبل تصدير نسخة احتياطية أو استعادة التخزين.');
+                    });
                 } else {
                     localStorage.setItem(ANAS_DB_KEY, serialized);
                 }
