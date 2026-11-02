@@ -126,8 +126,10 @@
     let localPayloadPersisted = false;
     try {
       global.localStorage.setItem(key, text);
-      localPayloadPersisted = true;
       global.localStorage.setItem(META_KEY, JSON.stringify({ revision: nextRevision, checksum: fastChecksum(text), updatedAt: new Date().toISOString() }));
+      // Treat LocalStorage as a durable fallback only when both payload and its
+      // revision/checksum metadata have been committed synchronously.
+      localPayloadPersisted = true;
     }
     catch (error) {
       mode = 'INDEXEDDB_FALLBACK_ACTIVE';
@@ -137,7 +139,11 @@
       return persist(text, nextRevision).catch(error => {
         mode = localPayloadPersisted ? 'LOCALSTORAGE_FALLBACK_ACTIVE' : 'MEMORY_ONLY_DEGRADED';
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
-        throw error;
+        const persistenceError = new Error('Durable snapshot persistence failed: ' + global.__ANAS_STORAGE_LAST_ERROR__);
+        persistenceError.code = 'ANAS_STORAGE_PERSIST_FAILED';
+        persistenceError.durableFallback = localPayloadPersisted;
+        persistenceError.storageMode = mode;
+        throw persistenceError;
       });
     }
     return Promise.resolve();
