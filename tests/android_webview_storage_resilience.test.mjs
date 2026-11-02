@@ -505,3 +505,78 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
   });
   await context.close();
 });
+
+
+test('V2 framed serialization round-trips BigInt without confusing user objects with legacy markers', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/test.html');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(() => {
+    const S = window.ANASResilientStorage;
+    const markerObject = { __anas_bigint_v1__: '12345678901234567890' };
+    const nestedMarkerObject = { nested: { __anas_bigint_v1__: '42' } };
+    const dangerousKeys = JSON.parse('{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}}}');
+    const source = {
+      amount: 900719925474099312345n,
+      markerObject,
+      nestedMarkerObject,
+      dangerousKeys,
+      array: [1n, null, 'cafe\u0301', { amount: 2n }]
+    };
+    const payload = S.encode(source);
+    const decoded = S.decode(payload);
+    const legacy = S.decode('{"amount":{"__anas_bigint_v1__":"9007199254740993"}}');
+    return {
+      framed: payload.startsWith('ANASERP2:'),
+      amount: decoded.amount.toString(),
+      markerRemainsObject: typeof decoded.markerObject === 'object' &&
+        decoded.markerObject.__anas_bigint_v1__ === markerObject.__anas_bigint_v1__,
+      nestedMarkerRemainsObject: decoded.nestedMarkerObject.nested.__anas_bigint_v1__ === '42',
+      dangerousOwnKey: Object.prototype.hasOwnProperty.call(decoded.dangerousKeys, '__proto__'),
+      noPrototypePollution: ({}).polluted === undefined &&
+        decoded.dangerousKeys.__proto__.polluted === true,
+      arrayBigInt: decoded.array[0].toString(),
+      nestedBigInt: decoded.array[3].amount.toString(),
+      unicodeNfc: decoded.array[2] === 'café',
+      legacyBigInt: legacy.amount.toString(),
+      stableRoundTrip: S.encode(decoded) === payload
+    };
+  });
+  assert.deepEqual(result, {
+    framed: true,
+    amount: '900719925474099312345',
+    markerRemainsObject: true,
+    nestedMarkerRemainsObject: true,
+    dangerousOwnKey: true,
+    noPrototypePollution: true,
+    arrayBigInt: '1',
+    nestedBigInt: '2',
+    unicodeNfc: true,
+    legacyBigInt: '9007199254740993',
+    stableRoundTrip: true
+  });
+  await context.close();
+});
+
+test('V2 decoder rejects malformed tagged nodes and non-canonical object key order', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/test.html');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(() => {
+    const decode = window.ANASResilientStorage.decode;
+    const malformed = [
+      'ANASERP2:["i","01"]',
+      'ANASERP2:["n",-0]',
+      'ANASERP2:["o",[["z",["n",1]],["a",["n",2]]]]',
+      'ANASERP2:["unknown",[]]'
+    ];
+    return malformed.map(payload => {
+      try { decode(payload); return false; }
+      catch (error) { return error instanceof TypeError || error instanceof SyntaxError; }
+    });
+  });
+  assert.deepEqual(result, [true, true, true, true]);
+  await context.close();
+});
