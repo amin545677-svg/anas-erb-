@@ -72,5 +72,5 @@ const report = {
   files: [...new Set(checks.map(x => x.file))],
   indexSha256: crypto.createHash('sha256').update(read('index.html')).digest('hex')
 };
-process.stdout.write('STAGING_READINESS_REPORT ' + JSON.stringify(report) + '\\n');
+process.stdout.write('STAGING_READINESS_REPORT ' + JSON.stringify(report) + '\n');
 // Keep this verifier dependency-free so CI can run it before installing emulator tooling.
