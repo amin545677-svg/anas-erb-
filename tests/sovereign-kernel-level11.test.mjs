@@ -142,8 +142,8 @@ test("semantic rebase recalculates WAC from V1 and quarantines overselling witho
     opId: "sale-B-oversell", type: "SALE",
     payload: { productId: "carton", quantityMicroUnits: 16_000_000n }
   };
-  const rejected = reconcileCausally(v1, [oversale], applyInventoryDomainMutation);
-  assert.equal(rejected.snapshot.products[0].stockMicroUnits, 20_000_000n);
+  const rejected = reconcileCausally(rebased.snapshot, [oversale], applyInventoryDomainMutation);
+  assert.equal(rejected.snapshot.products[0].stockMicroUnits, 15_000_000n);
   assert.equal(rejected.quarantine[0].reason, "NEGATIVE_INVENTORY_MICRO_UNITS");
   assert.equal(v1.products[0].stockMicroUnits, 20_000_000n);
 });
