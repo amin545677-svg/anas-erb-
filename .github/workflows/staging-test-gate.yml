@@ -51,6 +51,8 @@ jobs:
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check
       - name: V42 integrity audit
         run: node scripts/audit-pr263-v42-integrity.mjs
+      - name: Zero-float financial path, RBAC and idempotency audit
+        run: node scripts/audit-zero-float-financial-paths.mjs
       - name: Set up Java for the Firestore Emulator
         uses: actions/setup-java@v4
         with:
