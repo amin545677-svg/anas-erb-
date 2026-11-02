@@ -164,11 +164,10 @@
       }
       return decoded;
     }
-    // V1 compatibility: retain the historical BigInt marker decoder only for
-    // unframed legacy payloads. New writes can never emit this ambiguous form.
-    return JSON.parse(value, (_, v) => v && typeof v === 'object' &&
-      Object.keys(v).length === 1 && typeof v.__anas_bigint_v1__ === 'string'
-      ? BigInt(v.__anas_bigint_v1__) : v);
+    // V1 payloads are ambiguous: an ordinary user object can exactly mimic
+    // the historical BigInt marker. Never reinterpret user data as a primitive.
+    // New BigInt writes use the unambiguous ANASERP2 framed node format above.
+    return JSON.parse(value);
   }
   function fastChecksum(payload) {
     let hash = 0x811c9dc5;

@@ -539,7 +539,8 @@ test('V2 framed serialization round-trips BigInt without confusing user objects 
       arrayBigInt: decoded.array[0].toString(),
       nestedBigInt: decoded.array[3].amount.toString(),
       unicodeNfc: decoded.array[2] === 'café',
-      legacyBigInt: legacy.amount.toString(),
+      legacyMarkerRemainsOrdinaryObject: typeof legacy.amount === 'object' &&
+        legacy.amount.__anas_bigint_v1__ === '9007199254740993',
       stableRoundTrip: S.encode(decoded) === payload
     };
   });
@@ -553,7 +554,7 @@ test('V2 framed serialization round-trips BigInt without confusing user objects 
     arrayBigInt: '1',
     nestedBigInt: '2',
     unicodeNfc: true,
-    legacyBigInt: '9007199254740993',
+    legacyMarkerRemainsOrdinaryObject: true,
     stableRoundTrip: true
   });
   await context.close();
@@ -647,6 +648,78 @@ test('concurrent saves serialize checksum, revision allocation, LocalStorage and
     localMirrorMatches: true,
     metadataMatches: true,
     decodedAmount: '400'
+  });
+  await context.close();
+});
+
+
+test('mid-write LocalStorage crash injection recovers the last committed IndexedDB snapshot exactly', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const seeded = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+    const stable = S.encode({
+      invoices: [{ id: 'CRASH-LAST-COMMITTED', totalCentimes: 2100000n }],
+      cashCentimes: 5900000n,
+      debtCentimes: 2100000n
+    });
+    await S.setSync(S.APP_KEY, stable);
+    return stable;
+  });
+  assert.ok(seeded.startsWith('ANASERP2:'));
+
+  // Inject a torn synchronous write, then terminate this document before any
+  // subsequent application recovery code can run.
+  await page.evaluate(() => {
+    const S = window.ANASResilientStorage;
+    const key = S.APP_KEY;
+    const originalSetItem = Storage.prototype.setItem;
+    const candidate = S.encode({
+      invoices: [{ id: 'CRASH-UNCOMMITTED', totalCentimes: 2100001n }],
+      cashCentimes: 5900001n,
+      debtCentimes: 2100001n
+    });
+    const torn = candidate.slice(0, Math.max(12, Math.floor(candidate.length / 2)));
+    Storage.prototype.setItem = function(name, value) {
+      if (name === key) {
+        originalSetItem.call(this, name, torn);
+        throw new DOMException('simulated power loss during LocalStorage write', 'AbortError');
+      }
+      return originalSetItem.call(this, name, value);
+    };
+    try { localStorage.setItem(key, candidate); }
+    catch (error) {
+      if (error.name !== 'AbortError') throw error;
+    } finally {
+      Storage.prototype.setItem = originalSetItem;
+    }
+  });
+  await page.reload();
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const recovered = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const result = await S.hydrate(null);
+    return {
+      recoveredFromIndexedDB: result.recoveredFromIndexedDB,
+      invoiceId: result.data.invoices[0].id,
+      invoiceCentimes: result.data.invoices[0].totalCentimes.toString(),
+      cashCentimes: result.data.cashCentimes.toString(),
+      debtCentimes: result.data.debtCentimes.toString(),
+      centimeDelta: (result.data.cashCentimes - 5900000n).toString(),
+      durableMirrorMatches: localStorage.getItem(S.APP_KEY) === S.encode(result.data)
+    };
+  });
+  assert.deepEqual(recovered, {
+    recoveredFromIndexedDB: true,
+    invoiceId: 'CRASH-LAST-COMMITTED',
+    invoiceCentimes: '2100000',
+    cashCentimes: '5900000',
+    debtCentimes: '2100000',
+    centimeDelta: '0',
+    durableMirrorMatches: true
   });
   await context.close();
 });
