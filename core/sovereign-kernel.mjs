@@ -171,9 +171,10 @@ export function applyInventoryDomainMutation(state, operation) {
   if (product.stockMicroUnits === 0n && product.inventoryValueCentimes !== 0n) {
     throw new Error("ZERO_STOCK_NONZERO_BOOK_VALUE");
   }
+  const MICRO_UNITS_PER_CARTON = 1_000_000n;
   product.wacCentimes = product.stockMicroUnits === 0n
     ? 0n
-    : (product.inventoryValueCentimes + product.stockMicroUnits / 2n) / product.stockMicroUnits;
+    : (product.inventoryValueCentimes * MICRO_UNITS_PER_CARTON + product.stockMicroUnits / 2n) / product.stockMicroUnits;
   return { stockMicroUnits: product.stockMicroUnits, inventoryValueCentimes: product.inventoryValueCentimes, wacCentimes: product.wacCentimes };
 }
 
