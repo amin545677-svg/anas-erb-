@@ -261,9 +261,24 @@
       try { global.localStorage.setItem(key, text); } catch (_) {}
       return Promise.resolve();
     }
-    const nextRevision = Math.max(revision, requestedRevision) + 1;
-    requestedRevision = nextRevision;
-    return (async () => {
+    // The complete commit (revision allocation, checksum, both durable stores,
+    // and cache publication) is serialized by persist(). Do not do async work
+    // before entering that queue: doing so allows concurrent saves to reorder.
+    return persist(text);
+  }
+  function removeSync(key) {
+    delete cache[key];
+    try { global.localStorage.removeItem(key); } catch (_) {}
+  }
+  function persist(payload, targetRevision) {
+    const task = writeQueue.then(async () => {
+      // Allocate revisions only after this operation owns the queue. An explicit
+      // recovery revision may advance the clock, but can never move it backwards.
+      const nextRevision = Number.isSafeInteger(targetRevision)
+        ? Math.max(revision, requestedRevision, targetRevision)
+        : Math.max(revision, requestedRevision) + 1;
+      requestedRevision = nextRevision;
+      const digest = await checksum(payload);
       let localPayloadPersisted = false;
       let previousPayload = null;
       let previousMeta = null;
@@ -272,16 +287,15 @@
         previousMeta = global.localStorage.getItem(META_KEY);
       } catch (_) {}
       try {
-        const digest = await checksum(text);
-        global.localStorage.setItem(APP_KEY, text);
+        global.localStorage.setItem(APP_KEY, payload);
         global.localStorage.setItem(META_KEY, JSON.stringify({
           revision: nextRevision, checksum: digest, algorithm: 'SHA-256',
           updatedAt: new Date().toISOString()
         }));
         localPayloadPersisted = true;
-      } catch (error) {
-        // A partially committed mirror is not a durable fallback. Restore the
-        // previous pair when possible; otherwise fail closed if IndexedDB also fails.
+      } catch (_) {
+        // A partial mirror is not a durable fallback. Restore the previous
+        // payload/metadata pair where possible before relying on IndexedDB.
         try {
           if (previousPayload === null) global.localStorage.removeItem(APP_KEY);
           else global.localStorage.setItem(APP_KEY, previousPayload);
@@ -291,11 +305,16 @@
         mode = 'INDEXEDDB_FALLBACK_ACTIVE';
         try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
       }
+
+      const record = {
+        key: APP_KEY, payload, revision: nextRevision,
+        checksum: digest, updatedAt: new Date().toISOString()
+      };
       try {
-        return await persist(text, nextRevision);
+        await writeIDB(record);
       } catch (error) {
         mode = localPayloadPersisted ? 'LOCALSTORAGE_FALLBACK_ACTIVE' : 'MEMORY_ONLY_DEGRADED';
-        if (localPayloadPersisted) cache[APP_KEY] = text;
+        if (localPayloadPersisted) cache[APP_KEY] = payload;
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
         const persistenceError = new Error('Durable snapshot persistence failed: ' + global.__ANAS_STORAGE_LAST_ERROR__);
         persistenceError.code = 'ANAS_STORAGE_PERSIST_FAILED';
@@ -303,26 +322,16 @@
         persistenceError.storageMode = mode;
         throw persistenceError;
       }
-    })();
-  }
-  function removeSync(key) {
-    delete cache[key];
-    try { global.localStorage.removeItem(key); } catch (_) {}
-  }
-  function persist(payload, targetRevision) {
-    const task = writeQueue.then(async () => {
-      const nextRevision = Number.isSafeInteger(targetRevision)
-        ? targetRevision : Math.max(revision, requestedRevision) + 1;
-      requestedRevision = Math.max(requestedRevision, nextRevision);
-      const record = { key: APP_KEY, payload, revision: nextRevision,
-        checksum: await checksum(payload), updatedAt: new Date().toISOString() };
-      await writeIDB(record);
+
       revision = Math.max(revision, nextRevision);
       cache[APP_KEY] = payload;
       try {
-        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: record.checksum, algorithm: 'SHA-256', updatedAt: record.updatedAt }));
+        global.localStorage.setItem(META_KEY, JSON.stringify({
+          revision, checksum: digest, algorithm: 'SHA-256',
+          updatedAt: record.updatedAt
+        }));
       } catch (_) {}
-      return { revision, checksum: record.checksum, mode };
+      return { revision, checksum: digest, mode };
     });
     writeQueue = task.catch(() => {});
     return task;
