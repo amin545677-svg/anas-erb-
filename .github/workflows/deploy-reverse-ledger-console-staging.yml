@@ -45,6 +45,8 @@ jobs:
       - name: Validate isolated hosting configuration and console sources
         run: |
           node -e "const c=require('./firebase.staging.hosting.json'); if(c.hosting.site!=='anas-erp-staging-a25e1'||c.hosting.public!=='staging-site') process.exit(1)"
+          node --check scripts/assert-staging-deployment-identity.mjs
+          node --check tests/staging_deployment_identity_guard.test.mjs
           node --test tests/staging_deployment_identity_guard.test.mjs
           node --check staging/reverse-ledger-gateway.js
           node --check reverse-ledger/reverse-ledger.js
