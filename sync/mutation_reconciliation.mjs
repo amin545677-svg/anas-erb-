@@ -1,3 +1,4 @@
+import { sha256Canonical } from "../core/sovereign-kernel.mjs";
 /**
  * Pure reconciliation primitives for the isolated ANAS ERP sync prototype.
  *
@@ -58,6 +59,8 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
   const snapshot = cloneSnapshot(cloudSnapshot);
   const applied = new Set(Array.isArray(snapshot.appliedOpIds) ? snapshot.appliedOpIds : []);
   snapshot.appliedOpIds = [...applied];
+  if (!Array.isArray(snapshot.appliedOperations)) snapshot.appliedOperations = [];
+  const appliedRecords = new Map(snapshot.appliedOperations.map(record => [record.opId, record]));
   const review = [];
   const appliedNow = [];
   const seenPending = new Set();
@@ -78,6 +81,32 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       review.push({ opId: op.opId, reason: "INVALID_PAYLOAD", operation: op });
       continue;
     }
+    let operationPayloadHash;
+    try { operationPayloadHash = sha256Canonical({ type: op.type, payload }); }
+    catch (error) {
+      review.push({ opId: op.opId, reason: error.code || "NON_CANONICAL_PAYLOAD", operation: op });
+      continue;
+    }
+    const priorAppliedRecord = appliedRecords.get(op.opId);
+    if (priorAppliedRecord) {
+      if (priorAppliedRecord.payloadHash !== operationPayloadHash) {
+        const error = new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
+        error.code = "IDEMPOTENCY_PAYLOAD_MISMATCH";
+        throw error;
+      }
+      appliedNow.push({ opId: op.opId, outcome: "folded-duplicate" });
+      continue;
+    }
+    const markApplied = () => {
+      const record = {
+        opId: op.opId,
+        payloadHash: operationPayloadHash,
+        parentStateHash: sha256Canonical(snapshot)
+      };
+      markApplied();
+      snapshot.appliedOperations.push(record);
+      appliedRecords.set(op.opId, record);
+    };
 
     if (op.type === "DEBT_COLLECTION") {
       let amount;
@@ -102,8 +131,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           String(existingMovement.customerId) === String(payload.customerId);
         const operationMatches = existingMovement.opId === op.opId;
         if (existingAmountCents === amountCents && customerMatches && operationMatches) {
-          applied.add(op.opId);
-          snapshot.appliedOpIds = [...applied];
+          markApplied();
           appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
         } else {
           review.push({ opId: op.opId, reason: "CASH_MOVEMENT_ID_COLLISION", operation: op });
@@ -142,8 +170,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       movement.id = movementId;
       movement.opId = op.opId;
       snapshot.cashMovements.push(movement);
-      applied.add(op.opId);
-      snapshot.appliedOpIds = [...applied];
+      markApplied();
       appliedNow.push({ opId: op.opId, outcome: "applied" });
       continue;
     }
@@ -181,8 +208,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         if (matchingInvoices.length === 1 &&
             existingInvoice.syncOpId === op.opId &&
             sameInvoice) {
-          applied.add(op.opId);
-          snapshot.appliedOpIds = [...applied];
+          markApplied();
           appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "VERIFIED_INVOICE_OPERATION_MARKER" });
         } else {
           review.push({ opId: op.opId, reason: "INVOICE_ID_COLLISION", operation: op });
@@ -300,8 +326,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (paidCents > 0) snapshot.caisseBalance = fromMoneyCents(cashCents + paidCents);
       // V42 uses unshift and does not create cashMovements/stockMovements in this function.
       snapshot.invoices.unshift(structuredClone(invoice));
-      applied.add(op.opId);
-      snapshot.appliedOpIds = [...applied];
+      markApplied();
       appliedNow.push({ opId: op.opId, outcome: "applied" });
       continue;
     }
