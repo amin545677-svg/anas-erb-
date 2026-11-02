@@ -36,6 +36,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install Playwright
+        run: npm install --no-save --package-lock=false playwright@1.56.1
+
       - name: Fail-closed live Staging credentials and fixture preflight
         env:
           ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
@@ -66,9 +69,6 @@ jobs:
           console.log('PASS: live fixture is valid, synthetic, project-scoped and uses unique staging operation IDs.');
           NODE
 
-      - name: Install Playwright
-        run: npm install --no-save --package-lock=false playwright@1.56.1
-
       - name: Install headless Chromium
         run: npx playwright install --with-deps chromium
 
@@ -82,7 +82,7 @@ jobs:
           ANAS_STAGING_EVIDENCE_PATH: ${{ runner.temp }}/anas-staging-live-e2e-evidence.json
         run: node scripts/verify-live-staging-e2e.mjs
 
-      - name: Upload sanitized live Staging evidence
+      - name: Upload live Staging E2E evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
