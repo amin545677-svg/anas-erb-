@@ -40,7 +40,7 @@ function parseMoneyCentsV42(value) {
   const raw = String(value).trim();
   // Parse the supplied decimal text directly. Never multiply a binary float by
   // 100: that can accept/reject values based on representation noise.
-  const match = /^(0|[1-9][0-9]*)(?:\\.([0-9]{1,2}))?$/.exec(raw);
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,2}))?$/.exec(raw);
   if (!match) return null;
   const fraction = (match[2] || "").padEnd(2, "0");
   const cents = BigInt(match[1]) * 100n + BigInt(fraction || "0");
