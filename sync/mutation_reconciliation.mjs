@@ -6,6 +6,34 @@ import { sha256Canonical } from "../core/sovereign-kernel.mjs";
  * new snapshot and explicit review items; callers must persist atomically and must
  * not upload until every operation has been reconciled or quarantined.
  */
+function normalizeForCanonicalHash(value, inArray = false) {
+  if (value === undefined) {
+    if (inArray) throw new TypeError("NON_CANONICAL_UNDEFINED_ARRAY_VALUE");
+    return undefined;
+  }
+  if (typeof value === "number" && (!Number.isFinite(value) || Object.is(value, -0))) {
+    const error = new TypeError("NON_CANONICAL_NUMERIC_VALUE");
+    error.code = "NON_CANONICAL_NUMERIC_VALUE";
+    throw error;
+  }
+  if (Array.isArray(value)) return value.map(item => normalizeForCanonicalHash(item, true));
+  if (value && typeof value === "object" && typeof value !== "bigint") {
+    const normalized = Object.create(null);
+    for (const key of Object.keys(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+        throw new TypeError("NON_CANONICAL_ACCESSOR");
+      }
+      if (descriptor.value !== undefined) normalized[key] = normalizeForCanonicalHash(descriptor.value, false);
+    }
+    return normalized;
+  }
+  return value;
+}
+function canonicalOperationHash(value) {
+  return sha256Canonical(normalizeForCanonicalHash(value));
+}
+
 function normalizeMoneyV42(value) {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) return null;
@@ -82,7 +110,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       continue;
     }
     let operationPayloadHash;
-    try { operationPayloadHash = sha256Canonical({ type: op.type, payload }); }
+    try { operationPayloadHash = canonicalOperationHash({ type: op.type, payload }); }
     catch (error) {
       review.push({ opId: op.opId, reason: error.code || "NON_CANONICAL_PAYLOAD", operation: op });
       continue;
@@ -101,7 +129,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       const record = {
         opId: op.opId,
         payloadHash: operationPayloadHash,
-        parentStateHash: sha256Canonical(snapshot)
+        parentStateHash: canonicalOperationHash(snapshot)
       };
       markApplied();
       snapshot.appliedOperations.push(record);
