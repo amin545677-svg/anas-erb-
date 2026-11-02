@@ -81,7 +81,9 @@ export function expectedPrincipalFromCredential(credential, expectedWifProvider 
   }
 
   if (credential.type === 'external_account') {
-    if (!expectedWifProvider || credential.audience !== expectedWifProvider) {
+    const canonicalAudience = expectedWifProvider.startsWith('//iam.googleapis.com/')
+      ? expectedWifProvider : '//iam.googleapis.com/' + expectedWifProvider;
+    if (!expectedWifProvider || (credential.audience !== expectedWifProvider && credential.audience !== canonicalAudience)) {
       throw new Error('Refusing deployment: OIDC audience does not match the approved staging WIF provider.');
     }
     const raw = credential.service_account_impersonation_url || '';

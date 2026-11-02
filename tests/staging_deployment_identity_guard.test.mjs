@@ -139,10 +139,11 @@ test('extracts the impersonated principal from a trusted OIDC credential', () =>
 test('rejects an OIDC credential using an untrusted impersonation endpoint', () => {
   assert.throws(() => expectedPrincipalFromCredential({
     type: 'external_account',
+    audience: 'projects/123456/locations/global/workloadIdentityPools/anas/providers/github',
     service_account_impersonation_url:
       'https://attacker.example/v1/projects/-/serviceAccounts/' +
       approvedAccount + ':generateAccessToken'
-  }), /endpoint is not trusted/);
+  }, 'projects/123456/locations/global/workloadIdentityPools/anas/providers/github'), /endpoint is not trusted/);
 });
 
 test('rejects unsupported credential types', () => {
