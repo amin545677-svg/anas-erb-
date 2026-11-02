@@ -43,3 +43,17 @@ node scripts/verify-live-staging-e2e.mjs
 The Playwright flow signs into Staging, reads the cloud snapshot, verifies the exact allocation cents, submits the three operations through the actual `#modal-reverse-ledger` UI and `executeReverseLedger` callable, checks `POSTED`, tests concurrent same-payload idempotency and changed-payload `already-exists`, then creates/restores a trusted backup and compares the snapshot hash plus exact BigInt centime/micro-unit assertions.
 
 The companion test is part of `Staging Test Gate`. It runs contract checks in ordinary CI and performs the live browser flow only when all dedicated live-test variables are explicitly present.
+
+## Dedicated GitHub Actions live verification
+
+The repository includes an explicit, manually approved workflow:
+`.github/workflows/verify-live-staging-e2e.yml`.
+
+It is restricted to `staging/unified-release-candidate`, uses the protected GitHub `staging` Environment, and does not run for pull requests or production branches. To run it after both the staging console and trusted Functions have been deployed:
+
+1. Add `ANAS_STAGING_EMAIL` and `ANAS_STAGING_PASSWORD` as GitHub Environment secrets.
+2. Add `ANAS_STAGING_E2E_FIXTURE_JSON` as a GitHub Environment secret containing the completed synthetic fixture JSON. It must contain only disposable Staging record IDs, exact expected centimes/micro-units, unique operation IDs in the `REV-STAGE-` namespace, and no `REPLACE_...` placeholders.
+3. Optionally set `ANAS_STAGING_UID` as an Environment variable or secret to pin the expected Firebase Auth UID.
+4. Open **Actions → Verify Live ANAS ERP Firebase Staging E2E → Run workflow**, select `staging/unified-release-candidate`, and explicitly choose `RUN_STAGING_FINANCIAL_E2E`.
+
+The default choice is `NO`. The workflow fails closed if credentials or the project-scoped fixture are missing or malformed. It performs real financial mutations in the isolated Staging ledger, so use fresh operation IDs and disposable synthetic invoices for each run. Evidence is uploaded as a short-retention workflow artifact. This workflow verifies the deployed live system; it does not deploy Functions or Hosting itself.
