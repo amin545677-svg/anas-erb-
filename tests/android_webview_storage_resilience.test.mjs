@@ -283,7 +283,7 @@ test('V42 saveDB escalates a total asynchronous durability failure into a fail-c
 });
 
 
-test('pre-hydration empty save cannot overwrite the validated IndexedDB BigInt snapshot', async () => {
+test('pre-hydration saveDB empty state cannot overwrite the validated IndexedDB BigInt snapshot', async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(origin + '/');
@@ -305,7 +305,9 @@ test('pre-hydration empty save cannot overwrite the validated IndexedDB BigInt s
   const result = await page.evaluate(async () => {
     const S = window.ANASResilientStorage;
     const staleEmpty = S.encode({ invoices: [], stock: [], cashCentimes: 0n });
-    const earlyWrite = S.setSync(S.APP_KEY, staleEmpty);
+    // saveDB() delegates to this adapter write in the V42 persistence path.
+    const saveDB = () => S.setSync(S.APP_KEY, staleEmpty);
+    const earlyWrite = saveDB();
     const recovered = await S.hydrate(null);
     const queued = await earlyWrite;
     const db = await new Promise((resolve, reject) => {
