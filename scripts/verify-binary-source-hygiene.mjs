@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 
 const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'buffer' })
   .toString('utf8').split('\0').filter(Boolean)
@@ -31,6 +29,11 @@ function escapedNewlineOutsideLiteral(source, file) {
     if (!file.endsWith('.yml') && c === '/' && n === '/') { lineComment = true; i++; continue; }
     if (!file.endsWith('.yml') && c === '/' && n === '*') { blockComment = true; i++; continue; }
     if (file.endsWith('.yml') && c === '#') { yamlComment = true; continue; }
+    if (!file.endsWith('.yml') && c === '/') {
+      const prefix = source.slice(0, i).trimEnd();
+      const regexMayStart = /(?:^|[=(:,!{;?&|+*%~<>-]|=>|\\b(?:return|throw|case|typeof|void|delete|instanceof|in|of|yield|await))$/.test(prefix);
+      if (regexMayStart) { regexLiteral = true; inClass = false; continue; }
+    }
     if (c === '"' || c === "'" || (!file.endsWith('.yml') && c === '`')) { quote = c; continue; }
     if (c === '\\' && n === 'n' && source[i - 1] !== '\\') return i;
   }
