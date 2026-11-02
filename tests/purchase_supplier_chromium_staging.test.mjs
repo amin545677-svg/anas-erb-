@@ -333,7 +333,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     const beforeReloadProof = await page.evaluate(() => {
       const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
       if (raw === null) throw new Error('persisted ERP snapshot is missing before reload');
-      const stored = JSON.parse(raw);
+      const stored = ANASResilientStorage.decode(raw);
       const memory = JSON.parse(JSON.stringify(AppData));
       const canonical = value => {
         if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
@@ -374,7 +374,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     const afterReloadProof = await page.evaluate(() => {
       const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
       if (raw === null) throw new Error('persisted ERP snapshot is missing after reload');
-      const stored = JSON.parse(raw);
+      const stored = ANASResilientStorage.decode(raw);
       const memory = JSON.parse(JSON.stringify(AppData));
       if (JSON.stringify(stored) !== JSON.stringify(memory)) throw new Error('AppData/localStorage mismatch after reload');
       return { raw, stored, memory };
@@ -617,7 +617,7 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     await page.reload({ waitUntil: 'domcontentloaded' });
     const reloadProof = await page.evaluate(() => {
       const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
-      const persisted = JSON.parse(raw);
+      const persisted = ANASResilientStorage.decode(raw);
       return {
         appMatchesStorage: JSON.stringify(AppData) === JSON.stringify(persisted),
         customerDebtCentimes: Math.round(Number(AppData.customers[0].debt) * 100),
@@ -673,7 +673,7 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     await page.waitForFunction(() => document.getElementById('view-dashboard')?.classList.contains('active'), null, { timeout: 10000 });
     const customerRestoreProof = await page.evaluate(() => {
       const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
-      const stored = JSON.parse(raw);
+      const stored = ANASResilientStorage.decode(raw);
       return {
         appMatchesStorage: JSON.stringify(AppData) === JSON.stringify(stored),
         debt: AppData.customers[0].debt,
