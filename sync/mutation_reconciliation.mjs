@@ -131,7 +131,8 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         payloadHash: operationPayloadHash,
         parentStateHash: canonicalOperationHash(snapshot)
       };
-      markApplied();
+      applied.add(op.opId);
+      snapshot.appliedOpIds = [...applied];
       snapshot.appliedOperations.push(record);
       appliedRecords.set(op.opId, record);
     };
