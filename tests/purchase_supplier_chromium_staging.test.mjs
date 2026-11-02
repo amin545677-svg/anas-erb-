@@ -335,7 +335,14 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       if (raw === null) throw new Error('persisted ERP snapshot is missing before reload');
       const stored = JSON.parse(raw);
       const memory = JSON.parse(JSON.stringify(AppData));
-      if (JSON.stringify(stored) !== JSON.stringify(memory)) throw new Error('AppData/localStorage mismatch before reload');
+      const canonical = value => {
+        if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+        if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(key =>
+          JSON.stringify(key) + ':' + canonical(value[key])
+        ).join(',') + '}';
+        return JSON.stringify(value);
+      };
+      if (canonical(stored) !== canonical(memory)) throw new Error('AppData/localStorage mismatch before reload');
       return { raw, stored, memory };
     });
     const beforeReload = beforeReloadProof.stored;
