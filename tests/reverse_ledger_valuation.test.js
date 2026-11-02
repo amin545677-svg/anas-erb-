@@ -114,3 +114,25 @@ test('purchase return rejects stock overdraw and inconsistent zero-stock valuati
   assert.equal(fullRemoval.nextInventoryValueCentimes,0n);
   assert.equal(fullRemoval.nextWeightedAverageCostCentimes,0n);
 });
+
+test('prime-divisor seven-lot floor allocation conserves every centime and micro-unit', () => {
+  const totalValue = 1000000n;
+  const totalQuantity = 7000000n;
+  let allocatedValue = 0n;
+  let allocatedQuantity = 0n;
+  const deltas = [];
+  for (let i = 0; i < 7; i++) {
+    const delta = V.cumulativeFloorDeltaCentimes(
+      totalValue, totalQuantity, allocatedQuantity, 1000000n
+    );
+    deltas.push(delta);
+    allocatedValue += delta;
+    allocatedQuantity += 1000000n;
+  }
+  assert.equal(deltas.reduce((sum, value) => sum + value, 0n), 1000000n);
+  assert.equal(allocatedValue, totalValue);
+  assert.equal(allocatedQuantity, totalQuantity);
+  assert.equal(totalValue - allocatedValue, 0n);
+  assert.equal(totalQuantity - allocatedQuantity, 0n);
+  assert.deepEqual(deltas, [142857n, 142857n, 142857n, 142857n, 142857n, 142857n, 142858n]);
+});

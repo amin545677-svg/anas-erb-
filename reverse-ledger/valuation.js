@@ -41,6 +41,24 @@ function cumulativeValueCentimes(originalLineTotalCentimes, originalQuantityMicr
   return roundHalfUpRatio(total * cumulativeQty, originalQty);
 }
 
+// Floor-based cumulative allocation for contractual lot-split valuation.
+// The telescoping deltas guarantee that the final slice absorbs the exact remainder.
+function cumulativeFloorValueCentimes(totalCentimes, totalMicroUnits, cumulativeMicroUnits) {
+  const total = nonNegative(totalCentimes, 'total centimes');
+  const basis = positive(totalMicroUnits, 'total micro-units');
+  const cumulative = nonNegative(cumulativeMicroUnits, 'cumulative micro-units');
+  if (cumulative > basis) throw new Error('cumulative quantity exceeds original quantity');
+  return (total * cumulative) / basis;
+}
+function cumulativeFloorDeltaCentimes(totalCentimes, totalMicroUnits, previouslyAllocatedMicroUnits, deltaMicroUnits) {
+  const basis = positive(totalMicroUnits, 'total micro-units');
+  const previous = nonNegative(previouslyAllocatedMicroUnits, 'previously allocated micro-units');
+  const delta = positive(deltaMicroUnits, 'delta micro-units');
+  if (previous > basis || delta > basis - previous) throw new Error('allocation exceeds remaining quantity');
+  return cumulativeFloorValueCentimes(totalCentimes, basis, previous + delta)
+    - cumulativeFloorValueCentimes(totalCentimes, basis, previous);
+}
+
 function cumulativeDeltaCentimes(originalLineTotalCentimes, originalQuantityMicroUnits,
   previouslyReturnedMicroUnits, returnQuantityMicroUnits) {
   const originalQty = positive(originalQuantityMicroUnits, 'original quantity');
