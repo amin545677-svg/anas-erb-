@@ -568,7 +568,10 @@ test('V2 decoder rejects malformed tagged nodes and non-canonical object key ord
     const decode = window.ANASResilientStorage.decode;
     const malformed = [
       'ANASERP2:["i","01"]',
+      'ANASERP2:["i","-0"]',
       'ANASERP2:["n",-0]',
+      'ANASERP2:["n",1.0]',
+      'ANASERP2: ["n",1]',
       'ANASERP2:["o",[["z",["n",1]],["a",["n",2]]]]',
       'ANASERP2:["unknown",[]]'
     ];
@@ -577,7 +580,7 @@ test('V2 decoder rejects malformed tagged nodes and non-canonical object key ord
       catch (error) { return error instanceof TypeError || error instanceof SyntaxError; }
     });
   });
-  assert.deepEqual(result, [true, true, true, true]);
+  assert.deepEqual(result, [true, true, true, true, true, true, true]);
   await context.close();
 });
 
