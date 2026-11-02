@@ -48,6 +48,8 @@ jobs:
       - name: Validate staging callable readiness and server-side tests
         run: |
           node scripts/check-staging-readiness.mjs
+          node --check scripts/assert-staging-deployment-identity.mjs
+          node --check tests/staging_deployment_identity_guard.test.mjs
           node --test tests/staging_deployment_identity_guard.test.mjs tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
   deploy-reverse-ledger-staging:
