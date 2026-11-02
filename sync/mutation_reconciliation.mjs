@@ -34,28 +34,34 @@ function canonicalOperationHash(value) {
   return sha256Canonical(normalizeForCanonicalHash(value));
 }
 
+function parseMoneyCentsV42(value) {
+  if ((typeof value !== "number" && typeof value !== "string") ||
+      (typeof value === "number" && (!Number.isFinite(value) || Object.is(value, -0)))) return null;
+  const raw = String(value).trim();
+  // Parse the supplied decimal text directly. Never multiply a binary float by
+  // 100: that can accept/reject values based on representation noise.
+  const match = /^(0|[1-9][0-9]*)(?:\\.([0-9]{1,2}))?$/.exec(raw);
+  if (!match) return null;
+  const fraction = (match[2] || "").padEnd(2, "0");
+  const cents = BigInt(match[1]) * 100n + BigInt(fraction || "0");
+  if (cents > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return Number(cents);
+}
 function normalizeMoneyV42(value) {
-  const num = Number(value);
-  if (!Number.isFinite(num) || num < 0) return null;
-  const scaled = num * 100;
-  const cents = Math.round(scaled);
-  // Persist and compare integer cents only. Reject hidden fractional-cent values
-  // instead of silently rounding money supplied by another device.
-  if (!Number.isSafeInteger(cents) || Math.abs(scaled - cents) > 1e-7) return null;
-  return cents / 100;
+  const cents = parseMoneyCentsV42(value);
+  return cents === null ? null : cents / 100;
 }
 function finiteAmount(value, label) {
-  const amount = normalizeMoneyV42(value);
-  if (amount === null || amount <= 0) throw new Error(`${label} must be a positive amount with at most two decimal places`);
-  return amount;
+  const cents = parseMoneyCentsV42(value);
+  if (cents === null || cents <= 0) throw new Error(`${label} must be a positive amount with at most two decimal places`);
+  return cents / 100;
 }
 function moneyCents(value) {
-  const amount = normalizeMoneyV42(value);
-  if (amount === null) return null;
-  return Math.round(amount * 100);
+  return parseMoneyCentsV42(value);
 }
 function fromMoneyCents(cents) {
-  return Math.round(cents) / 100;
+  if (!Number.isSafeInteger(cents) || cents < 0) throw new Error("Invalid safe integer money cents");
+  return cents / 100;
 }
 
 function findById(items, id) {
