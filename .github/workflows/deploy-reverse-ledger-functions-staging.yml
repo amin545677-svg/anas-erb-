@@ -94,7 +94,7 @@ jobs:
             console.log('STAGING AUTH MODE: OIDC fallback');
             require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=oidc\n');
           } else {
-            console.error('STAGING PREFLIGHT: provide FIREBASE_STAGING_SERVICE_ACCOUNT or both OIDC variables'); process.exit(1);
+            console.error('STAGING PREFLIGHT: configure either the staging-only FIREBASE_STAGING_SERVICE_ACCOUNT secret OR both staging Environment variables ANAS_STAGING_WIF_PROVIDER and ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT. Do not use production credentials. See docs/STAGING_OIDC_SETUP.md.'); process.exit(1);
           }
           NODE
 
