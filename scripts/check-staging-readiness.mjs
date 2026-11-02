@@ -40,6 +40,8 @@ requireText('functions/settlement-allocation-service.js', 'requestHash', 'Operat
 requireText('scripts/staging-grant-scope.cjs', 'ANAS_STAGING_STORE_IDS_JSON', 'Staging bootstrap requires explicit store scope');
 requireText('scripts/bootstrap-staging-account.mjs', 'tenantId: grantScope.tenantId', 'Bootstrap binds trusted tenant scope');
 requireText('scripts/bootstrap-staging-account.mjs', 'storeIds: [...grantScope.storeIds]', 'Bootstrap binds trusted store scope');
+requireText('scripts/bootstrap-staging-account.mjs', "verifiedGrant.get('tenantId') !== grantScope.tenantId", 'Bootstrap verifies tenant scope after write');
+requireText('scripts/bootstrap-staging-account.mjs', "verifiedGrant.get('storeIds')", 'Bootstrap verifies store scope after write');
 requireText('staging/reverse-ledger-gateway.js', 'executeSettlementAllocation', 'Staging gateway exposes allocation callable');
 requireText('staging/reverse-ledger-gateway.js', 'httpsCallable', 'Staging gateway uses Firebase callable transport');
 const modal = requireText('reverse-ledger/settlement-allocation-modal.js', 'ANASSettlementAllocationServer', 'Allocation modal requires trusted gateway');
