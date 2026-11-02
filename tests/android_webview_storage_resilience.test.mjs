@@ -46,13 +46,18 @@ test('Chromium keeps the synchronous LocalStorage fallback usable when Android W
     const hydrated = await S.hydrate(initial);
     const next = JSON.stringify({ appName: 'Anas ERP', invoices: [{ id: 'LOCAL-ONLY-2', total: 123 }] });
     let indexedDbWriteRejected = false;
-    try { await S.setSync(S.APP_KEY, next); } catch (_) { indexedDbWriteRejected = true; }
+    let durableFallback = false;
+    try { await S.setSync(S.APP_KEY, next); } catch (error) {
+      indexedDbWriteRejected = true;
+      durableFallback = error.durableFallback === true;
+    }
     return { hydrated: hydrated.hydrated, recoveredInvoice: hydrated.data.invoices[0].id,
       localWritePreserved: localStorage.getItem(S.APP_KEY) === next,
-      mode: S.status().mode, indexedDbWriteRejected };
+      mode: S.status().mode, indexedDbWriteRejected, durableFallback };
   });
   assert.deepEqual(result, { hydrated: true, recoveredInvoice: 'LOCAL-ONLY-1',
-    localWritePreserved: true, mode: 'LOCALSTORAGE_FALLBACK_ACTIVE', indexedDbWriteRejected: true });
+    localWritePreserved: true, mode: 'LOCALSTORAGE_FALLBACK_ACTIVE',
+    indexedDbWriteRejected: true, durableFallback: true });
   await context.close();
 });
 
@@ -218,4 +223,60 @@ test('Chromium fails closed when both IndexedDB and writable LocalStorage are un
   assert.match(result.message, /No writable durable storage is available/);
   assert.equal(result.mode, 'MEMORY_ONLY_DEGRADED');
   await context.close();
+});
+
+
+test('runtime storage loss rejects writes when neither synchronous fallback nor IndexedDB commit is available', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const initial = S.encode({ invoices: [{ id: 'RUNTIME-BASELINE', totalCentimes: 10000n }] });
+    localStorage.setItem(S.APP_KEY, initial);
+    await S.hydrate(initial);
+    const originalSetItem = Storage.prototype.setItem;
+    const originalTransaction = IDBDatabase.prototype.transaction;
+    Storage.prototype.setItem = function() {
+      throw new DOMException('simulated runtime storage denial', 'QuotaExceededError');
+    };
+    IDBDatabase.prototype.transaction = function(storeNames, mode, options) {
+      if (mode === 'readwrite') throw new DOMException('simulated IndexedDB write failure', 'UnknownError');
+      return originalTransaction.call(this, storeNames, mode, options);
+    };
+    try {
+      const next = S.encode({ invoices: [{ id: 'UNSAVED-MEMORY-ONLY', totalCentimes: 20000n }] });
+      try {
+        await S.setSync(S.APP_KEY, next);
+        return { rejected: false, mode: S.status().mode };
+      } catch (error) {
+        return {
+          rejected: true,
+          code: error.code,
+          durableFallback: error.durableFallback,
+          storageMode: error.storageMode,
+          persistedPayloadUnchanged: localStorage.getItem(S.APP_KEY) === initial
+        };
+      }
+    } finally {
+      Storage.prototype.setItem = originalSetItem;
+      IDBDatabase.prototype.transaction = originalTransaction;
+    }
+  });
+  assert.deepEqual(result, {
+    rejected: true,
+    code: 'ANAS_STORAGE_PERSIST_FAILED',
+    durableFallback: false,
+    storageMode: 'MEMORY_ONLY_DEGRADED',
+    persistedPayloadUnchanged: true
+  });
+  await context.close();
+});
+
+test('V42 saveDB escalates a total asynchronous durability failure into a fail-closed state', () => {
+  const shell = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.match(shell, /error\.durableFallback === true/);
+  assert.match(shell, /anasStartupFatalLoadError = true/);
+  assert.match(shell, /فشل التخزين الدائم في IndexedDB وLocalStorage معاً/);
 });
