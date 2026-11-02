@@ -580,3 +580,70 @@ test('V2 decoder rejects malformed tagged nodes and non-canonical object key ord
   assert.deepEqual(result, [true, true, true, true]);
   await context.close();
 });
+
+
+test('concurrent saves serialize checksum, revision allocation, LocalStorage and IndexedDB in invocation order', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+    const subtle = window.crypto.subtle;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(subtle, 'digest');
+    const originalDigest = subtle.digest.bind(subtle);
+    let delayed = false;
+    Object.defineProperty(subtle, 'digest', {
+      configurable: true,
+      value: async (algorithm, data) => {
+        const input = new TextDecoder().decode(data);
+        if (!delayed && input.includes('INV-RACE-SLOW')) {
+          delayed = true;
+          await new Promise(resolve => setTimeout(resolve, 80));
+        }
+        return originalDigest(algorithm, data);
+      }
+    });
+    try {
+      const older = S.encode({ invoices: [{ id: 'INV-RACE-SLOW', totalCentimes: 300n }] });
+      const newer = S.encode({ invoices: [{ id: 'INV-RACE-NEWER', totalCentimes: 400n }] });
+      const olderSave = S.setSync(S.APP_KEY, older);
+      const newerSave = S.setSync(S.APP_KEY, newer);
+      const [olderResult, newerResult] = await Promise.all([olderSave, newerSave]);
+      const record = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(S.DB_NAME);
+        request.onsuccess = () => {
+          const get = request.result.transaction(S.STORE_NAME, 'readonly')
+            .objectStore(S.STORE_NAME).get(S.APP_KEY);
+          get.onsuccess = () => resolve(get.result);
+          get.onerror = () => reject(get.error);
+        };
+        request.onerror = () => reject(request.error);
+      });
+      const meta = JSON.parse(localStorage.getItem(S.APP_KEY + '__META_V1'));
+      return {
+        olderRevision: olderResult.revision,
+        newerRevision: newerResult.revision,
+        persistedRevision: record.revision,
+        latestPayloadWins: record.payload === newer,
+        localMirrorMatches: localStorage.getItem(S.APP_KEY) === newer,
+        metadataMatches: meta.revision === record.revision && meta.checksum === record.checksum,
+        decodedAmount: S.decode(record.payload).invoices[0].totalCentimes.toString()
+      };
+    } finally {
+      if (originalDescriptor) Object.defineProperty(subtle, 'digest', originalDescriptor);
+      else delete subtle.digest;
+    }
+  });
+  assert.deepEqual(result, {
+    olderRevision: 1,
+    newerRevision: 2,
+    persistedRevision: 2,
+    latestPayloadWins: true,
+    localMirrorMatches: true,
+    metadataMatches: true,
+    decodedAmount: '400'
+  });
+  await context.close();
+});
