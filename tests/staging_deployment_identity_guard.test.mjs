@@ -160,3 +160,25 @@ test('staging Firebase deployments are serialized independently without cancelli
   assert.doesNotMatch(functionsWorkflow, /group:\s*anas-erp-reverse-ledger-console-staging/);
   assert.doesNotMatch(consoleWorkflow, /group:\s*anas-erp-reverse-ledger-functions-staging/);
 });
+
+test('live financial E2E workflow is manual, staging-only, explicitly confirmed and preflighted', async () => {
+  const fs = await import('node:fs/promises');
+  const workflow = await fs.readFile(
+    new URL('../.github/workflows/verify-live-staging-e2e.yml', import.meta.url), 'utf8'
+  );
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s*(?:push|pull_request):/m);
+  assert.match(workflow, /default:\s*"NO"/);
+  assert.match(workflow, /RUN_STAGING_FINANCIAL_E2E/);
+  assert.match(workflow, /github\.ref == 'refs\/heads\/staging\/unified-release-candidate'/);
+  assert.match(workflow, /environment:\s*staging/);
+  assert.match(workflow, /secrets\.ANAS_STAGING_E2E_FIXTURE_JSON/);
+  assert.match(workflow, /REPLACE_\[A-Z0-9_\]/);
+  assert.match(workflow, /REV-STAGE-/);
+  assert.ok(
+    workflow.indexOf('Install Playwright') < workflow.indexOf('Fail-closed live Staging credentials'),
+    'Playwright must be installed before importing the verifier module in fixture preflight'
+  );
+  assert.match(workflow, /verify-live-staging-e2e\.mjs/);
+  assert.match(workflow, /actions\/upload-artifact@v4/);
+});
