@@ -13,14 +13,17 @@ const fs = require('node:fs');
 const { initializeApp, applicationDefault, getApps } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { readStagingGrantScope, assertExistingGrantScope } = require('./staging-grant-scope.cjs');
 
 const PROJECT_ID = 'anas-erp-staging-a25e1';
 const email = String(process.env.ANAS_STAGING_EMAIL || '').trim().toLowerCase();
 const password = String(process.env.ANAS_STAGING_PASSWORD || '');
 const displayName = String(process.env.ANAS_STAGING_DISPLAY_NAME || 'ANAS ERP Staging Finance Tester').trim();
 const uidOverride = String(process.env.ANAS_STAGING_UID || '').trim();
+let grantScope;
 
 function requireEnv() {
+  grantScope = readStagingGrantScope(process.env);
   if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== PROJECT_ID)
     throw new Error('Refusing to bootstrap a non-Staging GCLOUD_PROJECT.');
   if (!process.env.GOOGLE_APPLICATION_CREDENTIALS || !fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS))
@@ -103,6 +106,7 @@ async function main() {
       throw new Error('Existing staging snapshot is malformed; refusing to overwrite it.');
     if (grant.exists && grant.get('uid') !== uid)
       throw new Error('Existing staging grant owner mismatch.');
+    if (grant.exists) assertExistingGrantScope(grant.data(), grantScope);
     const currentState = snapshot.exists ? JSON.parse(snapshot.get('payload')) : baseline;
     if (!currentState || typeof currentState !== 'object' || Array.isArray(currentState))
       throw new Error('Existing staging snapshot payload is not an object.');
@@ -128,6 +132,8 @@ async function main() {
     }
     transaction.set(grantRef, {
       uid, active: true, role: 'financial_manager', schemaVersion: 1,
+      tenantId: grantScope.tenantId,
+      storeIds: [...grantScope.storeIds],
       permissions,
       bootstrapManaged: true,
       updatedAt: FieldValue.serverTimestamp()
