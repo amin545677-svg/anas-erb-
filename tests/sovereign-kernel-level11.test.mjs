@@ -149,3 +149,83 @@ test("semantic rebase recalculates WAC from V1 and quarantines overselling witho
   assert.equal(rejected.quarantine[0].reason, "NEGATIVE_INVENTORY_MICRO_UNITS");
   assert.equal(v1.products[0].stockMicroUnits, 20_000_000n);
 });
+
+
+test("Arabic NFC/NFD strings and keys produce identical canonical bytes and SHA-256", () => {
+  const nfc = { "أ": "شاي الرقيم", description: "لآ", cents: 100003n };
+  const nfd = { cents: 100003n, description: "لآ".normalize("NFD"), "أ".normalize("NFD"): "شاي الرقيم".normalize("NFD") };
+  assert.equal(canonicalizeJson(nfc), canonicalizeJson(nfd));
+  assert.equal(sha256Canonical(nfc), sha256Canonical(nfd));
+  assert.throws(() => canonicalizeJson({ "أ": 1, ["أ".normalize("NFD")]: 2 }),
+    error => error.code === "NON_CANONICAL_NORMALIZED_KEY_COLLISION");
+});
+
+test("staged multi-line transaction failure preserves hash and object references", async () => {
+  const { transactStateAtomically } = await import("../core/sovereign-kernel.mjs");
+  const state = { cash: 100n, products: [{ id: "a", stock: 3n }, { id: "b", stock: 2n }] };
+  const productsRef = state.products;
+  const firstProductRef = state.products[0];
+  const before = sha256Canonical(state);
+  assert.throws(() => transactStateAtomically(state, staged => {
+    staged.products[0].stock -= 1n;
+    staged.cash += 500n;
+    staged.products[1].stock -= 3n; // deliberate failure in final line
+    if (staged.products[1].stock < 0n) throw new Error("INSUFFICIENT_STOCK");
+  }));
+  assert.equal(sha256Canonical(state), before);
+  assert.equal(state.products, productsRef);
+  assert.equal(state.products[0], firstProductRef);
+});
+
+test("tri-action causal rebase folds lost ACK, quarantines oversell, then applies independent collection", () => {
+  const { snapshot: remote } = reconcileCausally(
+    { revision: 4, cashCentimes: 0n, products: [{ id: "p", stockMicroUnits: 5n }], appliedOperations: [] },
+    [{ opId: "lost-ack", type: "COLLECTION", payload: { amountCentimes: 700n } }],
+    (state, op) => { state.cashCentimes += op.payload.amountCentimes; }
+  );
+  const queue = [
+    { opId: "lost-ack", type: "COLLECTION", payload: { amountCentimes: 700n } },
+    { opId: "stale-sale", type: "SALE", payload: { productId: "p", quantityMicroUnits: 6n } },
+    { opId: "valid-collection", type: "COLLECTION", payload: { amountCentimes: 300n } }
+  ];
+  const result = reconcileCausally(remote, queue, (state, op) => {
+    if (op.type === "SALE") {
+      const product = state.products.find(item => item.id === op.payload.productId);
+      if (!product || product.stockMicroUnits < op.payload.quantityMicroUnits) {
+        const error = new Error("INSUFFICIENT_REMOTE_STOCK_ON_REBASE");
+        error.code = "INSUFFICIENT_REMOTE_STOCK_ON_REBASE";
+        throw error;
+      }
+      product.stockMicroUnits -= op.payload.quantityMicroUnits;
+    } else state.cashCentimes += op.payload.amountCentimes;
+  });
+  assert.deepEqual(result.appliedNow, [
+    { opId: "lost-ack", outcome: "folded-duplicate" },
+    { opId: "valid-collection", outcome: "applied" }
+  ]);
+  assert.equal(result.quarantine[0].reason, "INSUFFICIENT_REMOTE_STOCK_ON_REBASE");
+  assert.equal(result.snapshot.products[0].stockMicroUnits, 5n);
+  assert.equal(result.snapshot.cashCentimes, 1000n);
+});
+
+test("13 cartons / 100003 centimes replay identically from genesis", async () => {
+  const { replayLedgerFromGenesis } = await import("../core/sovereign-kernel.mjs");
+  const genesis = { stock: 0n, inventoryValue: 0n, returns: 0n };
+  const events = [
+    { type: "BUY", qty: 13n, value: 100003n },
+    { type: "SELL", qty: 13n },
+    ...[3n, 5n, 2n, 3n].map(qty => ({ type: "RETURN", qty }))
+  ];
+  const reducer = (state, event) => {
+    if (event.type === "BUY") { state.stock += event.qty; state.inventoryValue += event.value; }
+    else if (event.type === "SELL") { state.stock -= event.qty; }
+    else { state.stock += event.qty; state.returns += event.qty; }
+  };
+  const a = replayLedgerFromGenesis(genesis, events, reducer);
+  const b = replayLedgerFromGenesis(genesis, events, reducer);
+  assert.deepEqual(a.state, b.state);
+  assert.deepEqual(a.chain, b.chain);
+  assert.equal(verifyLedgerHashChain(a.chain), true);
+  assert.equal(a.state.stock, 13n);
+  assert.equal(a.state.returns, 13n);
+});

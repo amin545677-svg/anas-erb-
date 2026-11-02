@@ -42,7 +42,8 @@ function sha256Hex(text) {
 }
 
 export function canonicalizeJson(value, seen = new WeakSet()) {
-  if (value === null || typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
+  if (value === null || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "string") return JSON.stringify(value.normalize("NFC"));
   if (typeof value === "bigint") return JSON.stringify(value.toString() + "n");
   if (typeof value === "number") {
     if (!Number.isFinite(value) || Object.is(value, -0)) {
@@ -67,13 +68,21 @@ export function canonicalizeJson(value, seen = new WeakSet()) {
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw new TypeError("NON_CANONICAL_OBJECT_PROTOTYPE");
     if (Object.getOwnPropertySymbols(value).length) throw new TypeError("NON_CANONICAL_SYMBOL_KEY");
-    const keys = Object.keys(value).sort();
+    const normalizedKeys = Object.keys(value).map(key => ({ source: key, normalized: key.normalize("NFC") }));
+    normalizedKeys.sort((a, b) => a.normalized < b.normalized ? -1 : a.normalized > b.normalized ? 1 : 0);
+    for (let i = 1; i < normalizedKeys.length; i++) {
+      if (normalizedKeys[i - 1].normalized === normalizedKeys[i].normalized) {
+        const error = new TypeError("NON_CANONICAL_NORMALIZED_KEY_COLLISION");
+        error.code = "NON_CANONICAL_NORMALIZED_KEY_COLLISION";
+        throw error;
+      }
+    }
     const pairs = [];
-    for (const key of keys) {
+    for (const { source: key, normalized } of normalizedKeys) {
       if (!Object.prototype.hasOwnProperty.call(value, key)) throw new TypeError("NON_CANONICAL_INHERITED_KEY");
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) throw new TypeError("NON_CANONICAL_ACCESSOR");
-      pairs.push(JSON.stringify(key) + ":" + canonicalizeJson(descriptor.value, seen));
+      pairs.push(JSON.stringify(normalized) + ":" + canonicalizeJson(descriptor.value, seen));
     }
     return "{" + pairs.join(",") + "}";
   } finally {
@@ -278,4 +287,42 @@ export function cumulativeFloorDeltaCentimes(totalCentimes, totalQuantity, previ
   }
   const floor = q => totalCentimes * q / totalQuantity;
   return floor(previouslyAllocated + deltaQuantity) - floor(previouslyAllocated);
+}
+
+
+/**
+ * Stage a mutation against a private structured clone. The caller's live state
+ * is untouched until all assertions pass; a thrown reducer/assertion therefore
+ * preserves both its canonical hash and every pre-existing object reference.
+ */
+export function transactStateAtomically(liveState, stageMutation, assertStaged = () => true) {
+  if (!liveState || typeof liveState !== "object" || Array.isArray(liveState) ||
+      typeof stageMutation !== "function" || typeof assertStaged !== "function") {
+    throw new TypeError("INVALID_ATOMIC_TRANSACTION_INPUT");
+  }
+  const staged = structuredClone(liveState);
+  stageMutation(staged);
+  const assertion = assertStaged(staged);
+  if (assertion === false) throw new Error("STAGED_STATE_ASSERTION_FAILED");
+  // The swap is synchronous and occurs only after staging and assertions finish.
+  for (const key of Object.keys(liveState)) delete liveState[key];
+  Object.assign(liveState, staged);
+  return liveState;
+}
+
+/** Deterministic replay from a supplied genesis snapshot, with a verifiable chain. */
+export function replayLedgerFromGenesis(genesis, entries, reducer) {
+  if (!genesis || typeof genesis !== "object" || Array.isArray(genesis) ||
+      !Array.isArray(entries) || typeof reducer !== "function") {
+    throw new TypeError("INVALID_GENESIS_REPLAY_INPUT");
+  }
+  let state = structuredClone(genesis);
+  const chain = [];
+  for (const entry of entries) {
+    const candidate = structuredClone(state);
+    reducer(candidate, structuredClone(entry));
+    state = candidate;
+    chain.push(structuredClone(entry));
+  }
+  return { state, chain: buildLedgerHashChain(chain) };
 }
