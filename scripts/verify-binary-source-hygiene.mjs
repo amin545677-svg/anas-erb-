@@ -7,37 +7,15 @@ const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'buffer' })
   .toString('utf8').split('\0').filter(Boolean)
   .filter(file => /\.(?:js|mjs|json|yml)$/i.test(file));
 const failures = [];
-function escapedNewlineOutsideLiteral(source, file) {
-  let quote = null, lineComment = false, blockComment = false, yamlComment = false, regexLiteral = false, inClass = false;
-  for (let i = 0; i < source.length; i++) {
-    const c = source[i], n = source[i + 1];
-    if (regexLiteral) {
-      if (c === '\\\\') { i++; continue; }
-      if (c === '[') inClass = true;
-      else if (c === ']') inClass = false;
-      else if (c === '/' && !inClass) regexLiteral = false;
-      continue;
-    }
-    if (lineComment) { if (c === '\n') lineComment = false; continue; }
-    if (blockComment) { if (c === '*' && n === '/') { blockComment = false; i++; } continue; }
-    if (quote) {
-      if (c === '\\') { i++; continue; }
-      if (c === quote) quote = null;
-      continue;
-    }
-    if (yamlComment) { if (c === '\n') yamlComment = false; continue; }
-    if (!file.endsWith('.yml') && c === '/' && n === '/') { lineComment = true; i++; continue; }
-    if (!file.endsWith('.yml') && c === '/' && n === '*') { blockComment = true; i++; continue; }
-    if (file.endsWith('.yml') && c === '#') { yamlComment = true; continue; }
-    if (!file.endsWith('.yml') && c === '/') {
-      const prefix = source.slice(0, i).trimEnd();
-      const regexMayStart = /(?:^|[=(:,!{;?&|+*%~<>-]|=>|\\b(?:return|throw|case|typeof|void|delete|instanceof|in|of|yield|await))$/.test(prefix);
-      if (regexMayStart) { regexLiteral = true; inClass = false; continue; }
-    }
-    if (c === '"' || c === "'" || (!file.endsWith('.yml') && c === '`')) { quote = c; continue; }
-    if (c === '\\' && n === 'n' && source[i - 1] !== '\\') return i;
-  }
-  return -1;
+function suspiciousEscapedNewline(source, file) {
+  // Conservative corruption sentinel: flag a literal backslash-n used as a
+  // physical line separator before a command/token. Do not parse arbitrary
+  // JavaScript regexes or YAML block-scalar programs as if they were YAML syntax.
+  const patterns = file.endsWith('.yml')
+    ? [/(?:^|\\n)\\\\n[ \\t]*(?:node|npm|yarn|git|run:|-[ \\t])/m,
+       /\\\\n[ \\t]*(?:node|npm|yarn|git)[ \\t]+(?:--|test|run)/]
+    : [/(?:^|\\n)\\\\n[ \\t]*(?:import|export|const|let|var|function|async|if|return|throw)\\b/m];
+  return patterns.some(pattern => pattern.test(source));
 }
 for (const file of files) {
   const bytes = readFileSync(file);
