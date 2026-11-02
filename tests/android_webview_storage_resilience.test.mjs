@@ -456,3 +456,44 @@ test('Pure-JS SHA-256 fallback matches NIST FIPS 180-4 known-answer vectors', as
   });
   await context.close();
 });
+
+
+test('canonical JSON storage rejects exceptional numbers and isolates object references across commit/read boundaries', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/test.html');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate();
+    const source = { z: 3, invoice: { total: 100003n, customer: { id: 'C1', name: 'A' } } };
+    await S.setItem(S.APP_KEY, source);
+    source.invoice.total = 999999n;
+    const first = S.getItem(S.APP_KEY);
+    first.invoice.customer.name = 'MUTATED-READ';
+    const second = S.getItem(S.APP_KEY);
+    let nanRejected = false, infinityRejected = false, negativeZeroRejected = false;
+    try { S.canonicalizeJson({ amount: NaN }); } catch (error) { nanRejected = error.code === 'NON_CANONICAL_NUMERIC_VALUE'; }
+    try { S.canonicalizeJson({ amount: Infinity }); } catch (error) { infinityRejected = error.code === 'NON_CANONICAL_NUMERIC_VALUE'; }
+    try { S.canonicalizeJson({ amount: -0 }); } catch (error) { negativeZeroRejected = error.code === 'NON_CANONICAL_NUMERIC_VALUE'; }
+    const a = { z: 1, nested: { y: 2, deep: { b: 3, a: 4 } } };
+    const b = { nested: { deep: { a: 4, b: 3 }, y: 2 }, z: 1 };
+    return {
+      savedValue: second.invoice.total.toString(),
+      readIsolation: second.invoice.customer.name,
+      deterministic: S.encode(a) === S.encode(b),
+      hashLength: (await S.checksum(S.encode(a))).replace('sha256:', '').length,
+      nanRejected, infinityRejected, negativeZeroRejected
+    };
+  });
+  assert.deepEqual(result, {
+    savedValue: '100003',
+    readIsolation: 'A',
+    deterministic: true,
+    hashLength: 64,
+    nanRejected: true,
+    infinityRejected: true,
+    negativeZeroRejected: true
+  });
+  await context.close();
+});
