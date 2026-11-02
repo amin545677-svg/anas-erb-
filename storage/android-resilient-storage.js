@@ -22,7 +22,8 @@
   let mode = 'DUAL';
 
   function canonicalizeJson(value, seen = new WeakSet()) {
-    if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
+    if (value === null || typeof value === 'boolean') return JSON.stringify(value);
+    if (typeof value === 'string') return JSON.stringify(value.normalize('NFC'));
     if (typeof value === 'bigint') return '{"__anas_bigint_v1__":' + JSON.stringify(value.toString()) + '}';
     if (typeof value === 'number') {
       if (!Number.isFinite(value) || Object.is(value, -0)) {
@@ -47,9 +48,23 @@
       const proto = Object.getPrototypeOf(value);
       if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
       if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
-      return '{' + Object.keys(value).sort().map(key => {
-        if (!Object.prototype.hasOwnProperty.call(value, key)) throw new TypeError('NON_CANONICAL_INHERITED_KEY');
-        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      const normalizedKeys = Object.keys(value).map(originalKey => ({
+        originalKey,
+        key: originalKey.normalize('NFC')
+      }));
+      const keySet = new Set();
+      for (const entry of normalizedKeys) {
+        if (keySet.has(entry.key)) {
+          const error = new TypeError('UNICODE_NFC_KEY_COLLISION');
+          error.code = 'UNICODE_NFC_KEY_COLLISION';
+          throw error;
+        }
+        keySet.add(entry.key);
+      }
+      normalizedKeys.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+      return '{' + normalizedKeys.map(({ key, originalKey }) => {
+        if (!Object.prototype.hasOwnProperty.call(value, originalKey)) throw new TypeError('NON_CANONICAL_INHERITED_KEY');
+        const descriptor = Object.getOwnPropertyDescriptor(value, originalKey);
         if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) throw new TypeError('NON_CANONICAL_ACCESSOR');
         return JSON.stringify(key) + ':' + canonicalizeJson(descriptor.value, seen);
       }).join(',') + '}';
@@ -159,34 +174,54 @@
         pendingPreHydrationWrites.push({ text, resolve, reject });
       });
     }
-    if (key !== APP_KEY) cache[key] = text;
+    if (key !== APP_KEY) {
+      cache[key] = text;
+      try { global.localStorage.setItem(key, text); } catch (_) {}
+      return Promise.resolve();
+    }
     const nextRevision = Math.max(revision, requestedRevision) + 1;
     requestedRevision = nextRevision;
-    let localPayloadPersisted = false;
-    try {
-      global.localStorage.setItem(key, text);
-      global.localStorage.setItem(META_KEY, JSON.stringify({ revision: nextRevision, checksum: fastChecksum(text), updatedAt: new Date().toISOString() }));
-      // Treat LocalStorage as a durable fallback only when both payload and its
-      // revision/checksum metadata have been committed synchronously.
-      localPayloadPersisted = true;
-    }
-    catch (error) {
-      mode = 'INDEXEDDB_FALLBACK_ACTIVE';
-      try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
-    }
-    if (key === APP_KEY) {
-      return persist(text, nextRevision).catch(error => {
+    return (async () => {
+      let localPayloadPersisted = false;
+      let previousPayload = null;
+      let previousMeta = null;
+      try {
+        previousPayload = global.localStorage.getItem(APP_KEY);
+        previousMeta = global.localStorage.getItem(META_KEY);
+      } catch (_) {}
+      try {
+        const digest = await checksum(text);
+        global.localStorage.setItem(APP_KEY, text);
+        global.localStorage.setItem(META_KEY, JSON.stringify({
+          revision: nextRevision, checksum: digest, algorithm: 'SHA-256',
+          updatedAt: new Date().toISOString()
+        }));
+        localPayloadPersisted = true;
+      } catch (error) {
+        // A partially committed mirror is not a durable fallback. Restore the
+        // previous pair when possible; otherwise fail closed if IndexedDB also fails.
+        try {
+          if (previousPayload === null) global.localStorage.removeItem(APP_KEY);
+          else global.localStorage.setItem(APP_KEY, previousPayload);
+          if (previousMeta === null) global.localStorage.removeItem(META_KEY);
+          else global.localStorage.setItem(META_KEY, previousMeta);
+        } catch (_) {}
+        mode = 'INDEXEDDB_FALLBACK_ACTIVE';
+        try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
+      }
+      try {
+        return await persist(text, nextRevision);
+      } catch (error) {
         mode = localPayloadPersisted ? 'LOCALSTORAGE_FALLBACK_ACTIVE' : 'MEMORY_ONLY_DEGRADED';
-        if (localPayloadPersisted) cache[key] = text;
+        if (localPayloadPersisted) cache[APP_KEY] = text;
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
         const persistenceError = new Error('Durable snapshot persistence failed: ' + global.__ANAS_STORAGE_LAST_ERROR__);
         persistenceError.code = 'ANAS_STORAGE_PERSIST_FAILED';
         persistenceError.durableFallback = localPayloadPersisted;
         persistenceError.storageMode = mode;
         throw persistenceError;
-      });
-    }
-    return Promise.resolve();
+      }
+    })();
   }
   function removeSync(key) {
     delete cache[key];
@@ -203,7 +238,7 @@
       revision = Math.max(revision, nextRevision);
       cache[APP_KEY] = payload;
       try {
-        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: fastChecksum(payload), updatedAt: record.updatedAt }));
+        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: record.checksum, algorithm: 'SHA-256', updatedAt: record.updatedAt }));
       } catch (_) {}
       return { revision, checksum: record.checksum, mode };
     });
@@ -221,7 +256,10 @@
         const rawMeta = global.localStorage && global.localStorage.getItem(META_KEY);
         if (rawMeta) {
           const meta = JSON.parse(rawMeta);
-          if (!Number.isSafeInteger(meta.revision) || meta.revision < 1 || meta.checksum !== fastChecksum(local)) throw new Error('local snapshot checksum mismatch');
+          const localDigest = await checksum(local);
+          const legacyChecksumValid = meta.algorithm !== 'SHA-256' && meta.checksum === fastChecksum(local);
+          if (!Number.isSafeInteger(meta.revision) || meta.revision < 1 ||
+              (meta.checksum !== localDigest && !legacyChecksumValid)) throw new Error('local snapshot checksum mismatch');
           localRevision = meta.revision;
         }
         localValid = true;
@@ -256,7 +294,7 @@
       }
       try {
         global.localStorage.setItem(APP_KEY, selected);
-        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: fastChecksum(selected), updatedAt: new Date().toISOString() }));
+        global.localStorage.setItem(META_KEY, JSON.stringify({ revision, checksum: await checksum(selected), algorithm: 'SHA-256', updatedAt: new Date().toISOString() }));
       } catch (_) {
         mode = 'INDEXEDDB_FALLBACK_ACTIVE';
         try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
