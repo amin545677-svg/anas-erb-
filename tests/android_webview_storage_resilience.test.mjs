@@ -94,6 +94,7 @@ test('Chromium dual-writes, hydrates after localStorage clear, and survives quot
   await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
   const first = await page.evaluate(async () => {
     const S = window.ANASResilientStorage;
+    await S.hydrate(null);
     const finance = {
       invoices: [{ id: 'INV-CREDIT-1', totalCentimes: 8000000n, paidCentimes: 5900000n, debtCentimes: 2100000n }],
       stock: [{ id: 'BOX-1', quantityMicroUnits: 90000000n }],
