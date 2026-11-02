@@ -80,13 +80,16 @@ export class CommittedSnapshotCache {
   }
 }
 
-export function createStateAnchor(revision, state) {
+export function createStateAnchor(revision, state, parentStateHash = "0".repeat(64)) {
   if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("INVALID_REVISION");
-  return Object.freeze({ revision, stateCanonicalHash: sha256Canonical(state) });
+  if (typeof parentStateHash !== "string" || !/^[a-f0-9]{64}$/.test(parentStateHash)) throw new Error("INVALID_PARENT_STATE_HASH");
+  return Object.freeze({ revision, stateCanonicalHash: sha256Canonical(state), parentStateHash });
 }
 
-export function assertCausalCAS({ baseRevision, baseStateHash }, currentAnchor) {
-  if (baseRevision !== currentAnchor.revision || baseStateHash !== currentAnchor.stateCanonicalHash) {
+export function assertCausalCAS({ baseRevision, baseStateHash, baseParentStateHash }, currentAnchor) {
+  if (baseRevision !== currentAnchor.revision ||
+      baseStateHash !== currentAnchor.stateCanonicalHash ||
+      baseParentStateHash !== currentAnchor.parentStateHash) {
     const error = new Error("CAUSAL_CAS_CONFLICT");
     error.code = "CAUSAL_CAS_CONFLICT";
     throw error;
@@ -139,6 +142,39 @@ export function verifyLedgerHashChain(chain) {
 
 function payloadHash(op) {
   return sha256Canonical({ type: op.type, payload: op.payload });
+}
+
+export function applyInventoryDomainMutation(state, operation) {
+  const payload = operation?.payload || {};
+  const product = (state.products || []).find(item => item && String(item.id) === String(payload.productId));
+  if (!product) throw new Error("PRODUCT_NOT_FOUND");
+  const quantity = payload.quantityMicroUnits;
+  if (typeof quantity !== "bigint" || quantity <= 0n) throw new Error("INVALID_INVENTORY_QUANTITY");
+  const stock = product.stockMicroUnits;
+  const book = product.inventoryValueCentimes;
+  if (typeof stock !== "bigint" || typeof book !== "bigint" || stock < 0n || book < 0n) {
+    throw new Error("INVALID_INVENTORY_BOOK_STATE");
+  }
+  if (operation.type === "PURCHASE") {
+    const unitCost = payload.unitCostCentimes;
+    if (typeof unitCost !== "bigint" || unitCost < 0n) throw new Error("INVALID_PURCHASE_UNIT_COST");
+    product.stockMicroUnits = stock + quantity;
+    product.inventoryValueCentimes = book + (quantity * unitCost);
+  } else if (operation.type === "SALE") {
+    if (quantity > stock) throw new Error("NEGATIVE_INVENTORY_MICRO_UNITS");
+    const allocatedCost = book * quantity / stock;
+    product.stockMicroUnits = stock - quantity;
+    product.inventoryValueCentimes = book - allocatedCost;
+  } else {
+    throw new Error("UNSUPPORTED_INVENTORY_DOMAIN_OPERATION");
+  }
+  if (product.stockMicroUnits === 0n && product.inventoryValueCentimes !== 0n) {
+    throw new Error("ZERO_STOCK_NONZERO_BOOK_VALUE");
+  }
+  product.wacCentimes = product.stockMicroUnits === 0n
+    ? 0n
+    : (product.inventoryValueCentimes + product.stockMicroUnits / 2n) / product.stockMicroUnits;
+  return { stockMicroUnits: product.stockMicroUnits, inventoryValueCentimes: product.inventoryValueCentimes, wacCentimes: product.wacCentimes };
 }
 
 export function reconcileCausally(remoteSnapshot, pending, reducer) {
