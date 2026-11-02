@@ -98,7 +98,7 @@ The workflow `Deploy Reverse Ledger Firebase Functions (Staging)` in `.github/wo
 
 The optional test-account bootstrap is a separate operation and must never be used as a deployment credential. It uses the distinct `FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT` secret only when the optional bootstrap inputs are configured; otherwise bootstrap is skipped.
 
-The workflow verifies the staging project and deployment identity, checks that the bundled engine and authorization policy exactly match the canonical source files, installs the Functions dependencies, then deploys only the staging Firestore rules plus `executeReverseLedger`, `executeSettlementAllocation`, `createTrustedReverseLedgerBackup`, and `restoreTrustedReverseLedgerBackup`.
+The workflow supports a trusted push to `staging/unified-release-candidate` and an explicit manual dispatch from that same branch. Pull-request runs execute credential-free validation only; the deploy job is gated to the trusted staging branch and the `staging` Environment. It verifies the staging project and authenticated deployment identity, checks that the bundled engine and authorization policy exactly match the canonical source files, installs the Functions dependencies, then deploys only the staging Firestore rules plus `executeReverseLedger`, `executeSettlementAllocation`, `createTrustedReverseLedgerBackup`, and `restoreTrustedReverseLedgerBackup`.
 
 No production deployment is configured. Do not put service-account JSON, private keys, or API tokens in source control or chat.
 
@@ -111,7 +111,7 @@ Deployment authentication uses the same isolated Staging OIDC variables `ANAS_ST
 - `FIREBASE_STAGING_WEB_APP_ID`: staging Web App ID.
 - `FIREBASE_STAGING_APP_CHECK_SITE_KEY`: staging App Check reCAPTCHA v3 site key.
 
-The workflow is manual-only, targets the staging Hosting site explicitly, verifies the live console and public configuration origin after deployment, and never deploys Hosting to the production project. Web App and App Check identifiers are public client configuration; service-account JSON remains secret and is never copied into the deployed console.
+The workflow supports a trusted push to `staging/unified-release-candidate` and an explicit manual dispatch from that same branch. Pull-request runs execute credential-free validation only; the deploy job is gated to the trusted staging branch, uses the `staging` Environment, targets the `anas-erp-staging-a25e1` Hosting site explicitly, verifies the live console and public configuration origin after deployment, and never deploys Hosting to the production project. Web App and App Check identifiers are public client configuration; service-account JSON remains secret and is never copied into the deployed console.
 
 ## Staging browser callable client
 
@@ -148,7 +148,8 @@ The Staging Test Gate now runs a deterministic in-memory transaction harness and
 
 Still required before enabling real posting:
 
-- Provision and verify a dedicated staging user, server-managed grant, and open financial period.
-- Add the Firebase Web SDK callable client and App Check initialization to the staging UI only.
-- Complete the Firestore Emulator backup/restore tests, including pending reservation preservation and rejection of stale backups that omit posted operations.
-- Verify the live staging function and Firestore rules with a dedicated test account before any user grant is activated.
+- Configure the dedicated GitHub `staging` Environment deployment credentials and staging Web App/App Check configuration; keep all secret values out of source control and chat.
+- Complete the actual Firebase Functions/Firestore Rules and Hosting deployments to `anas-erp-staging-a25e1`, then verify their live endpoints. Credential-free PR validation is not a deployment.
+- Provision and verify a dedicated staging user, server-managed grant, and open financial period only after the live server, rules, backup and restore paths are verified.
+- Configure the dedicated synthetic fixture and test-account secrets, then manually run `Verify Live ANAS ERP Firebase Staging E2E` from `staging/unified-release-candidate` with the explicit `RUN_STAGING_FINANCIAL_E2E` confirmation. This test performs real synthetic financial mutations and must not be run against production.
+- Complete field acceptance on a physical Android WebView device; Chromium emulation is not a substitute for device validation.
