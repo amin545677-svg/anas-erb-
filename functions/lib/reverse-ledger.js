@@ -866,7 +866,7 @@
         const sourceCost = BigInt(safeInt(source.originalSaleCostCentimes, 'original sale historical cost centimes', true));
         if (sourceQuantity !== BigInt(line.originalQuantityMicroUnits))
           throw new Error('original SALE_OUT quantity basis does not match the invoice line');
-        const sourceMovementQuantity = quantityToMicroUnits(String(Math.abs(Number(source.qty ?? source.quantity))), 'original SALE_OUT quantity');
+        const sourceMovementQuantity = quantityToMicroUnits(signedQuantity(source.qty ?? source.quantity, 'original SALE_OUT quantity').magnitude, 'original SALE_OUT quantity');
         if (sourceMovementQuantity !== sourceQuantity)
           throw new Error('original SALE_OUT movement quantity does not match its historical cost basis');
         restoredInventoryCostCentimes = cumulativeDeltaCentimes(
