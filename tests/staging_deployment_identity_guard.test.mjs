@@ -148,7 +148,15 @@ test('rejects unsupported credential types', () => {
   }), /unsupported Google credential type/);
 });
 
-test('staging Firebase deployments are serialized independently without cancelling in-flight deploys', async () => {
+test('staging deploys are serialized while PR validation is isolated from deployment concurrency', async () => {
+  const functionsWorkflow = await (await import('node:fs/promises')).readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'
+  );
+  const consoleWorkflow = await (await import('node:fs/promises')).readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
+  );
+  const isolatedGroup = (workflow, prefix) => {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\test('staging Firebase deployments are serialized independently without cancelling in-flight deploys', async () => {
   const functionsWorkflow = await (await import('node:fs/promises')).readFile(
     new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'
   );
@@ -159,6 +167,16 @@ test('staging Firebase deployments are serialized independently without cancelli
   assert.match(consoleWorkflow, /concurrency:\s*\n\s+group:\s*anas-erp-reverse-ledger-console-staging\s*\n\s+cancel-in-progress:\s*false/);
   assert.doesNotMatch(functionsWorkflow, /group:\s*anas-erp-reverse-ledger-console-staging/);
   assert.doesNotMatch(consoleWorkflow, /group:\s*anas-erp-reverse-ledger-functions-staging/);
+});');
+    assert.match(
+      workflow,
+      new RegExp('group:\\s*' + escaped + "-\\$\\{\\{\\s*github\\.event_name == 'pull_request' && format\\('pr-\\{0\\}', github\\.event\\.pull_request\\.number\\) \\|\\| 'deploy'\\s*\\}\\}\\s*\\n\\s+cancel-in-progress:\\s*false")
+    );
+  };
+  isolatedGroup(functionsWorkflow, 'anas-erp-reverse-ledger-functions-staging');
+  isolatedGroup(consoleWorkflow, 'anas-erp-reverse-ledger-console-staging');
+  assert.doesNotMatch(functionsWorkflow, /group:\\s*anas-erp-reverse-ledger-console-staging/);
+  assert.doesNotMatch(consoleWorkflow, /group:\\s*anas-erp-reverse-ledger-functions-staging/);
 });
 
 test('live financial E2E workflow is manual, staging-only, explicitly confirmed and preflighted', async () => {
