@@ -287,7 +287,7 @@ test('pre-hydration empty save cannot overwrite the validated IndexedDB BigInt s
   const page = await context.newPage();
   await page.goto(origin + '/');
   await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
-  const result = await page.evaluate(async () => {
+  await page.evaluate(async () => {
     const S = window.ANASResilientStorage;
     await S.hydrate(null);
     const durable = {
@@ -295,46 +295,44 @@ test('pre-hydration empty save cannot overwrite the validated IndexedDB BigInt s
       stock: [{ id: 'SKU-PREBOOT-1', quantityMicroUnits: 90000000n }],
       cashCentimes: 5900000n
     };
-    const durablePayload = S.encode(durable);
-    await S.setSync(S.APP_KEY, durablePayload);
+    await S.setSync(S.APP_KEY, S.encode(durable));
+  });
 
-    await pageReloadBoundary();
-    return { seeded: true };
-    async function pageReloadBoundary() {
-      // Simulate a fresh WebView document while retaining the same IndexedDB database.
-      await new Promise(resolve => setTimeout(resolve, 0));
-      const staleEmpty = S.encode({ invoices: [], stock: [], cashCentimes: 0n });
-      const earlyWrite = S.setSync(S.APP_KEY, staleEmpty);
-      const recovered = await S.hydrate(null);
-      const queued = await earlyWrite;
-      const db = await new Promise((resolve, reject) => {
-        const request = indexedDB.open(S.DB_NAME);
-        request.onsuccess = () => {
-          const tx = request.result.transaction(S.STORE_NAME, 'readonly');
-          const get = tx.objectStore(S.STORE_NAME).get(S.APP_KEY);
-          get.onsuccess = () => resolve(get.result);
-          get.onerror = () => reject(get.error);
-        };
-        request.onerror = () => reject(request.error);
-      });
-      const data = recovered.data;
-      return {
-        recoveredFromIndexedDB: recovered.recoveredFromIndexedDB,
-        discardedStaleWrite: queued.discardedAsStalePreHydrationWrite === true,
-        durablePayloadPreserved: db.payload === durablePayload,
-        checksumValid: db.checksum === await S.checksum(db.payload),
-        invoiceCentimes: data.invoices[0].totalCentimes.toString(),
-        paidCentimes: data.invoices[0].paidCentimes.toString(),
-        debtCentimes: data.invoices[0].debtCentimes.toString(),
-        stockMicroUnits: data.stock[0].quantityMicroUnits.toString(),
-        cashCentimes: data.cashCentimes.toString(),
-        centimeDelta: (data.cashCentimes - 5900000n).toString(),
-        microUnitDelta: (data.stock[0].quantityMicroUnits - 90000000n).toString()
+  // A real document reload resets the in-memory hydrated flag but preserves IndexedDB.
+  await page.reload();
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const staleEmpty = S.encode({ invoices: [], stock: [], cashCentimes: 0n });
+    const earlyWrite = S.setSync(S.APP_KEY, staleEmpty);
+    const recovered = await S.hydrate(null);
+    const queued = await earlyWrite;
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(S.DB_NAME);
+      request.onsuccess = () => {
+        const tx = request.result.transaction(S.STORE_NAME, 'readonly');
+        const get = tx.objectStore(S.STORE_NAME).get(S.APP_KEY);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
       };
-    }
+      request.onerror = () => reject(request.error);
+    });
+    const data = recovered.data;
+    return {
+      recoveredFromIndexedDB: recovered.recoveredFromIndexedDB,
+      discardedStaleWrite: queued.discardedAsStalePreHydrationWrite === true,
+      durablePayloadPreserved: db.payload === S.encode(data),
+      checksumValid: db.checksum === await S.checksum(db.payload),
+      invoiceCentimes: data.invoices[0].totalCentimes.toString(),
+      paidCentimes: data.invoices[0].paidCentimes.toString(),
+      debtCentimes: data.invoices[0].debtCentimes.toString(),
+      stockMicroUnits: data.stock[0].quantityMicroUnits.toString(),
+      cashCentimes: data.cashCentimes.toString(),
+      centimeDelta: (data.cashCentimes - 5900000n).toString(),
+      microUnitDelta: (data.stock[0].quantityMicroUnits - 90000000n).toString()
+    };
   });
   assert.deepEqual(result, {
-    seeded: true,
     recoveredFromIndexedDB: true,
     discardedStaleWrite: true,
     durablePayloadPreserved: true,
