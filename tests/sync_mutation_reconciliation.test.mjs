@@ -39,7 +39,10 @@ test("replaying the same operation ID is idempotent", () => {
   assert.equal(twice.snapshot.caisseBalance, 59000);
   assert.equal(twice.snapshot.customers[0].debt, 21000);
   assert.equal(twice.snapshot.cashMovements.filter(m => m.id === "cm_991").length, 1);
-  assert.deepEqual(twice.appliedNow, [{ opId: "op-deviceB-collection-5000", outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" }]);
+  assert.deepEqual(twice.appliedNow, [{ opId: "op-deviceB-collection-5000", outcome: "folded-duplicate" }]);
+  assert.equal(twice.snapshot.appliedOperations.length, 1);
+  assert.match(twice.snapshot.appliedOperations[0].payloadHash, /^[a-f0-9]{64}$/);
+  assert.match(twice.snapshot.appliedOperations[0].parentStateHash, /^[a-f0-9]{64}$/);
 });
 
 test("quarantines a sale when cloud stock is insufficient but still replays a safe collection", () => {
@@ -256,4 +259,23 @@ test("quarantines appliedOpIds markers when their durable business entity is mis
   assert.equal(saleResult.snapshot.products[0].stock, 90);
   assert.equal(saleResult.snapshot.caisseBalance, 54000);
   assert.equal(saleResult.snapshot.invoices.some(item => item.id === sale.payload.invoice.id), false);
+});
+
+
+test("same opId with a changed canonical payload is a hard idempotency mismatch", () => {
+  const original = collection("K_LOST_ACK");
+  const once = reconcilePendingMutations(cloud(), [original]);
+  const changed = { ...original, payload: { ...original.payload, amount: 5001 } };
+  assert.throws(() => reconcilePendingMutations(once.snapshot, [changed]),
+    error => error.code === "IDEMPOTENCY_PAYLOAD_MISMATCH");
+});
+
+test("applied operation records are bound to the canonical payload and causal parent", () => {
+  const original = cloud();
+  const result = reconcilePendingMutations(original, [collection("K_CAUSAL")]);
+  const record = result.snapshot.appliedOperations.find(item => item.opId === "K_CAUSAL");
+  assert.ok(record);
+  assert.equal(record.payloadHash.length, 64);
+  assert.equal(record.parentStateHash.length, 64);
+  assert.equal(original.appliedOperations, undefined, "source snapshot remains unchanged");
 });
