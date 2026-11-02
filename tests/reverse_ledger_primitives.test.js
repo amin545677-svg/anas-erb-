@@ -479,3 +479,33 @@ test('explicit sale, purchase and invoice-cancellation operations delegate to th
  assert.equal(cancelled.invoices[0].status,'CANCELLED');
  assert.equal(R.validateReverseLedgerParity(cancelled),true);
 });
+
+
+test('signed fractional stock quantities reconcile exactly in the sale-return ledger', () => {
+ const state=saleReturnState();
+ state.customers[0].debt=0.10;
+ state.invoices[0].total=0.15;
+ state.invoices[0].paid=0.05;
+ state.invoices[0].remaining=0.10;
+ state.invoices[0].items[0].qty=1.5;
+ state.cashMovements[0].amount=0.05;
+ state.stockMovements[0].qty=-1.5;
+ state.stockMovements[0].originalSaleQuantityMicroUnits=1500000;
+ state.stockMovements[0].originalSaleCostCentimes=15;
+
+ const doc=R.executeReturnTransaction(state,{
+  originalInvoiceType:'sales_invoice',
+  returnType:'SALE_RETURN',
+  invoiceId:'INV-RET',
+  items:[{productId:'P-RET',quantity:'0.5'}],
+  settlementMode:'cash',
+  reason:'fractional stock quantity'
+ },{createId:()=> 'RET-SALE-FRACTIONAL',persist:()=>true});
+
+ assert.equal(doc.items[0].quantityMicroUnits,500000);
+ assert.equal(doc.totalCentimes,5);
+ assert.equal(doc.items[0].restoredInventoryCostCentimes,5);
+ assert.equal(state.stockMovements[0].qty,0.5);
+ assert.equal(state.products[0].stock,0.5);
+ assert.equal(R.validateReverseLedgerParity(state),true);
+});
