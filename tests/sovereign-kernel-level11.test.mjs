@@ -4,7 +4,7 @@ import {
   canonicalizeJson, sha256Canonical, CommittedSnapshotCache,
   createStateAnchor, assertCausalCAS, reconcileCausally,
   assertAlgebraicZeroSumInvariant, buildLedgerHashChain, verifyLedgerHashChain,
-  cumulativeFloorDeltaCentimes
+  cumulativeFloorDeltaCentimes, applyInventoryDomainMutation
 } from "../core/sovereign-kernel.mjs";
 
 test("JCS canonicalization is key-order invariant through three nested levels", () => {
@@ -45,11 +45,16 @@ test("committed cache isolates writes and reads and advances only after durable 
 });
 
 test("cryptographic CAS rejects same revision from a different history fork", () => {
-  const anchorA = createStateAnchor(5, { cash: 100n, branch: "A" });
-  const anchorB = createStateAnchor(5, { cash: 100n, branch: "B" });
-  assert.throws(() => assertCausalCAS({ baseRevision: 5, baseStateHash: anchorA.stateCanonicalHash }, anchorB),
+  const state = { cash: 100n };
+  const anchorA = createStateAnchor(5, state, "a".repeat(64));
+  const anchorB = createStateAnchor(5, state, "b".repeat(64));
+  assert.throws(() => assertCausalCAS({
+    baseRevision: 5, baseStateHash: anchorA.stateCanonicalHash, baseParentStateHash: anchorA.parentStateHash
+  }, anchorB),
     error => error.code === "CAUSAL_CAS_CONFLICT");
-  assert.equal(assertCausalCAS({ baseRevision: 5, baseStateHash: anchorA.stateCanonicalHash }, anchorA), true);
+  assert.equal(assertCausalCAS({
+    baseRevision: 5, baseStateHash: anchorA.stateCanonicalHash, baseParentStateHash: anchorA.parentStateHash
+  }, anchorA), true);
 });
 
 test("lost ACK followed by HTTP 409 folds matching opId and rejects changed payload", () => {
@@ -110,4 +115,35 @@ test("zero-sum invariant rejects a one-centime discrepancy", () => {
     cash: 1n, inventoryValue: 0n, customerReceivables: 0n,
     customerCredits: 0n, supplierPayables: 0n, recognizedNetMargin: 0n, wacVariance: 0n
   }), error => error.code === "ALGEBRAIC_ZERO_SUM_VIOLATION" && error.delta === 1n);
+});
+
+
+test("semantic rebase recalculates WAC from V1 and quarantines overselling without changing V1", () => {
+  const v0 = { revision: 0, products: [{
+    id: "carton", stockMicroUnits: 10_000_000n,
+    inventoryValueCentimes: 1_000_000n, wacCentimes: 100_000n
+  }], appliedOperations: [] };
+  const purchase = {
+    opId: "purchase-A", type: "PURCHASE",
+    payload: { productId: "carton", quantityMicroUnits: 10_000_000n, unitCostCentimes: 200_000n }
+  };
+  const v1 = reconcileCausally(v0, [purchase], applyInventoryDomainMutation).snapshot;
+  assert.equal(v1.products[0].stockMicroUnits, 20_000_000n);
+  assert.equal(v1.products[0].wacCentimes, 150_000n);
+  const safeSale = {
+    opId: "sale-B-safe", type: "SALE",
+    payload: { productId: "carton", quantityMicroUnits: 5_000_000n }
+  };
+  const rebased = reconcileCausally(v1, [safeSale], applyInventoryDomainMutation);
+  assert.equal(rebased.snapshot.products[0].stockMicroUnits, 15_000_000n);
+  assert.equal(rebased.snapshot.products[0].inventoryValueCentimes, 2_250_000n);
+  assert.equal(rebased.snapshot.products[0].wacCentimes, 150_000n);
+  const oversale = {
+    opId: "sale-B-oversell", type: "SALE",
+    payload: { productId: "carton", quantityMicroUnits: 16_000_000n }
+  };
+  const rejected = reconcileCausally(v1, [oversale], applyInventoryDomainMutation);
+  assert.equal(rejected.snapshot.products[0].stockMicroUnits, 20_000_000n);
+  assert.equal(rejected.quarantine[0].reason, "NEGATIVE_INVENTORY_MICRO_UNITS");
+  assert.equal(v1.products[0].stockMicroUnits, 20_000_000n);
 });
