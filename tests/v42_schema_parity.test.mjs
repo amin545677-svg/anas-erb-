@@ -191,6 +191,7 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
 function paritySnapshot(value) {
   const copy = structuredClone(value);
   delete copy.appliedOpIds;
+  delete copy.appliedOperations; // cryptographic replay metadata is not V42 business state
   delete copy.cashMovements;
   delete copy.stockMovements;
   delete copy.clientMovements;
