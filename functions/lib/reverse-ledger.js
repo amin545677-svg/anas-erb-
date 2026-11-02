@@ -47,7 +47,7 @@
   const quantityToMicroUnits = (value, label) => decimalUnits(value, 1000000, label);
   function signedQuantity(value, label) {
     const raw = String(value ?? '').trim();
-    const match = /^([+-]?)(0|[1-9][0-9]*)(?:\\.([0-9]{1,6}))?$/.exec(raw);
+    const match = /^([+-]?)(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/.exec(raw);
     if (!match) throw new Error(label + ': invalid signed decimal quantity');
     const magnitude = match[2] + (match[3] ? '.' + match[3] : '');
     const sign = match[2] === '0' && !(match[3] || '').replace(/0/g, '')
