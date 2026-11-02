@@ -27,6 +27,12 @@
     if (!Number.isSafeInteger(v)) throw new Error(label + ': unsafe integer');
     return BigInt(v);
   };
+  const toSafeIntegerNumber = (value, label) => {
+    const exact = asBigInt(value, label);
+    if (exact < 0n || exact > BigInt(Number.MAX_SAFE_INTEGER))
+      throw new Error(label + ': exceeds the safe integer serialization range');
+    return Number(exact);
+  };
   function decimalUnits(value, scale, label) {
     if ((typeof value !== 'number' && typeof value !== 'string') || value === null || String(value).trim() === '')
       throw new Error(label + ': invalid decimal');
@@ -789,9 +795,9 @@
       totalCentimes += lineTotal;
       if (totalCentimes > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('return total exceeds the safe financial range');
       lines.push({
-        productId, quantityMicroUnits: Number(quantity), unitPriceCentimes: Number(unitPrice),
-        lineTotalCentimes: Number(lineTotal), originalLineTotalCentimes: Number(originalLineTotal),
-        originalQuantityMicroUnits: Number(originalQuantity), previouslyReturnedMicroUnits: Number(previousQuantity)
+        productId, quantityMicroUnits: toSafeIntegerNumber(quantity, 'return quantity micro-units'), unitPriceCentimes: toSafeIntegerNumber(unitPrice, 'return unit price centimes'),
+        lineTotalCentimes: toSafeIntegerNumber(lineTotal, 'return line total centimes'), originalLineTotalCentimes: toSafeIntegerNumber(originalLineTotal, 'original line total centimes'),
+        originalQuantityMicroUnits: toSafeIntegerNumber(originalQuantity, 'original quantity micro-units'), previouslyReturnedMicroUnits: toSafeIntegerNumber(previousQuantity, 'previously returned quantity micro-units')
       });
     }
     if (returnType === 'INVOICE_CANCEL') {
@@ -971,21 +977,21 @@
       }
       for (const delta of stockDeltas) {
         const {product,line,nextUnits,warehouse,nextWacCentimes,restoredInventoryCostCentimes,inventoryBookValueCentimes,valuationVarianceCentimes} = delta;
-        const nextValue = Number(nextUnits) / 1000000;
+        const nextValue = toSafeIntegerNumber(nextUnits, 'next stock quantity micro-units') / 1000000;
         if (warehouse === 'المخزن الرئيسي') product.stock = nextValue;
         else {
           if (!product.warehouseStock) product.warehouseStock = {};
           product.warehouseStock[warehouse] = nextValue;
         }
-        product.buyPrice = Number(nextWacCentimes) / 100;
+        product.buyPrice = toSafeIntegerNumber(nextWacCentimes, 'next weighted average cost centimes') / 100;
         const stockId = movementId('STOCK');
         state.stockMovements.unshift({
           id:stockId, productId:line.productId, productName:product.name || product.title || line.productId,
-          qty:(originalInvoiceType === 'sales_invoice' ? 1 : -1) * (Number(BigInt(line.quantityMicroUnits))/1000000),
+          qty:(originalInvoiceType === 'sales_invoice' ? 1 : -1) * (toSafeIntegerNumber(BigInt(line.quantityMicroUnits), 'stock movement quantity micro-units')/1000000),
           type:originalInvoiceType === 'sales_invoice' ? 'RETURN_IN' : 'RETURN_OUT',
           referenceType, referenceId:returnId, warehouse, date:createdAt,
-          restoredInventoryCostCentimes:Number(restoredInventoryCostCentimes),
-          inventoryBookValueCentimes:Number(inventoryBookValueCentimes),
+          restoredInventoryCostCentimes:toSafeIntegerNumber(restoredInventoryCostCentimes, 'restored inventory cost centimes'),
+          inventoryBookValueCentimes:toSafeIntegerNumber(inventoryBookValueCentimes, 'inventory book value centimes'),
           valuationVarianceCentimes:Number(valuationVarianceCentimes),
           note:(returnType === 'INVOICE_CANCEL' ? 'عكس كامل للفاتورة ' : 'مرتجع مرتبط بالفاتورة ') + String(invoice.id)
         });
@@ -999,55 +1005,55 @@
             party.ledgerVersion = 2;
             if (partyDebt > 0n) state.clientMovements.push({...makeClientMovement({
               movementId:movementId('CLIENT-OPEN'), clientId:partyId, type:'opening_balance',
-              amountCentimes:Number(partyDebt), direction:'debit', referenceType:'opening_balance',
+              amountCentimes:toSafeIntegerNumber(partyDebt, 'party debt centimes'), direction:'debit', referenceType:'opening_balance',
               referenceId:partyId, createdAt
             }),ledgerVersion:2});
           }
-          party.debt = Number(partyDebt - debtReduction) / 100;
+          party.debt = toSafeIntegerNumber(partyDebt - debtReduction, 'remaining party debt centimes') / 100;
           const clientMovementId = movementId('CLIENT-RETURN');
           state.clientMovements.push({...makeClientMovement({
             movementId:clientMovementId, clientId:partyId, type:'return_credit',
-            amountCentimes:Number(debtReduction), direction:'credit',
+            amountCentimes:toSafeIntegerNumber(debtReduction, 'debt reduction centimes'), direction:'credit',
             referenceType, referenceId:returnId, createdAt
           }),ledgerVersion:2});
           financialMovementIds.push(clientMovementId);
         } else {
-          party.balance = Number(partyDebt - debtReduction) / 100;
+          party.balance = toSafeIntegerNumber(partyDebt - debtReduction, 'remaining party debt centimes') / 100;
         }
       }
       if (party && customerCredit > 0n) {
-        party.creditBalanceCentimes = Number(partyCredit + customerCredit);
+        party.creditBalanceCentimes = toSafeIntegerNumber(partyCredit + customerCredit, 'customer credit balance centimes');
         const creditId = movementId('CUSTOMER-CREDIT');
         state.customerCreditMovements.push({
-          id:creditId, type:'credit', customerId:partyId, amountCentimes:Number(customerCredit),
+          id:creditId, type:'credit', customerId:partyId, amountCentimes:toSafeIntegerNumber(customerCredit, 'customer credit centimes'),
           referenceType, referenceId:returnId, date:createdAt
         });
         financialMovementIds.push(creditId);
       }
-      if (party && supplierCredit > 0n) party.creditBalanceCentimes = Number(partyCredit + supplierCredit);
+      if (party && supplierCredit > 0n) party.creditBalanceCentimes = toSafeIntegerNumber(partyCredit + supplierCredit, 'supplier credit balance centimes');
       if (partyType === 'supplier' && party && (debtReduction > 0n || supplierCredit > 0n)) {
         const supplierMovementId = movementId('SUPPLIER-RETURN');
         const supplierAmount = debtReduction + supplierCredit;
         state.supplierMovements.unshift({
           id:supplierMovementId, supplierId:partyId, supplierName:String(party.name || ''),
-          type:'return_credit', amount:Number(supplierAmount)/100, referenceType, referenceId:returnId,
+          type:'return_credit', amount:toSafeIntegerNumber(supplierAmount, 'supplier return amount centimes')/100, referenceType, referenceId:returnId,
           date:createdAt, note:'قيد دائن لمرتجع فاتورة شراء'
         });
         financialMovementIds.push(supplierMovementId);
       }
       if (cashRefund > 0n) {
         const cashMovementId = movementId('CASH');
-        state.caisseBalance = Number(cashAfter) / 100;
+        state.caisseBalance = toSafeIntegerNumber(cashAfter, 'cash balance centimes') / 100;
         state.cashMovements.unshift({
           id:cashMovementId, type:originalInvoiceType === 'sales_invoice' ? 'subtract' : 'add',
-          amount:Number(cashRefund)/100,
+          amount:toSafeIntegerNumber(cashRefund, 'cash refund centimes')/100,
           description:(originalInvoiceType === 'sales_invoice' ? 'رد قيمة مرتجع مبيعات ' : 'استرداد مرتجع مشتريات ') + String(invoice.id),
           referenceType, referenceId:returnId, date:createdAt,
           userId:state.currentUser?.id != null ? String(state.currentUser.id) : null,
           userName:state.currentUser?.name || 'غير محدد'
         });
         financialMovementIds.push(cashMovementId);
-      } else if (cashAfter !== cashBefore) state.caisseBalance = Number(cashAfter)/100;
+      } else if (cashAfter !== cashBefore) state.caisseBalance = toSafeIntegerNumber(cashAfter, 'cash balance centimes')/100;
       if (returnType === 'INVOICE_CANCEL') invoice.status = 'CANCELLED';
       const doc = makeReturnDocument({
         returnId, originalInvoiceId:String(invoice.id), originalInvoiceType, returnType,
@@ -1060,9 +1066,9 @@
             inventoryBookValueCentimes:Number(valuation.inventoryBookValueCentimes),
             valuationVarianceCentimes:Number(valuation.valuationVarianceCentimes)
           };
-        }), totalCentimes:Number(totalCentimes),
-        debtReductionCentimes:Number(debtReduction), cashRefundCentimes:Number(cashRefund),
-        supplierCreditCentimes:Number(supplierCredit), customerCreditCentimes:Number(customerCredit),
+        }), totalCentimes:toSafeIntegerNumber(totalCentimes, 'return total centimes'),
+        debtReductionCentimes:toSafeIntegerNumber(debtReduction, 'debt reduction centimes'), cashRefundCentimes:toSafeIntegerNumber(cashRefund, 'cash refund centimes'),
+        supplierCreditCentimes:toSafeIntegerNumber(supplierCredit, 'supplier credit centimes'), customerCreditCentimes:toSafeIntegerNumber(customerCredit, 'customer credit centimes'),
         stockMovementIds, financialMovementIds, status:'POSTED', createdAt, operatorId, reason
       });
       state.returns.push({...doc,ledgerVersion:2});
