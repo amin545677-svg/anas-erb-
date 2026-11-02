@@ -5,7 +5,7 @@ const MAX_STORE_IDS = 32;
 function cleanId(value, label, max = 160) {
   if (typeof value !== 'string') throw new Error(label + ' must be a string');
   const id = value.trim();
-  if (!id || id.length > max || /[\\u0000-\\u001f\\u007f]/.test(id)) {
+  if (!id || id.length > max || /[\u0000-\u001f\u007f]/.test(id)) {
     throw new Error(label + ' is invalid');
   }
   return id;
@@ -37,10 +37,11 @@ function assertExistingGrantScope(grant, expected) {
     throw new Error('Existing staging grant belongs to a different tenant; refusing to rewrite its scope');
   }
   if (grant.storeIds != null) {
-    if (!Array.isArray(grant.storeIds) ||
-        grant.storeIds.some(value => typeof value !== 'string') ||
-        grant.storeIds.length !== expected.storeIds.length ||
-        [...grant.storeIds].sort().some((value, index) => value !== [...expected.storeIds].sort()[index])) {
+    const existingStores = Array.isArray(grant.storeIds) ? [...grant.storeIds].sort() : null;
+    const expectedStores = [...expected.storeIds].sort();
+    if (!existingStores || existingStores.some(value => typeof value !== 'string') ||
+        existingStores.length !== expectedStores.length ||
+        existingStores.some((value, index) => value !== expectedStores[index])) {
       throw new Error('Existing staging grant has a different store scope; refusing to rewrite its scope');
     }
   }
