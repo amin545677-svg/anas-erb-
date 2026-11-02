@@ -1,0 +1,92 @@
+name: Verify Live ANAS ERP Firebase Staging E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_financial_mutations:
+        description: "This test posts synthetic returns and settlement allocations to the isolated Staging ledger."
+        required: true
+        type: choice
+        default: "NO"
+        options:
+          - "NO"
+          - "RUN_STAGING_FINANCIAL_E2E"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anas-erp-live-staging-financial-e2e
+  cancel-in-progress: false
+
+jobs:
+  live-staging-e2e:
+    if: github.ref == 'refs/heads/staging/unified-release-candidate' && inputs.confirm_financial_mutations == 'RUN_STAGING_FINANCIAL_E2E'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: staging
+    steps:
+      - name: Checkout the unified staging candidate
+        uses: actions/checkout@v4
+        with:
+          ref: staging/unified-release-candidate
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fail-closed live Staging credentials and fixture preflight
+        env:
+          ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
+          ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
+          ANAS_STAGING_E2E_FIXTURE_JSON: ${{ secrets.ANAS_STAGING_E2E_FIXTURE_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "$ANAS_STAGING_EMAIL" || { echo "::error::Missing ANAS_STAGING_EMAIL in GitHub staging Environment."; exit 1; }
+          test -n "$ANAS_STAGING_PASSWORD" || { echo "::error::Missing ANAS_STAGING_PASSWORD in GitHub staging Environment."; exit 1; }
+          test -n "$ANAS_STAGING_E2E_FIXTURE_JSON" || { echo "::error::Missing ANAS_STAGING_E2E_FIXTURE_JSON in GitHub staging Environment."; exit 1; }
+          fixture="$RUNNER_TEMP/anas-staging-live-e2e-fixture.json"
+          printf '%s' "$ANAS_STAGING_E2E_FIXTURE_JSON" > "$fixture"
+          chmod 600 "$fixture"
+          node --input-type=module - "$fixture" <<'NODE'
+          import fs from 'node:fs';
+          import { validateFixture } from './scripts/verify-live-staging-e2e.mjs';
+          const path = process.argv[2];
+          const raw = fs.readFileSync(path, 'utf8');
+          const fixture = JSON.parse(raw);
+          if (fixture.projectId !== 'anas-erp-staging-a25e1') throw new Error('Fixture is not scoped to the isolated Staging project.');
+          if (/REPLACE_[A-Z0-9_]+/.test(raw)) throw new Error('Fixture still contains unresolved placeholder values.');
+          const ids = fixture.operations.map(row => row?.request?.operationId);
+          if (new Set(ids).size !== ids.length) throw new Error('Fixture operation IDs must be unique.');
+          if (ids.some(id => typeof id !== 'string' || !/^REV-STAGE-[A-Za-z0-9._:-]{8,140}$/.test(id))) {
+            throw new Error('Every operation ID must use the dedicated REV-STAGE- namespace.');
+          }
+          validateFixture(fixture);
+          console.log('PASS: live fixture is valid, synthetic, project-scoped and uses unique staging operation IDs.');
+          NODE
+
+      - name: Install Playwright
+        run: npm install --no-save --package-lock=false playwright@1.56.1
+
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Execute real Staging UI-to-callable financial E2E
+        env:
+          ANAS_STAGING_URL: https://anas-erp-staging-a25e1.web.app
+          ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
+          ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
+          ANAS_STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
+          ANAS_STAGING_E2E_FIXTURE: ${{ runner.temp }}/anas-staging-live-e2e-fixture.json
+          ANAS_STAGING_EVIDENCE_PATH: ${{ runner.temp }}/anas-staging-live-e2e-evidence.json
+        run: node scripts/verify-live-staging-e2e.mjs
+
+      - name: Upload sanitized live Staging evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: anas-erp-live-staging-e2e-evidence
+          path: ${{ runner.temp }}/anas-staging-live-e2e-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
