@@ -37,6 +37,9 @@ requireText('functions/settlement-allocation-service.js', 'PERMISSIONS.SETTLEMEN
 requireText('functions/settlement-allocation-service.js', 'ReverseLedger.sealSettlementAllocation', 'Allocation seals immutable ledger records');
 requireText('functions/settlement-allocation-service.js', "status: 'POSTED'", 'Operation is committed as POSTED');
 requireText('functions/settlement-allocation-service.js', 'requestHash', 'Operation idempotency hash is enforced');
+requireText('scripts/staging-grant-scope.cjs', 'ANAS_STAGING_STORE_IDS_JSON', 'Staging bootstrap requires explicit store scope');
+requireText('scripts/bootstrap-staging-account.mjs', 'tenantId: grantScope.tenantId', 'Bootstrap binds trusted tenant scope');
+requireText('scripts/bootstrap-staging-account.mjs', 'storeIds: [...grantScope.storeIds]', 'Bootstrap binds trusted store scope');
 requireText('staging/reverse-ledger-gateway.js', 'executeSettlementAllocation', 'Staging gateway exposes allocation callable');
 requireText('staging/reverse-ledger-gateway.js', 'httpsCallable', 'Staging gateway uses Firebase callable transport');
 const modal = requireText('reverse-ledger/settlement-allocation-modal.js', 'ANASSettlementAllocationServer', 'Allocation modal requires trusted gateway');
