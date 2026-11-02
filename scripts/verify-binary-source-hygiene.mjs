@@ -10,9 +10,16 @@ const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'buffer' })
   .filter(file => /\.(?:js|mjs|json|yml)$/i.test(file));
 const failures = [];
 function escapedNewlineOutsideLiteral(source, file) {
-  let quote = null, lineComment = false, blockComment = false, yamlComment = false;
+  let quote = null, lineComment = false, blockComment = false, yamlComment = false, regexLiteral = false, inClass = false;
   for (let i = 0; i < source.length; i++) {
     const c = source[i], n = source[i + 1];
+    if (regexLiteral) {
+      if (c === '\\\\') { i++; continue; }
+      if (c === '[') inClass = true;
+      else if (c === ']') inClass = false;
+      else if (c === '/' && !inClass) regexLiteral = false;
+      continue;
+    }
     if (lineComment) { if (c === '\n') lineComment = false; continue; }
     if (blockComment) { if (c === '*' && n === '/') { blockComment = false; i++; } continue; }
     if (quote) {

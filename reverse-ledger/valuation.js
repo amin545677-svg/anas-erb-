@@ -132,6 +132,8 @@ module.exports = Object.freeze({
   roundHalfUpRatio,
   cumulativeValueCentimes,
   cumulativeDeltaCentimes,
+  cumulativeFloorValueCentimes,
+  cumulativeFloorDeltaCentimes,
   saleReturnInventoryValuation,
   purchaseReturnInventoryValuation
 });
