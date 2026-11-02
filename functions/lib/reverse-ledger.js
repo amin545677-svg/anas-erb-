@@ -39,6 +39,15 @@
   }
   const currencyToCentimes = (value, label) => decimalUnits(value, 100, label);
   const quantityToMicroUnits = (value, label) => decimalUnits(value, 1000000, label);
+  function signedQuantity(value, label) {
+    const raw = String(value ?? '').trim();
+    const match = /^([+-]?)(0|[1-9][0-9]*)(?:\\.([0-9]{1,6}))?$/.exec(raw);
+    if (!match) throw new Error(label + ': invalid signed decimal quantity');
+    const magnitude = match[2] + (match[3] ? '.' + match[3] : '');
+    const sign = match[2] === '0' && !(match[3] || '').replace(/0/g, '')
+      ? 0 : (match[1] === '-' ? -1 : 1);
+    return { sign, magnitude };
+  }
   const roundHalfUpRatio = (numerator, denominator) => {
     const n = asBigInt(numerator, 'valuation numerator');
     const d = asBigInt(denominator, 'valuation denominator');
@@ -497,7 +506,7 @@
           const sourceQuantity = BigInt(safeInt(saleOutRows[0].originalSaleQuantityMicroUnits, 'original sale quantity micro-units', false));
           const sourceCost = BigInt(safeInt(saleOutRows[0].originalSaleCostCentimes, 'original sale historical cost centimes', true));
           if (sourceQuantity !== originalQty ||
-              quantityToMicroUnits(String(Math.abs(Number(saleOutRows[0].qty ?? saleOutRows[0].quantity))), 'original SALE_OUT quantity') !== sourceQuantity)
+              quantityToMicroUnits(signedQuantity(saleOutRows[0].qty ?? saleOutRows[0].quantity, 'original SALE_OUT quantity').magnitude, 'original SALE_OUT quantity') !== sourceQuantity)
             throw new Error('original SALE_OUT cost basis does not match the original invoice line');
           if (doc.status === 'POSTED') {
             const expectedRestoredCost = cumulativeDeltaCentimes(
@@ -553,12 +562,12 @@
             String(matchesStock[0].productId) !== String(doc.items[i].productId))
           throw new Error('posted return stock movement is missing or mismatched');
         const rawQty = matchesStock[0].qty ?? matchesStock[0].quantity;
-        const numericQty = Number(rawQty);
+        const signedQty = signedQuantity(rawQty, 'return stock movement quantity');
         const expectedSign = doc.originalInvoiceType === 'sales_invoice' ? 1 : -1;
         const expectedMovementType = expectedSign > 0 ? 'RETURN_IN' : 'RETURN_OUT';
-        if (!Number.isFinite(numericQty) || numericQty === 0 || Math.sign(numericQty) !== expectedSign || matchesStock[0].type !== expectedMovementType)
+        if (signedQty.sign !== expectedSign || matchesStock[0].type !== expectedMovementType)
           throw new Error('posted return stock movement has an invalid direction or movement type');
-        const movementQty = quantityToMicroUnits(String(Math.abs(numericQty)), 'return stock movement quantity');
+        const movementQty = quantityToMicroUnits(signedQty.magnitude, 'return stock movement quantity');
         if (movementQty !== BigInt(doc.items[i].quantityMicroUnits))
           throw new Error('posted return stock quantity does not match return document');
         const item = doc.items[i];
