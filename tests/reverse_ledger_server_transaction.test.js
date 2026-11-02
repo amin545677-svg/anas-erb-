@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { createReverseLedgerHandler } = require('../functions/reverse-ledger-service.js');
 
 class FakeHttpsError extends Error {
-  constructor(code, message) { super(message); this.code = code; }
+  constructor(code, message, details) { super(message); this.code = code; this.details = details; }
 }
 
 function makeRef(path) {
@@ -32,9 +32,15 @@ class MemoryFirestore {
     this.records = new Map(Object.entries(seed));
     this.commitCount = 0;
     this.failCommit = false;
+    this.transactionQueue = Promise.resolve();
   }
   collection(name) { return { doc: id => makeRef(name + '/' + id) }; }
   async runTransaction(callback) {
+    let release;
+    const previous = this.transactionQueue;
+    this.transactionQueue = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
     const writes = [];
     const tx = {
       get: async ref => new FakeSnapshot(ref, this.records.get(ref.path)),
@@ -54,6 +60,9 @@ class MemoryFirestore {
     this.records = next;
     if (writes.length) this.commitCount++;
     return result;
+    } finally {
+      release();
+    }
   }
   read(path) { return this.records.get(path); }
 }
@@ -221,4 +230,27 @@ test('a failed Firestore commit cannot partially persist the snapshot or operati
   assert.equal(db.read('users/firebase-user-1/snapshots/latest').payload, before);
   assert.equal(db.read('reverseLedgerOperations/REV-OP-00000001').status, 'RESERVED');
   assert.equal(db.commitCount, 0);
+});
+
+test('five concurrent identical requests post one financial mutation and replay one result', async () => {
+  const { db, handler, request } = fixture();
+  const results = await Promise.all(Array.from({ length: 5 }, () => handler(request)));
+  for (const result of results) assert.deepEqual(result, results[0]);
+  assert.equal(db.commitCount, 1);
+  assert.equal(JSON.parse(db.read('users/firebase-user-1/snapshots/latest').payload).returns.length, 1);
+  assert.equal(db.read('reverseLedgerOperations/REV-OP-00000001').status, 'POSTED');
+});
+
+test('same idempotency key with changed financial payload fails closed with explicit mismatch code', async () => {
+  const { db, handler, request } = fixture();
+  await handler(request);
+  const before = db.read('users/firebase-user-1/snapshots/latest').payload;
+  await assert.rejects(() => handler({
+    ...request,
+    data: { ...request.data, items: [{ productId: 'P-1', quantity: '2' }] }
+  }), error => error.code === 'already-exists' &&
+    error.details?.code === 'IDEMPOTENCY_PAYLOAD_MISMATCH' &&
+    /IDEMPOTENCY_PAYLOAD_MISMATCH/.test(error.message));
+  assert.equal(db.read('users/firebase-user-1/snapshots/latest').payload, before);
+  assert.equal(db.commitCount, 1);
 });

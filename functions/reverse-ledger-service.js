@@ -82,7 +82,7 @@ function createReverseLedgerHandler({
         }
         if (previousOperation.status === 'POSTED') {
           if (previousOperation.requestHash !== requestHash || !previousOperation.result) {
-            throw new HttpsError('already-exists', 'operationId was already used for a different reverse request.');
+            throw new HttpsError('already-exists', 'IDEMPOTENCY_PAYLOAD_MISMATCH: operationId was already used for a different reverse request.', { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' });
           }
           return previousOperation.result;
         }
