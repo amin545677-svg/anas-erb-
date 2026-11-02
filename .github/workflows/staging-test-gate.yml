@@ -47,6 +47,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Syntax-check every repository script and test module
+        run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check
       - name: V42 integrity audit
         run: node scripts/audit-pr263-v42-integrity.mjs
       - name: Set up Java for the Firestore Emulator
