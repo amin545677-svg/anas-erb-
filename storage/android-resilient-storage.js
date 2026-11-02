@@ -21,10 +21,41 @@
   let writeQueue = Promise.resolve();
   let mode = 'DUAL';
 
-  function encode(value) {
-    return JSON.stringify(value, (_, v) => typeof v === 'bigint'
-      ? { __anas_bigint_v1__: v.toString() } : v);
+  function canonicalizeJson(value, seen = new WeakSet()) {
+    if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'bigint') return '{"__anas_bigint_v1__":' + JSON.stringify(value.toString()) + '}';
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || Object.is(value, -0)) {
+        const error = new TypeError('NON_CANONICAL_NUMERIC_VALUE');
+        error.code = 'NON_CANONICAL_NUMERIC_VALUE';
+        throw error;
+      }
+      return JSON.stringify(value);
+    }
+    if (typeof value !== 'object') throw new TypeError('NON_CANONICAL_JSON_TYPE');
+    if (seen.has(value)) throw new TypeError('NON_CANONICAL_CYCLE');
+    seen.add(value);
+    try {
+      if (Array.isArray(value)) {
+        const items = [];
+        for (let i = 0; i < value.length; i++) {
+          if (!Object.prototype.hasOwnProperty.call(value, i)) throw new TypeError('NON_CANONICAL_ARRAY_HOLE');
+          items.push(canonicalizeJson(value[i], seen));
+        }
+        return '[' + items.join(',') + ']';
+      }
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
+      if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
+      return '{' + Object.keys(value).sort().map(key => {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) throw new TypeError('NON_CANONICAL_INHERITED_KEY');
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) throw new TypeError('NON_CANONICAL_ACCESSOR');
+        return JSON.stringify(key) + ':' + canonicalizeJson(descriptor.value, seen);
+      }).join(',') + '}';
+    } finally { seen.delete(value); }
   }
+  function encode(value) { return canonicalizeJson(value); }
   function decode(value) {
     return JSON.parse(value, (_, v) => v && typeof v === 'object' &&
       Object.keys(v).length === 1 && typeof v.__anas_bigint_v1__ === 'string'
@@ -128,7 +159,7 @@
         pendingPreHydrationWrites.push({ text, resolve, reject });
       });
     }
-    cache[key] = text;
+    if (key !== APP_KEY) cache[key] = text;
     const nextRevision = Math.max(revision, requestedRevision) + 1;
     requestedRevision = nextRevision;
     let localPayloadPersisted = false;
@@ -146,6 +177,7 @@
     if (key === APP_KEY) {
       return persist(text, nextRevision).catch(error => {
         mode = localPayloadPersisted ? 'LOCALSTORAGE_FALLBACK_ACTIVE' : 'MEMORY_ONLY_DEGRADED';
+        if (localPayloadPersisted) cache[key] = text;
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
         const persistenceError = new Error('Durable snapshot persistence failed: ' + global.__ANAS_STORAGE_LAST_ERROR__);
         persistenceError.code = 'ANAS_STORAGE_PERSIST_FAILED';
@@ -253,6 +285,8 @@
 
   global.ANASResilientStorage = Object.freeze({
     APP_KEY, DB_NAME, STORE_NAME, getSync, setSync, removeSync, hydrate, persist,
-    ready, status, encode, decode, checksum, fastChecksum
+    getItem(key) { const text = getSync(key); return text == null ? null : decode(text); },
+    setItem(key, value) { return setSync(key, encode(value)); },
+    ready, status, encode, decode, canonicalizeJson, checksum, fastChecksum
   });
 })(window);
