@@ -135,17 +135,19 @@ function buildAuthorizationOperation(request, invoice, postedDocument, state) {
     throw new Error('invoice is not sealed in the version-2 ledger; reconcile it before reverse posting');
   }
   toCentimes(state.caisseBalance ?? 0, 'cash balance');
-  const creditIssueCentimes = Number(postedDocument.customerCreditCentimes || 0) +
-    Number(postedDocument.supplierCreditCentimes || 0);
-  if (!Number.isSafeInteger(creditIssueCentimes) || creditIssueCentimes < 0) {
+  const creditIssueCentimesExact = BigInt(postedDocument.customerCreditCentimes || 0) +
+    BigInt(postedDocument.supplierCreditCentimes || 0);
+  if (creditIssueCentimesExact < 0n || creditIssueCentimesExact > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error('reverse credit amount is invalid');
   }
-  const purchaseReturnQuantityMicroUnits = request.returnType === 'PURCHASE_RETURN'
-    ? postedDocument.items.reduce((sum, item) => sum + item.quantityMicroUnits, 0)
-    : 0;
-  if (!Number.isSafeInteger(purchaseReturnQuantityMicroUnits)) {
+  const creditIssueCentimes = Number(creditIssueCentimesExact);
+  const purchaseReturnQuantityExact = request.returnType === 'PURCHASE_RETURN'
+    ? postedDocument.items.reduce((sum, item) => sum + BigInt(item.quantityMicroUnits), 0n)
+    : 0n;
+  if (purchaseReturnQuantityExact < 0n || purchaseReturnQuantityExact > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error('purchase return quantity exceeds the safe range');
   }
+  const purchaseReturnQuantityMicroUnits = Number(purchaseReturnQuantityExact);
   return {
     type: request.returnType,
     operationId: request.operationId,
@@ -171,15 +173,19 @@ function authorizePreparedReverseOperation({ projectId, uid, token, grant, perio
   const invoiceRows = request.originalInvoiceType === 'sales_invoice' ? state.invoices : state.purchases;
   const invoice = invoiceRows.find(row => row && String(row.id) === request.invoiceId);
   const warehouse = String(invoice && (invoice.warehouseName || invoice.warehouse) || 'المخزن الرئيسي').trim();
-  const stockAvailableMicroUnits = request.returnType === 'PURCHASE_RETURN'
+  const stockAvailableExact = request.returnType === 'PURCHASE_RETURN'
     ? postedDocument.items.reduce((sum, item) => {
         const product = state.products.find(row => row && String(row.id) === item.productId);
         if (!product) throw new Error('purchase return product is missing');
         const current = warehouse === 'المخزن الرئيسي'
           ? product.stock ?? 0 : product.warehouseStock?.[warehouse] ?? 0;
-        return sum + toMicroUnits(current, 'available warehouse stock');
-      }, 0)
-    : 0;
+        return sum + BigInt(toMicroUnits(current, 'available warehouse stock'));
+      }, 0n)
+    : 0n;
+  if (stockAvailableExact < 0n || stockAvailableExact > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('available stock exceeds the safe integer range');
+  }
+  const stockAvailableMicroUnits = Number(stockAvailableExact);
   return authorizeReverseOperation({
     projectId,
     auth: {
