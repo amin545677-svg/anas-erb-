@@ -165,9 +165,26 @@
       return decoded;
     }
     // V1 payloads are ambiguous: an ordinary user object can exactly mimic
-    // the historical BigInt marker. Never reinterpret user data as a primitive.
-    // New BigInt writes use the unambiguous ANASERP2 framed node format above.
-    return JSON.parse(value);
+    // the historical BigInt marker. Reject that exact legacy shape instead of
+    // coercing it to BigInt. New BigInt writes use ANASERP2 framed nodes above.
+    const legacy = JSON.parse(value);
+    const rejectAmbiguousMarker = node => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const item of node) rejectAmbiguousMarker(item);
+        return;
+      }
+      const keys = Object.keys(node);
+      if (keys.length === 1 && keys[0] === '__anas_bigint_v1__' &&
+          typeof node.__anas_bigint_v1__ === 'string') {
+        const error = new TypeError('AMBIGUOUS_LEGACY_BIGINT_MARKER');
+        error.code = 'AMBIGUOUS_LEGACY_BIGINT_MARKER';
+        throw error;
+      }
+      for (const key of keys) rejectAmbiguousMarker(node[key]);
+    };
+    rejectAmbiguousMarker(legacy);
+    return legacy;
   }
   function fastChecksum(payload) {
     let hash = 0x811c9dc5;

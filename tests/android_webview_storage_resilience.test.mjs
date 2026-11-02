@@ -526,7 +526,9 @@ test('V2 framed serialization round-trips BigInt without confusing user objects 
     };
     const payload = S.encode(source);
     const decoded = S.decode(payload);
-    const legacy = S.decode('{"amount":{"__anas_bigint_v1__":"9007199254740993"}}');
+    let legacyMarkerRejected = false;
+    try { S.decode('{"amount":{"__anas_bigint_v1__":"9007199254740993"}}'); }
+    catch (error) { legacyMarkerRejected = error.code === 'AMBIGUOUS_LEGACY_BIGINT_MARKER'; }
     return {
       framed: payload.startsWith('ANASERP2:'),
       amount: decoded.amount.toString(),
@@ -539,8 +541,7 @@ test('V2 framed serialization round-trips BigInt without confusing user objects 
       arrayBigInt: decoded.array[0].toString(),
       nestedBigInt: decoded.array[3].amount.toString(),
       unicodeNfc: decoded.array[2] === 'café',
-      legacyMarkerRemainsOrdinaryObject: typeof legacy.amount === 'object' &&
-        legacy.amount.__anas_bigint_v1__ === '9007199254740993',
+      legacyMarkerRejected,
       stableRoundTrip: S.encode(decoded) === payload
     };
   });
@@ -554,7 +555,7 @@ test('V2 framed serialization round-trips BigInt without confusing user objects 
     arrayBigInt: '1',
     nestedBigInt: '2',
     unicodeNfc: true,
-    legacyMarkerRemainsOrdinaryObject: true,
+    legacyMarkerRejected: true,
     stableRoundTrip: true
   });
   await context.close();
