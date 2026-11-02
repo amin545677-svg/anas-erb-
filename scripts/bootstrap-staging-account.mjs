@@ -152,6 +152,9 @@ async function main() {
   if (verifiedUser.disabled || claims.canPostReverseLedger !== true ||
       claims.canPostSettlementAllocation !== true || !verifiedSnapshot.exists ||
       verifiedGrant.get('active') !== true ||
+      verifiedGrant.get('tenantId') !== grantScope.tenantId ||
+      !Array.isArray(verifiedGrant.get('storeIds')) ||
+      JSON.stringify([...verifiedGrant.get('storeIds')].sort()) !== JSON.stringify([...grantScope.storeIds].sort()) ||
       !permissions.every(permission => verifiedGrant.get('permissions').includes(permission)) ||
       verifiedPeriod.get('status') !== 'OPEN' || !verifiedAudit.exists)
     throw new Error('Staging bootstrap read-back verification failed.');
