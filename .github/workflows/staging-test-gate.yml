@@ -51,6 +51,8 @@ jobs:
         run: node scripts/verify-binary-source-hygiene.mjs
       - name: Syntax-check every repository script and test module
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check
+      - name: Level 9 adversarial identity, valuation and idempotency proofs
+        run: node --test tests/staging_deployment_identity_guard.test.mjs tests/reverse_ledger_valuation.test.js tests/reverse_ledger_server_transaction.test.js
       - name: V42 integrity audit
         run: node scripts/audit-pr263-v42-integrity.mjs
       - name: Zero-float financial path, RBAC and idempotency audit
