@@ -153,7 +153,7 @@ test("semantic rebase recalculates WAC from V1 and quarantines overselling witho
 
 test("Arabic NFC/NFD strings and keys produce identical canonical bytes and SHA-256", () => {
   const nfc = { "أ": "شاي الرقيم", description: "لآ", cents: 100003n };
-  const nfd = { cents: 100003n, description: "لآ".normalize("NFD"), "أ".normalize("NFD"): "شاي الرقيم".normalize("NFD") };
+  const nfd = { cents: 100003n, description: "لآ".normalize("NFD"), ["أ".normalize("NFD")]: "شاي الرقيم".normalize("NFD") };
   assert.equal(canonicalizeJson(nfc), canonicalizeJson(nfd));
   assert.equal(sha256Canonical(nfc), sha256Canonical(nfd));
   assert.throws(() => canonicalizeJson({ "أ": 1, ["أ".normalize("NFD")]: 2 }),
