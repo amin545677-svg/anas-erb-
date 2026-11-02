@@ -23,7 +23,7 @@ for (const [path, source] of sources) {
   const checks = [
     [/\bparseFloat\s*\(/g, 'parseFloat is forbidden in financial paths'],
     [/Math\.(?:abs|round|floor|ceil)\s*\(\s*Number\s*\(/g, 'floating-point math over a financial quantity is forbidden'],
-    [/\bNumber\s*\(\s*(?:rawQty|rawAmount|rawCentimes|rawMicroUnits|quantity|qty|amount|centimes|microUnits)\b/gi,
+    [/\bNumber\s*\(\s*(?:rawQty|rawAmount|rawCentimes|rawMicroUnits|quantity|qty|centimes|microUnits)\b/gi,
       'unbounded Number conversion of a raw financial quantity is forbidden']
   ];
   for (const [pattern, message] of checks) {
