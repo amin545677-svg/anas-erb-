@@ -132,7 +132,28 @@ async function installHarness(page, { firstPushConflict = false, cloudV1 = null 
       const response = await fetch("/__mock-cloud/pull");
       return response.json();
     };
-    const orchestrator = createMutationQueueOrchestrator({ storage: localStorage, pullCloud, pushCloud });
+    // The V42 storage adapter persists AppData as ANASERP2 frames, while the
+    // isolated transactional bridge intentionally consumes canonical JSON.
+    // Give the bridge a narrow compatibility facade instead of parsing framed
+    // durable bytes as JSON or bypassing the application's codec.
+    const bridgeStorage = {
+      getItem(key) {
+        const raw = localStorage.getItem(key);
+        if (key === "ANAS_THE_ENTERPRISE_V11_OFFLINE" && typeof raw === "string" && raw.startsWith("ANASERP2:")) {
+          return JSON.stringify(window.ANASResilientStorage.decode(raw));
+        }
+        return raw;
+      },
+      setItem(key, value) {
+        if (key === "ANAS_THE_ENTERPRISE_V11_OFFLINE") {
+          const parsed = JSON.parse(String(value));
+          return localStorage.setItem(key, window.ANASResilientStorage.encode(parsed));
+        }
+        return localStorage.setItem(key, value);
+      },
+      removeItem(key) { return localStorage.removeItem(key); }
+    };
+    const orchestrator = createMutationQueueOrchestrator({ storage: bridgeStorage, pullCloud, pushCloud });
     const onQuarantine = items => {
       let node = document.getElementById("sync-quarantine-alert");
       if (!node) {
@@ -145,7 +166,7 @@ async function installHarness(page, { firstPushConflict = false, cloudV1 = null 
     };
     window.__browserInstaller = installV42RuntimeWiring({
       windowObject: window,
-      storage: localStorage,
+      storage: bridgeStorage,
       orchestrator,
       getAppData: () => AppData,
       setAppData: value => { AppData = value; },
@@ -231,7 +252,7 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
     collectCustDebt("cust-browser-1");
   });
   const beforeSync = await page.evaluate(() => ({
-    app: JSON.parse(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
+    app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
     queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
   }));
   assert.equal(beforeSync.queue.length, 1);
@@ -240,7 +261,7 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   const sync = await page.evaluate(() => window.anasFirebasePush());
   assert.equal(sync.status, "synced");
   const finalState = await page.evaluate(() => ({
-    app: JSON.parse(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
+    app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
     queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1")),
     renderedDebt: document.getElementById("custDebtsContainer")?.textContent || ""
   }));
@@ -289,7 +310,7 @@ test("real page reload recovers PREPARED mutation before reconciliation", async 
   const result = await page.evaluate(() => window.anasFirebasePush());
   assert.equal(result.status, "synced");
   const recovered = await page.evaluate(() => ({
-    app: JSON.parse(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
+    app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
     queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
   }));
   assert.equal(recovered.app.caisseBalance, 51000.5);
@@ -326,7 +347,7 @@ test("multi-line sale is quarantined atomically and browser DOM shows quarantine
   const result = await page.evaluate(() => window.anasFirebasePull());
   assert.equal(result.status, "synced");
   const state = await page.evaluate(() => ({
-    app: JSON.parse(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
+    app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
     quarantine: JSON.parse(localStorage.getItem("ANAS_QUARANTINED_MUTATIONS_V1")),
     alert: document.getElementById("sync-quarantine-alert")?.textContent || ""
   }));
