@@ -483,9 +483,9 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
       savedValue: second.invoice.total.toString(),
       readIsolation: second.invoice.customer.name,
       deterministic: S.encode(a) === S.encode(b),
-      nfcDeterministic: S.encode({ ['é']: 'café' }) === S.encode({ ['e\\u0301']: 'cafe\\u0301' }),
+      nfcDeterministic: S.encode({ ['é']: 'café' }) === S.encode({ ['e\u0301']: 'cafe\u0301' }),
       nfcKeyCollisionRejected: (() => {
-        try { S.encode({ ['é']: 1, ['e\\u0301']: 2 }); return false; }
+        try { S.encode({ ['é']: 1, ['e\u0301']: 2 }); return false; }
         catch (error) { return error.code === 'UNICODE_NFC_KEY_COLLISION'; }
       })(),
       hashLength: (await S.checksum(S.encode(a))).replace('sha256:', '').length,
