@@ -8,14 +8,13 @@ const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'buffer' })
   .filter(file => /\.(?:js|mjs|json|yml)$/i.test(file));
 const failures = [];
 function suspiciousEscapedNewline(source, file) {
-  // Conservative corruption sentinel: flag a literal backslash-n used as a
-  // physical line separator before a command/token. Do not parse arbitrary
-  // JavaScript regexes or YAML block-scalar programs as if they were YAML syntax.
-  const patterns = file.endsWith('.yml')
-    ? [/(?:^|\\n)\\\\n[ \\t]*(?:node|npm|yarn|git|run:|-[ \\t])/m,
-       /\\\\n[ \\t]*(?:node|npm|yarn|git)[ \\t]+(?:--|test|run)/]
-    : [/(?:^|\\n)\\\\n[ \\t]*(?:import|export|const|let|var|function|async|if|return|throw)\\b/m];
-  return patterns.some(pattern => pattern.test(source));
+  // Detect a literal \n token used at the start of a physical source line
+  // before a command/declaration. Valid escapes inside strings and regexes
+  // are deliberately excluded to avoid parser-free false positives.
+  const command = file.endsWith('.yml')
+    ? /^(?:node|npm|yarn|git|run:|-)\b/
+    : /^(?:import|export|const|let|var|function|async|if|return|throw)\b/;
+  return source.split(/\r?\n/).some(line => /^\\n[ \t]*/.test(line) && command.test(line.replace(/^\\n[ \t]*/, '')));
 }
 for (const file of files) {
   const bytes = readFileSync(file);
