@@ -117,7 +117,8 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
   const appliedNow = [];
   const seenPending = new Set();
 
-  const orderedPending = pendingMutations.slice().sort(comparePendingMutationsDeterministically);\n  for (const op of orderedPending) {
+  const orderedPending = pendingMutations.slice().sort(comparePendingMutationsDeterministically);
+  for (const op of orderedPending) {
     if (!op || typeof op !== "object" || typeof op.opId !== "string" || !op.opId.trim()) {
       review.push({ opId: op?.opId ?? null, reason: "INVALID_OPERATION_ID", operation: op ?? null });
       continue;
