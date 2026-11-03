@@ -43,54 +43,79 @@
     return text;
   }
 
+  const BIGINT_ENVELOPE_KEY = '__anas_bigint_v1__';
+  const CANONICAL_DIGITS_RE = /^-?\d+$/;
+  let committedSnapshot = null;
+  function assertWellFormedUtf16(str) { return assertWellFormedUnicode(str); }
+  function isStrictBigIntEnvelope(value) {
+    if (value === null || typeof value !== 'object' ||
+        Object.prototype.toString.call(value) !== '[object Object]') return false;
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== BIGINT_ENVELOPE_KEY) return false;
+    const d = Object.getOwnPropertyDescriptor(value, BIGINT_ENVELOPE_KEY);
+    return !!d && Object.prototype.hasOwnProperty.call(d, 'value') &&
+      typeof d.value === 'string' && CANONICAL_DIGITS_RE.test(d.value);
+  }
   function canonicalizeJson(value, seen = new WeakSet()) {
-    if (value === null || typeof value === 'boolean') return JSON.stringify(value);
-    if (typeof value === 'string') return JSON.stringify(assertWellFormedUnicode(value).normalize('NFC'));
-    if (typeof value === 'bigint') return '{"__anas_bigint_v1__":' + JSON.stringify(value.toString()) + '}';
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value) || Object.is(value, -0)) {
-        const error = new TypeError('NON_CANONICAL_NUMERIC_VALUE');
-        error.code = 'NON_CANONICAL_NUMERIC_VALUE';
-        throw error;
-      }
-      return JSON.stringify(value);
+    if (value === null) return 'null';
+    const type = typeof value;
+    if (type === 'boolean') return value ? 'true' : 'false';
+    if (type === 'number') {
+      if (!Number.isFinite(value)) throw Object.assign(new Error('NON_CANONICAL_NUMERIC_VALUE'), { code: 'NON_CANONICAL_NUMERIC_VALUE' });
+      return Object.is(value, -0) ? '0' : JSON.stringify(value);
     }
-    if (typeof value !== 'object') throw new TypeError('NON_CANONICAL_JSON_TYPE');
+    if (type === 'bigint') return '{"' + BIGINT_ENVELOPE_KEY + '":' + JSON.stringify(value.toString(10)) + '}';
+    if (type === 'string') return JSON.stringify(assertWellFormedUtf16(value).normalize('NFC'));
+    if (type !== 'object') throw new TypeError('UNSUPPORTED_CANONICAL_TYPE_' + type);
     if (seen.has(value)) throw new TypeError('NON_CANONICAL_CYCLE');
+    if (value instanceof Date || value instanceof RegExp || value instanceof Map || value instanceof Set) throw new TypeError('NON_SERIALIZABLE_LEDGER_TYPE');
+    if (isStrictBigIntEnvelope(value)) return '{"' + BIGINT_ENVELOPE_KEY + '":' + JSON.stringify(value[BIGINT_ENVELOPE_KEY]) + '}';
     seen.add(value);
     try {
       if (Array.isArray(value)) {
         const items = [];
-        for (let i = 0; i < value.length; i++) {
-          if (!Object.prototype.hasOwnProperty.call(value, i)) throw new TypeError('NON_CANONICAL_ARRAY_HOLE');
-          items.push(canonicalizeJson(value[i], seen));
-        }
+        for (let i = 0; i < value.length; i++) items.push(!Object.prototype.hasOwnProperty.call(value, i) || value[i] === undefined ? 'null' : canonicalizeJson(value[i], seen));
         return '[' + items.join(',') + ']';
       }
       const proto = Object.getPrototypeOf(value);
       if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
       if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
-      const normalizedKeys = Object.keys(value).map(originalKey => ({
-        originalKey: assertWellFormedUnicode(originalKey),
-        key: assertWellFormedUnicode(originalKey).normalize('NFC')
-      }));
-      const keySet = new Set();
-      for (const entry of normalizedKeys) {
-        if (keySet.has(entry.key)) {
-          const error = new TypeError('UNICODE_NFC_KEY_COLLISION');
-          error.code = 'UNICODE_NFC_KEY_COLLISION';
-          throw error;
-        }
-        keySet.add(entry.key);
+      const pairs = Object.keys(value).filter(k => value[k] !== undefined).map(origKey => {
+        assertWellFormedUtf16(origKey);
+        const d = Object.getOwnPropertyDescriptor(value, origKey);
+        if (!d || !Object.prototype.hasOwnProperty.call(d, 'value')) throw new TypeError('NON_CANONICAL_ACCESSOR');
+        return { normKey: origKey.normalize('NFC'), value: d.value };
+      });
+      pairs.sort((a,b) => a.normKey < b.normKey ? -1 : a.normKey > b.normKey ? 1 : 0);
+      const parts = [];
+      for (let i=0;i<pairs.length;i++) {
+        if (i && pairs[i].normKey === pairs[i-1].normKey) throw Object.assign(new Error('DUPLICATE_NORMALIZED_UNICODE_KEY_COLLISION'), { code: 'DUPLICATE_NORMALIZED_UNICODE_KEY_COLLISION' });
+        parts.push(JSON.stringify(pairs[i].normKey)+':'+canonicalizeJson(pairs[i].value,seen));
       }
-      normalizedKeys.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
-      return '{' + normalizedKeys.map(({ key, originalKey }) => {
-        if (!Object.prototype.hasOwnProperty.call(value, originalKey)) throw new TypeError('NON_CANONICAL_INHERITED_KEY');
-        const descriptor = Object.getOwnPropertyDescriptor(value, originalKey);
-        if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) throw new TypeError('NON_CANONICAL_ACCESSOR');
-        return JSON.stringify(key) + ':' + canonicalizeJson(descriptor.value, seen);
-      }).join(',') + '}';
+      return '{'+parts.join(',')+'}';
     } finally { seen.delete(value); }
+  }
+  function cloneAndDeepFreezeState(value, seen = new WeakMap()) {
+    if (value === null || typeof value !== 'object') return value;
+    if (seen.has(value)) return seen.get(value);
+    if (Array.isArray(value)) {
+      const copy=[]; seen.set(value,copy);
+      for(let i=0;i<value.length;i++) copy[i]=cloneAndDeepFreezeState(value[i],seen);
+      return Object.freeze(copy);
+    }
+    const proto=Object.getPrototypeOf(value);
+    if(proto!==Object.prototype && proto!==null) throw new TypeError('NON_SERIALIZABLE_LEDGER_TYPE');
+    const copy=Object.create(null); seen.set(value,copy);
+    for(const key of Object.keys(value)) {
+      const norm=assertWellFormedUtf16(key).normalize('NFC');
+      if(Object.prototype.hasOwnProperty.call(copy,norm)) throw new TypeError('DUPLICATE_NORMALIZED_UNICODE_KEY_COLLISION');
+      const d=Object.getOwnPropertyDescriptor(value,key);
+      if(!d || !Object.prototype.hasOwnProperty.call(d,'value')) throw new TypeError('NON_CANONICAL_ACCESSOR');
+      Object.defineProperty(copy,norm,{value:cloneAndDeepFreezeState(d.value,seen),enumerable:true,writable:false,configurable:false});
+    }
+    return Object.freeze(copy);
   }
   // V2 is framed outside JSON so no legacy JSON object can impersonate the
   // format marker. Every user value is represented by an explicit tagged node.
@@ -207,11 +232,6 @@
     };
     rejectAmbiguousMarker(legacy);
     return legacy;
-  }
-  function fastChecksum(payload) {
-    let hash = 0x811c9dc5;
-    for (const byte of new TextEncoder().encode(payload)) { hash ^= byte; hash = Math.imul(hash, 0x01000193); }
-    return 'fnv1a:' + (hash >>> 0).toString(16).padStart(8, '0');
   }
   function sha256Fallback(bytes) {
     const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
@@ -375,6 +395,7 @@
 
       revision = Math.max(revision, nextRevision);
       cache[APP_KEY] = payload;
+      committedSnapshot = cloneAndDeepFreezeState(decode(payload));
       try {
         global.localStorage.setItem(META_KEY, JSON.stringify({
           revision, checksum: digest, algorithm: 'SHA-256',
@@ -398,9 +419,8 @@
         if (rawMeta) {
           const meta = JSON.parse(rawMeta);
           const localDigest = await checksum(local);
-          const legacyChecksumValid = meta.algorithm !== 'SHA-256' && meta.checksum === fastChecksum(local);
           if (!Number.isSafeInteger(meta.revision) || meta.revision < 1 ||
-              (meta.checksum !== localDigest && !legacyChecksumValid)) throw new Error('local snapshot checksum mismatch');
+              meta.checksum !== localDigest) throw new Error('local snapshot checksum mismatch');
           localRevision = meta.revision;
         }
         localValid = true;
@@ -461,7 +481,8 @@
         }
       }
     }
-    return { hydrated, payload: selected, data: selected === null ? null : decode(selected),
+    committedSnapshot = selected === null ? null : cloneAndDeepFreezeState(decode(selected));
+    return { hydrated, payload: selected, data: committedSnapshot,
       revision, mode, recoveredFromIndexedDB: selected !== null && idbValid && selected === record.payload };
   }
   function hydrate(localPayload) {
@@ -487,6 +508,6 @@
     APP_KEY, DB_NAME, STORE_NAME, getSync, setSync, removeSync, hydrate, persist,
     getItem(key) { const text = getSync(key); return text == null ? null : decode(text); },
     setItem(key, value) { return setSync(key, encode(value)); },
-    ready, status, encode, decode, canonicalizeJson, checksum, fastChecksum
+    ready, status, encode, decode, canonicalizeJson, checksum, assertWellFormedUtf16, isStrictBigIntEnvelope, cloneAndDeepFreezeState, getCommittedSnapshot() { return committedSnapshot; }
   });
 })(window);
