@@ -275,3 +275,18 @@ test("Level 24-A rejects cycles and excessive depth without recursive stack exha
   assert.throws(() => cloneFrozen(deep),
     error => error.code === "MAX_CANONICAL_DEPTH_EXCEEDED");
 });
+
+test("Level 24-C emits a receipt only bound to the persisted snapshot hash", async () => {
+  const { CommittedSnapshotCache, verifyCryptographicCommitReceipt } = await import("../core/sovereign-kernel.mjs");
+  const cache = new CommittedSnapshotCache(async () => {});
+  const state = { cashCentimes: 10n, inventoryMicroUnits: 1_000_000n };
+  const receipt = await cache.setItem(state, 0, { algebraicZeroSumVerified: true });
+  assert.equal(receipt.committed, true);
+  assert.equal(receipt.algebraicZeroSumVerified, true);
+  assert.equal(verifyCryptographicCommitReceipt(receipt, cache.read()), true);
+  assert.equal(verifyCryptographicCommitReceipt(receipt, { cashCentimes: 11n, inventoryMicroUnits: 1_000_000n }), false);
+  const unproven = await cache.setItem(state, 1);
+  assert.equal(unproven.committed, true);
+  assert.equal(unproven.algebraicZeroSumVerified, false);
+  assert.equal(verifyCryptographicCommitReceipt(unproven, cache.read()), false);
+});
