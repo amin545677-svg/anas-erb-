@@ -3944,7 +3944,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         
-function confirmHasibPaymentDurable() {
+        function confirmHasibPaymentDurable() {
             if (typeof hasibPaymentInFlight !== 'undefined' && hasibPaymentInFlight) return;
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
