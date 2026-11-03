@@ -97,22 +97,29 @@ console.log('PASS: durable POS save publishes the cart map only after storage AC
 
 {
   const appSource = fs.readFileSync('index.html', 'utf8');
-  const paymentStart = appSource.indexOf('async function confirmHasibPayment()');
+  const paymentStart = appSource.indexOf('function confirmHasibPaymentDurable()');
   const paymentEnd = appSource.indexOf('function printLastConfirmedInvoice', paymentStart);
   assert.ok(paymentStart >= 0 && paymentEnd > paymentStart,
-    'POS payment confirmation must be an async transaction');
+    'POS payment UI must route through the durable transaction handler');
   const paymentSource = appSource.slice(paymentStart, paymentEnd);
-  const awaitedSave = paymentSource.indexOf('await saveDBDurably()');
+  const awaitedSave = paymentSource.indexOf('saveDBDurably()');
   const modalClose = paymentSource.indexOf("closeModal('hasibModal')");
-  assert.ok(awaitedSave >= 0 && modalClose > awaitedSave,
+  assert.ok(awaitedSave >= 0 && modalClose > awaitedSave && paymentSource.includes('durableSave.then'),
     'payment modal must close only after the durable save acknowledgement');
   assert.match(paymentSource, /hasibPaymentInFlight/,
     'payment flow must guard against duplicate submissions while persistence is pending');
-  const supplierStart = appSource.indexOf('async function saveNewSupplierMpos()');
+  assert.match(appSource, /onclick="confirmHasibPaymentDurable\(\)"/,
+    'the live payment button must call the durable handler, not the legacy compatibility handler');
+  const helperStart = appSource.indexOf('async function saveDBDurably()');
+  const helperEnd = appSource.indexOf('function openAddSupplierModal()', helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart &&
+    appSource.slice(helperStart, helperEnd).includes('await storage.setSync(ANAS_DB_KEY, serialized)'),
+    'durable save must await the storage engine write acknowledgement');
+  const supplierStart = appSource.indexOf('function saveNewSupplierMpos()');
   const supplierEnd = appSource.indexOf('function printLatestLegalCustomerInvoice', supplierStart);
   assert.ok(supplierStart >= 0 && supplierEnd > supplierStart,
-    'supplier creation must expose an asynchronous durable-save flow');
-  assert.match(appSource.slice(supplierStart, supplierEnd), /await saveDBDurably\(\)/,
+    'supplier creation must expose a promise-aware durable-save flow');
+  assert.match(appSource.slice(supplierStart, supplierEnd), /durableSave\.then\(/,
     'supplier creation must await durable persistence before closing its modal');
 }
 console.log('PASS: supplier and POS payment flows await durable storage before success UI');
