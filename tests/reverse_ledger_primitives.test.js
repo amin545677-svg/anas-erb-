@@ -509,3 +509,62 @@ test('signed fractional stock quantities reconcile exactly in the sale-return le
  assert.equal(state.products[0].stock,0.5);
  assert.equal(R.validateReverseLedgerParity(state),true);
 });
+
+
+test('coprime 13-carton valuation closes exactly across four partial returns', () => {
+ const customer={id:'C-PRIME',debt:1000.03};
+ const invoice={id:'INV-PRIME',customerId:'C-PRIME',customerObj:customer,total:1000.03,paid:0,remaining:1000.03,
+  items:[{id:'P-PRIME',qty:13,price:76.93,totalCentimes:100003}],warehouse:'المخزن الرئيسي'};
+ const state={customers:[customer],suppliers:[],invoices:[invoice],purchases:[],
+  products:[{id:'P-PRIME',stock:0,buyPrice:50}],
+  cashMovements:[],
+  stockMovements:[{id:'SALE-PRIME',productId:'P-PRIME',qty:-13,type:'SALE_OUT',
+   referenceType:'sales_invoice',referenceId:'INV-PRIME',
+   originalSaleQuantityMicroUnits:13000000,originalSaleCostCentimes:65001}],
+  clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],
+  customerCreditMovements:[],caisseBalance:0,currentUser:{id:'U-PRIME'}};
+ let sequence=0;
+ const amounts=[];
+ for(const quantity of [3,5,2,3]){
+  const doc=R.executeReturnTransaction(state,{
+   originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-PRIME',
+   items:[{productId:'P-PRIME',quantity:String(quantity)}],
+   settlementMode:'cash',reason:'coprime partial-return valuation'
+  },{createId:()=> 'PRIME-RET-'+(++sequence),persist:()=>true});
+  amounts.push(doc.totalCentimes);
+ }
+ assert.deepEqual(amounts,[23078,38462,15385,23078]);
+ assert.equal(amounts.reduce((sum,value)=>sum+BigInt(value),0n),100003n);
+ assert.equal(state.customers[0].debt,0);
+ assert.equal(state.products[0].stock,13);
+ assert.equal(state.stockMovements.reduce((sum,row)=>sum+(row.type==='RETURN_IN'?row.qty:0),0),13);
+ assert.equal(R.validateReverseLedgerParity(state),true);
+});
+
+test('composite return aborts without partial mutation when the final line lacks historical cost', () => {
+ const customer={id:'C-ATOMIC',debt:2};
+ const state={customers:[customer],suppliers:[],
+  invoices:[{id:'INV-ATOMIC',customerId:'C-ATOMIC',customerObj:customer,total:2,paid:0,remaining:2,
+   items:[{id:'P-FIRST',qty:1,price:1,totalCentimes:100},{id:'P-LAST',qty:1,price:1,totalCentimes:100}]}],
+  purchases:[],products:[{id:'P-FIRST',stock:0,buyPrice:0.5},{id:'P-LAST',stock:0,buyPrice:0.5}],
+  cashMovements:[],stockMovements:[
+   {id:'SALE-FIRST',productId:'P-FIRST',qty:-1,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-ATOMIC',originalSaleQuantityMicroUnits:1000000,originalSaleCostCentimes:50},
+   {id:'SALE-LAST',productId:'P-LAST',qty:-1,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-ATOMIC',originalSaleQuantityMicroUnits:1000000}
+  ],clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],
+  customerCreditMovements:[],caisseBalance:0,currentUser:{id:'U-ATOMIC'}};
+ const before=JSON.stringify(state);
+ const refs={invoice:state.invoices[0],customer:state.customers[0],products:state.products,
+  stock:state.stockMovements,returns:state.returns};
+ assert.throws(()=>R.executeReturnTransaction(state,{
+  originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',invoiceId:'INV-ATOMIC',
+  items:[{productId:'P-FIRST',quantity:'1'},{productId:'P-LAST',quantity:'1'}],
+  settlementMode:'cash',reason:'last-line atomic failure'
+ },{createId:()=> 'ATOMIC-RETURN-ID',persist:()=>true}),/original sale historical cost centimes/);
+ assert.equal(JSON.stringify(state),before);
+ assert.strictEqual(state.invoices[0],refs.invoice);
+ assert.strictEqual(state.customers[0],refs.customer);
+ assert.strictEqual(state.products,refs.products);
+ assert.strictEqual(state.stockMovements,refs.stock);
+ assert.strictEqual(state.returns,refs.returns);
+});
+
