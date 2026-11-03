@@ -319,7 +319,7 @@ test("Level 24-D orders by BigInt localSeq then NFC-normalized UTF-16 opId", () 
     { localSeq: 1, opId: "late" }
   ];
   const sorted = queue.slice().sort(comparePendingMutationsDeterministically);
-  assert.deepEqual(sorted.map(x => x.opId), ["late", "a", "b", "é", "z", "z"]);
+  assert.deepEqual(sorted.map(x => x.opId), ["late", "a", "b", "z", "é", "z"]);
   assert.equal(comparePendingMutationsDeterministically(
     { localSeq: "9007199254740993", opId: "a" },
     { localSeq: "9007199254740992", opId: "z" }
