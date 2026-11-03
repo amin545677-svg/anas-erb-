@@ -169,7 +169,6 @@ test('Level 24: all four unique return permutations close 13 cartons / 100003 ce
       stockMicroUnits = result.nextStockMicroUnits;
       inventoryValueCentimes = result.nextInventoryValueCentimes;
       cashCentimes -= delta;
-      receivablesCentimes += delta;
       const invariant = (-delta) + delta + 0n;
       assert.equal(invariant, 0n, 'algebraic zero after every partial return');
       assert.ok(returnedMicroUnits <= 13_000_000n);
