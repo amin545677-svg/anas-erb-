@@ -114,8 +114,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
     await page.waitForFunction(() =>
+      document.body && document.body.inert === false &&
       window.ANASResilientStorage?.ready() === true &&
-      window.AppData && Array.isArray(window.AppData.products),
+      typeof AppData !== 'undefined' && Array.isArray(AppData.products),
       null, { timeout: 15000 }
     );
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught browser errors');
@@ -188,8 +189,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
     await page.waitForFunction(() =>
+      document.body && document.body.inert === false &&
       window.ANASResilientStorage?.ready() === true &&
-      window.AppData && Array.isArray(window.AppData.invoices),
+      typeof AppData !== 'undefined' && Array.isArray(AppData.invoices),
       null, { timeout: 15000 }
     );
     assert.deepEqual(pageErrors, [], 'reload must not introduce uncaught browser errors');
