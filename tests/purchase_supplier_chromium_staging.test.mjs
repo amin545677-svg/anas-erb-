@@ -219,7 +219,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
         snapshot && Array.isArray(snapshot.suppliers) &&
         snapshot.suppliers.some(row => row && row.name === 'مورد اختبار Chromium');
     }, supplierRevisionBefore, { timeout: 15000 });
-    await page.locator('#view-suppliers').getByText('مورد اختبار Chromium', { exact: true }).first().waitFor();
+    await page.locator('#suppDebtsContainer').getByText('مورد اختبار Chromium', { exact: true }).first().waitFor({ state: 'attached' });
 
     let state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     assert.equal(state.suppliers.length, 1, 'supplier must be created by the UI');
