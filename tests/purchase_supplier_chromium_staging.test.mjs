@@ -621,7 +621,7 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     });
     await page.locator('#hasibCustomerSelect').selectOption('C-CUSTOMER-1');
     await page.locator('#hasibPaidAmount').fill('0.10');
-    await page.locator('#hasibModal button[onclick="confirmHasibPayment()"]').click();
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
     let state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     const invoice = state.invoices.find(x => x.total === 0.30);
     assert.ok(invoice, 'new sales invoice must be posted through the real payment modal');
