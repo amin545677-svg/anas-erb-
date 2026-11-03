@@ -184,6 +184,6 @@ test('Level 24: all four unique return permutations close 13 cartons / 100003 ce
     stockMicroUnits: 13_000_000n,
     inventoryValueCentimes: 100003n,
     cashCentimes: -100003n,
-    receivablesCentimes: 100003n
+    receivablesCentimes: 0n
   });
 });
