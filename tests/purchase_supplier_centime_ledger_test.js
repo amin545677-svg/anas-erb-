@@ -17,7 +17,7 @@ const paymentStart=html.indexOf('function paySupplierDebt(supplierId)');
 const paymentEnd=html.indexOf('function openAddSupplierModal()',paymentStart);
 assert.ok(paymentStart>=0&&paymentEnd>paymentStart,'supplier payment function must be isolatable');
 const paymentSource=html.slice(paymentStart,paymentEnd);
-const supplierStart=html.indexOf('async function saveNewSupplierMpos()');
+const supplierStart=html.indexOf('function saveNewSupplierMpos()');
 const supplierEnd=html.indexOf('function printLatestLegalCustomerInvoice()',supplierStart);
 assert.ok(supplierStart>=0&&supplierEnd>supplierStart,'supplier creation function must be isolatable');
 const supplierSource=html.slice(supplierStart,supplierEnd);
@@ -54,15 +54,14 @@ function runPayment({balance=20,cash=100,amount='7.25',saveResult=true}={}) {
  vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
  return {AppData:ctx.AppData,alerts,saves,identity:{supplier:ctx.AppData.suppliers[0]===supplierRef,supplierMovements:ctx.AppData.supplierMovements===supplierMovementsRef,cashMovements:ctx.AppData.cashMovements===cashMovementsRef,allocations:ctx.AppData.settlementAllocations===allocationsRef}};
 }
-async function runSupplierCreate({debt='12.345',saveResult=true}={}) {
+function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  const fields=elements({debt});const AppData={suppliers:[],supplierMovements:[]};const alerts=[];let saves=0;
- const ctx={AppData,document:{getElementById:id=>fields[id]||null},saveDB:()=>{saves++;return saveResult;},saveDBDurably:async()=>{saves++;return saveResult;},
+ const ctx={AppData,document:{getElementById:id=>fields[id]||null},saveDB:()=>{saves++;return saveResult;},
   alert:m=>alerts.push(String(m)),closeModal(){},renderSuppliersDebts(){},Date,Math,console:{error(){}}};
- vm.createContext(ctx);await vm.runInContext(purchaseSource+'\n'+supplierSource+'\nsaveNewSupplierMpos();',ctx,{timeout:1500});
+ vm.createContext(ctx);vm.runInContext(purchaseSource+'\n'+supplierSource+'\nsaveNewSupplierMpos();',ctx,{timeout:1500});
  return {AppData:ctx.AppData,alerts,saves};
 }
 
-(async () => {
 {
  const r=runPurchase(),p=r.AppData.purchases[0];
  assert.equal(r.saves,1);assert.equal(p.total,30.30);assert.equal(p.paid,10);assert.equal(p.remaining,20.30);
@@ -162,7 +161,7 @@ async function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: failed supplier payment persistence restores both ledgers and preserves object identity');
 }
 {
- const r=await runSupplierCreate();assert.equal(r.saves,1);assert.equal(r.AppData.suppliers[0].balance,12.35);
+ const r=runSupplierCreate();assert.equal(r.saves,1);assert.equal(r.AppData.suppliers[0].balance,12.35);
  assert.equal(r.AppData.supplierMovements.length,1);assert.equal(r.AppData.supplierMovements[0].type,'opening_balance');
  assert.equal(r.AppData.supplierMovements[0].amount,12.35);
  console.log('PASS: supplier opening balance is recorded to centime precision');
@@ -241,4 +240,3 @@ async function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: cloud and backup restore validate purchase settlement and preserve supplier ledger history');
 }
 console.log('Purchase and supplier centime ledger tests passed');
-})().catch(error=>{console.error(error);process.exitCode=1;});
