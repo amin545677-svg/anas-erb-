@@ -280,7 +280,10 @@ test("Level 24-C emits a receipt only bound to the persisted snapshot hash", asy
   const { CommittedSnapshotCache, verifyCryptographicCommitReceipt } = await import("../core/sovereign-kernel.mjs");
   const cache = new CommittedSnapshotCache(async () => {});
   const state = { cashCentimes: 10n, inventoryMicroUnits: 1_000_000n };
-  const receipt = await cache.setItem(state, 0, { algebraicZeroSumVerified: true });
+  const receipt = await cache.setItem(state, 0, { effect: {
+    cash: -10n, inventoryValue: 10n, customerReceivables: 0n,
+    customerCredits: 0n, supplierPayables: 0n, recognizedNetMargin: 0n, wacVariance: 0n
+  }});
   assert.equal(receipt.committed, true);
   assert.equal(receipt.algebraicZeroSumVerified, true);
   assert.equal(verifyCryptographicCommitReceipt(receipt, cache.read()), true);
