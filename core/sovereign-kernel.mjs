@@ -158,6 +158,7 @@ export class CommittedSnapshotCache {
   #snapshot = null;
   #revision = 0;
   #hash = null;
+  #ledgerHeadHash = "0".repeat(64);
   constructor(persist) {
     if (typeof persist !== "function") throw new TypeError("persist callback required");
     this.persist = persist;
@@ -165,7 +166,7 @@ export class CommittedSnapshotCache {
   get revision() { return this.#revision; }
   get hash() { return this.#hash; }
   read() { return this.#snapshot === null ? null : structuredClone(this.#snapshot); }
-  async setItem(value, expectedRevision = this.#revision) {
+  async setItem(value, expectedRevision = this.#revision, commitProof = {}) {
     if (expectedRevision !== this.#revision) throw new Error("MONOTONIC_REVISION_CONFLICT");
     const candidate = cloneFrozen(value);
     const nextRevision = this.#revision + 1;
@@ -174,8 +175,31 @@ export class CommittedSnapshotCache {
     this.#snapshot = candidate;
     this.#revision = nextRevision;
     this.#hash = hash;
-    return { revision: nextRevision, hash };
+    const parentStateHash = this.#ledgerHeadHash;
+    const ledgerHeadHash = sha256Hex(canonicalizeJson({
+      revision: nextRevision, parentStateHash, stateCanonicalHash: hash
+    }));
+    this.#ledgerHeadHash = ledgerHeadHash;
+    const receipt = Object.freeze({
+      committed: true,
+      revision: nextRevision,
+      parentStateHash,
+      stateCanonicalHash: hash,
+      ledgerHeadHash,
+      algebraicZeroSumVerified: commitProof?.algebraicZeroSumVerified === true
+    });
+    return receipt;
   }
+}
+
+export function verifyCryptographicCommitReceipt(receipt, committedSnapshot) {
+  if (!receipt || receipt.committed !== true ||
+      receipt.algebraicZeroSumVerified !== true ||
+      !Number.isSafeInteger(receipt.revision) || receipt.revision < 1 ||
+      !/^[a-f0-9]{64}$/.test(receipt.parentStateHash || "") ||
+      !/^[a-f0-9]{64}$/.test(receipt.stateCanonicalHash || "") ||
+      !/^[a-f0-9]{64}$/.test(receipt.ledgerHeadHash || "")) return false;
+  return sha256Canonical(committedSnapshot) === receipt.stateCanonicalHash;
 }
 
 export function createStateAnchor(revision, state, parentStateHash = "0".repeat(64)) {
