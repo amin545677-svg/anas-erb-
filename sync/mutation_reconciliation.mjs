@@ -38,7 +38,10 @@ function canonicalOperationHash(value) {
 export function comparePendingMutationsDeterministically(a, b) {
   const hasA = a?.localSeq !== undefined && a?.localSeq !== null;
   const hasB = b?.localSeq !== undefined && b?.localSeq !== null;
-  if (hasA && hasB) {
+  // Missing sequence values form a deterministic final bucket. This preserves
+  // transitivity (required by Array#sort) while ordering that bucket by opId.
+  if (hasA !== hasB) return hasA ? -1 : 1;
+  if (hasA) {
     const seqA = BigInt(a.localSeq);
     const seqB = BigInt(b.localSeq);
     if (seqA < seqB) return -1;
