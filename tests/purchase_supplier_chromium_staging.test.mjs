@@ -205,7 +205,21 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     await page.locator('#newSuppNameInput').fill('مورد اختبار Chromium');
     await page.locator('#newSuppPhoneInput').fill('0550000000');
     await page.locator('#newSuppDebtInput').fill('15000.00');
+    const supplierRevisionBefore = await page.evaluate(() => ANASResilientStorage.status().revision);
     await page.locator('#addSupplierModal .btn-full-submit').first().click();
+    // The inline async handler is not awaited by Playwright's click promise.
+    // Wait for the modal to close only after the durable snapshot is committed.
+    await page.waitForFunction((beforeRevision) => {
+      const modal = document.getElementById('addSupplierModal');
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage && storage.getCommittedSnapshot();
+      return !!modal && !modal.classList.contains('active') &&
+        storage && storage.ready() &&
+        storage.status().revision > beforeRevision &&
+        snapshot && Array.isArray(snapshot.suppliers) &&
+        snapshot.suppliers.some(row => row && row.name === 'مورد اختبار Chromium');
+    }, supplierRevisionBefore, { timeout: 15000 });
+    await page.locator('#view-suppliers').getByText('مورد اختبار Chromium', { exact: true }).first().waitFor();
 
     let state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
     assert.equal(state.suppliers.length, 1, 'supplier must be created by the UI');
