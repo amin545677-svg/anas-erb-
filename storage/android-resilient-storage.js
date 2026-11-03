@@ -499,7 +499,11 @@
       }
     }
     committedSnapshot = selected === null ? null : cloneAndDeepFreezeState(decode(selected));
-    return { hydrated, payload: selected, data: committedSnapshot,
+    return { hydrated, payload: selected,
+      // Keep the audit snapshot immutable, but give the application its own mutable runtime graph.
+      // UI/domain workflows legitimately mutate AppData; exposing the frozen audit graph here
+      // causes supplier creation, POS posting and other writes to fail after successful hydration.
+      data: selected === null ? null : decode(selected),
       revision, mode, recoveredFromIndexedDB: selected !== null && idbValid && selected === record.payload };
   }
   function hydrate(localPayload) {
