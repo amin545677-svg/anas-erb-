@@ -51,6 +51,7 @@ console.log('PASS: failed first POS cart save restores absent cart-map state');
 console.log('PASS: failed POS cart save preserves existing multi-tab cart state');
 
 (async () => {
+{
   // Exercise the durable-save boundary independently of the full Chromium UI.
   // The live cart map must not be published until the storage promise ACKs.
   const appSource = fs.readFileSync('index.html', 'utf8');
