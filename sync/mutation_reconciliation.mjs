@@ -34,6 +34,21 @@ function canonicalOperationHash(value) {
   return sha256Canonical(normalizeForCanonicalHash(value));
 }
 
+/** Stable local queue ordering: sequence first, then normalized UTF-16 opId. */
+export function comparePendingMutationsDeterministically(a, b) {
+  const hasA = a?.localSeq !== undefined && a?.localSeq !== null;
+  const hasB = b?.localSeq !== undefined && b?.localSeq !== null;
+  if (hasA && hasB) {
+    const seqA = BigInt(a.localSeq);
+    const seqB = BigInt(b.localSeq);
+    if (seqA < seqB) return -1;
+    if (seqA > seqB) return 1;
+  }
+  const idA = String(a?.opId ?? "").normalize("NFC");
+  const idB = String(b?.opId ?? "").normalize("NFC");
+  return idA < idB ? -1 : idA > idB ? 1 : 0;
+}
+
 function parseMoneyCentsV42(value) {
   if ((typeof value !== "number" && typeof value !== "string") ||
       (typeof value === "number" && (!Number.isFinite(value) || Object.is(value, -0)))) return null;
@@ -99,7 +114,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
   const appliedNow = [];
   const seenPending = new Set();
 
-  for (const op of pendingMutations) {
+  const orderedPending = pendingMutations.slice().sort(comparePendingMutationsDeterministically);\n  for (const op of orderedPending) {
     if (!op || typeof op !== "object" || typeof op.opId !== "string" || !op.opId.trim()) {
       review.push({ opId: op?.opId ?? null, reason: "INVALID_OPERATION_ID", operation: op ?? null });
       continue;
