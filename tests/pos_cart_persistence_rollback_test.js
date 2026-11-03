@@ -127,7 +127,7 @@ console.log('PASS: durable POS save publishes the cart map only after storage AC
 }
 console.log('PASS: supplier and POS payment flows await durable storage before success UI');
 
-async function verifyDurablePaymentGate(rejectCommit) {
+async function verifyDurablePaymentGate(failCommit) {
   const html = fs.readFileSync('index.html', 'utf8');
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
@@ -171,7 +171,7 @@ async function verifyDurablePaymentGate(rejectCommit) {
   assert.equal(closes, 0, 'payment modal must remain open while storage has not acknowledged');
   assert.equal(context.hasibPaymentInFlight, true, 'duplicate payment submissions remain blocked while pending');
 
-  if (rejectCommit) {
+  if (failCommit) {
     rejectCommit(new Error('simulated IndexedDB commit failure'));
     assert.equal(await context.__paymentPromise, false);
     assert.equal(product.stock, 5, 'failed durable commit must restore stock');
