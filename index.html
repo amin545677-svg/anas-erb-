@@ -2860,6 +2860,61 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return true;
         }
 
+
+        // Durable business-write path for workflows that must not report success
+        // until IndexedDB (or the explicitly supported complete local fallback) ACKs.
+        // Legacy saveDB() remains synchronous for older UI callers.
+        async function saveDBDurably() {
+            if (typeof anasStorageHydrationComplete !== 'undefined' && !anasStorageHydrationComplete) {
+                throw new Error('التخزين الآمن لم يكتمل تحميله؛ أُوقف الحفظ.');
+            }
+            if (anasStartupFatalLoadError || anasStartupIntegrityIssues.length) {
+                throw new Error('الحفظ موقوف لحماية البيانات الأصلية.');
+            }
+
+            const currentCarts = AppData.posScreensCarts;
+            if (currentCarts !== undefined && currentCarts !== null &&
+                (typeof currentCarts !== 'object' || Array.isArray(currentCarts))) {
+                const error = new Error('خريطة سلال البيع غير صالحة؛ أُوقف الحفظ.');
+                error.code = 'ANAS_INVALID_POS_CARTS';
+                throw error;
+            }
+            const nextCarts = currentCarts ? { ...currentCarts } : {};
+            nextCarts[AppData.activePosScreenTab] = posCart;
+            const snapshot = { ...AppData, posScreensCarts: nextCarts };
+            if (typeof window !== 'undefined') {
+                if (!globalThis.ANASReverseLedger ||
+                    typeof globalThis.ANASReverseLedger.validateReverseLedgerParity !== 'function') {
+                    throw new Error('مدقق دفتر التسويات العكسية غير متاح؛ أُوقف الحفظ.');
+                }
+                globalThis.ANASReverseLedger.validateReverseLedgerParity(snapshot);
+            }
+
+            const storage = typeof window !== 'undefined' ? window.ANASResilientStorage : null;
+            const serialized = storage ? storage.encode(snapshot) : JSON.stringify(snapshot);
+            let acknowledgement = null;
+            if (storage && typeof storage.setSync === 'function') {
+                try {
+                    acknowledgement = await storage.setSync(ANAS_DB_KEY, serialized);
+                } catch (error) {
+                    // The storage engine explicitly marks a fully committed local mirror
+                    // as a safe fallback when IndexedDB itself is unavailable.
+                    if (!error || error.durableFallback !== true) throw error;
+                    acknowledgement = { mode: 'LOCALSTORAGE_FALLBACK_ACTIVE', durableFallback: true };
+                }
+            } else {
+                localStorage.setItem(ANAS_DB_KEY, serialized);
+                acknowledgement = { mode: 'LOCALSTORAGE_LEGACY' };
+            }
+
+            // Publish the new cart map only after the persistence acknowledgement.
+            AppData.posScreensCarts = nextCarts;
+            try { updateUIState(); } catch (e) { console.error('ANAS durable save UI refresh failed:', e); }
+            try { checkSystemAlerts(); } catch (e) { console.error('ANAS durable save alerts refresh failed:', e); }
+            try { updateDashboardStats(); } catch (e) { console.error('ANAS durable save dashboard refresh failed:', e); }
+            return true;
+        }
+
         function openDrawer() {
             document.getElementById('drawerOverlay').classList.add('active');
             document.getElementById('drawerMenu').classList.add('active');
@@ -3475,7 +3530,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         let lastConfirmedInvoice = null;
 
+        let hasibPaymentInFlight = false;
+
         function openHasibModal() {
+            if (hasibPaymentInFlight) return;
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
             const totalCents = anasCartTotalCents(posCart);
             const total = anasCentsToCurrency(totalCents);
@@ -3575,7 +3633,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
-        function confirmHasibPayment() {
+        async function confirmHasibPayment() {
+            if (hasibPaymentInFlight) return;
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
             // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
@@ -3792,6 +3851,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
             const hadCustomerLedgerVersion = registeredCustomer && Object.prototype.hasOwnProperty.call(cust, 'ledgerVersion');
             const oldCustomerLedgerVersion = registeredCustomer ? cust.ledgerVersion : undefined;
+            hasibPaymentInFlight = true;
             try {
                 if (registeredCustomer && (remainingCents > 0 || oldDebtCents > 0 || paidCents > 0)) {
                     if (!Array.isArray(AppData.clientMovements)) {
@@ -3895,8 +3955,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 }
                 // Empty the cart before persistence so a repeated click cannot post the same sale twice.
                 posCart = [];
-                if (!saveDB()) throw new Error('تعذر حفظ البيانات');
+                if (await saveDBDurably() !== true) throw new Error('تعذر حفظ البيانات الدائم');
             } catch (e) {
+                hasibPaymentInFlight = false;
                 for (const [id, stockState] of oldStocks) {
                     const p = saleProducts.get(id);
                     if (p) {
@@ -3932,6 +3993,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return;
             }
 
+            hasibPaymentInFlight = false;
             lastConfirmedInvoice = invObj;
             posCart = [];
             renderPosTable();
@@ -4628,7 +4690,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)) {
                     throw new Error('فشل شرط التطابق المالي الدقيق بين الفاتورة والصندوق والمورد.');
                 }
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
+                if (typeof saveDBDurably !== 'function' || await saveDBDurably() !== true) throw new Error('تعذر حفظ البيانات الدائم');
             } catch (err) {
                 AppData = previous;
                 try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
@@ -5645,7 +5707,7 @@ function renderPurchasesTable() {
             document.getElementById('addSupplierModal').classList.add('active'); 
         }
 
-        function saveNewSupplierMpos() {
+        async function saveNewSupplierMpos() {
             const name = document.getElementById('newSuppNameInput').value.trim();
             const phone = document.getElementById('newSuppPhoneInput').value.trim();
             const rc = document.getElementById('newSuppRCInput').value.trim();
