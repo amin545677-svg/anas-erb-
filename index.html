@@ -2329,7 +2329,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             </div>
 
             <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
-                <button class="btn-full-submit" style="background:var(--mp-green); margin:0;" onclick="confirmHasibPayment()">
+                <button class="btn-full-submit" style="background:var(--mp-green); margin:0;" onclick="confirmHasibPaymentDurable()">
                     ✅ تأكيد وحفظ الفاتورة فقط
                 </button>
                 <button class="btn-full-submit" style="background:#0369a1; margin:0;" onclick="printLastConfirmedInvoice('thermal')">
@@ -3580,6 +3580,371 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
         function confirmHasibPayment() {
+            if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
+            const cart = Array.isArray(posCart) ? posCart : [];
+            // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
+            if (!cart.length) return;
+
+            // Quantities are represented as micro-units and money as integer centimes.
+            const requiredUnits = new Map();
+            let subtotalCents = 0;
+            for (const item of cart) {
+                const id = String(item.id ?? '');
+                const qty = Number(item.qty);
+                const price = Number(item.price);
+                if (!id ||
+                    !((typeof item.qty === 'number') || (typeof item.qty === 'string')) ||
+                    (typeof item.qty === 'string' && item.qty.trim() === '') ||
+                    !Number.isFinite(qty) || qty <= 0 ||
+                    !((typeof item.price === 'number') || (typeof item.price === 'string')) ||
+                    (typeof item.price === 'string' && item.price.trim() === '') ||
+                    !Number.isFinite(price) || price < 0) {
+                    alert('تعذر تأكيد الفاتورة: يوجد منتج أو كمية أو سعر غير صالح.'); return;
+                }
+                const qtyUnits = anasToQtyUnits(qty);
+                const priceCents = anasToCents(price);
+                const lineCents = anasLineTotalCents(qtyUnits, priceCents);
+                if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 ||
+                    !Number.isSafeInteger(priceCents) || priceCents < 0 ||
+                    !Number.isSafeInteger(lineCents)) {
+                    alert('تعذر تأكيد الفاتورة: كمية أو سعر الصنف يتجاوز المجال الحسابي الآمن.'); return;
+                }
+                const aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits;
+                if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > Number.MAX_SAFE_INTEGER ||
+                    !Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
+                    alert('تعذر تأكيد الفاتورة: مجموع الكمية أو قيمة الفاتورة يتجاوز المجال الحسابي الآمن.'); return;
+                }
+                requiredUnits.set(id, aggregateUnits);
+                subtotalCents += lineCents;
+            }
+            // This sales flow has no discount input; keep the discount explicit and in integer centimes.
+            const discountCents = 0;
+            const totalCents = subtotalCents - discountCents;
+            const total = anasCentsToCurrency(totalCents);
+            if (!Number.isSafeInteger(totalCents) || totalCents <= 0 || !Number.isFinite(total)) {
+                alert('السلة فارغة أو يحتوي مجموع الفاتورة على قيمة خارج المجال الرقمي الآمن.'); return;
+            }
+            const required = new Map(Array.from(requiredUnits, ([id, units]) => [id, anasQtyFromUnits(units)]));
+            const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            const saleProducts = new Map();
+            for (const [id, qtyUnits] of requiredUnits) {
+                const productMatches = (AppData.products || []).filter(p => p && typeof p === 'object' && !Array.isArray(p) && p.id !== undefined && p.id !== null && String(p.id) === id);
+                if (productMatches.length !== 1) {
+                    alert(productMatches.length
+                        ? 'تعذر تأكيد الفاتورة: معرّف المنتج مكرر (' + id + '). أصلح تكرار المعرّفات قبل البيع.'
+                        : 'تعذر تأكيد الفاتورة: أحد المنتجات لم يعد موجودًا.');
+                    return;
+                }
+                const product = productMatches[0];
+                saleProducts.set(id, product);
+                if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
+                    alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
+                }
+                const rawStock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : (Number(product.stock)||0);
+                const stockUnits = anasToQtyUnits(rawStock);
+                if (!Number.isSafeInteger(stockUnits) || stockUnits < 0 || stockUnits > Number.MAX_SAFE_INTEGER) {
+                    alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '».'); return;
+                }
+                if (stockUnits < qtyUnits) {
+                    alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + anasQtyFromUnits(qtyUnits) + '، المتوفر: ' + anasQtyFromUnits(stockUnits)); return;
+                }
+            }
+
+            const customerSelect = document.getElementById('hasibCustomerSelect');
+            const paidInput = document.getElementById('hasibPaidAmount');
+            const cId = customerSelect ? String(customerSelect.value || '') : '';
+            const paidCents = anasToCents(paidInput ? paidInput.value : total);
+            if (!Number.isSafeInteger(paidCents) || paidCents < 0 || paidCents > totalCents) {
+                alert('تحقق من المبلغ المدفوع؛ يجب أن يكون بين صفر ومجموع الفاتورة.'); return;
+            }
+            const remainingCents = totalCents - paidCents;
+            const paid = anasCentsToCurrency(paidCents);
+            const remaining = anasCentsToCurrency(remainingCents);
+
+            if (Object.prototype.hasOwnProperty.call(AppData, 'customers') &&
+                (!Array.isArray(AppData.customers) || AppData.customers.some(c => !c || typeof c !== 'object' || Array.isArray(c)))) {
+                alert('تعذر تأكيد البيع: سجل العملاء تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'invoices') &&
+                (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
+                alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.'); return;
+            }
+            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون']]) {
+                if (Object.prototype.hasOwnProperty.call(AppData, field) &&
+                    (!Array.isArray(AppData[field]) || AppData[field].some(record => !record || typeof record !== 'object' || Array.isArray(record)))) {
+                    alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
+                }
+            }
+            const existingCashMovementIds = new Set();
+            for (const movement of (Array.isArray(AppData.cashMovements) ? AppData.cashMovements : [])) {
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const id = String(movement.id);
+                if (existingCashMovementIds.has(id)) {
+                    alert('تعذر تأكيد البيع: سجل حركات الصندوق يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.'); return;
+                }
+                existingCashMovementIds.add(id);
+            }
+            const existingStockMovementIds = new Set();
+            for (const movement of (Array.isArray(AppData.stockMovements) ? AppData.stockMovements : [])) {
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const id = String(movement.id);
+                if (existingStockMovementIds.has(id)) {
+                    alert('تعذر تأكيد البيع: سجل حركات المخزون يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.'); return;
+                }
+                existingStockMovementIds.add(id);
+            }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance') &&
+                (!((typeof AppData.caisseBalance === 'number') || (typeof AppData.caisseBalance === 'string')) ||
+                 String(AppData.caisseBalance).trim() === '' || !Number.isFinite(Number(AppData.caisseBalance)) || Number(AppData.caisseBalance) < 0)) {
+                alert('تعذر تأكيد البيع: رصيد الصندوق غير صالح. لم يتم تسجيل أي حركة مالية أو مخزنية.'); return;
+            }
+
+            const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
+            if (remainingCents > 0 && !cId) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
+            const customerMatches = cId ? customers.filter(c => c && typeof c === 'object' && !Array.isArray(c) && c.id !== undefined && c.id !== null && String(c.id) === cId) : [];
+            if (cId && customerMatches.length !== 1) {
+                alert(customerMatches.length
+                    ? 'تعذر تأكيد البيع: معرّف الزبون مكرر في سجل العملاء. أصلح التكرار قبل تسجيل الفاتورة.'
+                    : 'الزبون المحدد غير موجود في سجل العملاء. اختر زبونًا صحيحًا.'); return;
+            }
+            const selectedCustomer = cId ? customerMatches[0] : null;
+            if (remainingCents > 0 && !selectedCustomer) { alert('اختر زبونًا مسجلًا إذا بقي مبلغ بالدين.'); return; }
+            const cust = selectedCustomer || { name: 'عميل نقدي عابر', debt: 0 };
+            const registeredCustomer = Boolean(selectedCustomer);
+            const hasDebtField = Object.prototype.hasOwnProperty.call(cust,'debt');
+            const rawDebt = cust.debt;
+            if (registeredCustomer && hasDebtField &&
+                !((typeof rawDebt === 'number' || typeof rawDebt === 'string') && String(rawDebt).trim() !== '' &&
+                  Number.isFinite(Number(rawDebt)) && Number(rawDebt) >= 0)) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل غير صالح. صحّح سجل العميل قبل تسجيل أي حركة مالية.'); return;
+            }
+            const oldDebtCents = hasDebtField ? anasToCents(rawDebt) : 0;
+            const newDebtCents = oldDebtCents + remainingCents;
+            if (!Number.isSafeInteger(oldDebtCents) || oldDebtCents < 0 ||
+                !Number.isSafeInteger(newDebtCents) || newDebtCents > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال المالي الآمن.'); return;
+            }
+            const currentCashCents = anasToCents(AppData.caisseBalance ?? 0);
+            const newCashCents = currentCashCents + paidCents;
+            if (!Number.isSafeInteger(currentCashCents) || currentCashCents < 0 ||
+                !Number.isSafeInteger(newCashCents) || newCashCents > Number.MAX_SAFE_INTEGER) {
+                alert('تعذر تأكيد البيع: رصيد الصندوق الناتج يتجاوز المجال المالي الآمن.'); return;
+            }
+            // Exact identity, checked before any mutation: invoice = cash receipt + incremental customer debt.
+            if (totalCents !== paidCents + (newDebtCents - oldDebtCents) ||
+                (newDebtCents - oldDebtCents) !== remainingCents) {
+                alert('تعذر تأكيد البيع: فشل شرط التطابق المحاسبي الدقيق؛ لم تُنفذ أي حركة.'); return;
+            }
+            const oldDebt = anasCentsToCurrency(oldDebtCents);
+            const newDebt = anasCentsToCurrency(newDebtCents);
+            const newCashBalance = anasCentsToCurrency(newCashCents);
+
+            const oldStocks = new Map();
+            for (const [id, qtyUnits] of requiredUnits) {
+                const p = saleProducts.get(id);
+                oldStocks.set(id, {
+                    stock:p.stock,
+                    hadStock:Object.prototype.hasOwnProperty.call(p,'stock'),
+                    hadWarehouseStock:Object.prototype.hasOwnProperty.call(p,'warehouseStock'),
+                    warehouseStock:Array.isArray(p.warehouseStock)?p.warehouseStock.slice():(p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock)
+                });
+            }
+            const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
+            const rawCaisseBalance = AppData.caisseBalance;
+            const oldCart = cart.map(it => ({...it}));
+            const hadInvoicesArray = Array.isArray(AppData.invoices);
+            const oldInvoices = hadInvoicesArray ? AppData.invoices : [];
+            const invoicesBefore = oldInvoices.slice();
+            const hadCashMovements = Object.prototype.hasOwnProperty.call(AppData, 'cashMovements');
+            const cashMovementsBefore = hadCashMovements ? AppData.cashMovements.slice() : null;
+            const hadStockMovements = Object.prototype.hasOwnProperty.call(AppData, 'stockMovements');
+            const stockMovementsBefore = hadStockMovements ? AppData.stockMovements.slice() : null;
+            const hadDebtDate = Object.prototype.hasOwnProperty.call(cust, 'debtDate');
+            const oldDebtDate = cust.debtDate;
+            const invoiceId = 'INV-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+            if (oldInvoices.some(inv => String(inv.id ?? '') === invoiceId) ||
+                (Array.isArray(AppData.cashMovements) && AppData.cashMovements.some(m => m.referenceType === 'sales_invoice' && String(m.referenceId ?? '') === invoiceId)) ||
+                (Array.isArray(AppData.stockMovements) && AppData.stockMovements.some(m => m.referenceType === 'sales_invoice' && String(m.referenceId ?? '') === invoiceId))) {
+                alert('تعذر تأكيد البيع: معرّف الفاتورة مستخدم مسبقًا في سجل محاسبي. أُوقفت العملية لمنع التكرار.'); return;
+            }
+            const normalizedItems = cart.map(it => {
+                const qtyUnits = anasToQtyUnits(it.qty);
+                const priceCents = anasToCents(it.price);
+                return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents),
+                    total:anasCentsToCurrency(Math.round(qtyUnits * priceCents / ANAS_QTY_SCALE))};
+            });
+            const invObj = {
+                id: invoiceId, date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
+                customerObj: cust, items: normalizedItems,
+                subtotal: anasCentsToCurrency(subtotalCents), discount: anasCentsToCurrency(discountCents),
+                total, paid, remaining,
+                warehouse: saleWarehouse, warehouseName: saleWarehouse,
+                userId: (AppData.currentUser && AppData.currentUser.id) ?? null,
+                userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
+                userRole: (AppData.currentUser && AppData.currentUser.role) || '',
+                paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
+                invoiceLedgerVersion: discountCents === 0 ? 2 : 1,
+                oldDebt, newDebt
+            };
+
+            let immediateCashMovementId = null;
+            const hadClientMovements = Object.prototype.hasOwnProperty.call(AppData, 'clientMovements');
+            const clientMovementsBefore = hadClientMovements
+                ? (Array.isArray(AppData.clientMovements) ? AppData.clientMovements.slice() : AppData.clientMovements) : null;
+            const hadSettlementAllocations = Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations');
+            const settlementAllocationsBefore = hadSettlementAllocations
+                ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
+            const hadCustomerLedgerVersion = registeredCustomer && Object.prototype.hasOwnProperty.call(cust, 'ledgerVersion');
+            const oldCustomerLedgerVersion = registeredCustomer ? cust.ledgerVersion : undefined;
+            try {
+                if (registeredCustomer && (remainingCents > 0 || oldDebtCents > 0 || paidCents > 0)) {
+                    if (!Array.isArray(AppData.clientMovements)) {
+                        if (Object.prototype.hasOwnProperty.call(AppData, 'clientMovements')) throw new Error('دفتر حركات العملاء تالف.');
+                        AppData.clientMovements = [];
+                    }
+                    if (!Array.isArray(AppData.settlementAllocations)) {
+                        if (Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations')) throw new Error('دفتر تخصيص الدفعات تالف.');
+                        AppData.settlementAllocations = [];
+                    }
+                    const existingClientRows = AppData.clientMovements.filter(row => row && String(row.clientId) === String(cust.id));
+                    if (cust.ledgerVersion !== 2) {
+                        if (existingClientRows.length) throw new Error('يوجد دفتر عميل سابق غير مختوم؛ يلزم تدقيقه قبل البيع الآجل.');
+                        cust.ledgerVersion = 2;
+                        if (oldDebtCents > 0) {
+                            const opening = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
+                                movementId: 'CL-OPEN-' + String(cust.id) + '-' + Date.now().toString(36),
+                                clientId: String(cust.id), type: 'opening_balance', amountCentimes: oldDebtCents,
+                                direction: 'debit', referenceType: 'opening_balance', referenceId: String(cust.id),
+                                createdAt: new Date().toISOString()
+                            });
+                            AppData.clientMovements.push(opening);
+                        }
+                    } else {
+                        globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
+                    }
+                }
+                if (remainingCents > 0 && registeredCustomer) {
+                    cust.debt = newDebt;
+                    cust.debtDate = new Date().toISOString().slice(0, 10);
+                }
+                for (const [id, qtyUnits] of requiredUnits) {
+                    const p = saleProducts.get(id);
+                    const currentUnits = anasToQtyUnits(saleWarehouse === 'المخزن الرئيسي' ? p.stock : (p.warehouseStock?.[saleWarehouse] ?? 0));
+                    const updatedUnits = currentUnits - qtyUnits;
+                    if (!Number.isSafeInteger(updatedUnits) || updatedUnits < 0) throw new Error('تغير رصيد المخزون قبل إتمام البيع.');
+                    if (saleWarehouse === 'المخزن الرئيسي') p.stock = anasQtyFromUnits(updatedUnits);
+                    else {
+                        if (!p.warehouseStock || typeof p.warehouseStock !== 'object') p.warehouseStock = {};
+                        p.warehouseStock[saleWarehouse] = anasQtyFromUnits(updatedUnits);
+                    }
+                }
+                if (paidCents > 0) {
+                    AppData.caisseBalance = newCashBalance;
+                    if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
+                    const cashMovementId = 'SALE-CASH-' + invObj.id;
+                    if (existingCashMovementIds.has(cashMovementId)) throw new Error('معرّف حركة الصندوق موجود مسبقًا.');
+                    immediateCashMovementId = cashMovementId;
+                    AppData.cashMovements.unshift({
+                        id: cashMovementId, type: 'add', amount: anasCentsToCurrency(paidCents),
+                        description: 'تحصيل نقدي من فاتورة البيع ' + invObj.id,
+                        referenceType: 'sales_invoice', referenceId: invObj.id,
+                        date: new Date().toISOString(),
+                        userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                        userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+                    });
+                }
+                if (!Array.isArray(AppData.stockMovements)) AppData.stockMovements = [];
+                for (const [id, qtyUnits] of requiredUnits) {
+                    const product = saleProducts.get(id);
+                    const movementId = 'SALE-STOCK-' + invObj.id + '-' + id;
+                    if (existingStockMovementIds.has(movementId)) throw new Error('معرّف حركة المخزون موجود مسبقًا.');
+                    const saleUnitCostCentimes = anasToCents(product.buyPrice);
+                    let originalSaleCostCentimes = null;
+                    if (Number.isSafeInteger(qtyUnits) && qtyUnits > 0 && Number.isSafeInteger(saleUnitCostCentimes) && saleUnitCostCentimes >= 0) {
+                        const saleCostProduct = BigInt(qtyUnits) * BigInt(saleUnitCostCentimes);
+                        const roundedSaleCost = (saleCostProduct + 500000n) / 1000000n;
+                        if (roundedSaleCost <= BigInt(Number.MAX_SAFE_INTEGER)) originalSaleCostCentimes = Number(roundedSaleCost);
+                    }
+                    AppData.stockMovements.unshift({
+                        id: movementId, productId: product.id,
+                        productName: product.name || product.title || id,
+                        qty: anasQtyFromUnits(-qtyUnits), type: 'SALE_OUT',
+                        referenceType: 'sales_invoice', referenceId: invObj.id,
+                        originalSaleQuantityMicroUnits: qtyUnits,
+                        originalSaleCostCentimes,
+                        warehouse: saleWarehouse, date: new Date().toISOString(),
+                        note: 'بيع من الفاتورة ' + invObj.id
+                    });
+                }
+                AppData.invoices = oldInvoices;
+                AppData.invoices.unshift(invObj);
+                if (registeredCustomer && remainingCents > 0) {
+                    const debit = globalThis.ANASReverseLedger.sealClientMovement(AppData, {
+                        movementId: 'CL-INV-' + invObj.id, clientId: String(cust.id),
+                        type: 'invoice_debit', amountCentimes: remainingCents, direction: 'debit',
+                        referenceType: 'sales_invoice', referenceId: String(invObj.id),
+                        createdAt: new Date().toISOString()
+                    });
+                    AppData.clientMovements.push(debit);
+                }
+                if (registeredCustomer && paidCents > 0) {
+                    if (!immediateCashMovementId) throw new Error('حركة قبض الفاتورة غير موجودة.');
+                    const allocation = globalThis.ANASReverseLedger.sealSettlementAllocation(AppData, {
+                        allocationId: 'ALLOC-SALE-' + invObj.id, partyType: 'customer',
+                        partyId: String(cust.id), invoiceType: 'sales_invoice', invoiceId: String(invObj.id),
+                        sourceMovementId: immediateCashMovementId, sourceMovementType: 'sales_invoice',
+                        amountCentimes: paidCents, createdAt: new Date().toISOString()
+                    });
+                    AppData.settlementAllocations.push(allocation);
+                }
+                // Empty the cart before persistence so a repeated click cannot post the same sale twice.
+                posCart = [];
+                if (!saveDB()) throw new Error('تعذر حفظ البيانات');
+            } catch (e) {
+                for (const [id, stockState] of oldStocks) {
+                    const p = saleProducts.get(id);
+                    if (p) {
+                        if(stockState.hadStock)p.stock=stockState.stock;
+                        else delete p.stock;
+                        if(stockState.hadWarehouseStock)p.warehouseStock=stockState.warehouseStock;
+                        else delete p.warehouseStock;
+                    }
+                }
+                if (registeredCustomer) {
+                    if (hasDebtField) cust.debt = rawDebt; else delete cust.debt;
+                    if (hadDebtDate) cust.debtDate = oldDebtDate; else delete cust.debtDate;
+                    if (hadCustomerLedgerVersion) cust.ledgerVersion = oldCustomerLedgerVersion;
+                    else delete cust.ledgerVersion;
+                }
+                if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;
+                if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
+                if (hadStockMovements) AppData.stockMovements = stockMovementsBefore; else delete AppData.stockMovements;
+                AppData.invoices = invoicesBefore;
+                if (!hadInvoicesArray) delete AppData.invoices;
+                if (hadClientMovements) AppData.clientMovements = clientMovementsBefore;
+                else delete AppData.clientMovements;
+                if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore;
+                else delete AppData.settlementAllocations;
+                posCart = oldCart;
+                try {
+                    if (typeof updateCashUI === 'function') updateCashUI();
+                    if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
+                    if (typeof renderPosTable === 'function') renderPosTable();
+                } catch (_) {}
+                alert('لم يتم تأكيد الفاتورة لأن ختم الدفتر أو الحفظ فشل. أُعيدت الحالة والدفاتر إلى ما قبل العملية.');
+                console.error('Anas ERP invoice transaction failed:', e);
+                return;
+            }
+
+            lastConfirmedInvoice = invObj;
+            posCart = [];
+            renderPosTable();
+            closeModal('hasibModal');
+            alert('تم تأكيد وحفظ الفاتورة رقم ' + invObj.id + ' دون طباعة. يمكنك طباعتها لاحقًا من سجل الفواتير.');
+        }
+
+        
+function confirmHasibPaymentDurable() {
             if (typeof hasibPaymentInFlight !== 'undefined' && hasibPaymentInFlight) return;
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
