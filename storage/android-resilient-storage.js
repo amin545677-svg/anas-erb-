@@ -465,10 +465,10 @@
       revision, mode, recoveredFromIndexedDB: selected !== null && idbValid && selected === record.payload };
   }
   function hydrate(localPayload) {
-    if (hydrationPromise) return hydrationPromise;
-    if (hydrated) return Promise.resolve({ hydrated: true, payload: getSync(APP_KEY),
-      data: getSync(APP_KEY) === null ? null : decode(getSync(APP_KEY)), revision, mode,
-      recoveredFromIndexedDB: false });
+    // Concurrent callers join the in-flight transaction. A later explicit
+    // hydrate() after READY deliberately re-reads and revalidates durable state
+    // (for example after a bit-rot or crash-recovery event in the same document).
+    if (hydrationState === 'HYDRATING' && hydrationPromise) return hydrationPromise;
     hydrationState = 'HYDRATING';
     hydrationPromise = performHydrate(localPayload).then(result => {
       hydrationState = 'READY';
