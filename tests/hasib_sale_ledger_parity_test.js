@@ -7,7 +7,7 @@ const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
 const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer currency/quantity helpers must be present and isolatable');
 const helperSource = html.slice(helperStart, helperEnd);
-const start = html.indexOf('function confirmHasibPayment()');
+const start = html.indexOf('async function confirmHasibPayment()');
 const end = html.indexOf('\n        function printLastConfirmedInvoice(type)', start + 20);
 assert.ok(start >= 0 && end > start, 'confirmHasibPayment must be present and isolatable');
 const purchaseHelperStart = html.indexOf('function anasPurchaseToScaledInteger');
@@ -17,7 +17,7 @@ assert.ok(purchaseHelperStart >= 0 && purchaseHelperEnd > purchaseHelperStart,
 const purchaseHelperSource = html.slice(purchaseHelperStart, purchaseHelperEnd);
 const source = helperSource + purchaseHelperSource + html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, doubleConfirm = false} = {}) {
+async function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, doubleConfirm = false} = {}) {
   const product = {id:'P-1', name:'Test product', stock:productStock, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:customerDebt};
   const AppData = {
@@ -41,6 +41,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     wtCurrentSaleWarehouse:()=>warehouse,
     wtAvailableStock:(p,w)=>w==='المخزن الرئيسي'?p.stock:(p.warehouseStock?.[w]??0),
     saveDB:()=>{saves++;return saveResult;},
+    saveDBDurably:async()=>{saves++;return saveResult;},
     renderPosTable:()=>{renders++;},
     closeModal:()=>{closes++;},
     alert:m=>alerts.push(String(m)),
@@ -48,13 +49,14 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     Date, Math, Number, String, Object, Array, Map, Set
   };
   vm.createContext(context);
-  vm.runInContext(source + '\nconfirmHasibPayment();', context, {timeout:1000});
-  if (doubleConfirm) vm.runInContext('confirmHasibPayment();', context, {timeout:1000});
+  await vm.runInContext(source + '\nconfirmHasibPayment();', context, {timeout:1000});
+  if (doubleConfirm) await vm.runInContext('confirmHasibPayment();', context, {timeout:1000});
   return {AppData,product,customer,alerts,saves,renders,closes,posCart:context.posCart,lastInvoice:context.lastConfirmedInvoice,context};
 }
 
+(async () => {
 {
-  const r=runSale({paid:500.5});
+  const r=await runSale({paid:500.5});
   assert.equal(r.saves,1);
   assert.equal(r.product.stock,18);
   assert.equal(r.AppData.caisseBalance,600.5);
@@ -78,7 +80,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({
+  const r=await runSale({
     cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],
     paid:0.3
   });
@@ -93,7 +95,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({
+  const r=await runSale({
     cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.1}],
     paid:0.01
   });
@@ -104,7 +106,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({paid:200.5});
+  const r=await runSale({paid:200.5});
   assert.equal(r.AppData.caisseBalance,300.5);
   assert.equal(r.customer.debt,300);
   assert.equal(r.AppData.cashMovements.length,1);
@@ -115,7 +117,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({paid:0});
+  const r=await runSale({paid:0});
   assert.equal(r.AppData.caisseBalance,100);
   assert.equal(r.customer.debt,500.5);
   assert.equal(r.AppData.cashMovements.length,0,'credit sale must not create a cash receipt');
@@ -124,7 +126,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({paid:500.5,warehouse:'فرع 1'});
+  const r=await runSale({paid:500.5,warehouse:'فرع 1'});
   assert.equal(r.product.warehouseStock['فرع 1'],10);
   assert.equal(r.product.stock,20);
   assert.equal(r.AppData.stockMovements[0].warehouse,'فرع 1');
@@ -133,7 +135,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({paid:500.5,saveResult:false});
+  const r=await runSale({paid:500.5,saveResult:false});
   assert.equal(r.saves,1);
   assert.equal(r.product.stock,20);
   assert.equal(r.AppData.caisseBalance,100);
@@ -147,7 +149,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({cart:[
+  const r=await runSale({cart:[
     {id:'P-1',name:'Test product',qty:0.25,price:100.1},
     {id:'P-1',name:'Test product',qty:0.25,price:100.1}
   ],paid:50.05});
@@ -159,7 +161,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({cashMovements:[{id:'DUP',amount:1},{id:'DUP',amount:2}]});
+  const r=await runSale({cashMovements:[{id:'DUP',amount:1},{id:'DUP',amount:2}]});
   assert.equal(r.saves,0,'duplicate cash movement IDs must block the sale before mutation');
   assert.equal(r.product.stock,20);
   assert.equal(r.AppData.caisseBalance,100);
@@ -169,7 +171,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({stockMovements:[{id:'DUP',qty:-1},{id:'DUP',qty:-2}]});
+  const r=await runSale({stockMovements:[{id:'DUP',qty:-1},{id:'DUP',qty:-2}]});
   assert.equal(r.saves,0,'duplicate stock movement IDs must block the sale before mutation');
   assert.equal(r.product.stock,20);
   assert.equal(r.AppData.caisseBalance,100);
@@ -179,7 +181,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({omitLedgers:true,saveResult:false});
+  const r=await runSale({omitLedgers:true,saveResult:false});
   assert.equal(Object.prototype.hasOwnProperty.call(r.AppData,'cashMovements'),false,'failed sale must remove a newly created cash ledger property');
   assert.equal(Object.prototype.hasOwnProperty.call(r.AppData,'stockMovements'),false,'failed sale must remove a newly created stock ledger property');
   assert.equal(r.AppData.caisseBalance,100);
@@ -189,7 +191,7 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
 }
 
 {
-  const r=runSale({
+  const r=await runSale({
     cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],
     paid:0.1,
     customerDebt:0.1,
@@ -211,7 +213,7 @@ console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
 
 
 {
-  const r=runSale({
+  const r=await runSale({
     cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],
     paid:0.1,
     customerDebt:0.1,
@@ -253,7 +255,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:7,price:0.1}],paid:0.7});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:7,price:0.1}],paid:0.7});
   assert.equal(r.AppData.invoices[0].total,0.7);
   assert.equal(r.AppData.invoices[0].paid,0.7);
   assert.equal(r.AppData.invoices[0].remaining,0);
@@ -263,7 +265,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.2}],paid:0.02});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.2}],paid:0.02});
   assert.equal(r.AppData.invoices[0].total,0.02);
   assert.equal(r.AppData.invoices[0].paid,0.02);
   assert.equal(r.AppData.invoices[0].remaining,0);
@@ -273,7 +275,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.2}],paid:0.01,customerDebt:0.03,caisseBalance:100.09});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:0.2}],paid:0.01,customerDebt:0.03,caisseBalance:100.09});
   assert.equal(r.AppData.invoices[0].total,0.02);
   assert.equal(r.AppData.invoices[0].paid,0.01);
   assert.equal(r.AppData.invoices[0].remaining,0.01);
@@ -285,7 +287,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:1}],paid:0.1,productStock:0.8});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:0.1,price:1}],paid:0.1,productStock:0.8});
   assert.equal(r.product.stock,0.7,'stock subtraction must be stored at six-decimal quantity precision');
   assert.equal(r.AppData.stockMovements[0].qty,-0.1);
   assert.equal(r.context.anasRoundQty(0.8-0.1),0.7);
@@ -293,7 +295,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.3,doubleConfirm:true});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.3,doubleConfirm:true});
   assert.equal(r.AppData.invoices.length,1,'a second confirmation after commit must be a no-op');
   assert.equal(r.AppData.cashMovements.length,1,'double confirmation must not duplicate SALE-CASH');
   assert.equal(r.AppData.stockMovements.length,1,'double confirmation must not duplicate SALE-STOCK');
@@ -303,7 +305,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1,caisseBalance:100.1});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1,caisseBalance:100.1});
   const cashDisplay={innerText:''};
   const readerContext={
     AppData:r.AppData, cashDisplay,
@@ -331,7 +333,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.3,customerDebt:0.25});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.3,customerDebt:0.25});
   assert.equal(r.customer.debt,0.25,'fully paid invoice must not change an existing customer debt');
   assert.equal(r.AppData.invoices[0].remaining,0);
   assert.equal(r.AppData.invoices[0].paymentMethod,'cash');
@@ -342,7 +344,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1,customerDebt:0.1});
   const stocktakeStart=html.indexOf('/* ANAS ERP — stocktake sessions, draft, variance approval and audit movements */');
   const stocktakeEnd=html.indexOf('\n})();',stocktakeStart);
   assert.ok(stocktakeStart>=0&&stocktakeEnd>stocktakeStart,'actual stocktake module must be present and isolatable');
@@ -365,7 +367,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 
 
 {
-  const r=runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1});
+  const r=await runSale({cart:[{id:'P-1',name:'Test product',qty:3,price:0.1}],paid:0.1});
   const syncStart=html.indexOf('async function syncPushNow()');
   const syncEnd=html.indexOf('\n        async function syncPullNow()',syncStart);
   assert.ok(syncStart>=0&&syncEnd>syncStart,'actual cloud snapshot sender must be present and isolatable');
@@ -415,3 +417,4 @@ function assertAccountingIdentity(result, openingDebt = 0) {
     'the operator must receive an explicit server-authorization block reason');
   console.log('PASS: reverse posting fails closed without a trusted server gateway and preserves all local state');
 }
+})().catch(error => { console.error(error); process.exitCode = 1; });
