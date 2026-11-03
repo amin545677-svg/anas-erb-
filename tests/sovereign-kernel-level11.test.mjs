@@ -238,7 +238,8 @@ test("kernel canonicalization rejects unpaired UTF-16 surrogate code units", () 
     error => error.code === "UNPAIRED_UTF16_SURROGATE");
   assert.throws(() => canonicalizeJson({ [low]: 1 }),
     error => error.code === "UNPAIRED_UTF16_SURROGATE");
-  assert.equal(canonicalizeJson({ value: "cafe\\u0301" }), canonicalizeJson({ value: "café" }));
+  const decomposed = "cafe" + String.fromCharCode(0x0301);
+  assert.equal(canonicalizeJson({ value: decomposed }), canonicalizeJson({ value: "café" }));
 });
 
 test("committed snapshot publishes a deeply frozen copy only after persistence", async () => {
