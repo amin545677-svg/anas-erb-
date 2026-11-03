@@ -255,3 +255,23 @@ test("committed snapshot publishes a deeply frozen copy only after persistence",
   assert.equal(Object.isFrozen(cache.read()), false);
   assert.equal(cache.read().nested.cents, 100003n);
 });
+
+
+test("Level 24-A rejects cycles and excessive depth without recursive stack exhaustion", async () => {
+  const { canonicalizeJson, cloneFrozen } = await import("../core/sovereign-kernel.mjs");
+  const a = {}; a.self = a;
+  const started = process.hrtime.bigint();
+  assert.throws(() => canonicalizeJson(a),
+    error => error.code === "CIRCULAR_REFERENCE_IN_LEDGER_STATE");
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsedMs < 1, `cycle rejection took ${elapsedMs}ms`);
+  assert.throws(() => cloneFrozen(a),
+    error => error.code === "CIRCULAR_REFERENCE_IN_LEDGER_STATE");
+  let deep = {};
+  let cursor = deep;
+  for (let i = 0; i < 66; i++) { cursor.next = {}; cursor = cursor.next; }
+  assert.throws(() => canonicalizeJson(deep),
+    error => error.code === "MAX_CANONICAL_DEPTH_EXCEEDED");
+  assert.throws(() => cloneFrozen(deep),
+    error => error.code === "MAX_CANONICAL_DEPTH_EXCEEDED");
+});
