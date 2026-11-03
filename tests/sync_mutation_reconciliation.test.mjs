@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { reconcilePendingMutations } from "../sync/mutation_reconciliation.mjs";
+import { reconcilePendingMutations, comparePendingMutationsDeterministically } from "../sync/mutation_reconciliation.mjs";
 
 function cloud() {
   return {
@@ -306,4 +306,22 @@ test("money replay quarantines fractional-cent, exponent and unsafe-range inputs
       String(amount)
     );
   }
+});
+
+
+test("Level 24-D orders by BigInt localSeq then NFC-normalized UTF-16 opId", () => {
+  const queue = [
+    { localSeq: "12", opId: "z" },
+    { localSeq: 2, opId: "b" },
+    { localSeq: "2", opId: "a" },
+    { opId: "e\u0301" },
+    { opId: "z" },
+    { localSeq: 1, opId: "late" }
+  ];
+  const sorted = queue.slice().sort(comparePendingMutationsDeterministically);
+  assert.deepEqual(sorted.map(x => x.opId), ["late", "a", "b", "é", "z", "z"]);
+  assert.equal(comparePendingMutationsDeterministically(
+    { localSeq: "9007199254740993", opId: "a" },
+    { localSeq: "9007199254740992", opId: "z" }
+  ), 1);
 });
