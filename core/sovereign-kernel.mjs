@@ -61,7 +61,12 @@ function assertWellFormedUnicode(text) {
   return text;
 }
 
-export function canonicalizeJson(value, seen = new WeakSet()) {
+export function canonicalizeJson(value, seen = new WeakSet(), depth = 0) {
+  if (depth > 64) {
+    const error = new RangeError("MAX_CANONICAL_DEPTH_EXCEEDED");
+    error.code = "MAX_CANONICAL_DEPTH_EXCEEDED";
+    throw error;
+  }
   if (value === null || typeof value === "boolean") return JSON.stringify(value);
   if (typeof value === "string") return JSON.stringify(assertWellFormedUnicode(value).normalize("NFC"));
   if (typeof value === "bigint") return JSON.stringify(value.toString() + "n");
@@ -74,14 +79,14 @@ export function canonicalizeJson(value, seen = new WeakSet()) {
     return JSON.stringify(value);
   }
   if (typeof value !== "object") throw new TypeError("NON_CANONICAL_JSON_TYPE");
-  if (seen.has(value)) throw new TypeError("NON_CANONICAL_CYCLE");
+  if (seen.has(value)) { const error = new TypeError("CIRCULAR_REFERENCE_IN_LEDGER_STATE"); error.code = "CIRCULAR_REFERENCE_IN_LEDGER_STATE"; throw error; }
   seen.add(value);
   try {
     if (Array.isArray(value)) {
       const out = [];
       for (let i = 0; i < value.length; i++) {
         if (!Object.prototype.hasOwnProperty.call(value, i)) throw new TypeError("NON_CANONICAL_ARRAY_HOLE");
-        out.push(canonicalizeJson(value[i], seen));
+        out.push(canonicalizeJson(value[i], seen, depth + 1));
       }
       return "[" + out.join(",") + "]";
     }
@@ -102,7 +107,7 @@ export function canonicalizeJson(value, seen = new WeakSet()) {
       if (!Object.prototype.hasOwnProperty.call(value, key)) throw new TypeError("NON_CANONICAL_INHERITED_KEY");
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) throw new TypeError("NON_CANONICAL_ACCESSOR");
-      pairs.push(JSON.stringify(normalized) + ":" + canonicalizeJson(descriptor.value, seen));
+      pairs.push(JSON.stringify(normalized) + ":" + canonicalizeJson(descriptor.value, seen, depth + 1));
     }
     return "{" + pairs.join(",") + "}";
   } finally {
@@ -110,20 +115,43 @@ export function canonicalizeJson(value, seen = new WeakSet()) {
   }
 }
 
+export function canonicalizeJsonJcsNfc(value, depth = 0, activeAncestors = new Set()) {
+  if (!(activeAncestors instanceof Set)) throw new TypeError("ACTIVE_ANCESTORS_MUST_BE_SET");
+  // canonicalizeJson owns the full traversal set; this wrapper preserves the
+  // requested API while keeping callers from sharing mutable traversal state.
+  return canonicalizeJson(value, new WeakSet(activeAncestors), depth);
+}
+
 export function sha256Canonical(value) {
   return sha256Hex(canonicalizeJson(value));
 }
 
 export function cloneFrozen(value) {
+  // Validate cycles and bound depth before structuredClone/freeze can recurse
+  // through attacker-controlled state or exhaust the Android WebView stack.
+  canonicalizeJson(value);
   const copy = structuredClone(value);
-  const freeze = (node) => {
-    if (node && typeof node === "object" && !Object.isFrozen(node)) {
-      for (const key of Object.keys(node)) freeze(node[key]);
-      Object.freeze(node);
+  const visited = new WeakSet();
+  const stack = [{ node: copy, depth: 0, exit: false }];
+  while (stack.length) {
+    const frame = stack.pop();
+    const node = frame.node;
+    if (!node || typeof node !== "object") continue;
+    if (frame.exit) { Object.freeze(node); continue; }
+    if (frame.depth > 64) {
+      const error = new RangeError("MAX_CANONICAL_DEPTH_EXCEEDED");
+      error.code = "MAX_CANONICAL_DEPTH_EXCEEDED";
+      throw error;
     }
-    return node;
-  };
-  return freeze(copy);
+    if (visited.has(node)) continue;
+    visited.add(node);
+    stack.push({ node, depth: frame.depth, exit: true });
+    const keys = Object.keys(node);
+    for (let i = keys.length - 1; i >= 0; i--) {
+      stack.push({ node: node[keys[i]], depth: frame.depth + 1, exit: false });
+    }
+  }
+  return copy;
 }
 
 export class CommittedSnapshotCache {
