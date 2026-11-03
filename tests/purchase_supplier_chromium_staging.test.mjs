@@ -123,6 +123,14 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       window.ANASResilientStorage?.ready() === true,
       null, { timeout: 15000 }
     );
+    const hydrationMutability = await page.evaluate(() => ({
+      appMutable: !Object.isFrozen(AppData) && !Object.isFrozen(AppData.suppliers),
+      committedSnapshotImmutable: Object.isFrozen(ANASResilientStorage.getCommittedSnapshot()),
+      runtimeDetachedFromSnapshot: AppData !== ANASResilientStorage.getCommittedSnapshot()
+    }));
+    assert.deepEqual(hydrationMutability, {
+      appMutable: true, committedSnapshotImmutable: true, runtimeDetachedFromSnapshot: true
+    }, 'hydration must expose a mutable runtime graph and retain a separate immutable committed snapshot');
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught page errors');
 
     // Exercise the actual backup/cloud validators before any restore assignment.
@@ -381,6 +389,14 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       window.ANASResilientStorage?.ready() === true,
       null, { timeout: 15000 }
     );
+    const hydrationMutability = await page.evaluate(() => ({
+      appMutable: !Object.isFrozen(AppData) && !Object.isFrozen(AppData.suppliers),
+      committedSnapshotImmutable: Object.isFrozen(ANASResilientStorage.getCommittedSnapshot()),
+      runtimeDetachedFromSnapshot: AppData !== ANASResilientStorage.getCommittedSnapshot()
+    }));
+    assert.deepEqual(hydrationMutability, {
+      appMutable: true, committedSnapshotImmutable: true, runtimeDetachedFromSnapshot: true
+    }, 'hydration must expose a mutable runtime graph and retain a separate immutable committed snapshot');
     const afterReloadProof = await page.evaluate(() => {
       const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
       if (raw === null) throw new Error('persisted ERP snapshot is missing after reload');
@@ -571,6 +587,14 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
       window.ANASResilientStorage?.ready() === true,
       null, { timeout: 15000 }
     );
+    const hydrationMutability = await page.evaluate(() => ({
+      appMutable: !Object.isFrozen(AppData) && !Object.isFrozen(AppData.suppliers),
+      committedSnapshotImmutable: Object.isFrozen(ANASResilientStorage.getCommittedSnapshot()),
+      runtimeDetachedFromSnapshot: AppData !== ANASResilientStorage.getCommittedSnapshot()
+    }));
+    assert.deepEqual(hydrationMutability, {
+      appMutable: true, committedSnapshotImmutable: true, runtimeDetachedFromSnapshot: true
+    }, 'hydration must expose a mutable runtime graph and retain a separate immutable committed snapshot');
     await page.evaluate(() => {
       posCart = [{ id: 'STG-TEA-001', name: 'شاي اختبار Chromium', qty: 3, price: 0.10, unit: 'قطعة' }];
       openHasibModal();
