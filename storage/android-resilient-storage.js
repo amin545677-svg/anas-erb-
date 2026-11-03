@@ -46,7 +46,19 @@
   const BIGINT_ENVELOPE_KEY = '__anas_bigint_v1__';
   const CANONICAL_DIGITS_RE = /^-?\d+$/;
   let committedSnapshot = null;
-  function assertWellFormedUtf16(str) { return assertWellFormedUnicode(str); }
+  function assertWellFormedUtf16(str) {
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      if (code >= 0xD800 && code <= 0xDBFF) {
+        const next = str.charCodeAt(i + 1);
+        if (!(next >= 0xDC00 && next <= 0xDFFF)) throw Object.assign(new Error('MALFORMED_UTF16_SURROGATE_SEQUENCE'), { code: 'MALFORMED_UTF16_SURROGATE_SEQUENCE' });
+        i++;
+      } else if (code >= 0xDC00 && code <= 0xDFFF) {
+        throw Object.assign(new Error('MALFORMED_UTF16_SURROGATE_SEQUENCE'), { code: 'MALFORMED_UTF16_SURROGATE_SEQUENCE' });
+      }
+    }
+    return str;
+  }
   function isStrictBigIntEnvelope(value) {
     if (value === null || typeof value !== 'object' ||
         Object.prototype.toString.call(value) !== '[object Object]') return false;
@@ -82,12 +94,13 @@
       const proto = Object.getPrototypeOf(value);
       if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
       if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
-      const pairs = Object.keys(value).filter(k => value[k] !== undefined).map(origKey => {
+      const pairs = [];
+      for (const origKey of Object.keys(value)) {
         assertWellFormedUtf16(origKey);
         const d = Object.getOwnPropertyDescriptor(value, origKey);
         if (!d || !Object.prototype.hasOwnProperty.call(d, 'value')) throw new TypeError('NON_CANONICAL_ACCESSOR');
-        return { normKey: origKey.normalize('NFC'), value: d.value };
-      });
+        if (d.value !== undefined) pairs.push({ normKey: origKey.normalize('NFC'), value: d.value });
+      }
       pairs.sort((a,b) => a.normKey < b.normKey ? -1 : a.normKey > b.normKey ? 1 : 0);
       const parts = [];
       for (let i=0;i<pairs.length;i++) {
