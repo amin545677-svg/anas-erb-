@@ -756,15 +756,19 @@ test('JCS NFC canonicalization is stable for Arabic NFC/NFD and reversed object 
   await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
   const result = await page.evaluate(async () => {
     const S = window.ANASResilientStorage;
+    const malformedUtf16Rejected = (() => {
+      try { S.assertWellFormedUtf16(String.fromCharCode(0xD800)); return false; }
+      catch (error) { return error.code === 'MALFORMED_UTF16_SURROGATE_SEQUENCE'; }
+    })();
     const nfc = 'أحمد';
     const nfd = nfc.normalize('NFD');
     const left = { زبون: nfc, فاتورة: 13n, اسم: 'رودينا' };
     const right = { اسم: 'رودينا'.normalize('NFD'), فاتورة: 13n, زبون: nfd };
     const a = await S.checksum(S.canonicalizeJson(left));
     const b = await S.checksum(S.canonicalizeJson(right));
-    return { equal: a === b, length: a.length };
+    return { equal: a === b, length: a.length, malformedUtf16Rejected };
   });
-  assert.deepEqual(result, { equal: true, length: 71 });
+  assert.deepEqual(result, { equal: true, length: 71, malformedUtf16Rejected: true });
   await context.close();
 });
 
