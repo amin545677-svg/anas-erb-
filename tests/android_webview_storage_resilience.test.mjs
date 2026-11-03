@@ -473,10 +473,10 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
     const first = S.getItem(S.APP_KEY);
     first.invoice.customer.name = 'MUTATED-READ';
     const second = S.getItem(S.APP_KEY);
-    let nanRejected = false, infinityRejected = false, negativeZeroRejected = false;
+    let nanRejected = false, infinityRejected = false;
     try { S.canonicalizeJson({ amount: NaN }); } catch (error) { nanRejected = error.code === 'NON_CANONICAL_NUMERIC_VALUE'; }
     try { S.canonicalizeJson({ amount: Infinity }); } catch (error) { infinityRejected = error.code === 'NON_CANONICAL_NUMERIC_VALUE'; }
-    try { S.canonicalizeJson({ amount: -0 }); } catch (error) { negativeZeroRejected = error.code === 'NON_CANONICAL_NUMERIC_VALUE'; }
+    const negativeZeroCanonical = S.canonicalizeJson({ amount: -0 }) === '{"amount":0}';
     const a = { z: 1, nested: { y: 2, deep: { b: 3, a: 4 } } };
     const b = { nested: { deep: { a: 4, b: 3 }, y: 2 }, z: 1 };
     return {
@@ -489,7 +489,7 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
         catch (error) { return error.code === 'UNICODE_NFC_KEY_COLLISION'; }
       })(),
       hashLength: (await S.checksum(S.encode(a))).replace('sha256:', '').length,
-      nanRejected, infinityRejected, negativeZeroRejected
+      nanRejected, infinityRejected, negativeZeroCanonical
     };
   });
   assert.deepEqual(result, {
@@ -501,7 +501,7 @@ test('canonical JSON storage rejects exceptional numbers and isolates object ref
     hashLength: 64,
     nanRejected: true,
     infinityRejected: true,
-    negativeZeroRejected: true
+    negativeZeroCanonical: true
   });
   await context.close();
 });
@@ -527,8 +527,8 @@ test('V2 framed serialization round-trips BigInt without confusing user objects 
     const payload = S.encode(source);
     const decoded = S.decode(payload);
     let legacyMarkerRejected = false;
-    try { S.decode('{"amount":{"__anas_bigint_v1__":"9007199254740993"}}'); }
-    catch (error) { legacyMarkerRejected = error.code === 'AMBIGUOUS_LEGACY_BIGINT_MARKER'; }
+    try { S.decode('{"amount":{"__anas_bigint_v1__":"9007199254740993","extra":true}}'); }
+    catch (error) { legacyMarkerRejected = error.code === 'INVALID_BIGINT_ENVELOPE'; }
     return {
       framed: payload.startsWith('ANASERP2:'),
       amount: decoded.amount.toString(),
@@ -745,6 +745,70 @@ test('storage rejects unpaired UTF-16 surrogate values and keys', async () => {
     };
   });
   assert.deepEqual(result, { value: true, key: true });
+  await context.close();
+});
+
+
+test('JCS NFC canonicalization is stable for Arabic NFC/NFD and reversed object key order', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const nfc = 'أحمد';
+    const nfd = nfc.normalize('NFD');
+    const left = { زبون: nfc, فاتورة: 13n, اسم: 'رودينا' };
+    const right = { اسم: 'رودينا'.normalize('NFD'), فاتورة: 13n, زبون: nfd };
+    const a = await S.checksum(S.canonicalizeJson(left));
+    const b = await S.checksum(S.canonicalizeJson(right));
+    return { equal: a === b, length: a.length };
+  });
+  assert.deepEqual(result, { equal: true, length: 71 });
+  await context.close();
+});
+
+test('strict legacy BigInt envelopes reject extra keys and non-decimal strings without coercion', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(() => {
+    const S = window.ANASResilientStorage;
+    const valid = { __anas_bigint_v1__: '-1200' };
+    const extra = { __anas_bigint_v1__: '1200', other: true };
+    const invalid = { __anas_bigint_v1__: '12x' };
+    return {
+      valid: S.isStrictBigIntEnvelope(valid),
+      extra: S.isStrictBigIntEnvelope(extra),
+      invalid: S.isStrictBigIntEnvelope(invalid),
+      malformedDecodeRejected: (() => { try { S.decode(JSON.stringify(extra)); return false; } catch (e) { return e.code === 'INVALID_BIGINT_ENVELOPE'; } })()
+    };
+  });
+  assert.deepEqual(result, { valid: true, extra: false, invalid: false, malformedDecodeRejected: true });
+  await context.close();
+});
+
+test('committed snapshot is deeply frozen and isolated from decoded working copies', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+    await S.setItem(S.APP_KEY, { accounts: [{ balanceCentimes: 250n }] });
+    const committed = S.getCommittedSnapshot();
+    const working = S.getItem(S.APP_KEY);
+    try { working.accounts[0].balanceCentimes = 251n; } catch (_) {}
+    return {
+      frozenRoot: Object.isFrozen(committed),
+      frozenNested: Object.isFrozen(committed.accounts[0]),
+      committedBalance: committed.accounts[0].balanceCentimes.toString(),
+      workingBalance: working.accounts[0].balanceCentimes.toString()
+    };
+  });
+  assert.deepEqual(result, { frozenRoot: true, frozenNested: true, committedBalance: '250', workingBalance: '251' });
   await context.close();
 });
 
