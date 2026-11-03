@@ -126,4 +126,76 @@ console.log('PASS: durable POS save publishes the cart map only after storage AC
     'supplier creation must await durable persistence before closing its modal');
 }
 console.log('PASS: supplier and POS payment flows await durable storage before success UI');
+
+async function verifyDurablePaymentGate(rejectCommit) {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+  const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+  const paymentStart = html.indexOf('function confirmHasibPaymentDurable()');
+  const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart && paymentStart >= 0 && paymentEnd > paymentStart,
+    'durable POS payment and integer arithmetic helpers must be isolatable');
+  const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
+
+  let resolveCommit, rejectCommit;
+  const commit = new Promise((resolve, reject) => { resolveCommit = resolve; rejectCommit = reject; });
+  const product = { id: 'P-DURABLE', name: 'Tea', stock: 5, buyPrice: 10 };
+  const AppData = {
+    products: [product], customers: [], invoices: [], caisseBalance: 100,
+    cashMovements: [], stockMovements: [], currentUser: { id: 'U-1', name: 'Tester' }
+  };
+  const originalCart = [{ id: 'P-DURABLE', name: 'Tea', qty: 1, price: 25, unit: 'قطعة' }];
+  const alerts = [];
+  let saves = 0, closes = 0;
+  const elements = {
+    hasibCustomerSelect: { value: '' },
+    hasibPaidAmount: { value: '25' }
+  };
+  const context = {
+    AppData, posCart: originalCart, lastConfirmedInvoice: null, hasibPaymentInFlight: false,
+    document: { getElementById: id => elements[id] || null },
+    wtTryEnsureData: () => true,
+    wtCurrentSaleWarehouse: () => 'المخزن الرئيسي',
+    wtAvailableStock: p => p.stock,
+    saveDBDurably: () => { saves++; return commit; },
+    renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
+    closeModal() { closes++; }, alert: message => alerts.push(String(message)), console,
+    Date, Math, Number, String, Object, Array, Map, Set, BigInt
+  };
+  vm.createContext(context);
+  vm.runInContext(source + '\nthis.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+
+  assert.equal(saves, 1, 'POS must issue exactly one durable write');
+  assert.equal(AppData.invoices.length, 1, 'the candidate invoice is prepared before awaiting the durable commit');
+  assert.equal(product.stock, 4, 'stock mutation is staged while the payment modal remains open');
+  assert.equal(closes, 0, 'payment modal must remain open while storage has not acknowledged');
+  assert.equal(context.hasibPaymentInFlight, true, 'duplicate payment submissions remain blocked while pending');
+
+  if (rejectCommit) {
+    rejectCommit(new Error('simulated IndexedDB commit failure'));
+    assert.equal(await context.__paymentPromise, false);
+    assert.equal(product.stock, 5, 'failed durable commit must restore stock');
+    assert.equal(AppData.invoices.length, 0, 'failed durable commit must leave no invoice');
+    assert.equal(AppData.cashMovements.length, 0, 'failed durable commit must leave no cash movement');
+    assert.equal(AppData.caisseBalance, 100, 'failed durable commit must restore cash balance');
+    assert.equal(context.posCart.length, 1, 'failed durable commit must restore the cart');
+    assert.equal(closes, 0, 'failed durable commit must not close the payment modal');
+    assert.equal(context.hasibPaymentInFlight, false, 'failed transaction must release the in-flight guard');
+  } else {
+    resolveCommit({ revision: 12, mode: 'INDEXEDDB' });
+    assert.equal(await context.__paymentPromise, true);
+    assert.equal(AppData.invoices.length, 1);
+    assert.equal(product.stock, 4);
+    assert.equal(AppData.caisseBalance, 125);
+    assert.equal(AppData.cashMovements.length, 1);
+    assert.equal(context.posCart.length, 0);
+    assert.equal(closes, 1, 'payment modal closes only after durable acknowledgement');
+    assert.equal(context.hasibPaymentInFlight, false);
+  }
+}
+await verifyDurablePaymentGate(false);
+console.log('PASS: POS payment modal closes only after durable commit ACK');
+await verifyDurablePaymentGate(true);
+console.log('PASS: failed POS durable commit rolls back invoice, cash, stock and cart without closing modal');
+
 })().catch(error => { console.error(error); process.exitCode = 1; });
