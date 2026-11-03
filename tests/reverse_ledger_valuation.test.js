@@ -136,3 +136,54 @@ test('prime-divisor seven-lot floor allocation conserves every centime and micro
   assert.equal(totalQuantity - allocatedQuantity, 0n);
   assert.deepEqual(deltas, [142857n, 142857n, 142857n, 142857n, 142857n, 142857n, 142858n]);
 });
+
+
+test('Level 24: all four unique return permutations close 13 cartons / 100003 centimes exactly', () => {
+  const permutations = [
+    [3n, 5n, 2n, 3n],
+    [5n, 3n, 2n, 3n],
+    [2n, 3n, 5n, 3n],
+    [3n, 3n, 5n, 2n]
+  ];
+  const finalStates = [];
+  for (const cartons of permutations) {
+    let returnedMicroUnits = 0n;
+    let refundedCentimes = 0n;
+    let stockMicroUnits = 0n;
+    let inventoryValueCentimes = 0n;
+    let cashCentimes = 0n;
+    let receivablesCentimes = 0n;
+    for (const cartonsInBatch of cartons) {
+      const quantity = cartonsInBatch * 1_000_000n;
+      const result = V.saleReturnInventoryValuation({
+        currentStockMicroUnits: stockMicroUnits,
+        currentInventoryValueCentimes: inventoryValueCentimes,
+        returnQuantityMicroUnits: quantity,
+        originalSaleCostCentimes: 100003n,
+        originalSaleQuantityMicroUnits: 13_000_000n,
+        previouslyReturnedMicroUnits: returnedMicroUnits
+      });
+      const delta = result.returnedHistoricalCostCentimes;
+      returnedMicroUnits += quantity;
+      refundedCentimes += delta;
+      stockMicroUnits = result.nextStockMicroUnits;
+      inventoryValueCentimes = result.nextInventoryValueCentimes;
+      cashCentimes -= delta;
+      receivablesCentimes += delta;
+      const invariant = (-delta) + delta + 0n;
+      assert.equal(invariant, 0n, 'algebraic zero after every partial return');
+      assert.ok(returnedMicroUnits <= 13_000_000n);
+    }
+    assert.equal(refundedCentimes, 100003n);
+    assert.equal(100003n - refundedCentimes, 0n);
+    assert.equal(returnedMicroUnits, 13_000_000n);
+    finalStates.push({ stockMicroUnits, inventoryValueCentimes, cashCentimes, receivablesCentimes });
+  }
+  for (const state of finalStates.slice(1)) assert.deepEqual(state, finalStates[0]);
+  assert.deepEqual(finalStates[0], {
+    stockMicroUnits: 13_000_000n,
+    inventoryValueCentimes: 100003n,
+    cashCentimes: -100003n,
+    receivablesCentimes: 100003n
+  });
+});
