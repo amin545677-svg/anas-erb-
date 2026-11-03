@@ -118,6 +118,11 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
 
     await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
+    await page.waitForFunction(() =>
+      document.body && document.body.inert === false &&
+      window.ANASResilientStorage?.ready() === true,
+      null, { timeout: 15000 }
+    );
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught page errors');
 
     // Exercise the actual backup/cloud validators before any restore assignment.
@@ -371,6 +376,11 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     // Reload the real browser page and verify durable persistence.
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
+    await page.waitForFunction(() =>
+      document.body && document.body.inert === false &&
+      window.ANASResilientStorage?.ready() === true,
+      null, { timeout: 15000 }
+    );
     const afterReloadProof = await page.evaluate(() => {
       const raw = localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE');
       if (raw === null) throw new Error('persisted ERP snapshot is missing after reload');
@@ -556,6 +566,11 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     });
     await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
+    await page.waitForFunction(() =>
+      document.body && document.body.inert === false &&
+      window.ANASResilientStorage?.ready() === true,
+      null, { timeout: 15000 }
+    );
     await page.evaluate(() => {
       posCart = [{ id: 'STG-TEA-001', name: 'شاي اختبار Chromium', qty: 3, price: 0.10, unit: 'قطعة' }];
       openHasibModal();
