@@ -56,7 +56,7 @@ console.log('PASS: failed POS cart save preserves existing multi-tab cart state'
   // The live cart map must not be published until the storage promise ACKs.
   const appSource = fs.readFileSync('index.html', 'utf8');
   const helperStart = appSource.indexOf('async function saveDBDurably()');
-  const helperEnd = appSource.indexOf('function openDrawer()', helperStart);
+  const helperEnd = appSource.indexOf('function openAddSupplierModal()', helperStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart,
     'saveDBDurably must exist before the legacy UI helpers');
   const durableHelper = appSource.slice(helperStart, helperEnd);
