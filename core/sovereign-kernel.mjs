@@ -199,7 +199,13 @@ export function verifyCryptographicCommitReceipt(receipt, committedSnapshot) {
       !/^[a-f0-9]{64}$/.test(receipt.parentStateHash || "") ||
       !/^[a-f0-9]{64}$/.test(receipt.stateCanonicalHash || "") ||
       !/^[a-f0-9]{64}$/.test(receipt.ledgerHeadHash || "")) return false;
-  return sha256Canonical(committedSnapshot) === receipt.stateCanonicalHash;
+  const expectedHead = sha256Canonical({
+    revision: receipt.revision,
+    parentStateHash: receipt.parentStateHash,
+    stateCanonicalHash: receipt.stateCanonicalHash
+  });
+  return sha256Canonical(committedSnapshot) === receipt.stateCanonicalHash &&
+    expectedHead === receipt.ledgerHeadHash;
 }
 
 export function createStateAnchor(revision, state, parentStateHash = "0".repeat(64)) {
