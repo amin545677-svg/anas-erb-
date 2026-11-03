@@ -16,14 +16,36 @@
   let revision = 0;
   let requestedRevision = 0;
   let hydrated = false;
+  let hydrationState = 'UNHYDRATED';
+  let hydrationPromise = null;
   const pendingPreHydrationWrites = [];
   let dbPromise = null;
   let writeQueue = Promise.resolve();
   let mode = 'DUAL';
 
+  function assertWellFormedUnicode(text) {
+    for (let i = 0; i < text.length; i++) {
+      const unit = text.charCodeAt(i);
+      if (unit >= 0xD800 && unit <= 0xDBFF) {
+        const next = text.charCodeAt(i + 1);
+        if (!(next >= 0xDC00 && next <= 0xDFFF)) {
+          const error = new TypeError('UNPAIRED_UTF16_SURROGATE');
+          error.code = 'UNPAIRED_UTF16_SURROGATE';
+          throw error;
+        }
+        i++;
+      } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+        const error = new TypeError('UNPAIRED_UTF16_SURROGATE');
+        error.code = 'UNPAIRED_UTF16_SURROGATE';
+        throw error;
+      }
+    }
+    return text;
+  }
+
   function canonicalizeJson(value, seen = new WeakSet()) {
     if (value === null || typeof value === 'boolean') return JSON.stringify(value);
-    if (typeof value === 'string') return JSON.stringify(value.normalize('NFC'));
+    if (typeof value === 'string') return JSON.stringify(assertWellFormedUnicode(value).normalize('NFC'));
     if (typeof value === 'bigint') return '{"__anas_bigint_v1__":' + JSON.stringify(value.toString()) + '}';
     if (typeof value === 'number') {
       if (!Number.isFinite(value) || Object.is(value, -0)) {
@@ -49,8 +71,8 @@
       if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
       if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
       const normalizedKeys = Object.keys(value).map(originalKey => ({
-        originalKey,
-        key: originalKey.normalize('NFC')
+        originalKey: assertWellFormedUnicode(originalKey),
+        key: assertWellFormedUnicode(originalKey).normalize('NFC')
       }));
       const keySet = new Set();
       for (const entry of normalizedKeys) {
@@ -75,7 +97,7 @@
   const V2_PREFIX = 'ANASERP2:';
   function encodeNode(value, seen = new WeakSet()) {
     if (value === null) return ['0'];
-    if (typeof value === 'string') return ['s', value.normalize('NFC')];
+    if (typeof value === 'string') return ['s', assertWellFormedUnicode(value).normalize('NFC')];
     if (typeof value === 'boolean') return ['b', value];
     if (typeof value === 'bigint') return ['i', value.toString()];
     if (typeof value === 'number') {
@@ -102,7 +124,7 @@
       if (proto !== Object.prototype && proto !== null) throw new TypeError('NON_CANONICAL_OBJECT_PROTOTYPE');
       if (Object.getOwnPropertySymbols(value).length) throw new TypeError('NON_CANONICAL_SYMBOL_KEY');
       const entries = Object.keys(value).map(originalKey => ({
-        originalKey, key: originalKey.normalize('NFC')
+        originalKey: assertWellFormedUnicode(originalKey), key: assertWellFormedUnicode(originalKey).normalize('NFC')
       }));
       const keys = new Set();
       for (const entry of entries) {
@@ -364,7 +386,7 @@
     writeQueue = task.catch(() => {});
     return task;
   }
-  async function hydrate(localPayload) {
+  async function performHydrate(localPayload) {
     // The caller must keep domain writes locked until this promise resolves.
     const local = typeof localPayload === 'string' ? localPayload : getSync(APP_KEY);
     let localValid = false;
@@ -437,8 +459,24 @@
     return { hydrated, payload: selected, data: selected === null ? null : decode(selected),
       revision, mode, recoveredFromIndexedDB: selected !== null && idbValid && selected === record.payload };
   }
-  function ready() { return hydrated; }
-  function status() { return { hydrated, revision, mode, database: DB_NAME, store: STORE_NAME }; }
+  function hydrate(localPayload) {
+    if (hydrationPromise) return hydrationPromise;
+    if (hydrated) return Promise.resolve({ hydrated: true, payload: getSync(APP_KEY),
+      data: getSync(APP_KEY) === null ? null : decode(getSync(APP_KEY)), revision, mode,
+      recoveredFromIndexedDB: false });
+    hydrationState = 'HYDRATING';
+    hydrationPromise = performHydrate(localPayload).then(result => {
+      hydrationState = 'READY';
+      return result;
+    }, error => {
+      hydrationState = 'UNHYDRATED';
+      hydrationPromise = null;
+      throw error;
+    });
+    return hydrationPromise;
+  }
+  function ready() { return hydrated && hydrationState === 'READY'; }
+  function status() { return { hydrated, hydrationState, revision, mode, database: DB_NAME, store: STORE_NAME }; }
 
   global.ANASResilientStorage = Object.freeze({
     APP_KEY, DB_NAME, STORE_NAME, getSync, setSync, removeSync, hydrate, persist,

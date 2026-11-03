@@ -41,9 +41,29 @@ function sha256Hex(text) {
   return H.map(x=>x.toString(16).padStart(8,"0")).join("");
 }
 
+function assertWellFormedUnicode(text) {
+  for (let i = 0; i < text.length; i++) {
+    const unit = text.charCodeAt(i);
+    if (unit >= 0xD800 && unit <= 0xDBFF) {
+      const next = text.charCodeAt(i + 1);
+      if (!(next >= 0xDC00 && next <= 0xDFFF)) {
+        const error = new TypeError("UNPAIRED_UTF16_SURROGATE");
+        error.code = "UNPAIRED_UTF16_SURROGATE";
+        throw error;
+      }
+      i++;
+    } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+      const error = new TypeError("UNPAIRED_UTF16_SURROGATE");
+      error.code = "UNPAIRED_UTF16_SURROGATE";
+      throw error;
+    }
+  }
+  return text;
+}
+
 export function canonicalizeJson(value, seen = new WeakSet()) {
   if (value === null || typeof value === "boolean") return JSON.stringify(value);
-  if (typeof value === "string") return JSON.stringify(value.normalize("NFC"));
+  if (typeof value === "string") return JSON.stringify(assertWellFormedUnicode(value).normalize("NFC"));
   if (typeof value === "bigint") return JSON.stringify(value.toString() + "n");
   if (typeof value === "number") {
     if (!Number.isFinite(value) || Object.is(value, -0)) {
@@ -68,7 +88,7 @@ export function canonicalizeJson(value, seen = new WeakSet()) {
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw new TypeError("NON_CANONICAL_OBJECT_PROTOTYPE");
     if (Object.getOwnPropertySymbols(value).length) throw new TypeError("NON_CANONICAL_SYMBOL_KEY");
-    const normalizedKeys = Object.keys(value).map(key => ({ source: key, normalized: key.normalize("NFC") }));
+    const normalizedKeys = Object.keys(value).map(key => ({ source: assertWellFormedUnicode(key), normalized: assertWellFormedUnicode(key).normalize("NFC") }));
     normalizedKeys.sort((a, b) => a.normalized < b.normalized ? -1 : a.normalized > b.normalized ? 1 : 0);
     for (let i = 1; i < normalizedKeys.length; i++) {
       if (normalizedKeys[i - 1].normalized === normalizedKeys[i].normalized) {

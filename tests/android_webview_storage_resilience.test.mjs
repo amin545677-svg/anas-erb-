@@ -724,3 +724,55 @@ test('mid-write LocalStorage crash injection recovers the last committed Indexed
   });
   await context.close();
 });
+
+
+test('storage rejects unpaired UTF-16 surrogate values and keys', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(() => {
+    const S = window.ANASResilientStorage;
+    const high = String.fromCharCode(0xD800);
+    const low = String.fromCharCode(0xDC00);
+    const rejects = fn => {
+      try { fn(); return false; }
+      catch (error) { return error.code === 'UNPAIRED_UTF16_SURROGATE'; }
+    };
+    return {
+      value: rejects(() => S.encode({ value: high })),
+      key: rejects(() => S.encode({ [low]: 1 }))
+    };
+  });
+  assert.deepEqual(result, { value: true, key: true });
+  await context.close();
+});
+
+test('concurrent hydrate callers share one state transition and settle READY', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const first = S.hydrate(null);
+    const during = S.status().hydrationState;
+    const second = S.hydrate(null);
+    const [a, b] = await Promise.all([first, second]);
+    return {
+      during,
+      samePromise: first === second,
+      ready: S.ready(),
+      after: S.status().hydrationState,
+      bothHydrated: a.hydrated && b.hydrated
+    };
+  });
+  assert.deepEqual(result, {
+    during: 'HYDRATING',
+    samePromise: true,
+    ready: true,
+    after: 'READY',
+    bothHydrated: true
+  });
+  await context.close();
+});

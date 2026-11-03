@@ -229,3 +229,28 @@ test("13 cartons / 100003 centimes replay identically from genesis", async () =>
   assert.equal(a.state.stock, 13n);
   assert.equal(a.state.returns, 13n);
 });
+
+
+test("kernel canonicalization rejects unpaired UTF-16 surrogate code units", () => {
+  const high = String.fromCharCode(0xD800);
+  const low = String.fromCharCode(0xDC00);
+  assert.throws(() => canonicalizeJson({ value: high }),
+    error => error.code === "UNPAIRED_UTF16_SURROGATE");
+  assert.throws(() => canonicalizeJson({ [low]: 1 }),
+    error => error.code === "UNPAIRED_UTF16_SURROGATE");
+  assert.equal(canonicalizeJson({ value: "cafe\\u0301" }), canonicalizeJson({ value: "café" }));
+});
+
+test("committed snapshot publishes a deeply frozen copy only after persistence", async () => {
+  let persisted = false;
+  const cache = new CommittedSnapshotCache(async ({ snapshot }) => {
+    assert.equal(Object.isFrozen(snapshot), true);
+    assert.equal(Object.isFrozen(snapshot.nested), true);
+    persisted = true;
+  });
+  const source = { nested: { cents: 100003n } };
+  await cache.setItem(source);
+  assert.equal(persisted, true);
+  assert.equal(Object.isFrozen(cache.read()), false);
+  assert.equal(cache.read().nested.cents, 100003n);
+});
