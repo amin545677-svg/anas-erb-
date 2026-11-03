@@ -301,7 +301,7 @@
     const text = String(value);
     // Before hydration, APP_KEY writes are held outside every persistence layer.
     // hydrate() decides whether a durable snapshot exists before these writes can run.
-    if (key === APP_KEY && !hydrated) {
+    if (key === APP_KEY && hydrationState !== 'READY') {
       return new Promise((resolve, reject) => {
         pendingPreHydrationWrites.push({ text, resolve, reject });
       });
@@ -442,18 +442,23 @@
       }
     }
     hydrated = true;
-    const pendingWrites = pendingPreHydrationWrites.splice(0);
-    if (selected !== null) {
-      // A pre-boot snapshot (often an empty default object) is stale by definition
-      // when a validated durable snapshot already exists. Never replay it over IDB.
-      for (const pending of pendingWrites) {
-        pending.resolve({ revision, checksum: await checksum(selected), mode, discardedAsStalePreHydrationWrite: true });
-      }
-    } else {
-      // No durable state existed: replay queued writes only after hydration completed.
-      for (const pending of pendingWrites) {
-        try { pending.resolve(await setSync(APP_KEY, pending.text)); }
-        catch (error) { pending.reject(error); }
+    // Drain until the queue is empty. setSync remains closed to callers until
+    // the outer hydration promise publishes READY; internal replay writes enter
+    // persist() directly so they cannot deadlock behind the hydration gate.
+    while (pendingPreHydrationWrites.length) {
+      const pendingWrites = pendingPreHydrationWrites.splice(0);
+      if (selected !== null) {
+        // A pre-boot snapshot (often an empty default object) is stale by definition
+        // when a validated durable snapshot already exists. Never replay it over IDB.
+        for (const pending of pendingWrites) {
+          pending.resolve({ revision, checksum: await checksum(selected), mode, discardedAsStalePreHydrationWrite: true });
+        }
+      } else {
+        // No durable state existed: commit queued writes serially before READY.
+        for (const pending of pendingWrites) {
+          try { pending.resolve(await persist(pending.text)); }
+          catch (error) { pending.reject(error); }
+        }
       }
     }
     return { hydrated, payload: selected, data: selected === null ? null : decode(selected),
