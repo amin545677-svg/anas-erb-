@@ -49,3 +49,69 @@ console.log('PASS: failed first POS cart save restores absent cart-map state');
   assert.equal(result.appData.posScreensCarts.tab2[0].id, 'other', 'other POS tabs must remain unchanged');
 }
 console.log('PASS: failed POS cart save preserves existing multi-tab cart state');
+
+{
+  // Exercise the durable-save boundary independently of the full Chromium UI.
+  // The live cart map must not be published until the storage promise ACKs.
+  const appSource = fs.readFileSync('index.html', 'utf8');
+  const helperStart = appSource.indexOf('async function saveDBDurably()');
+  const helperEnd = appSource.indexOf('function openDrawer()', helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart,
+    'saveDBDurably must exist before the legacy UI helpers');
+  const durableHelper = appSource.slice(helperStart, helperEnd);
+  let acknowledge;
+  const storageAck = new Promise(resolve => { acknowledge = resolve; });
+  const oldCart = [{ id: 'old', qty: 1 }];
+  const nextCart = [{ id: 'new', qty: 2 }];
+  const oldMap = { tab1: oldCart, tab2: [{ id: 'other', qty: 1 }] };
+  const context = {
+    AppData: { posScreensCarts: oldMap, activePosScreenTab: 'tab1' },
+    posCart: nextCart,
+    ANAS_DB_KEY: 'ANAS_TEST_LEDGER',
+    anasStorageHydrationComplete: true,
+    anasStartupFatalLoadError: false,
+    anasStartupIntegrityIssues: [],
+    window: { ANASResilientStorage: {
+      encode: value => JSON.stringify(value),
+      setSync: () => storageAck
+    }},
+    ANASReverseLedger: { validateReverseLedgerParity() {} },
+    updateUIState() {}, checkSystemAlerts() {}, updateDashboardStats() {},
+    console, Promise, JSON, Object, Array, Error, String
+  };
+  vm.createContext(context);
+  vm.runInContext(durableHelper + '\nthis.__pendingDurableSave = saveDBDurably();', context);
+  assert.equal(context.AppData.posScreensCarts, oldMap,
+    'cart map identity must remain unchanged while IndexedDB has not acknowledged');
+  assert.equal(context.AppData.posScreensCarts.tab1, oldCart,
+    'the previous persisted cart must remain visible while the write is pending');
+  acknowledge({ revision: 9, mode: 'INDEXEDDB' });
+  assert.equal(await context.__pendingDurableSave, true);
+  assert.notEqual(context.AppData.posScreensCarts, oldMap,
+    'the new cart map must publish after the durable acknowledgement');
+  assert.deepEqual(context.AppData.posScreensCarts.tab1, nextCart);
+  assert.deepEqual(context.AppData.posScreensCarts.tab2, oldMap.tab2);
+}
+console.log('PASS: durable POS save publishes the cart map only after storage ACK');
+
+{
+  const appSource = fs.readFileSync('index.html', 'utf8');
+  const paymentStart = appSource.indexOf('async function confirmHasibPayment()');
+  const paymentEnd = appSource.indexOf('function printLastConfirmedInvoice', paymentStart);
+  assert.ok(paymentStart >= 0 && paymentEnd > paymentStart,
+    'POS payment confirmation must be an async transaction');
+  const paymentSource = appSource.slice(paymentStart, paymentEnd);
+  const awaitedSave = paymentSource.indexOf('await saveDBDurably()');
+  const modalClose = paymentSource.indexOf("closeModal('hasibModal')");
+  assert.ok(awaitedSave >= 0 && modalClose > awaitedSave,
+    'payment modal must close only after the durable save acknowledgement');
+  assert.match(paymentSource, /hasibPaymentInFlight/,
+    'payment flow must guard against duplicate submissions while persistence is pending');
+  const supplierStart = appSource.indexOf('async function saveNewSupplierMpos()');
+  const supplierEnd = appSource.indexOf('function printLatestLegalCustomerInvoice', supplierStart);
+  assert.ok(supplierStart >= 0 && supplierEnd > supplierStart,
+    'supplier creation must expose an asynchronous durable-save flow');
+  assert.match(appSource.slice(supplierStart, supplierEnd), /await saveDBDurably\(\)/,
+    'supplier creation must await durable persistence before closing its modal');
+}
+console.log('PASS: supplier and POS payment flows await durable storage before success UI');
