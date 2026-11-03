@@ -4690,7 +4690,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)) {
                     throw new Error('فشل شرط التطابق المالي الدقيق بين الفاتورة والصندوق والمورد.');
                 }
-                if (typeof saveDBDurably !== 'function' || await saveDBDurably() !== true) throw new Error('تعذر حفظ البيانات الدائم');
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
             } catch (err) {
                 AppData = previous;
                 try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
@@ -5754,7 +5754,7 @@ function renderPurchasesTable() {
                         referenceId:String(id),date:new Date().toISOString(),note:'رصيد افتتاحي معتمد عند إنشاء المورد'
                     });
                 }
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
+                if (typeof saveDBDurably !== 'function' || await saveDBDurably() !== true) throw new Error('تعذر حفظ البيانات الدائم');
             } catch (err) {
                 AppData = previous;
                 alert('تعذر حفظ بيانات المورد: ' + (err?.message || 'فشل الحفظ') + '؛ أُعيدت البيانات السابقة.');
