@@ -158,7 +158,6 @@ export class CommittedSnapshotCache {
   #snapshot = null;
   #revision = 0;
   #hash = null;
-  #ledgerHeadHash = "0".repeat(64);
   constructor(persist) {
     if (typeof persist !== "function") throw new TypeError("persist callback required");
     this.persist = persist;
@@ -171,22 +170,25 @@ export class CommittedSnapshotCache {
     const candidate = cloneFrozen(value);
     const nextRevision = this.#revision + 1;
     const hash = sha256Canonical(candidate);
-    await this.persist({ revision: nextRevision, hash, snapshot: candidate });
+    const algebraicZeroSumVerified = Boolean(commitProof?.effect);
+    if (algebraicZeroSumVerified) {
+      assertAlgebraicZeroSumInvariant(commitProof.prevState ?? this.#snapshot ?? {}, candidate, commitProof.effect);
+    }
+    const parentStateHash = this.#hash || "0".repeat(64);
+    await this.persist({ revision: nextRevision, hash, snapshot: candidate }); 
     this.#snapshot = candidate;
     this.#revision = nextRevision;
     this.#hash = hash;
-    const parentStateHash = this.#ledgerHeadHash;
     const ledgerHeadHash = sha256Hex(canonicalizeJson({
       revision: nextRevision, parentStateHash, stateCanonicalHash: hash
     }));
-    this.#ledgerHeadHash = ledgerHeadHash;
     const receipt = Object.freeze({
       committed: true,
       revision: nextRevision,
       parentStateHash,
       stateCanonicalHash: hash,
       ledgerHeadHash,
-      algebraicZeroSumVerified: commitProof?.algebraicZeroSumVerified === true
+      algebraicZeroSumVerified
     });
     return receipt;
   }
