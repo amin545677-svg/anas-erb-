@@ -103,9 +103,12 @@ console.log('PASS: durable POS save publishes the cart map only after storage AC
     'POS payment UI must route through the durable transaction handler');
   const paymentSource = appSource.slice(paymentStart, paymentEnd);
   const awaitedSave = paymentSource.indexOf('saveDBDurably()');
-  const modalClose = paymentSource.indexOf("closeModal('hasibModal')");
-  assert.ok(awaitedSave >= 0 && modalClose > awaitedSave && paymentSource.includes('durableSave.then'),
-    'payment modal must close only after the durable save acknowledgement');
+  const finalizeStart = paymentSource.indexOf('const finalizeSale = () => {');
+  const modalClose = paymentSource.indexOf("closeModal('hasibModal')", finalizeStart);
+  const ackContinuation = paymentSource.indexOf('return durableSave.then(() => { finalizeSale();', awaitedSave);
+  assert.ok(awaitedSave >= 0 && finalizeStart >= 0 && modalClose > finalizeStart &&
+    ackContinuation > awaitedSave,
+    'payment modal close must be reachable only through the durable acknowledgement continuation');
   assert.match(paymentSource, /hasibPaymentInFlight/,
     'payment flow must guard against duplicate submissions while persistence is pending');
   assert.match(appSource, /onclick="confirmHasibPaymentDurable\(\)"/,
