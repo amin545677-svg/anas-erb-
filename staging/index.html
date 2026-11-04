@@ -105,7 +105,7 @@
       throw new Error('ملف config.js مفقود أو لا يشير إلى مشروع Staging المعتمد.');
     }
     if (!window.firebase || !firebase.initializeApp || !firebase.auth || !firebase.firestore ||
-        !firebase.functions || !firebase.appCheck || !window.ANASReverseLedgerServer) {
+        !firebase.functions || !window.ANASReverseLedgerServer) {
       throw new Error('تعذر تحميل Firebase SDK أو بوابة الترحيل. تحقق من اتصال الشبكة وترتيب ملفات SDK.');
     }
     app = firebase.app('anas-erp-reverse-ledger-staging');
