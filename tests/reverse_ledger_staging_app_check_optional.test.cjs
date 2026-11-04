@@ -91,3 +91,20 @@ test('requires App Check compat SDK only when a site key is configured', () => {
   assert.doesNotThrow(() => gatewayModule.initialize(baseConfig, { firebase, location }));
   assert.throws(() => gatewayModule.initialize({ ...baseConfig, appCheckSiteKey: 'staging-recaptcha-site-key' }, { firebase, location }), /App Check compat SDK is required/);
 });
+
+test('Firebase enforces App Check server-side on every protected staging callable', () => {
+  const fs = require('node:fs');
+  const source = fs.readFileSync(require('node:path').join(__dirname, '../functions/index.js'), 'utf8');
+  for (const name of [
+    'executeReverseLedger',
+    'executeSettlementAllocation',
+    'createTrustedReverseLedgerBackup',
+    'restoreTrustedReverseLedgerBackup'
+  ]) {
+    const declaration = source.match(new RegExp(
+      'exports\\\\.' + name + '\\\\s*=\\\\s*onCall\\\\(\\\\{([\\\\s\\\\S]*?)\\\\}\\\\s*,'
+    ));
+    assert.ok(declaration, name + ' must be registered as a Firebase callable');
+    assert.match(declaration[1], /enforceAppCheck:\\s*true/, name + ' must enforce App Check on the server');
+  }
+});
