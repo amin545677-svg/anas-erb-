@@ -17,7 +17,9 @@
         root.ANASSettlementAllocationServer = client.settlementAllocationGateway;
         const status = root.document && root.document.getElementById('anasFirebaseAuthStatus');
         if (status) {
-          status.textContent = 'تم تهيئة بوابة الترحيل العكسي على مشروع Staging مع App Check. سجّل الدخول بحساب Staging قبل طلب الترحيل.';
+          status.textContent = client.appCheck
+            ? 'تم تهيئة بوابة Staging مع App Check. سجّل الدخول بحساب Staging قبل طلب العمليات المحمية.'
+            : 'تم تهيئة واجهة Staging دون App Check. التخزين والعمل المحلي متاحان؛ العمليات الخلفية المحمية تتطلب إعداد App Check.';
         }
       } catch (error) {
         root.ANASReverseLedgerStagingError = error;
@@ -49,7 +51,9 @@
     }
     requiredText(config.firebaseConfig.apiKey, 'Firebase staging API key', 256);
     requiredText(config.firebaseConfig.appId, 'Firebase staging app ID', 256);
-    requiredText(config.appCheckSiteKey, 'Staging App Check site key', 512);
+    if (config.appCheckSiteKey !== undefined && config.appCheckSiteKey !== null && config.appCheckSiteKey !== '') {
+      requiredText(config.appCheckSiteKey, 'Staging App Check site key', 512);
+    }
     if (location && location.protocol !== 'https:' &&
         location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
       throw new Error('Staging reverse posting requires HTTPS');
@@ -78,9 +82,12 @@
     validateConfig(config, location);
     const firebase = dependencies && dependencies.firebase;
     if (!firebase || typeof firebase.initializeApp !== 'function' ||
-        typeof firebase.appCheck !== 'function' || typeof firebase.functions !== 'function' ||
-        typeof firebase.auth !== 'function') {
-      throw new Error('Firebase App, Auth, App Check and Functions compat SDKs must be loaded');
+        typeof firebase.functions !== 'function' || typeof firebase.auth !== 'function') {
+      throw new Error('Firebase App, Auth and Functions compat SDKs must be loaded');
+    }
+    const appCheckSiteKey = typeof config.appCheckSiteKey === 'string' ? config.appCheckSiteKey.trim() : '';
+    if (appCheckSiteKey && typeof firebase.appCheck !== 'function') {
+      throw new Error('Firebase App Check compat SDK is required when an App Check site key is configured');
     }
 
     function assertStagingApp(candidate, label) {
@@ -121,8 +128,24 @@
     }
 
     const auth = firebase.auth(app);
-    const appCheck = firebase.appCheck(app);
-    appCheck.activate(config.appCheckSiteKey, true);
+    let appCheck = null;
+    if (appCheckSiteKey) {
+      appCheck = firebase.appCheck(app);
+      if (!appCheck || typeof appCheck.activate !== 'function' || typeof appCheck.getToken !== 'function') {
+        throw new Error('Firebase App Check compat client is unavailable or incomplete');
+      }
+      appCheck.activate(appCheckSiteKey, true);
+    }
+    async function requireAppCheckToken() {
+      if (!appCheck) {
+        throw new Error('This backend operation requires a valid staging App Check token; configure appCheckSiteKey to enable it');
+      }
+      const result = await appCheck.getToken(false);
+      if (!result || typeof result.token !== 'string' || !result.token) {
+        throw new Error('A valid staging App Check token is required');
+      }
+      return result.token;
+    }
     const functions = firebase.functions(app, config.functionsRegion || 'us-central1');
     const callable = functions.httpsCallable('executeReverseLedger');
     const settlementAllocationCallable = functions.httpsCallable('executeSettlementAllocation');
@@ -140,10 +163,7 @@
         requiredText(request.invoiceId, 'invoiceId', 160);
         // Explicitly refresh the staging identity before invoking the callable.
         await auth.currentUser.getIdToken(true);
-        const appCheckToken = await appCheck.getToken(false);
-        if (!appCheckToken || typeof appCheckToken.token !== 'string' || !appCheckToken.token) {
-          throw new Error('A valid staging App Check token is required');
-        }
+        await requireAppCheckToken();
         const response = await callable(request);
         return normalizeCallableResult(response && response.data, request.operationId);
       }
@@ -160,10 +180,7 @@
         }
         requiredText(request.periodId, 'periodId', 128);
         await auth.currentUser.getIdToken(true);
-        const appCheckToken = await appCheck.getToken(false);
-        if (!appCheckToken || typeof appCheckToken.token !== 'string' || !appCheckToken.token) {
-          throw new Error('A valid staging App Check token is required');
-        }
+        await requireAppCheckToken();
         const response = await settlementAllocationCallable(request);
         const data = response && response.data;
         if (!data || data.ok !== true || data.status !== 'POSTED' ||
