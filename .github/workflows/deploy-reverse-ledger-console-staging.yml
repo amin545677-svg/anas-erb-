@@ -100,7 +100,7 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=oidc\n');
             console.log('STAGING AUTH MODE: OIDC fallback');
           } else {
-            console.error('STAGING PREFLIGHT: configure either the staging-only FIREBASE_STAGING_SERVICE_ACCOUNT secret OR both staging Environment variables ANAS_STAGING_WIF_PROVIDER and ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT. Also set FIREBASE_STAGING_WEB_API_KEY and FIREBASE_STAGING_WEB_APP_ID. FIREBASE_STAGING_APP_CHECK_SITE_KEY is optional unless the staging app's configured App Check provider requires it. Do not use production credentials. See docs/STAGING_OIDC_SETUP.md.'); process.exit(1);
+            console.error('STAGING PREFLIGHT: configure either the staging-only FIREBASE_STAGING_SERVICE_ACCOUNT secret OR both staging Environment variables ANAS_STAGING_WIF_PROVIDER and ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT. Also set FIREBASE_STAGING_WEB_API_KEY and FIREBASE_STAGING_WEB_APP_ID. FIREBASE_STAGING_APP_CHECK_SITE_KEY is optional unless App Check enforcement is enabled for the staging app. Do not use production credentials. See docs/STAGING_OIDC_SETUP.md.'); process.exit(1);
           }
           NODE
 
