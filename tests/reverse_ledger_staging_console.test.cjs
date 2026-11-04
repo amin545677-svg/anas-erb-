@@ -56,7 +56,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.match(deployWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging\/unified-release-candidate\s*\n\s*paths:/);
   assert.doesNotMatch(deployWorkflow, /- feat\/reverse-ledger-firebase-functions-v2/);
   assert.ok(deployWorkflow.includes('Enforce staging deployment identity before any deploy action'));
-  assert.ok(deployWorkflow.indexOf('Enforce staging deployment identity before any deploy action') < deployWorkflow.indexOf('Deploy only the dedicated staging console'));
+  assert.ok(deployWorkflow.indexOf('Enforce staging deployment identity before any deploy action') < deployWorkflow.indexOf('Deploy only the dedicated staging ERP and console'));
   assert.match(deployWorkflow, /paths:\s*\n\s*- ['"]staging\/\*\*['"]/);
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
   assert.ok(deployWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
