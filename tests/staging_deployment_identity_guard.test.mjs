@@ -236,3 +236,16 @@ test('Level 9 identity matrix: accepts OIDC only for the configured audience and
     service_account_impersonation_url: 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' + approvedAccount + ':generateAccessToken'
   }, provider), /audience does not match/);
 });
+
+test('Hosting staging deployment does not require an App Check site key to publish the static console', async () => {
+  const workflow = await (await import('node:fs/promises')).readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
+  );
+  assert.match(workflow, /for \(const name of \['FIREBASE_STAGING_WEB_API_KEY','FIREBASE_STAGING_WEB_APP_ID'\]\)/);
+  assert.doesNotMatch(workflow, /for \(const name of \[[^\]]*FIREBASE_STAGING_APP_CHECK_SITE_KEY/);
+  assert.match(workflow, /appCheckSiteKey: process\.env\.FIREBASE_STAGING_APP_CHECK_SITE_KEY/);
+  assert.match(workflow, /config\.appCheckSiteKey !== undefined/);
+  assert.match(workflow, /deploy --only hosting/);
+  assert.doesNotMatch(workflow, /deploy --only[^\n]*functions/);
+});
+
