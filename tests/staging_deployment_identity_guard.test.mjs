@@ -249,3 +249,15 @@ test('Hosting staging deployment does not require an App Check site key to publi
   assert.doesNotMatch(workflow, /deploy --only[^\n]*functions/);
 });
 
+
+test('Hosting credential preflight Node script parses before checking environment secrets', async () => {
+  const fs = await import('node:fs/promises');
+  const vm = await import('node:vm');
+  const workflow = await fs.readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
+  );
+  const match = workflow.match(/run:\s*\|\n\s+node <<'NODE'\n([\s\S]*?)\n\s+NODE/);
+  assert.ok(match, 'Hosting preflight must contain its expected Node heredoc');
+  const script = match[1].split('\n').map(line => line.replace(/^\s{10}/, '')).join('\n');
+  assert.doesNotThrow(() => new vm.Script(script, { filename: 'hosting-staging-secret-preflight' }));
+});
