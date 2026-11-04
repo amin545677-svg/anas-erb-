@@ -102,9 +102,9 @@ test('Firebase enforces App Check server-side on every protected staging callabl
     'restoreTrustedReverseLedgerBackup'
   ]) {
     const declaration = source.match(new RegExp(
-      'exports\\\\.' + name + '\\\\s*=\\\\s*onCall\\\\(\\\\{([\\\\s\\\\S]*?)\\\\}\\\\s*,'
+      'exports\\.' + name + '\\s*=\\s*onCall\\(\\{([\\s\\S]*?)\\}\\s*,'
     ));
     assert.ok(declaration, name + ' must be registered as a Firebase callable');
-    assert.match(declaration[1], /enforceAppCheck:\\s*true/, name + ' must enforce App Check on the server');
+    assert.match(declaration[1], /enforceAppCheck:\s*true/, name + ' must enforce App Check on the server');
   }
 });
