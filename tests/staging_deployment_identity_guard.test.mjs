@@ -243,8 +243,12 @@ test('Hosting staging deployment does not require an App Check site key to publi
   );
   assert.match(workflow, /for \(const name of \['FIREBASE_STAGING_WEB_API_KEY','FIREBASE_STAGING_WEB_APP_ID'\]\)/);
   assert.doesNotMatch(workflow, /for \(const name of \[[^\]]*FIREBASE_STAGING_APP_CHECK_SITE_KEY/);
-  assert.match(workflow, /appCheckSiteKey: process\.env\.FIREBASE_STAGING_APP_CHECK_SITE_KEY/);
-  assert.match(workflow, /config\.appCheckSiteKey !== undefined/);
+  assert.match(workflow, /node scripts\/build-staging-hosting\.mjs/);
+  assert.match(workflow, /FIREBASE_STAGING_APP_CHECK_SITE_KEY: \$\{\{ secrets\.FIREBASE_STAGING_APP_CHECK_SITE_KEY \}\}/);
+  const builder = await (await import('node:fs/promises')).readFile(
+    new URL('../scripts/build-staging-hosting.mjs', import.meta.url), 'utf8'
+  );
+  assert.match(builder, /\.\.\.\(siteKey \? \{ appCheckSiteKey: siteKey \} : \{\}\)/);
   assert.match(workflow, /deploy --only hosting/);
   assert.doesNotMatch(workflow, /deploy --only[^\n]*functions/);
 });
