@@ -36,13 +36,14 @@
 <main class="shell">
   <header>
     <h1>ANAS ERP — بيئة اختبار دفتر المرتجعات</h1>
-    <p>واجهة مستقلة لمشروع Firebase التجريبي. لا تتصل بقاعدة الإنتاج ولا تعدّل تطبيق V42.</p>
+    <p>واجهة مستقلة لاختبار دفتر المرتجعات على مشروع Firebase التجريبي. لا تتصل بقاعدة الإنتاج ولا تعدّل جلسة تطبيق V42.</p>
+    <p><a href="./erp/">فتح واجهة ANAS ERP الكاملة واختبار المبيعات والعمل دون اتصال (POS Offline)</a></p>
     <div class="warning">تنبيه: لا تستخدم حساباً إنتاجياً أو بيانات عملاء حقيقية. الترحيل متاح فقط لحساب Staging مخوّل، وفاتورة تمت تسويتها إلى دفتر الإصدار الثاني، وفترة مالية مفتوحة.</div>
   </header>
 
   <section class="panel" id="config-panel">
     <h2>تهيئة الاتصال</h2>
-    <p>تأكد من إنشاء <code>staging/config.js</code> محلياً/ضمن استضافة Staging وإضافة إعدادات Web App وApp Check العامة للمشروع <code>anas-erp-staging-a25e1</code>.</p>
+    <p>يلزم إعداد Web App للمشروع <code>anas-erp-staging-a25e1</code>. يمكن تحميل الواجهة دون مفتاح App Check؛ أما العمليات الخلفية المحمية فتتطلب رمز App Check صالحاً يفرضه الخادم.</p>
     <div class="status" id="config-status" role="status">جارٍ فحص إعدادات بيئة Staging…</div>
   </section>
 
@@ -116,7 +117,9 @@
     $('config-panel').classList.add('hidden');
     $('workspace').classList.add('hidden');
     $('backup-panel').classList.add('hidden');
-    message('config-status', 'تم التحقق من إعدادات مشروع Staging وبوابة App Check.', true);
+    message('config-status', config.appCheckSiteKey
+      ? 'تم التحقق من إعدادات Staging وتفعيل App Check للعمليات المحمية.'
+      : 'تم تحميل واجهة Staging. العمليات الخلفية المحمية غير متاحة حتى إعداد App Check.', true);
     auth.onAuthStateChanged(user => {
       $('sign-out').disabled = !user;
       $('sign-in').disabled = !!user;
