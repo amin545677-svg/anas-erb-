@@ -43,12 +43,14 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     await page.goto('http://127.0.0.1:' + PORT, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {
       if (typeof window.openView !== 'function') throw new Error('openView is unavailable');
-      window.openView('settings', true);
+      window.openView('sync', true);
     });
     const metrics = await page.evaluate(async () => {
-      const card = document.querySelector('.anas-firebase-auth-card');
-      const auth = document.querySelector('.anas-firebase-auth-actions');
-      const cloud = document.querySelector('.anas-firebase-cloud-actions');
+      const activeSyncView = document.querySelector('#view-sync.active');
+      if (!activeSyncView) throw new Error('Sync view did not become active');
+      const card = activeSyncView.querySelector('.anas-firebase-auth-card');
+      const auth = activeSyncView.querySelector('.anas-firebase-auth-actions');
+      const cloud = activeSyncView.querySelector('.anas-firebase-cloud-actions');
       const fab = document.getElementById('anasContextAiFab');
       if (!card || !auth || !cloud || !fab) throw new Error('Required settings controls are missing');
       const buttons = [...auth.querySelectorAll('button'), ...cloud.querySelectorAll('button')];
