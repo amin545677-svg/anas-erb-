@@ -46,6 +46,9 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       window.openView('sync', true);
     });
     const metrics = await page.evaluate(async () => {
+      // Force the root scroller to be synchronous even if application CSS requests smooth scrolling.
+      document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
+      document.body.style.setProperty('scroll-behavior', 'auto', 'important');
       const activeSyncView = document.querySelector('#view-sync.active');
       if (!activeSyncView) throw new Error('Sync view did not become active');
       const card = activeSyncView.querySelector('.anas-firebase-auth-card');
@@ -68,13 +71,24 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
         };
       });
       const fabRect = fab.getBoundingClientRect();
+      const panel = document.getElementById('anasContextAiPanel');
       const lastButton = cloud.querySelector('button:last-child');
-      // Disable only the floating overlay while measuring the underlying cloud action.
-      // Use an immediate document-coordinate scroll (no smooth behavior), then verify
-      // the actual rendered rectangle rather than trusting scroll position alone.
+      // Remove both floating assistant layers from hit-testing for the duration of the
+      // layout acceptance check. The assistant itself is tested again below.
+      fab.style.pointerEvents = 'none';
+      if (panel) panel.style.pointerEvents = 'none';
+      // offsetTop is relative to offsetParent, so accumulate the offset chain to obtain
+      // the document coordinate; every scroll remains immediate and CSS smooth scrolling
+      // is explicitly disabled above.
+      const documentOffsetTop = element => {
+        let top = 0;
+        for (let node = element; node && node !== document.body; node = node.offsetParent) {
+          top += node.offsetTop;
+        }
+        return top;
+      };
       const scrollElementToViewport = element => {
-        const documentTop = element.getBoundingClientRect().top + window.scrollY;
-        window.scrollTo(0, documentTop);
+        window.scrollTo(0, documentOffsetTop(element));
         let rect = element.getBoundingClientRect();
         if (rect.bottom > window.innerHeight || rect.top < 0) {
           const correctedTop = rect.top + window.scrollY - Math.max(0, window.innerHeight - rect.height);
@@ -83,15 +97,19 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
         }
         return rect;
       };
-      fab.style.pointerEvents = 'none';
       const lastRect = scrollElementToViewport(lastButton);
       return {
         viewportWidth: innerWidth,
+        viewportHeight: innerHeight,
+        scrollY,
+        documentScrollHeight: document.documentElement.scrollHeight,
         authColumns: style.gridTemplateColumns,
         buttons: buttonMetrics,
         fabTop: fabRect.top,
         lastButtonBottom: lastRect.bottom,
         lastButtonTop: lastRect.top,
+        lastButtonHeight: lastRect.height,
+        lastButtonDocumentTop: documentOffsetTop(lastButton),
         mainPaddingBottom: getComputedStyle(document.querySelector('.main-container')).paddingBottom
       };
     });
@@ -102,8 +120,8 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       assert.equal(button.direction, 'rtl', 'button text direction must remain RTL: ' + button.text);
       assert.ok(button.height >= 48, 'button touch target is too small: ' + button.text);
     }
-    assert.ok(metrics.lastButtonTop >= 0 && metrics.lastButtonBottom <= 800,
-      'last cloud action must be 100% inside the visible viewport after immediate window.scrollTo');
+    assert.ok(metrics.lastButtonTop >= 0 && metrics.lastButtonBottom <= metrics.viewportHeight,
+      'last cloud action must be 100% inside the visible viewport after immediate window.scrollTo: ' + JSON.stringify(metrics));
     assert.ok(metrics.lastButtonBottom <= metrics.fabTop - 8,
       'floating assistant must not cover the last cloud action after scrolling');
     assert.ok(parseFloat(metrics.mainPaddingBottom) >= 150,
@@ -125,8 +143,14 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     for (const buttonPromise of actionButtons) {
       const button = await buttonPromise;
       const hit = await button.evaluate(el => {
-        const documentTop = el.getBoundingClientRect().top + window.scrollY;
-        window.scrollTo(0, documentTop);
+        document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
+        document.body.style.setProperty('scroll-behavior', 'auto', 'important');
+        const documentOffsetTop = element => {
+          let top = 0;
+          for (let node = element; node && node !== document.body; node = node.offsetParent) top += node.offsetTop;
+          return top;
+        };
+        window.scrollTo(0, documentOffsetTop(el));
         let r = el.getBoundingClientRect();
         if (r.top < 0 || r.bottom > window.innerHeight) {
           window.scrollTo(0, r.top + window.scrollY - Math.max(0, window.innerHeight - r.height));
@@ -158,6 +182,7 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
 
     // Restore the assistant's real hit target before separately testing its controls.
     await page.locator('#anasContextAiFab').evaluate(el => { el.style.pointerEvents = ''; });
+    await page.locator('#anasContextAiPanel').evaluate(el => { el.style.pointerEvents = ''; });
     const fabButton = page.locator('#anasContextAiFab');
     await fabButton.click();
     assert.equal(await fabButton.getAttribute('aria-expanded'), 'true',
