@@ -53,7 +53,7 @@ permissions:
 
 # PR validation uses its own group so it cannot cancel or replace a queued staging deployment.
 concurrency:
-  group: anas-erp-reverse-ledger-console-staging-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
+  group: anas-erp-reverse-ledger-console-staging-v2-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
