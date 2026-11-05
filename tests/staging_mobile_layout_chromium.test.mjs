@@ -84,7 +84,7 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     });
     assert.ok(metrics.buttons.length >= 7, 'expected all authentication and cloud actions');
     for (const button of metrics.buttons) {
-      assert.ok(button.width >= 280, 'button became too narrow: ' + button.text + ' (' + button.width + 'px)');
+      assert.ok(button.width >= metrics.viewportWidth * 0.72, 'button became too narrow for the mobile viewport: ' + button.text + ' (' + button.width + 'px)');
       assert.equal(button.writingMode, 'horizontal-tb', 'button text must remain horizontal: ' + button.text);
       assert.equal(button.direction, 'rtl', 'button text direction must remain RTL: ' + button.text);
       assert.ok(button.height >= 48, 'button touch target is too small: ' + button.text);
