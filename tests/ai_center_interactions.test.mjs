@@ -22,16 +22,19 @@ test('AI Center actions resolve to implemented handlers', () => {
   assert.match(html, /data-anas-ai-action="ocr"/);
 });
 
-test('AI Center delegated listeners bind after DOM readiness', () => {
-  assert.ok(html.includes("document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions"));
-  assert.ok(html.includes("document.addEventListener('click', function (event)"));
-  assert.ok(html.includes("document.addEventListener('change', function (event)"));
+test('AI Center delegated listeners bind after DOM readiness and are idempotent', () => {
+  assert.match(html, /document\\.addEventListener\\('DOMContentLoaded',\\s*bindAnasAiCenterActions/);
+  assert.match(html, /document\\.addEventListener\\('click',[\\s\\S]*?true\\);/);
+  assert.match(html, /document\\.addEventListener\\('change',[\\s\\S]*?true\\);/);
+  assert.match(html, /dataset\\.anasAiActionsBound\\s*===\\s*'1'/);
 });
 
-test('contextual ChatGPT helper binds open, close and send actions', () => {
+test('ChatGPT helper opens, closes, sends and has an offline local fallback', () => {
   assert.match(html, /fab\\.addEventListener\\('click',\\s*openPanel\\)/);
   assert.match(html, /close\\.addEventListener\\('click',\\s*closePanel\\)/);
   assert.match(html, /send\\.addEventListener\\('click',\\s*async function/);
+  assert.match(html, /!url\\s*\\|\\|\\s*!navigator\\.onLine/);
+  assert.match(html, /وضع محلي — تعذر الاتصال بالخادم/);
 });
 
 test('AI Center mobile layout avoids stacked sticky headers and reserves FAB space', () => {
@@ -41,8 +44,8 @@ test('AI Center mobile layout avoids stacked sticky headers and reserves FAB spa
   assert.match(css, /#anasContextAiPanel\\s*\\{[^}]*z-index:\\s*81\\s*!important/s);
 });
 
-test('ERP script and stylesheet references are not root-relative', () => {
-  const rootRelativeScripts = [...html.matchAll(/<(?:script|link)\\b[^>]*(?:src|href)=["'](\\/[^"']*)["']/gi)];
-  assert.deepEqual(rootRelativeScripts.map(match => match[1]), [],
-    'Found root-relative assets that can break below /erp/: ' + rootRelativeScripts.map(match => match[1]).join(', '));
+test('ERP script and stylesheet references are relative for the /erp/ deployment path', () => {
+  const rootRelativeAssets = [...html.matchAll(/<(?:script|link)\\b[^>]*(?:src|href)=["'](\\/[^"']*)["']/gi)];
+  assert.deepEqual(rootRelativeAssets.map(match => match[1]), [],
+    'Found root-relative assets that can break below /erp/: ' + rootRelativeAssets.map(match => match[1]).join(', '));
 });
