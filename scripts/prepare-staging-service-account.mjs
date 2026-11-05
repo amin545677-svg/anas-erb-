@@ -23,9 +23,14 @@ export function decodeServiceAccountInput(input) {
       let escaped = false;
       for (let i = 0; i < text.length; i += 1) {
         const ch = text[i];
-        if (inString && (ch === '\n' || ch === '\r')) {
-          repaired += '\\n';
-          if (ch === '\r' && text[i + 1] === '\n') i += 1;
+        if (inString && ch.charCodeAt(0) < 0x20) {
+          if (ch === '\n' || ch === '\r') {
+            repaired += '\\n';
+            if (ch === '\r' && text[i + 1] === '\n') i += 1;
+          } else if (ch === '\t') repaired += '\\t';
+          else if (ch === '\b') repaired += '\\b';
+          else if (ch === '\f') repaired += '\\f';
+          else repaired += '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0');
           escaped = false;
           continue;
         }
