@@ -9867,7 +9867,10 @@ function wtAuditTransfers(){
             }catch(e){if(status)status.textContent='❌ تعذر تأكيد صحة الخادم. '+(e.name==='AbortError'?'انتهت مهلة الاختبار بعد 12 ثانية.':(e.message||e));}
             finally{clearTimeout(timer);}
         }
-        document.addEventListener('DOMContentLoaded',()=>{const i=document.getElementById('anasAiGateway');const fallback='https://anas-erp-openai-ai.amin545677.workers.dev';try{const saved=(localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'').trim();const url=anasNormalizeAiGatewayUrl(saved||fallback);localStorage.setItem(ANAS_AI_GATEWAY_KEY,url);if(i)i.value=url;\n            // Read-only health check on startup; this does not send prompts or consume AI credits.\n            anasTestAiGateway();\n        }catch(e){if(i)i.value=fallback;const status=document.getElementById('anasAiGatewayStatus');if(status)status.textContent='❌ تعذر تهيئة رابط بوابة AI: '+(e.message||e);}});
+        document.addEventListener('DOMContentLoaded',()=>{const i=document.getElementById('anasAiGateway');const fallback='https://anas-erp-openai-ai.amin545677.workers.dev';try{const saved=(localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'').trim();const url=anasNormalizeAiGatewayUrl(saved||fallback);localStorage.setItem(ANAS_AI_GATEWAY_KEY,url);if(i)i.value=url;
+            // Read-only health check on startup; this does not send prompts or consume AI credits.
+            anasTestAiGateway();
+        }catch(e){if(i)i.value=fallback;const status=document.getElementById('anasAiGatewayStatus');if(status)status.textContent='❌ تعذر تهيئة رابط بوابة AI: '+(e.message||e);}});
 
 </script>
 
