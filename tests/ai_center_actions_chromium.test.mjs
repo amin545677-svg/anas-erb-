@@ -65,7 +65,7 @@ test('AI Center actions remain delegated across rerender and local import works 
     const downloadPromise = page.waitForEvent('download');
     await page.locator('[data-anas-ai-action="generate"]').click();
     const download = await downloadPromise;
-    assert.match(download.suggestedFilename(), /قالب_المنتجات\\.csv/);
+    assert.match(download.suggestedFilename(), /قالب_المنتجات\.csv/);
     assert.ok(dialogs.some(message => message.includes('تم تنزيل')), 'generation should confirm local template creation');
 
     // File import must remain local: no Worker, token, or external request is required.
@@ -75,7 +75,7 @@ test('AI Center actions remain delegated across rerender and local import works 
     await chooser.setFiles({
       name: 'ai-center-local.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from('الرقم,اسم المنتج,المخزون\\n1,اختبار محلي,5', 'utf8')
+      buffer: Buffer.from('الرقم,اسم المنتج,المخزون\n1,اختبار محلي,5', 'utf8')
     });
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(
       document.getElementById('smartAiExcelStatus')?.textContent || ''
