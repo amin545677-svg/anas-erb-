@@ -160,7 +160,7 @@ test('staging deploys are serialized while PR validation is isolated from deploy
     new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
   );
   const functionsGroup = "group: anas-erp-reverse-ledger-functions-staging-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}";
-  const consoleGroup = "group: anas-erp-reverse-ledger-console-staging-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}";
+  const consoleGroup = "group: anas-erp-reverse-ledger-console-staging-v2-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}";
   assert.ok(functionsWorkflow.includes(functionsGroup), 'Functions PR validation must use a PR-scoped concurrency group');
   assert.ok(consoleWorkflow.includes(consoleGroup), 'Hosting PR validation must use a PR-scoped concurrency group');
   assert.match(functionsWorkflow, /cancel-in-progress:\s*false/);
