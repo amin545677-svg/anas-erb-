@@ -154,6 +154,8 @@ jobs:
         run: node --test tests/purchase_supplier_chromium_staging.test.mjs tests/pos_full_lifecycle_chromium.test.mjs tests/reverse_ledger_chromium.test.mjs tests/reverse_ledger_staging_console_chromium.test.mjs tests/settlement_allocation_modal_chromium.test.mjs tests/verify_live_staging_e2e.playwright.test.mjs
       - name: Verify AI Center actions and mobile touch layout
         run: node --test tests/ai_center_interactions.test.mjs
+      - name: Exercise AI Center controls in real headless Chromium
+        run: node --test tests/ai_center_chromium_interactions.test.mjs
       - name: Validate full ERP HTML and inline JavaScript
         run: |
           python -m py_compile tests/validate_erp_html.py
