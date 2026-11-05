@@ -49,3 +49,11 @@ test('ERP script and stylesheet references are relative for the /erp/ deployment
   assert.deepEqual(rootRelativeAssets.map(match => match[1]), [],
     'Found root-relative assets that can break below /erp/: ' + rootRelativeAssets.map(match => match[1]).join(', '));
 });
+
+test('cloud AI document analysis waits for Firebase persisted auth state before reading the ID token', () => {
+  assert.match(html, /window\.anasGetFirebaseIdToken=async function\(timeoutMs=8000\)/);
+  assert.match(html, /auth\.onAuthStateChanged\(u=>finish\(resolve,u\|\|null\)/);
+  assert.match(html, /انتهت مهلة استعادة جلسة Firebase/);
+  assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/g);
+  assert.doesNotMatch(html, /const currentUser=firebaseAuth\?\.currentUser/);
+});
