@@ -11,7 +11,7 @@ const PORT = 4175;
 function startServer() {
   const server = http.createServer((req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
-    const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\\/+/, '');
+    const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
     const target = path.resolve(ROOT, relative);
     if (!target.startsWith(ROOT + path.sep) && target !== path.join(ROOT, 'index.html')) {
       res.writeHead(403).end('Forbidden'); return;
