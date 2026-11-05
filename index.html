@@ -9304,12 +9304,9 @@ function wtAuditTransfers(){
             const status=document.getElementById('smartAiExcelStatus');
             if(status)status.textContent='⏳ جارٍ تحليل النص الذي اخترت إرساله…';
             try{
-                const firebaseAuth=window.firebase?.auth?.();
-                const currentUser=firebaseAuth?.currentUser;
-                if(!currentUser||typeof currentUser.getIdToken!=='function')
-                    throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل استخدام تحليل PDF.');
-                const firebaseIdToken=await currentUser.getIdToken();
-                if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
+                if(typeof window.anasGetFirebaseIdToken!=='function')
+                    throw new Error('خدمة استعادة جلسة Firebase غير جاهزة. أعد تحميل التطبيق ثم حاول مجددًا.');
+                const firebaseIdToken=await window.anasGetFirebaseIdToken();
                 const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify({type:'chat',message:question.trim(),businessData:{documentText:text.slice(0,28000),source:'PDF text extracted in browser'},language:'ar'})});
                 const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch(_){data={text:raw}};
                 if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
@@ -9388,12 +9385,9 @@ function wtAuditTransfers(){
                 st.textContent='⏳ يجري تحليل أسماء الأعمدة وعينة من البيانات…';
                 try{
                     const sampleText='حلل ملف الجدول التالي. لا تنشئ بيانات جديدة. حدّد نوع البيانات (products أو customers أو suppliers أو invoices)، واقترح مطابقة الأعمدة مع الحقول المناسبة. أجب بالعربية وباختصار، واذكر أي أعمدة غير واضحة.\nعناوين الأعمدة: '+JSON.stringify(rows[0]||[])+'\nعينة أول 5 صفوف: '+JSON.stringify(rows.slice(1,6));
-                    const firebaseAuth=window.firebase?.auth?.();
-                    const currentUser=firebaseAuth?.currentUser;
-                    if(!currentUser||typeof currentUser.getIdToken!=='function')
-                        throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل تحليل Excel.');
-                    const firebaseIdToken=await currentUser.getIdToken();
-                    if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
+                    if(typeof window.anasGetFirebaseIdToken!=='function')
+                        throw new Error('خدمة استعادة جلسة Firebase غير جاهزة. أعد تحميل التطبيق ثم حاول مجددًا.');
+                    const firebaseIdToken=await window.anasGetFirebaseIdToken();
                     const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify({text:sampleText,prompt:sampleText,message:sampleText})});
                     const raw=await resp.text(); let data; try{data=JSON.parse(raw)}catch{data={text:raw}};
                     if(!resp.ok) throw new Error(data.error||('HTTP '+resp.status));
@@ -10798,6 +10792,25 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if(window.firebase){
       const app=window.firebase.apps.length?window.firebase.app():window.firebase.initializeApp(firebaseConfig);
       auth=window.firebase.auth(app);
+      // Resolve the persisted Firebase session before guarded AI requests.
+      // currentUser can be null briefly while Firebase restores LOCAL persistence.
+      window.anasGetFirebaseIdToken=async function(timeoutMs=8000){
+        if(!auth) throw new Error('Firebase Auth غير مهيأ؛ تحقق من تحميل مكتبات Firebase.');
+        const resolvedUser=await new Promise((resolve,reject)=>{
+          let settled=false,unsubscribe=()=>{},timer=null;
+          const finish=(fn,value)=>{if(settled)return;settled=true;if(timer)clearTimeout(timer);try{unsubscribe();}catch(_){}fn(value);};
+          timer=setTimeout(()=>finish(reject,new Error('انتهت مهلة استعادة جلسة Firebase. تحقق من الاتصال ثم أعد المحاولة.')),Math.max(1000,Math.min(Number(timeoutMs)||8000,15000)));
+          try{unsubscribe=auth.onAuthStateChanged(u=>finish(resolve,u||null),e=>finish(reject,new Error('تعذر استعادة جلسة Firebase: '+(e.code||e.message||e))));}
+          catch(e){finish(reject,new Error('تعذر قراءة حالة Firebase Auth: '+(e.code||e.message||e)));}
+        });
+        if(!resolvedUser) throw new Error('Firebase يؤكد عدم وجود جلسة دخول نشطة. سجّل الدخول ثم أعد المحاولة.');
+        if(typeof resolvedUser.getIdToken!=='function') throw new Error('جلسة Firebase غير صالحة للحصول على رمز المصادقة.');
+        try{
+          const token=await resolvedUser.getIdToken();
+          if(!token) throw new Error('Firebase أعاد رمز مصادقة فارغًا.');
+          return token;
+        }catch(e){throw new Error('تعذر إصدار رمز جلسة Firebase: '+(e.code||e.message||e));}
+      };
       // Restore Firebase's persisted state before subscribing to the first auth-state event.
       // If persistence setup fails, still attach the observer so sign-in remains usable and report the issue.
       const observeFirebaseAuth=()=>{
