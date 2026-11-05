@@ -57,3 +57,18 @@ test('cloud AI document analysis waits for Firebase persisted auth state before 
   assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/g);
   assert.ok((html.match(/const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/g) || []).length >= 2, 'Excel and PDF must both use the session-restoration helper');
 });
+
+
+test('Excel and PDF parsers are bundled locally and not loaded from runtime CDNs', () => {
+  assert.match(html, /src="\.\/vendor\/xlsx\/xlsx\.full\.min\.js"/);
+  assert.match(html, /src="\.\/vendor\/pdfjs\/pdf\.min\.js"/);
+  assert.match(html, /new URL\('\.\/vendor\/pdfjs\/pdf\.worker\.min\.js'/);
+  assert.doesNotMatch(html, /cdn\.sheetjs\.com|cdn\.jsdelivr\.net\/npm\/xlsx|cdnjs\.cloudflare\.com\/ajax\/libs\/pdf\.js/);
+  assert.match(html, /مطابقة الأعمدة/);
+  assert.match(html, /الاقتراح المحلي ما زال متاحاً/);
+});
+
+test('store movement report toolbar wraps on mobile without vertically breaking action labels', () => {
+  assert.match(css, /#anasReportToolbar\s*\{[^}]*display:\s*flex\s*!important[^}]*flex-wrap:\s*wrap\s*!important/s);
+  assert.match(css, /#anasReportToolbar button\s*\{[^}]*flex:\s*0 0 auto\s*!important[^}]*white-space:\s*nowrap\s*!important/s);
+});
