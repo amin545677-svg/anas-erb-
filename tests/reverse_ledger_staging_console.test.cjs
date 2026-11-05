@@ -83,7 +83,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(authPreflightScript.includes('OIDC fallback'));
   assert.ok(authPreflightScript.includes("fs.appendFileSync(githubOutput, 'auth_mode=json\\n')"));
   assert.ok(authPreflightScript.includes("fs.appendFileSync(githubOutput, 'auth_mode=oidc\\n')"));
-  assert.ok(deployWorkflow.includes('DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 }}'));
+  assert.ok(deployWorkflow.includes('DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 || secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}'));
   assert.ok(functionsWorkflow.includes(serviceAccountCredential));
   const bootstrapFallback = 'secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT';
   assert.ok(!deployWorkflow.includes(bootstrapFallback), 'console deploy must not reuse the bootstrap credential');
