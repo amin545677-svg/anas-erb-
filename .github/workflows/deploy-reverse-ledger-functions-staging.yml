@@ -50,7 +50,7 @@ jobs:
           node scripts/check-staging-readiness.mjs
           node --check scripts/assert-staging-deployment-identity.mjs
           node --check tests/staging_deployment_identity_guard.test.mjs
-          node --test tests/staging_deployment_identity_guard.test.mjs tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js tests/staging_grant_scope.test.cjs
+          node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js tests/staging_grant_scope.test.cjs
 
   deploy-reverse-ledger-staging:
     if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate') || (github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate')
@@ -68,36 +68,15 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Secret Presence Preflight (service-account JSON preferred, OIDC fallback)
+      - name: Secret Presence Preflight (raw JSON or Base64 service-account, OIDC fallback)
         id: auth_preflight
         env:
-          DEPLOY_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          
+          DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
           WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
           DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
-          node <<'NODE'
-          const json = process.env.DEPLOY_SERVICE_ACCOUNT_JSON || '';
-          const provider = process.env.WIF_PROVIDER || '';
-          const deployer = process.env.DEPLOYER_SERVICE_ACCOUNT || '';
-          if (json.trim()) {
-            let credential;
-            try { credential = JSON.parse(json); } catch { console.error('STAGING PREFLIGHT: invalid service-account JSON'); process.exit(1); }
-            if (credential.type !== 'service_account' || credential.project_id !== 'anas-erp-staging-a25e1' || !credential.client_email || !credential.private_key) {
-              console.error('STAGING PREFLIGHT: service-account JSON must belong to isolated staging'); process.exit(1);
-            }
-            console.log('STAGING AUTH MODE: service-account JSON');
-            require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=json\n');
-          } else if (provider && deployer) {
-            if (!/^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) || !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(deployer)) {
-              console.error('STAGING PREFLIGHT: invalid OIDC configuration'); process.exit(1);
-            }
-            console.log('STAGING AUTH MODE: OIDC fallback');
-            require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'auth_mode=oidc\n');
-          } else {
-            console.error('STAGING PREFLIGHT: configure either the staging-only FIREBASE_STAGING_SERVICE_ACCOUNT secret OR both staging Environment variables ANAS_STAGING_WIF_PROVIDER and ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT. Do not use production credentials. See docs/STAGING_OIDC_SETUP.md.'); process.exit(1);
-          }
-          NODE
-
+          node scripts/prepare-staging-service-account.mjs
       - name: Run fail-closed staging callable readiness preflight
         run: node scripts/check-staging-readiness.mjs
 
@@ -132,7 +111,7 @@ jobs:
         if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          credentials_json: ${{ env.STAGING_SERVICE_ACCOUNT_JSON }}
           create_credentials_file: true
 
       - name: Authenticate to Firebase Staging with GitHub OIDC fallback
