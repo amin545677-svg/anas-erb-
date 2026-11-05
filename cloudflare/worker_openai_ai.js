@@ -8,7 +8,7 @@
  */
 const MAX_BODY_BYTES = 120 * 1024;
 const MAX_BUSINESS_DATA_CHARS = 30000;
-const DEFAULT_ORIGINS = "https://amin545677-svg.github.io";
+const DEFAULT_ORIGINS = "https://amin545677-svg.github.io,https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com";
 const DEFAULT_MODEL = "gpt-4.1-mini";
 const DEFAULT_FIREBASE_PROJECT_ID = "anas-erb";
 const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
@@ -67,8 +67,9 @@ async function verifyFirebaseIdToken(request, env) {
 }
 
 function allowedOrigins(env) {
-  return (env.ALLOWED_ORIGINS || DEFAULT_ORIGINS)
-    .split(",").map(v => v.trim()).filter(Boolean);
+  // Keep the known web origins available alongside any operator-supplied origins.
+  return [...new Set((DEFAULT_ORIGINS + "," + (env.ALLOWED_ORIGINS || ""))
+    .split(",").map(v => v.trim()).filter(Boolean))];
 }
 
 function json(data, status, origin) {
