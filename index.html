@@ -11212,7 +11212,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         result = window.askAnasBusinessAI();
       } else if (action === 'generate') {
         if (typeof window.triggerAiGeneration !== 'function') throw new Error('مولّد القوالب غير متاح؛ أعد تحميل التطبيق.');
-        result = window.triggerAiGeneration(window.activeAiTab || 'products');
+        result = window.triggerAiGeneration(typeof activeAiTab !== 'undefined' ? activeAiTab : 'products');
       } else if (action === 'import') {
         const input = document.getElementById('smartAiExcelUpload');
         if (!input) throw new Error('حقل استيراد Excel/CSV غير موجود.');
