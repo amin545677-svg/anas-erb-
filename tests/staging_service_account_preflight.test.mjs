@@ -33,6 +33,24 @@ test('accepts valid Base64 staging service-account JSON', () => {
   assert.equal(decodeServiceAccountInput(encoded).credential.client_email, credential.client_email);
 });
 
+test('falls back to a separately configured staging OIDC identity when the JSON secret is malformed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'anas-staging-'));
+  try {
+    const outputFile = join(dir, 'output');
+    const result = prepareCredential({
+      input: 'not-a-valid-service-account-payload',
+      provider: 'projects/123/locations/global/workloadIdentityPools/anas/providers/github',
+      deployer: credential.client_email,
+      githubOutput: outputFile
+    });
+    assert.equal(result.mode, 'oidc');
+    assert.equal(result.projectId, 'anas-erp-staging-a25e1');
+    assert.equal(readFileSync(outputFile, 'utf8'), 'auth_mode=oidc\\n');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('accepts Base64 with line wrapping and surrounding whitespace', () => {
   const wrapped = encoded.match(/.{1,24}/g).join('\n');
   assert.equal(decodeServiceAccountInput('  ' + wrapped + '  ').credential.project_id, credential.project_id);
