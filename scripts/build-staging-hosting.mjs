@@ -20,7 +20,10 @@ const ERP_FILES = [
   'reverse-ledger/reverse-ledger-modal.js',
   'reverse-ledger/settlement-allocation-modal.js',
   'storage/android-resilient-storage.js',
-  'sync/mutation_queue_orchestrator.mjs'
+  'sync/mutation_queue_orchestrator.mjs',
+  'vendor/xlsx/xlsx.full.min.js',
+  'vendor/pdfjs/pdf.min.js',
+  'vendor/pdfjs/pdf.worker.min.js'
 ];
 
 async function copyRelative(rootDir, outDir, relativePath) {
@@ -49,6 +52,18 @@ export async function buildStagingHosting(options = {}) {
 
   await fs.rm(outDir, { recursive: true, force: true });
   await fs.mkdir(outDir, { recursive: true });
+
+  // Vendor pinned parsers from installed npm packages into the ERP's local PWA scope.
+  for (const [sourceRelative, destinationRelative] of [
+    ['node_modules/xlsx/dist/xlsx.full.min.js', 'vendor/xlsx/xlsx.full.min.js'],
+    ['node_modules/pdfjs-dist/legacy/build/pdf.min.js', 'vendor/pdfjs/pdf.min.js'],
+    ['node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', 'vendor/pdfjs/pdf.worker.min.js']
+  ]) {
+    const source = path.join(rootDir, sourceRelative);
+    const destination = path.join(outDir, 'erp', destinationRelative);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.copyFile(source, destination);
+  }
 
   // Full ERP/POS app is isolated below /erp/, including its own PWA scope and offline assets.
   for (const relativePath of ERP_FILES) await copyRelative(rootDir, path.join(outDir, 'erp'), relativePath);
@@ -103,6 +118,9 @@ export async function buildStagingHosting(options = {}) {
     'index.html', 'config.js', 'reverse-ledger-gateway.js',
     'erp/index.html', 'erp/sw.js', 'erp/manifest.webmanifest',
     'erp/storage/android-resilient-storage.js', 'erp/icons/icon.svg',
+    'erp/vendor/xlsx/xlsx.full.min.js',
+    'erp/vendor/pdfjs/pdf.min.js',
+    'erp/vendor/pdfjs/pdf.worker.min.js',
     'erp/reverse-ledger/reverse-ledger.js'
   ]) {
     await fs.access(path.join(outDir, relativePath));
