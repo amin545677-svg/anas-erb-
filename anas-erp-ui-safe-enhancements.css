@@ -191,3 +191,56 @@ body {
   .grid-card-item .card-icon-box { width:62px !important; height:62px !important; min-height:62px !important; font-size:2.25rem !important; }
   #view-dashboard > div[style*="grid-template-columns: repeat(3"] { gap:6px !important; }
 }
+
+/* AI Center mobile usability: prevent the sticky global header and section bar
+   from occupying the same top edge; reserve space for the contextual helper. */
+.sub-header-bar {
+  position: relative !important;
+  top: auto !important;
+  z-index: 2 !important;
+}
+#view-ai-excel-hub {
+  scroll-margin-top: 12px;
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+}
+#aiHubTabContent #anasAiAskBtn,
+#aiHubTabContent .anas-ai-draft-action,
+#aiHubTabContent button {
+  position: relative;
+  z-index: 1;
+  touch-action: manipulation;
+  scroll-margin-top: 16px;
+}
+#anasContextAiFab {
+  right: max(10px, env(safe-area-inset-right));
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 80 !important;
+  max-width: calc(100vw - 24px);
+}
+#anasContextAiPanel {
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 81 !important;
+  max-height: min(72dvh, 620px);
+}
+#view-ai-excel-hub #smartAiExcelUpload {
+  pointer-events: none;
+}
+#view-ai-excel-hub button,
+#view-ai-excel-hub [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+@media (max-width: 600px) {
+  #view-ai-excel-hub .sub-header-bar {
+    min-height: 52px;
+    padding-inline: 10px;
+  }
+  #view-ai-excel-hub .sub-header-title {
+    min-width: 0;
+    text-align: center;
+    font-size: clamp(.95rem, 3.8vw, 1.15rem);
+    overflow-wrap: anywhere;
+  }
+  #anasContextAiFab { padding: 9px 12px; font-size: 13px; }
+}
