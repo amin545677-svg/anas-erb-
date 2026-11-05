@@ -15,10 +15,13 @@ export function decodeServiceAccountInput(input) {
     if (!compact || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact) || compact.length % 4 === 1) {
       throw new Error('credential is neither JSON nor valid Base64');
     }
+    // Buffer's Base64 decoder accepts valid unpadded payloads and mobile-generated
+    // encodings whose unused trailing bits are not canonical. Security is enforced
+    // by parsing the decoded JSON and validating its exact staging project/principal
+    // and PEM private-key structure below, not by requiring canonical padding bits.
     const decoded = Buffer.from(compact, 'base64');
-    const canonical = decoded.toString('base64').replace(/=+$/, '');
-    if (canonical !== compact.replace(/=+$/, '')) throw new Error('credential Base64 encoding is invalid');
     jsonText = decoded.toString('utf8').replace(/^\uFEFF/, '').trim();
+    if (!jsonText.startsWith('{')) throw new Error('decoded credential is not a JSON object');
   }
 
   let credential;
