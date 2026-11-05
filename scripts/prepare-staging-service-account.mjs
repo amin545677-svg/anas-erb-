@@ -135,7 +135,9 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
     const result = prepareCredential({
       input: process.env.DEPLOY_SERVICE_ACCOUNT_INPUT,
       provider: process.env.WIF_PROVIDER,
-      deployer: process.env.DEPLOYER_SERVICE_ACCOUNT
+      deployer: process.env.DEPLOYER_SERVICE_ACCOUNT,
+      githubEnv: process.env.GITHUB_ENV,
+      githubOutput: process.env.GITHUB_OUTPUT
     });
     console.log('STAGING AUTH MODE: ' + (result.mode === 'json' ? 'service-account JSON (raw or Base64)' : 'OIDC fallback'));
   } catch (error) {
