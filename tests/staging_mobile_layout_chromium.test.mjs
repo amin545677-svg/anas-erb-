@@ -55,6 +55,7 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       const auth = activeSyncView.querySelector('.anas-firebase-auth-actions');
       const cloud = activeSyncView.querySelector('.anas-firebase-cloud-actions');
       const fab = document.getElementById('anasContextAiFab');
+      const toast = document.getElementById('anasActionToast');
       if (!card || !auth || !cloud || !fab) throw new Error('Required settings controls are missing');
       const buttons = [...auth.querySelectorAll('button'), ...cloud.querySelectorAll('button')];
       const style = getComputedStyle(auth);
@@ -77,6 +78,10 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       // layout acceptance check. The assistant itself is tested again below.
       fab.style.pointerEvents = 'none';
       if (panel) panel.style.pointerEvents = 'none';
+      // The external-library failure toast is expected because this test blocks network
+      // requests. It is a transient overlay, not the control under test; keep it out of
+      // hit-testing for the complete pointer-acceptance phase so it cannot cover the FAB.
+      if (toast) toast.style.pointerEvents = 'none';
       // offsetTop is relative to offsetParent, so accumulate the offset chain to obtain
       // the document coordinate; every scroll remains immediate and CSS smooth scrolling
       // is explicitly disabled above.
