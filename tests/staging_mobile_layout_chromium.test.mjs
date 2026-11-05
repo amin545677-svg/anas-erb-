@@ -69,10 +69,22 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       });
       const fabRect = fab.getBoundingClientRect();
       const lastButton = cloud.querySelector('button:last-child');
-      // Remove the floating assistant from hit-testing for this layout-only acceptance pass.
+      // Disable only the floating overlay while measuring the underlying cloud action.
+      // Use an immediate document-coordinate scroll (no smooth behavior), then verify
+      // the actual rendered rectangle rather than trusting scroll position alone.
+      const scrollElementToViewport = element => {
+        const documentTop = element.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo(0, documentTop);
+        let rect = element.getBoundingClientRect();
+        if (rect.bottom > window.innerHeight || rect.top < 0) {
+          const correctedTop = rect.top + window.scrollY - Math.max(0, window.innerHeight - rect.height);
+          window.scrollTo(0, correctedTop);
+          rect = element.getBoundingClientRect();
+        }
+        return rect;
+      };
       fab.style.pointerEvents = 'none';
-      window.scrollTo(0, lastButton.offsetTop);
-      const lastRect = lastButton.getBoundingClientRect();
+      const lastRect = scrollElementToViewport(lastButton);
       return {
         viewportWidth: innerWidth,
         authColumns: style.gridTemplateColumns,
@@ -113,8 +125,13 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     for (const buttonPromise of actionButtons) {
       const button = await buttonPromise;
       const hit = await button.evaluate(el => {
-        window.scrollTo(0, el.offsetTop);
-        const r = el.getBoundingClientRect();
+        const documentTop = el.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo(0, documentTop);
+        let r = el.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > window.innerHeight) {
+          window.scrollTo(0, r.top + window.scrollY - Math.max(0, window.innerHeight - r.height));
+          r = el.getBoundingClientRect();
+        }
         const x = r.left + r.width / 2;
         const y = r.top + r.height / 2;
         const top = document.elementFromPoint(x, y);
@@ -139,6 +156,8 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       'anasFirebasePush', 'anasFirebasePull'
     ], 'all Firebase actions must receive a real Chromium click exactly once');
 
+    // Restore the assistant's real hit target before separately testing its controls.
+    await page.locator('#anasContextAiFab').evaluate(el => { el.style.pointerEvents = ''; });
     const fabButton = page.locator('#anasContextAiFab');
     await fabButton.click();
     assert.equal(await fabButton.getAttribute('aria-expanded'), 'true',
