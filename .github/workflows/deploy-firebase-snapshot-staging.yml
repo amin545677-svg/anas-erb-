@@ -88,7 +88,7 @@ jobs:
           status="$(curl --silent --show-error --output "$body" --dump-header "$headers" --write-out '%{http_code}' -H "Origin: $origin" "$url/health")"
           test "$status" = "200"
           grep -Fqi "access-control-allow-origin: $origin" "$headers"
-          node -e 'const j=require(process.argv[1]); if(j.ok!==true||j.service!=="anas-erp-firebase-snapshot"||j.configured!==true) process.exit(1)' "$body"
+          node -e 'const j=require(process.argv[1]); if(j.ok!==true||j.service!=="anas-erp-firebase-snapshot-staging"||j.configured!==true) process.exit(1)' "$body"
           preflight="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X OPTIONS -H "Origin: $origin" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: authorization,content-type" "$url/snapshot")"
           test "$preflight" = "204"
           rm -f "$headers" "$body"
