@@ -64,7 +64,7 @@ test('staging console deployment waits for the exact successful Gate and require
   assert.ok(deployWorkflow.includes('Wait for matching Staging Test Gate success'));
   assert.ok(deployWorkflow.indexOf('Wait for matching Staging Test Gate success') < deployWorkflow.indexOf('Secret Presence Preflight'),
     'Hosting must wait for the matching successful Gate before reading credentials or deploying');
-  assert.ok(deployWorkflow.includes('run.name === \\'Staging Test Gate\\''));
+  assert.ok(deployWorkflow.includes("run.name === 'Staging Test Gate'"));
   assert.ok(deployWorkflow.includes('run.head_sha === process.env.GITHUB_SHA'));
   assert.ok(deployWorkflow.includes("gate.conclusion !== 'success'"));
   assert.ok(!deployWorkflow.slice(0, deployWorkflow.indexOf('jobs:')).includes('id-token: write'));
