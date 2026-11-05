@@ -9085,7 +9085,7 @@ function wtAuditTransfers(){
             let url='';
             try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}
             catch(err){anasAiAppendMessage('ai','إعداد رابط الذكاء الاصطناعي غير صالح: '+(err.message||err));return;}
-            if(!url){anasAiAppendMessage('ai','لم يُضبط رابط الخادم بعد. يمكنك استخدام الفحص المحلي الآن أو ضبط الرابط من الإعدادات.');return;}
+            if(!url){const local=anasAiLocalFallback(question);if(fallback){fallback.style.display='block';fallback.textContent='وضع محلي — لم يتم الاتصال بأي خدمة سحابية. '+local;}anasAiAppendMessage('ai','🟢 تحليل محلي دون Cloud Functions أو بوابة خارجية:\n'+local);return;}
             if(!navigator.onLine){if(fallback){fallback.style.display='block';fallback.textContent=anasAiLocalFallback(question);}anasAiAppendMessage('ai',anasAiLocalFallback(question));return;}
             let businessData=null;
             if(shareContext){
@@ -9119,7 +9119,9 @@ function wtAuditTransfers(){
                 firebaseIdToken=await currentUser.getIdToken();
                 if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
             }catch(err){
-                anasAiAppendMessage('ai',err.message||'تعذر التحقق من جلسة الدخول.');
+                const local=anasAiLocalFallback(question);
+                if(fallback){fallback.style.display='block';fallback.textContent='تعذر بدء الاتصال السحابي؛ تم التحويل إلى الوضع المحلي. '+local;}
+                anasAiAppendMessage('ai','🟢 وضع محلي: '+local);
                 if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}
                 return;
             }
