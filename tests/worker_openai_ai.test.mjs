@@ -9,10 +9,10 @@ const source = await readFile(resolve("cloudflare/worker_openai_ai.js"), "utf8")
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
 
-function request(path, { method = "GET", origin, body } = {}) {
+function request(path, { method = "GET", origin, body, tokenProjectId = "anas-erb" } = {}) {
   const headers = new Headers();
   if (origin) headers.set("Origin", origin);
-  if (body !== undefined) { headers.set("Content-Type", "application/json"); headers.set("Authorization", "Bearer " + firebaseToken()); }
+  if (body !== undefined) { headers.set("Content-Type", "application/json"); headers.set("Authorization", "Bearer " + firebaseToken({}, tokenProjectId)); }
   return new Request("https://worker.test" + path, {
     method,
     headers,
@@ -23,11 +23,11 @@ function request(path, { method = "GET", origin, body } = {}) {
 const jwksUrl = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const firebaseJwk = { ...publicKey.export({ format: "jwk" }), kid: "test-firebase-key", alg: "RS256", use: "sig" };
-function firebaseToken(overrides = {}) {
+function firebaseToken(overrides = {}, projectId = "anas-erb") {
   const encode = value => Buffer.from(value).toString("base64url");
   const now = Math.floor(Date.now() / 1000);
   const header = encode(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "test-firebase-key" }));
-  const claims = encode(JSON.stringify({ aud: "anas-erb", iss: "https://securetoken.google.com/anas-erb", sub: "test-user", iat: now, exp: now + 3600, auth_time: now, ...overrides }));
+  const claims = encode(JSON.stringify({ aud: projectId, iss: "https://securetoken.google.com/" + projectId, sub: "test-user", iat: now, exp: now + 3600, auth_time: now, ...overrides }));
   const input = header + "." + claims;
   const signer = createSign("RSA-SHA256"); signer.update(input); signer.end();
   return input + "." + signer.sign(privateKey).toString("base64url");
@@ -272,4 +272,41 @@ test("Excel import analysis sends a Firebase ID token to the protected AI gatewa
   assert.match(handler, /getIdToken/);
   assert.match(handler, /Authorization.*firebaseIdToken/);
   assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+});
+
+test("Staging-origin AI requests validate Firebase ID tokens against the Staging project", async () => {
+  const oldFetch = globalThis.fetch;
+  const stagingOrigin = "https://anas-erp-staging-a25e1.web.app";
+  installFetch(async (url, init) => {
+    assert.equal(url, "https://api.openai.com/v1/responses");
+    assert.equal(JSON.parse(init.body).store, false);
+    return new Response(JSON.stringify({
+      output: [{ type: "message", content: [{ type: "output_text", text: "إجابة Staging" }] }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  try {
+    const response = await worker.fetch(request("/", {
+      method: "POST",
+      origin: stagingOrigin,
+      tokenProjectId: "anas-erp-staging-a25e1",
+      body: { message: "اختبار بيئة Staging" }
+    }), { OPENAI_API_KEY: "test-secret" });
+    assert.equal(response.status, 200, "Staging Firebase token must not be rejected as a Production token");
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), stagingOrigin);
+    assert.deepEqual(await response.json(), { ok: true, text: "إجابة Staging", model: "gpt-4.1-mini" });
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
+
+test("Staging-origin AI requests reject Production Firebase tokens", async () => {
+  const stagingOrigin = "https://anas-erp-staging-a25e1.web.app";
+  const response = await worker.fetch(request("/", {
+    method: "POST",
+    origin: stagingOrigin,
+    tokenProjectId: "anas-erb",
+    body: { message: "must be rejected" }
+  }), { OPENAI_API_KEY: "test-secret" });
+  assert.equal(response.status, 401);
+  assert.match((await response.json()).error, /Invalid or expired Firebase session/);
 });
