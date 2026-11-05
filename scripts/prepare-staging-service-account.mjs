@@ -35,7 +35,7 @@ export function decodeServiceAccountInput(input) {
     !credential.private_key.includes('-----END PRIVATE KEY-----')
   ) throw new Error('credential identity or private-key structure is not valid for isolated staging');
 
-  return { jsonText, credential };
+  for (const line of credential.private_key.split(/\\r?\\n/)) {\n    if (line) process.stdout.write('::add-mask::' + line + '\\n');\n  }\n  return { jsonText, credential };
 }
 
 export function validateOidc(provider, deployer) {
