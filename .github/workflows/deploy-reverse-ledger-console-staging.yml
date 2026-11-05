@@ -146,6 +146,33 @@ jobs:
         run: |
           node -e "for (const name of ['FIREBASE_STAGING_WEB_API_KEY','FIREBASE_STAGING_WEB_APP_ID']) if (!(process.env[name] || '').trim()) { console.error('STAGING PREFLIGHT: missing ' + name); process.exit(1); }"
           node scripts/prepare-staging-service-account.mjs
+
+      - name: Validate Firebase Staging Web API key without creating an account
+        env:
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+        run: |
+          node --input-type=module <<'NODE'
+          const key = (process.env.FIREBASE_STAGING_WEB_API_KEY || '').trim();
+          if (!key || key.length > 512) throw new Error('FIREBASE_STAGING_WEB_API_KEY is missing or malformed.');
+          const endpoint = 'https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=' + encodeURIComponent(key);
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              identifier: 'staging-preflight@example.invalid',
+              continueUri: 'https://anas-erp-staging-a25e1.web.app'
+            })
+          });
+          const data = await response.json().catch(() => ({}));
+          const errorCode = data.error?.message || '';
+          if (!response.ok && /API_KEY_INVALID|keyInvalid|INVALID_API_KEY/i.test(errorCode)) {
+            throw new Error('Firebase rejected FIREBASE_STAGING_WEB_API_KEY. Hosting deployment is blocked; use the Web API key from project anas-erp-staging-a25e1.');
+          }
+          if (!response.ok) {
+            throw new Error('Firebase Auth key preflight returned HTTP ' + response.status + ' (' + (errorCode || 'unknown error') + '). No account was created.');
+          }
+          console.log('PASS: Firebase accepted the Staging Web API key. No user/account was created.');
+          NODE
       - name: Authenticate to Firebase Staging with service-account JSON
         if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
