@@ -13,13 +13,13 @@ const credential = {
   type: 'service_account',
   project_id: 'anas-erp-staging-a25e1',
   client_email: 'anas-staging-deployer@anas-erp-staging-a25e1.iam.gserviceaccount.com',
-  private_key: '-----BEGIN PRIVATE KEY-----\\nTEST_ONLY_NOT_A_REAL_KEY\\n-----END PRIVATE KEY-----\\n'
+  private_key: '-----BEGIN PRIVATE KEY-----\nTEST_ONLY_NOT_A_REAL_KEY\n-----END PRIVATE KEY-----\n'
 };
 const raw = JSON.stringify(credential);
 const encoded = Buffer.from(raw, 'utf8').toString('base64');
 
 test('accepts valid raw staging service-account JSON and trims surrounding whitespace', () => {
-  assert.equal(decodeServiceAccountInput('  \\n' + raw + '\\n  ').credential.project_id, credential.project_id);
+  assert.equal(decodeServiceAccountInput('  \n' + raw + '\n  ').credential.project_id, credential.project_id);
 });
 
 test('accepts valid Base64 staging service-account JSON', () => {
@@ -27,7 +27,7 @@ test('accepts valid Base64 staging service-account JSON', () => {
 });
 
 test('accepts Base64 with line wrapping and surrounding whitespace', () => {
-  const wrapped = encoded.match(/.{1,24}/g).join('\\n');
+  const wrapped = encoded.match(/.{1,24}/g).join('\n');
   assert.equal(decodeServiceAccountInput('  ' + wrapped + '  ').credential.project_id, credential.project_id);
 });
 
@@ -66,7 +66,7 @@ test('writes normalized credential to the GitHub environment without logging its
     assert.equal(result.mode, 'json');
     assert.match(readFileSync(envFile, 'utf8'), /STAGING_SERVICE_ACCOUNT_JSON<<ANAS_STAGING_/);
     assert.ok(readFileSync(envFile, 'utf8').includes(raw));
-    assert.equal(readFileSync(outputFile, 'utf8'), 'auth_mode=json\\n');
+    assert.equal(readFileSync(outputFile, 'utf8'), 'auth_mode=json\n');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
