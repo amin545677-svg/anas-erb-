@@ -179,6 +179,9 @@ jobs:
           gcloud config set project "$GCLOUD_PROJECT" --quiet
           node scripts/assert-staging-deployment-identity.mjs
 
+      - name: Install pinned local ERP browser parser dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Build full ERP/POS PWA and isolated reverse-ledger console
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
@@ -193,6 +196,9 @@ jobs:
           node --check staging-site/reverse-ledger-gateway.js
           test -f staging-site/erp/index.html
           test -f staging-site/erp/sw.js
+          test -f staging-site/erp/vendor/xlsx/xlsx.full.min.js
+          test -f staging-site/erp/vendor/pdfjs/pdf.min.js
+          test -f staging-site/erp/vendor/pdfjs/pdf.worker.min.js
           test -f staging-site/erp/storage/android-resilient-storage.js
           test -f staging-site/erp/manifest.webmanifest
           ! grep -q 'projectId:"anas-erb"' staging-site/erp/index.html
