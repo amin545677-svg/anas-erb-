@@ -25,7 +25,16 @@ function decodeServiceAccountInput(input) {
   try {
     credential = JSON.parse(jsonText);
   } catch {
-    throw new Error('decoded credential is not valid JSON; use original Google service-account JSON or its Base64 encoding');
+    // Mobile clipboard/input methods sometimes turn the escaped \\n sequences
+    // inside private_key into literal CR/LF bytes. Repair only that JSON value.
+    try {
+      jsonText = jsonText.replace(/("private_key"\\s*:\\s*")((?:\\\\.|[^"\\\\])*)(")/s,
+        (_match, prefix, value, suffix) =>
+          prefix + value.replace(/\\r\\n|\\r|\\n/g, '\\\\n') + suffix);
+      credential = JSON.parse(jsonText);
+    } catch {
+      throw new Error('decoded credential is not valid JSON after private_key newline repair');
+    }
   }
 
   if (
@@ -82,6 +91,14 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
     });
     console.log('STAGING AUTH MODE: ' + (result.mode === 'json' ? 'service-account JSON (raw or Base64)' : 'OIDC fallback'));
   } catch (error) {
+    const raw = String(process.env.DEPLOY_SERVICE_ACCOUNT_INPUT ?? '').trim();
+    const firstChar = raw.length ? raw[0] : '<empty>';
+    const lastChar = raw.length ? raw[raw.length - 1] : '<empty>';
+    const isBase64Detected = raw.length > 0 && !raw.startsWith('{');
+    console.error('STAGING PREFLIGHT DIAGNOSTIC: length=' + raw.length +
+      ', firstChar=' + JSON.stringify(firstChar) +
+      ', lastChar=' + JSON.stringify(lastChar) +
+      ', isBase64Detected=' + isBase64Detected);
     console.error('STAGING PREFLIGHT: ' + error.message);
     process.exit(1);
   }
