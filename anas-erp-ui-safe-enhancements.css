@@ -265,3 +265,101 @@ body {
   word-break: keep-all !important;
   overflow-wrap: normal !important;
 }
+
+
+/* Staging mobile hardening: readable RTL action buttons and non-obstructive helper. */
+.anas-firebase-auth-card,
+.anas-firebase-auth-card * {
+  box-sizing: border-box;
+}
+.anas-firebase-auth-card {
+  direction: rtl;
+  text-align: right;
+  min-width: 0;
+  overflow: visible;
+}
+.anas-firebase-auth-actions,
+.anas-firebase-cloud-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: stretch;
+  gap: 10px !important;
+  width: 100%;
+  min-width: 0;
+  direction: rtl;
+}
+.anas-firebase-auth-actions > button,
+.anas-firebase-cloud-actions > button,
+.anas-firebase-auth-card button.btn-full-submit,
+.anas-firebase-auth-card button.pill-select-btn {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  min-height: 50px;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 11px 10px !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  direction: rtl !important;
+  text-align: center !important;
+  line-height: 1.5 !important;
+  font-size: clamp(13px, 3.4vw, 16px) !important;
+}
+.anas-firebase-auth-card input,
+.anas-firebase-auth-card select,
+.anas-firebase-auth-card textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  direction: rtl;
+  box-sizing: border-box;
+}
+.main-container {
+  padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)) !important;
+}
+body {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+#anasContextAiFab {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 80 !important;
+  max-width: min(220px, calc(100vw - 24px));
+  white-space: normal !important;
+  overflow-wrap: normal;
+  writing-mode: horizontal-tb;
+  line-height: 1.35;
+}
+#anasContextAiPanel {
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: min(72dvh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 81 !important;
+}
+@media (max-width: 480px) {
+  .anas-firebase-auth-actions,
+  .anas-firebase-cloud-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+  .anas-firebase-auth-actions > button,
+  .anas-firebase-cloud-actions > button,
+  .anas-firebase-auth-card button.btn-full-submit,
+  .anas-firebase-auth-card button.pill-select-btn {
+    min-height: 52px;
+    padding: 12px 14px !important;
+    font-size: 15px !important;
+  }
+}
