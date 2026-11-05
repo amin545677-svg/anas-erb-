@@ -286,6 +286,14 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
  const consoleErrors = [];
  page.on('pageerror', error => pageErrors.push(error.message));
  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+ // Keep this DOM-mount test hermetic: the startup health probe is covered by
+ // the dedicated AI Worker CORS/auth contract test, not by this localhost UI test.
+ await page.route('https://anas-erp-openai-ai.amin545677.workers.dev/health', route => route.fulfill({
+  status: 200,
+  contentType: 'application/json',
+  headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:' + address.port, 'Vary': 'Origin' },
+  body: JSON.stringify({ ok: true, service: 'anas-erp-openai-ai', configured: false, model: 'gpt-4.1-mini' })
+ }));
  try {
   await page.goto('http://127.0.0.1:' + address.port + '/index.html', { waitUntil:'load' });
   await page.waitForFunction(() =>
