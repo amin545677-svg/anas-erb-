@@ -7,38 +7,66 @@ export function decodeServiceAccountInput(input) {
   const trimmed = String(input ?? '').replace(/^\uFEFF/, '').trim();
   if (!trimmed) return null;
 
-  let jsonText;
-  if (trimmed.startsWith('{')) {
-    jsonText = trimmed;
-  } else {
-    const compact = trimmed.replace(/\s+/g, '');
+  function parseCredentialJson(candidate, depth = 0) {
+    const text = String(candidate ?? '').replace(/^\uFEFF/, '').trim();
+    if (!text) throw new Error('credential payload is empty');
+
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed === 'string' && depth < 2) return parseCredentialJson(parsed, depth + 1);
+      return parsed;
+    } catch (firstError) {
+      // Repair literal line breaks only while inside JSON string values. This
+      // accommodates mobile-pasted PEM keys without changing JSON structure.
+      let repaired = '';
+      let inString = false;
+      let escaped = false;
+      for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (inString && (ch === '\n' || ch === '\r')) {
+          repaired += '\\n';
+          if (ch === '\r' && text[i + 1] === '\n') i += 1;
+          escaped = false;
+          continue;
+        }
+        repaired += ch;
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (ch === '\\') escaped = true;
+          else if (ch === '"') inString = false;
+        } else if (ch === '"') {
+          inString = true;
+        }
+      }
+      try {
+        const parsed = JSON.parse(repaired);
+        if (typeof parsed === 'string' && depth < 2) return parseCredentialJson(parsed, depth + 1);
+        return parsed;
+      } catch {
+        // Some mobile encoders wrap a Base64 payload inside another Base64
+        // layer. Decode at most twice, then rely on strict identity checks.
+        const compact = text.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+        if (depth < 2 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact) && compact.length % 4 !== 1) {
+          const padded = compact + '='.repeat((4 - compact.length % 4) % 4);
+          const decoded = Buffer.from(padded, 'base64').toString('utf8');
+          if (decoded && decoded !== text) return parseCredentialJson(decoded, depth + 1);
+        }
+        throw new Error('decoded credential is not valid JSON; verify the secret contains service-account JSON or Base64-encoded JSON');
+      }
+    }
+  }
+
+  let jsonText = trimmed;
+  let credential;
+  if (!trimmed.startsWith('{')) {
+    const compact = trimmed.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
     if (!compact || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact) || compact.length % 4 === 1) {
       throw new Error('credential is neither JSON nor valid Base64');
     }
-    // Buffer's Base64 decoder accepts valid unpadded payloads and mobile-generated
-    // encodings whose unused trailing bits are not canonical. Security is enforced
-    // by parsing the decoded JSON and validating its exact staging project/principal
-    // and PEM private-key structure below, not by requiring canonical padding bits.
-    const decoded = Buffer.from(compact, 'base64');
-    jsonText = decoded.toString('utf8').replace(/^\uFEFF/, '').trim();
-    if (!jsonText.startsWith('{')) throw new Error('decoded credential is not a JSON object');
+    const padded = compact + '='.repeat((4 - compact.length % 4) % 4);
+    jsonText = Buffer.from(padded, 'base64').toString('utf8').replace(/^\uFEFF/, '').trim();
   }
-
-  let credential;
-  try {
-    credential = JSON.parse(jsonText);
-  } catch {
-    // Mobile clipboard/input methods sometimes turn the escaped \\n sequences
-    // inside private_key into literal CR/LF bytes. Repair only that JSON value.
-    try {
-      jsonText = jsonText.replace(/("private_key"\s*:\s*")((?:\\.|[^"\\])*)(")/s,
-        (_match, prefix, value, suffix) =>
-          prefix + value.replace(/\r\n|\r|\n/g, '\\n') + suffix);
-      credential = JSON.parse(jsonText);
-    } catch {
-      throw new Error('decoded credential is not valid JSON after private_key newline repair');
-    }
-  }
+  credential = parseCredentialJson(jsonText);
 
   if (
     credential?.type !== 'service_account' ||
