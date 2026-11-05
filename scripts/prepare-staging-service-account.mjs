@@ -38,21 +38,23 @@ export function decodeServiceAccountInput(input) {
           inString = true;
         }
       }
+      let repairError;
       try {
         const parsed = JSON.parse(repaired);
         if (typeof parsed === 'string' && depth < 2) return parseCredentialJson(parsed, depth + 1);
         return parsed;
-      } catch {
-        // Some mobile encoders wrap a Base64 payload inside another Base64
-        // layer. Decode at most twice, then rely on strict identity checks.
-        const compact = text.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
-        if (depth < 2 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact) && compact.length % 4 !== 1) {
-          const padded = compact + '='.repeat((4 - compact.length % 4) % 4);
-          const decoded = Buffer.from(padded, 'base64').toString('utf8');
-          if (decoded && decoded !== text) return parseCredentialJson(decoded, depth + 1);
-        }
-        throw new Error('decoded credential is not valid JSON; verify the secret contains service-account JSON or Base64-encoded JSON');
+      } catch (error) {
+        repairError = error;
       }
+      // Some mobile encoders wrap a Base64 payload inside another Base64
+      // layer. Decode at most twice, then rely on strict identity checks.
+      const compact = text.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+      if (depth < 2 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact) && compact.length % 4 !== 1) {
+        const padded = compact + '='.repeat((4 - compact.length % 4) % 4);
+        const decoded = Buffer.from(padded, 'base64').toString('utf8');
+        if (decoded && decoded !== text) return parseCredentialJson(decoded, depth + 1);
+      }
+      throw new Error('decoded credential is not valid JSON (' + String(repairError?.message || firstError?.message || 'parse error').slice(0, 180) + '); verify the secret contains service-account JSON or Base64-encoded JSON');
     }
   }
 
