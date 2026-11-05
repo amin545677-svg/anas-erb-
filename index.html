@@ -7511,35 +7511,6 @@ function wtAuditTransfers(){
             const styles = `<style>body{font-family:Arial,sans-serif;direction:rtl;padding:18px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:7px;text-align:right;font-size:12px}th{background:#eee}button,input{display:none!important} [hidden]{display:none!important}</style>`;
             w.document.open();
             w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</title>' + styles + '</head><body><h1>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</h1>' + root.innerHTML + '<script src="./reverse-ledger/reverse-ledger-modal.js"><\/script>
-<script>
-(function () {
-  'use strict';
-  function bindAnasAiCenterActions() {
-    if (document.documentElement.dataset.anasAiActionsBound === '1') return;
-    document.documentElement.dataset.anasAiActionsBound = '1';
-    document.addEventListener('click', function (event) {
-      const button = event.target && event.target.closest ? event.target.closest('[data-anas-ai-action]') : null;
-      if (!button) return;
-      const action = button.getAttribute('data-anas-ai-action');
-      if (!['ask', 'generate', 'import', 'ocr'].includes(action)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (action === 'ask') askAnasBusinessAI();
-      else if (action === 'generate') triggerAiGeneration(activeAiTab || 'products');
-      else if (action === 'import') document.getElementById('smartAiExcelUpload')?.click();
-      else if (action === 'ocr') openInvoiceOcr();
-    }, true);
-    document.addEventListener('change', function (event) {
-      const input = event.target;
-      if (!input || input.id !== 'smartAiExcelUpload') return;
-      event.stopImmediatePropagation();
-      handleSmartAiUpload(event);
-    }, true);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions, { once: true });
-  else bindAnasAiCenterActions();
-})();
-</script>
 
 </body></html>');
             w.document.close();
@@ -11153,5 +11124,36 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         recoverInterruptedLocalMutation
       });
     </script>
+
+<script>
+(function () {
+  'use strict';
+  function bindAnasAiCenterActions() {
+    if (document.documentElement.dataset.anasAiActionsBound === '1') return;
+    document.documentElement.dataset.anasAiActionsBound = '1';
+    document.addEventListener('click', function (event) {
+      const button = event.target && event.target.closest ? event.target.closest('[data-anas-ai-action]') : null;
+      if (!button) return;
+      const action = button.getAttribute('data-anas-ai-action');
+      if (!['ask', 'generate', 'import', 'ocr'].includes(action)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (action === 'ask') askAnasBusinessAI();
+      else if (action === 'generate') triggerAiGeneration(activeAiTab || 'products');
+      else if (action === 'import') document.getElementById('smartAiExcelUpload')?.click();
+      else if (action === 'ocr') openInvoiceOcr();
+    }, true);
+    document.addEventListener('change', function (event) {
+      const input = event.target;
+      if (!input || input.id !== 'smartAiExcelUpload') return;
+      event.stopImmediatePropagation();
+      handleSmartAiUpload(event);
+    }, true);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions, { once: true });
+  else bindAnasAiCenterActions();
+})();
+</script>
+
 </body>
 </html>
