@@ -19,7 +19,8 @@ const ERP_FILES = [
   'reverse-ledger/reverse-ledger.js',
   'reverse-ledger/reverse-ledger-modal.js',
   'reverse-ledger/settlement-allocation-modal.js',
-  'storage/android-resilient-storage.js'
+  'storage/android-resilient-storage.js',
+  'sync/mutation_queue_orchestrator.mjs'
 ];
 
 async function copyRelative(rootDir, outDir, relativePath) {
