@@ -22,6 +22,13 @@ test('accepts valid raw staging service-account JSON and trims surrounding white
   assert.equal(decodeServiceAccountInput('  \n' + raw + '\n  ').credential.project_id, credential.project_id);
 });
 
+test('repairs literal line breaks inside private_key in otherwise valid raw JSON', () => {
+  const damaged = raw.replace(/\\\\n/g, '\\n');
+  const parsed = decodeServiceAccountInput(damaged);
+  assert.equal(parsed.credential.project_id, credential.project_id);
+  assert.match(parsed.jsonText, /-----BEGIN PRIVATE KEY-----\\\\nTEST_ONLY_NOT_A_REAL_KEY/);
+});
+
 test('accepts valid Base64 staging service-account JSON', () => {
   assert.equal(decodeServiceAccountInput(encoded).credential.client_email, credential.client_email);
 });
