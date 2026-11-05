@@ -77,7 +77,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(deployWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(deployWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
   assert.ok(deployWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'oidc'"));
-  assert.ok(deployWorkflow.includes('STAGING AUTH MODE: service-account JSON'));
+  assert.ok(deployWorkflow.includes('STAGING AUTH MODE: service-account JSON (raw or Base64)'));
   assert.ok(deployWorkflow.includes('STAGING AUTH MODE: OIDC fallback'));
   assert.ok(deployWorkflow.includes('auth_mode=json\\n'));
   assert.ok(deployWorkflow.includes('auth_mode=oidc\\n'));
