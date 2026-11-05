@@ -278,7 +278,7 @@ test("PDF analysis sends a Firebase ID token to the protected AI gateway", () =>
   assert.ok(end > start, "PDF handler boundary must exist");
   const handler = appHtml.slice(start, end);
   assert.match(handler, /anasGetFirebaseIdToken/);
-  assert.match(handler, /Authorization.*Bearer.*token/, "Excel AI request must send the shared Firebase ID token");
+  assert.match(handler, /Authorization.*firebaseIdToken/, "PDF analysis must send its Firebase ID token");
   assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
 });
 
@@ -289,7 +289,7 @@ test("Excel import analysis sends a Firebase ID token to the protected AI gatewa
   assert.ok(end > start, "Excel handler boundary must exist");
   const handler = appHtml.slice(start, end);
   assert.match(handler, /anasGetFirebaseIdToken/);
-  assert.match(handler, /Authorization.*firebaseIdToken/);
+  assert.match(handler, /Authorization.*token/, "Excel AI request must send the shared Firebase ID token");
   assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
 });
 
