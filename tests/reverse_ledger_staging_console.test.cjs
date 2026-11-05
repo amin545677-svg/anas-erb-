@@ -52,7 +52,7 @@ test('staging console inline JavaScript parses without browser globals at build 
 test('staging console deployment is manual, isolated and requires dedicated staging credentials', () => {
   assert.equal(hosting.hosting.site, 'anas-erp-staging-a25e1');
   assert.equal(hosting.hosting.public, 'staging-site');
-  assert.match(deployWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(deployWorkflow, /workflow_dispatch:/, 'Hosting deployment must be gate-triggered, not manually bypassable');
   assert.match(deployWorkflow, /pull_request:/);
   assert.match(deployWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging\/unified-release-candidate\s*\n\s*paths:/);
   assert.doesNotMatch(deployWorkflow, /- feat\/reverse-ledger-firebase-functions-v2/);
@@ -60,9 +60,13 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(deployWorkflow.indexOf('Enforce staging deployment identity before any deploy action') < deployWorkflow.indexOf('Deploy only the dedicated staging ERP and console'));
   assert.match(deployWorkflow, /paths:\s*\n\s*- ['"]staging\/\*\*['"]/);
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
-  assert.ok(deployWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
-  assert.doesNotMatch(deployWorkflow, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/staging\/unified-release-candidate'/,
-    'Hosting deployment must not run on a push before the Staging Test Gate is accepted');
+  assert.ok(deployWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
+  assert.ok(deployWorkflow.includes('Wait for matching Staging Test Gate success'));
+  assert.ok(deployWorkflow.indexOf('Wait for matching Staging Test Gate success') < deployWorkflow.indexOf('Secret Presence Preflight'),
+    'Hosting must wait for the matching successful Gate before reading credentials or deploying');
+  assert.ok(deployWorkflow.includes('run.name === \\'Staging Test Gate\\''));
+  assert.ok(deployWorkflow.includes('run.head_sha === process.env.GITHUB_SHA'));
+  assert.ok(deployWorkflow.includes("gate.conclusion !== 'success'"));
   assert.ok(!deployWorkflow.slice(0, deployWorkflow.indexOf('jobs:')).includes('id-token: write'));
   for (const secret of [
     'FIREBASE_STAGING_WEB_API_KEY',
