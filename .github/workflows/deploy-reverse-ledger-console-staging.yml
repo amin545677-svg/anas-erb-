@@ -149,3 +149,4 @@ jobs:
           curl --fail --silent --show-error "$STAGING_ORIGIN/erp/sw.js" | grep -q 'android-resilient-storage.js'
           curl --fail --silent --show-error "$STAGING_ORIGIN/erp/storage/android-resilient-storage.js" | grep -q 'IndexedDB'
           echo "PASS: full staging ERP/POS PWA, offline storage assets, reverse-ledger console and staging-only Firebase configuration are live."
+# 2026-11-05: retrigger isolated staging deployment after staging credential refresh.
