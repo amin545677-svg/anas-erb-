@@ -71,6 +71,6 @@ test('built /erp/ AI Center controls respond to real Chromium clicks with local 
 async function assertEventually(page, selector, pattern) {
   await page.waitForFunction(({ selector, pattern }) => {
     const el = document.querySelector(selector);
-    return !!el && pattern.test(el.textContent || '');
-  }, { selector, pattern: new RegExp(pattern.source, pattern.flags) }, { timeout: 5000 });
+    return !!el && new RegExp(pattern.source, pattern.flags).test(el.textContent || '');
+  }, { selector, pattern: { source: pattern.source, flags: pattern.flags } }, { timeout: 5000 });
 }
