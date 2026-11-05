@@ -5,11 +5,11 @@ export const STAGING_PROJECT_ID = 'anas-erp-staging-a25e1';
 
 function repairPrivateKeyNewlines(jsonText) {
   // Normalize literal line breaks inside private_key JSON string values only.
-  // This preserves valid JSON escapes and leaves every other field untouched.
+  // Preserve valid JSON escapes and leave every other field untouched.
   return jsonText.replace(
-    /("private_key"\\s*:\\s*")((?:\\\\.|[^"\\\\])*)(")/s,
+    /("private_key"\s*:\s*")((?:\\.|[^"\\])*)(")/s,
     (_match, prefix, value, suffix) =>
-      prefix + value.replace(/\\r\\n|\\r|\\n/g, '\\\\n') + suffix
+      prefix + value.replace(/\r\n|\r|\n/g, '\\n') + suffix
   );
 }
 
