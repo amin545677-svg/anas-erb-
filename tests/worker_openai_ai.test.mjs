@@ -257,7 +257,7 @@ test("contextual AI helper authenticates Firebase requests to the protected gate
   const handler = appHtml.slice(helperStart, helperEnd);
   assert.match(handler, /currentUser\?\.getIdToken|currentUser\.getIdToken/);
   assert.match(handler, /['"]?Authorization['"]?\s*:\s*['"]Bearer ['"]\s*\+\s*firebaseIdToken/);
-  assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
+  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
 });
 
 test("AI hub timeout remains active until the response stream is fully consumed", () => {
@@ -279,7 +279,7 @@ test("PDF analysis sends a Firebase ID token to the protected AI gateway", () =>
   const handler = appHtml.slice(start, end);
   assert.match(handler, /anasGetFirebaseIdToken/);
   assert.match(handler, /Authorization.*firebaseIdToken/);
-  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+  assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
 });
 
 test("Excel import analysis sends a Firebase ID token to the protected AI gateway", () => {
@@ -288,9 +288,9 @@ test("Excel import analysis sends a Firebase ID token to the protected AI gatewa
   assert.notEqual(start, -1, "Excel AI analysis handler must exist");
   assert.ok(end > start, "Excel handler boundary must exist");
   const handler = appHtml.slice(start, end);
-  assert.match(handler, /getIdToken/);
+  assert.match(handler, /anasGetFirebaseIdToken/);
   assert.match(handler, /Authorization.*firebaseIdToken/);
-  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+  assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
 });
 
 test("Staging-origin AI requests validate Firebase ID tokens against the Staging project", async () => {
