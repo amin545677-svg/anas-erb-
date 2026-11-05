@@ -1,11 +1,11 @@
-const CACHE = 'anas-erp-v54-25-r3';
+const CACHE = 'anas-erp-v54-25-r4';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
   './reverse-ledger/reverse-ledger.js',
   './reverse-ledger/reverse-ledger-modal.js',
   './reverse-ledger/settlement-allocation-modal.js',
-  './storage/android-resilient-storage.js',
+  './storage/android-resilient-storage.js',\n  './vendor/xlsx/xlsx.full.min.js',\n  './vendor/pdfjs/pdf.min.js',\n  './vendor/pdfjs/pdf.worker.min.js',
   './supplier-account-statement.js',
   './cashbox-readonly-ledger.js',
   './arabic-query-engine.js',
