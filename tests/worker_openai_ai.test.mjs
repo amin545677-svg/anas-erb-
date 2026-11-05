@@ -41,6 +41,48 @@ function installFetch(mock = async () => { throw new Error("unexpected upstream 
 installFetch();
 const allowedOrigin = "https://amin545677-svg.github.io";
 
+test("preflight permits the isolated Staging ERP origin and required auth headers", async () => {
+  const origin = "https://anas-erp-staging-a25e1.web.app";
+  const response = await worker.fetch(new Request("https://worker.test/", {
+    method: "OPTIONS",
+    headers: {
+      Origin: origin,
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "authorization,content-type"
+    }
+  }), {});
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), origin);
+  assert.match(response.headers.get("Access-Control-Allow-Methods"), /POST/);
+  assert.match(response.headers.get("Access-Control-Allow-Headers"), /Authorization/i);
+  assert.match(response.headers.get("Access-Control-Allow-Headers"), /Content-Type/i);
+});
+
+test("preflight permits the Firebase Hosting alternate Staging origin", async () => {
+  const origin = "https://anas-erp-staging-a25e1.firebaseapp.com";
+  const response = await worker.fetch(new Request("https://worker.test/chat", {
+    method: "OPTIONS",
+    headers: {
+      Origin: origin,
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "authorization,content-type"
+    }
+  }), {});
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), origin);
+});
+
+test("preflight rejects untrusted origins without reflecting them", async () => {
+  const origin = "https://untrusted.example";
+  const response = await worker.fetch(new Request("https://worker.test/", {
+    method: "OPTIONS",
+    headers: { Origin: origin, "Access-Control-Request-Method": "POST" }
+  }), {});
+  assert.equal(response.status, 403);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+});
+
+
 test("health reports service status without exposing the API key", async () => {
   const response = await worker.fetch(request("/health"), { OPENAI_API_KEY: "test-secret" });
   const data = await response.json();
