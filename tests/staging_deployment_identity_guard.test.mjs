@@ -254,14 +254,20 @@ test('Hosting staging deployment does not require an App Check site key to publi
 });
 
 
-test('Hosting credential preflight Node script parses before checking environment secrets', async () => {
+test('Hosting and Functions share the tested raw-JSON/Base64 staging credential normalizer', async () => {
   const fs = await import('node:fs/promises');
-  const vm = await import('node:vm');
-  const workflow = await fs.readFile(
+  const hosting = await fs.readFile(
     new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
   );
-  const match = workflow.match(/run:\s*\|\n\s+node <<'NODE'\n([\s\S]*?)\n\s+NODE/);
-  assert.ok(match, 'Hosting preflight must contain its expected Node heredoc');
-  const script = match[1].split('\n').map(line => line.replace(/^\s{10}/, '')).join('\n');
-  assert.doesNotThrow(() => new vm.Script(script, { filename: 'hosting-staging-secret-preflight' }));
+  const functions = await fs.readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'
+  );
+  for (const workflow of [hosting, functions]) {
+    assert.match(workflow, /environment:\\s*staging/);
+    assert.match(workflow, /secrets\\.FIREBASE_STAGING_SERVICE_ACCOUNT_V2/);
+    assert.match(workflow, /node scripts\\/prepare-staging-service-account\\.mjs/);
+    assert.match(workflow, /credentials_json:\\s*\\$\\{\\{ env\\.STAGING_SERVICE_ACCOUNT_JSON \\}\\}/);
+  }
+  assert.match(hosting, /secrets\\.FIREBASE_STAGING_WEB_API_KEY/);
+  assert.match(hosting, /secrets\\.FIREBASE_STAGING_WEB_APP_ID/);
 });
