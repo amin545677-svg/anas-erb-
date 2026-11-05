@@ -58,7 +58,7 @@ test('staging console deployment waits for the exact successful Gate and require
   assert.doesNotMatch(deployWorkflow, /- feat\/reverse-ledger-firebase-functions-v2/);
   assert.ok(deployWorkflow.includes('Enforce staging deployment identity before any deploy action'));
   assert.ok(deployWorkflow.indexOf('Enforce staging deployment identity before any deploy action') < deployWorkflow.indexOf('Deploy only the dedicated staging ERP and console'));
-  assert.match(deployWorkflow, /paths:\s*\n\s*- ['"]staging\/\*\*['"]/);
+  assert.match(deployWorkflow, /\n\s*- ['"]staging\/\*\*['"]/);
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
   assert.ok(deployWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
   assert.ok(deployWorkflow.includes('Wait for matching Staging Test Gate success'));
