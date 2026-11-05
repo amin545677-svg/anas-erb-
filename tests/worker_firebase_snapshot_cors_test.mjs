@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erp-staging-a25e1", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
 const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const attackerOrigin = "https://attacker.example";
 
@@ -52,4 +52,13 @@ test("health endpoint permits the isolated Firebase Hosting alternate origin", a
   }), env);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), alternateOrigin);
+});
+
+test("staging CORS test fixture is bound to the isolated Firebase staging project", async () => {
+  const config = await readFile(resolve("cloudflare/wrangler-staging.toml"), "utf8");
+  assert.match(config, /name = "anas-erp-firebase-snapshot-staging"/);
+  assert.match(config, /FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"/);
+  assert.match(config, /https:\/\/anas-erp-staging-a25e1\.web\.app/);
+  assert.doesNotMatch(config, /FIREBASE_PROJECT_ID = "anas-erb"/);
+  assert.equal(env.FIREBASE_PROJECT_ID, "anas-erp-staging-a25e1");
 });
