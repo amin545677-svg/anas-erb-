@@ -10777,7 +10777,16 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   const urlInput=()=>document.getElementById('anasWorkerUrl');
   try{
     const saved=localStorage.getItem('ANAS_ERP_WORKER_URL');
-    if(saved&&urlInput())urlInput().value=saved;
+    const stagingHost = location.hostname === 'anas-erp-staging-a25e1.web.app' ||
+      location.hostname === 'anas-erp-staging-a25e1.firebaseapp.com';
+    const stagingSnapshotWorker = 'https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev';
+    const productionSnapshotWorker = 'https://anas-erp-firebase-snapshot.amin545677.workers.dev';
+    const selectedSnapshotWorker = stagingHost
+      ? ((!saved || saved === productionSnapshotWorker) ? stagingSnapshotWorker : saved)
+      : (saved || productionSnapshotWorker);
+    if(urlInput())urlInput().value=selectedSnapshotWorker;
+    if(stagingHost && selectedSnapshotWorker !== saved)
+      localStorage.setItem('ANAS_ERP_WORKER_URL', selectedSnapshotWorker);
     // Keep the separately configured AI gateway and Firebase backup Worker distinct.
     const aiInput=document.getElementById('anasAiGateway');
     const aiSaved=localStorage.getItem('ANAS_ERP_AI_GATEWAY_URL');
