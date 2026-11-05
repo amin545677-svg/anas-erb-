@@ -11,6 +11,11 @@ const MAX_BUSINESS_DATA_CHARS = 30000;
 const DEFAULT_ORIGINS = "https://amin545677-svg.github.io,https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com";
 const DEFAULT_MODEL = "gpt-4.1-mini";
 const DEFAULT_FIREBASE_PROJECT_ID = "anas-erb";
+const STAGING_FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1";
+const STAGING_ORIGINS = new Set([
+  "https://anas-erp-staging-a25e1.web.app",
+  "https://anas-erp-staging-a25e1.firebaseapp.com"
+]);
 const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const CLOCK_SKEW_SECONDS = 60;
 let firebaseJwksCache = null;
@@ -41,7 +46,12 @@ async function verifyFirebaseIdToken(request, env) {
   const authorization = request.headers.get("Authorization") || "";
   const match = authorization.match(/^Bearer\s+([^\s]+)$/i);
   if (!match) return { ok: false, status: 401, error: "Authentication required. Sign in to ANAS ERP and retry." };
-  const projectId = env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID;
+  const requestOrigin = request.headers.get("Origin") || "";
+  // Firebase ID tokens are project-scoped. Select the matching project from the
+  // already allowlisted browser origin so Staging tokens are never checked as Production.
+  const projectId = STAGING_ORIGINS.has(requestOrigin)
+    ? STAGING_FIREBASE_PROJECT_ID
+    : (env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID);
   try {
     const parts = match[1].split(".");
     if (parts.length !== 3) throw new Error("Malformed token.");
