@@ -69,6 +69,12 @@ test('AI Center actions remain delegated across rerender and local import works 
     assert.match(download.suggestedFilename(), /قالب_المنتجات\.csv/);
     assert.ok(dialogs.some(message => message.includes('تم تنزيل')), 'generation should confirm local template creation');
 
+    await page.locator('#anasAiQuestion').fill('ما ملخص النشاط؟');
+    await page.locator('[data-anas-ai-action="ask"]').click();
+    await page.waitForFunction(() => /وضع محلي|المساعد السحابي غير متاح/.test(
+      document.getElementById('anasAiOfflineFallback')?.textContent || ''
+    ), null, { timeout: 10000 });
+
     // File import must remain local: no Worker, token, or external request is required.
     const chooserPromise = page.waitForEvent('filechooser');
     await page.locator('[data-anas-ai-action="import"]').click();
