@@ -11106,11 +11106,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     }
     let firebaseIdToken='';
     try{
-      const firebaseAuth=window.firebase?.auth?.();
-      const currentUser=firebaseAuth?.currentUser;
-      if(!currentUser||typeof currentUser.getIdToken!=='function')
-        throw new Error('يجب تسجيل الدخول إلى ANAS ERP عبر Firebase قبل استخدام المساعد السحابي.');
-      firebaseIdToken=await currentUser.getIdToken();
+      if(typeof window.anasGetFirebaseIdToken!=='function')
+        throw new Error('خدمة استعادة جلسة Firebase غير جاهزة. أعد تحميل التطبيق ثم حاول مجددًا.');
+      // Wait for Firebase to restore its persisted auth state before requesting an ID token.
+      firebaseIdToken=await window.anasGetFirebaseIdToken(8000);
       if(!firebaseIdToken)throw new Error('تعذر الحصول على رمز جلسة Firebase. أعد تسجيل الدخول.');
     }catch(e){
       answer.style.display='block';
