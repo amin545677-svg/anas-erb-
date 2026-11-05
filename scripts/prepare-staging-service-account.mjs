@@ -28,9 +28,9 @@ export function decodeServiceAccountInput(input) {
     // Mobile clipboard/input methods sometimes turn the escaped \\n sequences
     // inside private_key into literal CR/LF bytes. Repair only that JSON value.
     try {
-      jsonText = jsonText.replace(/("private_key"\\s*:\\s*")((?:\\\\.|[^"\\\\])*)(")/s,
+      jsonText = jsonText.replace(/("private_key"\s*:\s*")((?:\\.|[^"\\])*)(")/s,
         (_match, prefix, value, suffix) =>
-          prefix + value.replace(/\\r\\n|\\r|\\n/g, '\\\\n') + suffix);
+          prefix + value.replace(/\r\n|\r|\n/g, '\\n') + suffix);
       credential = JSON.parse(jsonText);
     } catch {
       throw new Error('decoded credential is not valid JSON after private_key newline repair');
