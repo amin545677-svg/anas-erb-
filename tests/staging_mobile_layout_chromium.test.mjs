@@ -69,7 +69,8 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       });
       const fabRect = fab.getBoundingClientRect();
       const lastButton = cloud.querySelector('button:last-child');
-      lastButton.scrollIntoView({ block: 'center' });
+      lastButton.scrollIntoView({ block: 'center', behavior: 'instant' });
+      // Wait for layout/scroll settlement; smooth scrolling can leave stale off-viewport metrics.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const lastRect = lastButton.getBoundingClientRect();
       return {
