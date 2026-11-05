@@ -70,7 +70,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   page.on('dialog', dialog => dialog.accept());
   // Deliberately deny all external requests: all five controls must retain useful local behavior.
   await page.route('https://**/*', route => route.abort());
-  await page.goto(`http://127.0.0.1:${address.port}/erp/`, { waitUntil: 'domcontentloaded' });
+  await page.goto('http://127.0.0.1:' + address.port + '/erp/', { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => { if (typeof openView === 'function') openView('ai-excel-hub'); });
   await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
 
@@ -89,7 +89,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await chooser.setFiles({
     name: 'ai-smoke.csv',
     mimeType: 'text/csv',
-    buffer: Buffer.from('name,qty\\nTest,2')
+    buffer: Buffer.from('name,qty\nTest,2')
   });
   await page.waitForFunction(() => /ai-smoke|تم فتح الملف|صفوف/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
@@ -99,7 +99,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: /توليد بيانات جاهزة/ }).evaluate(button => button.click());
   const download = await downloadPromise;
-  assert.match(download.suggestedFilename(), /قالب_.*\\.csv/);
+  assert.match(download.suggestedFilename(), /قالب_.*\.csv/);
 
   // 4) Invoice OCR: clicking the action must open the actual OCR modal.
   await page.getByRole('button', { name: /مسح الفواتير بالذكاء الاصطناعي/ }).evaluate(button => button.click());
