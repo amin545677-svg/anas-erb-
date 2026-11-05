@@ -244,3 +244,24 @@ body {
   }
   #anasContextAiFab { padding: 9px 12px; font-size: 13px; }
 }
+
+
+/* Store movement report toolbar: keep action labels horizontal and readable on phones. */
+#anasReportToolbar {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+#anasReportToolbar #anasReportSearch {
+  flex: 1 1 100% !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+#anasReportToolbar button {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
