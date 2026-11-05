@@ -290,7 +290,7 @@ test("Excel import analysis sends a Firebase ID token to the protected AI gatewa
   const handler = appHtml.slice(start, end);
   assert.match(handler, /anasGetFirebaseIdToken/);
   assert.match(handler, /Authorization.*token/, "Excel AI request must send the shared Firebase ID token");
-  assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
+  assert.match(handler, /لم تتوفر جلسة\/خدمة AI السحابية/);
 });
 
 test("Staging-origin AI requests validate Firebase ID tokens against the Staging project", async () => {
