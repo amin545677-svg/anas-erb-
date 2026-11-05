@@ -1,0 +1,10 @@
+{
+  "name": "anas-erp-staging-hosting",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Pinned browser parsers bundled into the isolated ANAS ERP staging PWA",
+  "dependencies": {
+    "pdfjs-dist": "3.11.174",
+    "xlsx": "0.18.5"
+  }
+}
