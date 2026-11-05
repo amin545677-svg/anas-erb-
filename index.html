@@ -9156,42 +9156,10 @@ function wtAuditTransfers(){
             }finally{if(timer!==null)clearTimeout(timer);if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}}
         }
 
-        // Load the spreadsheet parser with ordered CDN fallbacks; do not depend on a single host.
-        let anasSheetJsLoadPromise=null;
+        // Local bundled spreadsheet parser; no CDN dependency at runtime.
         async function anasLoadSheetJs(){
             if(window.XLSX && typeof window.XLSX.read==='function') return window.XLSX;
-            if(anasSheetJsLoadPromise) return anasSheetJsLoadPromise;
-            anasSheetJsLoadPromise=(async()=>{
-                const sources=[
-                    'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
-                    'https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js',
-                    'https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js'
-                ];
-                const failures=[];
-                for(const src of sources){
-                    let script=null,timer=null;
-                    try{
-                        await new Promise((resolve,reject)=>{
-                            script=document.createElement('script');
-                            script.crossOrigin='anonymous';
-                            script.referrerPolicy='no-referrer';
-                            script.src=src;
-                            timer=setTimeout(()=>reject(new Error('انتهت مهلة تحميل '+new URL(src).hostname)),10000);
-                            script.onload=()=>{clearTimeout(timer);window.XLSX&&typeof window.XLSX.read==='function'?resolve():reject(new Error('المكتبة غير متاحة بعد التحميل.'));};
-                            script.onerror=()=>{clearTimeout(timer);reject(new Error('تعذر تحميل '+new URL(src).hostname));};
-                            document.head.appendChild(script);
-                        });
-                        return window.XLSX;
-                    }catch(err){
-                        if(timer)clearTimeout(timer);
-                        if(script&&script.parentNode)script.parentNode.removeChild(script);
-                        failures.push(err.message||String(err));
-                    }
-                }
-                throw new Error('تعذر تحميل قارئ Excel من جميع المصادر المتاحة. تحقق من اتصال الإنترنت أو استخدم «حفظ باسم CSV». التفاصيل: '+failures.join('؛ '));
-            })();
-            try{return await anasSheetJsLoadPromise;}
-            finally{anasSheetJsLoadPromise=null;}
+            throw new Error('حزمة Excel المحلية غير موجودة. حدّث التطبيق أو أعد تحميله بعد الاتصال.');
         }
 
         async function handleSmartAiUpload(e) {
@@ -9252,17 +9220,8 @@ function wtAuditTransfers(){
         async function anasExtractPdfText(file){
             const maxBytes=20*1024*1024;
             if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
-            if(!window.pdfjsLib){
-                await new Promise((resolve,reject)=>{
-                    const sc=document.createElement('script');
-                    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-                    sc.crossOrigin='anonymous';sc.referrerPolicy='no-referrer';
-                    sc.onload=resolve;sc.onerror=()=>reject(new Error('تعذر تحميل قارئ PDF. تحقق من الإنترنت أو استخدم OCR.'));
-                    document.head.appendChild(sc);
-                });
-            }
-            if(!window.pdfjsLib) throw new Error('قارئ PDF غير متاح.');
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            if(!window.pdfjsLib) throw new Error('حزمة PDF المحلية غير متاحة. أعد تحميل التطبيق بعد تحديثه.');
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdfjs/pdf.worker.min.js',document.baseURI).href;
             const bytes=await file.arrayBuffer();
             let pdf;
             try{pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;}
@@ -9378,22 +9337,57 @@ function wtAuditTransfers(){
             document.body.appendChild(box);
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
                 const st=box.querySelector('#smartImportAiStatus');
+                const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').trim();
+                const aliases={
+                    name:['اسم المنتج','اسم العميل','اسم المورد','الاسم','name','productname','customername','suppliername','المنتج','العميل','المورد','designation'],
+                    id:['الرقم','رقم المنتج','رقم العميل','رقم المورد','id','code','الكود','كود المنتج','reference','ref'],
+                    phone:['الهاتف','رقم الهاتف','الهاتف المحمول','phone','tel','mobile'],
+                    address:['العنوان','عنوان','address'],
+                    unit:['الوحدة','unit','unite'],
+                    buy:['سعر الشراء','prixachat','buyprice','cost','purchaseprice'],
+                    price1:['سعر البيع','السعر','price','sellingprice','prixvente'],
+                    stock:['المخزون','الكمية','الرصيد','stock','quantity','qty','qte'],
+                    barcode:['الباركود','barcode','باركود'],
+                    cat:['التصنيف','الفئة','القسم','category','cat'],
+                    debt:['الدين','الديون','الرصيد المدين','debt'],
+                    email:['البريد الإلكتروني','email','e-mail'],
+                    supplier:['المورد','اسم المورد','supplier']
+                };
+                const headers=(rows[0]||[]).map(v=>String(v??'').trim());
+                const normalized=headers.map(norm);
+                const mapping={};
+                for(const [field,words] of Object.entries(aliases)){
+                    const found=normalized.findIndex(header=>words.some(word=>norm(word)===header));
+                    if(found>=0) mapping[field]=headers[found];
+                }
+                const has=fields=>fields.some(field=>mapping[field]);
+                const candidates=[
+                    {target:'products',label:'المنتجات والمخزون',score:(mapping.name?3:0)+(has(['stock'])?2:0)+(has(['price1','buy','barcode','unit'])?2:0),required:!!mapping.name&&has(['stock','price1','buy','barcode'])},
+                    {target:'customers',label:'العملاء والديون',score:(mapping.name?3:0)+(has(['phone','debt','address','email'])?2:0),required:!!mapping.name&&has(['phone','debt','address','email'])},
+                    {target:'suppliers',label:'الموردون',score:(mapping.name?3:0)+(has(['phone','address','email'])?2:0),required:!!mapping.name&&has(['phone','address','email'])}
+                ].sort((a,b)=>b.score-a.score);
+                const best=candidates[0], second=candidates[1];
+                if(best.required && best.score>=5 && best.score>second.score){
+                    box.querySelector('#smartImportTarget').value=best.target;
+                    st.textContent='🧠 اقتراح محلي دون اتصال: '+best.label+'\\nمطابقة الأعمدة: '+Object.entries(mapping).map(([field,header])=>header+' ← '+field).join('، ')+'\\nراجع الاقتراح والحقول يدوياً قبل الاستيراد.';
+                }else{
+                    st.textContent='🧠 التحليل المحلي لم يصل إلى تطابق موثوق. اختر القسم يدوياً. العناوين المقروءة: '+headers.join('، ');
+                }
+                // Cloud AI is optional. Local mapping remains available if gateway/auth/network fails.
                 let url='';
-                try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}
-                catch(err){st.textContent='❌ رابط بوابة الذكاء الاصطناعي غير صالح: '+(err.message||err);return;}
-                if(!url){st.textContent='❌ لم يتم حفظ رابط خادم الذكاء الاصطناعي. افتح الإعدادات واحفظ رابط workers.dev أولاً.';return;}
-                st.textContent='⏳ يجري تحليل أسماء الأعمدة وعينة من البيانات…';
+                try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}catch(_){}
+                if(!url || !navigator.onLine || typeof window.anasGetFirebaseIdToken!=='function'){
+                    st.textContent+='\\nℹ️ لم تتوفر جلسة/خدمة AI السحابية؛ تم الاحتفاظ بالاقتراح المحلي.';
+                    return;
+                }
                 try{
-                    const sampleText='حلل ملف الجدول التالي. لا تنشئ بيانات جديدة. حدّد نوع البيانات (products أو customers أو suppliers أو invoices)، واقترح مطابقة الأعمدة مع الحقول المناسبة. أجب بالعربية وباختصار، واذكر أي أعمدة غير واضحة.\nعناوين الأعمدة: '+JSON.stringify(rows[0]||[])+'\nعينة أول 5 صفوف: '+JSON.stringify(rows.slice(1,6));
-                    if(typeof window.anasGetFirebaseIdToken!=='function')
-                        throw new Error('خدمة استعادة جلسة Firebase غير جاهزة. أعد تحميل التطبيق ثم حاول مجددًا.');
-                    const firebaseIdToken=await window.anasGetFirebaseIdToken();
-                    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},body:JSON.stringify({text:sampleText,prompt:sampleText,message:sampleText})});
-                    const raw=await resp.text(); let data; try{data=JSON.parse(raw)}catch{data={text:raw}};
-                    if(!resp.ok) throw new Error(data.error||('HTTP '+resp.status));
-                    const answer=data.text||data.answer||data.result||raw;
-                    st.textContent='✅ نتيجة تحليل الذكاء الاصطناعي: '+answer;
-                }catch(err){st.textContent='❌ فشل التحليل: '+(err.message||err)+'. يمكنك معاينة الملف يدويًا؛ لم يتم تغيير أي بيانات.';}
+                    const token=await window.anasGetFirebaseIdToken(4000);
+                    const sampleText='حلل عناوين الأعمدة التالية واقترح نوع القسم ومطابقة الحقول دون إنشاء بيانات: '+JSON.stringify(headers);
+                    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({text:sampleText,prompt:sampleText,message:sampleText}),signal:AbortSignal.timeout(7000)});
+                    const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch{data={text:raw};}
+                    if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
+                    st.textContent+='\\n✅ ملاحظة AI السحابي: '+String(data.text||data.answer||data.result||raw).slice(0,1200);
+                }catch(err){st.textContent+='\\nℹ️ تعذر AI السحابي ('+(err.message||err)+')؛ الاقتراح المحلي ما زال متاحاً.';}
             };
             box.querySelector('#smartImportCancel').onclick=()=>box.remove();
             box.querySelector('#smartImportConfirm').onclick=()=>{
