@@ -11,6 +11,7 @@ const hosting = JSON.parse(fs.readFileSync(path.join(__dirname, '../firebase.sta
 const deployWorkflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-reverse-ledger-console-staging.yml'), 'utf8');
 const functionsWorkflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-reverse-ledger-functions-staging.yml'), 'utf8');
 const bootstrapScript = fs.readFileSync(path.join(__dirname, '../scripts/bootstrap-staging-account.mjs'), 'utf8');
+const authPreflightScript = fs.readFileSync(path.join(__dirname, '../scripts/prepare-staging-service-account.mjs'), 'utf8');
 
 test('staging page is isolated from production V42 entrypoint and targets only the dedicated Firebase project', () => {
   assert.match(html, /ANAS_REVERSE_LEDGER_STAGING_CONFIG/);
@@ -77,10 +78,10 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(deployWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(deployWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
   assert.ok(deployWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'oidc'"));
-  assert.ok(deployWorkflow.includes('STAGING AUTH MODE: service-account JSON (raw or Base64)'));
-  assert.ok(deployWorkflow.includes('STAGING AUTH MODE: OIDC fallback'));
-  assert.ok(deployWorkflow.includes('auth_mode=json\\n'));
-  assert.ok(deployWorkflow.includes('auth_mode=oidc\\n'));
+  assert.ok(authPreflightScript.includes("STAGING AUTH MODE: ' + (result.mode === 'json' ? 'service-account JSON (raw or Base64)' : 'OIDC fallback)"));
+  assert.ok(authPreflightScript.includes("fs.appendFileSync(githubOutput, 'auth_mode=json\\n')"));
+  assert.ok(authPreflightScript.includes("fs.appendFileSync(githubOutput, 'auth_mode=oidc\\n')"));
+  assert.ok(deployWorkflow.includes('DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 }}'));
   assert.ok(functionsWorkflow.includes(serviceAccountCredential));
   const bootstrapFallback = 'secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT';
   assert.ok(!deployWorkflow.includes(bootstrapFallback), 'console deploy must not reuse the bootstrap credential');
