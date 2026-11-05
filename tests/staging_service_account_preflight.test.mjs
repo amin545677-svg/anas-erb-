@@ -45,7 +45,7 @@ test('falls back to a separately configured staging OIDC identity when the JSON 
     });
     assert.equal(result.mode, 'oidc');
     assert.equal(result.projectId, 'anas-erp-staging-a25e1');
-    assert.equal(readFileSync(outputFile, 'utf8'), 'auth_mode=oidc\\n');
+    assert.equal(readFileSync(outputFile, 'utf8'), 'auth_mode=oidc\n');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
