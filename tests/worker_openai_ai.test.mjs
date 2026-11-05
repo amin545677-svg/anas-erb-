@@ -83,6 +83,24 @@ test("preflight rejects untrusted origins without reflecting them", async () => 
 });
 
 
+test("interrupted OpenAI response returns a readable CORS-enabled 502 instead of an unhandled Worker failure", async () => {
+  const oldFetch = globalThis.fetch;
+  installFetch(async () => new Response(new ReadableStream({
+    start(controller) { controller.error(new Error("upstream socket closed")); }
+  }), { status: 200, headers: { "Content-Type": "application/json" } }));
+  try {
+    const response = await worker.fetch(request("/", {
+      method: "POST", origin: "https://anas-erp-staging-a25e1.web.app",
+      body: { message: "اختبار انقطاع الاستجابة" }
+    }), { OPENAI_API_KEY: "test-secret" });
+    assert.equal(response.status, 502);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://anas-erp-staging-a25e1.web.app");
+    assert.match((await response.json()).error, /connection ended/i);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
+
 test("health reports service status without exposing the API key", async () => {
   const response = await worker.fetch(request("/health"), { OPENAI_API_KEY: "test-secret" });
   const data = await response.json();
