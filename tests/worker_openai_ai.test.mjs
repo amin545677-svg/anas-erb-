@@ -255,9 +255,9 @@ test("contextual AI helper authenticates Firebase requests to the protected gate
   assert.notEqual(helperStart, -1, "contextual AI send handler must exist");
   assert.notEqual(helperEnd, -1, "contextual AI send handler must be closed");
   const handler = appHtml.slice(helperStart, helperEnd);
-  assert.match(handler, /currentUser\?\.getIdToken|currentUser\.getIdToken/);
+  assert.match(handler, /window\.anasGetFirebaseIdToken\(8000\)/, "contextual helper must await shared Firebase session restoration");
   assert.match(handler, /['"]?Authorization['"]?\s*:\s*['"]Bearer ['"]\s*\+\s*firebaseIdToken/);
-  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+  assert.match(handler, /تعذر التحقق من الجلسة السحابية/);
 });
 
 test("AI hub timeout remains active until the response stream is fully consumed", () => {
