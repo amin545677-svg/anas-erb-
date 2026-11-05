@@ -22,6 +22,12 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     assert.match(erp, /const firebaseConfig=\{"apiKey":"STAGING_PUBLIC_API_KEY","authDomain":"anas-erp-staging-a25e1\.firebaseapp\.com","projectId":"anas-erp-staging-a25e1","appId":"1:123456:web:staging"\};/);
     assert.doesNotMatch(erp, /projectId:"anas-erb"/);
+    const layoutMarker = erp.lastIndexOf('<style id="anas-firebase-mobile-layout-v3">');
+    assert.ok(layoutMarker > erp.lastIndexOf("</script>"), "Firebase responsive CSS must be in the live document, not embedded in a generated HTML string");
+    assert.ok(layoutMarker < erp.lastIndexOf("</body>"), "Firebase responsive CSS must be part of the deployed ERP shell");
+    assert.match(erp, /auth\/api-key-not-valid/);
+    assert.match(erp, /تحقق من CORS وقائمة ALLOWED_ORIGINS/);
+
     for (const file of [
       'erp/sw.js',
       'erp/manifest.webmanifest',
