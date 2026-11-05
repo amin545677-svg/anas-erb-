@@ -864,6 +864,7 @@ jobs:
           js = Path("/tmp/anas-pdf-helper.js").read_text(encoding="utf-8")
           js += r"""
           const assert = require('node:assert/strict');
+          global.document = { baseURI: 'https://example.test/app/' };
           global.window = { pdfjsLib: { GlobalWorkerOptions: {}, getDocument: null } };
           (async () => {
             let opened = false;
