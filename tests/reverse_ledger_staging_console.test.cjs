@@ -49,7 +49,7 @@ test('staging console inline JavaScript parses without browser globals at build 
   assert.doesNotThrow(() => new vm.Script(scripts[0][1], { filename: 'staging/index.html:inline' }));
 });
 
-test('staging console deployment is manual, isolated and requires dedicated staging credentials', () => {
+test('staging console deployment waits for the exact successful Gate and requires dedicated staging credentials', () => {
   assert.equal(hosting.hosting.site, 'anas-erp-staging-a25e1');
   assert.equal(hosting.hosting.public, 'staging-site');
   assert.doesNotMatch(deployWorkflow, /workflow_dispatch:/, 'Hosting deployment must be gate-triggered, not manually bypassable');
