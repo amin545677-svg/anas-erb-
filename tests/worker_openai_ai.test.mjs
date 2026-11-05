@@ -91,6 +91,7 @@ test("interrupted OpenAI response returns a readable CORS-enabled 502 instead of
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: "https://anas-erp-staging-a25e1.web.app",
+      tokenProjectId: "anas-erp-staging-a25e1",
       body: { message: "اختبار انقطاع الاستجابة" }
     }), { OPENAI_API_KEY: "test-secret" });
     assert.equal(response.status, 502);
@@ -256,7 +257,7 @@ test("contextual AI helper authenticates Firebase requests to the protected gate
   const handler = appHtml.slice(helperStart, helperEnd);
   assert.match(handler, /currentUser\?\.getIdToken|currentUser\.getIdToken/);
   assert.match(handler, /['"]?Authorization['"]?\s*:\s*['"]Bearer ['"]\s*\+\s*firebaseIdToken/);
-  assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
+  assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
 });
 
 test("AI hub timeout remains active until the response stream is fully consumed", () => {
@@ -276,7 +277,7 @@ test("PDF analysis sends a Firebase ID token to the protected AI gateway", () =>
   assert.notEqual(start, -1, "PDF analysis handler must exist");
   assert.ok(end > start, "PDF handler boundary must exist");
   const handler = appHtml.slice(start, end);
-  assert.match(handler, /getIdToken/);
+  assert.match(handler, /anasGetFirebaseIdToken/);
   assert.match(handler, /Authorization.*firebaseIdToken/);
   assert.match(handler, /يجب تسجيل الدخول إلى ANAS ERP عبر Firebase/);
 });
