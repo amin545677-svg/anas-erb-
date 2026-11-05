@@ -89,6 +89,8 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     }
     assert.ok(metrics.lastButtonTop >= 0 && metrics.lastButtonBottom <= 800,
       'last cloud action must be reachable within the viewport after scrolling');
+    assert.ok(metrics.lastButtonBottom <= metrics.fabTop - 8,
+      'floating assistant must not cover the last cloud action after scrolling');
     assert.ok(parseFloat(metrics.mainPaddingBottom) >= 150,
       'main content must reserve a safe scroll area for the floating assistant');
   } finally {
