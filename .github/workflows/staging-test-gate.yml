@@ -22,6 +22,8 @@ on:
     paths:
       - "index.html"
       - "*.js"
+      - "*.css"
+      - "cloudflare/**"
       - "sync/**"
       - "tests/**"
       - "functions/**"
