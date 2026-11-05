@@ -120,6 +120,22 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     return !!answer && /وضع محلي/.test(answer.textContent || '');
   });
 
+  // Verify both parsers are present in the built /erp/ bundle and usable with external network denied.
+  await page.evaluate(async () => {
+    if (!window.XLSX || typeof window.XLSX.read !== 'function') throw new Error('Local SheetJS did not initialize');
+    const workbook = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(workbook, window.XLSX.utils.aoa_to_sheet([['name'], ['Local']]), 'Smoke');
+    const bytes = window.XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+    const parsed = window.XLSX.read(bytes, { type: 'array' });
+    if (parsed.SheetNames[0] !== 'Smoke') throw new Error('Local XLSX round-trip failed');
+    if (!window.pdfjsLib || typeof window.pdfjsLib.getDocument !== 'function') throw new Error('Local PDF.js did not initialize');
+    const worker = new URL('./vendor/pdfjs/pdf.worker.min.js', document.baseURI);
+    if (!worker.pathname.endsWith('/erp/vendor/pdfjs/pdf.worker.min.js')) throw new Error('PDF worker path escaped /erp/');
+  });
+  await fs.access(path.join(siteRoot, 'erp/vendor/xlsx/xlsx.full.min.js'));
+  await fs.access(path.join(siteRoot, 'erp/vendor/pdfjs/pdf.min.js'));
+  await fs.access(path.join(siteRoot, 'erp/vendor/pdfjs/pdf.worker.min.js'));
+
   const builtConfig = await fs.readFile(path.join(siteRoot, 'erp/index.html'), 'utf8');
   assert.match(builtConfig, /"projectId":"anas-erp-staging-a25e1"/);
   await fs.access(path.join(siteRoot, 'erp/sync/mutation_queue_orchestrator.mjs'));
