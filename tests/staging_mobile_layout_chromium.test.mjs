@@ -88,6 +88,9 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
         return top;
       };
       const scrollElementToViewport = element => {
+        // First apply the requested immediate offsetTop scroll, then correct for
+        // nested offsetParent coordinates using the verified document offset.
+        window.scrollTo(0, element.offsetTop);
         window.scrollTo(0, documentOffsetTop(element));
         let rect = element.getBoundingClientRect();
         if (rect.bottom > window.innerHeight || rect.top < 0) {
@@ -150,6 +153,7 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
           for (let node = element; node && node !== document.body; node = node.offsetParent) top += node.offsetTop;
           return top;
         };
+        window.scrollTo(0, el.offsetTop);
         window.scrollTo(0, documentOffsetTop(el));
         let r = el.getBoundingClientRect();
         if (r.top < 0 || r.bottom > window.innerHeight) {
