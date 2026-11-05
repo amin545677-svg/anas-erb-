@@ -95,6 +95,55 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       'floating assistant must not cover the last cloud action after scrolling');
     assert.ok(parseFloat(metrics.mainPaddingBottom) >= 150,
       'main content must reserve a safe scroll area for the floating assistant');
+
+    // Exercise real pointer hit-testing and inline DOM handlers, not only CSS metrics.
+    await page.evaluate(() => {
+      window.__anasMobileClicks = [];
+      for (const name of [
+        'anasTestWorker', 'anasDiagnoseCloudLink', 'anasFirebaseLogin',
+        'anasFirebaseGoogleLogin', 'anasFirebaseLogout',
+        'anasFirebasePush', 'anasFirebasePull'
+      ]) window[name] = () => window.__anasMobileClicks.push(name);
+    });
+    const actionButtons = [...page.locator(
+      '#view-sync.active .anas-firebase-auth-actions > button, ' +
+      '#view-sync.active .anas-firebase-cloud-actions > button'
+    ).all()];
+    for (const buttonPromise of actionButtons) {
+      const button = await buttonPromise;
+      await button.scrollIntoViewIfNeeded();
+      const hit = await button.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        const y = r.top + r.height / 2;
+        const top = document.elementFromPoint(x, y);
+        return {
+          pointerEvents: getComputedStyle(el).pointerEvents,
+          visibility: getComputedStyle(el).visibility,
+          hitTarget: !!top && (top === el || el.contains(top)),
+          label: el.innerText.trim()
+        };
+      });
+      assert.notEqual(hit.pointerEvents, 'none', 'button must accept pointer input: ' + hit.label);
+      assert.equal(hit.visibility, 'visible', 'button must be visible: ' + hit.label);
+      assert.equal(hit.hitTarget, true, 'no overlay may intercept button clicks: ' + hit.label);
+      await button.click();
+    }
+    const clicked = await page.evaluate(() => window.__anasMobileClicks);
+    assert.deepEqual(clicked, [
+      'anasTestWorker', 'anasDiagnoseCloudLink', 'anasFirebaseLogin',
+      'anasFirebaseGoogleLogin', 'anasFirebaseLogout',
+      'anasFirebasePush', 'anasFirebasePull'
+    ], 'all Firebase actions must receive a real Chromium click exactly once');
+
+    const fabButton = page.locator('#anasContextAiFab');
+    await fabButton.click();
+    assert.equal(await fabButton.getAttribute('aria-expanded'), 'true',
+      'floating AI assistant must open from a real mobile pointer click');
+    await page.locator('#anasContextAiPanel').waitFor({ state: 'visible' });
+    await page.locator('#anasContextAiClose').click();
+    assert.equal(await fabButton.getAttribute('aria-expanded'), 'false',
+      'floating AI assistant must close without a blocked click');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
