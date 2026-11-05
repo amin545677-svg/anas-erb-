@@ -182,3 +182,4 @@ jobs:
           NODE
           export GOOGLE_APPLICATION_CREDENTIALS="$credential_file"
           node scripts/bootstrap-staging-account.mjs
+# 2026-11-05: retrigger isolated staging deployment after staging credential refresh.
