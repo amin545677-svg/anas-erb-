@@ -105,10 +105,10 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
         'anasFirebasePush', 'anasFirebasePull'
       ]) window[name] = () => window.__anasMobileClicks.push(name);
     });
-    const actionButtons = [...page.locator(
+    const actionButtons = await page.locator(
       '#view-sync.active .anas-firebase-auth-actions > button, ' +
       '#view-sync.active .anas-firebase-cloud-actions > button'
-    ).all()];
+    ).all();
     for (const buttonPromise of actionButtons) {
       const button = await buttonPromise;
       await button.scrollIntoViewIfNeeded();
