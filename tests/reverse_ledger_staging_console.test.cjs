@@ -69,8 +69,10 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   ]) assert.ok(deployWorkflow.includes(secret), 'missing staging web configuration: ' + secret);
   assert.ok(deployWorkflow.includes('id-token: write'));
   assert.ok(deployWorkflow.includes('google-github-actions/auth@v2'));
-  const serviceAccountCredential = 'credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}';
+  const serviceAccountCredential = 'credentials_json: ${{ env.STAGING_SERVICE_ACCOUNT_JSON }}';
   assert.ok(deployWorkflow.includes(serviceAccountCredential));
+  assert.ok(deployWorkflow.includes('secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2'));
+  assert.ok(deployWorkflow.includes('node scripts/prepare-staging-service-account.mjs'));
   assert.ok(deployWorkflow.includes('workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}'));
   assert.ok(deployWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(deployWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
