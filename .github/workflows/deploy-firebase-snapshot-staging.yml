@@ -1,0 +1,95 @@
+name: Deploy ANAS ERP Firebase Snapshot Worker (Staging)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - staging/unified-release-candidate
+    paths:
+      - "cloudflare/worker_firebase_snapshot.js"
+      - "cloudflare/wrangler-staging.toml"
+      - ".github/workflows/deploy-firebase-snapshot-staging.yml"
+      - "tests/worker_firebase_snapshot_cors_test.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anas-erp-firebase-snapshot-staging
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout reviewed staging branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate staging isolation and Worker behavior
+        run: |
+          node --check cloudflare/worker_firebase_snapshot.js
+          node --test tests/worker_firebase_snapshot_cors_test.mjs
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const config = await readFile('cloudflare/wrangler-staging.toml', 'utf8');
+          for (const required of [
+            'name = "anas-erp-firebase-snapshot-staging"',
+            'FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"',
+            'https://anas-erp-staging-a25e1.web.app',
+            'https://anas-erp-staging-a25e1.firebaseapp.com'
+          ]) {
+            if (!config.includes(required)) throw new Error('Staging Worker isolation check failed: ' + required);
+          }
+          if (config.includes('FIREBASE_PROJECT_ID = "anas-erb"')) {
+            throw new Error('Refusing to deploy the production Firebase project as Staging.');
+          }
+          console.log('PASS: Firebase Snapshot Worker is isolated to the Staging project and origins.');
+          NODE
+
+      - name: Check required staging deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "::error::Missing CLOUDFLARE_API_TOKEN in staging environment." && exit 1)
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Missing CLOUDFLARE_ACCOUNT_ID in staging environment." && exit 1)
+          test -n "$FIREBASE_STAGING_WEB_API_KEY" || (echo "::error::Missing FIREBASE_STAGING_WEB_API_KEY in staging environment." && exit 1)
+
+      - name: Deploy isolated Firebase Snapshot Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: cloudflare
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler-staging.toml
+
+      - name: Set Staging Firebase Web API key as Worker secret
+        working-directory: cloudflare
+        env:
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+        run: |
+          printf '%s' "$FIREBASE_STAGING_WEB_API_KEY" | npx --yes wrangler@3.90.0 secret put FIREBASE_API_KEY --config wrangler-staging.toml
+
+      - name: Verify live Staging Worker health and CORS
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev"
+          origin="https://anas-erp-staging-a25e1.web.app"
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl --silent --show-error --output "$body" --dump-header "$headers" --write-out '%{http_code}' -H "Origin: $origin" "$url/health")"
+          test "$status" = "200"
+          grep -Fqi "access-control-allow-origin: $origin" "$headers"
+          node -e 'const j=require(process.argv[1]); if(j.ok!==true||j.service!=="anas-erp-firebase-snapshot"||j.configured!==true) process.exit(1)' "$body"
+          preflight="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X OPTIONS -H "Origin: $origin" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: authorization,content-type" "$url/snapshot")"
+          test "$preflight" = "204"
+          rm -f "$headers" "$body"
+          echo "PASS: Staging Snapshot Worker health, configured secret, and CORS preflight."
