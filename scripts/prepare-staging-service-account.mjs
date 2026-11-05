@@ -74,6 +74,8 @@ export function decodeServiceAccountInput(input) {
     jsonText = Buffer.from(padded, 'base64').toString('utf8').replace(/^\uFEFF/, '').trim();
   }
   credential = parseCredentialJson(jsonText);
+  // Pass canonical JSON to auth@v2; this also repairs literal PEM line breaks.
+  jsonText = JSON.stringify(credential);
 
   if (
     credential?.type !== 'service_account' ||
@@ -105,19 +107,27 @@ function writeGithubEnv(name, value, target = process.env.GITHUB_ENV) {
 }
 
 export function prepareCredential({ input, provider = '', deployer = '', githubEnv, githubOutput }) {
+  const hasOidcFallback = Boolean(provider && deployer && validateOidc(provider, deployer));
   if (String(input ?? '').trim()) {
-    const { jsonText, credential } = decodeServiceAccountInput(input);
-    writeGithubEnv('STAGING_SERVICE_ACCOUNT_JSON', jsonText, githubEnv);
-    if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=json\n');
-    return { mode: 'json', projectId: credential.project_id };
+    try {
+      const { jsonText, credential } = decodeServiceAccountInput(input);
+      writeGithubEnv('STAGING_SERVICE_ACCOUNT_JSON', jsonText, githubEnv);
+      if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=json\\n');
+      return { mode: 'json', projectId: credential.project_id };
+    } catch (error) {
+      // A malformed legacy secret must not block a separately configured,
+      // staging-bound OIDC identity. The identity guard validates the actual
+      // authenticated principal and project again before any deployment.
+      if (!hasOidcFallback) throw error;
+    }
   }
 
-  if (provider && deployer && validateOidc(provider, deployer)) {
-    if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=oidc\n');
+  if (hasOidcFallback) {
+    if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=oidc\\n');
     return { mode: 'oidc', projectId: STAGING_PROJECT_ID };
   }
 
-  throw new Error('configure the staging Environment service-account secret (JSON or Base64), or both staging OIDC variables');
+  throw new Error('configure a valid staging service-account secret (JSON or Base64), or both staging OIDC variables');
 }
 
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
