@@ -9337,7 +9337,7 @@ function wtAuditTransfers(){
             document.body.appendChild(box);
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
                 const st=box.querySelector('#smartImportAiStatus');
-                const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').trim();
+                const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').trim();
                 const aliases={
                     name:['اسم المنتج','اسم العميل','اسم المورد','الاسم','name','productname','customername','suppliername','المنتج','العميل','المورد','designation'],
                     id:['الرقم','رقم المنتج','رقم العميل','رقم المورد','id','code','الكود','كود المنتج','reference','ref'],
