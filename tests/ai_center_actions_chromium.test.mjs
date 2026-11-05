@@ -49,7 +49,7 @@ test('AI Center actions remain delegated across rerender and local import works 
     await page.waitForFunction(() => typeof window.triggerAiGeneration === 'function'
       && typeof window.handleSmartAiUpload === 'function', null, { timeout: 15000 });
 
-    await page.evaluate(() => { activeAiTab = 'products'; renderAiHub(); });
+    await page.evaluate(() => { openView('ai-excel-hub'); activeAiTab = 'products'; renderAiHub(); });
     const delegation = await page.evaluate(() => ({
       bound: document.body.dataset.anasAiActionsBound,
       bodyListenerReady: !!document.body
