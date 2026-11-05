@@ -3,6 +3,67 @@ import crypto from 'node:crypto';
 
 export const STAGING_PROJECT_ID = 'anas-erp-staging-a25e1';
 
+function repairPrivateKeyNewlines(jsonText) {
+  // Repair only literal CR/LF characters inside the JSON string value for private_key.
+  // All other JSON syntax and string values remain byte-for-byte unchanged.
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  let keyBuffer = '';
+  let currentKey = '';
+  let valueString = false;
+  let valueEscaped = false;
+  let pending = '';
+  for (let i = 0; i < jsonText.length; i++) {
+    const ch = jsonText[i];
+    if (!inString) {
+      if (ch === '"') {
+        inString = true;
+        keyBuffer = '';
+        pending = '';
+        valueString = false;
+        valueEscaped = false;
+      }
+      out += ch;
+      continue;
+    }
+    if (escaped) {
+      if (!valueString && ch !== '"' && ch !== '\\\\') keyBuffer += '\\\\' + ch;
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\\\') {
+      escaped = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inString = false;
+      out += ch;
+      if (currentKey === 'private_key' && valueString) valueString = false;
+      continue;
+    }
+    if (ch === ':' && !valueString) {
+      currentKey = keyBuffer;
+      out += ch;
+      continue;
+    }
+    if (ch === '\\n' || ch === '\\r') {
+      if (currentKey === 'private_key' && valueString) {
+        if (ch === '\\r' && jsonText[i + 1] === '\\n') i++;
+        out += '\\\\n';
+        continue;
+      }
+      throw new Error('credential JSON contains an unescaped control character');
+    }
+    if (currentKey === 'private_key' && !valueString && !/\\s/.test(ch)) valueString = true;
+    if (!valueString) keyBuffer += ch;
+    out += ch;
+  }
+  return out;
+}
+
 export function decodeServiceAccountInput(input) {
   const trimmed = String(input ?? '').replace(/^\uFEFF/, '').trim();
   if (!trimmed) return null;
@@ -75,7 +136,7 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
     });
     console.log('STAGING AUTH MODE: ' + (result.mode === 'json' ? 'service-account JSON (raw or Base64)' : 'OIDC fallback'));
   } catch (error) {
-    console.error('STAGING PREFLIGHT: ' + error.message);
+    const raw = String(process.env.DEPLOY_SERVICE_ACCOUNT_INPUT ?? '').trim();\n    const base64Detected = raw.length > 0 && !raw.startsWith('{');\n    const firstCode = raw.length ? raw.charCodeAt(0) : null;\n    const lastCode = raw.length ? raw.charCodeAt(raw.length - 1) : null;\n    console.error('STAGING PREFLIGHT DIAGNOSTIC: length=' + raw.length + ', firstCharCode=' + firstCode + ', lastCharCode=' + lastCode + ', isBase64Detected=' + base64Detected);\n    console.error('STAGING PREFLIGHT: ' + error.message);
     process.exit(1);
   }
 }
