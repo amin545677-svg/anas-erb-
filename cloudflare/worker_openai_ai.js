@@ -249,7 +249,9 @@ export default {
 
     if (body.stream === true) {
       if (!upstream.ok) {
-        const errorText = await upstream.text();
+        let errorText = "";
+        try { errorText = await upstream.text(); }
+        catch (_) { return json({ error: "The AI provider returned an unreadable error response. Retry shortly." }, 502, origin); }
         let errorData = {};
         try { errorData = JSON.parse(errorText); } catch (_) {}
         const apiMessage = errorData.error && errorData.error.message;
@@ -309,7 +311,11 @@ export default {
       }});
     }
 
-    const upstreamText = await upstream.text();
+    let upstreamText = "";
+    try { upstreamText = await upstream.text(); }
+    catch (_) {
+      return json({ error: "The AI provider connection ended before a complete response arrived. Check Worker network access and retry." }, 502, origin);
+    }
     let result;
     try { result = JSON.parse(upstreamText); }
     catch (_) { result = {}; }
