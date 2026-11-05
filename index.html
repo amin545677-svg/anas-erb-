@@ -2042,7 +2042,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <hr style="border:0; border-top:1px solid var(--mp-border); margin:18px 0;">
 
                 <hr style="border:0;border-top:1px solid var(--mp-border);margin:18px 0;">
-                <div style="border:1px solid #60a5fa;background:rgba(59,130,246,.07);border-radius:12px;padding:14px;margin-bottom:14px;">
+                <div class="anas-firebase-auth-card" style="border:1px solid #60a5fa;background:rgba(59,130,246,.07);border-radius:12px;padding:14px;margin-bottom:14px;">
                   <h3 style="margin:0 0 8px;color:var(--mp-navy);font-size:1rem">☁️ ربط Firebase — Anas ERP</h3>
                   <p style="font-size:.82rem;line-height:1.6;color:var(--mp-text-muted);margin:0 0 10px">تسجيل دخول آمن ومزامنة نسخة بيانات التطبيق. يجب إعداد قواعد Firestore الخاصة بمالك المشروع قبل الرفع أو الاسترجاع. لا تشارك كلمة المرور مع أحد.</p>
                   <label for="anasWorkerUrl" style="display:block;font-weight:700;margin:8px 0 5px">رابط Cloudflare Worker بعد النشر</label>
@@ -2052,7 +2052,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                   <input id="anasFirebaseEmail" type="email" class="field-input" autocomplete="username" placeholder="name@example.com">
                   <label for="anasFirebasePassword" style="display:block;font-weight:700;margin:8px 0 5px">كلمة المرور</label>
                   <input id="anasFirebasePassword" type="password" class="field-input" autocomplete="current-password" placeholder="كلمة مرور حساب Firebase">
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                  <div class="anas-firebase-auth-actions">
                     <button type="button" class="btn-full-submit" style="background:#0f766e;flex:1;margin:0" onclick="anasTestWorker()">🧪 اختبار اتصال الخادم</button>
                     <button type="button" class="btn-full-submit" style="background:#334155;flex:1;margin:0" onclick="anasDiagnoseCloudLink()">🔎 فحص شامل للربط</button>
                     <button type="button" class="btn-full-submit" style="background:#0369a1;flex:1;margin:0" onclick="anasFirebaseLogin()">🔐 تسجيل الدخول بالبريد</button>
@@ -2064,7 +2064,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 <span id="anasV42CloudRootCauseText">تسجيل Google والربط السحابي يحتاجان إلى فتح التطبيق عبر رابط HTTPS منشور، وليس من الملف المحلي في التنزيلات.</span>
 </div>
                   <p id="anasFirebaseAuthStatus" role="status" aria-live="polite" style="font-size:.82rem;line-height:1.6;margin:10px 0;color:var(--mp-text-muted)">إعداد Firebase موجود. يلزم نشر هذه النسخة على HTTPS والسماح بالنطاق في Firebase. لم يتم التحقق من الدخول أو صلاحيات السحابة بعد.</p>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <div class="anas-firebase-cloud-actions">
                     <button type="button" class="btn-full-submit" style="background:#15803d;flex:1;margin:0" onclick="anasFirebasePush()">☁️ رفع نسخة البيانات</button>
                     <button type="button" class="btn-full-submit" style="background:#7c3aed;flex:1;margin:0" onclick="anasFirebasePull()">⬇️ استرجاع من السحابة</button>
                   </div>
@@ -10944,6 +10944,57 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   };
 })();
 </script>
+
+<!-- ANAS ERP: responsive Firebase cloud settings layout; presentation-only, no auth/data-flow changes -->
+<style id="anas-firebase-responsive-layout">
+  .anas-firebase-auth-card {
+    padding-bottom: 92px !important;
+    overflow: visible;
+  }
+  .anas-firebase-auth-actions,
+  .anas-firebase-cloud-actions {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+  .anas-firebase-cloud-actions {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  }
+  .anas-firebase-auth-actions > button,
+  .anas-firebase-cloud-actions > button {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 56px;
+    height: auto;
+    margin: 0 !important;
+    padding: 12px 10px;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+    text-align: center;
+    direction: rtl;
+    line-height: 1.55;
+    hyphens: none;
+  }
+  .anas-firebase-auth-card p,
+  .anas-firebase-auth-card label {
+    overflow-wrap: break-word;
+    word-break: normal;
+    line-height: 1.65;
+  }
+  @media (max-width: 380px) {
+    .anas-firebase-auth-card { padding: 11px !important; padding-bottom: 88px !important; }
+    .anas-firebase-auth-actions,
+    .anas-firebase-cloud-actions { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
 
 <!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->
 <style>
