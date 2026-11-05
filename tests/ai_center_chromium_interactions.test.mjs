@@ -36,7 +36,7 @@ test('built /erp/ AI Center controls respond to real Chromium clicks with local 
   const page = await browser.newPage({ acceptDownloads: true });
   page.on('dialog', dialog => dialog.accept());
   // Cloud services are deliberately unavailable: this proves local UI behavior is independent of them.
-  await page.route(/^https?:\\/\\/(?!127\\.0\\.1)/, route => route.abort());
+  await page.route('https://**/*', route => route.abort());
   await page.goto(`http://127.0.0.1:${address.port}/erp/`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => { if (typeof openView === 'function') openView('ai-excel-hub'); });
   await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
@@ -47,7 +47,7 @@ test('built /erp/ AI Center controls respond to real Chromium clicks with local 
   await ask.click();
   await assertEventually(page, '#anasAiChatLog', /وضع محلي|محلي|المخزون/);
 
-  const importButton = page.getByRole('button', { name: /استيراد Excel\\/CSV بأمان/ });
+  const importButton = page.getByRole('button', { name: /استيراد Excel[\\/]CSV بأمان/ });
   const chooserPromise = page.waitForEvent('filechooser');
   await importButton.click();
   const chooser = await chooserPromise;
