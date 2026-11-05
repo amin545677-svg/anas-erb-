@@ -15,7 +15,7 @@ test('AI Center actions resolve to implemented handlers', () => {
     'handleSmartAiUpload', 'openInvoiceOcr', 'askAnasBusinessAI',
     'anasNormalizeAiGatewayUrl', 'anasDownloadPdfText', 'anasAskAiAboutPdf'
   ]) assert.ok(hasFunction(name), 'Missing AI Center handler: ' + name);
-
+  assert.match(html, /<input\b[^>]*id="smartAiExcelUpload"[^>]*type="file"[^>]*onchange="handleSmartAiUpload\(event\)"/);
   assert.match(html, /id="anasAiAskBtn"[^>]*onclick="askAnasBusinessAI\(\)"/);
   assert.match(html, /onclick="triggerAiGeneration\('\$\{activeAiTab\}'\)"/);
   assert.match(html, /onclick="document\.getElementById\('smartAiExcelUpload'\)\.click\(\)"/);
