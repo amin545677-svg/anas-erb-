@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 
 const STAGING_PROJECT_ID = 'anas-erp-staging-a25e1';
 
-function decodeServiceAccountInput(input) {
+export function decodeServiceAccountInput(input) {
   const trimmed = String(input ?? '').replace(/^\uFEFF/, '').trim();
   if (!trimmed) return null;
 
@@ -55,7 +55,7 @@ function decodeServiceAccountInput(input) {
   return { jsonText, credential };
 }
 
-function validateOidc(provider, deployer) {
+export function validateOidc(provider, deployer) {
   return /^projects\/[^/]+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) &&
     /^[^@\s]+@anas-erp-staging-a25e1\.iam\.gserviceaccount\.com$/.test(deployer);
 }
@@ -66,7 +66,7 @@ function writeGithubEnv(name, value, target = process.env.GITHUB_ENV) {
   fs.appendFileSync(target, name + '<<' + delimiter + '\n' + value + '\n' + delimiter + '\n');
 }
 
-function prepareCredential({ input, provider = '', deployer = '', githubEnv, githubOutput }) {
+export function prepareCredential({ input, provider = '', deployer = '', githubEnv, githubOutput }) {
   if (String(input ?? '').trim()) {
     const { jsonText, credential } = decodeServiceAccountInput(input);
     writeGithubEnv('STAGING_SERVICE_ACCOUNT_JSON', jsonText, githubEnv);
