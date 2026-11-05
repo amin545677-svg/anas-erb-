@@ -1,7 +1,7 @@
 name: Deploy ANAS ERP Reverse Ledger Console (Staging)
-# Security boundary: PRs validate without credentials; only trusted branch push or manual dispatch may deploy.
+# Security boundary: PRs validate without credentials; trusted branch pushes deploy only after the matching Staging Test Gate succeeds.
 # Deployments are serialized so queued candidate pushes cannot race the dedicated Hosting site.
-# The pull_request validation job is deliberately credential-free; deploy jobs remain push/dispatch-only.
+# The pull_request validation job is deliberately credential-free; the push deployment job waits for the exact SHA's successful Gate.
 # Shared staging credential preflight accepts V2 raw JSON or Base64 and validates the staging project before auth.
 # Scoped push-trigger probe: 2026-10-31 live Staging preflight.
 
@@ -79,14 +79,11 @@ jobs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate' }}
     permissions:
       contents: read
+      actions: read
       id-token: write
     environment: staging
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
     steps:
       - name: Checkout isolated staging candidate
         uses: actions/checkout@v4
