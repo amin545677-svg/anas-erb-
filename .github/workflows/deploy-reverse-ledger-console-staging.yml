@@ -6,11 +6,20 @@ name: Deploy ANAS ERP Reverse Ledger Console (Staging)
 # Scoped push-trigger probe: 2026-10-31 live Staging preflight.
 
 on:
-  workflow_dispatch:
   pull_request:
     paths:
+      - 'index.html'
+      - '*.js'
+      - '*.css'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icons/**'
+      - 'storage/**'
+      - 'sync/**'
       - 'staging/**'
+      - 'scripts/build-staging-hosting.mjs'
       - 'scripts/prepare-staging-service-account.mjs'
+      - 'scripts/assert-staging-deployment-identity.mjs'
       - 'reverse-ledger/**'
       - 'firebase.staging.hosting.json'
       - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
@@ -19,8 +28,18 @@ on:
     branches:
       - staging/unified-release-candidate
     paths:
+      - 'index.html'
+      - '*.js'
+      - '*.css'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icons/**'
+      - 'storage/**'
+      - 'sync/**'
       - 'staging/**'
+      - 'scripts/build-staging-hosting.mjs'
       - 'scripts/prepare-staging-service-account.mjs'
+      - 'scripts/assert-staging-deployment-identity.mjs'
       - 'reverse-ledger/**'
       - 'firebase.staging.hosting.json'
       - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
@@ -28,6 +47,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # PR validation uses its own group so it cannot cancel or replace a queued staging deployment.
 concurrency:
@@ -56,12 +76,17 @@ jobs:
 
   # Deploy only after the Staging Test Gate has passed; manual dispatch is the release switch.
   deploy-staging-console:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate' }}
     permissions:
       contents: read
       id-token: write
     environment: staging
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     steps:
       - name: Checkout isolated staging candidate
         uses: actions/checkout@v4
@@ -70,6 +95,43 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Wait for matching Staging Test Gate success
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const headers = {
+            authorization: 'Bearer ' + process.env.GITHUB_TOKEN,
+            accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+          };
+          for (let attempt = 1; attempt <= 40; attempt++) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) throw new Error('Unable to inspect Staging Test Gate runs: HTTP ' + response.status);
+            const payload = await response.json();
+            const gate = (payload.workflow_runs || []).find(run =>
+              run.name === 'Staging Test Gate' &&
+              run.event === 'push' &&
+              run.head_sha === process.env.GITHUB_SHA
+            );
+            if (gate?.status === 'completed') {
+              if (gate.conclusion !== 'success') {
+                throw new Error('Matching Staging Test Gate did not pass: ' + gate.conclusion);
+              }
+              console.log('PASS: Staging Test Gate succeeded for exact deployment SHA ' + process.env.GITHUB_SHA);
+              process.exit(0);
+            }
+            console.log('Waiting for Staging Test Gate on exact SHA; attempt ' + attempt + '/40.');
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          throw new Error('Timed out waiting for a successful Staging Test Gate on the exact Hosting deployment SHA.');
+          NODE
 
       - name: Secret Presence Preflight (raw JSON or Base64 service-account, OIDC fallback)
         id: auth_preflight
