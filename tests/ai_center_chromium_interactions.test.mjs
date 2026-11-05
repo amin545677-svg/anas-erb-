@@ -98,6 +98,13 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ));
 
+  // Local header heuristic must still propose a category when cloud AI is unavailable.
+  await page.locator('#smartImportAiAnalyze').evaluate(button => button.click());
+  await page.waitForFunction(() => {
+    const status = document.querySelector('#smartImportAiStatus')?.textContent || '';
+    return /اقتراح محلي/.test(status) && document.querySelector('#smartImportTarget')?.value === 'products';
+  });
+
   // 3) Generate a blank, safe template and assert the browser download.
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: /توليد بيانات جاهزة/ }).evaluate(button => button.click());
