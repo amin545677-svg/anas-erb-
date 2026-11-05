@@ -3,6 +3,9 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const swSource = fs.readFileSync('sw.js', 'utf8');
+const cacheMatch = swSource.match(/const CACHE = ['"]([^'"]+)['"]/);
+assert.ok(cacheMatch, 'service worker must declare its cache name');
+const activeCacheName = cacheMatch[1];
 const baseUrl = 'https://example.test/app/sw.js';
 const listeners = {};
 const store = new Map();
@@ -90,7 +93,7 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   const indexUrl = 'https://example.test/app/index.html';
   let response = await request(shellUrl, { mode: 'navigate' });
   assert.equal(response.body, 'network-latest', 'online navigation should use fresh network HTML');
-  let cache = await caches.open('anas-erp-v54-25-r3');
+  let cache = await caches.open(activeCacheName);
   const offlineAssets = [
     './anas-erp-ui-safe-enhancements.css',
     './reverse-ledger/reverse-ledger.js',
