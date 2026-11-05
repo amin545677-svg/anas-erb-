@@ -157,7 +157,7 @@ jobs:
           const endpoint = 'https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=' + encodeURIComponent(key);
           const response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', 'referer': 'https://anas-erp-staging-a25e1.web.app/' },
             body: JSON.stringify({
               identifier: 'staging-preflight@example.invalid',
               continueUri: 'https://anas-erp-staging-a25e1.web.app'
