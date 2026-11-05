@@ -11268,6 +11268,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 <!-- ANAS ERP: Firebase cloud panel mobile layout hardening v3 (document-level) -->
 <style id="anas-firebase-mobile-layout-v3">
+  /* Reserve document scroll space so the final cloud controls clear the fixed assistant. */
+  .main-container {
+    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)) !important;
+  }
   .anas-firebase-auth-card {
     width: 100%;
     min-width: 0;
