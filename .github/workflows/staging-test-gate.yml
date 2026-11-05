@@ -15,6 +15,7 @@ on:
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
       - ".github/workflows/staging-test-gate.yml"
+      - ".github/workflows/anas-erp-safety-checks.yml"
       - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
   push:
     branches: [staging/firebase-snapshot-worker, staging/unified-release-candidate, 'feat/**', 'fix/**', 'feature/**']
@@ -32,6 +33,7 @@ on:
       - "firebase/firestore.reverse-ledger.rules"
       - "cloudflare/worker_reverse_ledger.js"
       - ".github/workflows/staging-test-gate.yml"
+      - ".github/workflows/anas-erp-safety-checks.yml"
       - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
   workflow_dispatch:
 
