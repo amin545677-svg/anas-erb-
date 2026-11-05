@@ -102,13 +102,14 @@ def main():
         "function anasSetAiPrompt(promptText)",
         "function anasRefreshAiHubStatus()",
         "async function anasLoadSheetJs()",
-        "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
-        "https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js",
-        "https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js",
+        '<script src="./vendor/xlsx/xlsx.full.min.js"></script>',
+        '<script src="./vendor/pdfjs/pdf.min.js"></script>',
         "if(!window.XLSX) await anasLoadSheetJs();",
         "const maxImportBytes=20*1024*1024",
         "const maxImportRows=100000, maxImportColumns=200",
     ]
+    if re.search(r"https?://(?:cdn\.sheetjs\.com|cdn\.jsdelivr\.net/npm/xlsx|unpkg\.com/xlsx)", source, re.IGNORECASE):
+        errors.append("AI hub must not load SheetJS from an external CDN")
     missing_ai_hub_guards = [guard for guard in ai_hub_guards if guard not in source]
     if missing_ai_hub_guards:
         errors.append("AI hub capability/upload regression: " + ", ".join(missing_ai_hub_guards))
@@ -1001,7 +1002,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
                     detail = (result.stderr or result.stdout).strip().splitlines()
                     errors.append(
                         f"inline script #{index + 1} has a syntax error: "
-                        + (detail[0] if detail else "node --check failed")
+                        + " | ".join(detail[:4] if detail else ["node --check failed"])
                     )
                 checked += 1
         if not any("inline script #" in item for item in errors):
@@ -1450,7 +1451,7 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
     # Intercept the real AI request function with a fake fetch and synthetic records.
     # Assert consent gates the actual serialized payload and no sensitive value is logged.
     ai_ask_start = source.find("async function askAnasBusinessAI(){")
-    ai_ask_end = source.find("\n        // Load the spreadsheet parser", ai_ask_start)
+    ai_ask_end = source.find("\n        // Local bundled spreadsheet parser", ai_ask_start)
     ai_ask_fn = source[ai_ask_start:ai_ask_end] if ai_ask_start >= 0 and ai_ask_end > ai_ask_start else ""
     ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
     ai_append_fn = function_source("anasAiAppendMessage")
