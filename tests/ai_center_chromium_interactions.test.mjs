@@ -66,7 +66,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   const context = await browser.newContext({ acceptDownloads: true });
   // Keep loopback HTTP available while presenting the browser as offline to the app.
   await context.addInitScript(() => {
-    localStorage.removeItem('anasErpAiGatewayUrlV1');
+    try { localStorage.removeItem('anasErpAiGatewayUrlV1'); } catch (_) {}
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
   });
   const page = await context.newPage();
