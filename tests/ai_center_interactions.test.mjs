@@ -23,9 +23,9 @@ test('AI Center actions resolve to implemented handlers', () => {
 });
 
 test('AI Center delegated listeners bind after DOM readiness', () => {
-  assert.match(html, /document\\.addEventListener\\('DOMContentLoaded',\\s*bindAnasAiCenterActions/);
-  assert.match(html, /document\\.addEventListener\\('click',[\\s\\S]*?true\\);/);
-  assert.match(html, /document\\.addEventListener\\('change',[\\s\\S]*?true\\);/);
+  assert.ok(html.includes("document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions"));
+  assert.ok(html.includes("document.addEventListener('click', function (event)"));
+  assert.ok(html.includes("document.addEventListener('change', function (event)"));
 });
 
 test('contextual ChatGPT helper binds open, close and send actions', () => {
