@@ -78,9 +78,24 @@ export async function buildStagingHosting(options = {}) {
     projectId: PROJECT_ID,
     appId
   };
-  const stagedHtml = erpHtml.replace(configPattern, 'const firebaseConfig=' + JSON.stringify(firebaseConfig) + ';');
+  let stagedHtml = erpHtml.replace(configPattern, 'const firebaseConfig=' + JSON.stringify(firebaseConfig) + ';');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
+  }
+
+  // Route the Staging ERP shell to its dedicated snapshot Worker; never point the
+  // Staging UI at the Production snapshot Worker or its Production Firebase project.
+  const snapshotWorkerInput = /(id="anasWorkerUrl"[^>]*value=")[^"]*(")/;
+  if (!snapshotWorkerInput.test(stagedHtml)) {
+    throw new Error('Could not find the canonical Firebase snapshot Worker URL input in the ERP shell');
+  }
+  stagedHtml = stagedHtml.replace(
+    snapshotWorkerInput,
+    '$1https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev$2'
+  );
+  if (!stagedHtml.includes('https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev') ||
+      stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
+    throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
