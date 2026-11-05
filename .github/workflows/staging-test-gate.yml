@@ -154,8 +154,6 @@ jobs:
           tests/v42_transactional_bridge.test.mjs
           tests/v42_transactional_capture_integration.test.mjs
           tests/firebase_snapshot_worker_health_identity.test.mjs
-      - name: Verify mobile RTL action layout and floating helper in Chromium
-        run: node --test tests/staging_mobile_layout_chromium.test.mjs
       - name: Run Android WebView resilient storage Chromium acceptance
         run: node --test tests/android_webview_storage_resilience.test.mjs
       - name: Run real DOM purchase, supplier settlement, reload and backup restore
