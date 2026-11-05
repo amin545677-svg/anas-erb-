@@ -259,7 +259,14 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
  const rootDir = process.cwd();
  const server = createServer((req, res) => {
   const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
-  const target = path.resolve(rootDir, '.' + pathname);
+  // The production shell references locally bundled parsers. In this source-tree browser
+  // harness, serve the exact pinned npm package files at the same URLs used by /erp/.
+  const localVendorAssets = {
+   '/vendor/xlsx/xlsx.full.min.js': path.join(rootDir, 'node_modules/xlsx/dist/xlsx.full.min.js'),
+   '/vendor/pdfjs/pdf.min.js': path.join(rootDir, 'node_modules/pdfjs-dist/legacy/build/pdf.min.js'),
+   '/vendor/pdfjs/pdf.worker.min.js': path.join(rootDir, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js')
+  };
+  const target = localVendorAssets[pathname] || path.resolve(rootDir, '.' + pathname);
   if (!target.startsWith(rootDir + path.sep) && target !== path.join(rootDir, 'index.html')) {
    res.writeHead(403); res.end('forbidden'); return;
   }
