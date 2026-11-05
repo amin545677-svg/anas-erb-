@@ -11199,30 +11199,68 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 <script>
 (function () {
   'use strict';
+  function reportActionError(message) {
+    const status = document.getElementById('smartAiExcelStatus');
+    if (status) status.textContent = '⚠️ تعذر تنفيذ الأمر: ' + message;
+    else console.error('[ANAS AI Center]', message);
+  }
+  function runAction(action, button) {
+    try {
+      let result;
+      if (action === 'ask') {
+        if (typeof window.askAnasBusinessAI !== 'function') throw new Error('وظيفة المساعد غير متاحة؛ أعد تحميل التطبيق.');
+        result = window.askAnasBusinessAI();
+      } else if (action === 'generate') {
+        if (typeof window.triggerAiGeneration !== 'function') throw new Error('مولّد القوالب غير متاح؛ أعد تحميل التطبيق.');
+        result = window.triggerAiGeneration(window.activeAiTab || 'products');
+      } else if (action === 'import') {
+        const input = document.getElementById('smartAiExcelUpload');
+        if (!input) throw new Error('حقل استيراد Excel/CSV غير موجود.');
+        input.click();
+      } else if (action === 'ocr') {
+        if (typeof window.openInvoiceOcr !== 'function') throw new Error('أداة مسح الفواتير غير متاحة؛ أعد تحميل التطبيق.');
+        result = window.openInvoiceOcr();
+      }
+      if (result && typeof result.then === 'function') {
+        result.catch(error => reportActionError(error && error.message ? error.message : String(error)));
+      }
+    } catch (error) {
+      reportActionError(error && error.message ? error.message : String(error));
+    }
+  }
   function bindAnasAiCenterActions() {
-    if (document.documentElement.dataset.anasAiActionsBound === '1') return;
-    document.documentElement.dataset.anasAiActionsBound = '1';
-    document.addEventListener('click', function (event) {
-      const button = event.target && event.target.closest ? event.target.closest('[data-anas-ai-action]') : null;
-      if (!button) return;
+    const body = document.body;
+    if (!body || body.dataset.anasAiActionsBound === '1') return;
+    body.dataset.anasAiActionsBound = '1';
+
+    // Delegate from the persistent body: AI Center contents may be replaced during rerender.
+    body.addEventListener('click', function (event) {
+      const origin = event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
+      const button = origin && typeof origin.closest === 'function'
+        ? origin.closest('[data-anas-ai-action]') : null;
+      if (!button || !body.contains(button)) return;
       const action = button.getAttribute('data-anas-ai-action');
       if (!['ask', 'generate', 'import', 'ocr'].includes(action)) return;
       event.preventDefault();
-      event.stopImmediatePropagation();
-      if (action === 'ask') askAnasBusinessAI();
-      else if (action === 'generate') triggerAiGeneration(activeAiTab || 'products');
-      else if (action === 'import') document.getElementById('smartAiExcelUpload')?.click();
-      else if (action === 'ocr') openInvoiceOcr();
+      runAction(action, button);
     }, true);
-    document.addEventListener('change', function (event) {
+
+    body.addEventListener('change', function (event) {
       const input = event.target;
       if (!input || input.id !== 'smartAiExcelUpload') return;
-      event.stopImmediatePropagation();
-      handleSmartAiUpload(event);
+      try {
+        if (typeof window.handleSmartAiUpload !== 'function') throw new Error('معالج الملفات المحلية غير متاح.');
+        const result = window.handleSmartAiUpload(event);
+        if (result && typeof result.catch === 'function') {
+          result.catch(error => reportActionError(error && error.message ? error.message : String(error)));
+        }
+      } catch (error) {
+        reportActionError(error && error.message ? error.message : String(error));
+      }
     }, true);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions, { once: true });
-  else bindAnasAiCenterActions();
+  if (document.body) bindAnasAiCenterActions();
+  else document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions, { once: true });
 })();
 </script>
 
