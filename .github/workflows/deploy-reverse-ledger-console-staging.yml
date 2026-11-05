@@ -54,8 +54,9 @@ jobs:
           node --check staging/reverse-ledger-gateway.js
           node --check reverse-ledger/reverse-ledger.js
 
+  # Deploy only after the Staging Test Gate has passed; manual dispatch is the release switch.
   deploy-staging-console:
-    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate') || (github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate')
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate' }}
     permissions:
       contents: read
       id-token: write
