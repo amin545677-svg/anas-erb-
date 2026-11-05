@@ -23,10 +23,11 @@ test('AI Center actions resolve to implemented handlers', () => {
 });
 
 test('AI Center delegated listeners bind after DOM readiness and are idempotent', () => {
-  assert.match(html, /document\.addEventListener\('DOMContentLoaded',\s*bindAnasAiCenterActions/);
-  assert.match(html, /document\.addEventListener\('click',[\s\S]*?true\);/);
-  assert.match(html, /document\.addEventListener\('change',[\s\S]*?true\);/);
-  assert.match(html, /dataset\.anasAiActionsBound\s*===\s*'1'/);
+  assert.ok(html.includes("body.addEventListener('click'"), 'click events must be delegated from persistent document.body');
+  assert.ok(html.includes("body.addEventListener('change'"), 'file input changes must be delegated from persistent document.body');
+  assert.ok(html.includes("dataset.anasAiActionsBound === '1'"), 'binding must be idempotent');
+  assert.ok(html.includes("document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions"), 'binding must wait for DOM readiness if body is not yet available');
+  assert.ok(!html.includes('stopImmediatePropagation()'), 'delegation must not suppress the click before the target handler can run');
 });
 
 test('ChatGPT helper opens, closes, sends and has an offline local fallback', () => {
