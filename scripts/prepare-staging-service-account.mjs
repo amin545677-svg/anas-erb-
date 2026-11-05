@@ -112,7 +112,7 @@ export function prepareCredential({ input, provider = '', deployer = '', githubE
     try {
       const { jsonText, credential } = decodeServiceAccountInput(input);
       writeGithubEnv('STAGING_SERVICE_ACCOUNT_JSON', jsonText, githubEnv);
-      if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=json\\n');
+      if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=json\n');
       return { mode: 'json', projectId: credential.project_id };
     } catch (error) {
       // A malformed legacy secret must not block a separately configured,
@@ -123,7 +123,7 @@ export function prepareCredential({ input, provider = '', deployer = '', githubE
   }
 
   if (hasOidcFallback) {
-    if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=oidc\\n');
+    if (githubOutput) fs.appendFileSync(githubOutput, 'auth_mode=oidc\n');
     return { mode: 'oidc', projectId: STAGING_PROJECT_ID };
   }
 
