@@ -62,3 +62,18 @@ test("staging CORS test fixture is bound to the isolated Firebase staging projec
   assert.doesNotMatch(config, /FIREBASE_PROJECT_ID = "anas-erb"/);
   assert.equal(env.FIREBASE_PROJECT_ID, "anas-erp-staging-a25e1");
 });
+
+test("preflight permits the exact Staging ERP origin and requested auth headers", async () => {
+  const response = await worker.fetch(new Request("https://worker.test/snapshot", {
+    method: "OPTIONS",
+    headers: {
+      Origin: allowedOrigin,
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "authorization,content-type"
+    }
+  }), env);
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
+  assert.match(response.headers.get("Access-Control-Allow-Methods"), /POST/);
+  assert.match(response.headers.get("Access-Control-Allow-Headers"), /Authorization/i);
+});
