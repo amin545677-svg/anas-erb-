@@ -37,7 +37,7 @@ test('AI Center mobile layout avoids stacked sticky headers and reserves FAB spa
 });
 
 test('ERP script and stylesheet references are not root-relative', () => {
-  const rootRelativeScripts = [...html.matchAll(/<(?:script|link)\\b[^>]*(?:src|href)=["'](\\/[^"']*)["']/gi)];
+  const rootRelativeScripts = [...html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)=["'](\/[^"']*)["']/gi)];
   assert.deepEqual(rootRelativeScripts.map(match => match[1]), [],
     'Found root-relative assets that can break below /erp/: ' + rootRelativeScripts.map(match => match[1]).join(', '));
 });
