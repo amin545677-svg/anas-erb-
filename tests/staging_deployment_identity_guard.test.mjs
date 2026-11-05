@@ -263,11 +263,11 @@ test('Hosting and Functions share the tested raw-JSON/Base64 staging credential 
     new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'
   );
   for (const workflow of [hosting, functions]) {
-    assert.match(workflow, /environment:\\s*staging/);
-    assert.match(workflow, /secrets\\.FIREBASE_STAGING_SERVICE_ACCOUNT_V2/);
-    assert.match(workflow, /node scripts\\/prepare-staging-service-account\\.mjs/);
-    assert.match(workflow, /credentials_json:\\s*\\$\\{\\{ env\\.STAGING_SERVICE_ACCOUNT_JSON \\}\\}/);
+    assert.match(workflow, /environment:\s*staging/);
+    assert.match(workflow, /secrets\.FIREBASE_STAGING_SERVICE_ACCOUNT_V2/);
+    assert.match(workflow, /node scripts\/prepare-staging-service-account\.mjs/);
+    assert.match(workflow, /credentials_json:\s*\$\{\{ env\.STAGING_SERVICE_ACCOUNT_JSON \}\}/);
   }
-  assert.match(hosting, /secrets\\.FIREBASE_STAGING_WEB_API_KEY/);
-  assert.match(hosting, /secrets\\.FIREBASE_STAGING_WEB_APP_ID/);
+  assert.match(hosting, /secrets\.FIREBASE_STAGING_WEB_API_KEY/);
+  assert.match(hosting, /secrets\.FIREBASE_STAGING_WEB_APP_ID/);
 });
