@@ -61,7 +61,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.match(deployWorkflow, /paths:\s*\n\s*- ['"]staging\/\*\*['"]/);
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
   assert.ok(deployWorkflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
-  assert.doesNotMatch(deployWorkflow, /github\\.event_name == 'push' && github\\.ref == 'refs\\/heads\\/staging\\/unified-release-candidate'/,
+  assert.doesNotMatch(deployWorkflow, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/staging\/unified-release-candidate'/,
     'Hosting deployment must not run on a push before the Staging Test Gate is accepted');
   assert.ok(!deployWorkflow.slice(0, deployWorkflow.indexOf('jobs:')).includes('id-token: write'));
   for (const secret of [
@@ -93,7 +93,7 @@ test('staging console deployment is manual, isolated and requires dedicated stag
   assert.ok(functionsWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(functionsWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
   assert.ok(functionsWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'oidc'"));
-  assert.match(functionsWorkflow, /deploy-reverse-ledger-staging:\\s*\\n\\s*if: \\$\\{\\{ false \\}\\}/,
+  assert.match(functionsWorkflow, /deploy-reverse-ledger-staging:\s*\n\s*if: \$\{\{ false \}\}/,
     'Functions deployment must remain frozen while the ActAs prerequisite is unresolved');
   assert.ok(functionsWorkflow.includes('FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT'));
   assert.ok(functionsWorkflow.includes('firebase-staging-bootstrap-service-account.json'));
