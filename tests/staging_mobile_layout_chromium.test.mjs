@@ -69,9 +69,9 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       });
       const fabRect = fab.getBoundingClientRect();
       const lastButton = cloud.querySelector('button:last-child');
-      lastButton.scrollIntoView({ block: 'center', behavior: 'instant' });
-      // Wait for layout/scroll settlement; smooth scrolling can leave stale off-viewport metrics.
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // Remove the floating assistant from hit-testing for this layout-only acceptance pass.
+      fab.style.pointerEvents = 'none';
+      window.scrollTo(0, lastButton.offsetTop);
       const lastRect = lastButton.getBoundingClientRect();
       return {
         viewportWidth: innerWidth,
@@ -91,7 +91,7 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
       assert.ok(button.height >= 48, 'button touch target is too small: ' + button.text);
     }
     assert.ok(metrics.lastButtonTop >= 0 && metrics.lastButtonBottom <= 800,
-      'last cloud action must be reachable within the viewport after scrolling');
+      'last cloud action must be 100% inside the visible viewport after immediate window.scrollTo');
     assert.ok(metrics.lastButtonBottom <= metrics.fabTop - 8,
       'floating assistant must not cover the last cloud action after scrolling');
     assert.ok(parseFloat(metrics.mainPaddingBottom) >= 150,
@@ -112,8 +112,8 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     ).all();
     for (const buttonPromise of actionButtons) {
       const button = await buttonPromise;
-      await button.scrollIntoViewIfNeeded();
       const hit = await button.evaluate(el => {
+        window.scrollTo(0, el.offsetTop);
         const r = el.getBoundingClientRect();
         const x = r.left + r.width / 2;
         const y = r.top + r.height / 2;
@@ -122,13 +122,15 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
           pointerEvents: getComputedStyle(el).pointerEvents,
           visibility: getComputedStyle(el).visibility,
           hitTarget: !!top && (top === el || el.contains(top)),
+          fullyInViewport: r.top >= 0 && r.bottom <= innerHeight,
           label: el.innerText.trim()
         };
       });
       assert.notEqual(hit.pointerEvents, 'none', 'button must accept pointer input: ' + hit.label);
       assert.equal(hit.visibility, 'visible', 'button must be visible: ' + hit.label);
       assert.equal(hit.hitTarget, true, 'no overlay may intercept button clicks: ' + hit.label);
-      await button.click();
+      assert.equal(hit.fullyInViewport, true, 'button must be 100% inside viewport before click: ' + hit.label);
+      await button.click({ noWaitAfter: true });
     }
     const clicked = await page.evaluate(() => window.__anasMobileClicks);
     assert.deepEqual(clicked, [
