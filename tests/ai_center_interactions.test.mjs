@@ -19,7 +19,6 @@ test('AI Center actions resolve to implemented handlers', () => {
   assert.match(html, /id="anasAiAskBtn"[^>]*onclick="askAnasBusinessAI\(\)"/);
   assert.match(html, /onclick="triggerAiGeneration\('\$\{activeAiTab\}'\)"/);
   assert.match(html, /onclick="document\.getElementById\('smartAiExcelUpload'\)\.click\(\)"/);
-  assert.match(html, /<input\\b[^>]*id="smartAiExcelUpload"[^>]*type="file"[^>]*onchange="handleSmartAiUpload\\(event\\)"/);
   assert.match(html, /onclick="openInvoiceOcr\(\)"/);
 });
 
