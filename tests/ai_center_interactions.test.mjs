@@ -54,8 +54,8 @@ test('cloud AI document analysis waits for Firebase persisted auth state before 
   assert.match(html, /window\.anasGetFirebaseIdToken=async function\(timeoutMs=8000\)/);
   assert.match(html, /auth\.onAuthStateChanged\(u=>finish\(resolve,u\|\|null\)/);
   assert.match(html, /انتهت مهلة استعادة جلسة Firebase/);
-  assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/g);
-  assert.ok((html.match(/const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/g) || []).length >= 2, 'Excel and PDF must both use the session-restoration helper');
+  assert.match(html, /const token=await window\.anasGetFirebaseIdToken\(4000\)/, 'Excel analysis must wait for persisted Firebase auth state');
+  assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/, 'PDF analysis must wait for persisted Firebase auth state');
 });
 
 
