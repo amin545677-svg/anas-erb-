@@ -64,8 +64,11 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
 
   const address = server.address();
   const context = await browser.newContext({ acceptDownloads: true });
-  await context.setOffline(true);
-  await context.addInitScript(() => localStorage.removeItem('anasErpAiGatewayUrlV1'));
+  // Keep loopback HTTP available while presenting the browser as offline to the app.
+  await context.addInitScript(() => {
+    localStorage.removeItem('anasErpAiGatewayUrlV1');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+  });
   const page = await context.newPage();
   page.on('dialog', dialog => dialog.accept());
   // Deliberately deny all external requests: all five controls must retain useful local behavior.
