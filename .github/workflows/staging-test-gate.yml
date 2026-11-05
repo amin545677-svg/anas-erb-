@@ -161,7 +161,7 @@ jobs:
       - name: Run real DOM purchase, supplier settlement, reload and backup restore
         run: node --test tests/purchase_supplier_chromium_staging.test.mjs tests/pos_full_lifecycle_chromium.test.mjs tests/reverse_ledger_chromium.test.mjs tests/reverse_ledger_staging_console_chromium.test.mjs tests/settlement_allocation_modal_chromium.test.mjs tests/verify_live_staging_e2e.playwright.test.mjs
       - name: Verify Firebase mobile layout in Chromium and AI Worker CORS/auth contract
-        run: node --test tests/firebase_mobile_layout_chromium.test.mjs tests/worker_openai_ai.test.mjs tests/ai_gateway_origin_guard_test.mjs
+        run: node --test tests/firebase_mobile_layout_chromium.test.mjs tests/staging_mobile_layout_chromium.test.mjs tests/worker_openai_ai.test.mjs tests/worker_firebase_snapshot_cors_test.mjs tests/ai_gateway_origin_guard_test.mjs
       - name: Verify AI Center actions and mobile touch layout
         run: node --test tests/ai_center_interactions.test.mjs
       - name: Exercise AI Center controls in real headless Chromium
