@@ -246,6 +246,13 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.deepEqual(inputState, { excel: true, pdf: true },
       'both dedicated file inputs must exist in the live DOM and remain enabled');
 
+    await security.click();
+    const panel = page.locator('#anasAiDataProtectionPanel');
+    await panel.waitFor({ state: 'visible' });
+    assert.match(await page.locator('#anasAiDataProtectionDetails').innerText(), /IndexedDB/);
+    await page.locator('#anasAiDataProtectionRefresh').click();
+    assert.equal(await security.getAttribute('aria-expanded'), 'true');
+
     // Exercise PDF first: the Excel import preview is a modal and must not obscure sibling cards.
     const pdfChooserPromise = page.waitForEvent('filechooser');
     await pdf.locator('span').click();
@@ -270,12 +277,6 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
 
-    await security.click();
-    const panel = page.locator('#anasAiDataProtectionPanel');
-    await panel.waitFor({ state: 'visible' });
-    assert.match(await page.locator('#anasAiDataProtectionDetails').innerText(), /IndexedDB/);
-    await page.locator('#anasAiDataProtectionRefresh').click();
-    assert.equal(await security.getAttribute('aria-expanded'), 'true');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
