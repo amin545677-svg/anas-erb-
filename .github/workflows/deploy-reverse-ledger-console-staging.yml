@@ -152,7 +152,7 @@ jobs:
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
         run: |
-          printf 'Key length: %s\\n' "${#FIREBASE_STAGING_WEB_API_KEY}"
+          echo "Key length: ${#FIREBASE_STAGING_WEB_API_KEY}"
 
       - name: Validate Firebase Staging Web API key without creating an account
         env:
