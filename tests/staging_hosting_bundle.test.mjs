@@ -24,7 +24,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
 
     // Validate the actual built PWA, not just the source manifest: every precached
     // asset must be present under /erp/ or the service worker install will fail.
-    const coreMatch = serviceWorker.match(/const CORE = \\[(.*?)\\];/s);
+    const coreMatch = serviceWorker.match(/const CORE = \[(.*?)\];/s);
     assert.ok(coreMatch, 'built service worker must declare a core asset list');
     const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
@@ -38,14 +38,14 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
 
     // Every statically declared local script/link dependency in the generated shell
     // must also exist in the generated hosting artifact.
-    const localRefs = [...erp.matchAll(/<(?:script|link)\\b[^>]*?\\b(?:src|href)=['"]([^'"]+)['"]/gi)]
+    const localRefs = [...erp.matchAll(/<(?:script|link)\b[^>]*?\b(?:src|href)=['"]([^'"]+)['"]/gi)]
       .map(match => match[1]).filter(value => value.startsWith('./'));
     assert.ok(localRefs.length > 0, 'built ERP shell must expose local runtime dependencies');
     for (const reference of localRefs) {
       const target = new URL(reference, 'https://staging.example/erp/');
       assert.equal(target.origin, 'https://staging.example');
       assert.ok(target.pathname.startsWith('/erp/'), 'local dependency must stay within /erp/: ' + reference);
-      await fs.access(path.join(outDir, target.pathname.replace(/^\\/erp\\//, 'erp/')));
+      await fs.access(path.join(outDir, 'erp', target.pathname.slice('/erp/'.length)));
     }
     assert.ok(erp.includes('src="./vendor/firebase/firebase-compat.js"'));
     assert.equal(erp.includes('www.gstatic.com/firebasejs'), false);
