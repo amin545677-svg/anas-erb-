@@ -138,49 +138,19 @@ jobs:
       - name: Secret Presence Preflight (raw JSON or Base64 service-account, OIDC fallback)
         id: auth_preflight
         env:
-          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
           FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
           DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 }}
           WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
           DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
-          node -e "for (const name of ['FIREBASE_STAGING_WEB_API_KEY','FIREBASE_STAGING_WEB_APP_ID']) if (!(process.env[name] || '').trim()) { console.error('STAGING PREFLIGHT: missing ' + name); process.exit(1); }"
+          node -e "for (const name of ['FIREBASE_STAGING_WEB_APP_ID']) if (!(process.env[name] || '').trim()) { console.error('STAGING PREFLIGHT: missing ' + name); process.exit(1); }"
           node scripts/prepare-staging-service-account.mjs
 
-      - name: Report Firebase Staging Web API key length only
+      - name: Resolve, sanitize and validate Firebase Staging Web API key (secret then live fallback)
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
-        run: |
-          echo "Key length: ${#FIREBASE_STAGING_WEB_API_KEY}"
-
-      - name: Validate Firebase Staging Web API key without creating an account
-        env:
-          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
-        run: |
-          node --input-type=module <<'NODE'
-          const key = (process.env.FIREBASE_STAGING_WEB_API_KEY || '').trim();
-          console.log('Firebase Web API key length: ' + key.length);
-          if (!key || key.length > 512) throw new Error('FIREBASE_STAGING_WEB_API_KEY is missing or malformed (length=' + key.length + ').');
-          const endpoint = 'https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=' + encodeURIComponent(key);
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', 'referer': 'https://anas-erp-staging-a25e1.web.app/' },
-            body: JSON.stringify({
-              identifier: 'staging-preflight@example.invalid',
-              continueUri: 'https://anas-erp-staging-a25e1.web.app'
-            })
-          });
-          const data = await response.json().catch(() => ({}));
-          const errorCode = data.error?.message || '';
-          if (!response.ok && /API_KEY_INVALID|keyInvalid|INVALID_API_KEY/i.test(errorCode)) {
-            throw new Error('Firebase rejected FIREBASE_STAGING_WEB_API_KEY. Hosting deployment is blocked; use the Web API key from project anas-erp-staging-a25e1.');
-          }
-          if (!response.ok) {
-            throw new Error('Firebase Auth key preflight returned HTTP ' + response.status + ' (' + (errorCode || 'unknown error') + '). No account was created.');
-          }
-          console.log('PASS: Firebase accepted the Staging Web API key. No user/account was created.');
-          NODE
+        run: node scripts/resolve-staging-web-api-key.mjs
       - name: Authenticate to Firebase Staging with service-account JSON
         if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
