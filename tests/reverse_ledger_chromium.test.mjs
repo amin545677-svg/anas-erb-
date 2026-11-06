@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import { chromium } from 'playwright';
+import { build as esbuild } from 'esbuild';
 
 test('Chromium loads reverse-ledger primitives and enforces exact return ceilings', async () => {
  const browser = await chromium.launch({headless:true});
@@ -257,11 +258,23 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
  const { createServer } = await import('node:http');
  const { pathToFileURL } = await import('node:url');
  const rootDir = process.cwd();
+ // Build and serve the pinned Firebase compat SDK locally, exactly as the staging bundle does.
+ const firebaseBundle = await esbuild({
+  entryPoints: [path.join(rootDir, 'staging/firebase-compat-entry.js')],
+  bundle: true, write: false, platform: 'browser', format: 'iife', target: ['es2018'], minify: true,
+  legalComments: 'none'
+ });
+ assert.equal(firebaseBundle.outputFiles.length, 1, 'Firebase compat bundle must produce one browser asset');
  const server = createServer((req, res) => {
   const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
   // Chromium may probe the conventional favicon path even when the app uses a web manifest icon.
   // Return an explicit empty response instead of logging a misleading source-tree 404.
   if (pathname === '/favicon.ico') { res.writeHead(204); res.end(); return; }
+  if (pathname === '/vendor/firebase/firebase-compat.js') {
+   res.setHeader('content-type', 'application/javascript; charset=utf-8');
+   res.end(firebaseBundle.outputFiles[0].contents);
+   return;
+  }
   // The production shell references locally bundled parsers. In this source-tree browser
   // harness, serve the exact pinned npm package files at the same URLs used by /erp/.
   const localVendorAssets = {
