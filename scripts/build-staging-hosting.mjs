@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build as esbuild } from 'esbuild';
 
 const PROJECT_ID = 'anas-erp-staging-a25e1';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,6 +50,20 @@ export async function buildStagingHosting(options = {}) {
 
   await fs.rm(outDir, { recursive: true, force: true });
   await fs.mkdir(outDir, { recursive: true });
+
+  // Bundle the pinned Firebase compat SDK locally; the ERP shell must not depend on gstatic CDN availability.
+  const firebaseBundle = path.join(outDir, 'erp/vendor/firebase/firebase-compat.js');
+  await fs.mkdir(path.dirname(firebaseBundle), { recursive: true });
+  await esbuild({
+    entryPoints: [path.join(rootDir, 'staging/firebase-compat-entry.js')],
+    outfile: firebaseBundle,
+    bundle: true,
+    platform: 'browser',
+    format: 'iife',
+    target: ['es2018'],
+    minify: true,
+    legalComments: 'none'
+  });
 
   // Vendor pinned parsers and OCR runtime into the ERP's local PWA scope.
   for (const [sourceRelative, destinationRelative] of [
@@ -153,6 +168,7 @@ export async function buildStagingHosting(options = {}) {
     'index.html', 'config.js', 'reverse-ledger-gateway.js',
     'erp/index.html', 'erp/sw.js', 'erp/manifest.webmanifest',
     'erp/storage/android-resilient-storage.js', 'erp/icons/icon.svg',
+    'erp/vendor/firebase/firebase-compat.js',
     'erp/vendor/xlsx/xlsx.full.min.js',
     'erp/vendor/pdfjs/pdf.min.js',
     'erp/vendor/pdfjs/pdf.worker.min.js',
