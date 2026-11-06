@@ -151,10 +151,9 @@ jobs:
           node scripts/prepare-staging-service-account.mjs
 
       - name: Resolve, sanitize and validate Firebase Staging Web API key (secret then live fallback)
-        run: node --check scripts/resolve-staging-web-api-key.mjs && node scripts/resolve-staging-web-api-key.mjs
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
-        run: node scripts/resolve-staging-web-api-key.mjs
+        run: node --check scripts/resolve-staging-web-api-key.mjs && node scripts/resolve-staging-web-api-key.mjs
       - name: Authenticate to Firebase Staging with service-account JSON
         if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
