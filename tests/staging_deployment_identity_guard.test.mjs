@@ -241,7 +241,9 @@ test('Hosting staging deployment does not require an App Check site key to publi
   const workflow = await (await import('node:fs/promises')).readFile(
     new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
   );
-  assert.match(workflow, /for \(const name of \['FIREBASE_STAGING_WEB_API_KEY','FIREBASE_STAGING_WEB_APP_ID'\]\)/);
+  assert.match(workflow, /for \\(const name of \\[.*FIREBASE_STAGING_WEB_APP_ID.*\\]\\)/);
+  assert.doesNotMatch(workflow, /for \\(const name of \\[.*FIREBASE_STAGING_WEB_API_KEY/);
+  assert.match(workflow, /node --check scripts\\/resolve-staging-web-api-key\\.mjs && node scripts\\/resolve-staging-web-api-key\\.mjs/);
   assert.doesNotMatch(workflow, /for \(const name of \[[^\]]*FIREBASE_STAGING_APP_CHECK_SITE_KEY/);
   assert.match(workflow, /node scripts\/build-staging-hosting\.mjs/);
   assert.match(workflow, /FIREBASE_STAGING_APP_CHECK_SITE_KEY: \$\{\{ secrets\.FIREBASE_STAGING_APP_CHECK_SITE_KEY \}\}/);
