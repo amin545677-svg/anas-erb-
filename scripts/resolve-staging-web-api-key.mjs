@@ -79,6 +79,7 @@ if (!/^AIza[0-9A-Za-z_-]{35}$/.test(selectedKey)) {
   throw new Error('Resolved Firebase Web API key failed the strict format check.');
 }
 
+process.stdout.write('::add-mask::' + selectedKey + '\n');
 const githubEnv = process.env.GITHUB_ENV;
 if (!githubEnv) throw new Error('GITHUB_ENV is unavailable; refusing to continue.');
 await appendFile(githubEnv, 'FIREBASE_STAGING_WEB_API_KEY=' + selectedKey + '\n', { encoding: 'utf8', mode: 0o600 });
