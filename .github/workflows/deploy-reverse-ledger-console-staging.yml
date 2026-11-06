@@ -154,6 +154,18 @@ jobs:
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
         run: node --check scripts/resolve-staging-web-api-key.mjs && node scripts/resolve-staging-web-api-key.mjs
+      - name: Require sanitized Firebase Web API key for Hosting build
+        env:
+          FIREBASE_STAGING_WEB_API_KEY: ${{ env.FIREBASE_STAGING_WEB_API_KEY }}
+        run: |
+          node --input-type=module -e '
+            const key = process.env.FIREBASE_STAGING_WEB_API_KEY || "";
+            if (!/^AIza[0-9A-Za-z_-]{35}$/.test(key)) {
+              console.error("STAGING CONFIG BLOCKED: sanitized Firebase Web API key is absent or has an invalid format.");
+              process.exit(1);
+            }
+            console.log("PASS: sanitized Firebase Web API key is present for the Hosting build; value withheld.");
+          '
       - name: Authenticate to Firebase Staging with service-account JSON
         if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
