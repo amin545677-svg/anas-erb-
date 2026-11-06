@@ -5545,7 +5545,20 @@ function renderPurchasesTable() {
         }
         function requestGPS(onSuccess) {
             if (!navigator.geolocation) { alert('المتصفح لا يدعم تحديد الموقع. يمكنك إدخال الإحداثيات يدويًا.'); return; }
-            navigator.geolocation.getCurrentPosition(onSuccess, err => alert(gpsErrorMessage(err)), { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
+            const button = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+            const originalLabel = button ? button.textContent : '';
+            let finished = false;
+            const restoreButton = () => {
+                if (finished) return;
+                finished = true;
+                if (button && button.isConnected) { button.disabled = false; button.textContent = originalLabel; }
+            };
+            if (button) { button.disabled = true; button.textContent = '⏳ جارٍ تحديد الموقع…'; }
+            navigator.geolocation.getCurrentPosition(
+                position => { restoreButton(); onSuccess(position); },
+                error => { restoreButton(); alert(gpsErrorMessage(error)); },
+                { enableHighAccuracy: false, timeout: 25000, maximumAge: 300000 }
+            );
         }
         function detectCustomerGPS() {
             requestGPS(pos => {
