@@ -142,7 +142,7 @@ jobs:
       - name: Install headless Chromium and system dependencies
         run: npx playwright install --with-deps chromium
       - name: Verify delegated AI Center actions and offline local import in Chromium
-        run: node --test tests/ai_center_interactions.test.mjs tests/ai_center_chromium_interactions.test.mjs tests/ai_ocr_offline_assets.test.mjs tests/firebase_sdk_offline_assets.test.mjs tests/smart_import_backup_gate.test.mjs
+        run: node --test tests/ai_center_interactions.test.mjs tests/ai_center_chromium_interactions.test.mjs tests/ai_ocr_offline_assets.test.mjs tests/firebase_sdk_offline_assets.test.mjs tests/smart_import_backup_gate.test.mjs tests/csv_excel_locale_compat.test.mjs
       - name: Run PR260 reconciliation, V42 runtime and PR261 Worker health tests
         run: >-
           node --test
