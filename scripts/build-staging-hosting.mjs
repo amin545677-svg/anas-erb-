@@ -50,16 +50,39 @@ export async function buildStagingHosting(options = {}) {
   await fs.rm(outDir, { recursive: true, force: true });
   await fs.mkdir(outDir, { recursive: true });
 
-  // Vendor pinned parsers from installed npm packages into the ERP's local PWA scope.
+  // Vendor pinned parsers and OCR runtime into the ERP's local PWA scope.
   for (const [sourceRelative, destinationRelative] of [
     ['node_modules/xlsx/dist/xlsx.full.min.js', 'vendor/xlsx/xlsx.full.min.js'],
     ['node_modules/pdfjs-dist/legacy/build/pdf.min.js', 'vendor/pdfjs/pdf.min.js'],
-    ['node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', 'vendor/pdfjs/pdf.worker.min.js']
+    ['node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', 'vendor/pdfjs/pdf.worker.min.js'],
+    ['node_modules/tesseract.js/dist/tesseract.min.js', 'vendor/tesseract/tesseract.min.js'],
+    ['node_modules/tesseract.js/dist/worker.min.js', 'vendor/tesseract/worker.min.js']
   ]) {
     const source = path.join(rootDir, sourceRelative);
     const destination = path.join(outDir, 'erp', destinationRelative);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.copyFile(source, destination);
+  }
+  const coreDir = path.join(rootDir, 'node_modules/tesseract.js-core');
+  const stagedCoreDir = path.join(outDir, 'erp/vendor/tesseract/core');
+  await fs.mkdir(stagedCoreDir, { recursive: true });
+  for (const file of ['tesseract-core.wasm.js','tesseract-core-simd.wasm.js','tesseract-core-lstm.wasm.js','tesseract-core-simd-lstm.wasm.js']) {
+    await fs.copyFile(path.join(coreDir,file),path.join(stagedCoreDir,file));
+  }
+  async function findTrainedData(dir, language) {
+    for (const entry of await fs.readdir(dir,{withFileTypes:true})) {
+      const candidate=path.join(dir,entry.name);
+      if(entry.isDirectory()){const found=await findTrainedData(candidate,language);if(found)return found;}
+      else if(entry.name===language+'.traineddata.gz')return candidate;
+    }
+    return null;
+  }
+  for (const language of ['ara','eng','fra']) {
+    const trainedData=await findTrainedData(path.join(rootDir,'node_modules/@tesseract.js-data',language),language);
+    if(!trainedData)throw new Error('Missing pinned Tesseract language data: '+language);
+    const destination=path.join(outDir,'erp/vendor/tesseract/lang',language+'.traineddata.gz');
+    await fs.mkdir(path.dirname(destination),{recursive:true});
+    await fs.copyFile(trainedData,destination);
   }
 
   // Full ERP/POS app is isolated below /erp/, including its own PWA scope and offline assets.
@@ -133,6 +156,15 @@ export async function buildStagingHosting(options = {}) {
     'erp/vendor/xlsx/xlsx.full.min.js',
     'erp/vendor/pdfjs/pdf.min.js',
     'erp/vendor/pdfjs/pdf.worker.min.js',
+    'erp/vendor/tesseract/tesseract.min.js',
+    'erp/vendor/tesseract/worker.min.js',
+    'erp/vendor/tesseract/core/tesseract-core.wasm.js',
+    'erp/vendor/tesseract/core/tesseract-core-simd.wasm.js',
+    'erp/vendor/tesseract/core/tesseract-core-lstm.wasm.js',
+    'erp/vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
+    'erp/vendor/tesseract/lang/ara.traineddata.gz',
+    'erp/vendor/tesseract/lang/eng.traineddata.gz',
+    'erp/vendor/tesseract/lang/fra.traineddata.gz',
     'erp/reverse-ledger/reverse-ledger.js'
   ]) {
     await fs.access(path.join(outDir, relativePath));
