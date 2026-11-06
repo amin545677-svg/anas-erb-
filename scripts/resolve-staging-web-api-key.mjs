@@ -59,10 +59,14 @@ let selectedKey = '';
 let selectedSource = '';
 
 for (const candidate of secretCandidates) {
-  if (await validateKey(candidate)) {
-    selectedKey = candidate;
-    selectedSource = 'repository-secret';
-    break;
+  try {
+    if (await validateKey(candidate)) {
+      selectedKey = candidate;
+      selectedSource = 'repository-secret';
+      break;
+    }
+  } catch {
+    // A malformed or rejected repository value must not block the verified live fallback.
   }
 }
 
