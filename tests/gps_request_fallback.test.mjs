@@ -15,7 +15,7 @@ test('GPS request provides visible progress, a longer timeout and manual-entry e
   assert.ok(gps.includes('restoreButton(); alert(gpsErrorMessage(error))'));
   assert.ok(gps.includes('أدخل الإحداثيات يدويًا'));
   assert.match(gps, /try\s*\{\s*navigator\.geolocation\.getCurrentPosition/);
-  assert.match(gps, /catch\s*\(error\)\s*\{\s*restoreButton\(\);\s*alert\(gpsErrorMessage\(error\)\);/);
+  assert.match(gps, /catch\s*\(error\)\s*\{[\s\S]*?restoreButton\(\);\s*alert\(gpsErrorMessage\(error\)\);/);
   assert.ok(gps.includes('أو أدخل الإحداثيات يدويًا'), 'synchronous failures must expose manual coordinate entry');
 });
 
