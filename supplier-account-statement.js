@@ -33,8 +33,8 @@ if(typeof originalRenderSuppliersDebts==='function'){
  root.renderSuppliersDebts=function(){
   originalRenderSuppliersDebts.apply(this,arguments);
   const container=document.getElementById('suppDebtsContainer');if(!container||!Array.isArray(AppData.suppliers))return;
-  Array.from(container.children).forEach((card,index)=>{const supplier=AppData.suppliers[index];if(!supplier||card.querySelector('[data-supplier-statement]'))return;
-   const button=document.createElement('button');button.type='button';button.className='btn-pos-hasib';button.textContent='📄 كشف الحساب الكامل';button.setAttribute('data-supplier-statement','true');button.onclick=()=>{try{showSupplierStatement(supplier.id);}catch(e){alert('تعذر فتح كشف الحساب: '+(e.message||e));}};card.appendChild(button);
+  Array.from(container.children).forEach(card=>{const supplierId=card&&typeof card.getAttribute==='function'?card.getAttribute('data-supplier-id'):null;if(supplierId==null||supplierId===''||card.querySelector('[data-supplier-statement]'))return;
+   const button=document.createElement('button');button.type='button';button.className='btn-pos-hasib';button.textContent='📄 كشف الحساب الكامل';button.setAttribute('data-supplier-statement','true');button.onclick=()=>{try{showSupplierStatement(supplierId);}catch(e){alert('تعذر فتح كشف الحساب: '+(e.message||e));}};card.appendChild(button);
   });
  };
 }
