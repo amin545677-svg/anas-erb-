@@ -13,6 +13,7 @@ test('Firebase compat SDK is bundled locally and included in the offline ERP she
   assert.match(html, /src="\.\/vendor\/firebase\/firebase-compat\.js"/);
   assert.doesNotMatch(html, /www\.gstatic\.com\/firebasejs|firebase-(?:app|auth|firestore)-compat\.js"/i);
   assert.ok(worker.includes("'./vendor/firebase/firebase-compat.js'"), 'service worker must precache the Firebase bundle');
+  assert.match(worker, /const CACHE = 'anas-erp-v54-25-r8'/);
   assert.equal(packageJson.dependencies.firebase, '10.12.2');
   assert.equal(packageJson.dependencies.esbuild, '0.24.2');
   assert.ok(entry.includes("firebase/compat/app"));
