@@ -79,6 +79,10 @@ function harness({ suppliers, supplierMovements }) {
   console.log('PASS: malformed supplier ledger fails closed without rendering an incomplete statement');
 }
 
+// Regression: filtered/reordered supplier cards must bind actions by stable ID, never array index.
+assert.match(fs.readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8'), /card\.setAttribute\('data-supplier-id', String\(s\.id \?\? ''\)\)/);
+assert.match(source, /forEach\(card=>\{const supplierId=card&&typeof card\.getAttribute==='function'\?card\.getAttribute\('data-supplier-id'\)/);
+assert.doesNotMatch(source, /forEach\(\(card,index\)=>\{const supplier=AppData\.suppliers\[index\]/);
 console.log('Supplier statement UI tests passed');
 
 {
