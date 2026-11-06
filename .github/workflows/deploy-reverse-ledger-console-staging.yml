@@ -148,6 +148,7 @@ jobs:
           node scripts/prepare-staging-service-account.mjs
 
       - name: Resolve, sanitize and validate Firebase Staging Web API key (secret then live fallback)
+        run: node --check scripts/resolve-staging-web-api-key.mjs
         env:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
         run: node scripts/resolve-staging-web-api-key.mjs
@@ -191,7 +192,6 @@ jobs:
 
       - name: Build full ERP/POS PWA and isolated reverse-ledger console
         env:
-          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
           FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
         run: node scripts/build-staging-hosting.mjs
