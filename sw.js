@@ -30,7 +30,6 @@ const OCR_ASSETS = [
 ];
 const CORE_URLS = new Set([...CORE, ...OCR_ASSETS].map(path => new URL(path, self.location.href).href));
 
-const CORE_URLS = new Set(CORE.map(path => new URL(path, self.location.href).href));
 
 self.addEventListener('install', event => {
   event.waitUntil(
