@@ -205,3 +205,56 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('ANAS AI data cards execute file-picker and data-protection actions on mobile', async () => {
+  const server = await startServer();
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    await page.route('https://**/*', route => route.abort());
+    await page.goto('http://127.0.0.1:' + PORT, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.body && !document.body.inert, { timeout: 15000 });
+    await page.evaluate(() => {
+      if (typeof window.openView !== 'function') throw new Error('openView is unavailable');
+      window.openView('ai-excel-hub', true);
+    });
+
+    const excel = page.locator('[data-anas-ai-action="excel"]');
+    const pdf = page.locator('[data-anas-ai-action="pdf"]');
+    const security = page.locator('[data-anas-ai-action="security"]');
+    await excel.waitFor({ state: 'visible' });
+    await pdf.waitFor({ state: 'visible' });
+    await security.waitFor({ state: 'visible' });
+
+    const excelChooserPromise = page.waitForEvent('filechooser');
+    await excel.click();
+    const excelChooser = await excelChooserPromise;
+    assert.match(await excelChooser.element().getAttribute('accept'), /\.xlsx/);
+    await excelChooser.setFiles({
+      name: 'mobile-preview.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('name,quantity\\nItem A,4\\nItem B,7', 'utf8')
+    });
+    await page.locator('#smartAiExcelStatus').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
+    assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
+      'Excel/CSV click must produce a local import preview');
+
+    const pdfChooserPromise = page.waitForEvent('filechooser');
+    await pdf.click();
+    const pdfChooser = await pdfChooserPromise;
+    assert.match(await pdfChooser.element().getAttribute('accept'), /\.pdf/);
+
+    await security.click();
+    const panel = page.locator('#anasAiDataProtectionPanel');
+    await panel.waitFor({ state: 'visible' });
+    assert.match(await page.locator('#anasAiDataProtectionDetails').innerText(), /IndexedDB/);
+    await page.locator('#anasAiDataProtectionRefresh').click();
+    assert.equal(await security.getAttribute('aria-expanded'), 'true');
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});

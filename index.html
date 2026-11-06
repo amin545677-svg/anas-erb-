@@ -8614,10 +8614,10 @@ function wtAuditTransfers(){
                     <p style="font-size:0.82rem; color:#64748b; margin-bottom:14px; line-height:1.6;">
                         مساحة موحّدة لملفات العمل: Excel وCSV وPDF. افحص الملف أولًا، راجع المعاينة، ثم اختر الإجراء المناسب. لا تُستورد أي بيانات إلى سجلات النظام تلقائيًا.
                     </p>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px">
-                        <div style="padding:10px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a"><b>📊 Excel / CSV</b><div style="font-size:12px;margin-top:4px">قراءة ومعاينة وتدقيق الأعمدة</div></div>
-                        <div style="padding:10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff;color:#5b21b6"><b>📄 PDF</b><div style="font-size:12px;margin-top:4px">استخراج النص وتنزيله للمراجعة</div></div>
-                        <div style="padding:10px;border:1px solid #a7f3d0;border-radius:10px;background:#ecfdf5;color:#065f46"><b>🔒 حماية البيانات</b><div style="font-size:12px;margin-top:4px">المعالجة محليًا أولًا؛ الإرسال يدوي فقط</div></div>
+                    <div class="anas-ai-file-actions" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px">
+                        <button type="button" data-anas-ai-action="excel" aria-label="فتح ملف Excel أو CSV" style="text-align:center;cursor:pointer;touch-action:manipulation;padding:12px 10px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a;font:inherit;min-height:76px"><b>📊 Excel / CSV</b><span style="display:block;font-size:12px;margin-top:4px">قراءة ومعاينة وتدقيق الأعمدة</span></button>
+                        <button type="button" data-anas-ai-action="pdf" aria-label="فتح ملف PDF" style="text-align:center;cursor:pointer;touch-action:manipulation;padding:12px 10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff;color:#5b21b6;font:inherit;min-height:76px"><b>📄 PDF</b><span style="display:block;font-size:12px;margin-top:4px">استخراج النص وتنزيله للمراجعة</span></button>
+                        <button type="button" data-anas-ai-action="security" aria-label="عرض حالة حماية البيانات" aria-expanded="false" style="text-align:center;cursor:pointer;touch-action:manipulation;padding:12px 10px;border:1px solid #a7f3d0;border-radius:10px;background:#ecfdf5;color:#065f46;font:inherit;min-height:76px"><b>🔒 حماية البيانات</b><span style="display:block;font-size:12px;margin-top:4px">عرض حالة التخزين والمعالجة المحلية</span></button>
                     </div>
                     <div style="display:flex; gap:8px;">
                         <button class="btn-full-submit" style="background:#7c3aed; margin:0; flex:1;" data-anas-ai-action="generate">✨ توليد بيانات جاهزة</button>
@@ -8626,6 +8626,11 @@ function wtAuditTransfers(){
                     <button type="button" class="btn-full-submit" style="background:#9333ea; margin-top:10px; width:100%;" data-anas-ai-action="ocr">📷 مسح الفواتير بالذكاء الاصطناعي</button>
                     <input type="file" id="smartAiExcelUpload" accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" >
                     <div id="smartAiExcelStatus" role="status" aria-live="polite" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
+                    <section id="anasAiDataProtectionPanel" hidden aria-live="polite" style="margin-top:10px;padding:12px;border:1px solid #a7f3d0;border-radius:10px;background:#f0fdf4;color:#14532d;line-height:1.7">
+                      <strong>حالة حماية البيانات على هذا الجهاز</strong>
+                      <div id="anasAiDataProtectionDetails" style="font-size:12px;margin-top:6px"></div>
+                      <button type="button" id="anasAiDataProtectionRefresh" style="margin-top:8px;padding:8px 12px;border:1px solid #86efac;border-radius:8px;background:#fff;color:#14532d;cursor:pointer">إعادة فحص الحالة</button>
+                    </section>
                     <div id="smartPdfExtractResults" style="display:none;margin-top:12px;border:1px solid #c4b5fd;border-radius:12px;padding:12px;background:var(--mp-card,#fff)">
                         <div id="smartPdfExtractMeta" style="font-size:13px;font-weight:800;margin-bottom:8px"></div>
                         <textarea id="smartPdfExtractText" rows="8" readonly aria-label="النص المستخرج من ملف PDF" style="width:100%;box-sizing:border-box;font:inherit;padding:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
@@ -11212,10 +11217,41 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       } else if (action === 'generate') {
         if (typeof window.triggerAiGeneration !== 'function') throw new Error('مولّد القوالب غير متاح؛ أعد تحميل التطبيق.');
         result = window.triggerAiGeneration(typeof activeAiTab !== 'undefined' ? activeAiTab : 'products');
-      } else if (action === 'import') {
+      } else if (action === 'import' || action === 'excel' || action === 'pdf') {
         const input = document.getElementById('smartAiExcelUpload');
-        if (!input) throw new Error('حقل استيراد Excel/CSV غير موجود.');
+        if (!input) throw new Error('حقل اختيار الملفات غير موجود.');
+        input.accept = action === 'pdf'
+          ? '.pdf,application/pdf'
+          : '.csv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
         input.click();
+      } else if (action === 'security') {
+        const panel = document.getElementById('anasAiDataProtectionPanel');
+        const details = document.getElementById('anasAiDataProtectionDetails');
+        if (!panel || !details) throw new Error('لوحة حالة حماية البيانات غير موجودة.');
+        const refresh = () => {
+          let storageStatus = 'غير متاح';
+          try {
+            const storage = window.ANASResilientStorage;
+            storageStatus = storage && typeof storage.status === 'function'
+              ? JSON.stringify(storage.status())
+              : 'واجهة التخزين الآمن غير متاحة';
+          } catch (error) { storageStatus = 'تعذر قراءة الحالة: ' + (error.message || error); }
+          let localStorageStatus = 'غير متاح';
+          try { localStorageStatus = window.localStorage ? 'متاح' : 'غير متاح'; } catch (_) { localStorageStatus = 'محظور من المتصفح'; }
+          details.textContent = 'IndexedDB: ' + (('indexedDB' in window) ? 'مدعوم من المتصفح' : 'غير مدعوم')
+            + ' · LocalStorage: ' + localStorageStatus
+            + ' · التخزين الداخلي: ' + storageStatus
+            + ' · الاتصال: ' + (navigator.onLine ? 'متصل' : 'غير متصل')
+            + ' · الإرسال الخارجي: لا يتم تلقائيًا من هذه اللوحة؛ يتطلب إجراءً صريحًا منفصلًا.';
+        };
+        panel.hidden = !panel.hidden;
+        button.setAttribute('aria-expanded', String(!panel.hidden));
+        if (!panel.hidden) refresh();
+        const refreshButton = document.getElementById('anasAiDataProtectionRefresh');
+        if (refreshButton && !refreshButton.dataset.bound) {
+          refreshButton.dataset.bound = '1';
+          refreshButton.addEventListener('click', refresh);
+        }
       } else if (action === 'ocr') {
         if (typeof window.openInvoiceOcr !== 'function') throw new Error('أداة مسح الفواتير غير متاحة؛ أعد تحميل التطبيق.');
         result = window.openInvoiceOcr();
@@ -11239,7 +11275,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         ? origin.closest('[data-anas-ai-action]') : null;
       if (!button || !body.contains(button)) return;
       const action = button.getAttribute('data-anas-ai-action');
-      if (!['ask', 'generate', 'import', 'ocr'].includes(action)) return;
+      if (!['ask', 'generate', 'import', 'excel', 'pdf', 'security', 'ocr'].includes(action)) return;
       event.preventDefault();
       runAction(action, button);
     }, true);
