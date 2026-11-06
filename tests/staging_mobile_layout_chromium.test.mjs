@@ -257,14 +257,14 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     const pdfChooserPromise = page.waitForEvent('filechooser');
     await pdf.locator('span').click();
     const pdfChooser = await pdfChooserPromise;
-    assert.equal(pdfChooser.element().id, 'smartAiPdfUpload',
+    assert.equal(await pdfChooser.element().evaluate((el) => el.id), 'smartAiPdfUpload',
       'PDF label must natively open its associated DOM file input');
     assert.match(await pdfChooser.element().getAttribute('accept'), /\.pdf/);
 
     const excelChooserPromise = page.waitForEvent('filechooser');
     await excel.locator('b').click();
     const excelChooser = await excelChooserPromise;
-    assert.equal(excelChooser.element().id, 'smartAiExcelUpload',
+    assert.equal(await excelChooser.element().evaluate((el) => el.id), 'smartAiExcelUpload',
       'Excel/CSV label must natively open its associated DOM file input');
     assert.match(await excelChooser.element().getAttribute('accept'), /\.xlsx/);
     await excelChooser.setFiles({
