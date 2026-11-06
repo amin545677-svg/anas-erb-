@@ -39,7 +39,7 @@ test('GPS button is restored when Android WebView throws synchronously', async (
     alert(message) { alerts.push(message); }
   };
   const vm = await import('node:vm');
-  vm.runInNewContext(gps + '\\nrequestGPS(() => {});', context);
+  vm.runInNewContext(gps + ';requestGPS(() => {});', context);
   assert.equal(button.disabled, false, 'button must be re-enabled after synchronous failure');
   assert.equal(button.textContent, 'تحديد الموقع', 'original button label must be restored');
   assert.equal(alerts.length, 1, 'user must receive one actionable error');
