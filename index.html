@@ -11267,20 +11267,28 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       reportActionError(error && error.message ? error.message : String(error));
     }
   }
-  function bindAnasAiCenterActions() {
-    if (document.documentElement.dataset.anasAiActionsBound === '1') return;
+  // Register document-level delegation immediately as this script loads.
+  // This works for AI Center cards inserted later by the dynamic view renderer.
+  if (document.documentElement.dataset.anasAiActionsBound !== '1') {
     document.documentElement.dataset.anasAiActionsBound = '1';
-
-    // Install once at document scope: native labels own file-picker activation.
     document.addEventListener('click', function (event) {
       const origin = event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
       const target = origin && typeof origin.closest === 'function'
-        ? origin.closest('[data-anas-ai-action], input[type="file"]') : null;
+        ? origin.closest('[data-anas-ai-action], label[for="smartAiExcelUpload"], label[for="smartAiPdfUpload"], input[type="file"]') : null;
       if (!target) return;
+
+      if (target.matches('label[for="smartAiExcelUpload"], label[for="smartAiPdfUpload"]')) {
+        // Reset the matching file input before the browser performs native label activation.
+        // Do not preventDefault or synthesize input.click(): the label owns the file chooser.
+        const associatedInput = document.getElementById(target.htmlFor);
+        if (associatedInput && associatedInput.type === 'file' && associatedInput.isConnected && !associatedInput.disabled) {
+          associatedInput.value = '';
+        }
+        return;
+      }
 
       if (target.matches('input[type="file"]') &&
           ['smartAiExcelUpload', 'smartAiPdfUpload'].includes(target.id)) {
-        // Clear the prior selection without cancelling the browser's native picker.
         target.value = '';
         return;
       }
@@ -11307,8 +11315,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       }
     }, true);
   }
-  if (document.body) bindAnasAiCenterActions();
-  else document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions, { once: true });
 })();
 </script>
 
