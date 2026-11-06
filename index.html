@@ -5779,6 +5779,8 @@ function renderPurchasesTable() {
             filteredSuppliers.forEach(s => {
                 const card = document.createElement('div');
                 card.className = 'menu-action-card';
+                // Stable identity lets add-on actions follow the filtered card, not its array position.
+                card.setAttribute('data-supplier-id', String(s.id ?? ''));
                 card.style.cssText = 'margin-bottom:8px;flex-direction:column;align-items:stretch;gap:6px;';
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;';
