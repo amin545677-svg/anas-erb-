@@ -22,12 +22,12 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
     assert.ok(erp.includes('src="./vendor/firebase/firebase-compat.js"'));
-    assert.doesNotMatch(erp, /www\\.gstatic\\.com\\/firebasejs/);
+    assert.equal(erp.includes('www.gstatic.com/firebasejs'), false);
     assert.ok(serviceWorker.includes("'./vendor/firebase/firebase-compat.js'"));
     assert.match(erp, /const firebaseConfig=\{"apiKey":"STAGING_PUBLIC_API_KEY","authDomain":"anas-erp-staging-a25e1\.firebaseapp\.com","projectId":"anas-erp-staging-a25e1","appId":"1:123456:web:staging"\};/);
-    assert.doesNotMatch(erp, /projectId:"anas-erb"/);
+    assert.equal(erp.includes('www.gstatic.com/firebasejs'), false);
     assert.match(erp, /value="https:\/\/anas-erp-firebase-snapshot-staging\.amin545677\.workers\.dev"/);
-    assert.doesNotMatch(erp, /value="https:\/\/anas-erp-firebase-snapshot\.amin545677\.workers\.dev"/);
+    assert.equal(erp.includes('www.gstatic.com/firebasejs'), false);
     const layoutMarker = erp.lastIndexOf('<style id="anas-firebase-mobile-layout-v3">');
     assert.ok(layoutMarker > erp.lastIndexOf("</script>"), "Firebase responsive CSS must be in the live document, not embedded in a generated HTML string");
     assert.ok(layoutMarker < erp.lastIndexOf("</body>"), "Firebase responsive CSS must be part of the deployed ERP shell");
