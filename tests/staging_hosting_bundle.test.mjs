@@ -20,6 +20,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
+    const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
+    assert.match(erp, /src="\\.\\/vendor\\/firebase\\/firebase-compat\\.js"/);
+    assert.doesNotMatch(erp, /www\\.gstatic\\.com\\/firebasejs/);
+    assert.ok(serviceWorker.includes("'./vendor/firebase/firebase-compat.js'"));
     assert.match(erp, /const firebaseConfig=\{"apiKey":"STAGING_PUBLIC_API_KEY","authDomain":"anas-erp-staging-a25e1\.firebaseapp\.com","projectId":"anas-erp-staging-a25e1","appId":"1:123456:web:staging"\};/);
     assert.doesNotMatch(erp, /projectId:"anas-erb"/);
     assert.match(erp, /value="https:\/\/anas-erp-firebase-snapshot-staging\.amin545677\.workers\.dev"/);
@@ -35,6 +39,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/manifest.webmanifest',
       'erp/storage/android-resilient-storage.js',
       'erp/icons/icon.svg',
+      'erp/vendor/firebase/firebase-compat.js',
       'erp/vendor/tesseract/tesseract.min.js',
       'erp/vendor/tesseract/worker.min.js',
       'erp/vendor/tesseract/core/tesseract-core.wasm.js',
