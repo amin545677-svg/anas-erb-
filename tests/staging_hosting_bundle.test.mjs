@@ -21,7 +21,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
-    assert.match(erp, /src="\\.\\/vendor\\/firebase\\/firebase-compat\\.js"/);
+    assert.ok(erp.includes('src="./vendor/firebase/firebase-compat.js"'));
     assert.doesNotMatch(erp, /www\\.gstatic\\.com\\/firebasejs/);
     assert.ok(serviceWorker.includes("'./vendor/firebase/firebase-compat.js'"));
     assert.match(erp, /const firebaseConfig=\{"apiKey":"STAGING_PUBLIC_API_KEY","authDomain":"anas-erp-staging-a25e1\.firebaseapp\.com","projectId":"anas-erp-staging-a25e1","appId":"1:123456:web:staging"\};/);
