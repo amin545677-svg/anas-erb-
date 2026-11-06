@@ -7470,9 +7470,9 @@ function wtAuditTransfers(){
         }
 
         function anasCsvCell(value) {
-            let s = String(value == null ? '' : value).replace(/\\r?\\n/g, ' ').trim();
+            let s = String(value == null ? '' : value).replace(/\r?\n/g, ' ').trim();
             // Guard spreadsheet formula injection when a CSV is opened in Excel/LibreOffice.
-            if (/^[=+@\\-]/.test(s)) s = "'" + s;
+            if (/^[=+@\-]/.test(s)) s = "'" + s;
             return '"' + s.replace(/"/g, '""') + '"';
         }
 
@@ -7483,21 +7483,21 @@ function wtAuditTransfers(){
             const table = root.querySelector('table');
             // Excel on French/Arabic regional settings commonly expects semicolon separators.
             // The sep directive makes the delimiter explicit when the CSV is opened directly in Excel.
-            let csv = '\\uFEFFsep=;\\r\\n';
+            let csv = '\uFEFFsep=;\r\n';
             if (table) {
                 const trs = Array.from(table.querySelectorAll('tr')).filter(tr => !tr.hidden);
                 if (trs.length < 2) { alert('لا توجد صفوف ظاهرة لتصديرها.'); return; }
-                csv += trs.map(tr => Array.from(tr.querySelectorAll('th,td')).map(cell => anasCsvCell(cell.innerText || cell.textContent)).join(';')).join('\\r\\n');
+                csv += trs.map(tr => Array.from(tr.querySelectorAll('th,td')).map(cell => anasCsvCell(cell.innerText || cell.textContent)).join(';')).join('\r\n');
             } else {
-                const text = (root.innerText || root.textContent || '').trim();
-                if (!text) { alert('التقرير فارغ.'); return; }
-                csv += anasCsvCell('التقرير') + '\\r\\n' + text.split(/\\r?\\n/).filter(Boolean).map(line => anasCsvCell(line)).join('\\r\\n');
+                const reportText = (root.innerText || root.textContent || '').trim();
+                if (!reportText) { alert('التقرير فارغ.'); return; }
+                csv += anasCsvCell('التقرير') + '\r\n' + reportText.split(/\r?\n/).filter(Boolean).map(line => anasCsvCell(line)).join('\r\n');
             }
             const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'ANAS_ERP_' + title.replace(/[^\\p{L}\\p{N}_-]+/gu, '_').slice(0,70) + '.csv';
+            a.download = 'ANAS_ERP_' + title.replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0,70) + '.csv';
             document.body.appendChild(a); a.click(); a.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
