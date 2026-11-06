@@ -5541,7 +5541,7 @@ function renderPurchasesTable() {
             if (err.code === 1) return 'تم رفض إذن الموقع. اسمح للمتصفح باستخدام الموقع من إعدادات الهاتف، أو أدخل الإحداثيات يدويًا.';
             if (err.code === 2) return 'الموقع غير متاح حاليًا. فعّل GPS وتحقق من استقبال الإشارة، أو أدخل الموقع يدويًا.';
             if (err.code === 3) return 'انتهت مهلة تحديد الموقع. حاول في مكان مفتوح أو أدخل الإحداثيات يدويًا.';
-            return 'تعذر تحديد الموقع. تحقق من إذن الموقع وGPS ثم أعد المحاولة.';
+            return 'تعذر بدء تحديد الموقع. تحقق من إذن الموقع وGPS، أو أدخل الإحداثيات يدويًا.';
         }
         function requestGPS(onSuccess) {
             if (!navigator.geolocation) { alert('المتصفح لا يدعم تحديد الموقع. يمكنك إدخال الإحداثيات يدويًا.'); return; }
@@ -5554,11 +5554,17 @@ function renderPurchasesTable() {
                 if (button && button.isConnected) { button.disabled = false; button.textContent = originalLabel; }
             };
             if (button) { button.disabled = true; button.textContent = '⏳ جارٍ تحديد الموقع…'; }
-            navigator.geolocation.getCurrentPosition(
-                position => { restoreButton(); onSuccess(position); },
-                error => { restoreButton(); alert(gpsErrorMessage(error)); },
-                { enableHighAccuracy: false, timeout: 25000, maximumAge: 300000 }
-            );
+            try {
+                navigator.geolocation.getCurrentPosition(
+                    position => { restoreButton(); onSuccess(position); },
+                    error => { restoreButton(); alert(gpsErrorMessage(error)); },
+                    { enableHighAccuracy: false, timeout: 25000, maximumAge: 300000 }
+                );
+            } catch (error) {
+                // Some WebViews throw synchronously (e.g. Permissions Policy); never leave the button locked.
+                restoreButton();
+                alert(gpsErrorMessage(error));
+            }
         }
         function detectCustomerGPS() {
             requestGPS(pos => {
