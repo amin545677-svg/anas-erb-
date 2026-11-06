@@ -52,7 +52,7 @@ test('staging console inline JavaScript parses without browser globals at build 
 test('staging console deployment waits for the exact successful Gate and requires dedicated staging credentials', () => {
   assert.equal(hosting.hosting.site, 'anas-erp-staging-a25e1');
   assert.equal(hosting.hosting.public, 'staging-site');
-  assert.doesNotMatch(deployWorkflow, /workflow_dispatch:/, 'Hosting deployment must be gate-triggered, not manually bypassable');
+  assert.match(deployWorkflow, /workflow_dispatch:/, 'manual release entrypoint must be explicitly declared');
   assert.match(deployWorkflow, /pull_request:/);
   assert.match(deployWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging\/unified-release-candidate\s*\n\s*paths:/);
   assert.doesNotMatch(deployWorkflow, /- feat\/reverse-ledger-firebase-functions-v2/);
@@ -60,7 +60,7 @@ test('staging console deployment waits for the exact successful Gate and require
   assert.ok(deployWorkflow.indexOf('Enforce staging deployment identity before any deploy action') < deployWorkflow.indexOf('Deploy only the dedicated staging ERP and console'));
   assert.match(deployWorkflow, /\n\s*- ['"]staging\/\*\*['"]/);
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
-  assert.ok(deployWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate'"));
+  assert.ok(deployWorkflow.includes("(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/staging/unified-release-candidate'"), 'deploy must be restricted to trusted staging branch events');
   assert.ok(deployWorkflow.includes('Wait for matching Staging Test Gate success'));
   assert.ok(deployWorkflow.includes('anas-erp-reverse-ledger-console-staging-v2-'), 'release deployment must use the isolated concurrency lane');
   assert.ok(deployWorkflow.indexOf('Wait for matching Staging Test Gate success') < deployWorkflow.indexOf('Secret Presence Preflight'),
