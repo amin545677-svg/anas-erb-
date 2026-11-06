@@ -11125,16 +11125,37 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     panel.style.display='block';fab.setAttribute('aria-expanded','true');
     contextText=safeContext(focusedField);where.textContent='السياق: '+contextText;
     if(!question.value)question.focus();
+    updateKeyboardSafeUi();
   }
-  function closePanel(){panel.style.display='none';fab.setAttribute('aria-expanded','false');fab.focus();}
+  function closePanel(){panel.style.display='none';panel.style.maxHeight='';fab.setAttribute('aria-expanded','false');fab.focus();}
+  function updateKeyboardSafeUi(){
+    const active=document.activeElement;
+    const editing=!!(active&&active.matches&&active.matches('input,textarea,select,[contenteditable="true"]'));
+    const editingAssistant=editing&&panel.contains(active);
+    // Hide the floating button while a business form field is active so it cannot cover
+    // the field, submit action, or the Android keyboard's reduced visual viewport.
+    fab.style.visibility=editing&&!editingAssistant?'hidden':'';
+    fab.style.pointerEvents=editing&&!editingAssistant?'none':'';
+    const viewport=window.visualViewport;
+    if(panel.style.display==='block'&&editingAssistant&&viewport){
+      panel.style.maxHeight=Math.max(180,Math.floor(viewport.height-24))+'px';
+    }
+  }
   document.addEventListener('focusin',function(e){
     const el=e.target;
-    if(!el||!el.matches||!el.matches('input,textarea,select,[contenteditable="true"]'))return;
-    if(panel.contains(el))return;
-    focusedField=el;
-    contextText=safeContext(el);
-    where.textContent='السياق: '+contextText;
+    if(el&&el.matches&&el.matches('input,textarea,select,[contenteditable="true"]')&&!panel.contains(el)){
+      focusedField=el;
+      contextText=safeContext(el);
+      where.textContent='السياق: '+contextText;
+    }
+    updateKeyboardSafeUi();
   });
+  document.addEventListener('focusout',function(){setTimeout(updateKeyboardSafeUi,80);});
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',updateKeyboardSafeUi);
+    window.visualViewport.addEventListener('scroll',updateKeyboardSafeUi);
+  }
+  window.addEventListener('resize',updateKeyboardSafeUi);
   fab.addEventListener('click',openPanel);
   close.addEventListener('click',closePanel);
   clear.addEventListener('click',function(){question.value='';answer.textContent='';answer.style.display='none';});
