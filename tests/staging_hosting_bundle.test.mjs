@@ -21,6 +21,32 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
+
+    // Validate the actual built PWA, not just the source manifest: every precached
+    // asset must be present under /erp/ or the service worker install will fail.
+    const coreMatch = serviceWorker.match(/const CORE = \\[(.*?)\\];/s);
+    assert.ok(coreMatch, 'built service worker must declare a core asset list');
+    const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
+    assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
+    for (const asset of coreAssets) {
+      assert.ok(asset.startsWith('./'), 'core asset must remain relative to /erp/: ' + asset);
+      const resolved = path.resolve(outDir, 'erp', asset.slice(2));
+      assert.ok(resolved.startsWith(path.resolve(outDir, 'erp') + path.sep),
+        'core asset must not escape the /erp/ scope: ' + asset);
+      await fs.access(resolved);
+    }
+
+    // Every statically declared local script/link dependency in the generated shell
+    // must also exist in the generated hosting artifact.
+    const localRefs = [...erp.matchAll(/<(?:script|link)\\b[^>]*?\\b(?:src|href)=['"]([^'"]+)['"]/gi)]
+      .map(match => match[1]).filter(value => value.startsWith('./'));
+    assert.ok(localRefs.length > 0, 'built ERP shell must expose local runtime dependencies');
+    for (const reference of localRefs) {
+      const target = new URL(reference, 'https://staging.example/erp/');
+      assert.equal(target.origin, 'https://staging.example');
+      assert.ok(target.pathname.startsWith('/erp/'), 'local dependency must stay within /erp/: ' + reference);
+      await fs.access(path.join(outDir, target.pathname.replace(/^\\/erp\\//, 'erp/')));
+    }
     assert.ok(erp.includes('src="./vendor/firebase/firebase-compat.js"'));
     assert.equal(erp.includes('www.gstatic.com/firebasejs'), false);
     assert.ok(serviceWorker.includes("'./vendor/firebase/firebase-compat.js'"));
