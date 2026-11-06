@@ -11267,18 +11267,21 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       reportActionError(error && error.message ? error.message : String(error));
     }
   }
-  // Register document-level delegation immediately as this script loads.
-  // This works for AI Center cards inserted later by the dynamic view renderer.
-  if (document.documentElement.dataset.anasAiActionsBound !== '1') {
-    document.documentElement.dataset.anasAiActionsBound = '1';
-    document.addEventListener('click', function (event) {
+  // Delegate from the persistent body so dynamically rendered AI Center controls work.
+  // Bind immediately when body exists; otherwise bind once DOM readiness creates it.
+  function bindAnasAiCenterActions() {
+    const body = document.body;
+    if (!body || body.dataset.anasAiActionsBound === '1') return;
+    body.dataset.anasAiActionsBound = '1';
+
+    body.addEventListener('click', function (event) {
       const origin = event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
       const target = origin && typeof origin.closest === 'function'
         ? origin.closest('[data-anas-ai-action], label[for="smartAiExcelUpload"], label[for="smartAiPdfUpload"], input[type="file"]') : null;
       if (!target) return;
 
       if (target.matches('label[for="smartAiExcelUpload"], label[for="smartAiPdfUpload"]')) {
-        // Reset the matching file input before the browser performs native label activation.
+        // Reset before the browser performs native label activation.
         // Do not preventDefault or synthesize input.click(): the label owns the file chooser.
         const associatedInput = document.getElementById(target.htmlFor);
         if (associatedInput && associatedInput.type === 'file' && associatedInput.isConnected && !associatedInput.disabled) {
@@ -11301,7 +11304,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       runAction(action, target);
     }, true);
 
-    document.addEventListener('change', function (event) {
+    body.addEventListener('change', function (event) {
       const input = event.target;
       if (!input || !['smartAiExcelUpload', 'smartAiPdfUpload'].includes(input.id)) return;
       try {
@@ -11314,6 +11317,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         reportActionError(error && error.message ? error.message : String(error));
       }
     }, true);
+  }
+
+  if (document.body) {
+    bindAnasAiCenterActions();
+  } else {
+    document.addEventListener('DOMContentLoaded', bindAnasAiCenterActions, { once: true });
   }
 })();
 </script>
