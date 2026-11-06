@@ -200,6 +200,20 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     await page.locator('#anasContextAiClose').click();
     assert.equal(await fabButton.getAttribute('aria-expanded'), 'false',
       'floating AI assistant must close without a blocked click');
+
+    const keyboardSafety = await page.evaluate(() => {
+      const field = document.createElement('input');
+      field.type = 'text';
+      field.setAttribute('aria-label', 'temporary mobile form field');
+      document.body.appendChild(field);
+      field.focus();
+      const hiddenWhileEditing = getComputedStyle(document.getElementById('anasContextAiFab')).visibility === 'hidden';
+      field.blur();
+      field.remove();
+      return { hiddenWhileEditing };
+    });
+    assert.equal(keyboardSafety.hiddenWhileEditing, true,
+      'floating AI button must hide while a form field is active to protect mobile form controls');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
