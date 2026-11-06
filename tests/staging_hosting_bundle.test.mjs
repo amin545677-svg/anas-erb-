@@ -31,7 +31,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     for (const asset of coreAssets) {
       assert.ok(asset.startsWith('./'), 'core asset must remain relative to /erp/: ' + asset);
       const resolved = path.resolve(outDir, 'erp', asset.slice(2));
-      assert.ok(resolved.startsWith(path.resolve(outDir, 'erp') + path.sep),
+      const erpRoot = path.resolve(outDir, 'erp');
+      assert.ok(resolved === erpRoot || resolved.startsWith(erpRoot + path.sep),
         'core asset must not escape the /erp/ scope: ' + asset);
       await fs.access(resolved);
     }
