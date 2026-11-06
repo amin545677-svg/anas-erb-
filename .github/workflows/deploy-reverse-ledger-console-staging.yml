@@ -155,8 +155,6 @@ jobs:
           FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
         run: node --check scripts/resolve-staging-web-api-key.mjs && node scripts/resolve-staging-web-api-key.mjs
       - name: Require sanitized Firebase Web API key for Hosting build
-        env:
-          FIREBASE_STAGING_WEB_API_KEY: ${{ env.FIREBASE_STAGING_WEB_API_KEY }}
         run: |
           node --input-type=module -e '
             const key = process.env.FIREBASE_STAGING_WEB_API_KEY || "";
