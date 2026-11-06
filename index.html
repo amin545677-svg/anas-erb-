@@ -8624,7 +8624,8 @@ function wtAuditTransfers(){
                         <button class="btn-full-submit" style="background:#0284c7; margin:0; flex:1;" data-anas-ai-action="import">📂 استيراد Excel/CSV بأمان</button>
                     </div>
                     <button type="button" class="btn-full-submit" style="background:#9333ea; margin-top:10px; width:100%;" data-anas-ai-action="ocr">📷 مسح الفواتير بالذكاء الاصطناعي</button>
-                    <input type="file" id="smartAiExcelUpload" accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" >
+                    <input type="file" id="smartAiExcelUpload" accept=".xlsx,.xls,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" >
+                    <input type="file" id="smartAiPdfUpload" accept=".pdf,application/pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" >
                     <div id="smartAiExcelStatus" role="status" aria-live="polite" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
                     <section id="anasAiDataProtectionPanel" hidden aria-live="polite" style="margin-top:10px;padding:12px;border:1px solid #a7f3d0;border-radius:10px;background:#f0fdf4;color:#14532d;line-height:1.7">
                       <strong>حالة حماية البيانات على هذا الجهاز</strong>
@@ -11218,11 +11219,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         if (typeof window.triggerAiGeneration !== 'function') throw new Error('مولّد القوالب غير متاح؛ أعد تحميل التطبيق.');
         result = window.triggerAiGeneration(typeof activeAiTab !== 'undefined' ? activeAiTab : 'products');
       } else if (action === 'import' || action === 'excel' || action === 'pdf') {
-        const input = document.getElementById('smartAiExcelUpload');
-        if (!input) throw new Error('حقل اختيار الملفات غير موجود.');
-        input.accept = action === 'pdf'
-          ? '.pdf,application/pdf'
-          : '.csv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
+        // Dedicated persistent DOM inputs prevent cross-format selection state.
+        const inputId = action === 'pdf' ? 'smartAiPdfUpload' : 'smartAiExcelUpload';
+        const input = document.getElementById(inputId);
+        if (!input || input.type !== 'file' || input.disabled || !input.isConnected) {
+          throw new Error('حقل اختيار الملفات غير موجود أو غير جاهز.');
+        }
+        // Keep both operations synchronous inside the trusted click event.
+        input.value = '';
         input.click();
       } else if (action === 'security') {
         const panel = document.getElementById('anasAiDataProtectionPanel');
@@ -11282,7 +11286,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
     body.addEventListener('change', function (event) {
       const input = event.target;
-      if (!input || input.id !== 'smartAiExcelUpload') return;
+      if (!input || !['smartAiExcelUpload', 'smartAiPdfUpload'].includes(input.id)) return;
       try {
         if (typeof window.handleSmartAiUpload !== 'function') throw new Error('معالج الملفات المحلية غير متاح.');
         const result = window.handleSmartAiUpload(event);

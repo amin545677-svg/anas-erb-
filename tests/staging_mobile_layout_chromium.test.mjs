@@ -228,8 +228,19 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await pdf.waitFor({ state: 'visible' });
     await security.waitFor({ state: 'visible' });
 
+    const inputState = await page.evaluate(() => {
+      const excelInput = document.getElementById('smartAiExcelUpload');
+      const pdfInput = document.getElementById('smartAiPdfUpload');
+      return {
+        excel: !!excelInput && excelInput.isConnected && excelInput.type === 'file' && !excelInput.disabled && excelInput.accept.includes('.xlsx') && excelInput.accept.includes('.csv'),
+        pdf: !!pdfInput && pdfInput.isConnected && pdfInput.type === 'file' && !pdfInput.disabled && pdfInput.accept.includes('.pdf')
+      };
+    });
+    assert.deepEqual(inputState, { excel: true, pdf: true },
+      'both dedicated file inputs must exist in the live DOM and remain enabled');
+
     const excelChooserPromise = page.waitForEvent('filechooser');
-    await excel.click();
+    await excel.locator('b').click();
     const excelChooser = await excelChooserPromise;
     assert.match(await excelChooser.element().getAttribute('accept'), /\.xlsx/);
     await excelChooser.setFiles({
@@ -243,8 +254,10 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       'Excel/CSV click must produce a local import preview');
 
     const pdfChooserPromise = page.waitForEvent('filechooser');
-    await pdf.click();
+    await pdf.locator('span').click();
     const pdfChooser = await pdfChooserPromise;
+    assert.equal(pdfChooser.element().id, 'smartAiPdfUpload',
+      'PDF card must open its dedicated DOM file input');
     assert.match(await pdfChooser.element().getAttribute('accept'), /\.pdf/);
 
     await security.click();
