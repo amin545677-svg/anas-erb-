@@ -215,6 +215,8 @@ jobs:
           node --check staging-site/reverse-ledger-gateway.js
           test -f staging-site/erp/index.html
           test -f staging-site/erp/sw.js
+          test -f staging-site/erp/vendor/firebase/firebase-compat.js
+          ! grep -q 'www.gstatic.com/firebasejs' staging-site/erp/index.html
           test -f staging-site/erp/vendor/xlsx/xlsx.full.min.js
           test -f staging-site/erp/vendor/pdfjs/pdf.min.js
           test -f staging-site/erp/vendor/pdfjs/pdf.worker.min.js
