@@ -6,6 +6,7 @@ const CORE = [
   './reverse-ledger/reverse-ledger-modal.js',
   './reverse-ledger/settlement-allocation-modal.js',
   './storage/android-resilient-storage.js',
+  './vendor/firebase/firebase-compat.js',
   './vendor/xlsx/xlsx.full.min.js',
   './vendor/pdfjs/pdf.min.js',
   './vendor/pdfjs/pdf.worker.min.js',
