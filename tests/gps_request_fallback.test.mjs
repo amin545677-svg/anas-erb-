@@ -18,3 +18,30 @@ test('GPS request provides visible progress, a longer timeout and manual-entry e
   assert.match(gps, /catch\\s*\\(error\\)\\s*\\{\\s*restoreButton\\(\\);\\s*alert\\(gpsErrorMessage\\(error\\)\\);/);
   assert.ok(gps.includes('أو أدخل الإحداثيات يدويًا'), 'synchronous failures must expose manual coordinate entry');
 });
+
+test('GPS button is restored when Android WebView throws synchronously', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const start = html.indexOf('function gpsErrorMessage(err)');
+  const end = html.indexOf('function detectCustomerGPS()', start);
+  assert.ok(start >= 0 && end > start, 'GPS helper must exist');
+  const gps = html.slice(start, end);
+  const button = { tagName: 'BUTTON', textContent: 'تحديد الموقع', disabled: false, isConnected: true };
+  const alerts = [];
+  const context = {
+    window: { isSecureContext: true },
+    location: { protocol: 'https:' },
+    document: { activeElement: button },
+    navigator: {
+      geolocation: {
+        getCurrentPosition() { throw new Error('Permissions Policy blocked geolocation'); }
+      }
+    },
+    alert(message) { alerts.push(message); }
+  };
+  const vm = await import('node:vm');
+  vm.runInNewContext(gps + '\\nrequestGPS(() => {});', context);
+  assert.equal(button.disabled, false, 'button must be re-enabled after synchronous failure');
+  assert.equal(button.textContent, 'تحديد الموقع', 'original button label must be restored');
+  assert.equal(alerts.length, 1, 'user must receive one actionable error');
+  assert.match(alerts[0], /أدخل الإحداثيات يدويًا/);
+});
