@@ -10024,16 +10024,48 @@ function wtAuditTransfers(){
             modal.style.display='flex';
         }
         function closeInvoiceOcr(){const m=document.getElementById('invoiceOcrModal');if(m)m.style.display='none';}
+        let anasInvoiceOcrWorkerPromise=null;
+        async function anasLoadLocalOcrRuntime(){
+            if(window.Tesseract?.createWorker)return window.Tesseract;
+            if(!window.anasTesseractLoadPromise){
+                window.anasTesseractLoadPromise=new Promise((resolve,reject)=>{
+                    const script=document.createElement('script');
+                    script.src=new URL('./vendor/tesseract/tesseract.min.js',document.baseURI).href;
+                    script.onload=()=>window.Tesseract?.createWorker?resolve(window.Tesseract):reject(new Error('حزمة OCR المحلية غير مكتملة.'));
+                    script.onerror=()=>reject(new Error('تعذر تحميل محرك OCR المحلي. حدّث التطبيق لمزامنة ملفات OCR.'));
+                    document.head.appendChild(script);
+                });
+            }
+            return window.anasTesseractLoadPromise;
+        }
+        async function anasGetInvoiceOcrWorker(status){
+            if(!anasInvoiceOcrWorkerPromise){
+                anasInvoiceOcrWorkerPromise=(async()=>{
+                    const Tesseract=await anasLoadLocalOcrRuntime(),base=new URL('./vendor/tesseract/',document.baseURI);
+                    return Tesseract.createWorker('ara+eng+fra',1,{
+                        workerPath:new URL('worker.min.js',base).href,
+                        langPath:new URL('lang/',base).href,
+                        corePath:new URL('core/',base).href,
+                        logger:m=>{if(status&&m.status)status.textContent='حالة القراءة: '+m.status+(m.progress!=null?' '+Math.round(m.progress*100)+'%':'');}
+                    });
+                })().catch(error=>{anasInvoiceOcrWorkerPromise=null;throw error;});
+            }
+            return anasInvoiceOcrWorkerPromise;
+        }
         async function runInvoiceOcr(){
-            const modal=document.getElementById('invoiceOcrModal'), input=modal?.querySelector('#invoiceOcrFile'), cameraInput=modal?.querySelector('#invoiceOcrCamera'), file=(cameraInput?.files?.[0] || input?.files?.[0]);
-            const status=modal?.querySelector('#invoiceOcrStatus'), out=modal?.querySelector('#invoiceOcrText'), btn=modal?.querySelector('#invoiceOcrStartBtn');
+            const modal=document.getElementById('invoiceOcrModal'),input=modal?.querySelector('#invoiceOcrFile'),cameraInput=modal?.querySelector('#invoiceOcrCamera'),file=(cameraInput?.files?.[0]||input?.files?.[0]);
+            const status=modal?.querySelector('#invoiceOcrStatus'),out=modal?.querySelector('#invoiceOcrText'),btn=modal?.querySelector('#invoiceOcrStartBtn');
             if(!file){alert('اختر صورة الفاتورة أولاً.');return;}
-            if(!window.Tesseract){status.textContent='جارٍ تحميل محرك قراءة الصور…';try{await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.crossOrigin='anonymous';sc.referrerPolicy='no-referrer';sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';sc.onload=resolve;sc.onerror=()=>reject(new Error('تعذر تحميل المحرك. تحقق من الإنترنت ثم أعد المحاولة.'));document.head.appendChild(sc);});}catch(e){status.textContent=e.message;return;}}
-            btn.disabled=true;btn.textContent='جارٍ القراءة…';out.value='';
+            if(!/^image\\//i.test(file.type)||file.size>15*1024*1024){status.textContent='اختر صورة صالحة لا يتجاوز حجمها 15 ميغابايت.';return;}
+            btn.disabled=true;btn.textContent='جارٍ تهيئة محرك OCR المحلي…';out.value='';
             try{
-                const result=await window.Tesseract.recognize(file,'ara+eng+fra',{logger:m=>{if(m.status)status.textContent='حالة القراءة: '+m.status+(m.progress!=null?' '+Math.round(m.progress*100)+'%':'');}});
-                out.value=(result.data&&result.data.text||'').trim();status.textContent=out.value?'انتهت القراءة. راجع الأسماء والأرقام يدويًا لأن دقة OCR ليست مضمونة.':'لم يتم التعرف على نص واضح؛ جرّب صورة أوضح وإضاءة أفضل.';
-            }catch(e){status.textContent='تعذر استخراج النص: '+(e.message||e);}finally{btn.disabled=false;btn.textContent='استخراج النص من الصورة';}
+                const worker=await anasGetInvoiceOcrWorker(status);
+                btn.textContent='جارٍ قراءة الصورة…';
+                const result=await worker.recognize(file);
+                out.value=(result.data?.text||'').trim();
+                status.textContent=out.value?'انتهت القراءة محلياً. راجع الأسماء والأرقام يدوياً لأن دقة OCR ليست مضمونة.':'لم يتم التعرف على نص واضح؛ جرّب صورة أوضح وإضاءة أفضل.';
+            }catch(e){status.textContent='تعذر استخراج النص محلياً: '+(e.message||e);}
+            finally{btn.disabled=false;btn.textContent='استخراج النص من الصورة';}
         }
         async function copyInvoiceOcrText(){const el=document.getElementById('invoiceOcrText');if(!el||!el.value.trim()){alert('لا يوجد نص لنسخه.');return;}try{await navigator.clipboard.writeText(el.value);alert('تم نسخ النص.');}catch(e){el.focus();el.select();try{document.execCommand('copy');alert('تم نسخ النص.');}catch(_){alert('حدد النص وانسخه يدويًا.');}}}
         function saveScannedInvoiceDraft(){
