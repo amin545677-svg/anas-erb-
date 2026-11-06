@@ -259,6 +259,9 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
  const rootDir = process.cwd();
  const server = createServer((req, res) => {
   const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
+  // Chromium may probe the conventional favicon path even when the app uses a web manifest icon.
+  // Return an explicit empty response instead of logging a misleading source-tree 404.
+  if (pathname === '/favicon.ico') { res.writeHead(204); res.end(); return; }
   // The production shell references locally bundled parsers. In this source-tree browser
   // harness, serve the exact pinned npm package files at the same URLs used by /erp/.
   const localVendorAssets = {
