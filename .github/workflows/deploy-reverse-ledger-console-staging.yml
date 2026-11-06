@@ -26,6 +26,7 @@ on:
       - '.github/workflows/staging-test-gate.yml'
       - '.github/workflows/anas-erp-safety-checks.yml'
       - 'tests/**'
+  workflow_dispatch:
   push:
     branches:
       - staging/unified-release-candidate
@@ -80,7 +81,7 @@ jobs:
 
   # Deploy only after the Staging Test Gate has passed; manual dispatch is the release switch.
   deploy-staging-console:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/staging/unified-release-candidate' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/staging/unified-release-candidate' }}
     permissions:
       contents: read
       actions: read
