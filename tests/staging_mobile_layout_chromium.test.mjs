@@ -218,12 +218,19 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await page.waitForFunction(() => document.body && !document.body.inert, { timeout: 15000 });
     await page.evaluate(() => {
       if (typeof window.openView !== 'function') throw new Error('openView is unavailable');
+      if (document.body.inert) throw new Error('ERP shell is still inert before opening the AI Center');
       window.openView('ai-excel-hub', true);
     });
 
-    const excel = page.locator('[data-anas-ai-action="excel"]');
-    const pdf = page.locator('[data-anas-ai-action="pdf"]');
+    const hub = page.locator('#view-ai-excel-hub');
+    const excel = page.locator('label[data-anas-ai-action="excel"]');
+    const pdf = page.locator('label[data-anas-ai-action="pdf"]');
     const security = page.locator('[data-anas-ai-action="security"]');
+    await hub.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const view = document.getElementById('view-ai-excel-hub');
+      return !!view && view.classList.contains('active') && getComputedStyle(view).display !== 'none' && !document.body.inert;
+    });
     await excel.waitFor({ state: 'visible' });
     await pdf.waitFor({ state: 'visible' });
     await security.waitFor({ state: 'visible' });
@@ -239,9 +246,19 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.deepEqual(inputState, { excel: true, pdf: true },
       'both dedicated file inputs must exist in the live DOM and remain enabled');
 
+    // Exercise PDF first: the Excel import preview is a modal and must not obscure sibling cards.
+    const pdfChooserPromise = page.waitForEvent('filechooser');
+    await pdf.locator('span').click();
+    const pdfChooser = await pdfChooserPromise;
+    assert.equal(pdfChooser.element().id, 'smartAiPdfUpload',
+      'PDF label must natively open its associated DOM file input');
+    assert.match(await pdfChooser.element().getAttribute('accept'), /\.pdf/);
+
     const excelChooserPromise = page.waitForEvent('filechooser');
     await excel.locator('b').click();
     const excelChooser = await excelChooserPromise;
+    assert.equal(excelChooser.element().id, 'smartAiExcelUpload',
+      'Excel/CSV label must natively open its associated DOM file input');
     assert.match(await excelChooser.element().getAttribute('accept'), /\.xlsx/);
     await excelChooser.setFiles({
       name: 'mobile-preview.csv',
@@ -252,13 +269,6 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
-
-    const pdfChooserPromise = page.waitForEvent('filechooser');
-    await pdf.locator('span').click();
-    const pdfChooser = await pdfChooserPromise;
-    assert.equal(pdfChooser.element().id, 'smartAiPdfUpload',
-      'PDF card must open its dedicated DOM file input');
-    assert.match(await pdfChooser.element().getAttribute('accept'), /\.pdf/);
 
     await security.click();
     const panel = page.locator('#anasAiDataProtectionPanel');
