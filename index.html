@@ -11508,7 +11508,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       'عنوان التطبيق ليس HTTPS. استخدم رابط HTTPS منشورًا قبل اختبار تسجيل Google أو الاتصال السحابي.';
   }
   const firebaseConfig={apiKey:"AIzaSyAAddW_X2CG_V9C661jO3gyc5E1Afqj34Q",authDomain:"anas-erb.firebaseapp.com",projectId:"anas-erb",storageBucket:"anas-erb.firebasestorage.app",messagingSenderId:"859983503318",appId:"1:859983503318:web:152390b27f97cb27dd8e77",measurementId:"G-926GGNRVN4"};
-  let auth=null,user=null,anonymousSignInPromise=null;
+  let auth=null,user=null,anonymousSignInPromise=null,firebasePersistenceReady=Promise.resolve();
   const status=(msg,ok=false)=>{const e=document.getElementById('anasFirebaseAuthStatus');if(e){e.textContent=msg;e.style.color=ok?'#15803d':'var(--mp-text-muted)';}};
   const urlInput=()=>document.getElementById('anasWorkerUrl');
   try{
@@ -11538,6 +11538,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       // currentUser can be null briefly while Firebase restores LOCAL persistence.
       window.anasGetFirebaseIdToken=async function(timeoutMs=8000){
         if(!auth) throw new Error('Firebase Auth غير مهيأ؛ تحقق من تحميل مكتبات Firebase.');
+        // Do not race anonymous sign-in against Firebase's LOCAL persistence initialization.
+        await firebasePersistenceReady;
         let resolvedUser=await new Promise((resolve,reject)=>{
           let settled=false,unsubscribe=()=>{},timer=null;
           const finish=(fn,value)=>{if(settled)return;settled=true;if(timer)clearTimeout(timer);try{unsubscribe();}catch(_){}fn(value);};
@@ -11589,7 +11591,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           status('تعذر استعادة حالة جلسة Firebase: '+(e.message||e));
         });
       };
-      auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
+      firebasePersistenceReady=auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
         .then(observeFirebaseAuth)
         .catch(e=>{
           console.warn('Firebase LOCAL persistence could not be initialized:',e);
