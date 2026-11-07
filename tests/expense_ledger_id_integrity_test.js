@@ -33,6 +33,7 @@ async function runExpense({ expenses = [], math = Math, saveResult = true, amoun
     alert: message => alerts.push(String(message)),
     confirm: message => { alerts.push('CONFIRM: ' + String(message)); return confirmResult; },
     prompt: () => openingInput,
+    saveDB: () => true,
     saveDBDurably: async () => {
       saves++;
       if (!saveResult) throw new Error('simulated IndexedDB write failure');
