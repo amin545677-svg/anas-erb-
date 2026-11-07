@@ -170,18 +170,18 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '37.50 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5);
     await commitNumberEditor(quantitySelector, '0');
-    assert.equal(await page.evaluate(() => posCart[0].qty), 1,
-      'zero quantity must be rejected and the previous quantity restored');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
+      'zero quantity must be rejected and the last valid fractional quantity restored');
     await commitNumberEditor(quantitySelector, '11');
-    assert.equal(await page.evaluate(() => posCart[0].qty), 1,
-      'quantity above available stock must be rejected');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
+      'quantity above available stock must be rejected without changing the last valid quantity');
     await page.evaluate(() => {
       posCart.push({ ...posCart[0], qty: 9 });
       renderPosTable();
     });
     await commitNumberEditor(quantitySelector, '2');
-    assert.equal(await page.evaluate(() => posCart[0].qty), 1,
-      'quantity editing must include legacy duplicate rows for the same product');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
+      'quantity editing must include legacy duplicate rows for the same product and preserve the last valid quantity');
     await page.evaluate(() => { posCart.splice(1, 1); renderPosTable(); });
     await commitNumberEditor(priceSelector, '30.00');
     await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '30.00 د.ج');
