@@ -299,9 +299,56 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(runtimeParity.cartLines, 0, 'committed cart must remain cleared after reload');
     assert.equal(runtimeParity.modalOpen, false, 'payment modal must remain closed after reload');
 
+    // Purchase search uses the same name/barcode workflow as POS and previews the invoice total live.
+    await page.evaluate(() => openView('purchases'));
+    await page.locator('#purProductName').fill('STGPOSLIFE001');
+    await page.locator('#purProductSearchResults .pos-search-result').first().waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#purProductSearchResults .pos-search-result').first().click();
+    await page.locator('#purBuyQty').fill('2');
+    await page.waitForFunction(() => Number(document.getElementById('purDraftTotalDisplay')?.dataset.totalCentimes) === 2000,
+      null, { timeout: 5000 });
+    const purchaseSearchProof = await page.evaluate(() => ({
+      selectedId: document.getElementById('purProductId')?.value,
+      selectedName: document.getElementById('purProductName')?.value,
+      unitCost: Number(document.getElementById('purBuyCost')?.value),
+      quantity: Number(document.getElementById('purBuyQty')?.value),
+      totalCentimes: Number(document.getElementById('purDraftTotalDisplay')?.dataset.totalCentimes)
+    }));
+    assert.deepEqual(purchaseSearchProof, {
+      selectedId: PRODUCT_ID, selectedName: PRODUCT_NAME, unitCost: 10, quantity: 2, totalCentimes: 2000
+    }, 'barcode selection must bind the exact product and refresh the draft invoice total immediately');
+
+    // Quick-add an absent product from the purchase search field without seeding stock.
+    await page.locator('#purProductName').fill('صنف شراء سريع تجريبي');
+    await page.locator('#purProductSearchResults .pos-search-quick-add').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#purProductSearchResults .pos-search-quick-add').click();
+    await page.locator('#addProductModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#newProdNameInput').inputValue(), 'صنف شراء سريع تجريبي');
+    assert.equal(await page.locator('#newProdStockInput').inputValue(), '0');
+    const beforeQuickAddRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#addProductModal button[onclick="saveNewProductFromModal()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage && storage.getCommittedSnapshot();
+      return storage && storage.status().revision > beforeRevision && snapshot &&
+        snapshot.products.some(row => row && row.name === 'صنف شراء سريع تجريبي') &&
+        document.getElementById('purProductId')?.value;
+    }, beforeQuickAddRevision, { timeout: 15000 });
+    const quickAddProof = await page.evaluate(() => {
+      const snapshot = ANASResilientStorage.getCommittedSnapshot();
+      const product = snapshot.products.find(row => row && row.name === 'صنف شراء سريع تجريبي');
+      return { productId: product && String(product.id), productStock: product && product.stock,
+        selectedId: document.getElementById('purProductId')?.value,
+        selectedName: document.getElementById('purProductName')?.value };
+    });
+    assert.ok(quickAddProof.productId);
+    assert.equal(quickAddProof.productStock, 0);
+    assert.equal(quickAddProof.selectedId, quickAddProof.productId);
+    assert.equal(quickAddProof.selectedName, 'صنف شراء سريع تجريبي');
+
     console.log('POS_FULL_LIFECYCLE_CHROMIUM_REPORT ' + JSON.stringify({
       checkout: 'PASS', durableCommit: 'PASS', invoiceCashStockParity: 'PASS',
-      reloadHydration: 'PASS', noDuplicatePosting: 'PASS', invoiceId,
+      reloadHydration: 'PASS', noDuplicatePosting: 'PASS', purchaseBarcodeSearch: 'PASS', purchaseQuickAdd: 'PASS', invoiceId,
       revisionBeforePayment, revisionAfterPayment: afterReload.revision, storageMode: afterReload.mode
     }));
   } finally {
