@@ -9766,7 +9766,14 @@ function wtAuditTransfers(){
                             if(matches.length>1) throw new Error('تطابق متعدد للكود أو الباركود؛ أُلغي الاستيراد دون تعديل.');
                             if(matches.length===1){
                                 const existingProduct=matches[0];
-                                Object.assign(existingProduct,item,{id:existingProduct.id});
+                                const liveStock=existingProduct.stock;
+                                const liveBuyPrice=existingProduct.buyPrice;
+                                const {stock:importedStock,buyPrice:importedBuyPrice,...catalogFields}=item;
+                                Object.assign(existingProduct,catalogFields,{id:existingProduct.id});
+                                // Existing posted stock and its cost basis are ledger-owned, not catalog-import fields.
+                                if(liveStock!==undefined&&liveStock!==null) existingProduct.stock=liveStock;
+                                if(Number(liveStock)>0&&liveBuyPrice!==undefined&&liveBuyPrice!==null) existingProduct.buyPrice=liveBuyPrice;
+                                else if(importedBuyPrice!==undefined) existingProduct.buyPrice=importedBuyPrice;
                                 updated++;
                             }else{next.push(item);added++;}
                         }
@@ -9778,7 +9785,9 @@ function wtAuditTransfers(){
                 }catch(err){
                     const restored=JSON.parse(before);
                     if(target==='products')AppData.products=restored;else if(target==='customers')AppData.customers=restored;else AppData.suppliers=restored;
-                    validation.textContent='❌ فشل الحفظ، أُلغيت الإضافة في الذاكرة. لم يُعلن نجاح الاستيراد. السبب: '+(err.message||err);
+                    let rollbackNote='';
+                    try{await saveDBDurably();}catch(rollbackError){rollbackNote=' تعذر أيضاً تأكيد إعادة حفظ الحالة السابقة؛ احتفظ بالنسخة الاحتياطية المحلية ولا تكرر الاستيراد قبل فحص التخزين.';console.error('ANAS import rollback persistence failed:',rollbackError);}
+                    validation.textContent='❌ فشل الحفظ، أُعيدت بيانات القسم إلى الحالة السابقة. السبب: '+(err.message||err)+rollbackNote;
                     return;
                 }
                 // Once persistence succeeds, a rendering error must not roll memory back while storage still contains the imported rows.
@@ -9791,8 +9800,11 @@ function wtAuditTransfers(){
                     console.error('ANAS ERP import saved; UI refresh failed:',err);
                     refreshWarning=' تم حفظ البيانات، لكن تعذّر تحديث إحدى الواجهات. أعد تحميل التطبيق للتحقق من العرض.';
                 }
+                const importSummary='اكتمل الاستيراد المحلي: '+(target==='products'?(added+' إضافة، '+updated+' تحديث'):added+' إضافة')+' إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning;
+                const importStatus=document.getElementById('smartAiExcelStatus');
+                if(importStatus) importStatus.textContent='✅ '+importSummary;
+                console.info('ANAS ERP local import:',importSummary);
                 box.remove();
-                alert('نجح الاستيراد: '+(target==='products'?(added+' إضافة، '+updated+' تحديث'):added+' إضافة')+' إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning);
             };
         }
         function clearAllSalesInvoices() {
