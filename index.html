@@ -9492,9 +9492,10 @@ function wtAuditTransfers(){
                         <textarea id="smartPdfExtractText" rows="8" readonly aria-label="النص المستخرج من ملف PDF" style="width:100%;box-sizing:border-box;font:inherit;padding:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
                             <button type="button" class="btn-full-submit" style="background:#475569;flex:1;margin:0" onclick="anasDownloadPdfText()">⬇️ تنزيل النص المستخرج</button>
+                            <button type="button" id="smartPdfOcrButton" class="btn-full-submit" style="background:#0f766e;flex:1;margin:0" onclick="anasOcrScannedPdfPages()">📷 OCR للصفحات المصوّرة</button>
                             <button type="button" class="btn-full-submit" style="background:#6d28d9;flex:1;margin:0" onclick="anasAskAiAboutPdf()">✨ تحليل النص بالذكاء الاصطناعي</button>
                         </div>
-                        <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">لن يُرسل النص إلى الخادم إلا عند الضغط على «تحليل النص بالذكاء الاصطناعي». ملفات PDF المصوّرة التي لا تحتوي على نص قابل للاستخراج تحتاج OCR.</small>
+                        <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">استخراج النص وOCR يعملان محلياً على الجهاز. استخدم «OCR للصفحات المصوّرة» إذا كان المستند صوراً أو كان النص المستخرج فارغاً. لن يُرسل النص إلى الخادم إلا عند طلب التحليل بالذكاء الاصطناعي.</small>
                     </div>
                 </div>
 
@@ -10211,6 +10212,7 @@ function wtAuditTransfers(){
                 const maxImportBytes=20*1024*1024;
                 if(file.size>maxImportBytes) throw new Error('حجم الملف يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
                 if(isPdfUpload){
+                    window.anasCurrentPdfFile=file;
                     const extracted=await anasExtractPdfText(file);
                     const box=document.getElementById('smartPdfExtractResults');
                     const textBox=document.getElementById('smartPdfExtractText');
@@ -10293,6 +10295,46 @@ function wtAuditTransfers(){
             if(pageCount>maxPages) text+='\\n\\n[تنبيه: تم استخراج أول '+maxPages+' صفحة فقط من أصل '+pageCount+'.]';
             return {text,pages:pageCount};
         }
+        async function anasOcrScannedPdfPages(){
+            const file=window.anasCurrentPdfFile,status=document.getElementById('smartAiExcelStatus');
+            const output=document.getElementById('smartPdfExtractText'),button=document.getElementById('smartPdfOcrButton');
+            if(!file){if(status)status.textContent='❌ أعد اختيار ملف PDF أولاً ثم شغّل OCR.';return;}
+            if(file.size>20*1024*1024){if(status)status.textContent='❌ حجم PDF يتجاوز 20 ميغابايت.';return;}
+            if(!window.pdfjsLib?.getDocument){if(status)status.textContent='❌ محرك PDF المحلي غير متاح.';return;}
+            if(button){button.disabled=true;button.textContent='⏳ جارٍ تجهيز OCR…';}
+            let pdf=null;const recognized=[];
+            try{
+                const bytes=await file.arrayBuffer();
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdfjs/pdf.worker.min.js',document.baseURI).href;
+                pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+                const maxPages=Math.min(pdf.numPages,20);
+                if(pdf.numPages>maxPages&&status)status.textContent='⚠️ سيتم فحص أول '+maxPages+' صفحة فقط من أصل '+pdf.numPages+' صفحة لحماية ذاكرة الهاتف.';
+                const worker=await anasGetInvoiceOcrWorker(status);
+                for(let pageNo=1;pageNo<=maxPages;pageNo++){
+                    if(status)status.textContent='📷 OCR محلي: الصفحة '+pageNo+' من '+maxPages+'…';
+                    if(button)button.textContent='📷 قراءة الصفحة '+pageNo+'/'+maxPages;
+                    const page=await pdf.getPage(pageNo),base=page.getViewport({scale:1});
+                    const scale=Math.min(1.6,1800/Math.max(base.width,base.height));
+                    const viewport=page.getViewport({scale:Math.max(.75,scale)});
+                    const canvas=document.createElement('canvas');
+                    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+                    const context=canvas.getContext('2d',{alpha:false});
+                    if(!context)throw new Error('تعذر إنشاء مساحة معالجة الصفحة على هذا الجهاز.');
+                    await page.render({canvasContext:context,viewport}).promise;
+                    const result=await worker.recognize(canvas),text=String(result.data?.text||'').trim();
+                    if(text)recognized.push('--- الصفحة '+pageNo+' (OCR) ---\n'+text);
+                    canvas.width=0;canvas.height=0;if(page.cleanup)page.cleanup();
+                }
+                const ocrText=recognized.join('\n\n'),previous=(output?.value||'').trim();
+                if(!ocrText){if(status)status.textContent='⚠️ لم يتعرف OCR على نص في الصفحات المحددة. جرّب صوراً أوضح.';return;}
+                if(output){output.value=[previous,ocrText].filter(Boolean).join('\n\n');output.readOnly=false;}
+                const meta=document.getElementById('smartPdfExtractMeta');
+                if(meta)meta.textContent+=' — OCR: '+recognized.length+' صفحة';
+                if(status)status.textContent='✅ اكتمل OCR محلياً لـ '+recognized.length+' صفحة. راجع الأرقام والأسماء يدوياً قبل استخدام النتائج.';
+            }catch(error){if(status)status.textContent='❌ تعذر OCR لصفحات PDF: '+(error.message||error);}
+            finally{if(pdf&&pdf.destroy)try{await pdf.destroy();}catch(_){}if(button){button.disabled=false;button.textContent='📷 إعادة OCR للصفحات المصوّرة';}}
+        }
+
         function anasDownloadPdfText(){
             const text=document.getElementById('smartPdfExtractText')?.value||'';
             if(!text.trim()){alert('لا يوجد نص مستخرج لتنزيله.');return;}
