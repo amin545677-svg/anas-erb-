@@ -6251,8 +6251,11 @@ function renderPurchasesTable() {
             const esc = value => anasEscapeHTML(String(value ?? ''));
             filteredCustomers.forEach((c, idx) => {
                 const days = getDebtAgeDays(c.debtDate);
-                const debt = Number(c.debt) || 0;
-                const isOverdue = days > 30 && debt > 0;
+                const debtRaw = c.debt;
+                const debt = ((typeof debtRaw === 'number' || typeof debtRaw === 'string') &&
+                    String(debtRaw).trim() !== '' && Number.isFinite(Number(debtRaw)) && Number(debtRaw) >= 0)
+                    ? Number(debtRaw) : null;
+                const isOverdue = days > 30 && debt !== null && debt > 0;
                 const detailsId = 'cust-details-' + idx;
                 const card = document.createElement('article');
                 card.className = 'menu-action-card';
@@ -6270,8 +6273,8 @@ function renderPurchasesTable() {
                 const balance = document.createElement('div');
                 balance.style.textAlign = 'left';
                 const amount = document.createElement('strong');
-                amount.style.cssText = 'font-size:1.05rem;color:' + (debt > 0 ? '#ef4444' : '#15803d') + ';';
-                amount.textContent = debt > 0 ? debt.toLocaleString() + ' د.ج' : 'خالص ✅';
+                amount.style.cssText = 'font-size:1.05rem;color:' + (debt === null || debt > 0 ? '#ef4444' : '#15803d') + ';';
+                amount.textContent = debt === null ? 'رصيد غير صالح' : (debt > 0 ? debt.toLocaleString() + ' د.ج' : 'خالص ✅');
                 balance.appendChild(amount);
                 if (debt > 0) {
                     const age = document.createElement('small');
