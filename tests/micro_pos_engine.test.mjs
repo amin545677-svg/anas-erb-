@@ -121,6 +121,6 @@ test('dashboard exposes four work groups and the six persistent primary navigati
   }
   assert.match(html, /id="anasQuickBottomNav"[\s\S]*?data-nav-view="dashboard"[\s\S]*?data-nav-view="pos"[\s\S]*?data-nav-view="inventory"[\s\S]*?data-nav-view="invoices-list"[\s\S]*?data-nav-view="customers"[\s\S]*?المزيد/,
     'six primary navigation destinations must remain present and ordered');
-  assert.match(html, /dashboardStockAlertBadge[\s\S]*?dashboardBadge\.hidden = alerts\.length === 0/,
+  assert.match(html, /dashboardStockAlertBadge[\s\S]*?dashboardBadge\.hidden = stockAlertCount === 0/,
     'dashboard stock alert count must be refreshed from the same alert calculation');
 });
