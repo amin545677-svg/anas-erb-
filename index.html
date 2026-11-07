@@ -3703,7 +3703,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         function setPosPrice(idx, rawValue) {
             const item = posCart[idx];
             if (!item) return false;
-            const priceCents = anasToCents(rawValue);
+            const rawPrice = String(rawValue ?? '').trim();
+            const priceCents = /^\d+(?:\.\d{1,2})?$/.test(rawPrice) ? anasToCents(rawPrice) : NaN;
             if (!Number.isSafeInteger(priceCents) || priceCents < 0) {
                 alert('أدخل سعراً صحيحاً يساوي صفراً أو أكثر، وبحد أقصى منزلتين عشريتين.');
                 renderPosTable();
