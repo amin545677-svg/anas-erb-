@@ -26,7 +26,7 @@ function initialData() {
       lastPurchaseCost: 10, price1: 25, price2: 25, price3: 25,
       barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
     }],
-    customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
+    customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0, credit_limit: 50 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
     invoices: [], cashMovements: [], stockMovements: [], expenses: [], users: [], alerts: [],
     warehouseTransfers: [], warehouses: [], truckTrips: [], trucks: [], returns: [],
     stocktakeRecords: [], syncUrl: ''
@@ -128,6 +128,17 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await productButton.waitFor({ state: 'visible', timeout: 10000 });
     const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
     assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
+    await page.waitForFunction(() => !!window.ANASMicroPOSEngine, null, { timeout: 10000 });
+    await page.evaluate(() => filterPosProductsByStock('out'));
+    assert.equal(await page.locator('#quickProductsContainer button').count(), 0,
+      'out-of-stock chip must filter the in-memory catalogue without a database reload');
+    await page.evaluate(() => filterPosProductsByStock('available'));
+    assert.equal(await page.locator('#quickProductsContainer button').count(), 1,
+      'available chip must immediately restore products with positive stock');
+    await page.evaluate(() => filterPosProductsByStock('low'));
+    assert.equal(await page.locator('#quickProductsContainer button').count(), 0,
+      'low-stock chip must exclude products above their minimum threshold');
+    await page.evaluate(() => filterPosProductsByStock('all'));
     await productButton.click();
     assert.equal(await page.locator('#posCheckoutBtn').isEnabled(), true,
       'the single guided checkout action must enable after a valid product is added');
@@ -148,6 +159,25 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00',
       'quick full-credit action must set zero paid and leave the full invoice due');
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'credit');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    await page.evaluate(() => {
+      AppData.customers[0].credit_limit = 20;
+      if (saveDB() !== true) throw new Error('Could not persist credit-limit test fixture');
+    });
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    assert.equal(await page.evaluate(() => AppData.invoices.length), 0,
+      'credit-limit overflow must reject the sale before creating an invoice');
+    assert.equal(await page.evaluate(() => AppData.products[0].stock), 10,
+      'credit-limit overflow must reject before mutating stock');
+    assert.equal(await page.evaluate(() => AppData.customers[0].debt), 0,
+      'credit-limit overflow must reject before mutating customer debt');
+    assert.ok(dialogMessages.some(message => message.includes('يتجاوز حد الائتمان')),
+      'credit-limit rejection must explain the configured customer ceiling');
+    await page.evaluate(() => {
+      AppData.customers[0].credit_limit = 50;
+      if (saveDB() !== true) throw new Error('Could not restore credit-limit test fixture');
+    });
+    await page.locator('#hasibCustomerSelect').selectOption('');
     await page.locator('#hasibModal button').filter({ hasText: /^½ الآن$/ }).click();
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
     assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 12.5) < 0.01,
