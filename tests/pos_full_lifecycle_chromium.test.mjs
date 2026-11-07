@@ -359,7 +359,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(salesBarcodeProof.resultHidden, true);
 
     await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي POS-20261107-001');
-    // Exercise the same no-match quick-add handler without relying on popup focus timing.
+    // Exercise the quick-add handler directly; popup visibility is covered by the POS search unit assertions.
     await page.evaluate(() => openQuickAddPosProduct());
     await page.locator('#addProductModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#newProdNameInput').inputValue(), 'صنف مبيعات سريع تجريبي POS-20261107-001');
