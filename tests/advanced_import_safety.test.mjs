@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  calculateZakatSummary, convertProformaToActualInvoice, createProformaDraft,
+  calculateZakatSummary, classifyAndStageWorkbookSheets, convertProformaToActualInvoice, createProformaDraft,
   executeSafeBulkImport, normalizeAlgeriaPhone, buildWhatsAppStatementUrl
 } from '../pos/advanced-financial-engine.mjs';
 
@@ -131,4 +131,29 @@ test('replace imports deduplicate repeated customer rows by normalized phone num
   assert.equal(stats.added, 1);
   assert.equal(stats.updated, 1);
   assert.equal(stats.skipped, 0);
+});
+
+test('multi-sheet workbook staging classifies all four entity types and detects database duplicates', () => {
+  const staged = classifyAndStageWorkbookSheets({
+    'المنتجات': [{ name: 'منتج', barcode: 'P-100', quantity: '7.4', price: '25.00' }],
+    'العملاء': [{ name: 'عميل', phone: '0550123456', 'حد الائتمان': '5000' }],
+    'الموردون': [{ name: 'مورد', phone: '0660123456', 'الرصيد': '100' }],
+    'الفواتير': [{ 'رقم الفاتورة': 'INV-100', 'تاريخ': '2026-11-07', 'الإجمالي': '250', 'العميل': 'عميل' }]
+  }, {
+    products: [{ name: 'منتج سابق', barcode: 'P-100' }],
+    customers: [{ name: 'عميل سابق', phone: '0550123456' }],
+    suppliers: [{ name: 'مورد سابق', phone: '0660123456' }],
+    invoices: [{ id: 'INV-100' }]
+  });
+  assert.equal(staged.sheetCount, 4);
+  assert.equal(staged.totalValidRows, 4);
+  assert.equal(staged.products.length, 1);
+  assert.equal(staged.customers.length, 1);
+  assert.equal(staged.suppliers.length, 1);
+  assert.equal(staged.invoices.length, 1);
+  assert.equal(staged.products[0].isDuplicate, true);
+  assert.equal(staged.customers[0].isDuplicate, true);
+  assert.equal(staged.suppliers[0].isDuplicate, true);
+  assert.equal(staged.invoices[0].isDuplicate, true);
+  assert.equal(staged.invoices[0].duplicateScope, 'database');
 });
