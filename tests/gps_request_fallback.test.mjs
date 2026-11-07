@@ -53,3 +53,15 @@ test('saving or closing the customer form invalidates a late geolocation timeout
   lateError({ code:3 });
   assert.equal(alerts.length, 0, 'a late timeout after save/close must not alert the user');
 });
+
+test('customer save and close handlers both cancel the pending GPS timer', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const saveStart = html.indexOf('function saveNewCustomerMpos()');
+  const saveEnd = html.indexOf('function openCustomerDirectory()', saveStart);
+  const closeStart = html.indexOf('function closeModal(id)');
+  const closeEnd = html.indexOf('function openMultiScreenModal()', closeStart);
+  assert.ok(saveStart >= 0 && saveEnd > saveStart, 'customer save handler must exist');
+  assert.ok(closeStart >= 0 && closeEnd > closeStart, 'modal close handler must exist');
+  assert.match(html.slice(saveStart, saveEnd), /cancelPendingCustomerGpsRequest\(\)/);
+  assert.match(html.slice(closeStart, closeEnd), /id === 'addCustomerModal'\) cancelPendingCustomerGpsRequest\(\)/);
+});
