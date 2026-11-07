@@ -422,12 +422,15 @@ test('torn LocalStorage JSON and IndexedDB bit-rot recover only a checksum-valid
     });
     return {
       invoice: restored.data.invoices[0].totalCentimes.toString(),
+      recoveredRevision: restored.revision,
+      durableRevision: verified.revision,
       checksumValid: verified.checksum === await S.checksum(verified.payload),
       payloadRestored: S.decode(verified.payload).invoices[0].totalCentimes === 2100000n
     };
   });
   assert.deepEqual(bitRot, {
-    invoice: '2100000', checksumValid: true, payloadRestored: true
+    invoice: '2100000', recoveredRevision: 2, durableRevision: 2,
+    checksumValid: true, payloadRestored: true
   });
   await context.close();
 });
