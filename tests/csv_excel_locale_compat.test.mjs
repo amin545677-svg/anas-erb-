@@ -18,3 +18,17 @@ test('report CSV declares semicolon delimiter for Excel regional settings and qu
   assert.ok(cell.includes("s = \"'\" + s"));
   assert.ok(cell.includes("s.replace(/\"/g, '\"\"')"));
 });
+
+test('local audit and stocktake CSV declare their comma delimiter for Android Excel', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const auditStart = html.indexOf('function anasExportLocalAudit()');
+  const auditEnd = html.indexOf('function anasAiSafeText', auditStart);
+  assert.ok(auditStart >= 0 && auditEnd > auditStart, 'local audit exporter must exist');
+  assert.ok(html.slice(auditStart, auditEnd).includes("const csv='\\uFEFFsep=,\\r\\n'"),
+    'audit CSV must carry UTF-8 BOM and explicit comma delimiter');
+  const stocktakeStart = html.indexOf('window.anasExportStocktake=function()');
+  const stocktakeEnd = html.indexOf('window.anasApproveStocktake=function()', stocktakeStart);
+  assert.ok(stocktakeStart >= 0 && stocktakeEnd > stocktakeStart, 'stocktake exporter must exist');
+  assert.ok(html.slice(stocktakeStart, stocktakeEnd).includes("new Blob(['\\uFEFFsep=,\\r\\n'+lines.map"),
+    'stocktake CSV must carry UTF-8 BOM and explicit comma delimiter');
+});
