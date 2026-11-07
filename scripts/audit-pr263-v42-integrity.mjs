@@ -25,9 +25,17 @@ assert.equal(mainIds.length, EXPECTED_V42_DOM_IDS, 'Production V42 DOM identifie
 assert.equal(mainFunctions.length, EXPECTED_V42_FUNCTIONS, 'Production V42 function baseline changed.');
 const candidateFunctions = new Set(extract(candidateHtml, /(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g));
 const missingIds = mainIds.filter((id) => !candidateIds.has(id));
-const missingFunctions = mainFunctions.filter((name) => !candidateFunctions.has(name));
+// These four diagnostics helpers were intentionally replaced by the silent, console-only
+// startup handler: no persisted error log, toast, or diagnostic modal is allowed in the ERP UI.
+const intentionallyRemovedDiagnostics = new Set([
+  'anasModernInteractions', 'recordDiagnostic', 'showDiagnostics', 'notify'
+]);
+const missingFunctions = mainFunctions.filter((name) =>
+  !candidateFunctions.has(name) && !intentionallyRemovedDiagnostics.has(name)
+);
 assert.equal(missingIds.length, 0, 'V42 DOM identifiers are missing: ' + missingIds.join(', '));
 assert.equal(missingFunctions.length, 0, 'V42 functions are missing: ' + missingFunctions.join(', '));
+assert.ok(candidateFunctions.has('anasSilentDiagnostics'), 'silent diagnostics replacement must remain present');
 
 const tracked = run(['ls-files']).split('\n').filter(Boolean);
 const sourceFiles = tracked.filter((p) => /\.(?:js|mjs|cjs)$/.test(p) && !/(^|\/)(?:tests?|__tests__|node_modules|vendor)\//.test(p));
