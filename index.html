@@ -19,6 +19,21 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <meta name="description" content="Anas ERP لإدارة المبيعات والمشتريات والعملاء والمخزون والصندوق دون اتصال على هذا الجهاز">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script id="anasThemeBootstrap">
+      (function () {
+        try {
+          var saved = localStorage.getItem('ANAS_ERP_THEME');
+          var systemDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var theme = saved === 'dark' || saved === 'light' ? saved : (systemDark ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-anas-theme', theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (_) {
+          document.documentElement.setAttribute('data-anas-theme', 'light');
+          document.documentElement.style.colorScheme = 'light';
+        }
+      })();
+    </script>
+
     <title>Anas ERP v42 - إصلاح الربط السحابي</title>
     <style>
         :root {
@@ -1110,7 +1125,84 @@
             }
         }
 
-        </style>
+        
+        /* ANAS ERP unified appearance layer — consistent light/dark surfaces across all modules. */
+        :root {
+          color-scheme: light;
+          --anas-bg:#f5f7fb; --anas-surface:#ffffff; --anas-surface-raised:#ffffff;
+          --anas-text:#172033; --anas-muted:#526176; --anas-border:#d9e2ef;
+          --anas-input:#ffffff; --anas-shadow:0 2px 10px rgba(15,23,42,.06);
+          --mp-bg:var(--anas-bg); --mp-card-bg:var(--anas-surface);
+          --mp-border:var(--anas-border); --mp-text-dark:var(--anas-text); --mp-text-muted:var(--anas-muted);
+        }
+        :root[data-anas-theme="dark"] {
+          color-scheme:dark;
+          --anas-bg:#0b1120; --anas-surface:#151f32; --anas-surface-raised:#1b2940;
+          --anas-text:#f3f6fc; --anas-muted:#bdc9dc; --anas-border:#3b4b65;
+          --anas-input:#101a2b; --anas-shadow:0 4px 18px rgba(0,0,0,.22);
+          --mp-bg:var(--anas-bg); --mp-card-bg:var(--anas-surface); --mp-border:var(--anas-border);
+          --mp-text-dark:var(--anas-text); --mp-text-muted:var(--anas-muted);
+          --mp-blue-light:#1b3658; --mp-green-light:#123d31; --mp-red-light:#4b2630;
+        }
+        html,body { background:var(--anas-bg); color:var(--anas-text); }
+        body,.main-container,.page-view,.panel-card-form,.settings-card,.grid-card-item,.menu-action-card,
+        .sales-toolbar,.quick-products-grid,.invoice-items-body,.bottom-totals-bar,.drawer-sidebar,
+        .modal-dialog-white,.picker-dialog-scroll,.dropdown-options-menu,.dropdown-opt-row,
+        .field-input,.input-pos-search,.quick-product-btn,.invoice-table-header,.invoice-table-row {
+          transition:background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease;
+        }
+        :root[data-anas-theme="dark"] body,:root[data-anas-theme="dark"] .main-container,
+        :root[data-anas-theme="dark"] .page-view { background:var(--anas-bg)!important;color:var(--anas-text)!important; }
+        :root[data-anas-theme="dark"] .panel-card-form,:root[data-anas-theme="dark"] .settings-card,
+        :root[data-anas-theme="dark"] .grid-card-item,:root[data-anas-theme="dark"] .menu-action-card,
+        :root[data-anas-theme="dark"] .sales-toolbar,:root[data-anas-theme="dark"] .quick-products-grid,
+        :root[data-anas-theme="dark"] .invoice-items-body,:root[data-anas-theme="dark"] .bottom-totals-bar,
+        :root[data-anas-theme="dark"] .drawer-sidebar,:root[data-anas-theme="dark"] .modal-dialog-white,
+        :root[data-anas-theme="dark"] .picker-dialog-scroll,:root[data-anas-theme="dark"] .dropdown-options-menu,
+        :root[data-anas-theme="dark"] .dropdown-opt-row,:root[data-anas-theme="dark"] .quick-product-btn,
+        :root[data-anas-theme="dark"] .invoice-table-header,:root[data-anas-theme="dark"] .invoice-table-row,
+        :root[data-anas-theme="dark"] .table-wrap,:root[data-anas-theme="dark"] .data-card,
+        :root[data-anas-theme="dark"] .list-card,:root[data-anas-theme="dark"] .form-card,
+        :root[data-anas-theme="dark"] .stat-box-item,:root[data-anas-theme="dark"] .card,
+        :root[data-anas-theme="dark"] .panel,:root[data-anas-theme="dark"] .modal,
+        :root[data-anas-theme="dark"] .modal-content,:root[data-anas-theme="dark"] .modal-box {
+          background:var(--anas-surface)!important;color:var(--anas-text)!important;border-color:var(--anas-border)!important;
+          box-shadow:var(--anas-shadow);
+        }
+        :root[data-anas-theme="dark"] h1,:root[data-anas-theme="dark"] h2,:root[data-anas-theme="dark"] h3,
+        :root[data-anas-theme="dark"] h4,:root[data-anas-theme="dark"] h5,:root[data-anas-theme="dark"] p,
+        :root[data-anas-theme="dark"] label,:root[data-anas-theme="dark"] small,:root[data-anas-theme="dark"] span,
+        :root[data-anas-theme="dark"] strong,:root[data-anas-theme="dark"] b,:root[data-anas-theme="dark"] li,
+        :root[data-anas-theme="dark"] td,:root[data-anas-theme="dark"] th,:root[data-anas-theme="dark"] caption,
+        :root[data-anas-theme="dark"] .card-title-text,:root[data-anas-theme="dark"] .stat-val,
+        :root[data-anas-theme="dark"] .stat-label { color:var(--anas-text); }
+        :root[data-anas-theme="dark"] .field-input,:root[data-anas-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+        :root[data-anas-theme="dark"] select,:root[data-anas-theme="dark"] textarea {
+          background:var(--anas-input)!important;color:var(--anas-text)!important;border-color:var(--anas-border)!important;
+          caret-color:var(--anas-text);
+        }
+        :root[data-anas-theme="dark"] input::placeholder,:root[data-anas-theme="dark"] textarea::placeholder { color:#aebbd0!important;opacity:1; }
+        :root[data-anas-theme="dark"] table,:root[data-anas-theme="dark"] thead,:root[data-anas-theme="dark"] tbody,
+        :root[data-anas-theme="dark"] tr,:root[data-anas-theme="dark"] td { border-color:var(--anas-border)!important; }
+        :root[data-anas-theme="dark"] th { background:var(--anas-surface-raised)!important;color:var(--anas-text)!important; }
+        :root[data-anas-theme="dark"] .drawer-nav-row { color:var(--anas-text)!important;border-color:var(--anas-border)!important; }
+        :root[data-anas-theme="dark"] .drawer-nav-row:active,:root[data-anas-theme="dark"] .dropdown-opt-row:active,
+        :root[data-anas-theme="dark"] .menu-action-card:active { background:var(--anas-surface-raised)!important; }
+        :root[data-anas-theme="dark"] [style*="background:#fff"],:root[data-anas-theme="dark"] [style*="background: #fff"],
+        :root[data-anas-theme="dark"] [style*="background-color: white"],:root[data-anas-theme="dark"] [style*="background-color:#fff"],
+        :root[data-anas-theme="dark"] [style*="background-color: #fff"] { background-color:var(--anas-surface)!important;color:var(--anas-text)!important; }
+        :root[data-anas-theme="dark"] [style*="color:#0f172a"],:root[data-anas-theme="dark"] [style*="color: #0f172a"],
+        :root[data-anas-theme="dark"] [style*="color:#1e293b"],:root[data-anas-theme="dark"] [style*="color: #1e293b"],
+        :root[data-anas-theme="dark"] [style*="color:#334155"],:root[data-anas-theme="dark"] [style*="color: #334155"] { color:var(--anas-text)!important; }
+        .btn-theme-quick { width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;
+          border:1px solid rgba(255,255,255,.28);border-radius:12px;background:rgba(255,255,255,.13);
+          color:#fff;font-size:19px;cursor:pointer;touch-action:manipulation; }
+        .btn-theme-quick:focus-visible,#anasThemeToggle:focus-visible { outline:3px solid #93c5fd;outline-offset:3px; }
+        #anasThemeToggle { min-height:48px;transition:transform .16s ease,box-shadow .16s ease,background .16s ease; }
+        #anasThemeToggle:active,.btn-theme-quick:active { transform:scale(.96); }
+        @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important; } }
+        @media print { :root,:root[data-anas-theme="dark"] { color-scheme:light;--anas-bg:#fff;--anas-surface:#fff;--anas-text:#000;--anas-border:#ddd; } }
+</style>
 <style>
 
 /* Anas ERP: modern, accessible interaction polish */
@@ -1303,6 +1395,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             <div class="app-brand-name">⚡ Anas ERP</div>
         </div>
         <div class="navbar-right">
+            <button id="anasThemeQuickToggle" class="btn-theme-quick" type="button" aria-label="تغيير المظهر" aria-pressed="false" title="تغيير المظهر"><span class="theme-quick-icon" aria-hidden="true">🌙</span></button>
             <div class="user-quick-pill" onclick="openView('users')" id="topUserQuickBadge">👑 عمر شريفي</div>
             <button class="btn-bell-envelope" onclick="openNotificationModal()">
                 ✉️
@@ -10707,20 +10800,51 @@ function wtAuditTransfers(){
 
 
 <script>
-(function(){
-  const key='ANAS_ERP_THEME'; const root=document.documentElement; const btn=document.getElementById('anasThemeToggle');
-  function applyTheme(theme){
-    theme=theme==='dark'?'dark':'light';
-    root.setAttribute('data-anas-theme',theme);
-    root.style.colorScheme=theme;
-    if(btn){ const icon=btn.querySelector('.theme-icon'); const label=btn.querySelector('.theme-label'); if(icon) icon.textContent=theme==='dark'?'☀️':'🌙'; if(label) label.textContent=theme==='dark'?'الوضع النهاري':'الوضع الليلي'; btn.setAttribute('aria-pressed',theme==='dark'?'true':'false'); btn.setAttribute('aria-label',theme==='dark'?'تفعيل الوضع النهاري':'تفعيل الوضع الليلي'); }
+(function () {
+  'use strict';
+  const KEY = 'ANAS_ERP_THEME';
+  const root = document.documentElement;
+  const buttons = Array.from(document.querySelectorAll('#anasThemeToggle, #anasThemeQuickToggle'));
+  const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  let explicitChoice = null;
+  try { const stored = localStorage.getItem(KEY); if (stored === 'dark' || stored === 'light') explicitChoice = stored; } catch (_) {}
+  function systemTheme() { return media && media.matches ? 'dark' : 'light'; }
+  function applyTheme(theme, persist) {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    root.setAttribute('data-anas-theme', next);
+    root.style.colorScheme = next;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', next === 'dark' ? '#0b1120' : '#1e3a6d');
+    buttons.forEach(function (button) {
+      const dark = next === 'dark';
+      const icon = button.querySelector('.theme-icon, .theme-quick-icon');
+      const label = button.querySelector('.theme-label');
+      if (icon) icon.textContent = dark ? '☀️' : '🌙';
+      if (label) label.textContent = dark ? 'الوضع النهاري' : 'الوضع الليلي';
+      button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+      button.setAttribute('aria-label', dark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي');
+      button.setAttribute('title', dark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي');
+    });
+    if (persist) {
+      explicitChoice = next;
+      try { localStorage.setItem(KEY, next); } catch (_) {}
+    }
   }
-  let saved=null; try{saved=localStorage.getItem(key);}catch(e){}
-  if(saved!=='dark'&&saved!=='light') saved=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';
-  applyTheme(saved);
-  if(btn) btn.addEventListener('click',function(){
-    const next=root.getAttribute('data-anas-theme')==='dark'?'light':'dark'; applyTheme(next);
-    try{localStorage.setItem(key,next);}catch(e){}
+  applyTheme(explicitChoice || systemTheme(), false);
+  buttons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      applyTheme(root.getAttribute('data-anas-theme') === 'dark' ? 'light' : 'dark', true);
+    });
+  });
+  if (media) {
+    const onSystemChange = function (event) { if (!explicitChoice) applyTheme(event.matches ? 'dark' : 'light', false); };
+    if (media.addEventListener) media.addEventListener('change', onSystemChange);
+    else if (media.addListener) media.addListener(onSystemChange);
+  }
+  window.addEventListener('storage', function (event) {
+    if (event.key !== KEY) return;
+    explicitChoice = event.newValue === 'dark' || event.newValue === 'light' ? event.newValue : null;
+    applyTheme(explicitChoice || systemTheme(), false);
   });
 })();
 </script>
