@@ -10586,13 +10586,39 @@ function wtAuditTransfers(){
             finally { anasSheetJsLoadPromise = null; }
         }
 
+        function anasResolveImportExtension(file){
+            const name=String(file?.name||'').normalize('NFKC').trim().toLowerCase();
+            const namedExtension=name.includes('.')?(name.split('.').pop()||'').replace(/[^a-z0-9]/g,''):'';
+            const supported=new Set(['xlsx','xls','csv','txt','pdf','jpg','jpeg','png','webp']);
+            if(supported.has(namedExtension)) return namedExtension;
+            const mime=String(file?.type||'').split(';')[0].trim().toLowerCase();
+            const mimeExtensions={
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'xlsx',
+                'application/vnd.ms-excel':'xls',
+                'application/x-excel':'xls',
+                'application/excel':'xls',
+                'application/xls':'xls',
+                'text/csv':'csv',
+                'application/csv':'csv',
+                'application/x-csv':'csv',
+                'text/tab-separated-values':'txt',
+                'text/plain':'txt',
+                'application/pdf':'pdf',
+                'application/x-pdf':'pdf',
+                'image/jpeg':'jpg',
+                'image/png':'png',
+                'image/webp':'webp'
+            };
+            return mimeExtensions[mime]||namedExtension;
+        }
+
         async function handleSmartAiUpload(e) {
             const input=e.target;
             const file=input.files && input.files[0];
             const status=document.getElementById('smartAiExcelStatus');
             if(!file) return;
             const normalizedName=String(file.name||'').normalize('NFKC').trim().toLowerCase();
-            const ext=(normalizedName.split('.').pop()||'').replace(/[^a-z0-9]/g,'');
+            const ext=anasResolveImportExtension(file);
             // Android document providers may omit the .pdf suffix or report a generic MIME type.
             // The dedicated PDF input is authoritative; MIME and extension also support PDF files
             // selected through the general Excel/CSV input without misrouting them to the CSV parser.
