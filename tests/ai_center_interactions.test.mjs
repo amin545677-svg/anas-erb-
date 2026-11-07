@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../anas-erp-ui-safe-enhancements.css', import.meta.url), 'utf8');
@@ -68,6 +69,31 @@ test('Excel header analysis is local while PDF analysis retains its separate per
   assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/, 'PDF analysis may use its own persisted-auth guard');
 });
 
+
+test('cloud AI creates an anonymous Firebase session when ERP is used without manual sign-in', async () => {
+  const start = html.indexOf('window.anasGetFirebaseIdToken=async function(timeoutMs=8000)');
+  const end = html.indexOf('// Restore Firebase\'s persisted state', start);
+  assert.ok(start >= 0 && end > start, 'Firebase token helper must be isolatable');
+  const helper = html.slice(start, end);
+  let anonymousCalls = 0;
+  const user = { getIdToken: async () => 'signed-firebase-id-token' };
+  const auth = {
+    currentUser: null,
+    onAuthStateChanged(callback) { callback(null); return () => {}; },
+    signInAnonymously: async () => { anonymousCalls++; auth.currentUser = user; return { user }; }
+  };
+  const window = {};
+  vm.runInNewContext(helper, { window, auth, setTimeout, clearTimeout, Error, String, Number });
+  assert.equal(await window.anasGetFirebaseIdToken(), 'signed-firebase-id-token');
+  assert.equal(anonymousCalls, 1, 'anonymous sign-in must be attempted exactly once');
+  const disabledAuth = {
+    onAuthStateChanged(callback) { callback(null); return () => {}; },
+    signInAnonymously: async () => { const error = new Error('provider disabled'); error.code = 'auth/operation-not-allowed'; throw error; }
+  };
+  const disabledWindow = {};
+  vm.runInNewContext(helper, { window: disabledWindow, auth: disabledAuth, setTimeout, clearTimeout, Error, String, Number });
+  await assert.rejects(disabledWindow.anasGetFirebaseIdToken(), /المصادقة المجهولة غير مفعّلة/);
+});
 
 test('Excel and PDF parsers are bundled locally and not loaded from runtime CDNs', () => {
   assert.match(html, /src="\.\/vendor\/xlsx\/xlsx\.full\.min\.js"/);
