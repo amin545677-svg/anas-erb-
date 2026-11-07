@@ -106,7 +106,7 @@ def main():
         '<script src="./vendor/pdfjs/pdf.min.js"></script>',
         "if(!window.XLSX) await anasLoadSheetJs();",
         "const maxImportBytes=20*1024*1024",
-        "const maxImportRows=100000, maxImportColumns=200",
+        "const maxImportRows=100000,maxImportColumns=200",
     ]
     if re.search(r"https?://(?:cdn\.sheetjs\.com|cdn\.jsdelivr\.net/npm/xlsx|unpkg\.com/xlsx)", source, re.IGNORECASE):
         errors.append("AI hub must not load SheetJS from an external CDN")
@@ -1450,9 +1450,7 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
 
     # Intercept the real AI request function with a fake fetch and synthetic records.
     # Assert consent gates the actual serialized payload and no sensitive value is logged.
-    ai_ask_start = source.find("async function askAnasBusinessAI(){")
-    ai_ask_end = source.find("\n        // Local bundled spreadsheet parser", ai_ask_start)
-    ai_ask_fn = source[ai_ask_start:ai_ask_end] if ai_ask_start >= 0 and ai_ask_end > ai_ask_start else ""
+    ai_ask_fn = function_source("askAnasBusinessAI")
     ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
     ai_append_fn = function_source("anasAiAppendMessage")
     ai_fallback_fn = function_source("anasAiLocalFallback")
