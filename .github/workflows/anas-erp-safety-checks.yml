@@ -786,7 +786,7 @@ jobs:
           assert ui_refresh > restore and ui_catch > ui_refresh, "UI refresh must be isolated after successful persistence"
           ui_region = block[ui_refresh:]
           assert "const restored=JSON.parse(before)" not in ui_region, "UI rendering failure must not roll memory back after storage succeeds"
-          assert "for(const item of staged){next.push(item);added++;}" in block, "Avoid spread-argument limits for large imports"
+          assert "next.push(item)" in block and "next.push(...staged)" not in block, "Imports must append records iteratively without spread-argument limits"
           print("Import persistence/rollback boundary checks passed")
           PY
       - name: Check spreadsheet import safety limits
