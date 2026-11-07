@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { calculateQuickCheckoutCents, filterPosProducts, prepareBulkImport, resolveProductPrice } from '../pos/micro-pos-engine.mjs';
+import './advanced_financial_engine.test.mjs';
 
 test('POS stock chips filter in-memory records with exclusive stock states', () => {
   const rows = [
