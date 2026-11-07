@@ -104,9 +104,9 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       return { surface: css.backgroundColor, text: css.color,
         inputBackground: field?.backgroundColor, inputText: field?.color };
     });
-    assert.ok(!/255,\\s*255,\\s*255/.test(modalVisual.surface), 'customer modal surface must use the dark palette');
+    assert.ok(!/255,\s*255,\s*255/.test(modalVisual.surface), 'customer modal surface must use the dark palette');
     assert.ok(contrast(modalVisual.text, modalVisual.surface) >= 4.5, 'customer modal text must meet WCAG AA contrast');
-    assert.ok(modalVisual.inputBackground && !/255,\\s*255,\\s*255/.test(modalVisual.inputBackground),
+    assert.ok(modalVisual.inputBackground && !/255,\s*255,\s*255/.test(modalVisual.inputBackground),
       'customer modal fields must use the dark input surface');
     assert.ok(contrast(modalVisual.inputText, modalVisual.inputBackground) >= 4.5,
       'customer modal input text must meet WCAG AA contrast');
