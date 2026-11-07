@@ -159,15 +159,15 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
       'adding a valid product from the picker must restore checkout');
-    const quantityEditor = page.locator('#hasibCartItems input[type="number"]');
+    const quantityEditor = page.locator('#hasibCartItems input[aria-label^="كمية"]');
     await quantityEditor.fill('1.5');
     assert.equal(await page.locator('#hasibTotalText').textContent(), '37.50 د.ج',
       'decimal quantity editing must refresh the invoice total');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5);
-    await page.locator('#hasibCartItems input[type="number"]').fill('0');
+    await page.locator('#hasibCartItems input[aria-label^="كمية"]').fill('0');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'zero quantity must be rejected and the previous quantity restored');
-    await page.locator('#hasibCartItems input[type="number"]').fill('11');
+    await page.locator('#hasibCartItems input[aria-label^="كمية"]').fill('11');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'quantity above available stock must be rejected');
     await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('30.00');
