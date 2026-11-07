@@ -350,11 +350,15 @@ test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on r
   await page.goto('http://127.0.0.1:' + server.address().port + '/erp/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.AppData, { timeout: 15000 });
   await page.evaluate(() => { if (typeof openView === 'function') openView('ai-excel-hub'); });
-  await page.locator('#smartPdfOcrButton').waitFor({ state: 'visible' });
   await page.evaluate(() => {
     window.anasCurrentPdfFile = new File(['scanned-pdf-ocr-fixture'], 'scanned-fixture.pdf', { type: 'application/pdf' });
     window.anasPdfExtractedBaseText = '';
     window.anasPdfExtractedBaseMeta = 'scanned-fixture.pdf — 1 page';
+    // This isolated OCR test injects an already-selected PDF fixture instead of
+    // exercising the upload handler; reveal the same results panel that the
+    // production PDF upload flow reveals after extraction.
+    const results = document.getElementById('smartPdfExtractResults');
+    if (results) results.style.display = 'block';
     window.pdfjsLib = {
       GlobalWorkerOptions: {},
       getDocument: () => ({ promise: Promise.resolve({
@@ -377,6 +381,7 @@ test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on r
       }) })
     };
   });
+  await page.locator('#smartPdfOcrButton').waitFor({ state: 'visible' });
 
   await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
   await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
