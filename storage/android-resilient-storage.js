@@ -379,6 +379,11 @@
     return persist(text);
   }
   function removeSync(key) {
+    if (key === APP_KEY) {
+      const error = new Error('The authoritative ERP snapshot cannot be removed through the synchronous mirror API. Use a revisioned durable tombstone operation.');
+      error.code = 'ANAS_STORAGE_DURABLE_DELETE_REQUIRED';
+      throw error;
+    }
     delete cache[key];
     try { global.localStorage.removeItem(key); } catch (_) {}
   }
