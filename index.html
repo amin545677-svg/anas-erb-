@@ -1619,6 +1619,51 @@ input:focus, select:focus, textarea:focus {
 #dashboardStockAlertBadge[hidden]{display:none}
 @media(max-width:360px){.anas-dashboard-group .dashboard-grid-8{grid-template-columns:repeat(2,minmax(0,1fr))}.anas-dashboard-group .grid-card-item{min-height:88px}}
 </style>
+
+<style id="anas-sky-blue-contrast-final">
+/* Last-layer contrast guard for the mobile dashboard and both appearance modes. */
+:root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item,
+:root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item *,
+:root:not([data-anas-theme="dark"]) #view-dashboard .distributor-dashboard-summary,
+:root:not([data-anas-theme="dark"]) #view-dashboard .distributor-dashboard-summary * {
+  color:#172b4d !important;
+  -webkit-text-fill-color:#172b4d !important;
+}
+:root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item {
+  background:#ffffff !important;
+  border-color:#cbd5e1 !important;
+}
+:root[data-anas-theme="dark"] #view-dashboard .grid-card-item,
+:root[data-anas-theme="dark"] #view-dashboard .grid-card-item * {
+  color:#f1f7ff !important;
+  -webkit-text-fill-color:#f1f7ff !important;
+}
+:root:not([data-anas-theme="dark"]) .view,
+:root:not([data-anas-theme="dark"]) .view-container,
+:root:not([data-anas-theme="dark"]) .page-content { color:#172b4d; }
+:root:not([data-anas-theme="dark"]) .view h1,
+:root:not([data-anas-theme="dark"]) .view h2,
+:root:not([data-anas-theme="dark"]) .view h3,
+:root:not([data-anas-theme="dark"]) .page-content h1,
+:root:not([data-anas-theme="dark"]) .page-content h2,
+:root:not([data-anas-theme="dark"]) .page-content h3 { color:#123b63 !important; }
+button, .btn, [role="button"], .bottom-nav button, .bottom-navigation button,
+.menu-action-card, .action-btn {
+  background:linear-gradient(135deg,#7dd3fc 0%,#38bdf8 52%,#0284c7 100%) !important;
+  color:#082f49 !important;
+  -webkit-text-fill-color:#082f49 !important;
+  border-color:#38bdf8 !important;
+  text-shadow:none !important;
+}
+button *, .btn *, [role="button"] *, .menu-action-card * {
+  color:inherit !important;
+  -webkit-text-fill-color:inherit !important;
+}
+.top-navbar, .sub-header-bar, .bottom-nav, .bottom-navigation,
+.app-header, .sidebar, .side-menu {
+  background:linear-gradient(135deg,#075985 0%,#087fc1 55%,#0ea5e9 100%) !important;
+}
+</style>
 </head>
 <body>
 
