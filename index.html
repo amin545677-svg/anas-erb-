@@ -9352,15 +9352,15 @@ function wtAuditTransfers(){
             const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\u200e\u200f\u061c]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
             const number='(?<![\\d.,٫٬])(-?\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
             const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة|كرتونة|كرتون|باكي|باكية|باكيات|سربيس)';
-            const qtyMatch=raw.match(new RegExp('(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
-            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
+            const qtyMatch=raw.match(new RegExp('(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\s*'+number,'i'))||raw.match(new RegExp(number+'\s*'+unit+'(?=\s|$)','i'));
+            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\s*'+number,'i'));
             const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+(.+?)(?=\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
             const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\s*(?:هي|:)?\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\b/i);
             const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات|اشتر/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
             let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\s*/i,'');
             // Ambiguous grouped thousands are not accepted as quantities; remove the token from the item label.
-            itemText=itemText.replace(/(?<!\d)\d{1,3}(?:[٬,]\d{3})+(?!\d)/g,'').replace(new RegExp('^'+number+'\\s*'),'').trim();
-            itemText=itemText.replace(new RegExp('^'+unit+'\\s*','i'),'').trim();
+            itemText=itemText.replace(/(?<!\d)\d{1,3}(?:[٬,]\d{3})+(?!\d)/g,'').replace(new RegExp('^'+number+'\s*'),'').trim();
+            itemText=itemText.replace(new RegExp('^'+unit+'\s*','i'),'').trim();
             const stop=itemText.search(/\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)/i);
             if(stop>=0)itemText=itemText.slice(0,stop).trim();
             const products=Array.isArray(AppData.products)?AppData.products:[];
@@ -10127,8 +10127,8 @@ function wtAuditTransfers(){
                         for(const item of staged){
                             const byId=item.id?next.filter(p=>p && String(p.id)===String(item.id)):[];
                             const byBarcode=item.barcode?next.filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):[];
-                            const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').toLowerCase();
-                            const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').toLowerCase()===normalizedName):[];
+                            const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase();
+                            const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase()===normalizedName):[];
                             if(byId.length>1||byBarcode.length>1) throw new Error('الكود أو الباركود مرتبط بأكثر من صنف؛ أُلغي الاستيراد دون تعديل.');
                             if(byId.length&&byBarcode.length&&byId[0]!==byBarcode[0]) throw new Error('تعارض هوية: الكود والباركود يشيران إلى صنفين مختلفين؛ أُلغي الاستيراد دون تعديل.');
                             if(item.id&&!byId.length&&byBarcode.length) throw new Error('تعارض هوية: الباركود موجود لصنف آخر ولا يطابق الكود المستورد؛ أُلغي الاستيراد.');
@@ -10253,7 +10253,7 @@ function wtAuditTransfers(){
                 alert('تم اعتماد المرتجع محلياً وحفظه في التخزين الآمن. رقم المستند: ' + String(document.returnId || '—'));
                 return document;
             } catch (error) {
-                const detail = (error && error.message ? String(error.message) : 'تعذر التحقق من المرتجع').replace(/[.؟!،\\s]+$/u, '');
+                const detail = (error && error.message ? String(error.message) : 'تعذر التحقق من المرتجع').replace(/[.؟!،\s]+$/u, '');
                 alert('لم يتم اعتماد المرتجع محلياً: ' + detail + '. لم يتم اعتماد أي تغيير غير محفوظ.');
                 return null;
             }
