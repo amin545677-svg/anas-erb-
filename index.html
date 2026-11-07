@@ -11002,9 +11002,10 @@ function wtAuditTransfers(){
                             const purchaseRef=(AppData.purchases||[]).some(inv=>(inv.items||[]).some(item=>hasId(item.id??item.productId)));
                             const stockRef=(AppData.stockMovements||[]).some(m=>hasId(m.productId??m.itemId??m.product?.id));
                             const transferRef=(AppData.warehouseTransfers||[]).some(m=>hasId(m.productId??m.itemId));
+                            const truckRef=(AppData.truckTrips||[]).some(trip=>(trip.items||trip.products||[]).some(item=>hasId(item.id??item.productId)));
                             const warehouseBalances=record.warehouseStock&&typeof record.warehouseStock==='object'
                                 ?Object.values(record.warehouseStock).some(value=>Number(value&&typeof value==='object'?(value.quantity??value.stock):value)>0):false;
-                            return Number(record.stock)>0||warehouseBalances||invoiceRef||purchaseRef||stockRef||transferRef;
+                            return Number(record.stock)>0||warehouseBalances||invoiceRef||purchaseRef||stockRef||transferRef||truckRef;
                         }
                         if(kind==='customers'){
                             return Number(record.debt??record.initial_debt??0)>0||Number(record.creditUsed??0)>0||
