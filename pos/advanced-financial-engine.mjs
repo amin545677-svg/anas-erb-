@@ -1,3 +1,4 @@
+import { prepareBulkImport } from './micro-pos-engine.mjs';
 /**
  * ANAS ERP advanced Micro POS domain engine.
  * Pure import/zakat/RBAC planners plus a transaction-bound proforma conversion.
