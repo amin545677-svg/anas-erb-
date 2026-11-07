@@ -3120,7 +3120,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const matches = products.filter(p => {
                 const name = normalizePosSearch(p.name);
                 const barcode = anasNormalizeBarcode(p.barcode);
-                return name.includes(q) || barcode.includes(anasNormalizeBarcode(q));
+                const barcodeQuery = anasNormalizeBarcode(q);
+                return name.includes(q) || (barcodeQuery && barcode.includes(barcodeQuery));
             }).slice(0, 12);
             const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
             if (!matches.length) {
@@ -4859,8 +4860,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (!nameQuery && !barcodeQuery) { closePurchaseSearchResults(); updatePurchaseDraftPreview(); return; }
             const products = Array.isArray(AppData?.products) ? AppData.products : [];
             const matches = products.filter(product =>
-                normalizePosSearch(product?.name).includes(nameQuery) ||
-                anasNormalizeBarcode(product?.barcode).includes(barcodeQuery)
+                (nameQuery && normalizePosSearch(product?.name).includes(nameQuery)) ||
+                (barcodeQuery && anasNormalizeBarcode(product?.barcode).includes(barcodeQuery))
             ).slice(0, 12);
             const esc = value => String(value ?? '').replace(/[&<>"']/g, c =>
                 ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
