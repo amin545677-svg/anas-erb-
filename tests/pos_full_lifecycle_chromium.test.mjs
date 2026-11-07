@@ -142,7 +142,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(cartProof.qty, 1);
 
     // Open the original Hasib modal through its actual toolbar control.
-    await page.locator('#view-pos .sales-toolbar button[onclick="openHasibModal()"]').click();
+    await page.locator('#posCheckoutBtn').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     const revisionBeforePayment = await page.evaluate(() => ANASResilientStorage.status().revision);
