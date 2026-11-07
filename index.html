@@ -9789,13 +9789,19 @@ function wtAuditTransfers(){
             const file=input.files && input.files[0];
             const status=document.getElementById('smartAiExcelStatus');
             if(!file) return;
-            const ext=(file.name.split('.').pop()||'').toLowerCase();
+            const normalizedName=String(file.name||'').normalize('NFKC').trim().toLowerCase();
+            const ext=(normalizedName.split('.').pop()||'').replace(/[^a-z0-9]/g,'');
+            // Android document providers may omit the .pdf suffix or report a generic MIME type.
+            // The dedicated PDF input is authoritative; MIME and extension also support PDF files
+            // selected through the general Excel/CSV input without misrouting them to the CSV parser.
+            const isPdfUpload=input.id==='smartAiPdfUpload' || ext==='pdf' ||
+                ['application/pdf','application/x-pdf'].includes(String(file.type||'').toLowerCase());
             if(status) status.textContent='⏳ جارٍ فتح الملف: '+file.name;
             try {
                 // Bound memory use before reading CSV, Excel, or PDF bytes into the browser.
                 const maxImportBytes=20*1024*1024;
                 if(file.size>maxImportBytes) throw new Error('حجم الملف يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
-                if(ext==='pdf'){
+                if(isPdfUpload){
                     const extracted=await anasExtractPdfText(file);
                     const box=document.getElementById('smartPdfExtractResults');
                     const textBox=document.getElementById('smartPdfExtractText');
