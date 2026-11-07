@@ -294,6 +294,8 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     });
     page.on('dialog', dialog => dialog.accept());
     await page.locator('#smartImportConfirm').click();
+    await page.locator('#smartImportReview').getByText('أريشا كرستال 200غ').waitFor({ state: 'visible' });
+    await page.locator('#smartImportConfirm').click();
     await page.waitForTimeout(1200);
     const importCommitState = await page.evaluate(() => ({
       modalPresent: !!document.getElementById('smartImportPreviewModal'),
