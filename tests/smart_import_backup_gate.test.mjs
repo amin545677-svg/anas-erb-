@@ -28,8 +28,16 @@ test('local product import auto-detects headers and persists a verified IndexedD
     'the backup must be written to the snapshots object store');
   assert.ok(preview.includes("tx.objectStore('snapshots').get(backupKey)"),
     'the backup must be read back and verified before import');
-  assert.ok(preview.includes("const byId=next.filter") && preview.includes("const byBarcode=") && preview.includes("const byName="),
-    'product upsert must match by code, barcode, and normalized name');
+  assert.ok(preview.includes("const hasExplicitId=explicitImportIds.has(item.id)") &&
+    preview.includes("const byId=hasExplicitId?next.filter") &&
+    preview.includes("const byBarcode=") && preview.includes("const byName=") &&
+    preview.includes("(!hasExplicitId&&!item.barcode?byName:[])"),
+    'product upsert must prefer explicit code, then barcode, and use normalized name only when no stable identity was supplied');
+  assert.ok(preview.includes("if(byId.length&&byBarcode.length&&byId[0]!==byBarcode[0])") &&
+    preview.includes("if(byBarcode.length===1&&byName.length===1&&byBarcode[0]!==byName[0])"),
+    'conflicting product identities must fail closed rather than merge unrelated products');
+  assert.ok(preview.includes("if(id) explicitImportIds.add(recordId)"),
+    'generated import IDs must not be mistaken for IDs supplied by the source workbook');
   assert.ok(preview.includes("if(seenNames.has(keyName) && target!=='products')") &&
     preview.includes("if(target==='products' && seenNames.has(keyName) && !id && !val(r,'barcode'))"),
     'product names may repeat when stable product codes or barcodes distinguish the records');
