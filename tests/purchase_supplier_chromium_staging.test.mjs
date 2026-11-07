@@ -774,3 +774,28 @@ test('Chromium customer sale and explicit debt allocation: exact centimes, rollb
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('requested tea purchase cycle computes exact weighted-average cost for fractional kilograms', async () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const start = html.indexOf('function anasPurchaseToScaledInteger');
+  const end = html.indexOf('function savePurchaseItem()', start);
+  assert.ok(start >= 0 && end > start, 'purchase integer arithmetic and WAC helpers must be isolatable');
+  const context = { Number, BigInt, Math, String, Object };
+  vm.createContext(context);
+  vm.runInContext(html.slice(start, end) + `
+    this.__qty = anasPurchaseToQtyUnits;
+    this.__cents = anasPurchaseToCents;
+    this.__wac = anasPurchaseWeightedCostCents;
+    this.__stockValue = anasPurchaseStockValueCents;
+  `, context);
+  const oldQty = context.__qty('50.5');
+  const incomingQty = context.__qty('50');
+  const oldCost = context.__cents('2450');
+  const incomingCost = context.__cents('2500');
+  const newCost = context.__wac(oldQty, oldCost, incomingQty, incomingCost);
+  assert.equal(oldQty + incomingQty, 100500000);
+  assert.equal(newCost, 247488, 'weighted-average purchase cost must round to 2,474.88 DZD');
+  assert.equal(context.__stockValue(oldQty + incomingQty, newCost), 24872544,
+    '100.5 kg valued at 2,474.88 DZD must equal 248,725.44 DZD in exact centimes');
+});
