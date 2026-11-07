@@ -150,6 +150,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.locator('#hasibTotalText').textContent(), 'أضف منتجاً للمتابعة');
     await page.locator('#hasibCartEditor button').filter({ hasText: 'إضافة منتجات' }).click();
     await page.locator('#productPickerModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#productPickerSearch').fill('POS-NO-MATCH-TEST');
+    assert.equal(await page.locator('#productPickerList button').count(), 0,
+      'product picker search must filter out non-matching products');
+    assert.match(await page.locator('#productPickerList').textContent(), /لا توجد منتجات مطابقة/);
+    await page.locator('#productPickerSearch').fill(PRODUCT_NAME);
     await page.locator('#productPickerList button').filter({ hasText: PRODUCT_NAME }).click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
