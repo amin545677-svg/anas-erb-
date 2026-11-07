@@ -9410,7 +9410,7 @@ function wtAuditTransfers(){
             };
             box.querySelector('#smartImportAiAnalyze').click();
             box.querySelector('#smartImportCancel').onclick=()=>box.remove();
-            box.querySelector('#smartImportConfirm').onclick=()=>{
+            box.querySelector('#smartImportConfirm').onclick=async()=>{
                 const target=box.querySelector('#smartImportTarget').value;
                 const validation=box.querySelector('#smartImportValidation');
                 if(target==='preview'){box.remove();return;}
