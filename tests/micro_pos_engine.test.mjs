@@ -113,3 +113,14 @@ test('inventory and POS share live status/category filtering with 20-item progre
   assert.match(html, /core\.filterInventoryItems\(products, \{ query: search, status, category: selectedCategory \}\)/,
     'inventory and POS must use the canonical in-memory inventory filter');
 });
+
+test('dashboard exposes four work groups and the six persistent primary navigation tabs', () => {
+  const html = readFileSync('index.html', 'utf8');
+  for (const id of ['anasDailyGroupTitle', 'anasStockGroupTitle', 'anasMoneyGroupTitle', 'anasSmartGroupTitle']) {
+    assert.match(html, new RegExp('id="' + id + '"'), 'dashboard group is missing: ' + id);
+  }
+  assert.match(html, /id="anasQuickBottomNav"[\s\S]*?data-nav-view="dashboard"[\s\S]*?data-nav-view="pos"[\s\S]*?data-nav-view="inventory"[\s\S]*?data-nav-view="invoices-list"[\s\S]*?data-nav-view="customers"[\s\S]*?المزيد/,
+    'six primary navigation destinations must remain present and ordered');
+  assert.match(html, /dashboardStockAlertBadge[\s\S]*?dashboardBadge\.hidden = alerts\.length === 0/,
+    'dashboard stock alert count must be refreshed from the same alert calculation');
+});
