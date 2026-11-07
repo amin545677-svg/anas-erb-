@@ -10921,10 +10921,12 @@ function wtAuditTransfers(){
                             const purchaseRef=(AppData.purchases||[]).some(inv=>(inv.items||[]).some(item=>hasId(item.id??item.productId)));
                             const stockRef=(AppData.stockMovements||[]).some(m=>hasId(m.productId??m.itemId??m.product?.id));
                             const transferRef=(AppData.warehouseTransfers||[]).some(m=>hasId(m.productId??m.itemId));
-                            return Number(record.stock)>0||invoiceRef||purchaseRef||stockRef||transferRef;
+                            const warehouseBalances=record.warehouseStock&&typeof record.warehouseStock==='object'
+                                ?Object.values(record.warehouseStock).some(value=>Number(value&&typeof value==='object'?(value.quantity??value.stock):value)>0):false;
+                            return Number(record.stock)>0||warehouseBalances||invoiceRef||purchaseRef||stockRef||transferRef;
                         }
                         if(kind==='customers'){
-                            return Number(record.debt??record.initial_debt??0)>0||
+                            return Number(record.debt??record.initial_debt??0)>0||Number(record.creditUsed??0)>0||
                                 (AppData.invoices||[]).some(inv=>hasId(inv.customerId??inv.customerObj?.id))||
                                 (AppData.clientMovements||[]).some(m=>hasId(m.clientId??m.customerId))||
                                 (AppData.settlementAllocations||[]).some(a=>a.partyType==='customer'&&hasId(a.partyId??a.clientId));
