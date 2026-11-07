@@ -16,6 +16,8 @@ test('smart import exposes explicit merge and ledger-safe replace modes', async 
   assert.match(html, /await saveDBDurably\(\)/);
   assert.match(html, /فشل الحفظ، أُعيدت بيانات القسم إلى الحالة السابقة/);
   assert.match(html, /احتُفظ تلقائياً بـ '\+retainedProtected/);
+  assert.match(html, /return matchedIndex<0\|\|importDecisions\[matchedIndex\]==='ignore'\|\|importDecisions\[matchedIndex\]==='delete'/,
+    'ignored matched rows that remain ledger-protected must be counted as retained');
 });
 
 test('replace mode guards preserve invoice, stock, debt and supplier history references', async () => {
