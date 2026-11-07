@@ -9126,7 +9126,7 @@ function wtAuditTransfers(){
             const missing=fields.filter(([,key])=>!draft[key]).map(([labelText])=>labelText);
             const qtyField=form.querySelector('[data-draft-field="quantity"]'),priceField=form.querySelector('[data-draft-field="unitPrice"]');
             const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';
-            note.textContent='مسودة للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون قبل اعتمادك. '+(matchedProduct?'تمت مطابقة الصنف محليًا: '+matchedProduct.name+'. ':'')+(customerQuery?(matchedCustomer?'تمت مطابقة العميل محليًا: '+matchedCustomer.name+'. ':'لم تتم مطابقة العميل بشكل فريد مع السجلات المحلية. '):'')+(productCandidates.length>1?'اسم الصنف ملتبس؛ حسّن عبارة الصنف. ':'')+(customerCandidates.length>1?'اسم العميل ملتبس؛ أضف الاسم الكامل. ':'')+(missing.length?'حقول تحتاج إلى استكمال: '+missing.join('، ')+'. ':'');
+            note.textContent='مسودة قابلة للتعديل أو الرفض فقط؛ لم تُحفظ فاتورة ولم يتغير المخزون أو الحساب. تحقق من تطابق العميل والصنف والسعر قبل المراجعة.  '+(matchedProduct?'تمت مطابقة الصنف محليًا: '+matchedProduct.name+'. ':'')+(customerQuery?(matchedCustomer?'تمت مطابقة العميل محليًا: '+matchedCustomer.name+'. ':'لم تتم مطابقة العميل بشكل فريد مع السجلات المحلية. '):'')+(productCandidates.length>1?'اسم الصنف ملتبس؛ حسّن عبارة الصنف. ':'')+(customerCandidates.length>1?'اسم العميل ملتبس؛ أضف الاسم الكامل. ':'')+(missing.length?'حقول تحتاج إلى استكمال: '+missing.join('، ')+'. ':'');
             target.appendChild(note);
             if(transaction.startsWith('بيع')&&matchedProduct&&matchedCustomer&&qtyField&&Number(qtyField.value)>0&&(!priceField.value||Number(priceField.value)>=0)){
                 const action=document.createElement('button');action.type='button';action.className='btn-full-submit';action.style.cssText='background:#0f766e;width:100%;margin-top:8px;min-height:46px';action.textContent='تحويل إلى فاتورة مبيعات جاهزة';
@@ -9142,7 +9142,7 @@ function wtAuditTransfers(){
             if(!product||!customer||!Number.isSafeInteger(qtyUnits)||qtyUnits<=0||price!==null&&(!Number.isFinite(price)||price<0)){alert('تحقق من الصنف والعميل والكمية والسعر قبل التحويل.');return false;}
             const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
             const available=typeof wtAvailableStock==='function'?wtAvailableStock(product,saleWarehouse):Number(product.stock)||0;
-            const existing=posCart.find(item=>String(item.id)===String(product.id)),oldQty=existing?Number(existing.qty)||0,nextQty=oldQty+quantity;
+            const existing=posCart.find(item=>String(item.id)===String(product.id)),oldQty=existing?(Number(existing.qty)||0):0,nextQty=oldQty+quantity;
             if(!Number.isFinite(available)||nextQty>available){alert('الكمية المطلوبة تتجاوز الرصيد المتاح في '+saleWarehouse+'.');return false;}
             const oldCart=posCart.map(item=>({...item})),oldCarts=AppData.posScreensCarts,oldActive=AppData.activePosScreenTab;
             const unitPrice=price===null?(AppData.activePriceTier===2?(product.price2||product.price1):(AppData.activePriceTier===3?(product.price3||product.price1):product.price1)):price;
