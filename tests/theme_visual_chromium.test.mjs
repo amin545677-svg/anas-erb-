@@ -134,6 +134,36 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
 
     await page.evaluate(() => window.openView('ai-excel-hub'));
     await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+    const pdfUploadTile = page.locator('#view-ai-excel-hub label[data-anas-ai-action="pdf"]');
+    await pdfUploadTile.waitFor({ state: 'visible' });
+    const pdfTileVisual = await pdfUploadTile.evaluate(el => {
+      const css = getComputedStyle(el);
+      const title = el.querySelector('b'), detail = el.querySelector('span');
+      return {
+        text: el.innerText,
+        color: css.color,
+        titleColor: title ? getComputedStyle(title).color : '',
+        detailColor: detail ? getComputedStyle(detail).color : '',
+        width: el.getBoundingClientRect().width,
+        height: el.getBoundingClientRect().height,
+        visibility: css.visibility,
+        opacity: css.opacity
+      };
+    });
+    assert.match(pdfTileVisual.text, /PDF/, 'PDF upload tile label must be rendered');
+    assert.match(pdfTileVisual.text, /استخراج النص/, 'PDF upload tile instructions must be rendered');
+    assert.ok(pdfTileVisual.width >= 100 && pdfTileVisual.height >= 76,
+      'PDF upload tile must remain a usable mobile touch target');
+    assert.equal(pdfTileVisual.visibility, 'visible');
+    assert.equal(pdfTileVisual.opacity, '1');
+    assert.ok(contrast(pdfTileVisual.titleColor, 'rgb(245, 243, 255)') >= 4.5,
+      'PDF tile title must meet WCAG AA on its lavender surface');
+    const pdfChooserPromise = page.waitForEvent('filechooser');
+    await pdfUploadTile.click();
+    const pdfChooser = await pdfChooserPromise;
+    assert.equal(await pdfChooser.element().evaluate(el => el.id), 'smartAiPdfUpload',
+      'PDF tile must open its dedicated PDF file input');
+
     const darkAiPills = await page.locator('#view-ai-excel-hub > .pills-group-row > .pill-select-btn').evaluateAll(items =>
       items.map(el => {
         const css = getComputedStyle(el), rect = el.getBoundingClientRect();
