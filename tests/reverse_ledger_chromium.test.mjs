@@ -98,6 +98,32 @@ test('Chromium posts sales and purchase returns through the local ledger and dur
   } finally { await browser.close(); }
 });
 
+
+test('Chromium waits for local IndexedDB-backed AppData hydration before filling return invoices', async () => {
+  const browser = await chromium.launch({ headless:true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<!doctype html><html><body><main>delayed local data</main></body></html>');
+    await page.addScriptTag({ path: modulePath });
+    await page.addScriptTag({ path: modalPath });
+    await page.evaluate(() => window.returnSalePrompt());
+    await page.waitForFunction(() =>
+      document.getElementById('modal-reverse-ledger')?.classList.contains('active') &&
+      /جارٍ تحميل فواتير هذا الجهاز/.test(document.getElementById('rev-eligibility-status')?.textContent || '')
+    );
+    await page.addScriptTag({ content: 'let AppData = ' + JSON.stringify(salesState()) + ';' });
+    await page.waitForFunction(() => document.querySelectorAll('#rev-invoice-select option').length > 1);
+    const result = await page.evaluate(() => ({
+      options: document.querySelectorAll('#rev-invoice-select option').length,
+      status: document.getElementById('rev-eligibility-status').textContent,
+      buttonDisabled: document.getElementById('rev-submit-btn').disabled
+    }));
+    assert.ok(result.options > 1, 'local sales invoices must appear after IndexedDB hydration');
+    assert.doesNotMatch(result.status, /بيانات التطبيق غير جاهزة/);
+    assert.equal(result.buttonDisabled, true, 'posting remains disabled until an invoice and return reason are selected');
+  } finally { await browser.close(); }
+});
+
 test('Chromium restores invoice, stock and balances when the awaited local durable save fails', async () => {
   const browser = await chromium.launch({ headless:true });
   try {
