@@ -140,7 +140,7 @@ jobs:
       - name: Run real Firestore Emulator transaction, concurrency and security-rules tests
         run: npx --yes firebase-tools@14.22.0 emulators:exec --only firestore --project demo-anas-erp --config firebase.staging.json "node --test tests/reverse_ledger_firestore_emulator.test.js && node --test tests/reverse_ledger_snapshot_rules.test.mjs"
       - name: Syntax-check Chromium behavioral tests
-        run: node --check tests/staging_mobile_layout_chromium.test.mjs && node --check tests/purchase_supplier_chromium_staging.test.mjs && node --check tests/pos_full_lifecycle_chromium.test.mjs && node --check tests/reverse_ledger_chromium.test.mjs && node --check tests/reverse_ledger_staging_console_chromium.test.mjs && node --check tests/settlement_allocation_modal_chromium.test.mjs && node --check scripts/verify-live-staging-e2e.mjs && node --check tests/verify_live_staging_e2e.playwright.test.mjs
+        run: node --check tests/staging_mobile_layout_chromium.test.mjs && node --check tests/theme_visual_chromium.test.mjs && node --check tests/purchase_supplier_chromium_staging.test.mjs && node --check tests/pos_full_lifecycle_chromium.test.mjs && node --check tests/reverse_ledger_chromium.test.mjs && node --check tests/reverse_ledger_staging_console_chromium.test.mjs && node --check tests/settlement_allocation_modal_chromium.test.mjs && node --check scripts/verify-live-staging-e2e.mjs && node --check tests/verify_live_staging_e2e.playwright.test.mjs
       - name: Install Playwright and retain Firestore Rules emulator test dependencies
         run: npm install --no-save --package-lock=false playwright@1.56.1 @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
       - name: Install headless Chromium and system dependencies
@@ -167,7 +167,7 @@ jobs:
       - name: Run real DOM purchase, supplier settlement, reload and backup restore
         run: node --test tests/purchase_supplier_chromium_staging.test.mjs tests/pos_full_lifecycle_chromium.test.mjs tests/reverse_ledger_chromium.test.mjs tests/reverse_ledger_staging_console_chromium.test.mjs tests/settlement_allocation_modal_chromium.test.mjs tests/verify_live_staging_e2e.playwright.test.mjs
       - name: Verify Firebase mobile layout in Chromium and AI Worker CORS/auth contract
-        run: node --test tests/firebase_mobile_layout_chromium.test.mjs tests/staging_mobile_layout_chromium.test.mjs tests/worker_openai_ai.test.mjs tests/worker_firebase_snapshot_cors_test.mjs tests/ai_gateway_origin_guard_test.mjs
+        run: node --test tests/firebase_mobile_layout_chromium.test.mjs tests/staging_mobile_layout_chromium.test.mjs tests/theme_visual_chromium.test.mjs tests/worker_openai_ai.test.mjs tests/worker_firebase_snapshot_cors_test.mjs tests/ai_gateway_origin_guard_test.mjs
       - name: Verify AI Center actions and mobile touch layout
         run: node --test tests/ai_center_interactions.test.mjs
       - name: Exercise AI Center controls in real headless Chromium
