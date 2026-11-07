@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
-function bootTheme({ saved = null, systemDark = false } = {}) {
+function bootTheme({ saved = null, systemDark = false, storageThrows = false } = {}) {
   const values = new Map(saved ? [['ANAS_ERP_THEME', saved]] : []);
   const handlers = {};
   const mediaHandlers = {};
@@ -40,8 +40,8 @@ function bootTheme({ saved = null, systemDark = false } = {}) {
       addEventListener(type, fn) { handlers[type] = fn; }
     },
     localStorage: {
-      getItem(key) { return values.has(key) ? values.get(key) : null; },
-      setItem(key, value) { values.set(key, value); }
+      getItem(key) { if (storageThrows) throw new Error('storage unavailable'); return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { if (storageThrows) throw new Error('storage unavailable'); values.set(key, value); }
     }
   };
   const marker = "  'use strict';\n  const KEY = 'ANAS_ERP_THEME';";
@@ -93,4 +93,43 @@ test('theme changes from another open tab are synchronized', () => {
   app.handlers.storage({ key: 'ANAS_ERP_THEME', newValue: 'dark' });
   assert.equal(app.root.attrs['data-anas-theme'], 'dark');
   assert.equal(app.quickButton.attrs['aria-pressed'], 'true');
+});
+
+test('invalid stored values fall back to the operating-system preference', () => {
+  const app = bootTheme({ saved: 'unexpected', systemDark: true });
+  assert.equal(app.root.attrs['data-anas-theme'], 'dark');
+});
+
+test('theme remains usable when localStorage is unavailable', () => {
+  const app = bootTheme({ systemDark: true, storageThrows: true });
+  assert.equal(app.root.attrs['data-anas-theme'], 'dark');
+  assert.doesNotThrow(() => app.quickButton.listeners.click());
+  assert.equal(app.root.attrs['data-anas-theme'], 'light');
+});
+
+test('early bootstrap applies the saved theme before the stylesheet is parsed', () => {
+  const match = html.match(/<script id="anasThemeBootstrap">([\\s\\S]*?)<\\/script>/);
+  assert.ok(match, 'early theme bootstrap must exist');
+  const root = { attrs: {}, style: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+  const context = {
+    document: { documentElement: root },
+    localStorage: { getItem() { return 'dark'; } },
+    window: { matchMedia() { return { matches: false }; } }
+  };
+  vm.runInNewContext(match[1], context);
+  assert.equal(root.attrs['data-anas-theme'], 'dark');
+  assert.equal(root.style.colorScheme, 'dark');
+});
+
+test('early bootstrap falls back safely when storage access is blocked', () => {
+  const match = html.match(/<script id="anasThemeBootstrap">([\\s\\S]*?)<\\/script>/);
+  assert.ok(match, 'early theme bootstrap must exist');
+  const root = { attrs: {}, style: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+  const context = {
+    document: { documentElement: root },
+    localStorage: { getItem() { throw new Error('storage unavailable'); } },
+    window: { matchMedia() { return { matches: true }; } }
+  };
+  vm.runInNewContext(match[1], context);
+  assert.equal(root.attrs['data-anas-theme'], 'dark');
 });
