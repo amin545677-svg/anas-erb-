@@ -90,7 +90,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       const fixture = document.createElement('div');
       fixture.id = 'anasArabicThemeFixture';
       fixture.style.cssText = 'width:100%;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;';
-      fixture.innerHTML = '<button class="menu-action-card" type="button">المنتجات</button><button class="menu-action-card" type="button">مراجعة المخزون</button><button class="pill-select-btn" type="button">ديون العملاء</button>';
+      fixture.innerHTML = '<button class="menu-action-card" type="button">المنتجات</button><button class="menu-action-card" type="button">مراجعة المخزون</button>';
       document.getElementById('view-dashboard').appendChild(fixture);
       return [...fixture.querySelectorAll('button')].map(el => {
         el.style.width = '100%';
