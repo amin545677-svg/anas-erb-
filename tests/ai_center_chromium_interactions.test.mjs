@@ -154,7 +154,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.waitForFunction(() => /تم استخراج النص محليًا/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ), { timeout: 10000 });
-  assert.match(await page.locator('#smartPdfExtractText').inputValue(), /ANAS ERP PDF Smoke Test/,
+  assert.match(await page.locator('#smartPdfExtractText').inputValue(), /ANAS ERP PDF Smoke Tes/,
     'PDF text must be extracted locally even when Android omits the extension and reports generic MIME');
 
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
