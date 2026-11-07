@@ -107,11 +107,14 @@ async function enforceAiRateLimits(request, env, uid) {
     return { ok: false, status: 403, error: "A trusted client IP address is required for AI access." };
   }
   try {
-    const [userResult, ipResult] = await Promise.all([
-      userLimiter.limit({ key: "uid:" + uid }),
-      ipLimiter.limit({ key: "ip:" + ip })
-    ]);
-    if (!userResult || userResult.success !== true || !ipResult || ipResult.success !== true) {
+    // Check the shared IP first. If it is already blocked, do not consume
+    // an individual user's quota on a shared network.
+    const ipResult = await ipLimiter.limit({ key: "ip:" + ip });
+    if (!ipResult || ipResult.success !== true) {
+      return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
+    }
+    const userResult = await userLimiter.limit({ key: "uid:" + uid });
+    if (!userResult || userResult.success !== true) {
       return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
     }
     return { ok: true };

@@ -421,3 +421,19 @@ test("rate-limit backend errors fail closed without contacting OpenAI", async ()
     assert.equal(openAiCalls, 0);
   } finally { globalThis.fetch = oldFetch; }
 });
+
+
+test("an IP-blocked request does not consume an individual user's quota", async () => {
+  const oldFetch = globalThis.fetch; let userLimiterCalls = 0; let openAiCalls = 0;
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called"); });
+  try {
+    const response = await worker.fetch(request("/", { method: "POST", origin: allowedOrigin, body: { message: "shared network" } }), {
+      OPENAI_API_KEY: "test-secret",
+      AI_IP_RATE_LIMITER: { limit: async () => ({ success: false }) },
+      AI_USER_RATE_LIMITER: { limit: async () => { userLimiterCalls++; return { success: true }; } }
+    });
+    assert.equal(response.status, 429);
+    assert.equal(userLimiterCalls, 0);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
+});
