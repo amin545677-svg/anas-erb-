@@ -40,8 +40,10 @@ function escapeText(value) {
   }[ch]));
 }
 function appData() {
-  const current = window.AppData;
-  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق غير جاهزة.');
+  // AppData is a top-level lexical binding in the V42 shell (let AppData), not necessarily window.AppData.
+  // Resolve that binding first so this separately loaded module sees the actual hydrated local database.
+  const current = typeof AppData !== 'undefined' ? AppData : window.AppData;
+  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق المحلية غير جاهزة؛ انتظر اكتمال تحميل IndexedDB.');
   return current;
 }
 function invoiceRows(mode) {
@@ -356,14 +358,24 @@ async function submit() {
   request.operationId = operationId();
   button.disabled = true;
   button.textContent = 'جارٍ اعتماد المرتجع محلياً…';
+  const before = JSON.parse(JSON.stringify(appData()));
   try {
     const document = engine.localPostReturnTransaction(appData(), request, {
       createId: () => request.operationId,
       operatorId: String(appData().currentUser?.id ?? 'local'),
-      persist: () => typeof saveDB === 'function' && saveDB() === true
+      // The module performs all domain validation and rollback in memory. Commit only after
+      // the full state has passed the V42 durable IndexedDB writer.
+      persist: () => true
     });
     if (!document || document.status !== 'POSTED') throw new Error('لم يُنشأ قيد مرتجع محلي مؤكد.');
-    status('تم اعتماد المرتجع محلياً. رقم القيد: ' + String(document.returnId || '—'), true);
+    if (typeof saveDBDurably === 'function') {
+      await saveDBDurably();
+    } else if (typeof saveDB === 'function' && saveDB() === true) {
+      // Compatibility fallback for older shells without the awaited durable writer.
+    } else {
+      throw new Error('تعذر تأكيد حفظ المرتجع في التخزين المحلي.');
+    }
+    status('تم اعتماد المرتجع محلياً وحفظه في التخزين الآمن. رقم القيد: ' + String(document.returnId || '—'), true);
     button.textContent = 'تم الاعتماد محلياً';
     try {
       if (typeof renderInventoryList === 'function') renderInventoryList();
@@ -371,9 +383,16 @@ async function submit() {
       if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
       if (typeof updateCashUI === 'function') updateCashUI();
       if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
+      if (typeof updateDashboardStats === 'function') updateDashboardStats();
     } catch (refreshError) { console.error('Local return saved; UI refresh failed', refreshError); }
     close();
   } catch (error) {
+    // A persistence failure must not leave a locally mutated invoice, balance, or stock in memory.
+    try {
+      if (typeof AppData !== 'undefined') AppData = before;
+      else window.AppData = before;
+      if (typeof saveDBDurably === 'function') await saveDBDurably();
+    } catch (rollbackError) { console.error('Local return rollback could not be re-persisted:', rollbackError); }
     status('لم يتم اعتماد المرتجع: ' + String(error && error.message || error) + '. لم تُعلن أي حركة ناجحة.', false);
     button.textContent = 'اعتماد المرتجع محلياً';
     button.disabled = false;
