@@ -190,7 +190,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await excelChooser.setFiles({
       name: 'mobile-preview.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from('"الكود";"الباركود";"اسم المنتج";"سعر الشراء";"سعر البيع";"المخزون";"الفئة";"الوحدة";"الحد الأدنى";"الوصف"\n"CSV-001";"611000000101";"قهوة, ممتازة";80;120;6;"مشروبات";"علبة";2;"عبوة, تجريبية"', 'utf8')
+      buffer: Buffer.from('"الكود";"الباركود";"اسم المنتج";"سعر الشراء";"سعر البيع";"المخزون";"الفئة";"الوحدة";"الحد الأدنى";"الوصف"\n"CSV-001";"611000000101";"قهوة, ممتازة";80;120;6;"مشروبات, ساخنة";"علبة";2;"وصف تجريبي"', 'utf8')
     });
     await page.locator('#smartAiExcelStatus').waitFor({ state: 'visible' });
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
@@ -220,17 +220,17 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       db.close();
       return String(record?.payload || '');
     });
-    assert.ok(csvSaved.includes('قهوة, ممتازة') && csvSaved.includes('عبوة, تجريبية'),
-      'CSV import must durably persist quoted comma values without splitting their fields');
+    assert.ok(csvSaved.includes('قهوة, ممتازة') && csvSaved.includes('مشروبات, ساخنة'),
+      'CSV import must durably persist quoted commas in supported product name and category fields');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.AppData?.products?.some(p =>
       p.id === 'CSV-001' && p.name === 'قهوة, ممتازة'
     ), { timeout: 10000 });
     const csvRestored = await page.evaluate(() => {
       const product = window.AppData.products.find(p => p.id === 'CSV-001');
-      return product ? { name: product.name, stock: product.stock, price1: product.price1 } : null;
+      return product ? { name: product.name, stock: product.stock, price1: product.price1, cat: product.cat } : null;
     });
-    assert.deepEqual(csvRestored, { name: 'قهوة, ممتازة', stock: 6, price1: 120 },
+    assert.deepEqual(csvRestored, { name: 'قهوة, ممتازة', stock: 6, price1: 120, cat: 'مشروبات, ساخنة' },
       'CSV import must survive a full browser reload from durable local storage');
 
     await page.evaluate(async () => {
