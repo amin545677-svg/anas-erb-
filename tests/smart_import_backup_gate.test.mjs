@@ -16,6 +16,12 @@ test('local product import auto-detects headers and persists a verified IndexedD
     'minimum-stock heading must be recognized');
   assert.ok(preview.includes("box.querySelector('#smartImportBackupAck').checked=true"),
     'local backup option must be enabled by default');
+  assert.ok(!preview.includes("if(!box.querySelector('#smartImportBackupAck').checked)"),
+    'the automatically verified IndexedDB backup must not require a manual checkbox gate');
+  assert.ok(!preview.includes("if(!confirm('فحص الملف نجح"),
+    'the primary preview confirmation must not be followed by a second native confirm dialog');
+  assert.ok(preview.includes("await saveDBDurably();"),
+    'the single confirmation path must await durable IndexedDB persistence');
   assert.ok(preview.includes("indexedDB.open('anas_erp_v42_resilient_db',1)"),
     'the backup must be persisted in the application IndexedDB database');
   assert.ok(preview.includes("tx.objectStore('snapshots').put({key:backupKey"),
