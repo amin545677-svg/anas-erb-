@@ -86,6 +86,28 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     assert.ok(contrast(visual.cardText, 'rgb(27, 41, 64)') >= 4.5, 'dashboard title must meet WCAG AA against its rendered gradient stop');
     assert.ok(contrast(visual.brandText, 'rgb(5, 39, 71)') >= 4.5, 'navigation brand must meet WCAG AA against its rendered gradient stop');
 
+    const arabicControl = await page.evaluate(() => {
+      const fixture = document.createElement('div');
+      fixture.id = 'anasArabicThemeFixture';
+      fixture.innerHTML = '<button class="btn-multi-tab" type="button">المنتجات</button><button class="menu-action-card" type="button">مراجعة المخزون</button>';
+      document.getElementById('view-dashboard').appendChild(fixture);
+      return [...fixture.querySelectorAll('button')].map(el => {
+        const css = getComputedStyle(el);
+        return { text: el.textContent.trim(), color: css.color, background: css.backgroundColor,
+          letterSpacing: css.letterSpacing, wordBreak: css.wordBreak, direction: css.direction,
+          width: el.getBoundingClientRect().width, scrollWidth: el.scrollWidth };
+      });
+    });
+    for (const control of arabicControl) {
+      assert.ok(contrast(control.color, control.background) >= 4.5,
+        'dark-mode Arabic button text must meet WCAG AA: ' + control.text);
+      assert.equal(control.letterSpacing, 'normal', 'Arabic letters must not be artificially spaced');
+      assert.equal(control.wordBreak, 'normal', 'Arabic words must not be split character by character');
+      assert.ok(control.width > 0 && control.scrollWidth <= control.width + 1,
+        'Arabic button label must fit its mobile control: ' + control.text);
+    }
+    await page.locator('#anasArabicThemeFixture').evaluate(el => el.remove());
+
     await page.evaluate(() => window.openView('settings'));
     await page.locator('#view-settings').waitFor({ state: 'visible' });
     const field = await page.locator('#cfgAppName').evaluate(el => {
