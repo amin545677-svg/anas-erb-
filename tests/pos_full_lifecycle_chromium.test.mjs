@@ -160,7 +160,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
       'adding a valid product from the picker must restore checkout');
     const commitNumberEditor = async (selector, value) => {
-      const editor = page.locator(selector);
+      const editor = page.locator(selector).first(); // target the first cart row when duplicate-row guards are under test
       await editor.fill(value);
       await editor.press('Tab'); // commit the native change event used by the editor
     };
