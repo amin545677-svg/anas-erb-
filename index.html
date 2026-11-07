@@ -1545,6 +1545,19 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
   .anas-pos-checkout-bar .box-total-green { font-size:16px; }
 }
 </style>
+<style id="anas-pos-payment-clarity">
+#hasibModal .anas-payment-section { display:grid; gap:10px; }
+#hasibModal .anas-payment-section .field-group { margin:0; }
+#hasibModal .anas-payment-hint { display:block; margin-top:6px; color:var(--mp-text-muted,#64748b); font-size:12px; line-height:1.5; }
+#hasibModal .anas-payment-summary { display:grid; gap:8px; padding:13px; border:1px solid var(--mp-border,#dbe3ed); border-radius:12px; background:var(--mp-surface-soft,#f8fafc); }
+#hasibModal .anas-payment-summary > div { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--mp-text-muted,#64748b); font-size:13px; }
+#hasibModal .anas-payment-summary strong { color:var(--mp-navy,#0f172a); font-size:15px; font-variant-numeric:tabular-nums; }
+#hasibModal .anas-payment-summary .anas-payment-debt { border-top:1px solid var(--mp-border,#dbe3ed); padding-top:8px; color:var(--mp-text,#334155); font-weight:900; }
+#hasibModal .anas-payment-summary .anas-payment-debt strong { color:#b45309; font-size:18px; }
+:root[data-anas-theme="dark"] #hasibModal .anas-payment-summary { background:#111d30; border-color:#334155; }
+:root[data-anas-theme="dark"] #hasibModal .anas-payment-summary strong { color:#e5edf8; }
+:root[data-anas-theme="dark"] #hasibModal .anas-payment-summary .anas-payment-debt { border-color:#334155; }
+</style>
 </head>
 <body>
 
@@ -2610,22 +2623,31 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div id="hasibCartItems" style="display:flex;flex-direction:column;gap:8px;"></div>
                 <small style="display:block;margin-top:8px;color:#64748b;">اضغط على السعر لتعديله، واستعمل − و＋ لتغيير الكمية. يتحدث الإجمالي تلقائياً.</small>
             </div>
-            <div class="field-group">
-                <label>الزبون المستلم:</label>
-                <select id="hasibCustomerSelect" class="field-input"></select>
-            </div>
-            <div class="field-group">
-                <label>طريقة الدفع:</label>
-                <select id="hasibPaymentMethod" class="field-input" onchange="toggleHasibPayFields()">
-                    <option value="cash">💵 مدفوع بالكامل</option>
-                    <option value="partial">💳 دفع جزئي (نقداً + دين)</option>
-                    <option value="credit">📝 بالآجل (لم يدفع شيئاً)</option>
-                </select>
-            </div>
-            <div id="hasibPaidGroup" class="field-group">
-                <label>المبلغ الذي دفعه الزبون الآن (د.ج):</label>
-                <input type="number" id="hasibPaidAmount" class="field-input" min="0" step="0.01" value="0" oninput="updatePaymentMethodFromAmount()">
-                <small id="hasibRemainingText" style="display:block;margin-top:6px;color:var(--mp-text-muted)">المتبقي على الزبون: 0.00 د.ج</small>
+            <div class="anas-payment-section">
+                <div class="field-group">
+                    <label for="hasibCustomerSelect">الزبون</label>
+                    <select id="hasibCustomerSelect" class="field-input" onchange="refreshHasibPaymentGuidance()"></select>
+                    <small id="hasibCustomerHint" class="anas-payment-hint">البيع النقدي لا يحتاج إلى تسجيل زبون. عند وجود دين، اختر زبوناً مسجلاً.</small>
+                </div>
+                <div class="field-group">
+                    <label for="hasibPaymentMethod">كيف سيدفع الزبون؟</label>
+                    <select id="hasibPaymentMethod" class="field-input" onchange="setHasibPaymentMode(this.value)">
+                        <option value="cash">💵 دفع كامل الآن</option>
+                        <option value="partial">💳 دفع جزء الآن والباقي دين</option>
+                        <option value="credit">📝 تسجيل كامل المبلغ كدين</option>
+                    </select>
+                </div>
+                <div id="hasibPaidGroup" class="field-group">
+                    <label for="hasibPaidAmount">المبلغ المقبوض الآن (د.ج)</label>
+                    <input type="number" id="hasibPaidAmount" class="field-input" min="0" step="0.01" value="0" inputmode="decimal" oninput="updatePaymentMethodFromAmount()">
+                    <small class="anas-payment-hint">أدخل ما استلمته فعلياً فقط. سيُحسب الدين تلقائياً.</small>
+                </div>
+                <div class="anas-payment-summary" aria-live="polite">
+                    <div><span>قيمة الفاتورة</span><strong id="hasibSummaryTotal">0.00 د.ج</strong></div>
+                    <div><span>المقبوض الآن</span><strong id="hasibSummaryPaid">0.00 د.ج</strong></div>
+                    <div class="anas-payment-debt"><span>المتبقي على الزبون</span><strong id="hasibRemainingText">0.00 د.ج</strong></div>
+                    <small id="hasibCustomerHint" class="anas-payment-hint" hidden></small>
+                </div>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
@@ -3894,6 +3916,35 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return total;
         }
 
+        function renderHasibPaymentSummary() {
+            const totalCents = anasCartTotalCents(posCart);
+            const input = document.getElementById('hasibPaidAmount');
+            const parsed = anasToCents(input ? input.value : 0);
+            const paidCents = Number.isSafeInteger(parsed) ? Math.max(0, Math.min(totalCents, parsed)) : 0;
+            const safeTotal = Number.isSafeInteger(totalCents) && totalCents >= 0 ? totalCents : 0;
+            const totalEl = document.getElementById('hasibSummaryTotal');
+            const paidEl = document.getElementById('hasibSummaryPaid');
+            const remainingEl = document.getElementById('hasibRemainingText');
+            if (totalEl) totalEl.textContent = anasCentsToCurrency(safeTotal).toFixed(2) + ' د.ج';
+            if (paidEl) paidEl.textContent = anasCentsToCurrency(paidCents).toFixed(2) + ' د.ج';
+            if (remainingEl) remainingEl.textContent = anasCentsToCurrency(Math.max(0, safeTotal - paidCents)).toFixed(2) + ' د.ج';
+            refreshHasibPaymentGuidance();
+        }
+
+        function refreshHasibPaymentGuidance() {
+            const method = document.getElementById('hasibPaymentMethod');
+            const customer = document.getElementById('hasibCustomerSelect');
+            const hint = document.getElementById('hasibCustomerHint');
+            if (!method || !customer || !hint) return;
+            const hasDebt = method.value !== 'cash' &&
+                anasToCents(document.getElementById('hasibPaidAmount')?.value || 0) <
+                anasCartTotalCents(posCart);
+            hint.textContent = hasDebt
+                ? (customer.value ? 'سيُسجل المبلغ المتبقي ضمن ديون هذا الزبون.' : 'اختر زبوناً مسجلاً قبل تأكيد البيع الآجل أو الجزئي.')
+                : 'البيع النقدي لا يحتاج إلى تسجيل زبون.';
+            hint.style.color = hasDebt && !customer.value ? '#b45309' : '';
+        }
+
         function updatePaymentMethodFromAmount() {
             const totalCents = anasCartTotalCents(posCart);
             const total = anasCentsToCurrency(totalCents);
@@ -3903,24 +3954,26 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (paidCents > totalCents) { paidCents = totalCents; input.value = total.toFixed(2); }
             const method = document.getElementById('hasibPaymentMethod');
             method.value = paidCents <= 0 ? 'credit' : (paidCents < totalCents ? 'partial' : 'cash');
-            toggleHasibPayFields();
-            const rem = document.getElementById('hasibRemainingText');
-            if (rem) rem.textContent = 'المتبقي على الزبون: ' + anasCentsToCurrency(Math.max(0, totalCents - paidCents)).toFixed(2) + ' د.ج';
+            renderHasibPaymentSummary();
+        }
+
+        function setHasibPaymentMode(mode) {
+            const method = document.getElementById('hasibPaymentMethod');
+            const input = document.getElementById('hasibPaidAmount');
+            const totalCents = anasCartTotalCents(posCart);
+            if (!method || !input || !Number.isSafeInteger(totalCents) || totalCents < 0) return;
+            if (!['cash', 'partial', 'credit'].includes(mode)) return;
+            method.value = mode;
+            if (mode === 'cash') input.value = anasCentsToCurrency(totalCents).toFixed(2);
+            else if (mode === 'credit') input.value = '0.00';
+            else input.value = anasCentsToCurrency(Math.floor(totalCents / 2)).toFixed(2);
+            renderHasibPaymentSummary();
         }
 
         function toggleHasibPayFields() {
-            const isCredit = document.getElementById('hasibPaymentMethod').value === 'credit';
             const group = document.getElementById('hasibPaidGroup');
-            group.style.display = 'block';
-            const totalCents = anasCartTotalCents(posCart);
-            const total = anasCentsToCurrency(totalCents);
-            const paidInput = document.getElementById('hasibPaidAmount');
-            if (isCredit) paidInput.value = '0';
-            else if (anasToCents(paidInput.value) <= 0) paidInput.value = total.toFixed(2);
-            const parsedPaidCents = anasToCents(paidInput.value);
-            const paidCents = Number.isSafeInteger(parsedPaidCents) ? Math.max(0, Math.min(totalCents, parsedPaidCents)) : 0;
-            const rem = document.getElementById('hasibRemainingText');
-            if (rem) rem.textContent = 'المتبقي على الزبون: ' + anasCentsToCurrency(Math.max(0, totalCents - paidCents)).toFixed(2) + ' د.ج';
+            if (group) group.style.display = 'block';
+            renderHasibPaymentSummary();
         }
 
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
