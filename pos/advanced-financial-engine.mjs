@@ -9,6 +9,10 @@ const text = value => String(value ?? '').normalize('NFKC').trim();
 const norm = value => text(value).toLocaleLowerCase().replace(/[\u064B-\u065F\u0670]/g, '').replace(/[\s_-]+/g, ' ');
 const first = (row, keys) => {
   for (const key of keys) if (own(row, key) && text(row[key])) return row[key];
+  const aliases = new Set(keys.map(norm));
+  for (const [key, value] of Object.entries(row || {})) {
+    if (aliases.has(norm(key)) && text(value)) return value;
+  }
   return '';
 };
 const toCents = value => {
@@ -80,10 +84,16 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
   const staged = { suppliers: [], products: [], customers: [], invoices: [], totalValidRows: 0, sheetCount: 0, unclassified: 0 };
   const existing = {};
   for (const type of ['suppliers', 'products', 'customers', 'invoices']) {
-    existing[type] = new Set((Array.isArray(existingDB[type]) ? existingDB[type] : [])
-      .flatMap(row => identityKeysFor(type, row)));
+    const index = new Map();
+    (Array.isArray(existingDB[type]) ? existingDB[type] : []).forEach((row, rowIndex) => {
+      for (const identity of identityKeysFor(type, row)) {
+        if (!index.has(identity)) index.set(identity, new Set());
+        index.get(identity).add('database:' + rowIndex);
+      }
+    });
+    existing[type] = index;
   }
-  const seen = Object.fromEntries(Object.keys(existing).map(type => [type, new Set()]));
+  const seen = Object.fromEntries(Object.keys(existing).map(type => [type, new Map()]));
   for (const [sheetName, rows] of Object.entries(sheetsDataMap || {})) {
     if (!Array.isArray(rows) || rows.length === 0) continue;
     staged.sheetCount++;
@@ -98,13 +108,24 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
       const identityKeys = identityKeysFor(type, normalized);
       if (!identityKeys.length) { staged.unclassified++; continue; }
       const key = identityKeys[0];
+      const matches = new Set();
+      for (const identity of identityKeys) {
+        for (const match of existing[type].get(identity) || []) matches.add(match);
+        for (const match of seen[type].get(identity) || []) matches.add(match);
+      }
       const isDatabaseDuplicate = identityKeys.some(identity => existing[type].has(identity));
       const isWorkbookDuplicate = identityKeys.some(identity => seen[type].has(identity));
       const isDuplicate = isDatabaseDuplicate || isWorkbookDuplicate;
-      identityKeys.forEach(identity => seen[type].add(identity));
+      const identityConflict = matches.size > 1;
+      const resolvedIdentity = matches.size === 1 ? [...matches][0] : 'workbook:' + staged[type].length;
+      identityKeys.forEach(identity => {
+        if (!seen[type].has(identity)) seen[type].set(identity, new Set());
+        seen[type].get(identity).add(resolvedIdentity);
+      });
       staged[type].push({ ...normalized, sourceSheet: sheetName, identityKey: key, identityKeys, isDuplicate,
+        identityConflict,
         duplicateScope: isDatabaseDuplicate ? 'database' : isWorkbookDuplicate ? 'workbook' : null,
-        action: isDuplicate ? 'match' : 'create' });
+        action: identityConflict ? 'review_conflict' : isDuplicate ? 'match' : 'create' });
       staged.totalValidRows++;
     }
   }
