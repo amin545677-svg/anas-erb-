@@ -1385,6 +1385,28 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
     <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">
 
+<style id="anas-pos-guided-checkout">
+/* Guided POS: one obvious path from product selection to payment. */
+#view-pos .sales-toolbar > .btn-pos-hasib[onclick="openQuickSale()"] { display:none !important; }
+#view-pos .sales-toolbar { gap:8px; }
+#view-pos .sales-toolbar .btn-pos-hasib[onclick="openHasibModal()"] { min-height:44px; padding-inline:16px; }
+#view-pos .quick-products-grid { max-height:min(28vh,250px); overflow-y:auto; }
+#view-pos .invoice-items-body { padding-bottom:116px; }
+#view-pos .pos-empty-hint { color:var(--anas-text,#172033); background:var(--anas-surface,#fff); }
+.anas-pos-checkout-bar { gap:12px; padding:10px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
+.anas-pos-total-wrap { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.anas-pos-total-label { font-size:12px; font-weight:800; color:var(--anas-text-muted,#64748b); }
+.anas-pos-checkout-bar .box-total-green { min-width:0 !important; padding:4px 10px; font-size:clamp(17px,4vw,22px); white-space:nowrap; }
+.anas-pos-checkout-btn { min-height:48px; min-width:145px; border:0; border-radius:12px; padding:10px 18px; background:#15803d; color:#fff; font-size:15px; font-weight:900; box-shadow:0 3px 10px #15803d30; touch-action:manipulation; }
+.anas-pos-checkout-btn:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+:root[data-anas-theme="dark"] .anas-pos-checkout-bar { background:#101a2b; border-color:#334155; }
+:root[data-anas-theme="dark"] .anas-pos-total-label { color:#c4d0e0; }
+:root[data-anas-theme="dark"] .anas-pos-checkout-btn { background:#16a34a; color:#fff; }
+@media(max-width:380px) {
+  .anas-pos-checkout-btn { min-width:126px; padding-inline:11px; font-size:13px; }
+  .anas-pos-checkout-bar .box-total-green { font-size:16px; }
+}
+</style>
 </head>
 <body>
 
@@ -1562,12 +1584,14 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             </div>
 
             <!-- شريط الإجمالي السفلي -->
-            <div class="bottom-totals-bar">
-                <button class="btn-multi-tab" onclick="openProductPickerModal()" style="border-radius:50%;" title="قائمة السلع">:::</button>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:0.8rem; font-weight:800; color:#64748b;">الإجمالي+TAX</span>
-                    <div class="box-total-green" style="min-width:160px;" id="posTotalDisplay">0.00 د.ج</div>
+            <div class="bottom-totals-bar anas-pos-checkout-bar">
+                <div class="anas-pos-total-wrap">
+                    <span class="anas-pos-total-label">إجمالي الفاتورة</span>
+                    <div class="box-total-green" id="posTotalDisplay">0.00 د.ج</div>
                 </div>
+                <button type="button" id="posCheckoutBtn" class="anas-pos-checkout-btn" onclick="openHasibModal()" disabled>
+                    <span aria-hidden="true">✓</span> متابعة للدفع
+                </button>
             </div>
         </section>
 
@@ -3391,8 +3415,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const tb = document.getElementById('posItemsTableBody');
             tb.innerHTML = '';
             if(posCart.length === 0) {
-                tb.innerHTML = '<div class="pos-empty-hint"><div style="font-size:30px">🛒</div><strong>ابدأ عملية البيع</strong><br><span>ابحث عن المنتج أو اختره من البطاقات أعلاه، ويمكنك مسح الباركود لإضافته مباشرة.</span></div>';
+                tb.innerHTML = '<div class="pos-empty-hint"><div style="font-size:30px">🛒</div><strong>ابدأ عملية البيع</strong><br><span>ابحث عن المنتج أو اختره من البطاقات أعلاه، ثم أضفه إلى الفاتورة.</span></div>';
                 document.getElementById('posTotalDisplay').innerText = '0.00 د.ج';
+                const checkout = document.getElementById('posCheckoutBtn');
+                if (checkout) { checkout.disabled = true; checkout.setAttribute('aria-disabled', 'true'); }
                 syncHasibInvoiceTotals();
                 return;
             }
@@ -3424,6 +3450,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 `;
             });
             document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج';
+            const checkout = document.getElementById('posCheckoutBtn');
+            if (checkout) {
+                const validTotal = Number.isSafeInteger(anasCartTotalCents(posCart)) && anasCartTotalCents(posCart) > 0;
+                checkout.disabled = hasInvalidCartValues || !validTotal;
+                checkout.setAttribute('aria-disabled', checkout.disabled ? 'true' : 'false');
+            }
             syncHasibInvoiceTotals();
         }
 
