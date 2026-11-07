@@ -157,3 +157,48 @@ test('multi-sheet workbook staging classifies all four entity types and detects 
   assert.equal(staged.invoices[0].isDuplicate, true);
   assert.equal(staged.invoices[0].duplicateScope, 'database');
 });
+
+
+test('product imports match stable IDs then barcode, never merge by product name', async () => {
+  const storage = memoryStorage({
+    anas_products: JSON.stringify([{ id: 'P-1', barcode: '111', name: 'زيت زيتون', quantity: 4 }])
+  });
+  let saved;
+  const stats = await executeSafeBulkImport({
+    rows: [{ id: 'P-2', barcode: '222', name: 'زيت زيتون', quantity: 7 }],
+    storage,
+    repository: { async saveBatchSafe(type, rows) { saved = { type, rows }; } }
+  });
+  assert.deepEqual({ added: stats.added, updated: stats.updated, skipped: stats.skipped }, {
+    added: 1, updated: 0, skipped: 0
+  });
+  assert.equal(saved.rows.length, 2, 'same-name products with different stable identities must remain separate');
+});
+
+test('product import rejects ID/barcode conflicts before durable or mirror mutation', async () => {
+  const original = JSON.stringify([{ id: 'P-1', barcode: '111', name: 'منتج أصلي', quantity: 4 }]);
+  const storage = memoryStorage({ anas_products: original });
+  let repositoryCalls = 0;
+  await assert.rejects(() => executeSafeBulkImport({
+    rows: [{ id: 'P-1', barcode: '999', name: 'محاولة تعارض', quantity: 8 }],
+    storage,
+    repository: { async saveBatchSafe() { repositoryCalls++; } }
+  }), /IMPORT_IDENTITY_CONFLICT/);
+  assert.equal(storage.getItem('anas_products'), original, 'identity conflict must not mutate the local business-data mirror');
+  assert.equal(repositoryCalls, 0, 'identity conflict must be rejected before durable persistence');
+});
+
+test('barcode fallback updates a legacy product while preserving its original database ID', async () => {
+  const storage = memoryStorage({
+    anas_products: JSON.stringify([{ id: 'P-LEGACY', barcode: '321', name: 'قديم', quantity: 1 }])
+  });
+  let saved;
+  const stats = await executeSafeBulkImport({
+    rows: [{ barcode: '321', name: 'محدث', quantity: 2 }],
+    storage,
+    repository: { async saveBatchSafe(type, rows) { saved = rows; } }
+  });
+  assert.equal(stats.updated, 1);
+  assert.equal(saved[0].id, 'P-LEGACY');
+  assert.equal(saved[0].name, 'محدث');
+});
