@@ -12,6 +12,7 @@ function bootTheme({ saved = null, systemDark = false, storageThrows = false } =
   const mediaHandlers = {};
   const root = { attrs: {}, style: {}, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k] || null; } };
   const meta = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+  const modeSelect = { value: '', listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; } };
   function makeButton(id) {
     const listeners = {};
     const icon = { textContent: '' };
@@ -34,7 +35,10 @@ function bootTheme({ saved = null, systemDark = false, storageThrows = false } =
     document: {
       documentElement: root,
       querySelectorAll() { return [settingsButton, quickButton]; },
-      querySelector(selector) { return selector === 'meta[name="theme-color"]' ? meta : null; }
+      querySelector(selector) {
+        if (selector === '#anasThemeMode') return modeSelect;
+        return selector === 'meta[name="theme-color"]' ? meta : null;
+      }
     },
     window: {
       matchMedia() { return media; },
@@ -52,7 +56,7 @@ function bootTheme({ saved = null, systemDark = false, storageThrows = false } =
   const scriptEnd = html.indexOf('</script>', markerIndex);
   assert.ok(scriptStart !== -1 && scriptEnd > markerIndex, 'theme controller is a complete inline script');
   vm.runInNewContext(html.slice(scriptStart + 8, scriptEnd), context);
-  return { values, handlers, mediaHandlers, root, meta, settingsButton, quickButton, media };
+  return { values, handlers, mediaHandlers, root, meta, settingsButton, quickButton, modeSelect, media };
 }
 
 test('theme bootstrap is applied before the application stylesheet to avoid a flash', () => {
@@ -195,4 +199,22 @@ test('dark theme is not overridden by a global forced-black typography rule', ()
   assert.ok(bridge.includes(':root[data-anas-theme="dark"] body *'));
   assert.ok(bridge.includes('-webkit-text-fill-color:currentColor!important'));
   assert.ok(bridge.includes(':root[data-anas-theme="dark"] .grid-card-item .card-title-text'));
+});
+
+test('automatic appearance mode persists independently and follows later operating-system changes', () => {
+  const app = bootTheme({ saved: 'system', systemDark: false });
+  assert.equal(app.modeSelect.value, 'system');
+  assert.equal(app.root.attrs['data-anas-theme'], 'light');
+  app.media.matches = true;
+  app.mediaHandlers.change({ matches: true });
+  assert.equal(app.root.attrs['data-anas-theme'], 'dark');
+  app.modeSelect.value = 'light';
+  app.modeSelect.listeners.change();
+  assert.equal(app.values.get('ANAS_ERP_THEME'), 'light');
+  app.media.matches = false;
+  app.mediaHandlers.change({ matches: false });
+  assert.equal(app.root.attrs['data-anas-theme'], 'light');
+  app.modeSelect.value = 'system';
+  app.modeSelect.listeners.change();
+  assert.equal(app.values.get('ANAS_ERP_THEME'), 'system');
 });
