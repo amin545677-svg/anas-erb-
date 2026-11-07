@@ -5193,13 +5193,15 @@ function renderPurchasesTable() {
             const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const previousCashBalance = AppData.caisseBalance;
             const previousBalanceCents = anasToCents(hadCashBalance ? previousCashBalance : 0);
-            const nextBalanceCents = previousBalanceCents - amountCents;
+            const cashAvailable = Number.isSafeInteger(previousBalanceCents) && previousBalanceCents >= amountCents;
+            const registerAsDriverAdvance = !cashAvailable && confirm('رصيد الصندوق غير كافٍ. هل تريد تسجيل المصروف كآجل / عهدة سائق دون خصم فوري من الصندوق؟');
+            if (!cashAvailable && !registerAsDriverAdvance) return;
+            const nextBalanceCents = cashAvailable ? previousBalanceCents - amountCents : previousBalanceCents;
             if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0 ||
                 !Number.isSafeInteger(nextBalanceCents) || Math.abs(nextBalanceCents) > Number.MAX_SAFE_INTEGER) {
                 alert('رصيد الصندوق أو نتيجة المصروف خارج المجال المالي الآمن؛ لم يتم تسجيل المصروف.');
                 return;
             }
-            if (previousBalanceCents < amountCents) { alert('رصيد الصندوق لا يكفي!'); return; }
             const hadExpenses = Array.isArray(AppData.expenses);
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
             AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
@@ -5211,7 +5213,8 @@ function renderPurchasesTable() {
             AppData.expenses.push({
                 id: expenseId,
                 account: acc, desc: desc, amt: amt, date: new Date().toISOString(),
-                paymentMethod: 'cash',
+                paymentMethod: registerAsDriverAdvance ? 'driver_advance' : 'cash',
+                settlementStatus: registerAsDriverAdvance ? 'pending' : 'settled',
                 userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
             });
@@ -9359,21 +9362,11 @@ function wtAuditTransfers(){
             const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const sample=rows.slice(0,6);
             const box=document.createElement('div');box.id='smartImportPreviewModal';
-            let backupDownloadRequested=false;
+            let backupDownloadRequested=true;
             box.style.cssText='position:fixed;inset:0;z-index:100001;background:#020617dd;overflow:auto;padding:12px;';
-            box.innerHTML=`<div style="max-width:760px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:14px"><h3>📊 معاينة الملف قبل الاستيراد</h3><p style="overflow-wrap:anywhere">الملف: ${esc(fileName)}<br>عدد الصفوف: ${rows.length}. هذه معاينة فقط ولم يتم تعديل بياناتك.</p><div style="overflow:auto;max-height:45vh"><table style="border-collapse:collapse;width:100%;font-size:12px;direction:auto">${sample.map(r=>'<tr>'+r.slice(0,12).map(c=>'<td style="border:1px solid #cbd5e1;padding:6px">'+esc(c)+'</td>').join('')+'</tr>').join('')}</table></div><button id="smartImportAiAnalyze" class="btn-full-submit" style="background:#7c3aed;margin-top:10px">🤖 تحليل العناوين وتحديد الأعمدة بالذكاء الاصطناعي</button><div id="smartImportAiStatus" role="status" style="margin:8px 0;font-size:13px;line-height:1.7"></div><label style="display:block;margin-top:12px;font-weight:bold">اختر القسم المطابق للملف (إلزامي):</label><select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><button id="smartImportCreateBackup" type="button" class="btn-full-submit" style="background:#166534;margin-top:8px">⬇️ تنزيل نسخة احتياطية قبل الاستيراد</button><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">يجب طلب تنزيل نسخة احتياطية أولاً، ثم التأكد يدوياً من ظهور الملف في التنزيلات.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" disabled style="margin-top:4px"> تحققت من ظهور ملف النسخة الاحتياطية في التنزيلات وراجعت المعاينة.</label><p style="font-size:12px;color:#92400e">الاستيراد يضيف سجلات جديدة فقط ولا يحدّث سجلات موجودة. تُرفض الصفوف غير الصالحة والتكرارات قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
+            box.innerHTML=`<div style="max-width:760px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:14px"><h3>📊 معاينة الملف قبل الاستيراد</h3><p style="overflow-wrap:anywhere">الملف: ${esc(fileName)}<br>عدد الصفوف: ${rows.length}. هذه معاينة فقط ولم يتم تعديل بياناتك.</p><div style="overflow:auto;max-height:45vh"><table style="border-collapse:collapse;width:100%;font-size:12px;direction:auto">${sample.map(r=>'<tr>'+r.slice(0,12).map(c=>'<td style="border:1px solid #cbd5e1;padding:6px">'+esc(c)+'</td>').join('')+'</tr>').join('')}</table></div><button id="smartImportAiAnalyze" class="btn-full-submit" style="background:#7c3aed;margin-top:10px">🤖 تحليل العناوين وتحديد الأعمدة بالذكاء الاصطناعي</button><div id="smartImportAiStatus" role="status" style="margin:8px 0;font-size:13px;line-height:1.7"></div><label style="display:block;margin-top:12px;font-weight:bold">اختر القسم المطابق للملف (إلزامي):</label><select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked style="margin-top:4px"> إنشاء لقطة احتياطية محلية قبل الاستيراد</label><p style="font-size:12px;color:#92400e">الاستيراد يضيف سجلات جديدة فقط ولا يحدّث سجلات موجودة. تُرفض الصفوف غير الصالحة والتكرارات قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
             document.body.appendChild(box);
-            box.querySelector('#smartImportCreateBackup').onclick=()=>{
-                const status=box.querySelector('#smartImportBackupStatus');
-                try{
-                    if(typeof exportDataBackup!=='function'||exportDataBackup()!==true)throw new Error('تعذر تجهيز ملف النسخة الاحتياطية.');
-                    backupDownloadRequested=true;
-                    box.querySelector('#smartImportBackupAck').disabled=false;
-                    status.textContent='تم طلب تنزيل النسخة الاحتياطية. افتح التنزيلات وتأكد من ظهور ملف JSON قبل تحديد مربع التأكيد.';
-                }catch(err){
-                    status.textContent='❌ '+(err.message||'تعذر إنشاء النسخة الاحتياطية.');
-                }
-            };
+            box.querySelector('#smartImportBackupAck').checked=true;
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
                 const st=box.querySelector('#smartImportAiStatus');
                 const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').trim();
@@ -9412,30 +9405,17 @@ function wtAuditTransfers(){
                 }else{
                     st.textContent='🧠 التحليل المحلي لم يصل إلى تطابق موثوق. اختر القسم يدوياً. العناوين المقروءة: '+headers.join('، ');
                 }
-                // Cloud AI is optional. Local mapping remains available if gateway/auth/network fails.
-                let url='';
-                try{url=anasNormalizeAiGatewayUrl(localStorage.getItem('anasErpAiGatewayUrlV1')||'');}catch(_){}
-                if(!url || !navigator.onLine || typeof window.anasGetFirebaseIdToken!=='function'){
-                    st.textContent+='\\nℹ️ لم تتوفر جلسة/خدمة AI السحابية؛ تم الاحتفاظ بالاقتراح المحلي.';
-                    return;
-                }
-                try{
-                    const token=await window.anasGetFirebaseIdToken(4000);
-                    const sampleText='حلل عناوين الأعمدة التالية واقترح نوع القسم ومطابقة الحقول دون إنشاء بيانات: '+JSON.stringify(headers);
-                    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({text:sampleText,prompt:sampleText,message:sampleText}),signal:AbortSignal.timeout(7000)});
-                    const raw=await resp.text();let data;try{data=JSON.parse(raw)}catch{data={text:raw};}
-                    if(!resp.ok||data.error)throw new Error(data.error||('HTTP '+resp.status));
-                    st.textContent+='\\n✅ ملاحظة AI السحابي: '+String(data.text||data.answer||data.result||raw).slice(0,1200);
-                }catch(err){st.textContent+='\\nℹ️ تعذر AI السحابي ('+(err.message||err)+')؛ الاقتراح المحلي ما زال متاحاً.';}
+                // Header matching is entirely local; no session, Firebase, or network request is required.
+                return;
             };
+            box.querySelector('#smartImportAiAnalyze').click();
             box.querySelector('#smartImportCancel').onclick=()=>box.remove();
             box.querySelector('#smartImportConfirm').onclick=()=>{
                 const target=box.querySelector('#smartImportTarget').value;
                 const validation=box.querySelector('#smartImportValidation');
                 if(target==='preview'){box.remove();return;}
                 if(!target){validation.textContent='❌ اختر القسم الصحيح أولاً.';return;}
-                if(!backupDownloadRequested){validation.textContent='❌ نزّل نسخة احتياطية من الزر المخصص أولاً.';return;}
-                if(!box.querySelector('#smartImportBackupAck').checked){validation.textContent='❌ تحقق من ظهور ملف النسخة الاحتياطية في التنزيلات ثم أكد مراجعة المعاينة.';return;}
+                if(!box.querySelector('#smartImportBackupAck').checked){validation.textContent='❌ فعّل خيار إنشاء اللقطة الاحتياطية المحلية قبل الاستيراد.';return;}
                 if(target==='invoices'){validation.textContent='❌ استيراد الفواتير غير متاح في هذا المسار؛ استخدم وظيفة الفواتير المخصصة لتجنب تغيير الأرصدة خطأً.';return;}
                 const rawHeaders=(rows[0]||[]).map(v=>String(v??'').trim());
                 const norm=s=>String(s??'').toLowerCase().replace(/[ًٌٍَُِّْـ]/g,'').replace(/[\s_\-()./]+/g,'');
@@ -9487,9 +9467,9 @@ function wtAuditTransfers(){
                         const id=val(r,'id');
                         const keyName=norm(name);
                         if(seenNames.has(keyName)) throw new Error('اسم مكرر داخل الملف');
-                        if(existingNames.has(keyName)) throw new Error('الاسم موجود مسبقًا في النظام؛ لم يتم دمجه تلقائيًا');
+                        if(target!=='products' && existingNames.has(keyName)) throw new Error('الاسم موجود مسبقًا في النظام؛ لم يتم دمجه تلقائيًا');
                         const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);
-                        if(existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل موجود مسبقًا أو مكرر داخل الملف');
+                        if((target!=='products' && existingCodes.has(norm(recordId))) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل مكرر داخل الملف');
                         const rec={};
                         if(target==='products'){
                             const buy=num(val(r,'buy'),'سعر الشراء',rowNo), price1=num(val(r,'price1'),'سعر البيع',rowNo), stock=num(val(r,'stock'),'المخزون',rowNo), pack=num(val(r,'pack')||'1','العبوة',rowNo);
@@ -9497,7 +9477,10 @@ function wtAuditTransfers(){
                             if([buy,price1,price2,price3,stock,pack,minStock].some(n=>n<0)) throw new Error('لا يسمح بقيمة سالبة للسعر أو الكمية أو العبوة');
                             if(pack<=0) throw new Error('العبوة يجب أن تكون أكبر من صفر');
                             const barcode=val(r,'barcode');
-                            if(barcode && (AppData.products||[]).some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode))) throw new Error('الباركود موجود مسبقًا');
+                            if(barcode && (AppData.products||[]).some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode) && String(p.id)!==String(recordId))) {
+                                const barcodeMatches=(AppData.products||[]).filter(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode));
+                                if(barcodeMatches.length!==1 || String(barcodeMatches[0].id)!==String(recordId)) throw new Error('الباركود مرتبط بصنف آخر؛ أوقف الاستيراد لتجنب دمج خاطئ');
+                            }
                             if(barcode && staged.some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode))) throw new Error('باركود مكرر داخل الملف');
                             Object.assign(rec,{id:recordId,name,unit:val(r,'unit')||'قطعة',pack,buyPrice:buy,price1,price2,price3,stock,barcode,cat:val(r,'cat')||'عام',minStock:minStock||0});
                             if(val(r,'supplier')) rec.supplier=val(r,'supplier');
@@ -9517,13 +9500,32 @@ function wtAuditTransfers(){
                     return;
                 }
                 if(!staged.length){validation.textContent='❌ لا توجد سجلات صالحة للاستيراد.';return;}
-                if(!confirm('فحص الملف نجح. سيتم إضافة '+staged.length+' سجل جديد إلى قسم '+({products:'المنتجات والمخزون',customers:'العملاء والديون',suppliers:'الموردين'}[target])+'. لن يتم تحديث السجلات الموجودة. هل تريد المتابعة؟')) return;
+                if(!confirm('فحص الملف نجح. سيتم استيراد '+staged.length+' سجل إلى قسم '+({products:'المنتجات والمخزون',customers:'العملاء والديون',suppliers:'الموردين'}[target])+'. سيتم تحديث الصنف المطابق بالكود أو الباركود وإضافة الصنف الجديد. هل تريد المتابعة؟')) return;
                 const arr=target==='products'?AppData.products:target==='customers'?AppData.customers:AppData.suppliers;
                 const before=JSON.stringify(arr||[]);
                 try{
-                    // Build the next array before mutating the live one; avoid argument-count limits on large imports.
+                    const storage=window.ANASResilientStorage;
+                    if(!storage || typeof storage.setItem!=='function' || typeof storage.getItem!=='function') throw new Error('خدمة النسخ الاحتياطي المحلي غير متاحة؛ أُلغي الاستيراد لحماية البيانات.');
+                    const backupKey='ANAS_ERP_PRE_IMPORT_BACKUP_V1';
+                    const backup={createdAt:new Date().toISOString(),target,recordCount:(arr||[]).length,data:JSON.parse(JSON.stringify(AppData))};
+                    if(storage.setItem(backupKey,backup)!==true) throw new Error('تعذر حفظ اللقطة الاحتياطية في التخزين المحلي.');
+                    const verified=storage.getItem(backupKey);
+                    if(!verified || !verified.data || verified.data.products?.length!==(AppData.products||[]).length) throw new Error('لم يتم التحقق من اللقطة الاحتياطية؛ أُلغي الاستيراد.');
                     const next=JSON.parse(before);
-                    for(const item of staged) next.push(item);
+                    let added=0,updated=0;
+                    if(target==='products'){
+                        for(const item of staged){
+                            const byId=next.filter(p=>p && String(p.id)===String(item.id));
+                            const byBarcode=item.barcode?next.filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):[];
+                            const matches=byId.length?byId:byBarcode;
+                            if(matches.length>1) throw new Error('تطابق متعدد للكود أو الباركود؛ أُلغي الاستيراد دون تعديل.');
+                            if(matches.length===1){
+                                const existingProduct=matches[0];
+                                Object.assign(existingProduct,item,{id:existingProduct.id});
+                                updated++;
+                            }else{next.push(item);added++;}
+                        }
+                    }else{for(const item of staged){next.push(item);added++;}}
                     if(target==='products') AppData.products=next;
                     else if(target==='customers') AppData.customers=next;
                     else AppData.suppliers=next;
@@ -9546,7 +9548,7 @@ function wtAuditTransfers(){
                     refreshWarning=' تم حفظ البيانات، لكن تعذّر تحديث إحدى الواجهات. أعد تحميل التطبيق للتحقق من العرض.';
                 }
                 box.remove();
-                alert('نجح الاستيراد: '+staged.length+' سجل إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'. لم يتم دمج أو استبدال أي سجل موجود.'+refreshWarning);
+                alert('نجح الاستيراد: '+(target==='products'?(added+' إضافة، '+updated+' تحديث'):added+' إضافة')+' إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning);
             };
         }
         function clearAllSalesInvoices() {
@@ -9908,8 +9910,7 @@ function wtAuditTransfers(){
             finally{clearTimeout(timer);}
         }
         document.addEventListener('DOMContentLoaded',()=>{const i=document.getElementById('anasAiGateway');const fallback='https://anas-erp-openai-ai.amin545677.workers.dev';try{const saved=(localStorage.getItem(ANAS_AI_GATEWAY_KEY)||'').trim();const url=anasNormalizeAiGatewayUrl(saved||fallback);localStorage.setItem(ANAS_AI_GATEWAY_KEY,url);if(i)i.value=url;
-            // Read-only health check on startup; this does not send prompts or consume AI credits.
-            anasTestAiGateway();
+            // Cloud health checks are manual only; application startup remains silent and offline-first.
         }catch(e){if(i)i.value=fallback;const status=document.getElementById('anasAiGatewayStatus');if(status)status.textContent='❌ تعذر تهيئة رابط بوابة AI: '+(e.message||e);}});
 
 </script>
@@ -10351,18 +10352,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   let toastTimer = null;
   const DIAG_KEY = 'ANAS_ERP_DIAGNOSTICS_V1';
   const DIAG_BUILD = 'ANAS-ERP-V23-2026-10-21';
-  // Prevent stale errors from earlier app versions being mistaken for current failures.
-  try {
-    const seenBuild = localStorage.getItem('ANAS_ERP_DIAGNOSTICS_BUILD');
-    if (seenBuild !== DIAG_BUILD) {
-      const oldLog = localStorage.getItem(DIAG_KEY);
-      if (oldLog && !localStorage.getItem('ANAS_ERP_DIAGNOSTICS_ARCHIVE_V1')) {
-        localStorage.setItem('ANAS_ERP_DIAGNOSTICS_ARCHIVE_V1', oldLog);
-      }
-      localStorage.setItem(DIAG_KEY, '[]');
-      localStorage.setItem('ANAS_ERP_DIAGNOSTICS_BUILD', DIAG_BUILD);
-    }
-  } catch (_) {}
+  // Clear legacy diagnostic noise on every launch; do not archive stale records.
+  try { localStorage.setItem(DIAG_KEY, '[]'); localStorage.setItem('ANAS_ERP_DIAGNOSTICS_BUILD', DIAG_BUILD); } catch (_) {}
+  window.__anasLastDiagnostic = null;
   function recordDiagnostic(kind, message, source, line){
     try {
       const old = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]');
@@ -10414,8 +10406,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     if (target && target.tagName === 'SCRIPT') {
       const src = target.src || '(مصدر غير معروف)';
       console.error('Anas ERP external script failed to load:', src);
-      recordDiagnostic('Script load', 'تعذر تحميل ملف JavaScript خارجي: ' + src, src, 0);
-      notify('تعذر تحميل مكتبة خارجية. تحقق من الإنترنت ثم أعد فتح التطبيق.', true);
+      // Optional external assets must never block the local ERP UI with an overlay or toast.
       return;
     }
     if(e && e.message) {
@@ -11084,7 +11075,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 <!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->
 <style>
-#anasContextAiFab{position:fixed;z-index:99990;right:16px;bottom:18px;border:0;border-radius:999px;padding:12px 16px;background:#5b21b6;color:#fff;font-weight:800;box-shadow:0 5px 22px #0003;cursor:pointer;font:inherit}
+#anasContextAiFab{display:none!important}
 #anasContextAiPanel{position:fixed;z-index:99999;right:12px;bottom:76px;width:min(420px,calc(100vw - 24px));max-height:min(78vh,680px);overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#111827);border:1px solid var(--mp-border,#d1d5db);border-radius:16px;box-shadow:0 12px 42px #0004;padding:14px;display:none}
 #anasContextAiPanel input,#anasContextAiPanel textarea{box-sizing:border-box;width:100%;font:inherit;color:inherit;background:var(--mp-input-bg,#fff);border:1px solid var(--mp-border,#d1d5db);border-radius:9px;padding:10px;margin-top:6px}
 #anasContextAiPanel button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:10px 12px;font-weight:700}
