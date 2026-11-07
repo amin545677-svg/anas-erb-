@@ -10689,7 +10689,7 @@ function wtAuditTransfers(){
 <button type="button" data-smart-import-target="customers" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">عملاء</button>
 <button type="button" data-smart-import-target="invoices" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">فواتير</button>
 </div>
-<select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportReview" style="margin:8px 0"></div><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked disabled style="margin-top:4px"> تُنشأ لقطة احتياطية محلية تلقائياً قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
+<select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><label for="smartImportMode" style="display:block;margin:10px 0 4px;font-weight:700">طريقة الاستيراد</label><select id="smartImportMode" style="width:100%;padding:10px;margin:4px 0;background:var(--mp-card,#fff);color:var(--mp-text)"><option value="merge" selected>دمج آمن: إضافة وتحديث المطابق فقط</option><option value="replace">استبدال آمن: استبدال القائمة مع الاحتفاظ بسجلات المخزون والديون والفواتير المرتبطة</option></select><small style="display:block;color:var(--mp-text-muted);line-height:1.6">الاستبدال لا يحذف سجلاً مرتبطاً بحركة مالية أو مخزون أو فاتورة.</small><div id="smartImportReview" style="margin:8px 0"></div><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked disabled style="margin-top:4px"> تُنشأ لقطة احتياطية محلية تلقائياً قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
             document.body.appendChild(box);
             box.querySelector('#smartImportBackupAck').checked=true;
             box.querySelectorAll('[data-smart-import-target]').forEach(button=>{
@@ -10872,7 +10872,8 @@ function wtAuditTransfers(){
                 // The preview confirm button is the single confirmation.
                 const arr=target==='products'?AppData.products:target==='customers'?AppData.customers:AppData.suppliers;
                 const before=JSON.stringify(arr||[]);
-                let added=0,updated=0;
+                const importMode=box.querySelector('#smartImportMode')?.value==='replace'?'replace':'merge';
+                let added=0,updated=0,retainedProtected=0;
                 try{
                     const backupKey='ANAS_ERP_PRE_IMPORT_BACKUP_V1';
                     const backup={createdAt:new Date().toISOString(),target,recordCount:(arr||[]).length,data:JSON.parse(JSON.stringify(AppData))};
@@ -10898,8 +10899,56 @@ function wtAuditTransfers(){
                     });
                     backupDb.close();
                     if(!verified || !verified.payload || JSON.parse(verified.payload).recordCount!==(arr||[]).length) throw new Error('لم يتم التحقق من اللقطة الاحتياطية؛ أُلغي الاستيراد.');
-                    const next=JSON.parse(before);
-                    if(target==='products'){
+                    const isReferenced=(record,kind)=>{
+                        const id=String(record?.id??'');
+                        if(!id)return false;
+                        const hasId=value=>value!==undefined&&value!==null&&String(value)===id;
+                        if(kind==='products'){
+                            const invoiceRef=(AppData.invoices||[]).some(inv=>(inv.items||[]).some(item=>hasId(item.id??item.productId)));
+                            const purchaseRef=(AppData.purchases||[]).some(inv=>(inv.items||[]).some(item=>hasId(item.id??item.productId)));
+                            const stockRef=(AppData.stockMovements||[]).some(m=>hasId(m.productId??m.itemId??m.product?.id));
+                            const transferRef=(AppData.warehouseTransfers||[]).some(m=>hasId(m.productId??m.itemId));
+                            return Number(record.stock)>0||invoiceRef||purchaseRef||stockRef||transferRef;
+                        }
+                        if(kind==='customers'){
+                            return Number(record.debt??record.initial_debt??0)>0||
+                                (AppData.invoices||[]).some(inv=>hasId(inv.customerId??inv.customerObj?.id))||
+                                (AppData.clientMovements||[]).some(m=>hasId(m.clientId??m.customerId))||
+                                (AppData.settlementAllocations||[]).some(a=>a.partyType==='customer'&&hasId(a.partyId??a.clientId));
+                        }
+                        return Number(record.debt??record.balance??record.openingBalance??0)>0||
+                            (AppData.purchases||[]).some(inv=>hasId(inv.supplierId??inv.supplierObj?.id))||
+                            (AppData.supplierMovements||[]).some(m=>hasId(m.supplierId));
+                    };
+                    const protectedExisting=importMode==='replace'?existing.filter(record=>isReferenced(record,target)):[];
+                    const next=importMode==='replace'?protectedExisting.map(record=>({...record})):JSON.parse(before);
+                    if(importMode==='replace'){
+                        for(let stagedIndex=0;stagedIndex<staged.length;stagedIndex++){
+                            const item=staged[stagedIndex],decision=importDecisions[stagedIndex],row=importMatches[stagedIndex];
+                            if(decision==='ignore'||decision==='delete')continue;
+                            if(!['insert','match'].includes(decision))throw new Error('قرار الاستبدال غير صالح؛ أعد مراجعة البنود.');
+                            const original=decision==='match'&&row.matches.length===1?row.matches[0].candidate:null;
+                            if(decision==='match'&&!original)throw new Error('تعذر استعادة هوية السجل المطابق أثناء الاستبدال.');
+                            const replacement={...item,id:original?.id??item.id};
+                            if(original&&target==='products'){
+                                if(original.stock!==undefined)replacement.stock=original.stock;
+                                if(original.buyPrice!==undefined)replacement.buyPrice=original.buyPrice;
+                            }
+                            if(original&&target==='customers'){
+                                for(const field of ['debt','balance','creditUsed','initial_debt','credit_limit'])
+                                    if(Object.prototype.hasOwnProperty.call(original,field))replacement[field]=original[field];
+                            }
+                            if(original&&target==='suppliers'){
+                                for(const field of ['debt','balance','openingBalance'])
+                                    if(Object.prototype.hasOwnProperty.call(original,field))replacement[field]=original[field];
+                            }
+                            const existingProtected=original?next.find(record=>String(record.id)===String(original.id)):null;
+                            if(existingProtected){Object.assign(existingProtected,replacement,{id:existingProtected.id});updated++;}
+                            else{next.push(replacement);added++;}
+                        }
+                        retainedProtected=protectedExisting.filter(record=>!staged.some(item=>
+                            importMatches.some(row=>row.matches.length===1&&String(row.matches[0].candidate.id)===String(record.id)))).length;
+                    }else if(target==='products'){
                         for(let stagedIndex=0;stagedIndex<staged.length;stagedIndex++){
                             const item=staged[stagedIndex];
                             const decision=importDecisions[stagedIndex];
@@ -10974,7 +11023,7 @@ function wtAuditTransfers(){
                     refreshWarning=' تم حفظ البيانات، لكن تعذّر تحديث إحدى الواجهات. أعد تحميل التطبيق للتحقق من العرض.';
                 }
                 const skipped=Object.values(importDecisions).filter(decision=>decision==='ignore'||decision==='delete').length;
-                const importSummary='اكتمل الاستيراد المحلي: إجمالي '+staged.length+'، أضيف '+added+'، حُدث '+updated+'، تم تخطي '+skipped+' إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning;
+                const importSummary='اكتمل الاستيراد المحلي ('+(importMode==='replace'?'استبدال آمن':'دمج')+'): إجمالي '+staged.length+'، أضيف '+added+'، حُدث '+updated+'، تم تخطي '+skipped+'، احتُفظ تلقائياً بـ '+retainedProtected+' سجل مرتبط بالمخزون/الديون/الفواتير إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning;
                 const importStatus=document.getElementById('smartAiExcelStatus');
                 if(importStatus) importStatus.textContent='✅ '+importSummary;
                 console.info('ANAS ERP local import:',importSummary);
