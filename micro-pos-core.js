@@ -53,7 +53,8 @@
   function filterInventoryItems(items, options = {}) {
     const query = String(options.query || '').trim().toLocaleLowerCase();
     const category = options.category || 'ALL';
-    const status = options.status || 'ALL';
+    const requestedStatus = options.status || 'ALL';
+    const status = requestedStatus === 'all' || requestedStatus === 'الكل' ? 'ALL' : requestedStatus;
     return (Array.isArray(items) ? items : []).filter(item => {
       if (!item) return false;
       if ((options.onlyFeatured || status === 'featured') && !(item.is_featured || item.featured || item.favorite || item.isFavorite)) return false;
