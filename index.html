@@ -4304,6 +4304,17 @@ input:focus, select:focus, textarea:focus {
                     return;
                 }
                 const product = productMatches[0];
+                const unit = String(product.unit || 'قطعة').trim().toLocaleLowerCase();
+                const isPiece = ['piece', 'pieces', 'unit', 'units', 'قطعة', 'قطعه'].includes(unit);
+                const isWeight = ['kg', 'kilogram', 'kilograms', 'كغ', 'كجم', 'كيلوغرام', 'كيلو'].includes(unit);
+                if (isPiece && qtyUnits % 1000000 !== 0) {
+                    alert('تعذر تأكيد البيع: الصنف «' + (product.name || id) + '» يُباع بالقطعة ولا يقبل الكسور. أدخل عدداً صحيحاً.');
+                    return;
+                }
+                if (isWeight && qtyUnits % 10000 !== 0) {
+                    alert('تعذر تأكيد البيع: الصنف «' + (product.name || id) + '» يُباع بالكيلوغرام بدقة منزلتين عشريتين كحد أقصى.');
+                    return;
+                }
                 saleProducts.set(id, product);
                 if (saleWarehouse !== 'المخزن الرئيسي' && Array.isArray(product.warehouseStock)) {
                     alert('تعذر تأكيد البيع: خريطة أرصدة المخازن الفرعية تالفة للمنتج ' + (product.name || id) + '. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.'); return;
@@ -9860,27 +9871,39 @@ function wtAuditTransfers(){
             anasRefreshAiExecutiveDashboard();
         }
 
-        function triggerAiGeneration(section) {
-            // Download separate, blank CSV templates. Never insert sample data into live records.
+        async function triggerAiGeneration(section) {
             const templates = {
-                products: {file:'قالب_المنتجات.csv', headers:['الرقم','اسم المنتج','الوحدة','العبوة','سعر الشراء','سعر 1','سعر 2','سعر 3','المخزون','الباركود','التصنيف','الحد الأدنى','المورد']},
-                customers: {file:'قالب_العملاء.csv', headers:['الرقم','اسم العميل','الهاتف','العنوان','RC','NIF','NIS','Art','الموقع','الدين','تاريخ الدين']},
-                suppliers: {file:'قالب_الموردين.csv', headers:['الرقم','اسم المورد','الهاتف','العنوان','البريد الإلكتروني','NIF','NIS','RC']},
-                invoices: {file:'قالب_الفواتير.csv', headers:['رقم الفاتورة','التاريخ','الزبون','الإجمالي','المدفوع','المتبقي']},
-                all: {file:'', headers:[]}
+                products: {file:'قالب_المنتجات.xlsx', headers:['الرقم','اسم المنتج','الوحدة','العبوة','سعر الشراء','سعر 1','سعر 2','سعر 3','المخزون','الباركود','التصنيف','الحد الأدنى','المورد']},
+                customers: {file:'قالب_العملاء.xlsx', headers:['الرقم','اسم العميل','الهاتف','العنوان','RC','NIF','NIS','Art','الموقع','الدين','تاريخ الدين']},
+                suppliers: {file:'قالب_الموردين.xlsx', headers:['الرقم','اسم المورد','الهاتف','العنوان','البريد الإلكتروني','NIF','NIS','RC']}
             };
-            const types = section === 'all' ? ['products','customers','suppliers','invoices'] : [section];
-            let downloaded = 0;
-            for (const type of types) {
-                const t = templates[type]; if (!t) continue;
-                const csv = '\uFEFF' + t.headers.map(v=>'"'+v.replace(/"/g,'""')+'"').join(',') + '\r\n';
-                const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href=url; a.download=t.file;
-                document.body.appendChild(a); a.click(); a.remove();
-                setTimeout(()=>URL.revokeObjectURL(url),1500); downloaded++;
+            const types = section === 'all' ? ['products','customers','suppliers'] : [section];
+            if (!types.length || types.some(type => !templates[type])) {
+                alert('نوع القالب غير معروف. اختر المنتجات أو الزبائن أو الموردين.');
+                return false;
             }
-            alert('تم تنزيل '+downloaded+' قالب/قوالب منفصلة وفارغة. كل ملف لقسم واحد فقط. افتح الملف في Excel وأدخل البيانات تحت العناوين دون تغييرها، ثم استورد كل ملف إلى قسمه. لم تُضف أي بيانات إلى النظام.');
+            try {
+                const xlsxLib = await anasLoadSheetJs();
+                for (const type of types) {
+                    const template = templates[type];
+                    const workbook = xlsxLib.utils.book_new();
+                    const worksheet = xlsxLib.utils.aoa_to_sheet([template.headers]);
+                    xlsxLib.utils.book_append_sheet(workbook, worksheet, type);
+                    const bytes = xlsxLib.write(workbook, {bookType:'xlsx', type:'array', compression:true});
+                    const fileBlob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+                    const url = URL.createObjectURL(fileBlob);
+                    const anchor = document.createElement('a');
+                    anchor.href = url; anchor.download = template.file;
+                    document.body.appendChild(anchor); anchor.click(); anchor.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 1500);
+                }
+                alert('تم إنشاء وتنزيل قوالب Excel محلياً دون اتصال. لا تغيّر أسماء الأعمدة العربية قبل الاستيراد.');
+                return true;
+            } catch (error) {
+                console.error('Offline XLSX template generation failed', error);
+                alert('تعذر إنشاء قالب Excel محلياً: ' + (error?.message || 'خطأ غير معروف'));
+                return false;
+            }
         }
 
         function exportExcel(type) {
