@@ -190,17 +190,48 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await excelChooser.setFiles({
       name: 'mobile-preview.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from('"Products, Export, 2026";name;quantity\n"Item A, black";4;7\nItem B;7;9', 'utf8')
+      buffer: Buffer.from('"الكود";"الباركود";"اسم المنتج";"سعر الشراء";"سعر البيع";"المخزون";"الفئة";"الوحدة";"الحد الأدنى";"الوصف"\n"CSV-001";"611000000101";"قهوة, ممتازة";80;120;6;"مشروبات";"علبة";2;"عبوة, تجريبية"', 'utf8')
     });
     await page.locator('#smartAiExcelStatus').waitFor({ state: 'visible' });
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
     assert.match(await page.locator('#smartAiExcelStatus').innerText(), /الفاصل المكتشف: ;/,
       'CSV delimiter detection must ignore quoted commas and identify the true semicolon separator');
-    assert.equal(await page.locator('#smartImportPreviewModal table tr:first-child td').count(), 3,
-      'quoted commas in the first CSV row must not be mistaken for field separators');
+    assert.equal(await page.locator('#smartImportPreviewModal table tr:first-child td').count(), 10,
+      'quoted commas in product name and description must not be mistaken for CSV field separators');
+    assert.equal(await page.locator('#smartImportTarget').inputValue(), 'products',
+      'CSV product headers must auto-select the products import target');
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
-    await page.locator('#smartImportCancel').click();
+    await page.locator('#smartImportConfirm').click();
+    await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
+    await page.waitForFunction(() => window.AppData?.products?.some(p => p.id === 'CSV-001'));
+    const csvSaved = await page.evaluate(async () => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('anas_erp_v42_resilient_db', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const request = db.transaction('snapshots', 'readonly').objectStore('snapshots')
+        .get('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+      const record = await new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      return String(record?.payload || '');
+    });
+    assert.ok(csvSaved.includes('قهوة, ممتازة') && csvSaved.includes('عبوة, تجريبية'),
+      'CSV import must durably persist quoted comma values without splitting their fields');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.AppData?.products?.some(p =>
+      p.id === 'CSV-001' && p.name === 'قهوة, ممتازة'
+    ), { timeout: 10000 });
+    const csvRestored = await page.evaluate(() => {
+      const product = window.AppData.products.find(p => p.id === 'CSV-001');
+      return product ? { name: product.name, stock: product.stock, price1: product.price1 } : null;
+    });
+    assert.deepEqual(csvRestored, { name: 'قهوة, ممتازة', stock: 6, price1: 120 },
+      'CSV import must survive a full browser reload from durable local storage');
 
     await page.evaluate(async () => {
       if (!window.AppData) throw new Error('live AppData bridge is unavailable');
