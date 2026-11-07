@@ -140,3 +140,20 @@ test('installed PWA theme colors match the light application palette', () => {
   assert.equal(manifest.theme_color, '#1e3a6d');
   assert.match(html, /<meta name="theme-color" content="#1e3a6d">/);
 });
+
+test('dark theme compatibility layer loads after the premium dashboard stylesheet', () => {
+  const linkIndex = html.indexOf('anas-erp-ui-safe-enhancements.css');
+  const bridgeIndex = html.indexOf('id="anasThemeCompatibility"');
+  assert.ok(linkIndex >= 0 && bridgeIndex > linkIndex, 'theme bridge must load after the external premium stylesheet');
+});
+
+test('dark dashboard preserves readable cards, icon surfaces, and footer contrast', () => {
+  const bridge = html.split('id="anasThemeCompatibility"', 2)[1] || '';
+  for (const selector of [
+    ':root[data-anas-theme="dark"] .grid-card-item',
+    ':root[data-anas-theme="dark"] .grid-card-item .card-icon-box',
+    ':root[data-anas-theme="dark"] .grid-card-item .card-title-text',
+    ':root[data-anas-theme="dark"] .system-footer-status'
+  ]) assert.ok(bridge.includes(selector), 'missing dark compatibility selector: ' + selector);
+  assert.match(bridge, /-webkit-text-fill-color:#f3f6fc!important/);
+});
