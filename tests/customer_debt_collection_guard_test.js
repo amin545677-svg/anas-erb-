@@ -198,7 +198,7 @@ console.log('PASS: debt collection and cash receipt use the same integer-centime
   assert.equal(result.saves, 1, 'FIFO receipt must commit exactly once');
   assert.equal(result.customer.debt, 55, 'customer debt must decrease by the exact receipt');
   assert.equal(result.appData.caisseBalance, 55, 'cashbox must receive the exact receipt');
-  assert.deepEqual(result.appData.settlementAllocations.map(x => [x.invoiceId, x.amountCentimes]),
+  assert.deepEqual(Array.from(result.appData.settlementAllocations, x => [x.invoiceId, x.amountCentimes]),
     [['INV-OLD', 3000], ['INV-MID', 1500]], 'allocation must exhaust the oldest invoice before moving to the next');
   assert.equal(invoices[0].statusLabel, 'مدفوعة');
   assert.equal(invoices[0].collectionRemaining, 0);
