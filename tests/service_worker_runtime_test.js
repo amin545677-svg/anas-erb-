@@ -11,6 +11,7 @@ const listeners = {};
 const store = new Map();
 let offline = false;
 let failCacheWrites = false;
+let failPrecachePath = './vendor/tesseract/lang/fra.traineddata.gz';
 let networkOk = true;
 let networkBody = 'network-latest';
 let skipWaitingCalled = false;
@@ -29,6 +30,10 @@ function makeCache(name) {
   return {
     async addAll(paths) {
       for (const path of paths) entries.set(keyOf(path), makeResponse('precache:' + path));
+    },
+    async add(path) {
+      if (path === failPrecachePath) throw new Error('simulated optional OCR asset failure');
+      entries.set(keyOf(path), makeResponse('precache:' + path));
     },
     async put(request, response) {
       if (failCacheWrites) throw new Error('simulated cache quota failure');
@@ -81,6 +86,13 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   store.set('other-app-cache', new Map());
   await dispatchLifecycle('install');
   assert.equal(skipWaitingCalled, true, 'install should activate the updated worker promptly');
+  const installCache = await caches.open(activeCacheName);
+  assert.ok(await installCache.match(new URL('./vendor/tesseract/tesseract.min.js', baseUrl).href),
+    'OCR runtime must be cached independently');
+  assert.ok(await installCache.match(new URL('./vendor/tesseract/lang/ara.traineddata.gz', baseUrl).href),
+    'available Arabic OCR data must be cached even if another language asset fails');
+  assert.equal(await installCache.match(new URL(failPrecachePath, baseUrl).href), undefined,
+    'a failed optional OCR asset must remain explicitly absent, not be represented as cached');
 
   // Re-add an old cache after install to simulate a prior app shell still present at activation.
   store.set('anas-erp-v54-25-r1', new Map());
