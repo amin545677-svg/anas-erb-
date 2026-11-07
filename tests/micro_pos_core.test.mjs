@@ -42,9 +42,11 @@ test('sales period and status logic are deterministic and centime accurate', () 
   const invoices = [
     { id: 'today', date: '2026-11-07T09:00:00', total: '100.00', paid: '100.00' },
     { id: 'week', date: '2026-11-02T09:00:00', total: '100.00', paid: '25.00' },
-    { id: 'old', date: '2026-10-01T09:00:00', total: '100.00', paid: '0.00' }
+    { id: 'old', date: '2026-10-01T09:00:00', total: '250.00', paid: '0.00' }
   ];
+  assert.deepEqual(Core.filterSalesInvoices(invoices, { period: 'today', now }).map(x => x.id), ['today']);
   assert.deepEqual(Core.filterSalesInvoices(invoices, { period: '7d', now }).map(x => x.id), ['today', 'week']);
+  assert.deepEqual(Core.filterSalesInvoices(invoices, { period: 'all', sort: 'amount', now }).map(x => x.id), ['old', 'today', 'week']);
   assert.deepEqual(Core.filterSalesInvoices(invoices, { period: '30d', now }).map(x => x.id), ['today', 'week']);
   assert.equal(Core.invoiceStatus(invoices[0]), 'paid');
   assert.equal(Core.invoiceStatus(invoices[1]), 'partial');
