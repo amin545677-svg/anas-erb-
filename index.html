@@ -10600,11 +10600,16 @@ function wtAuditTransfers(){
                 ['application/pdf','application/x-pdf'].includes(String(file.type||'').toLowerCase());
             if(status) status.textContent='⏳ جارٍ فتح الملف: '+file.name;
             try {
-                // Enforce the field limits before allocating file buffers on Android WebView.
+                // Enforce a 20MB global import ceiling; retain a stricter Android WebView spreadsheet ceiling.
+                const maxImportBytes=20*1024*1024;
                 const spreadsheetUpload = ['xlsx','xls','csv','txt'].includes(ext) && !isPdfUpload;
                 const mediaUpload = isPdfUpload || ['jpg','jpeg','png','webp'].includes(ext);
-                if (spreadsheetUpload && file.size > 2 * 1024 * 1024) {
-                    throw new Error('يتجاوز ملف الجدول الحد الأقصى المسموح (2MB). قسّم الملف ثم أعد المحاولة.');
+                const isAndroidWebView = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+                if(file.size>maxImportBytes) {
+                    throw new Error('يتجاوز الملف الحد الأقصى العام للاستيراد (20MB). قسّم الملف ثم أعد المحاولة.');
+                }
+                if (spreadsheetUpload && isAndroidWebView && file.size > 2 * 1024 * 1024) {
+                    throw new Error('يتجاوز ملف الجدول الحد الآمن لأجهزة Android (2MB). قسّم الملف ثم أعد المحاولة.');
                 }
                 if (mediaUpload && file.size > 10 * 1024 * 1024) {
                     throw new Error('يتجاوز ملف الصورة/PDF الحد الأقصى المسموح (10MB). قلّص الملف ثم أعد المحاولة.');
@@ -13152,94 +13157,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
     <script src="./vendor/pdfjs/pdf.min.js"></script>
 
 <!-- ANAS ERP: Firebase cloud panel mobile layout hardening v3 (document-level) -->
-<style id="anas-firebase-mobile-layout-v3">
-  /* Reserve document scroll space so the final cloud controls clear the fixed assistant. */
-  .main-container {
-    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-  .anas-firebase-auth-card {
-    width: 100%;
-    min-width: 0;
-    padding-bottom: 24px !important;
-    overflow: visible;
-  }
-  .anas-firebase-auth-card .field-input {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-  .anas-firebase-auth-actions,
-  .anas-firebase-cloud-actions {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    align-items: stretch;
-    gap: 10px;
-    width: 100%;
-    min-width: 0;
-  }
-  .anas-firebase-auth-actions > button,
-  .anas-firebase-cloud-actions > button {
-    display: flex !important;
-    flex: initial !important;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100%;
-    min-height: 58px;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 12px 10px !important;
-    white-space: normal !important;
-    word-break: normal !important;
-    overflow-wrap: break-word !important;
-    text-align: center !important;
-    direction: rtl !important;
-    line-height: 1.55;
-    font-size: clamp(13px, 2.7vw, 16px);
-  }
-  .anas-firebase-auth-card p,
-  .anas-firebase-auth-card label {
-    max-width: 100%;
-    white-space: normal;
-    word-break: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.65;
-  }
-  body {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-  #anasContextAiFab {
-    right: 12px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    max-width: calc(100vw - 24px);
-    white-space: nowrap;
-    z-index: 80 !important;
-  }
-  #anasContextAiPanel {
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
-    max-height: min(72dvh, 620px);
-    z-index: 81 !important;
-  }
-  @media (max-width: 480px) {
-    .anas-firebase-auth-card {
-      padding: 10px !important;
-      padding-bottom: 20px !important;
-    }
-    .anas-firebase-auth-actions,
-    .anas-firebase-cloud-actions {
-      grid-template-columns: minmax(0, 1fr) !important;
-      gap: 8px;
-    }
-    .anas-firebase-auth-actions > button,
-    .anas-firebase-cloud-actions > button {
-      min-height: 52px;
-      font-size: 15px;
-    }
-  }
-</style>
+
 
 
 <!-- ANAS ERP theme bridge: overrides the premium dashboard stylesheet only in dark mode. -->
@@ -13362,6 +13280,95 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
   <button type="button" data-nav-view="customers" aria-label="الزبائن" onclick="openView('customers')"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">الزبائن</span></button>
   <button type="button" aria-label="المزيد والإعدادات والذكاء الاصطناعي" onclick="openDrawer()"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">المزيد</span></button>
 </nav>
+
+<style id="anas-firebase-mobile-layout-v3">
+  /* Reserve document scroll space so the final cloud controls clear the fixed assistant. */
+  .main-container {
+    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .anas-firebase-auth-card {
+    width: 100%;
+    min-width: 0;
+    padding-bottom: 24px !important;
+    overflow: visible;
+  }
+  .anas-firebase-auth-card .field-input {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .anas-firebase-auth-actions,
+  .anas-firebase-cloud-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+  .anas-firebase-auth-actions > button,
+  .anas-firebase-cloud-actions > button {
+    display: flex !important;
+    flex: initial !important;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    min-height: 58px;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 12px 10px !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    text-align: center !important;
+    direction: rtl !important;
+    line-height: 1.55;
+    font-size: clamp(13px, 2.7vw, 16px);
+  }
+  .anas-firebase-auth-card p,
+  .anas-firebase-auth-card label {
+    max-width: 100%;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+  }
+  body {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  #anasContextAiFab {
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 24px);
+    white-space: nowrap;
+    z-index: 80 !important;
+  }
+  #anasContextAiPanel {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    max-height: min(72dvh, 620px);
+    z-index: 81 !important;
+  }
+  @media (max-width: 480px) {
+    .anas-firebase-auth-card {
+      padding: 10px !important;
+      padding-bottom: 20px !important;
+    }
+    .anas-firebase-auth-actions,
+    .anas-firebase-cloud-actions {
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: 8px;
+    }
+    .anas-firebase-auth-actions > button,
+    .anas-firebase-cloud-actions > button {
+      min-height: 52px;
+      font-size: 15px;
+    }
+  }
+</style>
 
 </body>
 </html>
