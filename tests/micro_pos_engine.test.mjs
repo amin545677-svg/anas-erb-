@@ -100,3 +100,16 @@ test('credit ceiling form persists a validated centime-safe limit and restores i
   assert.match(html, /\['debt','balance','creditUsed',\.\.\.\(indexes\.credit_limit<0\?\['credit_limit'\]:\[\]\)\]/,
     'spreadsheet imports without a credit-limit column must preserve the existing ceiling');
 });
+
+test('inventory and POS share live status/category filtering with 20-item progressive rendering', () => {
+  const html = readFileSync('index.html', 'utf8');
+  assert.match(html, /id="inventoryUnifiedCategory"/, 'inventory must expose a category selector');
+  assert.match(html, /data-inventory-status="featured"/, 'inventory must expose featured status chips');
+  assert.match(html, /function filterInventoryStatus\(/, 'inventory chips must update the same filter state as the select');
+  assert.match(html, /new deep\.ProgressiveListRenderer\(\s*cont, document\.getElementById\('inventoryProgressiveBadge'\), 20\s*\)/,
+    'inventory cards must render in bounded 20-item chunks');
+  assert.match(html, /new deep\.ProgressiveListRenderer\(\s*cont, document\.getElementById\('posQuickProductsProgress'\), 20\s*\)/,
+    'POS quick products must render in bounded 20-item chunks');
+  assert.match(html, /core\.filterInventoryItems\(products, \{ query: search, status, category: selectedCategory \}\)/,
+    'inventory and POS must use the canonical in-memory inventory filter');
+});
