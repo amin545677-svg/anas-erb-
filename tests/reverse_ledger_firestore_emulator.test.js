@@ -177,8 +177,10 @@ test('concurrent same-operation requests converge to one posted result', async t
   const handler = createHandler();
   const request = makeRequest(uid, operationId);
 
-  const [left, right] = await Promise.all([handler(request), handler(request)]);
-  assert.deepEqual(left, right);
+  // Exercise SDK transaction contention with several duplicate callers at once.
+  // Every caller must converge on the one committed idempotent result.
+  const results = await Promise.all(Array.from({ length: 5 }, () => handler(request)));
+  for (const result of results) assert.deepEqual(result, results[0]);
   const operation = await db.collection('reverseLedgerOperations').doc(operationId).get();
   assert.equal(operation.get('status'), 'POSTED');
   const snapshot = await db.collection('users').doc(uid).collection('snapshots').doc('latest').get();
