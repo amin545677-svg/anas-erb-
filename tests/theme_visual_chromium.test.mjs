@@ -121,7 +121,20 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     await page.waitForFunction(() => document.documentElement.getAttribute('data-anas-theme') === 'light', { timeout: 5000 });
     assert.equal(await page.evaluate(() => localStorage.getItem('ANAS_ERP_THEME')), 'light',
       'theme choice must synchronize across two live tabs');
-    await second.close(); await page.close(); await context.close();
+    await second.close();
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.body && !document.body.inert, { timeout: 20000 });
+    const tablet = await page.evaluate(() => ({
+      width: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      theme: document.documentElement.getAttribute('data-anas-theme'),
+      dashboardVisible: document.getElementById('view-dashboard').classList.contains('active')
+    }));
+    assert.equal(tablet.theme, 'light');
+    assert.equal(tablet.dashboardVisible, true);
+    assert.ok(tablet.scrollWidth <= tablet.width, 'tablet dashboard must not overflow horizontally');
+    await page.close(); await context.close();
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
