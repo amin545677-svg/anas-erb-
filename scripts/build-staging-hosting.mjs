@@ -21,6 +21,7 @@ const ERP_FILES = [
   'reverse-ledger/reverse-ledger-modal.js',
   'reverse-ledger/settlement-allocation-modal.js',
   'storage/android-resilient-storage.js',
+  'core/ai-operations-engine.js',
   'sync/mutation_queue_orchestrator.mjs'
 ];
 
@@ -167,7 +168,8 @@ export async function buildStagingHosting(options = {}) {
   for (const relativePath of [
     'index.html', 'config.js', 'reverse-ledger-gateway.js',
     'erp/index.html', 'erp/sw.js', 'erp/manifest.webmanifest',
-    'erp/storage/android-resilient-storage.js', 'erp/icons/icon.svg',
+    'erp/storage/android-resilient-storage.js',
+    'erp/core/ai-operations-engine.js', 'erp/icons/icon.svg',
     'erp/vendor/firebase/firebase-compat.js',
     'erp/vendor/xlsx/xlsx.full.min.js',
     'erp/vendor/pdfjs/pdf.min.js',

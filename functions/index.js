@@ -4,6 +4,11 @@ const { initializeApp, getApps } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const CALLABLE_BASE_OPTIONS = Object.freeze({
+  region: 'us-central1',
+  enforceAppCheck: true,
+  timeoutSeconds: 60
+});
 const ReverseLedger = require('./lib/reverse-ledger.js');
 const { authorizePreparedReverseOperation } = require('./reverse-ledger-adapter.js');
 const { createReverseLedgerHandler } = require('./reverse-ledger-service.js');
@@ -27,12 +32,7 @@ const executeReverseLedger = createReverseLedgerHandler({
   projectId
 });
 
-exports.executeReverseLedger = onCall({
-  region: 'us-central1',
-  enforceAppCheck: true,
-  maxInstances: 10,
-  timeoutSeconds: 60
-}, executeReverseLedger);
+exports.executeReverseLedger = onCall({ ...CALLABLE_BASE_OPTIONS, maxInstances: 10 }, executeReverseLedger);
 
 
 const executeSettlementAllocation = createSettlementAllocationHandler({
@@ -43,12 +43,7 @@ const executeSettlementAllocation = createSettlementAllocationHandler({
   ReverseLedger
 });
 
-exports.executeSettlementAllocation = onCall({
-  region: 'us-central1',
-  enforceAppCheck: true,
-  maxInstances: 10,
-  timeoutSeconds: 60
-}, executeSettlementAllocation);
+exports.executeSettlementAllocation = onCall({ ...CALLABLE_BASE_OPTIONS, maxInstances: 10 }, executeSettlementAllocation);
 
 const reverseLedgerBackupHandlers = createReverseLedgerBackupHandlers({
   db: getFirestore(),
@@ -57,16 +52,6 @@ const reverseLedgerBackupHandlers = createReverseLedgerBackupHandlers({
   ReverseLedger
 });
 
-exports.createTrustedReverseLedgerBackup = onCall({
-  region: 'us-central1',
-  enforceAppCheck: true,
-  maxInstances: 5,
-  timeoutSeconds: 60
-}, reverseLedgerBackupHandlers.createTrustedReverseLedgerBackup);
+exports.createTrustedReverseLedgerBackup = onCall({ ...CALLABLE_BASE_OPTIONS, maxInstances: 5 }, reverseLedgerBackupHandlers.createTrustedReverseLedgerBackup);
 
-exports.restoreTrustedReverseLedgerBackup = onCall({
-  region: 'us-central1',
-  enforceAppCheck: true,
-  maxInstances: 5,
-  timeoutSeconds: 60
-}, reverseLedgerBackupHandlers.restoreTrustedReverseLedgerBackup);
+exports.restoreTrustedReverseLedgerBackup = onCall({ ...CALLABLE_BASE_OPTIONS, maxInstances: 5 }, reverseLedgerBackupHandlers.restoreTrustedReverseLedgerBackup);

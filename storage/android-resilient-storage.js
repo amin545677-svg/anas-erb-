@@ -297,6 +297,15 @@
       request.onerror = () => reject(request.error || new Error('IndexedDB read failed'));
     });
   }
+  // IndexedDB abort() may throw InvalidStateError after a transaction has already settled.
+  // Preserve the original conflict and let completion handlers reject it deterministically.
+  function abortTransactionSafely(tx) {
+    try { abortTransactionSafely(tx); return true; }
+    catch (error) {
+      if (error && (error.name === 'InvalidStateError' || error.code === 11)) return false;
+      throw error;
+    }
+  }
   async function writeIDB(record, expectedCorruptRecord = null) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -326,7 +335,7 @@
             conflictError.code = 'ANAS_STORAGE_REVISION_CONFLICT';
             conflictError.currentRevision = currentRevision;
             conflictError.attemptedRevision = record.revision;
-            tx.abort();
+            abortTransactionSafely(tx);
             return;
           }
         }
@@ -334,9 +343,9 @@
       };
       currentRequest.onerror = () => {
         conflictError = currentRequest.error || new Error('IndexedDB revision check failed');
-        tx.abort();
+        abortTransactionSafely(tx);
       };
-      tx.oncomplete = () => resolve();
+      tx.oncomplete = () => conflictError ? reject(conflictError) : resolve();
       tx.onerror = () => reject(conflictError || tx.error || new Error('IndexedDB transaction failed'));
       tx.onabort = () => reject(conflictError || tx.error || new Error('IndexedDB transaction aborted'));
     });
