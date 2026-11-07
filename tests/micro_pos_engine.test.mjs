@@ -124,3 +124,15 @@ test('dashboard exposes four work groups and the six persistent primary navigati
   assert.match(html, /dashboardStockAlertBadge[\s\S]*?dashboardBadge\.hidden = stockAlertCount === 0/,
     'dashboard stock alert count must be refreshed from the same alert calculation');
 });
+
+test('customer directory renders initials and phone-gated Algerian call and WhatsApp statement actions', () => {
+  const html = readFileSync('index.html', 'utf8');
+  assert.match(html, /const customerInitials = fullName =>/);
+  assert.match(html, /Array\.from\(parts\[0\]\)\[0\]/);
+  assert.match(html, /const customerWhatsAppUrl = customer =>/);
+  assert.match(html, /const customerTelUrl = customer =>/);
+  assert.match(html, /c\.phone && customerWhatsAppUrl\(c\)/,
+    'WhatsApp statement action must not render without a phone number');
+  assert.match(html, /href="\\$\{safe\(customerTelUrl\(c\)\)\}"/,
+    'call action must use normalized Algerian phone data');
+});
