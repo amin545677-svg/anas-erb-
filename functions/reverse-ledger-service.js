@@ -68,12 +68,13 @@ function createReverseLedgerHandler({
 
   try {
     return await db.runTransaction(async (transaction) => {
-      const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await Promise.all([
-        transaction.get(snapshotRef),
-        transaction.get(grantRef),
-        transaction.get(periodRef),
-        transaction.get(operationRef)
-      ]);
+      // Firestore transaction reads must share one read batch. Issuing several
+      // transaction.get() calls concurrently can race the SDK transaction's
+      // read state under duplicate idempotent requests and surface
+      // INVALID_ARGUMENT: Transaction is invalid or closed instead of retrying.
+      const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await transaction.getAll(
+        snapshotRef, grantRef, periodRef, operationRef
+      );
 
       const previousOperation = operationSnap.exists ? operationSnap.data() : null;
       if (previousOperation) {
