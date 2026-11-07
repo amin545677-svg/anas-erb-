@@ -797,20 +797,28 @@ jobs:
           start = s.find("async function handleSmartAiUpload(e)")
           end = s.find("async function anasExtractPdfText(file)", start)
           assert start >= 0 and end > start, "Could not isolate spreadsheet upload handler"
-          js = s[start:end]
-          required = [
+          handler = s[start:end]
+          row_start = s.find("function anasValidateSmartImportRows(rows)")
+          row_end = s.find("function showSmartImportSheetPicker", row_start)
+          assert row_start >= 0 and row_end > row_start, "Could not isolate spreadsheet row validator"
+          row_validator = s[row_start:row_end]
+          required_handler = [
               "const maxImportBytes=20*1024*1024",
               "if(file.size>maxImportBytes)",
-              "const maxImportRows=100000, maxImportColumns=200",
-              "if(rows.length>maxImportRows)",
-              "if(widestRow>maxImportColumns)",
               "Array.isArray(wb.SheetNames)",
+              "if(wb.SheetNames.length>50)",
               "if(!sheet)"
           ]
-          missing = [x for x in required if x not in js]
+          required_rows = [
+              "const maxImportRows=100000,maxImportColumns=200",
+              "if(rows.length>maxImportRows)",
+              "if(widestRow>maxImportColumns)"
+          ]
+          missing = [x for x in required_handler if x not in handler]
+          missing += [x for x in required_rows if x not in row_validator]
           assert not missing, f"Missing spreadsheet import safeguards: {missing}"
-          Path("/tmp/anas-import-handler.js").write_text(js, encoding="utf-8")
-          print("Spreadsheet import size, row/column, and workbook-sheet guards passed")
+          Path("/tmp/anas-import-handler.js").write_text(handler + "\\n" + row_validator, encoding="utf-8")
+          print("Spreadsheet byte, sheet, row, and column guards passed")
           PY
           node --check /tmp/anas-import-handler.js
       - name: Exercise CSV parser quoting and malformed input
