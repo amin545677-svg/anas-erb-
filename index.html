@@ -11019,7 +11019,7 @@ function wtAuditTransfers(){
                             const original=row.matches[0].candidate;
                             const live=next.find(record=>record&&String(record.id)===String(original.id));
                             if(!live)throw new Error('السجل المطابق تغير أثناء المراجعة؛ أعد تحميل المعاينة.');
-                            const protectedFields=target==='customers'?['debt','balance','creditUsed']:['balance','debt','openingBalance'];
+                            const protectedFields=target==='customers'?['debt','balance','creditUsed',...(indexes.credit_limit<0?['credit_limit']:[])]:['balance','debt','openingBalance'];
                             const preserved={};for(const field of protectedFields)if(Object.prototype.hasOwnProperty.call(live,field))preserved[field]=live[field];
                             Object.assign(live,item,{id:live.id},preserved);updated++;
                         }
