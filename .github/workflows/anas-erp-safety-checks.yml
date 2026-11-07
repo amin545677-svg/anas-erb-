@@ -1,23 +1,11 @@
-name: ANAS ERP Safety Checks
+name: ANAS ERP Safety Checks (Legacy Manual Suite)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "index.html"
-      - "tests/**"
-      - "cloudflare/**"
-      - "firebase/**"
-      - ".github/workflows/anas-erp-safety-checks.yml"
-      - ".github/workflows/deploy-firebase-worker.yml"
   pull_request:
-    paths:
-      - "index.html"
-      - "tests/**"
-      - "cloudflare/**"
-      - "firebase/**"
-      - ".github/workflows/anas-erp-safety-checks.yml"
-      - ".github/workflows/deploy-firebase-worker.yml"
+  push:
+    branches:
+      - main
+      - "feat/**"
   workflow_dispatch:
 
 permissions:
@@ -48,6 +36,14 @@ jobs:
         run: node tests/product_delete_stock_guard_test.js
       - name: Test POS cart persistence rollback
         run: node tests/pos_cart_persistence_rollback_test.js
+      - name: Test reverse-ledger schemas and allocation invariants
+        run: node --test tests/reverse_ledger_primitives.test.js tests/reverse_ledger_rollback_identity.test.js
+      - name: Test cumulative and WAC reverse-ledger valuation
+        run: node --test tests/reverse_ledger_valuation.test.js
+      - name: Check trusted reverse-ledger reservation Worker syntax
+        run: node --check cloudflare/worker_reverse_ledger.js
+      - name: Test trusted reverse-ledger reservation Worker security
+        run: node --test tests/worker_reverse_ledger.test.mjs
       - name: Guard invoice bulk-delete safety handlers
         run: |
           python - <<'PY'
@@ -78,10 +74,10 @@ jobs:
               "invoice reset handler keeps safety guard": any("تنبيه أمني" in body and "إلغاء المسح الشامل" in body for body in function_bodies("autoResetAllInvoicesNow")),
               "legacy destructive purchase handler is not active under the UI name": len(function_bodies("old_clearAllPurchaseInvoices")) == 1,
               "legacy destructive reset handler is not active under the UI name": len(function_bodies("old_autoResetAllInvoicesNow")) == 1,
-              "invoice cancellation is guarded": len(function_bodies("cancelInvoicePrompt")) == 1 and "لم تتغير أي بيانات" in function_bodies("cancelInvoicePrompt")[0],
+              "invoice cancellation routes through fail-closed server gateway": len(function_bodies("cancelInvoicePrompt")) == 1 and "anasExecuteReversePosting" in function_source("cancelInvoicePrompt") and "returnType:'INVOICE_CANCEL'" in function_source("cancelInvoicePrompt") and "request.reason" in function_source("cancelInvoicePrompt"),
               "legacy destructive cancellation is renamed": len(function_bodies("old_cancelInvoicePrompt")) == 1,
-              "sales return does not falsely claim posting": len(function_bodies("returnSalePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnSalePrompt")[0],
-              "purchase return does not falsely claim posting": len(function_bodies("returnPurchasePrompt")) == 1 and "لم يتم تعديل" in function_bodies("returnPurchasePrompt")[0],
+              "sales return routes through fail-closed server gateway": len(function_bodies("returnSalePrompt")) == 1 and "anasExecuteReversePosting" in function_source("returnSalePrompt") and "returnType:'SALE_RETURN'" in function_source("returnSalePrompt") and "originalInvoiceType:'sales_invoice'" in function_source("returnSalePrompt"),
+              "purchase return routes through fail-closed server gateway": len(function_bodies("returnPurchasePrompt")) == 1 and "anasExecuteReversePosting" in function_source("returnPurchasePrompt") and "returnType:'PURCHASE_RETURN'" in function_source("returnPurchasePrompt") and "originalInvoiceType:'purchase_invoice'" in function_source("returnPurchasePrompt"),
               "legacy sales return prompt is renamed": len(function_bodies("old_returnSalePrompt")) == 1,
               "legacy purchase return prompt is renamed": len(function_bodies("old_returnPurchasePrompt")) == 1,
               "only one active quick-product renderer": len(function_bodies("renderQuickProducts")) == 1,
@@ -141,10 +137,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("        function anasFormatZReportCashBalance(value) {")
           end = s.find("\n        function printZReport()", start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer currency helpers"
           assert start >= 0 and end > start, "Could not isolate Z-report cash formatter"
-          function_js = s[start:end]
+          function_js = s[helper_start:helper_end] + s[start:end]
           js = r"""
           const assert = require('node:assert/strict');
           /*INSERT_FORMATTER*/
@@ -444,15 +443,16 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
-          start = s.find("const staged=[], errors=[], seenNames=new Set(), seenIds=new Set();")
+          start = s.find("const staged=[], errors=[], seenNames=new Set(), seenIds=new Set(), explicitImportIds=new Set();")
           end = s.find("if(errors.length){", start)
           assert start >= 0 and end > start, "Could not locate import record validation"
           block = s[start:end]
           assert "const existingCodes=new Set(existing.map(x=>norm(x.id)))" in block, "Existing record IDs must be indexed"
           assert "const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);" in block, "Generated IDs must preserve section-specific prefixes"
-          assert "existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId))" in block, "Supplied and generated IDs must be checked for collisions"
+          assert "if((target!=='products' && existingCodes.has(norm(recordId))) || seenIds.has(norm(recordId)))" in block, "Existing customer/supplier IDs and duplicate imported IDs must be rejected; product IDs may be upserted"
           assert "seenNames.has(keyName)" in block and "seenIds.add(norm(recordId))" in block, "Name and ID duplicate tracking must be separate"
           assert "Object.assign(rec,{id:recordId,name," in block, "The validated ID must be the one persisted"
+          assert "if(id) explicitImportIds.add(recordId)" in block, "Explicit product IDs must be distinguished from generated IDs"
           print("Import record ID uniqueness guards passed")
           PY
       - name: Reject unsafe financial magnitudes in backup restore
@@ -465,6 +465,14 @@ jobs:
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
+          purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -474,6 +482,8 @@ jobs:
           const vm = require('node:vm');
           const validator = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
+          const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
+          const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const base = {
             products:[{id:'p',stock:1}], customers:[{id:'c',debt:0}],
             suppliers:[{id:'s',balance:0}], invoices:[], purchases:[], expenses:[],
@@ -498,17 +508,19 @@ jobs:
             const data = JSON.parse(JSON.stringify(base));
             mutate(data);
             const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-            vm.runInNewContext(truckExpenseValidator + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
+            vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
             assert.throws(() => ctx.validate(data), /قيمة مالية غير صالحة/, label + ' above the safe numeric range must be rejected');
           }
           const valid = JSON.parse(JSON.stringify(base));
           const ctx = { AppData: {products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],alerts:[],truckTrips:[],cashMovements:[],warehouses:[],posScreensCarts:{},caisseBalance:0} };
-          vm.runInNewContext(truckExpenseValidator + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
+          vm.runInNewContext(truckExpenseValidator + '\n' + purchaseHelpers + '\n' + purchaseParity + '\n' + validator + '\nthis.validate = anasValidateBackupData;', ctx);
           assert.equal(ctx.validate(valid), valid, 'ordinary backup values must remain accepted');
           console.log('Backup validator safe financial magnitude tests passed');
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", json.dumps(purchase_parity))
           Path("/tmp/anas-backup-financial-safe-range-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-financial-safe-range-test.js
@@ -576,6 +588,14 @@ jobs:
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
+          purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -585,8 +605,10 @@ jobs:
           const vm = require('node:vm');
           const validatorSource = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
+          const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
+          const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
           const expectReject = (data,label) => {
             assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
@@ -628,6 +650,8 @@ jobs:
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", json.dumps(purchase_parity))
           Path("/tmp/anas-backup-duplicate-ids-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-duplicate-ids-test.js
@@ -642,6 +666,14 @@ jobs:
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = s[helper_start:helper_end]
+          purchase_helpers_start = s.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = s[purchase_parity_start:purchase_parity_end]
           start = s.find("function anasValidateBackupData(incoming)")
           end = s.find("\n        function importDataBackup(e)", start)
           assert start >= 0 and end > start, "Could not isolate backup validator"
@@ -651,8 +683,10 @@ jobs:
           const vm = require('node:vm');
           const validatorSource = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
+          const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
+          const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
           ctx.AppData = {caisseBalance:75};
           const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
@@ -728,6 +762,8 @@ jobs:
           """
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", json.dumps(purchase_parity))
           Path("/tmp/anas-backup-financial-validation-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-backup-financial-validation-test.js
@@ -737,20 +773,20 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
-          start = s.find("// Build the next array before mutating the live one")
+          start = s.find("const before=JSON.stringify(arr||[]);")
           end = s.find("function clearAllSalesInvoices()", start)
           assert start >= 0 and end > start, "Could not locate import persistence transaction"
           block = s[start:end]
-          saved = block.find("const saved=saveDB()")
-          save_failure = block.find("if(saved!==true) throw new Error")
+          save_ack = block.find("await saveDBDurably();")
+          save_failure = block.find("}catch(err){", save_ack)
           restore = block.find("const restored=JSON.parse(before)")
           ui_refresh = block.find("// Once persistence succeeds")
           ui_catch = block.find("ANAS ERP import saved; UI refresh failed")
-          assert saved >= 0 and save_failure > saved and restore > save_failure, "Save failure must restore in-memory state"
+          assert save_ack >= 0 and save_failure > save_ack and restore > save_failure, "Durable save failure must restore in-memory state"
           assert ui_refresh > restore and ui_catch > ui_refresh, "UI refresh must be isolated after successful persistence"
           ui_region = block[ui_refresh:]
           assert "const restored=JSON.parse(before)" not in ui_region, "UI rendering failure must not roll memory back after storage succeeds"
-          assert "for(const item of staged) next.push(item)" in block, "Avoid spread-argument limits for large imports"
+          assert "next.push(item)" in block and "next.push(...staged)" not in block, "Imports must append records iteratively without spread-argument limits"
           print("Import persistence/rollback boundary checks passed")
           PY
       - name: Check spreadsheet import safety limits
@@ -761,20 +797,28 @@ jobs:
           start = s.find("async function handleSmartAiUpload(e)")
           end = s.find("async function anasExtractPdfText(file)", start)
           assert start >= 0 and end > start, "Could not isolate spreadsheet upload handler"
-          js = s[start:end]
-          required = [
+          handler = s[start:end]
+          row_start = s.find("function anasValidateSmartImportRows(rows)")
+          row_end = s.find("function showSmartImportSheetPicker", row_start)
+          assert row_start >= 0 and row_end > row_start, "Could not isolate spreadsheet row validator"
+          row_validator = s[row_start:row_end]
+          required_handler = [
               "const maxImportBytes=20*1024*1024",
               "if(file.size>maxImportBytes)",
-              "const maxImportRows=100000, maxImportColumns=200",
-              "if(rows.length>maxImportRows)",
-              "if(widestRow>maxImportColumns)",
               "Array.isArray(wb.SheetNames)",
+              "if(wb.SheetNames.length>50)",
               "if(!sheet)"
           ]
-          missing = [x for x in required if x not in js]
+          required_rows = [
+              "const maxImportRows=100000,maxImportColumns=200",
+              "if(rows.length>maxImportRows)",
+              "if(widestRow>maxImportColumns)"
+          ]
+          missing = [x for x in required_handler if x not in handler]
+          missing += [x for x in required_rows if x not in row_validator]
           assert not missing, f"Missing spreadsheet import safeguards: {missing}"
-          Path("/tmp/anas-import-handler.js").write_text(js, encoding="utf-8")
-          print("Spreadsheet import size, row/column, and workbook-sheet guards passed")
+          Path("/tmp/anas-import-handler.js").write_text(handler + "\n" + row_validator, encoding="utf-8")
+          print("Spreadsheet byte, sheet, row, and column guards passed")
           PY
           node --check /tmp/anas-import-handler.js
       - name: Exercise CSV parser quoting and malformed input
@@ -829,11 +873,12 @@ jobs:
           js = Path("/tmp/anas-pdf-helper.js").read_text(encoding="utf-8")
           js += r"""
           const assert = require('node:assert/strict');
+          global.document = { baseURI: 'https://example.test/app/' };
           global.window = { pdfjsLib: { GlobalWorkerOptions: {}, getDocument: null } };
           (async () => {
             let opened = false;
-            const oversized = { size: 20 * 1024 * 1024 + 1, arrayBuffer: async () => { opened = true; return new ArrayBuffer(0); } };
-            await assert.rejects(() => anasExtractPdfText(oversized), /يتجاوز 20 ميغابايت/);
+            const oversized = { size: 10 * 1024 * 1024 + 1, arrayBuffer: async () => { opened = true; return new ArrayBuffer(0); } };
+            await assert.rejects(() => anasExtractPdfText(oversized), /يتجاوز 10 ميغابايت/);
             assert.equal(opened, false, 'oversized file must be rejected before reading bytes');
 
             let fetchedPages = 0, cleanedPages = 0, destroyed = false;
@@ -869,9 +914,10 @@ jobs:
           s = Path("index.html").read_text(encoding="utf-8")
           required = [
               "مركز الملفات الذكي | Excel · PDF",
-              'accept=".csv,.txt,.xlsx,.xls,.pdf,application/pdf',
+              'id="smartAiExcelUpload" accept=".xlsx,.xls,.csv,.txt',
+              'id="smartAiPdfUpload" accept=".pdf,application/pdf',
               "async function anasExtractPdfText(file)",
-              "const maxBytes=20*1024*1024;",
+              "const maxBytes=10*1024*1024;",
               "if(file.size>maxBytes)",
               "Math.min(pageCount,100)",
               "if(page.cleanup)page.cleanup();",
@@ -892,122 +938,7 @@ jobs:
           print("Document center capabilities and explicit-send guard passed")
           PY
       - name: Exercise customer debt settlement and cash rollback with mocks
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          s = Path("index.html").read_text(encoding="utf-8")
-          start = s.find("function collectCustDebt(cId)")
-          end = s.find("function openGoogleMaps(loc)", start)
-          assert start >= 0 and end > start, "Could not isolate customer debt settlement function"
-          function_js = s[start:end]
-          js = r"""
-          /*INSERT_CUSTOMER_DEBT_FUNCTION*/
-          const assert = require('node:assert/strict');
-          global.alert = () => {};
-          global.renderCustomersDebts = () => {};
-          global.updateCashUI = () => {};
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50, currentUser: { id: 'u1', name: 'Admin' } };
-          global.prompt = () => '40';
-          global.saveDB = () => true;
-          collectCustDebt('c1');
-          assert.equal(AppData.customers[0].debt, 60, 'successful collection reduces customer debt');
-          assert.equal(AppData.caisseBalance, 90, 'successful collection increases cash');
-          assert.equal(AppData.cashMovements.length, 1, 'successful collection creates a cash ledger entry');
-          assert.equal(AppData.cashMovements[0].amount, 40);
-          assert.equal(AppData.cashMovements[0].referenceType, 'customer_debt');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
-          global.prompt = () => '40';
-          global.saveDB = () => false;
-          collectCustDebt('c1');
-          assert.equal(AppData.customers[0].debt, 100, 'failed save restores customer debt');
-          assert.equal(AppData.caisseBalance, 50, 'failed save restores cash balance');
-          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'failed save removes a newly created ledger');
-
-          // Failed persistence must restore original representations, not coerce legacy numeric strings.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: '100' }], caisseBalance: '50' };
-          global.prompt = () => '40';
-          global.saveDB = () => false;
-          collectCustDebt('c1');
-          assert.equal(AppData.customers[0].debt, '100', 'failed save must restore exact original debt value and type');
-          assert.equal(AppData.caisseBalance, '50', 'failed save must restore exact original cash value and type');
-          assert.equal(typeof AppData.customers[0].debt, 'string');
-          assert.equal(typeof AppData.caisseBalance, 'string');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }] };
-          global.prompt = () => '40';
-          global.saveDB = () => false;
-          collectCustDebt('c1');
-          assert.equal(Object.hasOwn(AppData, 'caisseBalance'), false, 'failed save must not leave a new cash balance property');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 50 };
-          global.prompt = () => '101';
-          let saveCalled = false;
-          global.saveDB = () => { saveCalled = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(saveCalled, false, 'invalid amount must not be persisted');
-          assert.equal(AppData.customers[0].debt, 100);
-          assert.equal(AppData.caisseBalance, 50);
-          // Duplicate customer IDs must never credit one arbitrary customer's account.
-          global.AppData = { customers: [{ id: 'dup', name: 'A', debt: 20 }, { id: 'dup', name: 'B', debt: 30 }], caisseBalance: 5 };
-          global.prompt = () => '10';
-          let duplicateSave = false;
-          global.saveDB = () => { duplicateSave = true; return true; };
-          collectCustDebt('dup');
-          assert.equal(duplicateSave, false, 'duplicate customer IDs must be rejected before persistence');
-          assert.deepEqual(AppData.customers.map(x => x.debt), [20, 30]);
-          assert.equal(AppData.caisseBalance, 5);
-
-          // Malformed persisted cash values and ledgers must fail closed, not normalize to zero or erase history.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 'not-a-number', cashMovements: [] };
-          let malformedBalanceSave = false;
-          global.saveDB = () => { malformedBalanceSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(malformedBalanceSave, false, 'malformed cash balance must block debt collection');
-          assert.equal(AppData.customers[0].debt, 100);
-
-          for (const invalidBalance of [true, [5]]) {
-            global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: invalidBalance, cashMovements: [] };
-            let coercedBalanceSave = false;
-            global.saveDB = () => { coercedBalanceSave = true; return true; };
-            collectCustDebt('c1');
-            assert.equal(coercedBalanceSave, false, 'boolean/array cash balances must block debt collection');
-            assert.equal(AppData.customers[0].debt, 100, 'invalid cash balance must not change customer debt');
-            assert.deepEqual(AppData.cashMovements, [], 'invalid cash balance must not create a ledger entry');
-            assert.deepEqual(AppData.caisseBalance, invalidBalance, 'invalid cash balance must remain untouched');
-          }
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: 5, cashMovements: [{ id: 'legacy' }, null] };
-          let malformedLedgerSave = false;
-          global.saveDB = () => { malformedLedgerSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(malformedLedgerSave, false, 'malformed cash movement ledger must block debt collection');
-          assert.equal(AppData.cashMovements[1], null, 'existing malformed history must not be silently overwritten');
-
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 100 }], caisseBalance: Number.MAX_SAFE_INTEGER };
-          global.prompt = () => '1';
-          let unsafeDebtSave = false;
-          global.saveDB = () => { unsafeDebtSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(unsafeDebtSave, false, 'unsafe cash arithmetic must block debt collection');
-          assert.equal(AppData.customers[0].debt, 100);
-          assert.equal(AppData.caisseBalance, Number.MAX_SAFE_INTEGER);
-          // A finite but unsafe customer debt can make a small subtraction silently lose precision.
-          global.AppData = { customers: [{ id: 'c1', name: 'Client', debt: 1e16 }], caisseBalance: 5 };
-          global.prompt = () => '1';
-          let unsafeCustomerDebtSave = false;
-          global.saveDB = () => { unsafeCustomerDebtSave = true; return true; };
-          collectCustDebt('c1');
-          assert.equal(unsafeCustomerDebtSave, false, 'unsafe customer debt must be rejected before persistence');
-          assert.equal(AppData.customers[0].debt, 1e16, 'unsafe customer debt must remain unchanged');
-          assert.equal(AppData.caisseBalance, 5, 'cash must not change when customer debt is unsafe');
-          assert.equal(Object.hasOwn(AppData, 'cashMovements'), false, 'unsafe customer debt must not create a cash ledger entry');
-          console.log('Customer debt settlement tests passed: ledger entry, rollback, invalid amount, and unsafe debt guards');
-          """
-          js = js.replace("/*INSERT_CUSTOMER_DEBT_FUNCTION*/", function_js)
-          Path("/tmp/anas-customer-debt-test.js").write_text(js, encoding="utf-8")
-          PY
-          node /tmp/anas-customer-debt-test.js
+        run: node tests/customer_debt_collection_guard_test.js
       - name: Exercise supplier save validation and rollback
         run: |
           python - <<'PY'
@@ -1017,7 +948,12 @@ jobs:
           end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate supplier save function"
           fn = s[start:end]
+          helper_start = s.find("// Purchase-specific decimal parser")
+          helper_end = s.find("function savePurchaseItem()", helper_start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate purchase centime helpers"
+          helpers = s[helper_start:helper_end]
           js = r"""
+          /*INSERT_PURCHASE_CENTIME_HELPERS*/
           /*INSERT_SUPPLIER_SAVE_FUNCTION*/
           const assert = require('node:assert/strict');
           global.alert = () => {};
@@ -1046,7 +982,7 @@ jobs:
           assert.equal(AppData.suppliers.length,1,'thrown persistence error must roll back supplier creation');
           console.log('Supplier save validation/rollback tests passed');
           """
-          js = js.replace("/*INSERT_SUPPLIER_SAVE_FUNCTION*/", fn)
+          js = js.replace("/*INSERT_PURCHASE_CENTIME_HELPERS*/", helpers).replace("/*INSERT_SUPPLIER_SAVE_FUNCTION*/", fn)
           Path("/tmp/anas-supplier-save-test.js").write_text(js, encoding="utf-8")
           PY
           node --check /tmp/anas-supplier-save-test.js
@@ -1063,6 +999,8 @@ jobs:
           js = r"""
           /*INSERT_CUSTOMER_SAVE_FUNCTION*/
           const assert = require('node:assert/strict');
+          global.window = {};
+          require(process.cwd() + "/customer-debt-protection.js");
           global.alert = () => {};
           global.closeModal = () => {};
           global.renderCustomersDebts = () => {};
@@ -1152,11 +1090,17 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function submitCashOperation()")
-          mid = s.find("function submitExpenseOperation()", start)
+          mid = s.find("async function submitExpenseOperation()", start)
+          if mid < 0:
+            mid = s.find("function submitExpenseOperation()", start)
           end = s.find("\n        function ", mid + 10)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
-          cash_fn = s[start:mid]
+          helper_fn = s[helper_start:helper_end]
+          cash_fn = helper_fn + s[start:mid]
           expense_fn = s[mid:end]
           assert "renderExpenses()" not in expense_fn, "Expense save must not call an undefined renderer after committing data"
           js = r"""
@@ -1174,6 +1118,7 @@ jobs:
           global.document = {getElementById:(id)=>elements[id]};
           global.AppData = {caisseBalance:20,cashMovements:[],expenses:[]};
           let saves=0; global.saveDB=()=>{saves++;return true;};
+          global.saveDBDurably=async()=>true;
           submitCashOperation();
           assert.equal(AppData.caisseBalance,30,'valid cash-in increases balance');
           assert.equal(AppData.cashMovements.length,1,'valid cash-in records movement');
@@ -1238,6 +1183,23 @@ jobs:
           submitCashOperation();
           assert.equal(saves,beforeUnsafeCash,'negative stored cash balance must block new movement');
           assert.equal(AppData.caisseBalance,-5);
+
+          // Fractional cash receipts and expenses must mutate the balance in integer centimes.
+          global.AppData={caisseBalance:100.1,cashMovements:[]};
+          elements.cashAmountInput.value='0.1';
+          const beforeFractionalCash=saves;
+          submitCashOperation();
+          assert.equal(saves,beforeFractionalCash+1);
+          assert.equal(AppData.caisseBalance,100.2);
+          assert.equal(AppData.cashMovements[0].amount,0.1);
+
+          global.AppData={caisseBalance:100.1,expenses:[]};
+          elements.expAmountInput.value='0.1';
+          const beforeFractionalExpense=saves;
+          submitExpenseOperation();
+          assert.equal(saves,beforeFractionalExpense+1);
+          assert.equal(AppData.caisseBalance,100);
+          assert.equal(AppData.expenses[0].amt,0.1);
           console.log('Cash operation and expense integrity tests passed');
           """
           js = js.replace("/*INSERT_CASH_FUNCTION*/", cash_fn).replace("/*INSERT_EXPENSE_FUNCTION*/", expense_fn)
@@ -1257,10 +1219,13 @@ jobs:
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
+          helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function editSalesInvoice(invoiceId) {")
           end = s.find("// ================= إدارة المخزون وحساب الأرباح =================", start)
+          assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer quantity helpers"
           assert start >= 0 and end > start, "Could not isolate invoice edit function"
-          function_js = s[start:end]
+          function_js = s[helper_start:helper_end] + s[start:end]
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
@@ -1689,7 +1654,13 @@ jobs:
           assert config.get("firestore", {}).get("rules") == "firebase/firestore.rules", "firebase.json does not point to Firestore rules"
           assert "request.auth != null" in rules, "Firestore rules must require authentication"
           assert "request.auth.uid == userId" in rules, "Firestore rules must restrict snapshots to their owner"
-          print("Firestore rules configuration and owner-only access checks passed")
+          for collection in ["reverseLedgerGrants", "financialPeriods", "reverseLedgerOperations", "reverseLedgerState", "reverseLedgerEntries"]:
+              block_start = rules.find("match /users/{userId}/" + collection + "/")
+              assert block_start >= 0, "Missing server-authoritative Firestore rule for " + collection
+              block_end = rules.find("\\n    }", block_start)
+              block = rules[block_start:block_end]
+              assert "allow read, write: if false;" in block, collection + " must deny browser reads and writes"
+          print("Firestore rules preserve owner-only snapshots and deny client access to authoritative reverse-ledger collections")
           PY
 
       - name: Exercise truck custody settlement and rollback with mocks
@@ -2043,12 +2014,22 @@ jobs:
           helper_end = app.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
           truck_links = app[helper_start:helper_end]
+          purchase_helpers_start = app.find("function anasPurchaseToScaledInteger(value, decimalPlaces)")
+          purchase_helpers_end = app.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
+          assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
+          purchase_helpers = app[purchase_helpers_start:purchase_helpers_end]
+          purchase_parity_start = app.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
+          purchase_parity_end = app.find("\n        function savePurchaseItem()", purchase_parity_start)
+          assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
+          purchase_parity = app[purchase_parity_start:purchase_parity_end]
           start = app.find("        function anasValidateIncomingSyncData(incoming) {")
           end = app.find("async function syncPushNow()", start)
           assert start >= 0 and end > start, "Could not isolate cloud restore validator"
           function_js = app[start:end]
           js = r"""
           const assert = require('node:assert/strict');
+          /*INSERT_PURCHASE_HELPERS*/
+          /*INSERT_PURCHASE_PARITY*/
           /*INSERT_SYNC_VALIDATOR*/
           const base = () => ({products:[{id:'p1',stock:8,warehouseStock:{'Legacy':3}}],customers:[],suppliers:[],invoices:[]});
           const valid = base();
@@ -2202,6 +2183,8 @@ jobs:
           assert.deepEqual(missingCashHistory.cashMovements,[]);
           console.log('Cloud restore validator tests passed: malformed accounting fields are rejected before local replacement');
           """
+          js = js.replace("/*INSERT_PURCHASE_HELPERS*/", purchase_helpers)
+          js = js.replace("/*INSERT_PURCHASE_PARITY*/", purchase_parity)
           js = js.replace("/*INSERT_SYNC_VALIDATOR*/", truck_links + "\n" + function_js)
           Path("/tmp/anas-cloud-restore-validator-test.js").write_text(js, encoding="utf-8")
           PY
@@ -2387,6 +2370,9 @@ jobs:
           const data={invoices:[{id:'INV-1',total:100}],purchases:[{id:'PUR-1',total:50}]};
           const ctx={AppData:data,alert:m=>alerts.push(String(m)),confirm:()=>true,prompt:()=>'INV-1',
             saveDB:()=>{saves++;return true;},renderInvoicesList:()=>{renders++;},renderPurchasesTable:()=>{renders++;},
+            anasReverseInvoiceChoices:()=>[{id:'INV-1'}],
+            anasReadReversePrompt:()=>({invoiceType:'sales_invoice',invoiceId:'INV-1',reason:'regression test',items:[],settlementMode:'credit'}),
+            anasExecuteReversePosting:()=>{alerts.push('safe server gateway guard');return null;},
             document:{getElementById:()=>({classList:{contains:()=>true}})}};
           vm.runInNewContext(Object.values(sources).join('\n')+
             '\nthis.actions=[old_clearAllSalesInvoices,old_clearAllPurchaseInvoices,old_autoResetAllInvoicesNow,old_cancelInvoicePrompt,old_returnSalePrompt,old_returnPurchasePrompt];',ctx);
@@ -2593,10 +2579,15 @@ jobs:
               assert start>=0 and end>start, "Could not isolate "+label
               return s[start:end]
           purchase=extract("function savePurchaseItem() {","\n        function ","purchase")
+          purchase_helper_start=s.find("// Purchase-specific decimal parser")
+          purchase_helper_end=s.find("function savePurchaseItem()",purchase_helper_start)
+          assert purchase_helper_start>=0 and purchase_helper_end>purchase_helper_start, "Could not isolate purchase centime helpers"
+          purchase_helpers=s[purchase_helper_start:purchase_helper_end]
           truck=extract("function postTripStock(trip){","window.anasTruckSaveTrip = function(){","truck load")
           js=r"""
           const assert=require('node:assert/strict');
           const vm=require('node:vm');
+          const purchaseHelpers=/*PURCHASE_HELPERS*/;
           const purchase=/*PURCHASE*/;
           const truck=/*TRUCK*/;
           {
@@ -2604,11 +2595,12 @@ jobs:
               purProductName:{value:'New Product',focus(){}},
               purBuyCost:{value:'10',focus(){}},
               purBuyQty:{value:'3',focus(){}},
+              purPaidAmount:{value:'30',focus(){}},
               purSupplierSelect:{value:''},
               purInvoiceDate:{value:'2026-10-25'}
             };
             const ctx={
-              AppData:{products:[],purchases:[]},posCart:[],
+              AppData:{products:[],purchases:[],suppliers:[],caisseBalance:100},posCart:[],
               document:{getElementById:id=>fields[id]||null},
               alert:()=>{},console:{error:()=>{}},
               saveDB:()=>undefined,
@@ -2617,7 +2609,7 @@ jobs:
               updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
               Number,String,Object,Array,JSON,Date,Math
             };
-            vm.runInNewContext(purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
+            vm.runInNewContext(purchaseHelpers+'\n'+purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
             ctx.runPurchase();
             assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
             assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
@@ -2641,7 +2633,7 @@ jobs:
           }
           console.log('Explicit save-success contract tests passed for purchases and truck loading');
           """
-          js=js.replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
+          js=js.replace("/*PURCHASE_HELPERS*/",json.dumps(purchase_helpers)).replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
           Path("/tmp/anas-explicit-save-success-test.js").write_text(js,encoding="utf-8")
           PY
           node --check /tmp/anas-explicit-save-success-test.js

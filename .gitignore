@@ -1,0 +1,2 @@
+# Local-only Firebase staging web configuration. Never commit deployment identifiers from a real project.
+staging/config.js

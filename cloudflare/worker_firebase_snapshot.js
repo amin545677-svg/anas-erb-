@@ -4,21 +4,20 @@
  * Uses Firebase Auth ID tokens and Firestore Security Rules; no service-account private key.
  */
 const MAX_BODY_BYTES = 700 * 1024;
-const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "https://amin545677-svg.github.io")
+const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 function json(data, status, origin) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": origin || "https://amin545677-svg.github.io",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
-      "Vary": "Origin"
-    }
-  });
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
+    "Vary": "Origin"
+  };
+  // Never attach an unrelated production origin to a rejected cross-origin response.
+  if (origin) headers["Access-Control-Allow-Origin"] = origin;
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function responseOrigin(request, env) {
@@ -184,6 +183,14 @@ function validateSnapshotData(data) {
       validateSnapshotNumber(movement, field, "stockMovements", { allowNegative: true });
     for (const field of ["previousStock", "newStock", "stockBefore", "stockAfter"])
       validateSnapshotNumber(movement, field, "stockMovements");
+    for (const field of ["originalSaleQuantityMicroUnits", "restoredInventoryCostCentimes", "inventoryBookValueCentimes"]) {
+      if (Object.prototype.hasOwnProperty.call(movement, field) && movement[field] !== null)
+        validateSnapshotNumber(movement, field, "stockMovements", { allowZero: field !== "originalSaleQuantityMicroUnits" });
+    }
+    if (Object.prototype.hasOwnProperty.call(movement, "originalSaleCostCentimes") && movement.originalSaleCostCentimes !== null)
+      validateSnapshotNumber(movement, "originalSaleCostCentimes", "stockMovements");
+    if (Object.prototype.hasOwnProperty.call(movement, "valuationVarianceCentimes"))
+      validateSnapshotNumber(movement, "valuationVarianceCentimes", "stockMovements", { allowNegative: true });
   }
   for (const transfer of data.warehouseTransfers || []) {
     if (!Object.prototype.hasOwnProperty.call(transfer, "quantity"))
@@ -240,7 +247,7 @@ async function handleSnapshot(request, env, origin) {
     return json({ ok: true, exists: true, data: payload, parts: 1, revision: doc.updateTime || null }, 200, origin);
   }
 
-  if (request.method === "POST") {
+  if (request.method === "POST" || request.method === "PUT") {
     const text = await readLimitedRequestBody(request, MAX_BODY_BYTES);
     if (text === null) {
       return json({ error: "Snapshot exceeds 700 KiB limit" }, 413, origin);
@@ -299,19 +306,26 @@ export default {
       if (!origin) return new Response(null, { status: 403 });
       return new Response(null, { status: 204, headers: {
         "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
         "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin"
       }});
     }
     const url = new URL(request.url);
-    if (!origin) return json({ error: "Origin is not allowed" }, 403, "https://amin545677-svg.github.io");
+    if (!origin) return json({ error: "Origin is not allowed" }, 403, "");
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ ok: true, service: "anas-erp-firebase-snapshot", configured: !!(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID) }, 200, origin);
+      const projectId = env.FIREBASE_PROJECT_ID || null;
+      const isStaging = projectId === "anas-erp-staging-a25e1";
+      return json({
+        ok: true,
+        service: isStaging ? "anas-erp-firebase-snapshot-staging" : "anas-erp-firebase-snapshot",
+        projectId,
+        configured: Boolean(env.FIREBASE_API_KEY && projectId)
+      }, 200, origin);
     }
     if (url.pathname === "/snapshot") {
-      if (request.method !== "GET" && request.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
+      if (request.method !== "GET" && request.method !== "POST" && request.method !== "PUT") return json({ error: "Method not allowed" }, 405, origin);
       try { return await handleSnapshot(request, env, origin); }
       catch (e) { return json({ error: "Worker internal error", details: String(e.message || e).slice(0, 300) }, 500, origin); }
     }

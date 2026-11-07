@@ -1,9 +1,49 @@
-const CACHE = 'anas-erp-v54-25-r2';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg'];
-const CORE_URLS = new Set(CORE.map(path => new URL(path, self.location.href).href));
+const CACHE = 'anas-erp-v54-25-r17';
+const CORE = [
+  './', './index.html', './manifest.webmanifest', './icons/icon.svg',
+  './anas-erp-ui-safe-enhancements.css',
+  './reverse-ledger/reverse-ledger.js',
+  './reverse-ledger/reverse-ledger-modal.js',
+  './reverse-ledger/settlement-allocation-modal.js',
+  './storage/android-resilient-storage.js',
+  './core/ai-operations-engine.js',
+  './micro-pos-core.js',
+  './pos/micro-pos-engine.mjs',
+  './pos/micro-pos-deep-core.mjs',
+  './pos/advanced-financial-engine.mjs',
+  './vendor/firebase/firebase-compat.js',
+  './vendor/xlsx/xlsx.full.min.js',
+  './vendor/pdfjs/pdf.min.js',
+  './vendor/pdfjs/pdf.worker.min.js',
+  './supplier-account-statement.js',
+  './cashbox-readonly-ledger.js',
+  './arabic-query-engine.js',
+  './customer-debt-protection.js',
+  './warehouse-transfer-audit.js'
+];
+// OCR is a large optional offline pack. Cache each asset independently: one missing file or
+// quota failure must not discard every successfully cached OCR runtime/language asset.
+const OCR_ASSETS = [
+  './vendor/tesseract/tesseract.min.js',
+  './vendor/tesseract/worker.min.js',
+  './vendor/tesseract/core/tesseract-core.wasm.js',
+  './vendor/tesseract/core/tesseract-core-simd.wasm.js',
+  './vendor/tesseract/core/tesseract-core-lstm.wasm.js',
+  './vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
+  './vendor/tesseract/lang/ara.traineddata.gz',
+  './vendor/tesseract/lang/eng.traineddata.gz',
+  './vendor/tesseract/lang/fra.traineddata.gz'
+];
+const CORE_URLS = new Set([...CORE, ...OCR_ASSETS].map(path => new URL(path, self.location.href).href));
+
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(cache => cache.addAll(CORE))
+      .then(() => caches.open(CACHE).then(cache => Promise.allSettled(OCR_ASSETS.map(path => cache.add(path)))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', event => {

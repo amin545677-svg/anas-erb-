@@ -1,0 +1,194 @@
+name: Staging Test Gate
+
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "manifest.webmanifest"
+      - "*.js"
+      - "*.css"
+      - "docs/**"
+      - "tests/**"
+      - "functions/**"
+      - "scripts/**"
+      - "reverse-ledger/**"
+      - "pos/**"
+      - "staging/**"
+      - "firebase.staging.json"
+      - "firebase/firestore.staging.rules"
+      - ".github/workflows/staging-test-gate.yml"
+      - ".github/workflows/anas-erp-safety-checks.yml"
+      - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
+  push:
+    branches: [staging/firebase-snapshot-worker, staging/unified-release-candidate, 'feat/**', 'fix/**', 'feature/**']
+    paths:
+      - "index.html"
+      - "manifest.webmanifest"
+      - "*.js"
+      - "*.css"
+      - "cloudflare/**"
+      - "sync/**"
+      - "tests/**"
+      - "functions/**"
+      - "scripts/**"
+      - "reverse-ledger/**"
+      - "pos/**"
+      - "staging/**"
+      - "firebase.staging.json"
+      - "firebase/firestore.staging.rules"
+      - "firebase/firestore.reverse-ledger.rules"
+      - "cloudflare/worker_reverse_ledger.js"
+      - ".github/workflows/staging-test-gate.yml"
+      - ".github/workflows/anas-erp-safety-checks.yml"
+      - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  financial-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout staging candidate
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned local ERP browser parser dependencies
+        run: npm install --no-audit --no-fund
+      - name: P0 binary source hygiene — run before all test suites
+        run: node scripts/verify-binary-source-hygiene.mjs
+      - name: Level 11 canonical, causal CAS, rebase quarantine and zero-sum proofs
+        run: node --test tests/sovereign-kernel-level11.test.mjs
+      - name: Syntax-check every repository script, POS engine and test module
+        run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check && node --check pos/micro-pos-engine.mjs
+      - name: Run ANAS ERP unified light/dark theme regression tests
+        run: node --test tests/theme-system.test.mjs
+      - name: Run Micro POS filtering, dual-pricing, credit and import-engine tests
+        run: node --test tests/micro_pos_engine.test.mjs
+      - name: Run Micro POS deep-core rendering, cart, import quota and device identity tests
+        run: node --test tests/micro_pos_deep_core.test.mjs
+      - name: Run exact Micro POS decimal, shared inventory, CRM and sales history tests
+        run: node --test tests/micro_pos_core.test.mjs
+      - name: Verify smart import merge and ledger-safe replacement behavior
+        run: node --test tests/smart_import_replace_guard.test.mjs
+      - name: Verify durable POS credit-limit enforcement precedes financial mutations
+        run: node --test tests/pos_credit_limit_guard.test.mjs
+      - name: Level 9 adversarial identity, valuation and idempotency proofs
+        run: node --test tests/staging_deployment_identity_guard.test.mjs tests/reverse_ledger_valuation.test.js tests/reverse_ledger_server_transaction.test.js
+      - name: V42 integrity audit
+        run: node scripts/audit-pr263-v42-integrity.mjs
+      - name: Zero-float financial path, RBAC and idempotency audit
+        run: node scripts/audit-zero-float-financial-paths.mjs
+      - name: Set up Java for the Firestore Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Run fail-closed staging callable readiness preflight
+        run: node scripts/check-staging-readiness.mjs
+      - name: Run Hasib financial and stock invariants
+        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/invoice_edit_safe_financial_arithmetic_test.js tests/invoice_print_html_escape_test.js tests/reverse_ledger_primitives.test.js tests/reverse_ledger_rollback_identity.test.js tests/sync_mutation_queue_orchestrator.test.mjs tests/customer_debt_protection.test.mjs
+      - name: Test read-only warehouse transfer ledger audit
+        run: node --test scripts/test-warehouse-transfer-audit.cjs
+      - name: Test warehouse, supplier, cashbox and Arabic query modules
+        run: |
+          node --test scripts/test-warehouse-transfer-audit.cjs
+          node - <<'NODE'
+          const assert = require('node:assert/strict');
+          const q = require('./arabic-query-engine.js');
+          const supplier = require('./supplier-account-statement.js');
+          const cash = require('./cashbox-readonly-ledger.js');
+          assert.equal(q.anasNormalizeQueryText('إِبْرَاهِيمـ ١٢٣'), 'ابراهيم 123');
+          assert.equal(q.anasQueryMatches(['زيت الزيتون', 'منتج غذائي'], 'الزيت منتج'), true);
+          assert.equal(q.anasQueryMatches(['زيت الزيتون', 'منتج غذائي'], 'الزيت دواء'), false);
+          const statement = supplier.buildSupplierStatement('S1', [{id:'S1',balance:15}], [
+            {id:'1',supplierId:'S1',type:'purchase',amount:10,date:'2026-01-01'},
+            {id:'2',supplierId:'S1',type:'payment',amount:2,date:'2026-02-01'}
+          ]);
+          assert.equal(statement.totals.purchase, 1000);
+          assert.equal(statement.totals.payment, 200);
+          const ledger = cash.buildCashLedger([
+            {type:'add',amount:10,date:'2026-01-01',description:'قبض'},
+            {type:'subtract',amount:3,date:'2026-01-02',description:'صرف'},
+            {type:'bad',amount:'x'}
+          ]);
+          assert.equal(ledger.total, 3);
+          assert.equal(ledger.invalid, 1);
+          assert.equal(ledger.incoming, 1000);
+          assert.equal(ledger.outgoing, 300);
+          console.log('Supplier, cashbox and Arabic query module assertions passed.');
+          NODE
+      - name: Run Arabic query, supplier statement, cashbox and RBAC regression suites
+        run: |
+          node --test tests/arabic-query-engine.test.mjs
+          node tests/supplier_statement_ui_test.js
+          node --test tests/cashbox_readonly_ledger_test.js
+          node --test tests/user-rbac-policy.test.mjs
+      - name: Verify deployable Functions bundle matches canonical ledger modules
+        run: |
+          node scripts/verify-reverse-ledger-core-parity.mjs
+          cmp reverse-ledger/authorization.js functions/lib/authorization.js
+          node --check functions/index.js
+          node --check functions/reverse-ledger-adapter.js
+          node --check functions/reverse-ledger-service.js
+          node --check functions/reverse-ledger-backup-service.js
+          node --check functions/settlement-allocation-service.js
+      - name: Install and load the Firebase Functions runtime package
+        run: |
+          npm install --prefix functions --omit=dev --no-audit --no-fund
+          GCLOUD_PROJECT=anas-erp-staging-a25e1 node -e "const f=require('./functions'); if(typeof f.executeReverseLedger!=='function'||typeof f.createTrustedReverseLedgerBackup!=='function'||typeof f.restoreTrustedReverseLedgerBackup!=='function'||typeof f.executeSettlementAllocation!=='function') process.exit(1); console.log('Firebase reverse-ledger, settlement-allocation and trusted backup callables loaded.');"
+      - name: Run staging Firebase callable client and isolated browser console tests
+        run: node --test tests/reverse_ledger_firebase_callable_client.test.cjs tests/reverse_ledger_staging_console.test.cjs tests/reverse_ledger_staging_app_check_optional.test.cjs tests/staging_hosting_bundle.test.mjs
+      - name: Run trusted reverse-ledger authorization, server adapter, reservation Worker and sync CAS integration tests
+        run: node --test tests/legacy_invoice_ledger_v2_migration.test.js tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_server_transaction.test.js tests/settlement_allocation_server.test.js tests/worker_reverse_ledger.test.mjs tests/reverse_ledger_sync_cas_integration.test.mjs
+      - name: Run isolated two-device HTTP 409 CAS acceptance protocol
+        run: node --test tests/multi_device_acceptance_protocol.test.mjs tests/reverse_ledger_sync_cas_integration.test.mjs
+      - name: Install Firestore Rules emulator test dependencies
+        run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
+      - name: Run real Firestore Emulator transaction, concurrency and security-rules tests
+        run: npx --yes firebase-tools@14.22.0 emulators:exec --only firestore --project demo-anas-erp --config firebase.staging.json "node --test tests/reverse_ledger_firestore_emulator.test.js && node --test tests/reverse_ledger_snapshot_rules.test.mjs"
+      - name: Syntax-check Chromium behavioral tests
+        run: node --check tests/staging_mobile_layout_chromium.test.mjs && node --check tests/theme_visual_chromium.test.mjs && node --check tests/purchase_supplier_chromium_staging.test.mjs && node --check tests/pos_full_lifecycle_chromium.test.mjs && node --check tests/reverse_ledger_chromium.test.mjs && node --check tests/reverse_ledger_staging_console_chromium.test.mjs && node --check tests/settlement_allocation_modal_chromium.test.mjs && node --check scripts/verify-live-staging-e2e.mjs && node --check tests/verify_live_staging_e2e.playwright.test.mjs
+      - name: Install Playwright and retain Firestore Rules emulator test dependencies
+        run: npm install --no-save --package-lock=false playwright@1.56.1 @firebase/rules-unit-testing@4.0.1 firebase@11.0.2
+      - name: Install headless Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Verify delegated AI Center actions and offline local import in Chromium
+        run: node --test tests/ai_center_interactions.test.mjs tests/ai_center_chromium_interactions.test.mjs tests/ai_ocr_offline_assets.test.mjs tests/firebase_sdk_offline_assets.test.mjs tests/smart_import_backup_gate.test.mjs tests/csv_excel_locale_compat.test.mjs tests/gps_request_fallback.test.mjs tests/local_operations_engine.test.mjs tests/storage_transaction_abort_guard.test.mjs
+      - name: Run PR260 reconciliation, V42 runtime and PR261 Worker health tests
+        run: >-
+          node --test
+          tests/browser_dom_sync_harness.test.mjs
+          tests/firebase_snapshot_e2e_mock.test.mjs
+          tests/firebase_snapshot_transport.test.mjs
+          tests/mutation_capture.test.mjs
+          tests/sync_mutation_reconciliation.test.mjs
+          tests/v42_pre_sync_recovery_barrier.test.mjs
+          tests/v42_runtime_installer.test.mjs
+          tests/v42_runtime_installer_failure.test.mjs
+          tests/v42_schema_parity.test.mjs
+          tests/v42_transactional_bridge.test.mjs
+          tests/v42_transactional_capture_integration.test.mjs
+          tests/firebase_snapshot_worker_health_identity.test.mjs
+      - name: Run Android WebView resilient storage Chromium acceptance
+        run: node --test tests/android_webview_storage_resilience.test.mjs
+      - name: Run real DOM purchase, supplier settlement, reload and backup restore
+        run: node --test tests/purchase_supplier_chromium_staging.test.mjs tests/pos_full_lifecycle_chromium.test.mjs tests/reverse_ledger_chromium.test.mjs tests/reverse_ledger_staging_console_chromium.test.mjs tests/settlement_allocation_modal_chromium.test.mjs tests/verify_live_staging_e2e.playwright.test.mjs
+      - name: Verify Firebase mobile layout in Chromium and AI Worker CORS/auth contract
+        run: node --test tests/firebase_mobile_layout_chromium.test.mjs tests/staging_mobile_layout_chromium.test.mjs tests/theme_visual_chromium.test.mjs tests/worker_openai_ai.test.mjs tests/worker_firebase_snapshot_cors_test.mjs tests/ai_gateway_origin_guard_test.mjs
+      - name: Verify AI Center actions and mobile touch layout
+        run: node --test tests/ai_center_interactions.test.mjs
+      - name: Exercise AI Center controls in real headless Chromium
+        run: node --test tests/ai_center_chromium_interactions.test.mjs
+      - name: Validate service worker cache refresh and offline shell
+        run: |
+          python -m py_compile tests/test_service_worker_cache.py
+          python tests/test_service_worker_cache.py
+      - name: Validate full ERP HTML and inline JavaScript
+        run: |
+          python -m py_compile tests/validate_erp_html.py
+          python tests/validate_erp_html.py

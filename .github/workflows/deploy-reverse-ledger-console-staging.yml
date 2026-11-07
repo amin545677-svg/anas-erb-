@@ -1,116 +1,266 @@
 name: Deploy ANAS ERP Reverse Ledger Console (Staging)
+# Security boundary: PRs validate without credentials; trusted branch pushes deploy only after the matching Staging Test Gate succeeds.
+# Deployments are serialized so queued candidate pushes cannot race the dedicated Hosting site.
+# The pull_request validation job is deliberately credential-free; the push deployment job waits for the exact SHA's successful Gate.
+# Shared staging credential preflight accepts V2 raw JSON or Base64 and validates the staging project before auth.
+# Scoped push-trigger probe: 2026-10-31 live Staging preflight.
 
 on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - '*.js'
+      - '*.css'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icons/**'
+      - 'storage/**'
+      - 'sync/**'
+      - 'staging/**'
+      - 'scripts/build-staging-hosting.mjs'
+      - 'scripts/resolve-staging-web-api-key.mjs'
+      - 'scripts/prepare-staging-service-account.mjs'
+      - 'scripts/assert-staging-deployment-identity.mjs'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.hosting.json'
+      - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
+      - '.github/workflows/staging-test-gate.yml'
+      - '.github/workflows/anas-erp-safety-checks.yml'
+      - 'tests/**'
   workflow_dispatch:
+  push:
+    branches:
+      - staging/unified-release-candidate
+    paths:
+      - 'index.html'
+      - '*.js'
+      - '*.css'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icons/**'
+      - 'storage/**'
+      - 'sync/**'
+      - 'staging/**'
+      - 'scripts/build-staging-hosting.mjs'
+      - 'scripts/resolve-staging-web-api-key.mjs'
+      - 'scripts/prepare-staging-service-account.mjs'
+      - 'scripts/assert-staging-deployment-identity.mjs'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.hosting.json'
+      - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
+      - '.github/workflows/staging-test-gate.yml'
+      - '.github/workflows/anas-erp-safety-checks.yml'
+      - 'tests/**'
 
 permissions:
   contents: read
+  actions: read
 
+# PR validation uses its own group so it cannot cancel or replace a queued staging deployment.
 concurrency:
-  group: anas-erp-reverse-ledger-console-staging
+  group: anas-erp-reverse-ledger-console-staging-v2-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
-  deploy-staging-console:
-    environment: staging
+  validate-staging-console-pr:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'staging/unified-release-candidate'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR #251 source (immutable SHA)
+      - name: Checkout candidate source without deployment credentials
         uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
         with:
-          ref: f1d0f5c4f446563959999452240972cbbbe74e1d
-          persist-credentials: false
-
-      - name: Verify exact source and staging-only identity
-        env:
-          EXPECTED_SOURCE_SHA: f1d0f5c4f446563959999452240972cbbbe74e1d
+          node-version: "22"
+      - name: Validate isolated hosting configuration and console sources
         run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
-          test -f staging/index.html
-          test -f firebase.staging.hosting.json
           node -e "const c=require('./firebase.staging.hosting.json'); if(c.hosting.site!=='anas-erp-staging-a25e1'||c.hosting.public!=='staging-site') process.exit(1)"
-          grep -q 'V42' index.html
-          grep -q 'noindex,nofollow' staging/index.html
+          node --check scripts/assert-staging-deployment-identity.mjs
+          node --check scripts/resolve-staging-web-api-key.mjs
+          node --check tests/staging_deployment_identity_guard.test.mjs
+          node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs
+          node --check staging/reverse-ledger-gateway.js
+          node --check reverse-ledger/reverse-ledger.js
 
-      - name: Require dedicated staging-only Firebase configuration
+  # Deploy only after the Staging Test Gate has passed; manual dispatch is the release switch.
+  deploy-staging-console:
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/staging/unified-release-candidate' }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated staging candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Wait for matching Staging Test Gate success
         env:
-          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
-          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const headers = {
+            authorization: 'Bearer ' + process.env.GITHUB_TOKEN,
+            accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+          };
+          for (let attempt = 1; attempt <= 140; attempt++) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) throw new Error('Unable to inspect Staging Test Gate runs: HTTP ' + response.status);
+            const payload = await response.json();
+            const gate = (payload.workflow_runs || []).find(run =>
+              run.name === 'Staging Test Gate' &&
+              run.event === 'push' &&
+              run.head_sha === process.env.GITHUB_SHA
+            );
+            if (gate?.status === 'completed') {
+              if (gate.conclusion !== 'success') {
+                throw new Error('Matching Staging Test Gate did not pass: ' + gate.conclusion);
+              }
+              console.log('PASS: Staging Test Gate succeeded for exact deployment SHA ' + process.env.GITHUB_SHA);
+              process.exit(0);
+            }
+            console.log('Waiting for Staging Test Gate on exact SHA; attempt ' + attempt + '/140.');
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          throw new Error('Timed out waiting for a successful Staging Test Gate on the exact Hosting deployment SHA.');
+          NODE
+
+      - name: Secret Presence Preflight (raw JSON or Base64 service-account, OIDC fallback)
+        id: auth_preflight
+        env:
           FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+          DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 }}
+          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
-          set -euo pipefail
-          for name in FIREBASE_STAGING_SERVICE_ACCOUNT FIREBASE_STAGING_WEB_API_KEY FIREBASE_STAGING_WEB_APP_ID FIREBASE_STAGING_APP_CHECK_SITE_KEY; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Missing required staging configuration: $name"
-              exit 1
-            fi
-          done
-          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
-          node -e "const x=require(process.argv[1]); if(x.project_id!=='anas-erp-staging-a25e1'||!x.client_email||!x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-staging-service-account.json"
+          node -e "for (const name of ['FIREBASE_STAGING_WEB_APP_ID']) if (!(process.env[name] || '').trim()) { console.error('STAGING PREFLIGHT: missing ' + name); process.exit(1); }"
+          node scripts/prepare-staging-service-account.mjs
 
-      - name: Authenticate only to Firebase Staging
+      - name: Resolve, sanitize and validate Firebase Staging Web API key (secret then live fallback)
+        env:
+          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
+        run: node --check scripts/resolve-staging-web-api-key.mjs && node scripts/resolve-staging-web-api-key.mjs
+      - name: Require sanitized Firebase Web API key for Hosting build
+        run: |
+          node --input-type=module -e '
+            const key = process.env.FIREBASE_STAGING_WEB_API_KEY || "";
+            if (!/^AIza[0-9A-Za-z_-]{35}$/.test(key)) {
+              console.error("STAGING CONFIG BLOCKED: sanitized Firebase Web API key is absent or has an invalid format.");
+              process.exit(1);
+            }
+            console.log("PASS: sanitized Firebase Web API key is present for the Hosting build; value withheld.");
+          '
+      - name: Authenticate to Firebase Staging with service-account JSON
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          credentials_json: ${{ env.STAGING_SERVICE_ACCOUNT_JSON }}
+          create_credentials_file: true
 
-      - name: Build isolated staging console
+      - name: Authenticate to Firebase Staging with GitHub OIDC fallback
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'oidc' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Install Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enforce staging deployment identity before any deploy action
         env:
-          FIREBASE_STAGING_WEB_API_KEY: ${{ secrets.FIREBASE_STAGING_WEB_API_KEY }}
-          FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
-          FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+          FIREBASE_PROJECT_ID: anas-erp-staging-a25e1
+          GCLOUD_PROJECT: anas-erp-staging-a25e1
+          GOOGLE_CLOUD_PROJECT: anas-erp-staging-a25e1
+          ANAS_STAGING_WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
-          rm -rf staging-site
-          mkdir -p staging-site/reverse-ledger
-          cp staging/index.html staging-site/index.html
-          cp staging/reverse-ledger-gateway.js staging-site/reverse-ledger-gateway.js
-          cp reverse-ledger/reverse-ledger.js reverse-ledger/reverse-ledger-modal.js staging-site/reverse-ledger/
-          sed -i 's#../reverse-ledger/#./reverse-ledger/#g' staging-site/index.html
-          node <<'NODE'
-          const fs = require('node:fs');
-          const config = {
-            firebaseConfig: {
-              apiKey: process.env.FIREBASE_STAGING_WEB_API_KEY,
-              authDomain: 'anas-erp-staging-a25e1.firebaseapp.com',
-              projectId: 'anas-erp-staging-a25e1',
-              appId: process.env.FIREBASE_STAGING_WEB_APP_ID
-            },
-            appCheckSiteKey: process.env.FIREBASE_STAGING_APP_CHECK_SITE_KEY,
-            allowedOrigins: ['https://anas-erp-staging-a25e1.web.app'],
-            functionsRegion: 'us-central1'
-          };
-          for (const [key, value] of Object.entries({
-            apiKey: config.firebaseConfig.apiKey,
-            appId: config.firebaseConfig.appId,
-            appCheckSiteKey: config.appCheckSiteKey
-          })) {
-            if (typeof value !== 'string' || !value.trim() || value.length > 512) {
-              throw new Error('Invalid staging public config field: ' + key);
-            }
-          }
-          fs.writeFileSync('staging-site/config.js',
-            'window.ANAS_REVERSE_LEDGER_STAGING_CONFIG = ' + JSON.stringify(config) + ';\n',
-            { mode: 0o600 });
-          NODE
-          test -f staging-site/index.html
-          test -f staging-site/config.js
-          test -f staging-site/reverse-ledger-gateway.js
-          test -f staging-site/reverse-ledger/reverse-ledger.js
-          ! grep -q 'projectId:"anas-erb"' staging-site/config.js
-          grep -q 'anas-erp-staging-a25e1' staging-site/config.js
-          grep -Fq './reverse-ledger/reverse-ledger.js' staging-site/index.html
+          configured_project="$(gcloud config get-value project 2>/dev/null || true)"
+          if [ -n "$configured_project" ] && [ "$configured_project" != "(unset)" ] && [ "$configured_project" != "$GCLOUD_PROJECT" ]; then
+            echo "Refusing deployment: pre-existing gcloud project differs from isolated staging."
+            exit 1
+          fi
+          gcloud config set project "$GCLOUD_PROJECT" --quiet
+          node scripts/assert-staging-deployment-identity.mjs
 
-      - name: Deploy only dedicated staging Hosting site
+      - name: Install pinned local ERP browser parser dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build full ERP/POS PWA and isolated reverse-ledger console
+        env:
+          FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
+          FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
+        run: node scripts/build-staging-hosting.mjs
+
+      - name: Validate isolated hosting configuration
+        run: |
+          node -e "const c=require('./firebase.staging.hosting.json'); if(c.hosting.site!=='anas-erp-staging-a25e1'||c.hosting.public!=='staging-site') process.exit(1)"
+          node --check staging-site/config.js
+          node --check staging-site/reverse-ledger-gateway.js
+          test -f staging-site/erp/index.html
+          test -f staging-site/erp/sw.js
+          test -f staging-site/erp/vendor/firebase/firebase-compat.js
+          ! grep -q 'www.gstatic.com/firebasejs' staging-site/erp/index.html
+          test -f staging-site/erp/vendor/xlsx/xlsx.full.min.js
+          test -f staging-site/erp/vendor/pdfjs/pdf.min.js
+          test -f staging-site/erp/vendor/pdfjs/pdf.worker.min.js
+          test -f staging-site/erp/storage/android-resilient-storage.js
+          test -f staging-site/erp/manifest.webmanifest
+          ! grep -q 'projectId:"anas-erb"' staging-site/erp/index.html
+          grep -q 'projectId":"anas-erp-staging-a25e1' staging-site/erp/index.html
+
+      - name: Deploy only the dedicated staging ERP and console
         run: npx --yes firebase-tools@14.22.0 deploy --only hosting --config firebase.staging.hosting.json --project anas-erp-staging-a25e1 --non-interactive
 
-      - name: Verify live staging console
+      - name: Verify live staging ERP, offline assets, console and public config scope
         env:
           STAGING_ORIGIN: https://anas-erp-staging-a25e1.web.app
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "$STAGING_ORIGIN/" | grep -q 'ANAS ERP — بيئة اختبار دفتر المرتجعات'
-          curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -q '"projectId":"anas-erp-staging-a25e1"'
-          curl --fail --silent --show-error "$STAGING_ORIGIN/config.js" | grep -Fq '"allowedOrigins":["https://anas-erp-staging-a25e1.web.app"]'
-          echo "PASS: dedicated staging console and staging-only Firebase configuration are live."
+          fetch_expect() {
+            local path="$1" label="$2" pattern="$3" body status attempt
+            body="$(mktemp)"
+            status="000"
+            for attempt in $(seq 1 12); do
+              status="$(curl --location --silent --show-error --output "$body" --write-out '%{http_code}' "$STAGING_ORIGIN$path" 2>/dev/null || true)"
+              if [ "$status" = "200" ]; then
+                if grep -Fq "$pattern" "$body"; then
+                  rm -f "$body"
+                  echo "PASS: $label"
+                  return 0
+                fi
+                echo "STAGING VERIFY: HTTP 200 but expected content missing at $path ($label)." >&2
+                rm -f "$body"
+                return 1
+              fi
+              sleep 5
+            done
+            echo "STAGING VERIFY: $path ($label) remained HTTP $status after 12 attempts." >&2
+            rm -f "$body"
+            return 1
+          }
+          fetch_expect "/" "reverse-ledger console" "ANAS ERP — بيئة اختبار دفتر المرتجعات"
+          fetch_expect "/config.js" "staging Firebase project config" '"projectId":"anas-erp-staging-a25e1"'
+          fetch_expect "/config.js" "staging-only allowed origin" '"allowedOrigins":["https://anas-erp-staging-a25e1.web.app"]'
+          fetch_expect "/erp/" "V42 ERP/POS shell" "Anas ERP v42"
+          fetch_expect "/erp/" "ERP staging project config" '"projectId":"anas-erp-staging-a25e1"'
+          fetch_expect "/erp/sw.js" "ERP offline service worker" "android-resilient-storage.js"
+          fetch_expect "/erp/storage/android-resilient-storage.js" "IndexedDB resilient storage module" "IndexedDB"
+          echo "PASS: full staging ERP/POS PWA, offline storage assets, reverse-ledger console and staging-only Firebase configuration are live."
+# 2026-11-05: retrigger isolated staging deployment after staging credential refresh.

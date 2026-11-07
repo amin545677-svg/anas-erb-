@@ -1,31 +1,40 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const customerDebtProtection = require('../customer-debt-protection.js');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const currentHtml = html;
+const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer-centime helpers must be present and isolatable');
+const helperSource = html.slice(helperStart, helperEnd);
 const start = html.indexOf('function collectCustDebt(cId) {');
 const end = html.indexOf('function openGoogleMaps(loc)', start);
 assert.ok(start >= 0 && end > start, 'collectCustDebt function must be present and isolatable');
-const source = html.slice(start, end);
+const source = helperSource + html.slice(start, end);
 const fixedNow = 1234567890123;
 class FixedDate extends Date {
   static now() { return fixedNow; }
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
 
-function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1' } = {}) {
+function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1', invoices = null } = {}) {
   const alerts = [];
   let saves = 0;
   const customer = { id: customerId, name: 'Test customer', debt };
+  const invoice = { id: 'INV-1', customerId: customerId, total: debt, paid: 0, remaining: debt };
   const appData = {
-    customers: [customer],
+    customers: [customer], invoices: invoices || [invoice],
     caisseBalance: cash,
     cashMovements: movements.map(m => ({ ...m }))
   };
+  let promptCount = 0;
   const context = {
     AppData: appData,
+    ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
     alert: message => alerts.push(String(message)),
-    prompt: () => amount,
+    prompt: () => (++promptCount === 1 ? amount : JSON.stringify([{ invoiceId: 'INV-1', amount }])) ,
     saveDB: () => { saves++; return saveResult; },
     updateCashUI() {},
     renderCustomersDebts() {},
@@ -65,7 +74,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
   const result = runCollection({ movements: [{ id: baseId, amount: 1 }], amount: '25', math: deterministicMath });
   assert.equal(result.saves, 1);
   assert.equal(result.appData.cashMovements.length, 2);
-  assert.equal(result.appData.cashMovements[1].id, baseId + '-1', 'new movement ID collision must be resolved with a suffix');
+  assert.equal(result.appData.cashMovements[0].id, baseId + '-1', 'new movement ID collision must be resolved with a suffix');
   assert.equal(new Set(result.appData.cashMovements.map(m => m.id)).size, 2);
 }
 
@@ -125,6 +134,7 @@ function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidVal
   const alerts = [];
   let saves = 0;
   const context = {
+    window: customerDebtProtection,
     AppData: appData, editingCustomerId: null,
     document: { getElementById: id => fields[id] || null },
     alert: message => alerts.push(String(message)),
@@ -162,3 +172,80 @@ console.log('PASS: runtime customer and supplier handlers reject unsafe, infinit
   assert.ok(supplierSave.includes('عنصر تالف'), 'supplier save must reject malformed records');
 }
 console.log('PASS: customer and supplier saves fail closed on malformed records and duplicate IDs');
+
+
+{
+  const result = runCollection({debt:0.3,cash:100.1,amount:'0.1'});
+  assert.equal(result.saves,1);
+  assert.equal(result.customer.debt,0.2,'debt reduction must be exact to the centime');
+  assert.equal(result.appData.caisseBalance,100.2,'cash increase must be exact to the centime');
+  assert.equal(result.appData.cashMovements[0].amount,0.1,'cash movement amount must match the collected centimes');
+}
+{
+  const result = runCollection({debt:0.3,cash:100.1,amount:'0.105'});
+  assert.equal(result.customer.debt,0.19,'half-cent amount must normalize once to 0.11 DZD');
+  assert.equal(result.appData.caisseBalance,100.21);
+  assert.equal(result.appData.cashMovements[0].amount,0.11);
+}
+console.log('PASS: debt collection and cash receipt use the same integer-centime arithmetic');
+
+{
+  const invoices = [
+    { id: 'INV-OLD', customerId: 'C-1', date: '2026-01-01T10:00:00Z', total: 30, paid: 0, remaining: 30 },
+    { id: 'INV-MID', customerId: 'C-1', date: '2026-02-01T10:00:00Z', total: 50, paid: 10, remaining: 40 },
+    { id: 'INV-NEW', customerId: 'C-1', date: '2026-03-01T10:00:00Z', total: 60, paid: 0, remaining: 60 }
+  ];
+  const result = runCollection({ debt: 100, cash: 10, amount: '45', invoices });
+  assert.equal(result.saves, 1, 'FIFO receipt must commit exactly once');
+  assert.equal(result.customer.debt, 55, 'customer debt must decrease by the exact receipt');
+  assert.equal(result.appData.caisseBalance, 55, 'cashbox must receive the exact receipt');
+  assert.deepEqual(Array.from(result.appData.settlementAllocations, x => [x.invoiceId, x.amountCentimes]),
+    [['INV-OLD', 3000], ['INV-MID', 1500]], 'allocation must exhaust the oldest invoice before moving to the next');
+  assert.equal(invoices[0].remaining, 30, 'original invoice balances remain immutable ledger facts');
+  assert.equal(invoices[1].remaining, 40, 'settlement allocations must not rewrite original invoice totals');
+  assert.equal(invoices[2].remaining, 60, 'newer invoices remain untouched when the receipt is exhausted');
+  const viewStart = currentHtml.indexOf('function anasGetInvoiceCollectionBalance(invoice)');
+  const viewEnd = currentHtml.indexOf('function renderInvoicesList()', viewStart);
+  assert.ok(viewStart >= 0 && viewEnd > viewStart, 'invoice list must expose a derived collection-balance helper');
+  const viewContext = {
+    AppData: { settlementAllocations: result.appData.settlementAllocations },
+    anasToCents: value => Math.round(Number(value) * 100),
+    Number, String, Object, Array, Set, BigInt
+  };
+  vm.createContext(viewContext);
+  vm.runInContext(currentHtml.slice(viewStart, viewEnd), viewContext);
+  const oldState = viewContext.anasGetInvoiceCollectionBalance(invoices[0]);
+  const middleState = viewContext.anasGetInvoiceCollectionBalance(invoices[1]);
+  assert.equal(oldState.status, 'paid');
+  assert.equal(oldState.remainingCents, 0);
+  assert.equal(middleState.status, 'partial');
+  assert.equal(middleState.remainingCents, 2500);
+  assert.match(currentHtml, /const collectionBalance = anasGetInvoiceCollectionBalance\(inv\)/,
+    'invoice cards must render the derived FIFO balance rather than stale original fields');
+  assert.equal(result.appData.cashMovements[0].referenceType, 'customer_debt');
+  assert.equal(result.appData.cashMovements[0].amount, 45);
+}
+console.log('PASS: customer debt receipt allocates oldest-first and updates invoice collection balances/statuses');
+
+
+
+{
+  const currentHtml = fs.readFileSync('index.html', 'utf8');
+  assert.match(currentHtml, /isPiece && qtyUnits % 1000000 !== 0/,
+    'POS must reject fractional quantities for piece-counted products');
+  assert.match(currentHtml, /isWeight && qtyUnits % 10000 !== 0/,
+    'POS must enforce at most two decimal places for kilogram quantities');
+  assert.match(currentHtml, /async function triggerAiGeneration\(section\)[\s\S]*?anasLoadSheetJs\(\)[\s\S]*?bookType:'xlsx'/,
+    'Excel templates must be generated as XLSX by the local offline SheetJS loader');
+  assert.match(currentHtml, /قالب_المنتجات\.xlsx[\s\S]*?قالب_العملاء\.xlsx[\s\S]*?قالب_الموردين\.xlsx/,
+    'all three Arabic Excel templates must be available locally');
+  assert.match(currentHtml, /function anasCalculateExecutiveAnalytics\([\s\S]*?grossCents[\s\S]*?netCents/,
+    'executive analytics must separate gross profit and net profit');
+  assert.match(currentHtml, /const product = saleProducts\.get\(String\(it\.id\)\)[\s\S]*?costPrice/,
+    'new invoices must snapshot acquisition cost per sale line');
+  assert.doesNotMatch(currentHtml, /it\.price\s*\*\s*0\.8/,
+    'analytics must never invent COGS as 80 percent of the selling price');
+  assert.match(currentHtml, /id="luminaNetProfit"/,
+    'analytics UI must display net profit after operating expenses');
+}
+console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-profit analytics are present');

@@ -8,9 +8,14 @@
  */
 const MAX_BODY_BYTES = 120 * 1024;
 const MAX_BUSINESS_DATA_CHARS = 30000;
-const DEFAULT_ORIGINS = "https://amin545677-svg.github.io";
+const DEFAULT_ORIGINS = "https://amin545677-svg.github.io,https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com";
 const DEFAULT_MODEL = "gpt-4.1-mini";
 const DEFAULT_FIREBASE_PROJECT_ID = "anas-erb";
+const STAGING_FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1";
+const STAGING_ORIGINS = new Set([
+  "https://anas-erp-staging-a25e1.web.app",
+  "https://anas-erp-staging-a25e1.firebaseapp.com"
+]);
 const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const CLOCK_SKEW_SECONDS = 60;
 let firebaseJwksCache = null;
@@ -41,7 +46,12 @@ async function verifyFirebaseIdToken(request, env) {
   const authorization = request.headers.get("Authorization") || "";
   const match = authorization.match(/^Bearer\s+([^\s]+)$/i);
   if (!match) return { ok: false, status: 401, error: "Authentication required. Sign in to ANAS ERP and retry." };
-  const projectId = env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID;
+  const requestOrigin = request.headers.get("Origin") || "";
+  // Firebase ID tokens are project-scoped. Select the matching project from the
+  // already allowlisted browser origin so Staging tokens are never checked as Production.
+  const projectId = STAGING_ORIGINS.has(requestOrigin)
+    ? STAGING_FIREBASE_PROJECT_ID
+    : (env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID);
   try {
     const parts = match[1].split(".");
     if (parts.length !== 3) throw new Error("Malformed token.");
@@ -62,25 +72,55 @@ async function verifyFirebaseIdToken(request, env) {
     const signingInput = new TextEncoder().encode(parts[0] + "." + parts[1]);
     const valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, publicKey, decodeBase64Url(parts[2]), signingInput);
     if (!valid) throw new Error("Token signature is invalid.");
-    return { ok: true, uid: claims.sub };
+    return { ok: true, uid: claims.sub, isAnonymous: claims.firebase?.sign_in_provider === "anonymous" };
   } catch (_) { return { ok: false, status: 401, error: "Invalid or expired Firebase session. Sign in again and retry." }; }
 }
 
 function allowedOrigins(env) {
-  return (env.ALLOWED_ORIGINS || DEFAULT_ORIGINS)
-    .split(",").map(v => v.trim()).filter(Boolean);
+  // Keep the known web origins available alongside any operator-supplied origins.
+  return [...new Set((DEFAULT_ORIGINS + "," + (env.ALLOWED_ORIGINS || ""))
+    .split(",").map(v => v.trim()).filter(Boolean))];
 }
 
-function json(data, status, origin) {
+function json(data, status, origin, extraHeaders = {}) {
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization"
+    "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
+    ...extraHeaders
   };
   if (origin) headers["Access-Control-Allow-Origin"] = origin;
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function enforceAiRateLimits(request, env, uid, isAnonymous) {
+  const userLimiter = isAnonymous ? env.AI_ANON_USER_RATE_LIMITER : env.AI_USER_RATE_LIMITER;
+  const ipLimiter = env.AI_IP_RATE_LIMITER;
+  if (!userLimiter || typeof userLimiter.limit !== "function" ||
+      !ipLimiter || typeof ipLimiter.limit !== "function") {
+    return { ok: false, status: 503, error: "AI rate limiting is not configured. Contact the ANAS ERP administrator." };
+  }
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  if (!ip || ip.length > 128 || /[\s,]/.test(ip)) {
+    return { ok: false, status: 403, error: "A trusted client IP address is required for AI access." };
+  }
+  try {
+    // Check the shared IP first. If it is already blocked, do not consume
+    // an individual user's quota on a shared network.
+    const ipResult = await ipLimiter.limit({ key: "ip:" + ip });
+    if (!ipResult || ipResult.success !== true) {
+      return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
+    }
+    const userResult = await userLimiter.limit({ key: (isAnonymous ? "anon:uid:" : "uid:") + uid });
+    if (!userResult || userResult.success !== true) {
+      return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
+    }
+    return { ok: true };
+  } catch (_) {
+    return { ok: false, status: 503, error: "AI rate limiting is temporarily unavailable. No AI request was sent." };
+  }
 }
 
 function cleanText(value, max = 6000) {
@@ -144,6 +184,11 @@ export default {
         ok: true,
         service: "anas-erp-openai-ai",
         configured: Boolean(env.OPENAI_API_KEY),
+        rateLimitConfigured: Boolean(
+          env.AI_USER_RATE_LIMITER && typeof env.AI_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_ANON_USER_RATE_LIMITER && typeof env.AI_ANON_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_IP_RATE_LIMITER && typeof env.AI_IP_RATE_LIMITER.limit === "function"
+        ),
         model: env.OPENAI_MODEL || DEFAULT_MODEL
       }, 200);
     }
@@ -155,6 +200,11 @@ export default {
         ok: true,
         service: "anas-erp-openai-ai",
         configured: Boolean(env.OPENAI_API_KEY),
+        rateLimitConfigured: Boolean(
+          env.AI_USER_RATE_LIMITER && typeof env.AI_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_ANON_USER_RATE_LIMITER && typeof env.AI_ANON_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_IP_RATE_LIMITER && typeof env.AI_IP_RATE_LIMITER.limit === "function"
+        ),
         model: env.OPENAI_MODEL || DEFAULT_MODEL
       }, 200, origin);
     }
@@ -200,6 +250,12 @@ export default {
     const identity = await verifyFirebaseIdToken(request, env);
     if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
 
+    const rateLimit = await enforceAiRateLimits(request, env, identity.uid, identity.isAnonymous);
+    if (!rateLimit.ok) {
+      return json({ error: rateLimit.error }, rateLimit.status, origin,
+        rateLimit.status === 429 ? { "Retry-After": "60" } : {});
+    }
+
     const instructions = [
       "أنت مساعد ANAS ERP التجاري، وتجيب بالعربية الواضحة ما لم يطلب المستخدم لغة أخرى.",
       "حلّل بيانات النشاط المرفقة فقط عندما تكون موجودة. لا تخترع أرقاماً أو منتجات أو عملاء أو أرصدة أو نتائج.",
@@ -238,7 +294,9 @@ export default {
 
     if (body.stream === true) {
       if (!upstream.ok) {
-        const errorText = await upstream.text();
+        let errorText = "";
+        try { errorText = await upstream.text(); }
+        catch (_) { return json({ error: "The AI provider returned an unreadable error response. Retry shortly." }, 502, origin); }
         let errorData = {};
         try { errorData = JSON.parse(errorText); } catch (_) {}
         const apiMessage = errorData.error && errorData.error.message;
@@ -298,7 +356,11 @@ export default {
       }});
     }
 
-    const upstreamText = await upstream.text();
+    let upstreamText = "";
+    try { upstreamText = await upstream.text(); }
+    catch (_) {
+      return json({ error: "The AI provider connection ended before a complete response arrived. Check Worker network access and retry." }, 502, origin);
+    }
     let result;
     try { result = JSON.parse(upstreamText); }
     catch (_) { result = {}; }
