@@ -4877,12 +4877,15 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             results.innerHTML = matches.map((product, index) => {
                 const encodedId = encodeURIComponent(String(product.id)).replace(/'/g, '%27');
                 return '<button type="button" class="pos-search-result" role="option" data-index="' + index +
-                    '" onclick="selectPurchaseSearchProduct(decodeURIComponent(\'' + encodedId + '\'))">' +
+                    '" data-product-id="' + encodedId + '">' +
                     '<span class="pos-search-result-name">' + esc(product.name) + '</span>' +
                     '<span class="pos-search-result-meta">' + esc(product.barcode || 'بدون باركود') +
                     ' · تكلفة ' + esc(product.buyPrice ?? '—') + ' د.ج · مخزون ' + esc(product.stock ?? '—') +
                     '</span></button>';
             }).join('');
+            results.querySelectorAll('button[data-product-id]').forEach(button => {
+                button.addEventListener('click', () => selectPurchaseSearchProduct(decodeURIComponent(button.dataset.productId || '')));
+            });
             results.hidden = false;
         }
         function handlePurchaseSearchKeydown(event) {
@@ -9278,7 +9281,7 @@ function wtAuditTransfers(){
             if(!input||!target)return;
             const original=String(input.value||'').trim();
             if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
-            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
+            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/٬/g,'').replace(/٫/g,'.')).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
             const raw=normalizeDigits(original).replace(/٫/g,'.');
             const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\u200e\u200f\u061c]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
             const number='(?<![\\d.,٫٬])(-?\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
@@ -9367,7 +9370,7 @@ function wtAuditTransfers(){
                 const n=Number(raw.replace(',','.'));
                 return Number.isFinite(n)?n:null;
             };
-            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
+            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/٬/g,'').replace(/٫/g,'.')).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
             const parseInvoiceDate=value=>{
                 if(value===null||value===undefined||value==='')return null;
                 if(value instanceof Date)return Number.isNaN(value.getTime())?null:new Date(value.getFullYear(),value.getMonth(),value.getDate());
