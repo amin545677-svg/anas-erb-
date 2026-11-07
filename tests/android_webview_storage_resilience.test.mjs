@@ -844,3 +844,92 @@ test('concurrent hydrate callers share one state transition and settle READY', a
   });
   await context.close();
 });
+
+
+test('cross-tab IndexedDB compare-and-set rejects a stale full-snapshot write and recovers by rehydrating', async () => {
+  const context = await browser.newContext();
+  const firstPage = await context.newPage();
+  const secondPage = await context.newPage();
+  await firstPage.goto(origin + '/');
+  await secondPage.goto(origin + '/');
+  await firstPage.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  await secondPage.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+
+  await firstPage.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+    await S.setItem(S.APP_KEY, { version: 'base' });
+  });
+  await secondPage.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+  });
+
+  const attempts = await Promise.all([
+    firstPage.evaluate(async () => {
+      try {
+        const result = await window.ANASResilientStorage.setItem(
+          window.ANASResilientStorage.APP_KEY, { version: 'tab-a' }
+        );
+        return { status: 'fulfilled', revision: result.revision };
+      } catch (error) {
+        return { status: 'rejected', code: error.code };
+      }
+    }),
+    secondPage.evaluate(async () => {
+      try {
+        const result = await window.ANASResilientStorage.setItem(
+          window.ANASResilientStorage.APP_KEY, { version: 'tab-b' }
+        );
+        return { status: 'fulfilled', revision: result.revision };
+      } catch (error) {
+        return { status: 'rejected', code: error.code };
+      }
+    })
+  ]);
+
+  assert.equal(attempts.filter(item => item.status === 'fulfilled').length, 1);
+  assert.equal(attempts.filter(item => item.status === 'rejected').length, 1);
+  assert.equal(attempts.find(item => item.status === 'rejected').code, 'ANAS_STORAGE_REVISION_CONFLICT');
+
+  const recoveredPage = await context.newPage();
+  await recoveredPage.goto(origin + '/');
+  await recoveredPage.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const recovered = await recoveredPage.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const result = await S.hydrate(null);
+    return {
+      version: result.data.version,
+      revision: result.revision,
+      ready: S.ready()
+    };
+  });
+  assert.ok(['tab-a', 'tab-b'].includes(recovered.version));
+  assert.equal(recovered.revision, 2);
+  assert.equal(recovered.ready, true);
+
+  // The losing tab remains write-locked until it explicitly reloads the winner.
+  const loser = attempts[0].status === 'rejected' ? secondPage : firstPage;
+  const blocked = await loser.evaluate(async () => {
+    try {
+      await window.ANASResilientStorage.setItem(
+        window.ANASResilientStorage.APP_KEY, { version: 'stale-retry' }
+      );
+      return { rejected: false };
+    } catch (error) {
+      return { rejected: true, code: error.code };
+    }
+  });
+  assert.deepEqual(blocked, { rejected: true, code: 'ANAS_STORAGE_REVISION_CONFLICT' });
+
+  await loser.evaluate(async () => {
+    await window.ANASResilientStorage.hydrate(null);
+  });
+  const afterRecovery = await loser.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const result = await S.setItem(S.APP_KEY, { version: 'after-rehydrate' });
+    return { revision: result.revision, ready: S.ready() };
+  });
+  assert.deepEqual(afterRecovery, { revision: 3, ready: true });
+  await context.close();
+});
