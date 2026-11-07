@@ -11,8 +11,15 @@ async function loadGpsContext(geolocation, button, alerts) {
   const context = {
     window: { isSecureContext: true },
     location: { protocol: 'https:' },
-    document: { activeElement: button },
+    document: {
+      activeElement: button,
+      getElementById(id) {
+        return id === 'addCustomerModal' ? { classList: { contains: () => true } } : null;
+      }
+    },
     navigator: { geolocation },
+    setTimeout() { return 1; },
+    clearTimeout() {},
     alert(message) { alerts.push(message); }
   };
   vm.runInNewContext(html.slice(start, end), context);
