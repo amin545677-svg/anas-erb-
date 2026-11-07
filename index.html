@@ -9656,10 +9656,52 @@ function wtAuditTransfers(){
             }finally{if(timer!==null)clearTimeout(timer);if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}}
         }
 
-        // Local bundled spreadsheet parser; no CDN dependency at runtime.
+        // Load the pinned SheetJS build on demand. Prefer the local offline asset;
+        // fall back to the official SheetJS CDN when older deployments lack the vendor file.
+        let anasSheetJsLoadPromise = null;
         async function anasLoadSheetJs(){
-            if(window.XLSX && typeof window.XLSX.read==='function') return window.XLSX;
-            throw new Error('حزمة Excel المحلية غير موجودة. حدّث التطبيق أو أعد تحميله بعد الاتصال.');
+            const isReady = lib => !!(lib && typeof lib.read === 'function' &&
+                lib.utils && typeof lib.utils.sheet_to_json === 'function');
+            if (isReady(window.XLSX)) return window.XLSX;
+            if (anasSheetJsLoadPromise) return anasSheetJsLoadPromise;
+
+            const sources = [
+                new URL('./vendor/xlsx/xlsx.full.min.js', document.baseURI).href,
+                'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
+            ];
+            anasSheetJsLoadPromise = (async () => {
+                const failures = [];
+                for (const src of sources) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            let settled = false;
+                            const finish = (error) => {
+                                if (settled) return;
+                                settled = true;
+                                clearTimeout(timer);
+                                script.onload = null;
+                                script.onerror = null;
+                                if (error) { script.remove(); reject(error); }
+                                else resolve();
+                            };
+                            const timer = setTimeout(() => finish(new Error('انتهت مهلة تحميل مكتبة Excel.')), 15000);
+                            script.async = true;
+                            script.src = src;
+                            script.onload = () => finish();
+                            script.onerror = () => finish(new Error('تعذر تحميل '+src));
+                            document.head.appendChild(script);
+                        });
+                        if (isReady(window.XLSX)) return window.XLSX;
+                        failures.push('تم تحميل الملف لكن واجهة SheetJS غير مكتملة: '+src);
+                    } catch (error) {
+                        failures.push(error && error.message ? error.message : String(error));
+                    }
+                }
+                throw new Error('تعذر تحميل قارئ Excel. تحقق من اتصال الإنترنت أو أعد تثبيت ملفات التطبيق. '+failures.join(' | '));
+            })();
+            try { return await anasSheetJsLoadPromise; }
+            finally { anasSheetJsLoadPromise = null; }
         }
 
         async function handleSmartAiUpload(e) {
@@ -9693,15 +9735,13 @@ function wtAuditTransfers(){
                     const delimiter=(first.split(';').length>first.split(',').length)?';':(first.includes('\t')?'\t':',');
                     rows=parseSmartCsv(raw,delimiter);
                 } else if(ext==='xlsx' || ext==='xls') {
-                    if(!window.XLSX) await anasLoadSheetJs();
-                    if(!window.XLSX || typeof window.XLSX.read!=='function' || !window.XLSX.utils || typeof window.XLSX.utils.sheet_to_json!=='function')
-                        throw new Error('قارئ Excel لم يكتمل تحميله. أعد المحاولة أو احفظ الملف بصيغة CSV.');
+                    const xlsxLib = await anasLoadSheetJs();
                     const buf=await file.arrayBuffer();
-                    const wb=XLSX.read(buf,{type:'array'});
+                    const wb=xlsxLib.read(buf,{type:'array',cellDates:false});
                     if(!Array.isArray(wb.SheetNames)||!wb.SheetNames.length) throw new Error('ملف Excel لا يحتوي على ورقة عمل قابلة للقراءة.');
                     const sheet=wb.Sheets[wb.SheetNames[0]];
                     if(!sheet) throw new Error('تعذر قراءة ورقة العمل الأولى في ملف Excel.');
-                    rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false});
+                    rows=xlsxLib.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false});
                 } else throw new Error('نوع الملف غير مدعوم. اختر Excel أو CSV.');
                 rows=rows.filter(r=>Array.isArray(r)&&r.some(v=>String(v??'').trim()!==''));
                 if(!rows.length) throw new Error('الملف فارغ أو لم أستطع قراءة محتواه.');
@@ -11880,7 +11920,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 })();
 </script>
 
-    <script src="./vendor/xlsx/xlsx.full.min.js"></script>
     <script src="./vendor/pdfjs/pdf.min.js"></script>
 
 <!-- ANAS ERP: Firebase cloud panel mobile layout hardening v3 (document-level) -->
