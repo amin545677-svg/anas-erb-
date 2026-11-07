@@ -297,7 +297,7 @@
       request.onerror = () => reject(request.error || new Error('IndexedDB read failed'));
     });
   }
-  async function writeIDB(record) {
+  async function writeIDB(record, expectedCorruptRecord = null) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       // The revision check and put must share one readwrite transaction.
@@ -312,12 +312,23 @@
         const currentRevision = current && Number.isSafeInteger(current.revision) && current.revision > 0
           ? current.revision : 0;
         if (currentRevision >= record.revision) {
-          conflictError = new Error('A newer or equal IndexedDB snapshot already exists; rehydrate before saving again.');
-          conflictError.code = 'ANAS_STORAGE_REVISION_CONFLICT';
-          conflictError.currentRevision = currentRevision;
-          conflictError.attemptedRevision = record.revision;
-          tx.abort();
-          return;
+          // A checksum-invalid record may be replaced only if it is byte-for-byte
+          // the same record observed by hydrate(). This is a transactional CAS:
+          // it repairs known corruption without overwriting a concurrent winner.
+          const matchesObservedCorruption = expectedCorruptRecord &&
+            current && current.key === expectedCorruptRecord.key &&
+            current.revision === expectedCorruptRecord.revision &&
+            current.payload === expectedCorruptRecord.payload &&
+            current.checksum === expectedCorruptRecord.checksum &&
+            current.updatedAt === expectedCorruptRecord.updatedAt;
+          if (!matchesObservedCorruption) {
+            conflictError = new Error('A newer or equal IndexedDB snapshot already exists; rehydrate before saving again.');
+            conflictError.code = 'ANAS_STORAGE_REVISION_CONFLICT';
+            conflictError.currentRevision = currentRevision;
+            conflictError.attemptedRevision = record.revision;
+            tx.abort();
+            return;
+          }
         }
         store.put(record);
       };
@@ -387,7 +398,7 @@
     delete cache[key];
     try { global.localStorage.removeItem(key); } catch (_) {}
   }
-  function persist(payload, targetRevision) {
+  function persist(payload, targetRevision, expectedCorruptRecord = null) {
     const task = writeQueue.then(async () => {
       if (writeConflict) {
         throw writeConflictError || Object.assign(
@@ -434,7 +445,7 @@
         checksum: digest, updatedAt: new Date().toISOString()
       };
       try {
-        await writeIDB(record);
+        await writeIDB(record, expectedCorruptRecord);
       } catch (error) {
         if (error && error.code === 'ANAS_STORAGE_REVISION_CONFLICT') {
           // A conflict is not a storage outage: LocalStorage must not be promoted
@@ -525,9 +536,21 @@
       if (idbUnavailable) {
         mode = 'LOCALSTORAGE_FALLBACK_ACTIVE';
       } else if (!idbValid || (localValid && localRevision > record.revision)) {
-        revision = Math.max(0, (localValid ? localRevision : 0) - 1);
+        const observedCorruptRecord = !idbValid && record ? record : null;
+        const corruptRevision = observedCorruptRecord &&
+          Number.isSafeInteger(observedCorruptRecord.revision) && observedCorruptRecord.revision > 0
+          ? observedCorruptRecord.revision : 0;
+        // Recovery must advance beyond both the valid mirror and the corrupt
+        // record's revision. Reusing an equal revision would be rejected by CAS
+        // and could make a stale mirror appear authoritative.
+        const recoveryRevision = observedCorruptRecord
+          ? Math.max(localValid ? localRevision : 0, corruptRevision) + 1
+          : (localValid && localRevision > 0 ? localRevision : undefined);
+        revision = recoveryRevision === undefined
+          ? revision
+          : Math.max(0, recoveryRevision - 1);
         requestedRevision = revision;
-        await persist(selected, localValid && localRevision > 0 ? localRevision : undefined);
+        await persist(selected, recoveryRevision, observedCorruptRecord);
       }
       try {
         global.localStorage.setItem(APP_KEY, selected);
