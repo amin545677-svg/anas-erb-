@@ -9,7 +9,7 @@ const ROOT = process.cwd();
 function serve() {
   const server = http.createServer((req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
-    const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\\/+/, '');
+    const relative = pathname === '/' ? 'index.html' : pathname.split('/').filter(Boolean).join('/');
     const target = path.resolve(ROOT, relative);
     if (!target.startsWith(ROOT + path.sep) && target !== path.join(ROOT, 'index.html')) {
       res.writeHead(403).end('Forbidden'); return;
@@ -32,7 +32,7 @@ function serve() {
   });
 }
 function luminance(rgb) {
-  const c = rgb.match(/[\\d.]+/g)?.slice(0, 3).map(Number);
+  const c = rgb.match(/[\d.]+/g)?.slice(0, 3).map(Number);
   assert.ok(c?.length === 3, 'Expected RGB color, received: ' + rgb);
   const linear = c.map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
   return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
@@ -91,7 +91,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     const field = await page.locator('#cfgAppName').evaluate(el => {
       const css = getComputedStyle(el); return { background: css.backgroundColor, color: css.color };
     });
-    assert.ok(!/255,\\s*255,\\s*255/.test(field.background), 'settings input must not remain white in dark mode');
+    assert.ok(!/255,\s*255,\s*255/.test(field.background), 'settings input must not remain white in dark mode');
     assert.ok(contrast(field.color, field.background) >= 4.5, 'settings input text must meet WCAG AA contrast');
 
     await page.evaluate(() => window.openView('pos'));
