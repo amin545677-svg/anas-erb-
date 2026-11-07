@@ -45,6 +45,9 @@ test('local product import auto-detects headers and persists a verified IndexedD
 
 
 test('Arabic AI sale command parses quantity, product, customer and price without a unit keyword', async () => {
+  assert.doesNotMatch(html, /Firebase يؤكد عدم وجود جلسة دخول نشطة/,
+    'local import and AI fallback must not surface the obsolete Firebase session error');
+
   const html = await readFile('index.html', 'utf8');
   const start = html.indexOf('function anasPrepareNaturalLanguageDraft()');
   const end = html.indexOf('function anasConvertNaturalDraftToSale(form)', start);
