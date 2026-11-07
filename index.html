@@ -1631,7 +1631,7 @@ input:focus, select:focus, textarea:focus {
                 <div class="dashboard-grid-8">
                   <button type="button" class="grid-card-item" onclick="openView('inventory')"><span class="card-icon-box">📦</span><span class="card-title-text">المخزون</span></button>
                   <button type="button" class="grid-card-item" onclick="openAddProductModal()"><span class="card-icon-box">➕</span><span class="card-title-text">إضافة منتج</span></button>
-                  <button type="button" class="grid-card-item" onclick="renderAlertsList();document.getElementById('alertModal').classList.add('active')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" hidden>0</span></button>
+                  <button type="button" class="grid-card-item" onclick="renderAlertsList();document.getElementById('alertModal').classList.add('active')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:999px;font-weight:900" hidden>0</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('purchases')"><span class="card-icon-box">🧾</span><span class="card-title-text">فواتير الشراء</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('suppliers')"><span class="card-icon-box">🤝</span><span class="card-title-text">الموردون</span></button>
                 </div>
@@ -8674,9 +8674,11 @@ function wtAuditTransfers(){
         // ================= نظام التنبيهات ونقص المخزون =================
         function checkSystemAlerts() {
             let alerts = [];
+            let stockAlertCount = 0;
             // فحص نقص المخزون
             AppData.products.forEach(p => {
                 if(p.stock <= (p.minAlert || 5)) {
+                    stockAlertCount++;
                     alerts.push(`⚠️ نقص مخزون: سلعة [${p.name}] متبقي منها ${p.stock} ${p.unit||''} فقط (حد الطلب: ${p.minAlert||5})`);
                 }
             });
@@ -8695,8 +8697,8 @@ function wtAuditTransfers(){
             }
             const dashboardBadge = document.getElementById('dashboardStockAlertBadge');
             if (dashboardBadge) {
-                dashboardBadge.textContent = String(alerts.length);
-                dashboardBadge.hidden = alerts.length === 0;
+                dashboardBadge.textContent = String(stockAlertCount);
+                dashboardBadge.hidden = stockAlertCount === 0;
             }
         }
 
