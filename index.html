@@ -9694,8 +9694,8 @@ function wtAuditTransfers(){
                         if(seenNames.has(keyName)) throw new Error('اسم مكرر داخل الملف');
                         if(target!=='products' && existingNames.has(keyName)) throw new Error('الاسم موجود مسبقًا في النظام؛ لم يتم دمجه تلقائيًا');
                         const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);
-                        const allowExistingProductCode=target==='products' && Boolean(id);
-                        if((!allowExistingProductCode && existingCodes.has(norm(recordId)) || seenIds.has(norm(recordId)))) throw new Error('رقم/كود السجل مكرر داخل الملف');
+                        if(!id && target==='products' && existingCodes.has(norm(recordId))) throw new Error('معرّف الصنف المولد موجود مسبقاً؛ أوقف الاستيراد لحماية السجلات.');
+                        if((target!=='products' && existingCodes.has(norm(recordId))) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل مكرر داخل الملف');
                         const rec={};
                         if(target==='products'){
                             const buy=num(val(r,'buy'),'سعر الشراء',rowNo), price1=num(val(r,'price1'),'سعر البيع',rowNo), stock=num(val(r,'stock'),'المخزون',rowNo), pack=num(val(r,'pack')||'1','العبوة',rowNo);
