@@ -190,12 +190,14 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await excelChooser.setFiles({
       name: 'mobile-preview.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from('name;quantity\nItem A;4\nItem B;7', 'utf8')
+      buffer: Buffer.from('"Products, Export, 2026";name;quantity\n"Item A, black";4;7\nItem B;7;9', 'utf8')
     });
     await page.locator('#smartAiExcelStatus').waitFor({ state: 'visible' });
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
     assert.match(await page.locator('#smartAiExcelStatus').innerText(), /الفاصل المكتشف: ;/,
-      'CSV delimiter detection must identify semicolon-separated data even when the first line is not sufficient');
+      'CSV delimiter detection must ignore quoted commas and identify the true semicolon separator');
+    assert.equal(await page.locator('#smartImportPreviewModal table tr:first-child td').count(), 3,
+      'quoted commas in the first CSV row must not be mistaken for field separators');
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
     await page.locator('#smartImportCancel').click();
@@ -219,6 +221,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       ['TEA-005','611000000005','شاي أخضر 200غ',80,130,20,'مشروبات','علبة',4,'']
     ];
     const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[]]), 'Empty');
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['ملاحظات'], ['هذه الورقة ليست بيانات منتجات']]), 'Notes');
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
     const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
