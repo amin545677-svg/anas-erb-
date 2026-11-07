@@ -1734,6 +1734,13 @@ input:focus, select:focus, textarea:focus {
                 <button class="pill-select-btn" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('شاي معلب', this)">شاي معلب</button>
                 <button class="pill-select-btn" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('مواد غذائية', this)">مواد غذائية</button>
             </div>
+            <div id="posStockFilterChips" role="group" aria-label="فلترة المخزون السريعة" style="display:flex;gap:6px;overflow-x:auto;padding:7px 10px;background:var(--mp-card,#fff);border-bottom:1px solid var(--mp-border,#e2e8f0)">
+                <button type="button" class="pill-select-btn active" data-stock-filter="all" onclick="filterPosProductsByStock('all',this)">الكل</button>
+                <button type="button" class="pill-select-btn" data-stock-filter="favorite" onclick="filterPosProductsByStock('favorite',this)">⭐ المميزة</button>
+                <button type="button" class="pill-select-btn" data-stock-filter="available" onclick="filterPosProductsByStock('available',this)">🟢 متوفر</button>
+                <button type="button" class="pill-select-btn" data-stock-filter="low" onclick="filterPosProductsByStock('low',this)">🟠 منخفض</button>
+                <button type="button" class="pill-select-btn" data-stock-filter="out" onclick="filterPosProductsByStock('out',this)">🔴 نافد</button>
+            </div>
             <!-- شبكة أزرار السلع السريعة المباشرة -->
             <div class="quick-products-grid" id="quickProductsContainer"></div>
 
@@ -3000,6 +3007,7 @@ input:focus, select:focus, textarea:focus {
         let posCart = AppData.posScreensCarts && typeof AppData.posScreensCarts === 'object' && !Array.isArray(AppData.posScreensCarts) && Array.isArray(AppData.posScreensCarts[AppData.activePosScreenTab]) ? AppData.posScreensCarts[AppData.activePosScreenTab] : [];
         let activeAiTab = 'all';
         let currentPosCategoryFilter = 'الكل';
+        let currentPosStockFilter = 'all';
 
         
         function populateSuppliersDropdowns() {
@@ -3029,19 +3037,45 @@ input:focus, select:focus, textarea:focus {
             }
             renderQuickProducts();
         }
+        function filterPosProductsByStock(filter, btn) {
+            if (!['all','favorite','available','low','out'].includes(filter)) return;
+            currentPosStockFilter = filter;
+            const group = document.getElementById('posStockFilterChips');
+            if (group) group.querySelectorAll('[data-stock-filter]').forEach(button => {
+                const active = button.dataset.stockFilter === filter;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            renderQuickProducts();
+        }
 
-        // تحديث دالة renderQuickProducts لتدعم فلترة الفئات وشارات الرصيد الملونة
+        // All product chips filter the already-hydrated in-memory collection; no DB read per tap.
         function renderQuickProducts() {
             const cont = document.getElementById('quickProductsContainer');
             if (!cont) return;
             cont.replaceChildren();
             const products = Array.isArray(AppData.products) ? AppData.products : [];
-            const filtered = products.filter(p => currentPosCategoryFilter === 'الكل' || (p.cat || 'عام') === currentPosCategoryFilter);
+            const categoryFiltered = products.filter(p => currentPosCategoryFilter === 'الكل' || String(p.cat || p.category || 'عام') === String(currentPosCategoryFilter));
+            const filtered = categoryFiltered.filter(p => {
+                const stock = Number(typeof wtAvailableStock === 'function'
+                    ? wtAvailableStock(p, typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي')
+                    : (p.stock ?? p.quantity ?? 0));
+                if (!Number.isFinite(stock)) return false;
+                const thresholdValue = Number(p.minAlert ?? p.min_limit ?? 5);
+                const threshold = Number.isFinite(thresholdValue) && thresholdValue >= 0 ? thresholdValue : 5;
+                if (currentPosStockFilter === 'favorite') return p.favorite === true || p.isFavorite === true || p.featured === true;
+                if (currentPosStockFilter === 'available') return stock > 0;
+                if (currentPosStockFilter === 'low') return stock > 0 && stock <= threshold;
+                if (currentPosStockFilter === 'out') return stock <= 0;
+                return true;
+            });
             filtered.forEach(p => {
-                const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
-                const stock = Number(p.stock) || 0;
+                const pr = AppData.activePriceTier === 2 ? (p.price2 ?? p.price1) : (AppData.activePriceTier === 3 ? (p.price3 ?? p.price1) : p.price1);
+                const stock = Number(typeof wtAvailableStock === 'function'
+                    ? wtAvailableStock(p, typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي')
+                    : (p.stock ?? p.quantity ?? 0));
                 const isOut = stock <= 0;
-                const isLow = stock <= (Number(p.minAlert) || 5);
+                const isLow = !isOut && stock <= (Number(p.minAlert ?? p.min_limit) || 5);
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'quick-product-btn';
@@ -3053,9 +3087,11 @@ input:focus, select:focus, textarea:focus {
                 detail.textContent = String(stock) + ' ' + String(p.unit || '') + ' | ' + String(Number(pr) || 0) + ' د.ج';
                 btn.append(name, detail);
                 btn.title = String(p.name ?? '') + ' - ' + String(Number(pr) || 0) + ' د.ج';
-                btn.addEventListener('click', () => addItemToPosCart(p.id));
+                btn.addEventListener('click', () => openPosPriceTierPicker(p.id));
                 cont.appendChild(btn);
             });
+            const empty = document.getElementById('posQuickProductsEmpty');
+            if (empty) empty.hidden = filtered.length > 0;
         }
         function updateDashboardStats() {
             const today = new Date();
@@ -3543,7 +3579,58 @@ input:focus, select:focus, textarea:focus {
             posCart.splice(0, posCart.length, ...restoredRows);
         }
 
-        function addItemToPosCart(pId) {
+        function openPosPriceTierPicker(productId) {
+            const product = (Array.isArray(AppData.products) ? AppData.products : []).find(p => p && String(p.id) === String(productId));
+            if (!product) return;
+            const tiers = [
+                { tier: 1, label: 'تجزئة / الدفعة', value: product.price1 },
+                { tier: 2, label: 'جملة', value: product.price2 },
+                { tier: 3, label: 'جملة الجملة', value: product.price3 }
+            ].filter((item, index, list) => item.value !== undefined && item.value !== null && item.value !== '' &&
+                Number.isFinite(Number(item.value)) && Number(item.value) >= 0 &&
+                list.findIndex(other => Number(other.value) === Number(item.value)) === index);
+            if (tiers.length < 2) { addItemToPosCart(productId, AppData.activePriceTier || 1); return; }
+            const previous = document.getElementById('anasPosPriceTierModal');
+            if (previous) previous.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'anasPosPriceTierModal';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-label', 'اختيار سعر المنتج');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:100050;background:#020617aa;display:flex;align-items:center;justify-content:center;padding:16px';
+            const panel = document.createElement('div');
+            panel.style.cssText = 'width:min(420px,100%);background:var(--mp-card,#fff);color:var(--mp-text,#172033);border:1px solid var(--mp-border,#dbe2ea);border-radius:16px;padding:16px;box-shadow:0 18px 50px #0004';
+            const heading = document.createElement('h3');
+            heading.textContent = 'اختر سعر البيع';
+            const name = document.createElement('p');
+            name.textContent = String(product.name || 'المنتج');
+            panel.append(heading, name);
+            tiers.forEach(item => {
+                const choice = document.createElement('button');
+                choice.type = 'button';
+                choice.style.cssText = 'display:flex;width:100%;justify-content:space-between;gap:12px;padding:13px;margin:7px 0;border:1px solid var(--mp-border,#dbe2ea);border-radius:10px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-weight:700';
+                const label = document.createElement('span');
+                label.textContent = item.label;
+                const price = document.createElement('span');
+                price.textContent = Number(item.value).toLocaleString('fr-DZ') + ' د.ج';
+                choice.append(label, price);
+                choice.addEventListener('click', () => { overlay.remove(); addItemToPosCart(productId, item.tier); });
+                panel.appendChild(choice);
+            });
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.textContent = 'إلغاء';
+            cancel.style.cssText = 'width:100%;padding:10px;border:0;border-radius:9px;background:#64748b;color:#fff';
+            cancel.addEventListener('click', () => overlay.remove());
+            overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+            panel.appendChild(cancel);
+            overlay.appendChild(panel);
+            document.body.appendChild(overlay);
+            const first = panel.querySelector('button');
+            if (first) first.focus();
+        }
+
+        function addItemToPosCart(pId, selectedTier) {
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const matches = products.filter(x => x && String(x.id) === String(pId));
             if (matches.length !== 1) {
@@ -3558,9 +3645,9 @@ input:focus, select:focus, textarea:focus {
                 alert('تعذر إضافة المنتج: بنية سلال نقاط البيع غير صالحة. لم يتم تعديل السلة.');
                 return;
             }
-            const price = AppData.activePriceTier === 2
-                ? (product.price2 || product.price1)
-                : (AppData.activePriceTier === 3 ? (product.price3 || product.price1) : product.price1);
+            const priceTier = [1,2,3].includes(Number(selectedTier)) ? Number(selectedTier) : (Number(AppData.activePriceTier) || 1);
+            const price = priceTier === 2 ? (product.price2 ?? product.price1)
+                : (priceTier === 3 ? (product.price3 ?? product.price1) : product.price1);
             const priceCents = anasToCents(price);
             if (!Number.isSafeInteger(priceCents) || priceCents < 0) {
                 alert('تعذر إضافة المنتج: سعر البيع غير صالح في قائمة الأسعار المختارة.');
@@ -3574,9 +3661,10 @@ input:focus, select:focus, textarea:focus {
                 alert('تعذر إضافة المنتج: رصيد المخزون غير صالح في «' + warehouse + '». أصلح البيانات قبل متابعة البيع.');
                 return;
             }
-            const existingRows = posCart.filter(row => row && String(row.id) === String(product.id));
+            const productRows = posCart.filter(row => row && String(row.id) === String(product.id));
+            const existingRows = productRows.filter(row => anasToCents(row.price) === priceCents);
             let existingUnits = 0;
-            for (const row of existingRows) {
+            for (const row of productRows) {
                 const rowUnits = anasToQtyUnits(row.qty);
                 if (!Number.isSafeInteger(rowUnits) || rowUnits <= 0 ||
                     !Number.isSafeInteger(existingUnits + rowUnits)) {
@@ -4277,6 +4365,20 @@ input:focus, select:focus, textarea:focus {
             if (!Number.isSafeInteger(oldDebtCents) || oldDebtCents < 0 ||
                 !Number.isSafeInteger(newDebtCents) || newDebtCents > Number.MAX_SAFE_INTEGER) {
                 alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال المالي الآمن.'); return;
+            }
+            // Enforce an explicitly configured credit ceiling before any ledger, stock, or cash mutation.
+            if (registeredCustomer && Object.prototype.hasOwnProperty.call(cust, 'credit_limit') &&
+                cust.credit_limit !== null && cust.credit_limit !== '') {
+                const creditLimitCents = anasToCents(cust.credit_limit);
+                if (!Number.isSafeInteger(creditLimitCents) || creditLimitCents < 0) {
+                    alert('تعذر تأكيد البيع: حد ائتمان العميل غير صالح. صحّح سجل العميل قبل المتابعة.'); return;
+                }
+                if (remainingCents > 0 && newDebtCents > creditLimitCents) {
+                    alert('تم إيقاف البيع الآجل: الدين المتوقع (' + anasCentsToCurrency(newDebtCents).toLocaleString('fr-DZ') +
+                        ' د.ج) يتجاوز حد الائتمان (' + anasCentsToCurrency(creditLimitCents).toLocaleString('fr-DZ') +
+                        ' د.ج). خفّض الدين أو ارفع الحد بصلاحية مناسبة.');
+                    return;
+                }
             }
             const currentCashCents = anasToCents(AppData.caisseBalance ?? 0);
             const newCashCents = currentCashCents + paidCents;
@@ -12911,5 +13013,6 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
 }
 </style>
 
+<script type="module" src="./pos/micro-pos-engine.mjs"></script>
 </body>
 </html>
