@@ -1308,29 +1308,8 @@ input:focus, select:focus, textarea:focus {
   color: #e7edf2;
 }
 .badge, .count-badge, .notification-badge { border-color: #d4a72c; }
-/* High-contrast black typography override requested by the user. */
-#anas-premium-black-text-override { }
-* { -webkit-text-fill-color: currentColor; }
-body, body *, body *::before, body *::after {
-  color: #080b10 !important;
-  text-shadow: 0 0.25px 0 rgba(0,0,0,.55) !important;
-}
-/* Keep all text readable on gold buttons and turquoise navigation surfaces. */
-button, .btn, [role="button"], .btn-pos-hasib, .btn-primary,
-button.primary, input[type="button"], input[type="submit"],
-.menu-action-card button, .action-btn {
-  color: #080b10 !important;
-  -webkit-text-fill-color: #080b10 !important;
-  text-shadow: 0 0.35px 0 rgba(0,0,0,.6) !important;
-}
-input, select, textarea, option, ::placeholder {
-  color: #080b10 !important;
-  -webkit-text-fill-color: #080b10 !important;
-  text-shadow: none !important;
-}
-input::placeholder, textarea::placeholder { opacity: 1 !important; color: #303840 !important; }
-/* Preserve disabled-state distinction while keeping labels dark. */
-:disabled { color: #343a40 !important; -webkit-text-fill-color: #343a40 !important; }
+/* Typography follows the active semantic theme. Avoid global forced colors:
+   global !important text colors make dark surfaces unreadable. */
 </style>
 <style>
 #smartImportPreviewModal button,#smartImportPreviewModal select {box-sizing:border-box;min-height:44px;max-width:100%;white-space:normal}
@@ -1392,6 +1371,34 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
     <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">
 
     <style id="anasThemeCompatibility">
+  /* Last-mile contrast guard: descendants inherit the active semantic foreground. */
+  :root[data-anas-theme="dark"] body,
+  :root[data-anas-theme="dark"] body * {
+    color:var(--anas-text)!important;
+    -webkit-text-fill-color:currentColor!important;
+    text-shadow:none!important;
+  }
+  :root[data-anas-theme="dark"] .top-navbar,
+  :root[data-anas-theme="dark"] .top-navbar *,
+  :root[data-anas-theme="dark"] button,
+  :root[data-anas-theme="dark"] .btn,
+  :root[data-anas-theme="dark"] [role="button"] {
+    color:#f8fafc!important;
+    -webkit-text-fill-color:#f8fafc!important;
+  }
+  :root[data-anas-theme="dark"] .btn-hamburger,
+  :root[data-anas-theme="dark"] #anasThemeQuickToggle {
+    color:#082c4b!important;
+    -webkit-text-fill-color:#082c4b!important;
+  }
+  :root[data-anas-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  :root[data-anas-theme="dark"] select,
+  :root[data-anas-theme="dark"] textarea {
+    color:var(--anas-text)!important;
+    -webkit-text-fill-color:var(--anas-text)!important;
+    background:var(--anas-input)!important;
+  }
+
   :root[data-anas-theme="dark"] body {
     background:var(--anas-bg)!important;
     color:var(--anas-text)!important;
