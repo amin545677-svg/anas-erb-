@@ -296,6 +296,32 @@ test("Excel import column analysis is local and does not require a Firebase or c
     "local column analysis must not request Firebase credentials or call a cloud endpoint");
 });
 
+test("Arabic sales draft matches local records and converts to a review-only POS cart", () => {
+  assert.match(appHtml, /normalizeDigits/);
+  assert.match(appHtml, /productCandidates/);
+  assert.match(appHtml, /customerCandidates/);
+  assert.match(appHtml, /تحويل إلى فاتورة مبيعات جاهزة/);
+  assert.match(appHtml, /anasConvertNaturalDraftToSale/);
+  assert.match(appHtml, /__anasPendingSaleCustomerId/);
+  assert.match(appHtml, /لم تُعتمد الفاتورة بعد/);
+});
+
+test("local AI audit values stock at both purchase and selling prices", () => {
+  assert.match(appHtml, /const stockCost=products\.reduce/);
+  assert.match(appHtml, /const stockSell=products\.reduce/);
+  assert.match(appHtml, /قيمة المخزون بسعر الشراء/);
+  assert.match(appHtml, /قيمة المخزون بسعر البيع/);
+  assert.match(appHtml, /anasRunLocalBusinessAudit\(\)/);
+});
+
+test("mobile customer, expense and purchase forms scroll focused fields above the keyboard", () => {
+  assert.match(appHtml, /max-height: 85dvh/);
+  assert.match(appHtml, /overflow-y: auto/);
+  assert.match(appHtml, /field\.scrollIntoView\(\{behavior:'smooth',block:'center'/);
+  assert.match(appHtml, /#view-expenses \.panel-card-form/);
+  assert.match(appHtml, /#view-purchases \.panel-card-form/);
+});
+
 test("Staging-origin AI requests validate Firebase ID tokens against the Staging project", async () => {
   const oldFetch = globalThis.fetch;
   const stagingOrigin = "https://anas-erp-staging-a25e1.web.app";

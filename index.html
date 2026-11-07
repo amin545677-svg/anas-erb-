@@ -719,6 +719,26 @@
             #addCustomerModal input, #addSupplierModal input, #hasibModal input, #hasibModal select { font-size: 16px; }
         }
 
+        /* Android keyboard-safe scrolling for long customer, expense and purchase forms. */
+        #addCustomerModal .picker-dialog-scroll,
+        #addSupplierModal .picker-dialog-scroll,
+        #hasibModal .picker-dialog-scroll,
+        #view-customers .panel-card-form,
+        #view-expenses .panel-card-form,
+        #view-purchases .panel-card-form {
+            box-sizing: border-box;
+            max-height: 85dvh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            scroll-padding-bottom: 160px;
+        }
+        #addCustomerModal input, #addCustomerModal select, #addCustomerModal textarea,
+        #view-expenses input, #view-expenses select, #view-expenses textarea,
+        #view-purchases input, #view-purchases select, #view-purchases textarea {
+            scroll-margin-block: 120px;
+        }
+
         /* مساحة الطباعة الحرارية 58mm / 80mm */
         #receiptPrintArea {
             background: #fff;
@@ -2871,6 +2891,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             try { updateUIState(); } catch (e) { console.error('Anas ERP UI refresh failed:', e); }
             try { checkSystemAlerts(); } catch (e) { console.error('Anas ERP alerts refresh failed:', e); }
             try { updateDashboardStats(); } catch (e) { console.error('Anas ERP dashboard refresh failed:', e); }
+            if(anasCurrentView==='ai-excel-hub'){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
             return true;
         }
 
@@ -2957,7 +2978,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 document.getElementById('syncWebhookUrl').value = AppData.syncUrl || "";
                 setSyncStatus(AppData.syncUrl ? 'الرابط محفوظ. لم يتم تأكيد الاتصال بالخادم بعد؛ جرّب إرسال البيانات أو استرجاعها.' : 'لا يوجد رابط API محفوظ. تعمل البيانات محليًا على هذا الهاتف فقط.');
             }
-            if(viewName === 'ai-excel-hub') renderAiHub();
+            if(viewName === 'ai-excel-hub') { renderAiHub(); requestAnimationFrame(()=>{try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('AI hub local refresh failed',e);}}); }
             window.scrollTo({ top: 0, behavior: 'instant' });
             return true;
         }
@@ -3511,6 +3532,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const sel = document.getElementById('hasibCustomerSelect');
             sel.innerHTML = '<option value="">عميل نقدي عابر (Passager)</option>';
             AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${c.debt} د.ج)</option>`; });
+            if(window.__anasPendingSaleCustomerId && AppData.customers.some(c=>String(c.id)===String(window.__anasPendingSaleCustomerId))) sel.value=String(window.__anasPendingSaleCustomerId);
             updatePaymentMethodFromAmount();
             document.getElementById('hasibModal').classList.add('active');
             renderHasibCartEditor();
@@ -8909,6 +8931,7 @@ function wtAuditTransfers(){
             const badInvoices=invoices.filter(i=>{const total=anasToCents(i.total),paid=anasToCents(i.paid),rem=anasToCents(i.remaining);return !Number.isSafeInteger(total)||!Number.isSafeInteger(paid)||!Number.isSafeInteger(rem)||total<0||paid<0||rem<0||total!==paid+rem;});
             const noSupplier=products.filter(p=>!p.supplier && !p.supplierId);
             const stockCost=products.reduce((a,p)=>a+n(p.stock)*n(p.buyPrice),0);
+            const stockSell=products.reduce((a,p)=>a+n(p.stock)*n(p.price1),0);
             const debtTotal=debtors.reduce((a,c)=>a+n(c.debt),0);
             if(negative.length)issues.push(['حرج','أرصدة مخزون سالبة',negative.length,negative.slice(0,8).map(p=>p.name+' ('+p.stock+')').join('، ')]);
             if(dupBarcode.length)issues.push(['عالٍ','باركود مكرر',dupBarcode.length,dupBarcode.slice(0,6).map(x=>x.items.map(p=>p.name).join(' / ')).join('؛ ')]);
@@ -8921,15 +8944,15 @@ function wtAuditTransfers(){
             if(noSupplier.length)info.push('عدد المنتجات دون مورد مرتبط: '+noSupplier.length+' (قد يكون ذلك طبيعيًا حسب طريقة إدخال بياناتك).');
             const fmt=v=>Math.round(v).toLocaleString('fr-FR')+' دج';
             const cards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:7px;margin:8px 0">'+[
-              ['المنتجات',products.length],['العملاء',customers.length],['الموردون',suppliers.length],['الفواتير',invoices.length],['قيمة المخزون التقديرية',fmt(stockCost)],['ديون العملاء',fmt(debtTotal)],['المصاريف المسجلة',expenses.length]
+              ['المنتجات',products.length],['العملاء',customers.length],['الموردون',suppliers.length],['الفواتير',invoices.length],['قيمة المخزون بسعر الشراء',fmt(stockCost)],['قيمة المخزون بسعر البيع',fmt(stockSell)],['ديون العملاء',fmt(debtTotal)],['المصاريف المسجلة',expenses.length]
             ].map(x=>'<div style="padding:9px;border:1px solid #dbe3ec;border-radius:9px;background:var(--mp-card,#fff)"><small>'+escAudit(x[0])+'</small><div style="font-weight:800;margin-top:3px">'+escAudit(x[1])+'</div></div>').join('')+'</div>';
             const table=issues.length?'<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الأولوية</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الفحص</th><th style="padding:7px;border-bottom:1px solid #cbd5e1">العدد</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">أمثلة</th></tr></thead><tbody>'+issues.map(i=>'<tr><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[0])+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[1])+'</td><td style="padding:7px;text-align:center;border-bottom:1px solid #e2e8f0">'+i[2]+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[3])+'</td></tr>').join('')+'</tbody></table></div>':'<p style="padding:10px;border-radius:8px;background:#dcfce7;color:#166534">لم تُكتشف المشكلات المحددة في هذا الفحص المحلي. هذا لا يثبت خلو كل بيانات التطبيق من الأخطاء.</p>';
             box.innerHTML='<div style="padding:10px;border:1px solid #cbd5e1;border-radius:10px">'+cards+'<h4 style="margin:10px 0 5px">نتائج فحص البيانات</h4>'+table+(info.length?'<p>'+info.map(escAudit).join('<br>')+'</p>':'')+'<p style="font-size:11px;color:var(--mp-text-muted);margin-top:10px">فحص إرشادي محلي، لا يغيّر البيانات ولا يرسلها إلى الخادم. مراجعة الفواتير تعتمد على الحقول المتاحة وقد تحتاج قواعد محاسبية خاصة بك.</p><button type="button" class="btn-full-submit" style="background:#334155;margin-top:8px" onclick="anasExportLocalAudit()">⬇ تصدير تقرير الفحص CSV</button><button type="button" class="btn-full-submit" style="background:#0f766e;margin-top:8px" onclick="anasExportLocalAuditXLSX()">⬇ تصدير تقرير الفحص Excel (.xlsx)</button></div>';
-            window.__anasLastAudit={at:new Date().toISOString(),summary:{products:products.length,customers:customers.length,suppliers:suppliers.length,invoices:invoices.length,stockCost,debtTotal},issues};
+            window.__anasLastAudit={at:new Date().toISOString(),summary:{products:products.length,customers:customers.length,suppliers:suppliers.length,invoices:invoices.length,stockCost,stockSell,debtTotal},issues};
         }
         function anasExportLocalAudit(){
             const d=window.__anasLastAudit;if(!d){anasRunLocalBusinessAudit();return;}
-            const rows=[['وقت الفحص',d.at],['المنتجات',d.summary.products],['العملاء',d.summary.customers],['الموردون',d.summary.suppliers],['الفواتير',d.summary.invoices],['قيمة المخزون التقديرية',d.summary.stockCost],['ديون العملاء',d.summary.debtTotal],['الأولوية','الفحص','العدد','أمثلة'],...d.issues];
+            const rows=[['وقت الفحص',d.at],['المنتجات',d.summary.products],['العملاء',d.summary.customers],['الموردون',d.summary.suppliers],['الفواتير',d.summary.invoices],['قيمة المخزون بسعر الشراء',d.summary.stockCost],['قيمة المخزون بسعر البيع',d.summary.stockSell],['ديون العملاء',d.summary.debtTotal],['الأولوية','الفحص','العدد','أمثلة'],...d.issues];
             const csv='\uFEFFsep=;\r\n'+rows.map(r=>r.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"'}).join(';')).join('\r\n');
             const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=u;a.download='ANAS_ERP_Local_Audit.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
         }
@@ -9063,17 +9086,30 @@ function wtAuditTransfers(){
             if(!input||!target)return;
             const original=String(input.value||'').trim();
             if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
-            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\\u200e\\u200f\\u061c\\u202a-\\u202e\\u2066-\\u2069]/g,'');
             const raw=normalizeDigits(original).replace(/٫/g,'.');
-            const number='(?<![\\d.,٫٬])(\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
+            const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\\u200e\\u200f\\u061c]/g,'').replace(/\\s+/g,' ').trim().toLowerCase();
+            const number='(?<![\\\\d.,٫٬])(\\\\d+(?:[.,]\\\\d+)?)(?![\\\\d.,٫٬])';
             const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة|كرتونة|كرتون|باكي|باكية|باكيات|سربيس)';
-            const qtyMatch=raw.match(new RegExp('(?:عدد|كمية|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
-            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
-            const productMatch=raw.match(new RegExp(unit+'\\s+(.+?)(?=\\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|طريقة الدفع|دفع)|$)','i'));
-            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+(.+?)(?=\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
-            const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\s*(?:هي|:)?\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\b/i);
-            const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
-            const draft={transaction,quantity:qtyMatch?qtyMatch[1].replace(',','.'):null,unitPrice:priceMatch?priceMatch[1].replace(',','.'):null,customer:customerMatch?customerMatch[1].trim():null,item:productMatch?productMatch[1].trim():null,payment:paymentMatch?paymentMatch[1]:null};
+            const qtyMatch=raw.match(new RegExp('(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\\\s*'+number,'i'))||raw.match(new RegExp(number+'\\\\s*'+unit+'(?=\\\\s|$)','i'));
+            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\\\s*'+number,'i'));
+            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\\s+(.+?)(?=\\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
+            const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\\s*(?:هي|:)?\\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\\b/i);
+            const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات|اشتر/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
+            let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\\s*/i,'').replace(new RegExp('^'+number+'\\\\s*'),'').trim();
+            itemText=itemText.replace(new RegExp('^'+unit+'\\\\s*','i'),'').trim();
+            const stop=itemText.search(/\\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)\\b/i);
+            if(stop>=0)itemText=itemText.slice(0,stop).trim();
+            const products=Array.isArray(AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData.customers)?AppData.customers:[];
+            const itemKey=normalizeName(itemText);
+            const productCandidates=itemKey?products.filter(p=>{const name=normalizeName(p&&p.name);return name===itemKey||name.includes(itemKey)||itemKey.split(' ').filter(Boolean).every(token=>name.includes(token));}):[];
+            const matchedProduct=productCandidates.length===1?productCandidates[0]:null;
+            const customerQuery=customerMatch?customerMatch[1].trim():'';
+            const customerKey=normalizeName(customerQuery);
+            const customerCandidates=customerKey?customers.filter(c=>{const name=normalizeName(c&&c.name);return name===customerKey||name.includes(customerKey)||customerKey.split(' ').filter(Boolean).every(token=>name.includes(token));}):[];
+            const matchedCustomer=customerCandidates.length===1?customerCandidates[0]:null;
+            const draft={transaction,quantity:qtyMatch?qtyMatch[1].replace(',','.'):null,unitPrice:priceMatch?priceMatch[1].replace(',','.'):null,customer:matchedCustomer?matchedCustomer.name:customerQuery||null,item:matchedProduct?matchedProduct.name:itemText||null,payment:paymentMatch?paymentMatch[1]:null};
             target.replaceChildren();
             const form=document.createElement('div');form.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0';
             const fields=[['نوع العملية','transaction',draft.transaction,'text'],['الكمية','quantity',draft.quantity,'number'],['الصنف','item',draft.item,'text'],['العميل','customer',draft.customer,'text'],['سعر الوحدة','unitPrice',draft.unitPrice,'number'],['طريقة الدفع','payment',draft.payment,'text']];
@@ -9084,6 +9120,8 @@ function wtAuditTransfers(){
                 if(type==='number'){field.min='0';field.step='any';}
                 wrap.append(label,field);form.appendChild(wrap);
             });
+            if(matchedProduct)form.dataset.productId=String(matchedProduct.id);
+            if(matchedCustomer)form.dataset.customerId=String(matchedCustomer.id);
             target.appendChild(form);
             const missing=fields.filter(([,key])=>!draft[key]).map(([labelText])=>labelText);
             const invalidNumeric=[];
@@ -9092,9 +9130,49 @@ function wtAuditTransfers(){
             if(qtyField&&qtyField.value!==''&&(!Number.isFinite(Number(qtyField.value))||Number(qtyField.value)<=0))invalidNumeric.push('الكمية يجب أن تكون رقمًا أكبر من صفر');
             if(priceField&&priceField.value!==''&&(!Number.isFinite(Number(priceField.value))||Number(priceField.value)<0))invalidNumeric.push('سعر الوحدة يجب أن يكون رقمًا غير سالب');
             const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';
-            note.textContent='مسودة قابلة للتعديل أو الرفض فقط؛ لا يوجد اعتماد أو حفظ تلقائي، ولم تُحفظ فاتورة ولم يتغير المخزون أو الحساب. تحقق من تطابق العميل والصنف مع السجلات، ومن السعر والضريبة وطريقة الدفع. '+(missing.length?'حقول تحتاج إلى استكمال أو تحقق: '+missing.join('، ')+'. ':'')+(invalidNumeric.length?'تحذيرات رقمية: '+invalidNumeric.join('؛ ')+'. ':'')+(!missing.length&&!invalidNumeric.length?'لا يعني استخراج الحقول أنها تحققت من السجلات.':'');
+            note.textContent='مسودة للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون قبل اعتمادك. '+(matchedProduct?'تمت مطابقة الصنف محليًا: '+matchedProduct.name+'. ':'')+(customerQuery?(matchedCustomer?'تمت مطابقة العميل محليًا: '+matchedCustomer.name+'. ':'لم تتم مطابقة العميل بشكل فريد مع السجلات المحلية. '):'')+(productCandidates.length>1?'اسم الصنف ملتبس؛ حسّن عبارة الصنف. ':'')+(customerCandidates.length>1?'اسم العميل ملتبس؛ أضف الاسم الكامل. ':'')+(missing.length?'حقول تحتاج إلى استكمال: '+missing.join('، ')+'. ':'')+(invalidNumeric.length?'تحذيرات رقمية: '+invalidNumeric.join('؛ ')+'. ':'');
             target.appendChild(note);
+            if(transaction.startsWith('بيع')&&matchedProduct&&matchedCustomer&&qtyField&&Number(qtyField.value)>0&&(!priceField.value||Number(priceField.value)>=0)){
+                const action=document.createElement('button');action.type='button';action.className='btn-full-submit';action.style.cssText='background:#0f766e;width:100%;margin-top:8px;min-height:46px';action.textContent='تحويل إلى فاتورة مبيعات جاهزة';
+                action.addEventListener('click',()=>anasConvertNaturalDraftToSale(form));target.appendChild(action);
+            }
         }
+        function anasConvertNaturalDraftToSale(form){
+            if(!form||!form.dataset.productId||!form.dataset.customerId){alert('تعذر التحويل: طابق الصنف والعميل من السجلات المحلية أولًا.');return false;}
+            const product=(Array.isArray(AppData.products)?AppData.products:[]).find(p=>String(p.id)===String(form.dataset.productId));
+            const customer=(Array.isArray(AppData.customers)?AppData.customers:[]).find(c=>String(c.id)===String(form.dataset.customerId));
+            const quantity=Number(form.querySelector('[data-draft-field="quantity"]')?.value);
+            const priceRaw=form.querySelector('[data-draft-field="unitPrice"]')?.value;
+            const price=priceRaw===''||priceRaw==null?null:Number(priceRaw);
+            const qtyUnits=anasToQtyUnits(quantity);
+            if(!product||!customer||!Number.isSafeInteger(qtyUnits)||qtyUnits<=0||price!==null&&(!Number.isFinite(price)||price<0)){alert('تحقق من الصنف والعميل والكمية والسعر قبل التحويل.');return false;}
+            const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
+            const available=typeof wtAvailableStock==='function'?wtAvailableStock(product,saleWarehouse):Number(product.stock)||0;
+            const existing=posCart.find(item=>String(item.id)===String(product.id));
+            const oldQty=existing?Number(existing.qty)||0:0,nextQty=oldQty+quantity;
+            if(!Number.isFinite(available)||nextQty>available){alert('الكمية المطلوبة تتجاوز الرصيد المتاح في '+saleWarehouse+'.');return false;}
+            const oldCart=posCart.slice(),oldCarts=AppData.posScreensCarts,oldActive=AppData.activePosScreenTab;
+            const unitPrice=price===null?(AppData.activePriceTier===2?(product.price2||product.price1):(AppData.activePriceTier===3?(product.price3||product.price1):product.price1)):price;
+            if(existing){existing.qty=nextQty;if(price!==null)existing.price=price;}
+            else posCart.push({id:product.id,name:product.name,price:unitPrice,qty:quantity,unit:product.unit||'قطعة',image:product.image||''});
+            AppData.posScreensCarts=Object.assign({},AppData.posScreensCarts||{});AppData.posScreensCarts[AppData.activePosScreenTab]=posCart;
+            if(typeof saveDB!=='function'||saveDB()!==true){posCart.splice(0,posCart.length,...oldCart);AppData.posScreensCarts=oldCarts;AppData.activePosScreenTab=oldActive;return false;}
+            window.__anasPendingSaleCustomerId=String(customer.id);window.__anasPendingSaleCustomerName=String(customer.name||'');
+            openView('pos');
+            let hint=document.getElementById('posCustomerDraftHint');
+            if(!hint){hint=document.createElement('div');hint.id='posCustomerDraftHint';hint.style.cssText='margin:7px 0;padding:9px;border:1px solid #0f766e;border-radius:8px;background:rgba(15,118,110,.08);font-size:12px;font-weight:700';const search=document.getElementById('posSearchField');if(search&&search.parentElement)search.parentElement.insertBefore(hint,search);}
+            hint.textContent='العميل للمراجعة: '+customer.name+' — لم تُعتمد الفاتورة بعد.';
+            const search=document.getElementById('posSearchField');if(search){search.value=product.name||'';search.scrollIntoView({behavior:'smooth',block:'center'});}
+            renderPosTable();return true;
+        }
+
+        document.addEventListener('focusin',function(event){
+            const field=event.target;
+            if(!field||!field.matches||!field.matches('input,select,textarea'))return;
+            const container=field.closest('#addCustomerModal .picker-dialog-scroll, #view-customers .panel-card-form, #view-expenses .panel-card-form, #view-purchases .panel-card-form, #addSupplierModal .picker-dialog-scroll, #hasibModal .picker-dialog-scroll');
+            if(!container)return;
+            setTimeout(()=>{try{field.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});}catch(_){}},160);
+        },true);
         function anasRefreshAiMorningBrief(){
             const target=document.getElementById('anasAiMorningBrief');if(!target)return;
             const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
