@@ -83,7 +83,7 @@ test('cloud AI creates an anonymous Firebase session when ERP is used without ma
     signInAnonymously: async () => { anonymousCalls++; auth.currentUser = user; return { user }; }
   };
   const window = {};
-  vm.runInNewContext(helper, { window, auth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
+  vm.runInNewContext(helper, { window, auth, anonymousSignInPromise: null, firebasePersistenceReady: Promise.resolve(), setTimeout, clearTimeout, Error, String, Number });
   assert.equal(await window.anasGetFirebaseIdToken(), 'signed-firebase-id-token');
   assert.equal(anonymousCalls, 1, 'anonymous sign-in must be attempted exactly once');
   const concurrentAuth = {
@@ -97,7 +97,7 @@ test('cloud AI creates an anonymous Firebase session when ERP is used without ma
     }
   };
   const concurrentWindow = {};
-  vm.runInNewContext(helper, { window: concurrentWindow, auth: concurrentAuth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
+  vm.runInNewContext(helper, { window: concurrentWindow, auth: concurrentAuth, anonymousSignInPromise: null, firebasePersistenceReady: Promise.resolve(), setTimeout, clearTimeout, Error, String, Number });
   const beforeConcurrent = anonymousCalls;
   const tokens = await Promise.all([concurrentWindow.anasGetFirebaseIdToken(), concurrentWindow.anasGetFirebaseIdToken()]);
   assert.deepEqual(tokens, ['signed-firebase-id-token', 'signed-firebase-id-token']);
@@ -110,7 +110,7 @@ test('cloud AI creates an anonymous Firebase session when ERP is used without ma
     signInAnonymously: async () => { forbiddenAnonymousCalls++; throw new Error('must not replace existing user'); }
   };
   const signedInWindow = {};
-  vm.runInNewContext(helper, { window: signedInWindow, auth: signedInAuth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
+  vm.runInNewContext(helper, { window: signedInWindow, auth: signedInAuth, anonymousSignInPromise: null, firebasePersistenceReady: Promise.resolve(), setTimeout, clearTimeout, Error, String, Number });
   assert.equal(await signedInWindow.anasGetFirebaseIdToken(), 'existing-user-token');
   assert.equal(forbiddenAnonymousCalls, 0, 'existing authenticated users must never be replaced by anonymous sessions');
 
@@ -119,7 +119,7 @@ test('cloud AI creates an anonymous Firebase session when ERP is used without ma
     signInAnonymously: async () => { const error = new Error('provider disabled'); error.code = 'auth/operation-not-allowed'; throw error; }
   };
   const disabledWindow = {};
-  vm.runInNewContext(helper, { window: disabledWindow, auth: disabledAuth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
+  vm.runInNewContext(helper, { window: disabledWindow, auth: disabledAuth, anonymousSignInPromise: null, firebasePersistenceReady: Promise.resolve(), setTimeout, clearTimeout, Error, String, Number });
   await assert.rejects(disabledWindow.anasGetFirebaseIdToken(), /المصادقة المجهولة غير مفعّلة/);
 });
 
