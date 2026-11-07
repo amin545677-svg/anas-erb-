@@ -2501,7 +2501,11 @@ input:focus, select:focus, textarea:focus {
                 <div style="font-size:12px;color:#475569;margin-bottom:10px;">يطبع آخر فاتورة محفوظة بتنسيق A4 مع بيانات المؤسسة والزبون والأصناف والمبالغ.</div>
                 <button class="btn-full-submit" style="margin:0;background:#1d4ed8;" onclick="printLatestLegalCustomerInvoice()">📄 إصدار / طباعة الفاتورة القانونية</button>
             </div>
-            <input id="invoiceListSearch" type="search" class="field-input" placeholder="ابحث برقم الفاتورة أو العميل أو التاريخ أو المبلغ..." aria-label="البحث في فواتير المبيعات" oninput="renderInvoicesList()" style="margin-top:10px;width:100%;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+              <select id="invoiceListPeriod" class="field-input" aria-label="فترة المبيعات" onchange="renderInvoicesList()"><option value="today">اليوم</option><option value="7d">آخر 7 أيام</option><option value="30d">آخر 30 يوماً</option><option value="all" selected>كل الفواتير</option></select>
+              <select id="invoiceListSort" class="field-input" aria-label="ترتيب الفواتير" onchange="renderInvoicesList()"><option value="newest">الأحدث</option><option value="oldest">الأقدم</option><option value="amount">الأعلى مبلغاً</option></select>
+            </div>
+            <input id="invoiceListSearch" type="search" class="field-input" placeholder="ابحث برقم الفاتورة أو العميل أو التاريخ أو المبلغ..." aria-label="البحث في فواتير المبيعات" oninput="renderInvoicesList()" style="margin-top:8px;width:100%;">
             <div id="invoiceListFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;"></div>
             <div id="invoicesListContainer" style="margin-top:10px;"></div>
         </section>
@@ -7180,7 +7184,10 @@ function renderPurchasesTable() {
             if (!cont) return;
             cont.innerHTML = '';
             const allInvoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
-            const invoices = allInvoices.slice().reverse();
+            const core = window.ANASMicroPOSCore;
+            const period = document.getElementById('invoiceListPeriod')?.value || 'all';
+            const sort = document.getElementById('invoiceListSort')?.value || 'newest';
+            const invoices = core ? core.filterSalesInvoices(allInvoices, { period, sort }) : allInvoices.slice().reverse();
             const query = window.anasNormalizeQueryText(document.getElementById('invoiceListSearch')?.value || '');
             const filteredInvoices = invoices.filter(inv => inv && window.anasQueryMatches([
                 inv.id, inv.customer, inv.date, inv.createdAt, inv.invoiceDate, inv.total,
@@ -7207,7 +7214,13 @@ function renderPurchasesTable() {
                 card.className = 'menu-action-card';
                 card.style.marginBottom = '8px';
                 const info = document.createElement('div');
-                info.innerHTML = `<strong>${esc(inv.id || 'فاتورة')} - ${esc(inv.customer || 'عميل نقدي')}</strong><br><small style="color:#64748b">${esc(inv.date || '')}</small><br><strong style="color:#15803d">${esc(inv.total ?? 0)} د.ج</strong>`;
+                const paymentStatus = core ? core.invoiceStatus(inv) : (Number(inv.paid || 0) >= Number(inv.total || 0) ? 'paid' : (Number(inv.paid || 0) > 0 ? 'partial' : 'unpaid'));
+                const statusMeta = paymentStatus === 'paid' ? { label: 'مدفوعة', color: '#15803d', bg: '#dcfce7' } : (paymentStatus === 'partial' ? { label: 'جزئية', color: '#b45309', bg: '#ffedd5' } : { label: 'غير مدفوعة', color: '#b91c1c', bg: '#fee2e2' });
+                const totalCents = core ? core.toCents(inv.total || 0) : Math.round((Number(inv.total) || 0) * 100);
+                const paidCents = core ? core.toCents(inv.paid || 0) : Math.round((Number(inv.paid) || 0) * 100);
+                const debt = Math.max(0, totalCents - paidCents) / 100;
+                const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
+                info.innerHTML = `<strong>${esc(inv.id || 'فاتورة')} - ${esc(inv.customer || 'عميل نقدي')}</strong><br><small style="color:#64748b">${esc(inv.date || inv.createdAt || '')} · ${itemCount} صنف</small><br><strong style="color:#15803d">${esc(inv.total ?? 0)} د.ج</strong> <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:${statusMeta.bg};color:${statusMeta.color};font-size:11px;font-weight:800;">${statusMeta.label}</span>${debt > 0 ? `<br><strong style="color:#b91c1c;font-size:12px;">دين متبقٍ: ${debt.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})} DA</strong>` : ''}`;
                 const actions = document.createElement('div');
                 actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
                 const thermal = document.createElement('button'); thermal.className='btn-pos-hasib'; thermal.style.cssText='padding:4px 10px;font-size:.78rem'; thermal.textContent='وصل';
