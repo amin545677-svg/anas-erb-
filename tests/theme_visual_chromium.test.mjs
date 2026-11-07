@@ -104,7 +104,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     assert.match(visual.cardGradient, /rgb\(27,\s*41,\s*64\)/i, 'dark dashboard card gradient must be active');
     assert.match(visual.navGradient, /rgb\(7,\s*89,\s*133\)/i, 'ANAS sky-blue navigation gradient must be active');
     assert.ok(contrast(visual.cardText, 'rgb(27, 41, 64)') >= 4.5, 'dashboard title must meet WCAG AA against its rendered gradient stop');
-    assert.ok(contrast(visual.brandText, 'rgb(7, 87, 102)') >= 4.5, 'navigation brand must meet WCAG AA against its rendered gradient stop');
+    assert.ok(contrast(visual.brandText, 'rgb(7, 89, 133)') >= 4.5, 'navigation brand must meet WCAG AA against its rendered gradient stop');
 
     const arabicControl = await page.evaluate(() => {
       const fixture = document.createElement('div');
