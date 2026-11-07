@@ -21,6 +21,8 @@
   const pendingPreHydrationWrites = [];
   let dbPromise = null;
   let writeQueue = Promise.resolve();
+  let writeConflict = false;
+  let writeConflictError = null;
   let mode = 'DUAL';
 
   function assertWellFormedUnicode(text) {
@@ -298,11 +300,34 @@
   async function writeIDB(record) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
+      // The revision check and put must share one readwrite transaction.
+      // A JavaScript promise queue only serializes writes within one tab; IndexedDB
+      // transaction serialization provides the cross-tab compare-and-set boundary.
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(record);
+      const store = tx.objectStore(STORE_NAME);
+      const currentRequest = store.get(APP_KEY);
+      let conflictError = null;
+      currentRequest.onsuccess = () => {
+        const current = currentRequest.result;
+        const currentRevision = current && Number.isSafeInteger(current.revision) && current.revision > 0
+          ? current.revision : 0;
+        if (currentRevision >= record.revision) {
+          conflictError = new Error('A newer or equal IndexedDB snapshot already exists; rehydrate before saving again.');
+          conflictError.code = 'ANAS_STORAGE_REVISION_CONFLICT';
+          conflictError.currentRevision = currentRevision;
+          conflictError.attemptedRevision = record.revision;
+          tx.abort();
+          return;
+        }
+        store.put(record);
+      };
+      currentRequest.onerror = () => {
+        conflictError = currentRequest.error || new Error('IndexedDB revision check failed');
+        tx.abort();
+      };
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
-      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+      tx.onerror = () => reject(conflictError || tx.error || new Error('IndexedDB transaction failed'));
+      tx.onabort = () => reject(conflictError || tx.error || new Error('IndexedDB transaction aborted'));
     });
   }
   async function validateRecord(record) {
@@ -359,6 +384,12 @@
   }
   function persist(payload, targetRevision) {
     const task = writeQueue.then(async () => {
+      if (writeConflict) {
+        throw writeConflictError || Object.assign(
+          new Error('Storage is blocked after a cross-tab revision conflict; rehydrate before saving.'),
+          { code: 'ANAS_STORAGE_REVISION_CONFLICT' }
+        );
+      }
       // Allocate revisions only after this operation owns the queue. An explicit
       // recovery revision may advance the clock, but can never move it backwards.
       const nextRevision = Number.isSafeInteger(targetRevision)
@@ -400,6 +431,22 @@
       try {
         await writeIDB(record);
       } catch (error) {
+        if (error && error.code === 'ANAS_STORAGE_REVISION_CONFLICT') {
+          // A conflict is not a storage outage: LocalStorage must not be promoted
+          // as a fallback because it may contain a stale full snapshot.
+          try {
+            if (previousPayload === null) global.localStorage.removeItem(APP_KEY);
+            else global.localStorage.setItem(APP_KEY, previousPayload);
+            if (previousMeta === null) global.localStorage.removeItem(META_KEY);
+            else global.localStorage.setItem(META_KEY, previousMeta);
+          } catch (_) {}
+          mode = 'REVISION_CONFLICT_BLOCKED';
+          writeConflict = true;
+          writeConflictError = error;
+          global.__ANAS_STORAGE_LAST_ERROR__ = String(error.message || error);
+          try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
+          throw error;
+        }
         mode = localPayloadPersisted ? 'LOCALSTORAGE_FALLBACK_ACTIVE' : 'MEMORY_ONLY_DEGRADED';
         if (localPayloadPersisted) cache[APP_KEY] = payload;
         global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
@@ -450,6 +497,13 @@
       global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
     }
     const idbValid = await validateRecord(record);
+    // A successful durable read is the only operation that clears a prior
+    // cross-tab write lock. The following selection uses the newest validated
+    // snapshot before any subsequent domain write is allowed.
+    if (!idbUnavailable) {
+      writeConflict = false;
+      writeConflictError = null;
+    }
     if (idbUnavailable && !canUseLocalStorage()) {
       mode = 'MEMORY_ONLY_DEGRADED';
       throw new Error('No writable durable storage is available: IndexedDB and localStorage are unavailable.');
