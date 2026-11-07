@@ -877,8 +877,8 @@ jobs:
           global.window = { pdfjsLib: { GlobalWorkerOptions: {}, getDocument: null } };
           (async () => {
             let opened = false;
-            const oversized = { size: 20 * 1024 * 1024 + 1, arrayBuffer: async () => { opened = true; return new ArrayBuffer(0); } };
-            await assert.rejects(() => anasExtractPdfText(oversized), /يتجاوز 20 ميغابايت/);
+            const oversized = { size: 10 * 1024 * 1024 + 1, arrayBuffer: async () => { opened = true; return new ArrayBuffer(0); } };
+            await assert.rejects(() => anasExtractPdfText(oversized), /يتجاوز 10 ميغابايت/);
             assert.equal(opened, false, 'oversized file must be rejected before reading bytes');
 
             let fetchedPages = 0, cleanedPages = 0, destroyed = false;
