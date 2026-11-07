@@ -42,3 +42,20 @@ test('local product import auto-detects headers and persists a verified IndexedD
   assert.ok(preview.includes("await saveDBDurably();"),
     'the import must wait for the durable IndexedDB application save acknowledgement');
 });
+
+
+test('Arabic AI sale command parses quantity, product, customer and price without a unit keyword', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const start = html.indexOf('function anasPrepareNaturalLanguageDraft()');
+  const end = html.indexOf('function anasConvertNaturalDraftToSale(form)', start);
+  assert.ok(start >= 0 && end > start, 'local Arabic natural-language draft parser must exist');
+  const parser = html.slice(start, end);
+  assert.ok(parser.includes("(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\s*"), 'quantity extraction must accept a direct sell command without a unit word');
+  assert.ok(parser.includes("(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*"), 'unit price must be parsed from the Arabic بسعر phrase');
+  assert.ok(parser.includes("(?:للعميل|للزبون|لزبون|العميل|الزبون)\\s+"), 'customer name must be parsed from للعميل');
+  assert.ok(parser.includes("transaction.startsWith('بيع')") && parser.includes('تحويل إلى فاتورة مبيعات جاهزة'),
+    'a uniquely matched sale draft must expose the ready-sales-invoice conversion action');
+  assert.ok(html.includes("anasRunLocalBusinessAudit();"), 'opening the AI Center must run the local business audit automatically');
+  assert.ok(html.includes('stockCost') && html.includes('stockSell'), 'the local AI audit must value inventory at purchase and sale prices');
+  assert.ok(html.includes('max-height:85dvh') || html.includes('max-height: 85dvh'), 'mobile modal content must be constrained to 85dvh');
+});
