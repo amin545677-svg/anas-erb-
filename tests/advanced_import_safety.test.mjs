@@ -247,3 +247,16 @@ test('workbook preview flags an ID and barcode that resolve to different existin
   assert.equal(staged.products[0].action, 'review_conflict');
   assert.equal(staged.products[0].duplicateScope, 'database');
 });
+
+
+test('workbook preview rejects a product ID that conflicts with the matched barcode record', () => {
+  const staged = classifyAndStageWorkbookSheets({
+    'المنتجات': [{ id: 'P-OTHER', barcode: '111', name: 'محاولة تغيير الهوية', quantity: 2 }]
+  }, {
+    products: [{ id: 'P-ORIGINAL', barcode: '111', name: 'منتج أصلي', quantity: 4 }]
+  });
+  assert.equal(staged.products.length, 1);
+  assert.equal(staged.products[0].isDuplicate, true);
+  assert.equal(staged.products[0].identityConflict, true);
+  assert.equal(staged.products[0].action, 'review_conflict');
+});
