@@ -80,7 +80,8 @@ test('Staging round-trip or local Firestore Emulator plus Chromium fallback', as
   const chromiumOutput = String(chromiumRun.stdout || '') + '\n' + String(chromiumRun.stderr || '');
   assert.equal(chromiumRun.error, undefined, chromiumRun.error && chromiumRun.error.message);
   assert.equal(chromiumRun.status, 0, 'Chromium regression suite must pass\n' + chromiumOutput);
-  assert.match(chromiumOutput, /UNIFIED_DOM_ZERO_CONSOLE_REPORT/);
+  assert.match(chromiumOutput, /Chromium posts sales and purchase returns through the local ledger/);
+  assert.match(chromiumOutput, /Chromium waits for local IndexedDB-backed AppData hydration/);
   assert.match(chromiumOutput, /# fail 0/);
   assert.match(chromiumOutput, /# skipped 0/);
   process.stdout.write('LOCAL_EMULATOR_CHROMIUM_FALLBACK_PASS ' + JSON.stringify({
