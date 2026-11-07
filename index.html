@@ -3503,59 +3503,70 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }, true);
 
         function addItemToPosCart(pId) {
-            const hadCartMap = Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts');
-            const previousCartMap = AppData.posScreensCarts;
-            const activeTab = AppData.activePosScreenTab;
-            const hadTabCart = !!previousCartMap && typeof previousCartMap === 'object' &&
-                !Array.isArray(previousCartMap) && Object.prototype.hasOwnProperty.call(previousCartMap, activeTab);
-            const previousTabCart = hadTabCart ? previousCartMap[activeTab] : undefined;
             const products = Array.isArray(AppData.products) ? AppData.products : [];
-            const p = products.find(x => String(x.id) === String(pId));
-            if (!p) { alert('تعذر إضافة المنتج: لم يعد موجودًا في قائمة المنتجات. حدّث القائمة وحاول مجددًا.'); return; }
-            const ex = posCart.find(x => String(x.id) === String(p.id));
-            const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
-            const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
-            const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,saleWarehouse):(Number(p.stock)||0);
-            if(!Number.isFinite(available)||available<0){alert('تعذر إضافة المنتج: رصيد المخزون غير صالح في «'+saleWarehouse+'». أصلح البيانات قبل متابعة البيع.');return;}
-
-            if(ex) {
-                if(ex.qty >= available) { alert('الكمية تتجاوز الرصيد المتوفر في «'+saleWarehouse+'» (' + available + ')'); return; }
-                ex.qty++;
-            } else {
-                if(available <= 0) { alert('السلعة غير متوفرة في مخزن البيع «'+saleWarehouse+'»!'); return; }
-                posCart.push({
-                    id: p.id,
-                    name: p.name,
-                    price: pr,
-                    qty: 1,
-                    unit: p.unit || "قطعة",
-                    image: p.image || ""
-                });
-            }
-            AppData.posScreensCarts = AppData.posScreensCarts || {};
-            AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            let cartSaved = false;
-            try { cartSaved = typeof saveDB === 'function' && saveDB() === true; }
-            catch (err) { console.error('ANAS POS cart save failed', err); }
-            if (!cartSaved) {
-                // Restore both the cart contents and the exact pre-save map shape.
-                if (ex) ex.qty--;
-                else posCart.pop();
-                if (hadCartMap) {
-                    AppData.posScreensCarts = previousCartMap;
-                    if (previousCartMap && typeof previousCartMap === 'object' && !Array.isArray(previousCartMap)) {
-                        if (hadTabCart) previousCartMap[activeTab] = previousTabCart;
-                        else delete previousCartMap[activeTab];
-                    }
-                } else {
-                    delete AppData.posScreensCarts;
-                }
-                renderPosTable();
+            const matches = products.filter(x => x && String(x.id) === String(pId));
+            if (matches.length !== 1) {
+                alert(matches.length
+                    ? 'تعذر إضافة المنتج: معرّف المنتج مكرر في سجل المنتجات. أصلح التكرار قبل البيع.'
+                    : 'تعذر إضافة المنتج: لم يعد موجودًا في قائمة المنتجات. حدّث القائمة وحاول مجددًا.');
                 return;
             }
-            renderPosTable();
+            const product = matches[0];
+            if (Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts') &&
+                (!AppData.posScreensCarts || typeof AppData.posScreensCarts !== 'object' || Array.isArray(AppData.posScreensCarts))) {
+                alert('تعذر إضافة المنتج: بنية سلال نقاط البيع غير صالحة. لم يتم تعديل السلة.');
+                return;
+            }
+            const price = AppData.activePriceTier === 2
+                ? (product.price2 || product.price1)
+                : (AppData.activePriceTier === 3 ? (product.price3 || product.price1) : product.price1);
+            const priceCents = anasToCents(price);
+            if (!Number.isSafeInteger(priceCents) || priceCents < 0) {
+                alert('تعذر إضافة المنتج: سعر البيع غير صالح في قائمة الأسعار المختارة.');
+                return;
+            }
+            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            const available = typeof wtAvailableStock === 'function'
+                ? wtAvailableStock(product, warehouse) : Number(product.stock);
+            const availableUnits = anasToQtyUnits(available);
+            if (!Number.isSafeInteger(availableUnits) || availableUnits < 0) {
+                alert('تعذر إضافة المنتج: رصيد المخزون غير صالح في «' + warehouse + '». أصلح البيانات قبل متابعة البيع.');
+                return;
+            }
+            const existingRows = posCart.filter(row => row && String(row.id) === String(product.id));
+            let existingUnits = 0;
+            for (const row of existingRows) {
+                const rowUnits = anasToQtyUnits(row.qty);
+                if (!Number.isSafeInteger(rowUnits) || rowUnits <= 0 ||
+                    !Number.isSafeInteger(existingUnits + rowUnits)) {
+                    alert('تعذر إضافة المنتج: توجد كمية غير صالحة للصنف نفسه في السلة.');
+                    return;
+                }
+                existingUnits += rowUnits;
+            }
+            const nextUnits = existingUnits + ANAS_QTY_SCALE;
+            if (!Number.isSafeInteger(nextUnits) ||
+                (nextUnits > availableUnits && !AppData.allowNegativeStock)) {
+                alert('الكمية المطلوبة تتجاوز رصيد مخزن البيع «' + warehouse + '». المتوفر: ' + anasQtyFromUnits(availableUnits));
+                return;
+            }
+            const oldCart = posCart.map(row => ({...row}));
+            if (existingRows.length) {
+                const firstRow = posCart.find(row => row && String(row.id) === String(product.id));
+                const firstUnits = anasToQtyUnits(firstRow.qty);
+                firstRow.qty = anasQtyFromUnits(firstUnits + ANAS_QTY_SCALE);
+            } else {
+                posCart.push({
+                    id: product.id,
+                    name: product.name,
+                    price: anasCentsToCurrency(priceCents),
+                    qty: 1,
+                    unit: product.unit || 'قطعة',
+                    image: product.image || ''
+                });
+            }
+            savePosCartChange(() => { posCart = oldCart; });
         }
-
         function removePosCartItem(idx) {
             if (!Number.isInteger(idx) || idx < 0 || idx >= posCart.length) return;
             const oldCart = posCart.map(row => ({...row}));
