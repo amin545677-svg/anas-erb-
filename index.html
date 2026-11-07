@@ -6500,7 +6500,7 @@ function renderPurchasesTable() {
                 if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
                 AppData.cashMovements.unshift({
                     id: movementId, type: 'add', amount: anasCentsToCurrency(amountCents),
-                    description: 'تحصيل دين مخصص يدوياً من العميل ' + String(customer.name || customer.id),
+                    description: 'تحصيل دين موزع تلقائياً FIFO من أقدم فاتورة إلى أحدث فاتورة للعميل ' + String(customer.name || customer.id),
                     referenceType: 'customer_debt', referenceId: String(customer.id),
                     date: new Date().toISOString(),
                     userId: AppData.currentUser?.id != null ? String(AppData.currentUser.id) : null,
