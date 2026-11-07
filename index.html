@@ -2651,6 +2651,11 @@ input:focus, select:focus, textarea:focus {
                         <option value="partial">💳 دفع جزء الآن والباقي دين</option>
                         <option value="credit">📝 تسجيل كامل المبلغ كدين</option>
                     </select>
+                    <div class="anas-quick-payment-actions" role="group" aria-label="اختصارات الدفع السريع" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px">
+                        <button type="button" onclick="setHasibPaymentMode('cash')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">كامل</button>
+                        <button type="button" onclick="setHasibPaymentMode('partial')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">½ الآن</button>
+                        <button type="button" onclick="setHasibPaymentMode('credit')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">دين كامل</button>
+                    </div>
                 </div>
                 <div id="hasibPaidGroup" class="field-group">
                     <label for="hasibPaidAmount">المبلغ المقبوض الآن (د.ج)</label>
