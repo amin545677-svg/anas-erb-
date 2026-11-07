@@ -1043,7 +1043,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     stock_balance_checks = {
         "POS quantity edit rejects invalid or negative assigned-warehouse balances":
             "validatePosCartStock(idx, qtyUnits)" in stock_edit_setter
-            and "(!Number.isFinite(available) || available < 0)" in stock_edit_validator
+            and "!Number.isSafeInteger(availableUnits) || availableUnits < 0" in stock_edit_validator
             and "aggregateUnits > availableUnits" in stock_edit_validator,
         "warehouse balance reader rejects negative, non-finite, and malformed stock":
             "Number(raw)<0" in stock_balance
