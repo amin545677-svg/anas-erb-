@@ -6256,20 +6256,29 @@ function renderPurchasesTable() {
 
         function sendSocialMsg(cId, channel) {
             const c = AppData.customers.find(x => x.id === cId);
-            if(!c) return;
+            if (!c) return false;
             const msg = `مرحبا ${c.name}، يرجى العلم بأن رصيد حسابكم الحالي لدى مؤسسة ${AppData.storeConfig.name} هو: ${c.debt} د.ج. شكراً لتعاملكم معنا.`;
-            const phone = (c.phone || '').replace(/[^0-9]/g, '');
-
-            if(channel === 'whatsapp') {
-                const intlPhone = phone.startsWith('0') ? '213' + phone.slice(1) : phone;
-                window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-            } else if(channel === 'messenger') {
-                window.open(`https://m.me/`, '_blank');
-            } else if(channel === 'sms') {
-                window.open(`sms:${phone}?body=${encodeURIComponent(msg)}`, '_blank');
+            const rawPhone = String(c.phone || '');
+            const phone = rawPhone.replace(/[^0-9]/g, '');
+            if (channel === 'whatsapp') {
+                const intlPhone = window.ANASMicroPOSCore
+                    ? window.ANASMicroPOSCore.normalizeAlgeriaPhone(rawPhone)
+                    : (phone.startsWith('0') && phone.length === 10 ? '213' + phone.slice(1) : (/^213[567]\d{8}$/.test(phone) ? phone : ''));
+                if (!intlPhone) {
+                    alert('رقم الهاتف غير صالح لواتساب. أدخل رقماً جزائرياً محمولاً صحيحاً يبدأ بـ 05 أو 06 أو 07.');
+                    return false;
+                }
+                window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+                return true;
             }
+            if (channel === 'messenger') { window.open('https://m.me/', '_blank'); return true; }
+            if (channel === 'sms') {
+                if (!phone) { alert('لا يوجد رقم هاتف مسجل لهذا العميل.'); return false; }
+                window.open(`sms:${phone}?body=${encodeURIComponent(msg)}`, '_blank');
+                return true;
+            }
+            return false;
         }
-
         function collectCustDebt(cId) {
             if (cId === undefined || cId === null || String(cId).trim() === '') {
                 alert('تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.'); return;
