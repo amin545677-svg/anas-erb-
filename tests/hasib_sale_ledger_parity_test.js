@@ -398,3 +398,16 @@ function assertAccountingIdentity(result, openingDebt = 0) {
   }
   console.log('PASS: reverse posting uses the local atomic engine and awaits durable storage without server fiscal-period gating');
 }
+
+{
+  const modal = fs.readFileSync('reverse-ledger/reverse-ledger-modal.js', 'utf8');
+  assert.match(modal, /async function waitForLocalAppData/);
+  assert.match(modal, /await waitForLocalAppData\(\)/);
+  assert.match(modal, /data\.invoices/);
+  assert.match(modal, /data\.purchases/);
+  assert.match(modal, /اعتماد المرتجع محلياً/);
+  assert.match(modal, /localPostReturnTransaction\(/);
+  assert.match(modal, /await saveDBDurably\(\)/);
+  assert.doesNotMatch(modal, /ANASReverseLedgerServer|periodId|financialPeriodId/);
+  console.log('PASS: local return modal waits for device invoices and commits without server fiscal-period gating');
+}
