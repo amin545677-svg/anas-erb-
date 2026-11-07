@@ -37,3 +37,15 @@ test('local audit and stocktake CSV declare their semicolon delimiter for Androi
   assert.ok(stocktake.includes("const csv='\\uFEFFsep=;\\r\\n'") && stocktake.includes(".join(';')"),
     'CSV fallback must carry UTF-8 BOM and an explicit semicolon delimiter');
 });
+
+
+test('local AI audit XLSX exports both purchase-cost and retail-value inventory totals', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const start = html.indexOf('function anasExportLocalAuditXLSX()');
+  const end = html.indexOf('function anasAiSafeText', start);
+  assert.ok(start >= 0 && end > start, 'local audit XLSX exporter must exist');
+  const exporter = html.slice(start, end);
+  assert.ok(exporter.includes("['قيمة المخزون بسعر الشراء',d.summary.stockCost]"));
+  assert.ok(exporter.includes("['قيمة المخزون بسعر البيع',d.summary.stockSell]"));
+  assert.ok(exporter.includes("XLSX.writeFile(wb,'ANAS_ERP_Local_Audit.xlsx'"), 'audit export must be a real XLSX workbook');
+});
