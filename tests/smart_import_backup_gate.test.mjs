@@ -52,9 +52,9 @@ test('Arabic AI sale command parses quantity, product, customer and price withou
   const end = html.indexOf('function anasConvertNaturalDraftToSale(form)', start);
   assert.ok(start >= 0 && end > start, 'local Arabic natural-language draft parser must exist');
   const parser = html.slice(start, end);
-  assert.ok(parser.includes("(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\s*"), 'quantity extraction must accept a direct sell command without a unit word');
-  assert.ok(parser.includes("(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*"), 'unit price must be parsed from the Arabic بسعر phrase');
-  assert.ok(parser.includes("(?:للعميل|للزبون|لزبون|العميل|الزبون)\\s+"), 'customer name must be parsed from للعميل');
+  assert.ok(parser.includes(String.raw`(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\s*`), 'quantity extraction must accept a direct sell command without a unit word');
+  assert.ok(parser.includes(String.raw`(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*`), 'unit price must be parsed from the Arabic بسعر phrase');
+  assert.ok(parser.includes(String.raw`(?:للعميل|للزبون|لزبون|العميل|الزبون)\\s+`), 'customer name must be parsed from للعميل');
   assert.ok(parser.includes("transaction.startsWith('بيع')") && parser.includes('تحويل إلى فاتورة مبيعات جاهزة'),
     'a uniquely matched sale draft must expose the ready-sales-invoice conversion action');
   assert.ok(html.includes("anasRunLocalBusinessAudit();"), 'opening the AI Center must run the local business audit automatically');
