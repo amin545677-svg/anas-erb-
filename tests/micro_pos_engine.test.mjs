@@ -18,7 +18,7 @@ test('POS stock chips filter in-memory records with exclusive stock states', () 
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'available' }).map(x => x.id), ['a', 'd']);
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'low' }).map(x => x.id), ['b']);
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'out' }).map(x => x.id), ['c']);
-  assert.deepEqual(filterPosProducts(rows, { stockFilter: 'favorite' }).map(x => x.id), ['a', 'd']);
+  assert.deepEqual(filterPosProducts(rows, { stockFilter: 'favorite' }).map(x => x.id), ['a']);
   assert.deepEqual(filterPosProducts(rows, { category: 'آخر', stockFilter: 'available' }).map(x => x.id), ['d']);
 });
 
@@ -133,6 +133,6 @@ test('customer directory renders initials and phone-gated Algerian call and What
   assert.match(html, /const customerTelUrl = customer =>/);
   assert.match(html, /c\.phone && customerWhatsAppUrl\(c\)/,
     'WhatsApp statement action must not render without a phone number');
-  assert.match(html, /href="\$\{safe\(customerTelUrl\(c\)\)\}"/,
+  assert.match(html, /href="tel:\$\{safe\(customerTelUrl\(c\)\)\}"/,
     'call action must use normalized Algerian phone data');
 });
