@@ -175,6 +175,14 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await commitNumberEditor(quantitySelector, '11');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'quantity above available stock must be rejected');
+    await page.evaluate(() => {
+      posCart.push({ ...posCart[0], qty: 9 });
+      renderPosTable();
+    });
+    await commitNumberEditor(quantitySelector, '2');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1,
+      'quantity editing must include legacy duplicate rows for the same product');
+    await page.evaluate(() => { posCart.splice(1, 1); renderPosTable(); });
     await commitNumberEditor(priceSelector, '30.00');
     await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '30.00 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].price), 30);
@@ -187,6 +195,14 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await commitNumberEditor(priceSelector, '25.00');
     await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '25.00 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
+    await commitNumberEditor(priceSelector, '0.10');
+    await commitNumberEditor(quantitySelector, '0.15');
+    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '0.02 د.ج');
+    assert.equal(await page.locator('#posTotalDisplay').textContent(), '0.02 د.ج',
+      'main POS and checkout totals must use identical centime rounding');
+    await commitNumberEditor(quantitySelector, '1');
+    await commitNumberEditor(priceSelector, '25.00');
+    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '25.00 د.ج');
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
