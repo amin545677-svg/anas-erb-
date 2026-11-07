@@ -202,3 +202,21 @@ test('barcode fallback updates a legacy product while preserving its original da
   assert.equal(saved[0].id, 'P-LEGACY');
   assert.equal(saved[0].name, 'محدث');
 });
+
+
+test('workbook preview uses product ID/barcode aliases and never treats names as identity', () => {
+  const staged = classifyAndStageWorkbookSheets({
+    'المنتجات': [
+      { id: 'P-2', barcode: '222', name: 'زيت زيتون', quantity: 2 },
+      { barcode: '111', name: 'زيت مختلف', quantity: 3 }
+    ]
+  }, {
+    products: [{ id: 'P-1', barcode: '111', name: 'زيت زيتون', quantity: 4 }]
+  });
+  assert.equal(staged.products.length, 2);
+  assert.equal(staged.products[0].isDuplicate, false,
+    'same product name with a different ID and barcode must be a new product');
+  assert.equal(staged.products[1].isDuplicate, true,
+    'barcode-only legacy rows must still match an existing row that also has a database ID');
+  assert.deepEqual(staged.products[1].identityKeys, ['barcode:111']);
+});
