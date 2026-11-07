@@ -2610,6 +2610,16 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         const ANAS_DB_KEY = 'ANAS_THE_ENTERPRISE_V11_OFFLINE';
         let AppData;
+        // Expose the canonical in-memory state to isolated UI modules through a live accessor.
+        // This avoids a stale copy when startup hydration or backup restore replaces AppData.
+        try {
+            Object.defineProperty(window, 'AppData', {
+                configurable: true,
+                enumerable: false,
+                get: () => AppData,
+                set: value => { AppData = value; }
+            });
+        } catch (error) { console.error('ANAS AppData bridge initialization failed:', error); }
         let anasStartupIntegrityIssues = [];
         let anasStartupFatalLoadError = false;
         try {
