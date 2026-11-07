@@ -260,8 +260,8 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
   assert.equal(result.customer.debt, 0);
   assert.equal(result.appData.caisseBalance, 13387.5);
   assert.equal(result.appData.cashMovements.at(-1).amount, 13387.5);
-  assert.deepEqual(JSON.parse(JSON.stringify(result.appData.settlementAllocations.map(row => [row.invoiceId, row.amountCentimes]))), [
+  assert.equal(JSON.stringify(result.appData.settlementAllocations.map(row => [row.invoiceId, row.amountCentimes])), JSON.stringify([
     ['INV-FIFO-OLD', 500000], ['INV-FIFO-NEW', 838750]
-  ], 'full customer receipt must allocate oldest invoice first and settle both balances exactly');
+  ])), 'full customer receipt must allocate oldest invoice first and settle both balances exactly');
   console.log('PASS: requested 13,387.50 DA customer receipt clears the partial debt using FIFO invoice allocation');
 }
