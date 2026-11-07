@@ -158,3 +158,15 @@ test('AI Center auto-runs local inventory valuation and accepts unitless Arabic 
   assert.ok(html.includes('قيمة المخزون بسعر البيع'));
   assert.ok(html.includes('max-height: 85dvh') && html.includes('overflow-y: auto'));
 });
+
+test('smart uploads enforce 2MB spreadsheets, 10MB media and a 50-per-day quota before reading bytes', () => {
+  const start = html.indexOf('async function handleSmartAiUpload(e)');
+  const end = html.indexOf('async function anasExtractPdfText(file)', start);
+  assert.ok(start >= 0 && end > start, 'smart upload handler must remain isolatable');
+  const upload = html.slice(start, end);
+  assert.match(upload, /file\.size > 2 \* 1024 \* 1024/);
+  assert.match(upload, /file\.size > 10 \* 1024 \* 1024/);
+  assert.match(upload, /createDailyImportQuota\(window\.localStorage, \{ limit: 50 \}\)/);
+  assert.match(upload, /quotaState\.allowed/);
+  assert.match(html, /const maxBytes=10\*1024\*1024/);
+});
