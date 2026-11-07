@@ -89,27 +89,38 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
   return staged;
 }
 
+function decimalToUnits(value, digits = 6) {
+  const raw = text(value === '' || value == null ? '0' : value).replace(/\s/g, '').replace(',', '.');
+  if (!/^[+]?(?:\d+)(?:\.\d*)?$/.test(raw)) throw new TypeError('INVALID_QUANTITY');
+  const [whole, fraction = ''] = raw.replace(/^\+/, '').split('.');
+  const kept = (fraction + '0'.repeat(digits)).slice(0, digits);
+  const discarded = fraction.slice(digits);
+  let units = BigInt(whole || '0') * (10n ** BigInt(digits)) + BigInt(kept || '0');
+  if (discarded && discarded[0] >= '5') units += 1n;
+  return units;
+}
+function safeInteger(value, code) {
+  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError(code || 'INTEGER_OVERFLOW');
+  return Number(value);
+}
+function unitsToNumber(units, digits = 6) {
+  return Number(units) / Number(10n ** BigInt(digits));
+}
+
 export function createProformaDraft({ id, customerId = null, lines, currency = 'DZD', createdAt = new Date().toISOString(), expiresAt = null, notes = '' }) {
   if (!text(id)) throw new TypeError('PROFORMA_ID_REQUIRED');
   if (!Array.isArray(lines) || lines.length === 0) throw new TypeError('PROFORMA_LINES_REQUIRED');
   const normalizedLines = lines.map(line => {
     const productId = text(line?.productId ?? line?.product_id);
-    const quantity = text(line?.quantity);
+    const quantity = text(line?.quantity).replace(',', '.');
+    const quantityUnits = decimalToUnits(quantity, 6);
     const unitPriceCents = toCents(line?.unitPrice ?? line?.price);
-    if (!productId || !/^\d+(?:\.\d{1,6})?$/.test(quantity) || Number(quantity) <= 0 || unitPriceCents < 0) {
-      throw new TypeError('INVALID_PROFORMA_LINE');
-    }
-    return Object.freeze({ productId, quantity, unitPriceCents });
+    if (!productId || quantityUnits <= 0n || unitPriceCents < 0) throw new TypeError('INVALID_PROFORMA_LINE');
+    return Object.freeze({ productId, quantity, quantityUnits: safeInteger(quantityUnits, 'PROFORMA_QUANTITY_OVERFLOW'), unitPriceCents });
   });
-  const totalCents = normalizedLines.reduce((sum, line) => {
-    const scaledQty = BigInt(line.quantity.replace('.', '').padEnd(7, '0'));
-    const digits = (line.quantity.split('.')[1] || '').length;
-    const qtyUnits = BigInt(line.quantity.split('.')[0]) * 1000000n +
-      BigInt(((line.quantity.split('.')[1] || '') + '000000').slice(0, 6));
-    const lineCents = (qtyUnits * BigInt(line.unitPriceCents) + 500000n) / 1000000n;
-    return sum + Number(lineCents);
-  }, 0);
-  if (!Number.isSafeInteger(totalCents)) throw new RangeError('PROFORMA_TOTAL_OVERFLOW');
+  const totalCentsBig = normalizedLines.reduce((sum, line) =>
+    sum + (BigInt(line.quantityUnits) * BigInt(line.unitPriceCents) + 500000n) / 1000000n, 0n);
+  const totalCents = safeInteger(totalCentsBig, 'PROFORMA_TOTAL_OVERFLOW');
   return Object.freeze({ id: text(id), customerId, lines: Object.freeze(normalizedLines), totalCents,
     currency, status: 'proforma', createdAt, expiresAt, notes: text(notes) });
 }
@@ -124,14 +135,21 @@ export async function convertProformaToActualInvoice({ proformaId, repository, p
     const proforma = await tx.getProforma(proformaId);
     if (!proforma) throw new Error('PROFORMA_NOT_FOUND');
     if (proforma.status !== 'proforma') throw new Error('PROFORMA_ALREADY_CONVERTED');
-    const lines = [];
+    const requiredByProduct = new Map();
     for (const line of proforma.lines || []) {
-      const product = await tx.getProduct(line.productId);
-      if (!product) throw new Error('PRODUCT_NOT_FOUND:' + line.productId);
-      const available = Number(product.quantity ?? product.stock);
-      const required = Number(line.quantity);
-      if (!Number.isFinite(available) || available < required) throw new Error('INSUFFICIENT_STOCK:' + line.productId);
-      lines.push({ ...line, product, nextQuantity: available - required });
+      const productId = text(line?.productId ?? line?.product_id);
+      if (!productId) throw new Error('PROFORMA_PRODUCT_ID_REQUIRED');
+      const units = line.quantityUnits == null ? decimalToUnits(line.quantity, 6) : BigInt(line.quantityUnits);
+      if (units <= 0n) throw new RangeError('INVALID_PROFORMA_QUANTITY');
+      requiredByProduct.set(productId, (requiredByProduct.get(productId) || 0n) + units);
+    }
+    const stockWrites = [];
+    for (const [productId, requiredUnits] of requiredByProduct) {
+      const product = await tx.getProduct(productId);
+      if (!product) throw new Error('PRODUCT_NOT_FOUND:' + productId);
+      const stockUnits = decimalToUnits(product.quantity ?? product.stock ?? 0, 6);
+      if (stockUnits < requiredUnits) throw new Error('INSUFFICIENT_STOCK:' + productId);
+      stockWrites.push({ productId: product.id || productId, nextQuantity: unitsToNumber(stockUnits - requiredUnits, 6) });
     }
     const total = Number(proforma.totalCents);
     const paid = paidCents == null ? total : Number(paidCents);
@@ -141,7 +159,7 @@ export async function convertProformaToActualInvoice({ proformaId, repository, p
     const invoice = await tx.createSalesInvoice({ ...proforma, id: undefined, sourceProformaId: proforma.id,
       status: paid === total ? 'paid' : paid === 0 ? 'unpaid' : 'partial', paidCents: paid,
       debtCents: total - paid, paymentMethod, convertedAt: new Date().toISOString() });
-    for (const line of lines) await tx.setProductQuantity(line.product.id, line.nextQuantity);
+    for (const write of stockWrites) await tx.setProductQuantity(write.productId, write.nextQuantity);
     await tx.postSaleFinancials({ invoice, customerId: proforma.customerId, paidCents: paid, debtCents: total - paid });
     await tx.markProformaConverted(proforma.id, invoice.id);
     return invoice;
@@ -150,32 +168,35 @@ export async function convertProformaToActualInvoice({ proformaId, repository, p
 
 export function calculateZakatSummary({ cashBalance = 0, products = [], customers = [], suppliers = [],
   goldPricePerGram24k, valuationMode = 'cost', receivableFilter = row => row.collectible !== false } = {}) {
-  const cash = toCents(cashBalance);
+  const cash = BigInt(toCents(cashBalance));
   const inventory = (Array.isArray(products) ? products : []).reduce((sum, product) => {
-    const quantity = Number(product?.quantity ?? product?.stock ?? 0);
-    if (!Number.isFinite(quantity) || quantity < 0) throw new RangeError('INVALID_STOCK_QUANTITY');
+    const quantityUnits = decimalToUnits(product?.quantity ?? product?.stock ?? 0, 6);
+    if (quantityUnits < 0n) throw new RangeError('INVALID_STOCK_QUANTITY');
     const price = toCents(valuationMode === 'retail'
       ? (product?.price_retail ?? product?.price ?? 0) : (product?.cost_price ?? product?.cost ?? 0));
     if (price < 0) throw new RangeError('NEGATIVE_INVENTORY_VALUE');
-    const quantityMicros = BigInt(Math.round(quantity * 1000000));
-    return sum + Number((quantityMicros * BigInt(price) + 500000n) / 1000000n);
-  }, 0);
+    return sum + (quantityUnits * BigInt(price) + 500000n) / 1000000n;
+  }, 0n);
   const receivables = (Array.isArray(customers) ? customers : []).reduce((sum, customer) => {
     if (!receivableFilter(customer)) return sum;
-    const debt = toCents(customer?.collectibleDebt ?? customer?.debt ?? 0);
-    return sum + Math.max(0, debt);
-  }, 0);
-  const payables = (Array.isArray(suppliers) ? suppliers : []).reduce((sum, supplier) =>
-    sum + Math.max(0, toCents(supplier?.balance ?? supplier?.payable ?? 0)), 0);
-  const goldPrice = toCents(goldPricePerGram24k);
-  if (goldPrice <= 0) throw new RangeError('GOLD_PRICE_REQUIRED');
-  const net = Math.max(0, cash + inventory + receivables - payables);
-  const nisab = goldPrice * 85;
-  const due = net >= nisab ? Math.round(net * 0.025) : 0;
-  return Object.freeze({ cashBalance: fromCents(cash), inventoryValue: fromCents(inventory),
-    goodReceivables: fromCents(receivables), supplierPayables: fromCents(payables),
-    netZakatableWealth: fromCents(net), nisabThreshold: fromCents(nisab),
-    isNisabReached: net >= nisab, zakatDue: fromCents(due), valuationMode });
+    const debt = BigInt(toCents(customer?.collectibleDebt ?? customer?.debt ?? 0));
+    return sum + (debt > 0n ? debt : 0n);
+  }, 0n);
+  const payables = (Array.isArray(suppliers) ? suppliers : []).reduce((sum, supplier) => {
+    const value = BigInt(toCents(supplier?.balance ?? supplier?.payable ?? 0));
+    return sum + (value > 0n ? value : 0n);
+  }, 0n);
+  const goldPrice = BigInt(toCents(goldPricePerGram24k));
+  if (goldPrice <= 0n) throw new RangeError('GOLD_PRICE_REQUIRED');
+  const net = cash + inventory + receivables - payables;
+  const zakatable = net > 0n ? net : 0n;
+  const nisab = goldPrice * 85n;
+  const due = zakatable >= nisab ? (zakatable * 25n + 500n) / 1000n : 0n;
+  const output = value => fromCents(safeInteger(value, 'ZAKAT_TOTAL_OVERFLOW'));
+  return Object.freeze({ cashBalance: output(cash), inventoryValue: output(inventory),
+    goodReceivables: output(receivables), supplierPayables: output(payables),
+    netZakatableWealth: output(zakatable), nisabThreshold: output(nisab),
+    isNisabReached: zakatable >= nisab, zakatDue: output(due), valuationMode });
 }
 
 export function canPerformRoleAction(role, action) {
@@ -185,4 +206,67 @@ export function canPerformRoleAction(role, action) {
     cashier: new Set(['pos', 'cash_shift'])
   };
   return !!grants[role] && grants[role].has(action);
+}
+
+
+/**
+ * Safe import coordinator. Parsing/matching is completed in memory before the
+ * repository is asked to persist one complete batch. saveBatchSafe must provide
+ * one atomic IndexedDB transaction for the entity snapshot.
+ */
+export async function executeSafeBulkImport({ rows, mode = 'merge', entityType = 'products',
+  storage = globalThis.localStorage, repository, keyFields = ['barcode', 'id', 'name'] } = {}) {
+  if (!Array.isArray(rows)) throw new TypeError('IMPORT_ROWS_MUST_BE_ARRAY');
+  if (!/^(products|customers|suppliers|invoices)$/.test(entityType)) throw new TypeError('INVALID_IMPORT_ENTITY');
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
+    throw new TypeError('IMPORT_STORAGE_REQUIRED');
+  }
+  if (!repository || typeof repository.saveBatchSafe !== 'function') throw new TypeError('ATOMIC_BATCH_REPOSITORY_REQUIRED');
+  const storageKey = 'anas_' + entityType;
+  const backupKey = storageKey + '_backup_pre_import';
+  const raw = storage.getItem(storageKey) || '[]';
+  let existing;
+  try { existing = JSON.parse(raw); } catch (_) { throw new Error('EXISTING_DATA_CORRUPT'); }
+  if (!Array.isArray(existing)) throw new Error('EXISTING_DATA_NOT_ARRAY');
+  storage.setItem(backupKey, raw);
+  const planned = prepareBulkImport(existing, rows, mode, keyFields);
+  const serialized = JSON.stringify(planned.rows);
+  try {
+    // The local mirror is staged first so a failed durable write can restore it.
+    storage.setItem(storageKey, serialized);
+    await repository.saveBatchSafe(entityType, planned.rows);
+    return Object.freeze({ ...planned.stats, durable: true, mirrorSynced: true });
+  } catch (error) {
+    try { storage.setItem(storageKey, raw); } catch (_) {}
+    const wrapped = new Error('SAFE_IMPORT_ROLLED_BACK: ' + (error?.message || String(error)));
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
+export function normalizeAlgeriaPhone(rawPhone) {
+  let digits = String(rawPhone ?? '').replace(/\D+/g, '');
+  if (digits.startsWith('00213')) digits = '213' + digits.slice(5);
+  else if (digits.startsWith('0') && digits.length === 10) digits = '213' + digits.slice(1);
+  else if (digits.length === 9 && /^[567]/.test(digits)) digits = '213' + digits;
+  return /^213[567]\d{8}$/.test(digits) ? digits : '';
+}
+
+export function buildWhatsAppStatementUrl(customer, companyName = 'أصحاب الرقيم للتجارة') {
+  const phone = normalizeAlgeriaPhone(customer?.phone);
+  if (!phone) return null;
+  const debt = toCents(customer?.debt ?? customer?.initial_debt ?? 0);
+  const formatted = (debt / 100).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const message = 'السلام عليكم ' + text(customer?.name || 'عميلنا الكريم') +
+    '،\nنحيطكم علماً من (' + text(companyName) + ') بأن إجمالي الرصيد المستحق في حسابكم هو: ' +
+    formatted + ' DA.\nشكراً لتعاملكم معنا.';
+  return 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
+}
+
+if (typeof window !== 'undefined') {
+  window.ANASAdvancedFinancialEngine = Object.freeze({
+    classifyAndStageWorkbookSheets, createProformaDraft, convertProformaToActualInvoice,
+    calculateZakatSummary, canPerformRoleAction, executeSafeBulkImport,
+    normalizeAlgeriaPhone, buildWhatsAppStatementUrl
+  });
 }
