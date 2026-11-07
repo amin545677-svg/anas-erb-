@@ -157,3 +157,15 @@ test('dark dashboard preserves readable cards, icon surfaces, and footer contras
   ]) assert.ok(bridge.includes(selector), 'missing dark compatibility selector: ' + selector);
   assert.match(bridge, /-webkit-text-fill-color:#f3f6fc!important/);
 });
+
+test('dark compatibility layer normalizes common pale panels and neutral inline text', () => {
+  const bridge = html.split('id="anasThemeCompatibility"', 2)[1] || '';
+  for (const token of [
+    '[style*="background:#f8fafc"]',
+    '[style*="background:#eff6ff"]',
+    '[style*="background:#f0fdf4"]',
+    '[style*="background:#fff7ed"]',
+    '[style*="background:#fee2e2"]',
+    '[style*="color:#64748b"]'
+  ]) assert.ok(bridge.includes(token), 'missing dark palette normalization: ' + token);
+});
