@@ -5539,6 +5539,8 @@ function renderPurchasesTable() {
             });
             let expenseSaved = false;
             try {
+                // Keep the synchronous legacy commit guard, then await the durable IndexedDB acknowledgement.
+                if (saveDB() !== true) throw new Error('فشل تأكيد الحفظ المحلي الأولي.');
                 await saveDBDurably();
                 expenseSaved = true;
             } catch (err) {
@@ -5548,8 +5550,10 @@ function renderPurchasesTable() {
                 if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 if (hadCashMovements) AppData.cashMovements = previousCashMovements; else delete AppData.cashMovements;
-                try { await saveDBDurably(); }
-                catch (rollbackError) { console.error('ANAS expense rollback persistence failed', rollbackError); }
+                try {
+                    if (saveDB() !== true) throw new Error('فشل حفظ الاسترجاع المحلي الأولي.');
+                    await saveDBDurably();
+                } catch (rollbackError) { console.error('ANAS expense rollback persistence failed', rollbackError); }
                 updateCashUI();
                 alert('تعذر حفظ المصروف في التخزين الدائم؛ أُعيد رصيد الصندوق وسجلا المصروفات والحركات إلى الحالة السابقة.');
                 return;
