@@ -145,6 +145,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#posCheckoutBtn').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
+    assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
+      'a fully paid cash sale must not require a registered customer');
     const revisionBeforePayment = await page.evaluate(() => ANASResilientStorage.status().revision);
 
     // Confirm through the actual modal button; never call the payment function directly.
@@ -262,6 +265,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25.00 د.ج');
     assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '12.50 د.ج');
     assert.equal(await page.locator('#hasibRemainingText').textContent(), '12.50 د.ج');
+    await page.locator('#hasibPaidAmount').fill('7.50');
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '7.50 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '17.50 د.ج');
+    await page.locator('#hasibPaidAmount').fill('12.50');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
       'partial payment must require a registered customer before confirmation');
     await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
