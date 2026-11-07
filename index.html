@@ -3558,15 +3558,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         function removePosCartItem(idx) {
             if (!Number.isInteger(idx) || idx < 0 || idx >= posCart.length) return;
-            const removed = posCart.splice(idx, 1)[0];
-            AppData.posScreensCarts = AppData.posScreensCarts || {};
-            AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB !== 'function' || saveDB() !== true) {
-                posCart.splice(idx, 0, removed);
-                renderPosTable();
-                return;
-            }
-            renderPosTable();
+            const oldCart = posCart.map(row => ({...row}));
+            posCart.splice(idx, 1);
+            savePosCartChange(() => { posCart = oldCart; });
         }
 
         function renderPosTable() {
@@ -3619,11 +3613,36 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         }
 
         function savePosCartChange(rollback) {
-            AppData.posScreensCarts = AppData.posScreensCarts || {};
-            AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
-            if (typeof saveDB !== 'function' || saveDB() !== true) {
+            const activeTab = AppData.activePosScreenTab;
+            const hadCartMap = Object.prototype.hasOwnProperty.call(AppData, 'posScreensCarts');
+            const previousCartMap = AppData.posScreensCarts;
+            const validCartMap = previousCartMap && typeof previousCartMap === 'object' && !Array.isArray(previousCartMap);
+            if (hadCartMap && !validCartMap) {
                 if (typeof rollback === 'function') rollback();
-                AppData.posScreensCarts[AppData.activePosScreenTab] = posCart;
+                alert('تعذر حفظ السلة: بنية سلال نقاط البيع غير صالحة. لم يتم اعتماد التعديل.');
+                renderPosTable();
+                return false;
+            }
+            const hadTabCart = validCartMap && Object.prototype.hasOwnProperty.call(previousCartMap, activeTab);
+            const previousTabCart = hadTabCart ? previousCartMap[activeTab] : undefined;
+            const changedCartRef = posCart;
+            if (!validCartMap) AppData.posScreensCarts = {};
+            AppData.posScreensCarts[activeTab] = posCart;
+            let saved = false;
+            try { saved = typeof saveDB === 'function' && saveDB() === true; }
+            catch (err) { console.error('ANAS POS cart save failed:', err); }
+            if (!saved) {
+                if (typeof rollback === 'function') rollback();
+                if (hadCartMap) {
+                    AppData.posScreensCarts = previousCartMap;
+                    if (validCartMap) {
+                        if (hadTabCart && previousTabCart === changedCartRef) previousCartMap[activeTab] = posCart;
+                        else if (hadTabCart) previousCartMap[activeTab] = previousTabCart;
+                        else delete previousCartMap[activeTab];
+                    }
+                } else {
+                    delete AppData.posScreensCarts;
+                }
                 renderPosTable();
                 return false;
             }
