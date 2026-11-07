@@ -230,14 +230,14 @@ async function main() {
         request.onerror = () => reject(request.error);
       });
       db.close();
-      return { local, persistedPayload: String(persisted?.payload || '') };
+      return { local, persistedState: persisted?.payload ? window.ANASResilientStorage.decode(String(persisted.payload)) : null };
     });
     assert.equal(finalSnapshot.local.returns.length, 1);
     assert.equal(finalSnapshot.local.returns[0].status, 'POSTED');
     const postedReturn = finalSnapshot.local.returns[0];
     assert.equal(postedReturn.items[0].quantityMicroUnits, 1000000);
     assert.equal(operationIds.length, 1, 'local return must not create a second server operation');
-    const persistedState = JSON.parse(finalSnapshot.persistedPayload);
+    const persistedState = finalSnapshot.persistedState;
     assert.equal(persistedState.returns.length, 1, 'local return must be durably stored in IndexedDB');
     assert.equal(persistedState.returns[0].status, 'POSTED');
     const returnOperations = await db.collection('reverseLedgerOperations').where('operationType', '==', 'SALE_RETURN').get();
