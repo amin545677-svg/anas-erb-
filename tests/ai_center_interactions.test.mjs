@@ -55,6 +55,8 @@ test('ERP script and stylesheet references are relative for the /erp/ deployment
 
 test('Excel header analysis is local while PDF analysis retains its separate persisted-auth guard', () => {
   assert.match(html, /window\.anasGetFirebaseIdToken=async function\(timeoutMs=8000\)/);
+  assert.match(html, /await firebasePersistenceReady;/, 'anonymous sign-in must wait for LOCAL persistence initialization');
+  assert.match(html, /firebasePersistenceReady=auth\.setPersistence\(window\.firebase\.auth\.Auth\.Persistence\.LOCAL\)/, 'Firebase LOCAL persistence must be awaited by the AI auth helper');
   assert.match(html, /auth\.onAuthStateChanged\(u=>finish\(resolve,u\|\|null\)/);
   assert.match(html, /let resolvedUser=await new Promise/, 'Firebase auth state must remain assignable when anonymous sign-in creates the first user');
   assert.match(html, /auth\.signInAnonymously\(\)/, 'cloud AI should obtain a persisted anonymous Firebase identity when no user is signed in');
