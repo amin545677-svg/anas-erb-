@@ -251,6 +251,19 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       ['TEA-004','611000000004','توارف ساشي 200غ',90,140,15,'مشروبات','علبة',3,''],
       ['TEA-005','611000000005','شاي أخضر 200غ',80,130,20,'مشروبات','علبة',4,'']
     ];
+    // A full reload returns the app to its default dashboard; reopen the AI Center
+    // before targeting its lazily mounted Excel file input for the second import.
+    await page.evaluate(() => {
+      if (typeof window.openView !== 'function') throw new Error('openView is unavailable after reload');
+      window.openView('ai-excel-hub', true);
+    });
+    await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const view = document.getElementById('view-ai-excel-hub');
+      const input = document.getElementById('smartAiExcelUpload');
+      return !!view && view.classList.contains('active') && !!input && input.isConnected && !document.body.inert;
+    }, { timeout: 10000 });
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[]]), 'Empty');
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['ملاحظات'], ['هذه الورقة ليست بيانات منتجات']]), 'Notes');
