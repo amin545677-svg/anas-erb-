@@ -12,6 +12,7 @@ on:
       - "functions/**"
       - "scripts/**"
       - "reverse-ledger/**"
+      - "pos/**"
       - "staging/**"
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
@@ -31,6 +32,7 @@ on:
       - "functions/**"
       - "scripts/**"
       - "reverse-ledger/**"
+      - "pos/**"
       - "staging/**"
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
@@ -61,10 +63,12 @@ jobs:
         run: node scripts/verify-binary-source-hygiene.mjs
       - name: Level 11 canonical, causal CAS, rebase quarantine and zero-sum proofs
         run: node --test tests/sovereign-kernel-level11.test.mjs
-      - name: Syntax-check every repository script and test module
-        run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check
+      - name: Syntax-check every repository script, POS engine and test module
+        run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check && node --check pos/micro-pos-engine.mjs
       - name: Run ANAS ERP unified light/dark theme regression tests
         run: node --test tests/theme-system.test.mjs
+      - name: Run Micro POS filtering, dual-pricing, credit and import-engine tests
+        run: node --test tests/micro_pos_engine.test.mjs
       - name: Level 9 adversarial identity, valuation and idempotency proofs
         run: node --test tests/staging_deployment_identity_guard.test.mjs tests/reverse_ledger_valuation.test.js tests/reverse_ledger_server_transaction.test.js
       - name: V42 integrity audit
