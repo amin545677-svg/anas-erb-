@@ -2650,7 +2650,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             </div>
 
             <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
-                <button class="btn-full-submit" style="background:var(--mp-green); margin:0;" onclick="confirmHasibPaymentDurable()">
+                <button id="hasibConfirmSaleBtn" class="btn-full-submit" style="background:var(--mp-green); margin:0;" onclick="confirmHasibPaymentDurable()">
                     ✅ تأكيد وحفظ الفاتورة فقط
                 </button>
                 <button class="btn-full-submit" style="background:#0369a1; margin:0;" onclick="printLastConfirmedInvoice('thermal')">
@@ -3942,6 +3942,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 ? (customer.value ? 'سيُسجل المبلغ المتبقي ضمن ديون هذا الزبون.' : 'اختر زبوناً مسجلاً قبل تأكيد البيع الآجل أو الجزئي.')
                 : 'البيع النقدي لا يحتاج إلى تسجيل زبون.';
             hint.style.color = hasDebt && !customer.value ? '#b45309' : '';
+            const confirm = document.getElementById('hasibConfirmSaleBtn');
+            if (confirm) {
+                confirm.disabled = hasDebt && !customer.value;
+                confirm.setAttribute('aria-disabled', confirm.disabled ? 'true' : 'false');
+                confirm.title = confirm.disabled ? 'اختر زبوناً مسجلاً لتسجيل المبلغ المتبقي كدين.' : '';
+            }
         }
 
         function updatePaymentMethodFromAmount() {
