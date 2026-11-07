@@ -1,4 +1,7 @@
 import test from 'node:test';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const MicroPOSCore = require('../micro-pos-core.js');
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { calculateQuickCheckoutCents, filterPosProducts, prepareBulkImport, resolveProductPrice } from '../pos/micro-pos-engine.mjs';
@@ -16,6 +19,22 @@ test('POS stock chips filter in-memory records with exclusive stock states', () 
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'out' }).map(x => x.id), ['c']);
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'favorite' }).map(x => x.id), ['a']);
   assert.deepEqual(filterPosProducts(rows, { category: 'آخر', stockFilter: 'available' }).map(x => x.id), ['d']);
+});
+
+test('new POS filter engine stays behaviorally aligned with the shared legacy core', () => {
+  const rows = [
+    { id: 'one', name: 'A', stock: 12, minAlert: 5, cat: 'عام', favorite: true },
+    { id: 'two', name: 'B', stock: 3, minAlert: 5, cat: 'عام' },
+    { id: 'three', name: 'C', stock: 0, minAlert: 5, cat: 'عام' },
+    { id: 'four', name: 'D', stock: 4, minAlert: 0, cat: 'آخر', is_featured: true }
+  ];
+  for (const status of ['all', 'available', 'low', 'out', 'favorite']) {
+    const modern = filterPosProducts(rows, { stockFilter: status }).map(row => row.id).sort();
+    const shared = MicroPOSCore.filterInventoryItems(rows, {
+      category: 'ALL', status: status === 'favorite' ? 'featured' : status
+    }).map(row => row.id).sort();
+    assert.deepEqual(modern, shared, 'filter parity for ' + status);
+  }
 });
 
 test('dual price resolution preserves legitimate zero and legacy tier fallbacks', () => {
