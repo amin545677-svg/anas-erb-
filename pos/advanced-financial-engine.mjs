@@ -230,9 +230,11 @@ export async function executeSafeBulkImport({ rows, mode = 'merge', entityType =
   if (!Array.isArray(existing)) throw new Error('EXISTING_DATA_NOT_ARRAY');
   storage.setItem(backupKey, raw);
   const effectiveKeyFields = Array.isArray(keyFields) && keyFields.length ? keyFields
-    : entityType === 'customers' || entityType === 'suppliers' ? ['phone', 'id', 'name']
-    : entityType === 'invoices' ? ['id', 'invoiceNumber', 'number'] : ['barcode', 'id', 'name'];
-  const planned = prepareBulkImport(existing, rows, mode, effectiveKeyFields);
+    : entityType === 'customers' || entityType === 'suppliers' ? ['phone', 'id']
+    : entityType === 'invoices' ? ['id', 'invoiceNumber', 'number'] : ['id', 'barcode'];
+  const planned = prepareBulkImport(existing, rows, mode, effectiveKeyFields, {
+    strictIdentity: entityType === 'products'
+  });
   const serialized = JSON.stringify(planned.rows);
   try {
     // The local mirror is staged first so a failed durable write can restore it.
