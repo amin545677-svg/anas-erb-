@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import vm from 'node:vm';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
 
