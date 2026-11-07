@@ -10543,9 +10543,24 @@ function wtAuditTransfers(){
                 ['application/pdf','application/x-pdf'].includes(String(file.type||'').toLowerCase());
             if(status) status.textContent='⏳ جارٍ فتح الملف: '+file.name;
             try {
-                // Bound memory use before reading CSV, Excel, or PDF bytes into the browser.
-                const maxImportBytes=20*1024*1024;
-                if(file.size>maxImportBytes) throw new Error('حجم الملف يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
+                // Enforce the field limits before allocating file buffers on Android WebView.
+                const spreadsheetUpload = ['xlsx','xls','csv','txt'].includes(ext) && !isPdfUpload;
+                const mediaUpload = isPdfUpload || ['jpg','jpeg','png','webp'].includes(ext);
+                if (spreadsheetUpload && file.size > 2 * 1024 * 1024) {
+                    throw new Error('يتجاوز ملف الجدول الحد الأقصى المسموح (2MB). قسّم الملف ثم أعد المحاولة.');
+                }
+                if (mediaUpload && file.size > 10 * 1024 * 1024) {
+                    throw new Error('يتجاوز ملف الصورة/PDF الحد الأقصى المسموح (10MB). قلّص الملف ثم أعد المحاولة.');
+                }
+                if (!spreadsheetUpload && !mediaUpload) throw new Error('صيغة الملف غير مدعومة.');
+                const importCore = window.ANASMicroPOSDeepCore;
+                if (importCore?.createDailyImportQuota) {
+                    const quota = window.__anasDailyImportQuota || (window.__anasDailyImportQuota =
+                        importCore.createDailyImportQuota(window.localStorage, { limit: 50 }));
+                    const quotaState = quota.consume();
+                    if (!quotaState.allowed) throw new Error('اكتملت الحصة اليومية للاستيراد الذكي (50 من 50). حاول غداً.');
+                    if (status) status.textContent = '⏳ الاستيراد الذكي ' + quotaState.used + ' من ' + quotaState.limit + ' لهذا اليوم…';
+                }
                 if(isPdfUpload){
                     window.anasCurrentPdfFile=file;
                     const extracted=await anasExtractPdfText(file);
@@ -10606,8 +10621,8 @@ function wtAuditTransfers(){
         }
 
         async function anasExtractPdfText(file){
-            const maxBytes=20*1024*1024;
-            if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
+            const maxBytes=10*1024*1024;
+            if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 10 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
             if(!window.pdfjsLib) throw new Error('حزمة PDF المحلية غير متاحة. أعد تحميل التطبيق بعد تحديثه.');
             window.pdfjsLib.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdfjs/pdf.worker.min.js',document.baseURI).href;
             const bytes=await file.arrayBuffer();
@@ -10636,7 +10651,7 @@ function wtAuditTransfers(){
             const file=window.anasCurrentPdfFile,status=document.getElementById('smartAiExcelStatus');
             const output=document.getElementById('smartPdfExtractText'),button=document.getElementById('smartPdfOcrButton');
             if(!file){if(status)status.textContent='❌ أعد اختيار ملف PDF أولاً ثم شغّل OCR.';return;}
-            if(file.size>20*1024*1024){if(status)status.textContent='❌ حجم PDF يتجاوز 20 ميغابايت.';return;}
+            if(file.size>10*1024*1024){if(status)status.textContent='❌ حجم PDF يتجاوز 10 ميغابايت.';return;}
             if(!window.pdfjsLib?.getDocument){if(status)status.textContent='❌ محرك PDF المحلي غير متاح.';return;}
             if(button){button.disabled=true;button.textContent='⏳ جارٍ تجهيز OCR…';}
             let pdf=null;const recognized=[];
