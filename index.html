@@ -3581,7 +3581,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return;
             }
 
-            let total = 0;
+            let totalCents = 0;
             let hasInvalidCartValues = false;
             posCart.forEach((item, idx) => {
                 const qtyNumber = (typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null;
@@ -3589,9 +3589,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 const valuesValid = qtyNumber !== null && priceNumber !== null;
                 const qty = qtyNumber;
                 const price = priceNumber;
-                const sub = valuesValid ? qtyNumber * priceNumber : null;
-                if (!valuesValid || !Number.isFinite(sub)) hasInvalidCartValues = true;
-                else total += sub;
+                const lineCents = valuesValid ? anasLineTotalCents(anasToQtyUnits(qtyNumber), anasToCents(priceNumber)) : NaN;
+                const sub = Number.isSafeInteger(lineCents) ? anasCentsToCurrency(lineCents) : null;
+                if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(totalCents + lineCents)) hasInvalidCartValues = true;
+                else totalCents += lineCents;
                 const cartImage = String(item.image || '');
                 const safeCartImage = /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(cartImage) ? cartImage : '';
                 const imgThumb = safeCartImage ? `<img src="${anasEscapeHTML(safeCartImage)}" style="width:28px; height:28px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-left:6px;">` : '';
@@ -3607,7 +3608,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     </div>
                 `;
             });
-            document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج';
+            document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : anasCentsToCurrency(totalCents).toFixed(2) + ' د.ج';
             const checkout = document.getElementById('posCheckoutBtn');
             if (checkout) {
                 const validTotal = Number.isSafeInteger(anasCartTotalCents(posCart)) && anasCartTotalCents(posCart) > 0;
@@ -3853,7 +3854,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 info.textContent = item.name || 'منتج';
                 const sub = document.createElement('small');
                 sub.style.cssText = 'display:block;color:#64748b;font-weight:500;';
-                sub.textContent = 'الإجمالي: ' + (Number(item.qty) * Number(item.price)).toFixed(2) + ' د.ج';
+                const lineCents = anasLineTotalCents(anasToQtyUnits(item.qty), anasToCents(item.price));
+                sub.textContent = Number.isSafeInteger(lineCents)
+                    ? 'الإجمالي: ' + anasCentsToCurrency(lineCents).toFixed(2) + ' د.ج'
+                    : 'الإجمالي غير صالح';
                 info.appendChild(sub);
                 const price = document.createElement('input');
                 price.type = 'number'; price.min = '0'; price.step = '0.01'; price.inputMode = 'decimal';
