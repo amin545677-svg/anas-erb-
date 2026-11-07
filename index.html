@@ -10617,7 +10617,6 @@ function wtAuditTransfers(){
             const file=input.files && input.files[0];
             const status=document.getElementById('smartAiExcelStatus');
             if(!file) return;
-            const normalizedName=String(file.name||'').normalize('NFKC').trim().toLowerCase();
             const ext=anasResolveImportExtension(file);
             // Android document providers may omit the .pdf suffix or report a generic MIME type.
             // The dedicated PDF input is authoritative; MIME and extension also support PDF files
