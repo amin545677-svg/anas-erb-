@@ -159,6 +159,21 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
       'adding a valid product from the picker must restore checkout');
+    await page.evaluate(() => addItemToPosCart('STG-POS-LIFECYCLE-001'));
+    assert.equal(await page.evaluate(() => posCart.length), 1,
+      'adding the same product twice must merge into one cart line');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'adding the same product twice must increment the existing quantity');
+    await page.evaluate(() => {
+      const original = AppData.products[0];
+      AppData.products.push({ ...original });
+      addItemToPosCart(original.id);
+      AppData.products.pop();
+    });
+    assert.equal(await page.evaluate(() => posCart.length), 1,
+      'duplicate product IDs in the catalog must block ambiguous cart additions');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'ambiguous product ID must not mutate the cart');
     const commitNumberEditor = async (selector, value) => {
       const editor = page.locator(selector).first(); // target the first cart row when duplicate-row guards are under test
       await editor.fill(value);
