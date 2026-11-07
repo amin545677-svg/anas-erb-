@@ -226,7 +226,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'quantity editing must include legacy duplicate rows for the same product and preserve the last valid quantity');
     await page.evaluate(() => { posCart.splice(1, 1); renderPosTable(); });
     await commitNumberEditor(priceSelector, '30.00');
-    await waitForDisplayedTotal(30);
+    await waitForDisplayedTotal(45); // 1.5 units × 30.00 DZD
     assert.equal(await page.evaluate(() => posCart[0].price), 30);
     await commitNumberEditor(priceSelector, '-1');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
@@ -235,7 +235,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'prices with more than two decimal places must be rejected, not silently rounded');
     await commitNumberEditor(priceSelector, '25.00');
-    await waitForDisplayedTotal(25);
+    await waitForDisplayedTotal(37.5); // 1.5 units × 25.00 DZD
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
     await commitNumberEditor(priceSelector, '0.10');
     await commitNumberEditor(quantitySelector, '0.15');
