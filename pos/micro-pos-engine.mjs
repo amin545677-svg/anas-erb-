@@ -101,7 +101,7 @@ export function prepareBulkImport(existingRows, incomingRows, mode = 'merge', ke
       continue;
     }
     const key = keyOf(row);
-    if (mode === 'merge' && index.has(key)) {
+    if (index.has(key)) {
       const position = index.get(key);
       const previous = output[position];
       const merged = { ...previous, ...row, id: previous.id ?? row.id };
