@@ -3646,8 +3646,10 @@ input:focus, select:focus, textarea:focus {
                 return;
             }
             const priceTier = [1,2,3].includes(Number(selectedTier)) ? Number(selectedTier) : (Number(AppData.activePriceTier) || 1);
-            const price = priceTier === 2 ? (product.price2 ?? product.price1)
-                : (priceTier === 3 ? (product.price3 ?? product.price1) : product.price1);
+            const price = window.ANASMicroPOSEngine && typeof window.ANASMicroPOSEngine.resolveProductPrice === 'function'
+                ? window.ANASMicroPOSEngine.resolveProductPrice(product, priceTier)
+                : (priceTier === 2 ? (product.price2 ?? product.price1)
+                    : (priceTier === 3 ? (product.price3 ?? product.price1) : product.price1));
             const priceCents = anasToCents(price);
             if (!Number.isSafeInteger(priceCents) || priceCents < 0) {
                 alert('تعذر إضافة المنتج: سعر البيع غير صالح في قائمة الأسعار المختارة.');
