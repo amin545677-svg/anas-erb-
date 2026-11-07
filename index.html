@@ -1664,6 +1664,53 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
   background:linear-gradient(135deg,#075985 0%,#087fc1 55%,#0ea5e9 100%) !important;
 }
 </style>
+
+<style id="anas-pdf-upload-tile-visibility-fix">
+/* Keep the PDF file-picker tile readable despite legacy global label typography rules. */
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"],
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] {
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:6px !important;
+  min-width:0 !important;
+  min-height:112px !important;
+  height:100% !important;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  opacity:1 !important;
+  visibility:visible !important;
+  font-size:15px !important;
+  line-height:1.55 !important;
+  font-weight:700 !important;
+}
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] span,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] span {
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  color:#5b21b6 !important;
+  -webkit-text-fill-color:#5b21b6 !important;
+  font-size:inherit !important;
+  line-height:1.55 !important;
+  font-weight:700 !important;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] span {
+  color:#1e3a8a !important;
+  -webkit-text-fill-color:#1e3a8a !important;
+}
+</style>
+
 </head>
 <body>
 
