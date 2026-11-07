@@ -1589,7 +1589,7 @@ vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ 
             and "anas-ai-quick-actions" in source,
         "AI hub provides 44px touch targets and keyboard-focus scrolling":
             "min-height: 44px" in source
-            and "field.scrollIntoView({ block: 'center', behavior: 'auto' })" in source
+            and "field.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'})" in source
             and "scroll-margin-block: 18px" in source,
         "AI hub contains chat scrolling and respects reduced motion":
             "overscroll-behavior: contain" in source
