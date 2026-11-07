@@ -130,6 +130,20 @@ export const MicroPOSHelpers = Object.freeze({
     const last = parts.length > 1 ? Array.from(parts[1])[0] || '' : Array.from(parts[0]).slice(1, 2).join('');
     return first + last;
   },
+  getCustomerContactState(phone) {
+    const value = String(phone ?? '').trim();
+    return Object.freeze({
+      hasPhone: value.length > 0, phone: value,
+      showCall: value.length > 0, showWhatsApp: value.length > 0,
+      label: value.length > 0 ? value : 'بدون هاتف'
+    });
+  },
+  stampInvoiceWithDeviceId(invoice, deviceId) {
+    if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice)) throw new TypeError('INVOICE_REQUIRED');
+    const id = String(deviceId || '').trim();
+    if (!id) throw new TypeError('DEVICE_ID_REQUIRED');
+    return { ...invoice, device_id: id };
+  },
   validateImportFile(file) {
     if (!file || typeof file !== 'object') return { valid: false, error: 'لم يتم اختيار ملف' };
     const name = String(file.name || '');
