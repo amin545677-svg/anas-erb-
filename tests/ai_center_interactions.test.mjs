@@ -83,15 +83,32 @@ test('cloud AI creates an anonymous Firebase session when ERP is used without ma
     signInAnonymously: async () => { anonymousCalls++; auth.currentUser = user; return { user }; }
   };
   const window = {};
-  vm.runInNewContext(helper, { window, auth, setTimeout, clearTimeout, Error, String, Number });
+  vm.runInNewContext(helper, { window, auth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
   assert.equal(await window.anasGetFirebaseIdToken(), 'signed-firebase-id-token');
   assert.equal(anonymousCalls, 1, 'anonymous sign-in must be attempted exactly once');
+  const concurrentAuth = {
+    currentUser: null,
+    onAuthStateChanged(callback) { callback(null); return () => {}; },
+    signInAnonymously: async () => {
+      anonymousCalls++;
+      await new Promise(resolve => setTimeout(resolve, 10));
+      concurrentAuth.currentUser = user;
+      return { user };
+    }
+  };
+  const concurrentWindow = {};
+  vm.runInNewContext(helper, { window: concurrentWindow, auth: concurrentAuth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
+  const beforeConcurrent = anonymousCalls;
+  const tokens = await Promise.all([concurrentWindow.anasGetFirebaseIdToken(), concurrentWindow.anasGetFirebaseIdToken()]);
+  assert.deepEqual(tokens, ['signed-firebase-id-token', 'signed-firebase-id-token']);
+  assert.equal(anonymousCalls - beforeConcurrent, 1, 'concurrent requests must share one anonymous sign-in');
+
   const disabledAuth = {
     onAuthStateChanged(callback) { callback(null); return () => {}; },
     signInAnonymously: async () => { const error = new Error('provider disabled'); error.code = 'auth/operation-not-allowed'; throw error; }
   };
   const disabledWindow = {};
-  vm.runInNewContext(helper, { window: disabledWindow, auth: disabledAuth, setTimeout, clearTimeout, Error, String, Number });
+  vm.runInNewContext(helper, { window: disabledWindow, auth: disabledAuth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
   await assert.rejects(disabledWindow.anasGetFirebaseIdToken(), /المصادقة المجهولة غير مفعّلة/);
 });
 
