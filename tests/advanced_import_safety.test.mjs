@@ -73,7 +73,7 @@ test('zakat valuation uses exact decimal quantities and centime arithmetic', () 
   assert.throws(() => calculateZakatSummary({
     cashBalance: 0, goldPricePerGram24k: '1',
     products: [{ quantity: '1.0000001', cost_price: '1' }]
-  }), /INVALID_QUANTITY/);
+  }), /INVALID_QUANTITY_PRECISION/);
 });
 
 test('safe bulk import backs up first, commits one complete batch and restores mirror on failure', async () => {
