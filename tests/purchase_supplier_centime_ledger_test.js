@@ -35,7 +35,8 @@ function runPurchase({fields=elements(),products=[{id:'P-1',name:'Test product',
  const alerts=[];let saves=0;
  const ctx={AppData,posCart:[],document:{getElementById:id=>fields[id]||null},saveDB:()=>{saves++;return saveResult;},
   alert:m=>alerts.push(String(m)),console:{error(){}},renderPurchasesTable(){},renderSuppliersDebts(){},updateCashUI(){},updateDashboardStats(){},updateUIState(){},
-  anasNormalizeBarcode:v=>String(v||'').replace(/\D/g,'')};
+  anasNormalizeBarcode:v=>String(v||'').replace(/\D/g,''),
+  normalizePosSearch:v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ar').replace(/[\u064B-\u065F\u0670\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').trim()};
  vm.createContext(ctx);vm.runInContext(purchaseSource+'\nsavePurchaseItem();',ctx,{timeout:1500});
  return {AppData:ctx.AppData,alerts,saves};
 }
