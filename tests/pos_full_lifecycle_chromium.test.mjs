@@ -144,15 +144,15 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#posCheckoutBtn').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
-    await page.locator('#hasibModal button').filter({ hasText: 'دين كامل' }).click();
+    await page.locator('#hasibModal button').filter({ hasText: /^دين كامل$/ }).click();
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00',
       'quick full-credit action must set zero paid and leave the full invoice due');
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'credit');
-    await page.locator('#hasibModal button').filter({ hasText: '½ الآن' }).click();
+    await page.locator('#hasibModal button').filter({ hasText: /^½ الآن$/ }).click();
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
     assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 12.5) < 0.01,
       'quick half-payment action must calculate half the current invoice in centimes');
-    await page.locator('#hasibModal button').filter({ hasText: 'كامل' }).click();
+    await page.locator('#hasibModal button').filter({ hasText: /^كامل$/ }).click();
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 25) < 0.01,
       'quick full-payment action must settle the exact invoice total');
