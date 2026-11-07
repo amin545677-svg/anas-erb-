@@ -187,6 +187,13 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.match(scannedPdfText, /الصفحة 2 \(OCR\)/);
   assert.equal(await page.locator('#smartPdfExtractText').isEditable(), true,
     'OCR output must be editable for human correction before export or AI analysis');
+  await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
+  await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
+    document.querySelector('#smartAiExcelStatus')?.textContent || ''
+  ));
+  const repeatedOcrText = await page.locator('#smartPdfExtractText').inputValue();
+  assert.equal((repeatedOcrText.match(/الصفحة 1 \(OCR\)/g)||[]).length,1,
+    're-running OCR must replace the previous OCR segment instead of duplicating it');
 
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
