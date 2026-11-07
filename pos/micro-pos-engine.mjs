@@ -28,7 +28,7 @@ export function filterPosProducts(products, options = {}) {
   const stockFor = typeof options.stockFor === 'function'
     ? options.stockFor : product => product?.stock ?? product?.quantity ?? 0;
   const favoriteFor = typeof options.favoriteFor === 'function'
-    ? options.favoriteFor : product => product?.favorite === true || product?.isFavorite === true;
+    ? options.favoriteFor : product => product?.favorite === true || product?.isFavorite === true || product?.featured === true || product?.is_featured === true;
   return products.filter(product => {
     if (!product || typeof product !== 'object') return false;
     if (category !== 'الكل' && String(product.cat ?? product.category ?? 'عام') !== String(category)) return false;
@@ -36,7 +36,7 @@ export function filterPosProducts(products, options = {}) {
     const stock = Number(rawStock);
     if (!Number.isFinite(stock)) return false;
     const minimum = Number(product.minAlert ?? product.min_limit ?? 5);
-    const threshold = Number.isFinite(minimum) && minimum >= 0 ? minimum : 5;
+    const threshold = Number.isFinite(minimum) && minimum > 0 ? minimum : 5;
     if (stockFilter === 'favorite' && !favoriteFor(product)) return false;
     if (stockFilter === 'available' && stock <= 0) return false;
     if (stockFilter === 'low' && !(stock > 0 && stock <= threshold)) return false;
