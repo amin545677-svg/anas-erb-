@@ -11327,7 +11327,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           try{unsubscribe=auth.onAuthStateChanged(u=>finish(resolve,u||null),e=>finish(reject,new Error('تعذر استعادة جلسة Firebase: '+(e.code||e.message||e))));}
           catch(e){finish(reject,new Error('تعذر قراءة حالة Firebase Auth: '+(e.code||e.message||e)));}
         });
-        if(!resolvedUser) throw new Error('Firebase يؤكد عدم وجود جلسة دخول نشطة. سجّل الدخول ثم أعد المحاولة.');
+        if(!resolvedUser) throw new Error('الجلسة السحابية غير مفعّلة على هذا الجهاز؛ استخدم الأدوات المحلية أو سجّل الدخول عند الحاجة إلى خدمة سحابية.');
         if(typeof resolvedUser.getIdToken!=='function') throw new Error('جلسة Firebase غير صالحة للحصول على رمز المصادقة.');
         try{
           const token=await resolvedUser.getIdToken();
