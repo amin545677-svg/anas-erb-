@@ -3686,7 +3686,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 otherUnits += rowUnits;
             }
             const aggregateUnits = otherUnits + candidateQtyUnits;
-            if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > availableUnits) {
+            if (!Number.isSafeInteger(aggregateUnits) ||
+                (aggregateUnits > availableUnits && !AppData.allowNegativeStock)) {
                 alert('إجمالي كمية هذا الصنف في الفاتورة يتجاوز رصيد مخزن البيع «' + warehouse + '». المتوفر: ' + anasQtyFromUnits(availableUnits));
                 return false;
             }
