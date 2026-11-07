@@ -10677,7 +10677,7 @@ function wtAuditTransfers(){
                         if(target==='products' && seenNames.has(keyName) && !id && !val(r,'barcode')) throw new Error('اسم منتج مكرر دون كود أو باركود فريد');
                         const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);
                         if(!id && target==='products' && existingCodes.has(norm(recordId))) throw new Error('معرّف الصنف المولد موجود مسبقاً؛ أوقف الاستيراد لحماية السجلات.');
-                        if(seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل مكرر داخل الملف');
+                        if((target!=='products' && existingCodes.has(norm(recordId))) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل موجود مسبقاً أو مكرر داخل الملف؛ أوقف الاستيراد لحماية السجلات.');
                         const rec={};
                         if(target==='products'){
                             const buy=num(val(r,'buy'),'سعر الشراء',rowNo), price1=num(val(r,'price1'),'سعر البيع',rowNo), stock=num(val(r,'stock'),'المخزون',rowNo), pack=num(val(r,'pack')||'1','العبوة',rowNo);
