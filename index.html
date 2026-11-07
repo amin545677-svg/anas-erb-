@@ -2612,7 +2612,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
         <div class="picker-dialog-scroll">
             <h3 style="font-size:1.15rem; margin-bottom:12px; text-align:center; color:var(--mp-navy); font-weight:900;">🧾 إتمام البيع</h3>
             <div style="background:#f1f5f9; padding:12px; border-radius:8px; margin-bottom:12px; text-align:center;">
-                <span style="font-size:0.85rem; color:var(--mp-text-muted); font-weight:700;">المجموع الصافي المطلوب:</span>
+                <span style="font-size:0.85rem; color:var(--mp-text-muted); font-weight:700;">إجمالي الفاتورة:</span>
                 <div style="font-size:1.7rem; font-weight:900; color:var(--mp-green);" id="hasibTotalText">0.00 د.ج</div>
             </div>
             <div id="hasibCartEditor" style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;margin:0 0 14px;background:#fff;">
@@ -2651,13 +2651,13 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
             <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
                 <button id="hasibConfirmSaleBtn" class="btn-full-submit" style="background:var(--mp-green); margin:0;" onclick="confirmHasibPaymentDurable()">
-                    ✅ تأكيد وحفظ الفاتورة فقط
+                    ✅ تأكيد البيع وحفظ الفاتورة
                 </button>
                 <button class="btn-full-submit" style="background:#0369a1; margin:0;" onclick="printLastConfirmedInvoice('thermal')">
-                    🖨️ طباعة الوصل الحراري (58mm)
+                    🖨️ طباعة آخر فاتورة محفوظة (58mm)
                 </button>
                 <button class="btn-full-submit" style="background:var(--mp-navy); margin:0;" onclick="printLastConfirmedInvoice('legalA4')">
-                    📑 طباعة الفاتورة الرسمية (A4)
+                    📑 طباعة آخر فاتورة محفوظة (A4)
                 </button>
                 <button class="btn-full-submit" style="display:none!important" onclick="closeModal('hasibModal')">إلغاء</button>
             </div>
