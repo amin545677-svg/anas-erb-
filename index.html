@@ -1742,6 +1742,7 @@ input:focus, select:focus, textarea:focus {
                 <button type="button" class="pill-select-btn" data-stock-filter="out" onclick="filterPosProductsByStock('out',this)">🔴 نافد</button>
             </div>
             <!-- شبكة أزرار السلع السريعة المباشرة -->
+            <div id="posQuickProductsProgress" style="font-size:11px;color:var(--mp-text-muted);padding:2px 8px;" aria-live="polite">0</div>
             <div class="quick-products-grid" id="quickProductsContainer"></div>
 
             <!-- جدول بنود الفاتورة الأصلي -->
@@ -2065,10 +2066,19 @@ input:focus, select:focus, textarea:focus {
                 </div>
                 <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(112px,.7fr);gap:8px;margin:8px 0;">
                   <input id="inventoryUnifiedSearch" class="field-input" type="search" placeholder="بحث بالاسم أو الباركود..." oninput="renderInventoryList()" aria-label="بحث المخزون">
-                  <select id="inventoryUnifiedStatus" class="field-input" onchange="renderInventoryList()" aria-label="فلتر حالة المخزون"><option value="ALL">كل الحالات</option><option value="featured">⭐ مميز</option><option value="available">متوفر</option><option value="low">منخفض</option><option value="out">نافد</option></select>
+                  <select id="inventoryUnifiedCategory" class="field-input" onchange="renderInventoryList()" aria-label="فلتر الفئة"><option value="ALL">كل الفئات</option></select>
+                  <select id="inventoryUnifiedStatus" class="field-input" onchange="filterInventoryStatus(this.value)" aria-label="فلتر حالة المخزون"><option value="ALL">كل الحالات</option><option value="featured">⭐ مميز</option><option value="available">متوفر</option><option value="low">منخفض</option><option value="out">نافد</option></select>
+                </div>
+                <div id="inventoryStatusChips" class="pills-group-row" role="group" aria-label="فلاتر حالة المخزون">
+                  <button type="button" class="pill-select-btn active" data-inventory-status="ALL" aria-pressed="true" onclick="filterInventoryStatus('ALL',this)">الكل</button>
+                  <button type="button" class="pill-select-btn" data-inventory-status="featured" aria-pressed="false" onclick="filterInventoryStatus('featured',this)">⭐ المميزة</button>
+                  <button type="button" class="pill-select-btn" data-inventory-status="available" aria-pressed="false" onclick="filterInventoryStatus('available',this)">🟢 متوفر</button>
+                  <button type="button" class="pill-select-btn" data-inventory-status="low" aria-pressed="false" onclick="filterInventoryStatus('low',this)">🟠 منخفض</button>
+                  <button type="button" class="pill-select-btn" data-inventory-status="out" aria-pressed="false" onclick="filterInventoryStatus('out',this)">🔴 نافد</button>
                 </div>
                 <div id="inventoryUnifiedCount" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;" aria-live="polite"></div>
-                <div id="inventoryItemsContainer" class="action-menu-list"></div>
+                <div id="inventoryProgressiveBadge" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;" aria-live="polite">0</div>
+                <div id="inventoryItemsContainer" class="action-menu-list" style="max-height:62vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
             </div>
             <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <button class="btn-pos-hasib" style="background:#0f766e;border-color:#0f766e;padding:12px;" onclick="openView('warehouse-transfer')">🔁 التحويل بين المخازن</button>
@@ -3067,7 +3077,6 @@ input:focus, select:focus, textarea:focus {
         function renderQuickProducts() {
             const cont = document.getElementById('quickProductsContainer');
             if (!cont) return;
-            cont.replaceChildren();
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const core = window.ANASMicroPOSCore;
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
@@ -3082,11 +3091,9 @@ input:focus, select:focus, textarea:focus {
                     status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter
                 })
                 : withSaleStock;
-            filtered.forEach(p => {
+            const renderCard = p => {
                 const pr = AppData.activePriceTier === 2 ? (p.price2 ?? p.price1) : (AppData.activePriceTier === 3 ? (p.price3 ?? p.price1) : p.price1);
-                const stock = Number(typeof wtAvailableStock === 'function'
-                    ? wtAvailableStock(p, typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي')
-                    : (p.stock ?? p.quantity ?? 0));
+                const stock = Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0));
                 const isOut = stock <= 0;
                 const isLow = !isOut && stock <= (Number(p.minAlert ?? p.min_limit) || 5);
                 const btn = document.createElement('button');
@@ -3101,8 +3108,22 @@ input:focus, select:focus, textarea:focus {
                 btn.append(name, detail);
                 btn.title = String(p.name ?? '') + ' - ' + String(Number(pr) || 0) + ' د.ج';
                 btn.addEventListener('click', () => openPosPriceTierPicker(p.id));
-                cont.appendChild(btn);
-            });
+                return btn;
+            };
+            const deep = window.ANASMicroPOSDeepCore;
+            if (deep?.ProgressiveListRenderer) {
+                if (!window.__anasPosProgressiveRenderer || window.__anasPosProgressiveRenderer.containerEl !== cont) {
+                    window.__anasPosProgressiveRenderer?.destroy?.();
+                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(
+                        cont, document.getElementById('posQuickProductsProgress'), 20
+                    );
+                }
+                window.__anasPosProgressiveRenderer.setItems(filtered, renderCard);
+            } else {
+                cont.replaceChildren(...filtered.slice(0, 20).map(renderCard));
+                const progress = document.getElementById('posQuickProductsProgress');
+                if (progress) progress.textContent = filtered.length > 20 ? '+20' : String(filtered.length);
+            }
             const empty = document.getElementById('posQuickProductsEmpty');
             if (empty) empty.hidden = filtered.length > 0;
         }
@@ -7745,10 +7766,21 @@ function wtAuditTransfers(){
             }catch(e){box.textContent='تعذر إكمال التدقيق: '+(e.message||e);}
         }
 
+        function filterInventoryStatus(status, btn) {
+            const select = document.getElementById('inventoryUnifiedStatus');
+            if (select) select.value = status;
+            const group = document.getElementById('inventoryStatusChips');
+            if (group) group.querySelectorAll('[data-inventory-status]').forEach(button => {
+                const active = button.dataset.inventoryStatus === status;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            renderInventoryList();
+        }
+
         function renderInventoryList() {
             const cont = document.getElementById('inventoryItemsContainer');
             if (!cont) return;
-            cont.replaceChildren();
             const esc = value => typeof anasEscapeHTML === 'function'
                 ? anasEscapeHTML(String(value ?? ''))
                 : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -7758,24 +7790,30 @@ function wtAuditTransfers(){
             };
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const core = window.ANASMicroPOSCore;
-            const search = document.getElementById("inventoryUnifiedSearch")?.value || "";
-            const status = document.getElementById("inventoryUnifiedStatus")?.value || "ALL";
-            const visibleProducts = core ? core.filterInventoryItems(products, { query: search, status }) : products;
-            const count = document.getElementById("inventoryUnifiedCount");
-            if (count) count.textContent = "المعروض: " + visibleProducts.length + " من " + products.length + " منتج";
+            const search = document.getElementById('inventoryUnifiedSearch')?.value || '';
+            const status = document.getElementById('inventoryUnifiedStatus')?.value || 'ALL';
+            const categorySelect = document.getElementById('inventoryUnifiedCategory');
+            const selectedCategory = categorySelect?.value || 'ALL';
+            if (categorySelect) {
+                const categories = [...new Set(products.map(p => String(p.category ?? p.cat ?? 'عام').trim()).filter(Boolean))].sort();
+                categorySelect.replaceChildren(new Option('كل الفئات', 'ALL'));
+                categories.forEach(value => categorySelect.add(new Option(value, value)));
+                categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : 'ALL';
+            }
+            const visibleProducts = core ? core.filterInventoryItems(products, { query: search, status, category: selectedCategory }) : products;
+            const count = document.getElementById('inventoryUnifiedCount');
+            if (count) count.textContent = 'النتائج: ' + visibleProducts.length + ' من ' + products.length + ' منتج';
             const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
-            visibleProducts.forEach(p => {
+            const renderCard = p => {
                 const id = String(p.id ?? '');
                 const image = safeImage(p.image);
                 const imgThumb = image
                     ? `<img src="${esc(image)}" alt="" loading="lazy" style="width:44px;height:44px;border-radius:8px;object-fit:cover;margin-left:10px;">`
                     : `<div aria-hidden="true" style="width:44px;height:44px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-left:10px;">🍵</div>`;
-                const stock = Number(p.stock) || 0;
-                const minAlert = Number(p.minAlert) || 5;
+                const stock = Number(p.stock ?? p.quantity) || 0;
+                const minAlert = Number(p.minAlert ?? p.min_limit) || 5;
                 const isLow = stock <= minAlert;
                 const supplier = suppliers.find(s => String(s.id) === String(p.supplierId));
-                const editArg = esc(JSON.stringify(id));
-                const deleteArg = esc(JSON.stringify(id));
                 const card = document.createElement('div');
                 card.className = 'menu-action-card';
                 card.style.marginBottom = '8px';
@@ -7785,7 +7823,7 @@ function wtAuditTransfers(){
                         <div>
                             <strong>${esc(p.name)}</strong>
                             <small style="color:var(--mp-navy);font-weight:800;">(${esc(p.unit || 'قطعة')})</small><br>
-                            <small style="color:#64748b;">باركود: ${esc(p.barcode)} | شراء: ${esc(p.buyPrice)} د.ج | جملة: ${esc(p.price1)} د.ج | المورد: <strong>${esc(supplier?.name || 'غير محدد')}</strong></small><br>
+                            <small style="color:#64748b;">باركود: ${esc(p.barcode)} | شراء: ${esc(p.buyPrice ?? p.cost_price)} د.ج | جملة: ${esc(p.price1 ?? p.price_retail)} د.ج | المورد: <strong>${esc(supplier?.name || 'غير محدد')}</strong></small><br>
                             <span style="font-size:0.78rem;font-weight:800;color:${isLow ? '#ef4444' : '#15803d'};">
                                 المتوفر بالمخزن: ${esc(stock)} ${esc(p.unit || '')} ${isLow ? '⚠️ (اقترب من النفاد)' : ''}
                             </span>
@@ -7797,8 +7835,22 @@ function wtAuditTransfers(){
                     </div>`;
                 card.querySelector('[data-action="edit"]').addEventListener('click', () => editProductModal(id));
                 card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteProduct(id));
-                cont.appendChild(card);
-            });
+                return card;
+            };
+            const deep = window.ANASMicroPOSDeepCore;
+            if (deep?.ProgressiveListRenderer) {
+                if (!window.__anasInventoryProgressiveRenderer || window.__anasInventoryProgressiveRenderer.containerEl !== cont) {
+                    window.__anasInventoryProgressiveRenderer?.destroy?.();
+                    window.__anasInventoryProgressiveRenderer = new deep.ProgressiveListRenderer(
+                        cont, document.getElementById('inventoryProgressiveBadge'), 20
+                    );
+                }
+                window.__anasInventoryProgressiveRenderer.setItems(visibleProducts, renderCard);
+            } else {
+                cont.replaceChildren(...visibleProducts.slice(0, 20).map(renderCard));
+                const badge = document.getElementById('inventoryProgressiveBadge');
+                if (badge) badge.textContent = visibleProducts.length > 20 ? '+20' : String(visibleProducts.length);
+            }
         }
         function editProductModal(pId) {
             const p = AppData.products.find(x => x.id === pId);
