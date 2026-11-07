@@ -1,7 +1,7 @@
 # ANAS ERP — Staging Release Acceptance Plan
 Date: 2026-11-07
 Candidate branch: `staging/unified-release-candidate`
-Current reviewed candidate: `5fcd6114b56ab0ea6b4d762354ca2f522eed9eaa`
+Current reviewed candidate: `80ac6412815777faa6ac98802b699cd5064db43d`
 Release PR: #263 (Draft; must remain unmerged during Staging acceptance)
 
 ## Release safety invariants
@@ -14,13 +14,17 @@ Release PR: #263 (Draft; must remain unmerged during Staging acceptance)
 
 ## Verified repository facts from the 2026-11-07 review
 
-- PR #263 is OPEN, Draft, unmerged, and mergeable; its head was `5fcd6114b56ab0ea6b4d762354ca2f522eed9eaa` at review time.
+- PR #263 is OPEN, Draft, unmerged, and mergeable; its current head is `80ac6412815777faa6ac98802b699cd5064db43d` and base is `cea809ac8bb25ac0016287c725611d0b5842c594`.
 - Production `main/index.html` still has blob SHA `526cd060b331cdd9cb2415033673f1943ce60a09`.
-- Staging Test Gate run `42315329893` completed successfully. Its `financial-regression` job completed all listed steps successfully, including Firestore Emulator, Chromium, Android-resilient storage browser acceptance, backup/restore, and full HTML/inline-JavaScript validation.
-- Functions PR validation run `42315329841` succeeded, but job `deploy-reverse-ledger-staging` was SKIPPED.
-- Hosting PR validation run `42315329801` succeeded, but job `deploy-staging-console` was SKIPPED.
-- The Functions workflow currently contains `if: ${{ false }}` on its deployment job, with a comment that deployment is frozen pending the isolated Staging IAM ActAs prerequisite. This is a hard deployment blocker, not a test failure.
-- The current staging Functions and Hosting workflows include credential preflight, staging identity checks, and project-specific deployment commands. These must remain fail-closed while IAM is resolved.
+- Staging Test Gate run `42316659441` completed successfully on the current head. The `financial-regression` job passed P0 binary source hygiene, syntax checks, V42 integrity, financial/RBAC/idempotency audits, Firestore Emulator concurrency/security-rules tests, two-device HTTP 409 CAS acceptance, Android WebView resilient-storage Chromium acceptance, and backup/restore browser tests.
+- HTML Regression run `42316659450` completed successfully on the same head.
+- Hosting deployment run `42316652577` (push event, exact head `80ac641...`) completed successfully. It authenticated as `anas-staging-deployer@anas-erp-staging-a25e1.iam.gserviceaccount.com`, verified the isolated project identity, built the full ERP/POS PWA and reverse-ledger console, uploaded 34 files, finalized and released the Hosting version, and reported `Deploy complete!`.
+- The same Hosting job verified live HTTP responses for `/config.js` (Staging project ID and staging-only allowed origin) and `/erp/` (Staging project config), then reported that the ERP/POS PWA, offline storage assets, console, and staging-only Firebase configuration were live. Hosting URL: `https://anas-erp-staging-a25e1.web.app`; ERP URL: `https://anas-erp-staging-a25e1.web.app/erp/`.
+- Hosting PR validation run `42316659425` skipped its deployment job as expected for a pull request; the separate trusted push run above is the actual deployment evidence.
+- Functions PR validation run `42316659520` succeeded, but its deployment job was SKIPPED. Functions push run `42316652849` was also SKIPPED.
+- The Functions workflow still contains `if: ${{ false }}` on its deployment job, with a comment that deployment is frozen pending the isolated Staging IAM ActAs prerequisite. This is a hard Functions deployment blocker, not a test failure.
+- Staging readiness preflight reported 29/29 checks passed. This validates source/config readiness only; it does not deploy Functions.
+- The staging Functions and Hosting workflows include credential preflight, staging identity checks, and project-specific deployment commands. Keep them fail-closed.
 - `sync/mutation_reconciliation.mjs` explicitly describes the reconciliation prototype as not wired into production `index.html`. The queue orchestrator is also documented as isolated from V42. Do not describe the prototype as production synchronization.
 - The live E2E verifier requires a pre-seeded staging fixture and checks partial sale return, purchase return, cancellation, settlement allocation, idempotent replay, and exact financial assertions. Its backup/restore proof currently compares a snapshot hash before and after restoring the same state; this is useful integrity evidence but does not prove recovery of a prior state after subsequent mutations.
 
@@ -30,8 +34,10 @@ Release PR: #263 (Draft; must remain unmerged during Staging acceptance)
 - Resolve the dedicated Staging service account IAM prerequisites, including the precise `iam.serviceAccounts.actAs` permission required by the selected deployment identity.
 - Keep production credentials and production project identifiers out of the Staging environment.
 - Remove the Functions deployment freeze only in a reviewed change after IAM is independently verified.
-- Run trusted push deployment workflows on the exact candidate SHA; capture completed deploy jobs and live verification output for both Functions and Hosting.
-- Verify the deployed Firebase project ID and Hosting origin from live endpoints. A PR validation pass is not deployment evidence.
+- Hosting is deployed and live-verified for candidate `80ac641...` as recorded above; preserve that exact SHA-to-deployment evidence.
+- Resolve and independently verify the dedicated Staging Functions service-account IAM prerequisites, including the precise `iam.serviceAccounts.actAs` permission required by the selected deployment identity.
+- Remove the Functions deployment freeze only in a reviewed change after IAM is independently verified; then run the trusted Functions push deployment on the exact reviewed candidate SHA.
+- Capture completed Functions deploy jobs and live callable/rules verification. A successful PR validation or 29/29 source readiness check is not deployment evidence.
 
 ### B. Live financial acceptance
 - Use dedicated, pre-seeded Staging users, grants, open financial periods, and known invoices; never create or alter production financial data.
@@ -74,6 +80,6 @@ Release PR: #263 (Draft; must remain unmerged during Staging acceptance)
 
 Current decision: **NOT READY FOR COMMERCIAL RELEASE**.
 
-Reason: CI evidence is strong, but Functions deployment is explicitly frozen; Hosting/Functions live deployment is not proven by the PR runs; physical Android acceptance remains outstanding; and the sync prototype is not integrated into V42. The backup test must be extended to a genuine prior-state restore scenario.
+Reason: Hosting is now deployed and live-verified on candidate `80ac641...`, and CI evidence is strong. However, Functions deployment remains explicitly frozen and no live callable deployment is proven; physical Android acceptance remains outstanding; the sync prototype is not integrated into V42; and backup/restore still needs a genuine prior-state restore after subsequent mutations.
 
 Do not merge PR #263 or modify production `main` until all mandatory gates have evidence attached to this PR and the production shell has passed a documented behavioral-equivalence review.
