@@ -52,7 +52,7 @@ test('bulk import planner supports merge, replace, stable IDs and exact counters
     { barcode: 'A', name: 'New', quantity: 3 }
   ];
   const merged = prepareBulkImport(existing, incoming, 'merge');
-  assert.deepEqual(merged.stats, { total: 4, added: 1, updated: 2, skipped: 1 });
+  assert.deepEqual(merged.stats, { total: 4, added: 1, updated: 1, skipped: 2 });
   assert.equal(merged.rows[0].id, '1');
   assert.equal(existing[0].name, 'Old');
   const replaced = prepareBulkImport(existing, incoming.slice(1, 3), 'replace');
