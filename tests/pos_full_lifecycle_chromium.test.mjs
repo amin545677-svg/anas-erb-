@@ -159,29 +159,33 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
       'adding a valid product from the picker must restore checkout');
-    const quantityEditor = page.locator('#hasibCartItems input[aria-label^="كمية"]');
-    await quantityEditor.fill('1.5');
-    assert.equal(await page.locator('#hasibTotalText').textContent(), '37.50 د.ج',
-      'decimal quantity editing must refresh the invoice total');
+    const commitNumberEditor = async (selector, value) => {
+      const editor = page.locator(selector);
+      await editor.fill(value);
+      await editor.press('Tab'); // commit the native change event used by the editor
+    };
+    const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
+    const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
+    await commitNumberEditor(quantitySelector, '1.5');
+    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '37.50 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5);
-    await page.locator('#hasibCartItems input[aria-label^="كمية"]').fill('0');
+    await commitNumberEditor(quantitySelector, '0');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'zero quantity must be rejected and the previous quantity restored');
-    await page.locator('#hasibCartItems input[aria-label^="كمية"]').fill('11');
+    await commitNumberEditor(quantitySelector, '11');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'quantity above available stock must be rejected');
-    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('30.00');
-    assert.equal(await page.locator('#hasibTotalText').textContent(), '30.00 د.ج',
-      'direct unit price editing must refresh invoice total');
+    await commitNumberEditor(priceSelector, '30.00');
+    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '30.00 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].price), 30);
-    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('-1');
+    await commitNumberEditor(priceSelector, '-1');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'negative unit price must be rejected and restored');
-    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('30.005');
+    await commitNumberEditor(priceSelector, '30.005');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'prices with more than two decimal places must be rejected, not silently rounded');
-    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('25.00');
-    assert.equal(await page.locator('#hasibTotalText').textContent(), '25.00 د.ج');
+    await commitNumberEditor(priceSelector, '25.00');
+    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '25.00 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
