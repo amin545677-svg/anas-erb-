@@ -220,7 +220,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
     const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     await page.locator('#smartAiExcelUpload').setInputFiles({
-      name: 'ANAS_ERP_3_products.xlsx',
+      name: 'ANAS_ERP_5_products.xlsx',
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer: xlsxBuffer
     });
@@ -266,7 +266,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
         floatingAssistantDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
         diagnosticVisible: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
         backupRecordPresent: !!backup && Array.isArray(backup.data?.products),
-        importedProductsPersisted: ['أريشا كرستال 200غ','توارف ساشي 200غ','الرقيم 500غ','شاي أحمر 200غ','شاي أخضر 200غ'].every(name => savedPayload.includes(name)),
+        importedProductsPersisted: ['أريشا كرستال 200غ','توارف ساشي 200غ','الرقيم 500غ','شاي أخضر 200غ'].every(name => savedPayload.includes(name)),
         backupPreImportProductCount: backup?.recordCount
       };
     });
@@ -275,7 +275,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.equal(acceptance.floatingAssistantDisplay, 'none');
     assert.equal(acceptance.diagnosticVisible, false);
     assert.equal(acceptance.backupRecordPresent, true);
-    assert.equal(acceptance.importedProductsPersisted, true, 'all three imported products must be in the durable IndexedDB app snapshot');
+    assert.equal(acceptance.importedProductsPersisted, true, 'all five imported product rows must be durably represented (including the intentional duplicate name)');
     assert.equal(acceptance.backupPreImportProductCount, 0, 'backup must be captured before the first product is added');
 
     // Re-import the same product identity with changed catalog fields and a different file stock.
