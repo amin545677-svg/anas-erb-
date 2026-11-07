@@ -133,6 +133,6 @@ test('customer directory renders initials and phone-gated Algerian call and What
   assert.match(html, /const customerTelUrl = customer =>/);
   assert.match(html, /c\.phone && customerWhatsAppUrl\(c\)/,
     'WhatsApp statement action must not render without a phone number');
-  assert.match(html, /href="\\$\{safe\(customerTelUrl\(c\)\)\}"/,
+  assert.match(html, /href="\$\{safe\(customerTelUrl\(c\)\)\}"/,
     'call action must use normalized Algerian phone data');
 });
