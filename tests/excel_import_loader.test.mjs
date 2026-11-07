@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 test('Excel import loads SheetJS locally first and falls back to the pinned official build', async () => {
   const html = await readFile('index.html', 'utf8');
+  assert.ok(html.includes('onerror="this.onerror=null;this.src=\'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js\';"'),
+    'workbook export controls must also have a startup fallback when the local script is absent');
   const start = html.indexOf('async function anasLoadSheetJs()');
   const end = html.indexOf('async function handleSmartAiUpload(e)', start);
   assert.ok(start >= 0 && end > start, 'SheetJS loader must exist before the upload handler');
