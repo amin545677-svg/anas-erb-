@@ -10532,42 +10532,55 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 (function anasSilentDiagnostics(){
   if (window.__anasSilentDiagnosticsReady) return;
   window.__anasSilentDiagnosticsReady = true;
+  // Clear historical V23/V24 error records once at startup; diagnostics remain console-only.
   try {
     localStorage.removeItem('ANAS_ERP_DIAGNOSTICS_V1');
     localStorage.removeItem('ANAS_ERP_DIAGNOSTICS_BUILD');
     localStorage.removeItem('ANAS_ERP_DIAGNOSTICS_ARCHIVE_V1');
   } catch (_) {}
   window.__anasLastDiagnostic = null;
-  window.anasNotify = function(message) {
-    console.warn('ANAS ERP notice (silent):', String(message || ''));
-  };
+
+  function recordDiagnostic(kind, message, source, line) {
+    console.warn('ANAS ERP diagnostic (console only):', {kind:String(kind||'error'),message:String(message||''),source:String(source||''),line:Number(line)||0});
+  }
+  function showDiagnostics() {
+    // Deliberately disabled: never open a blocking diagnostics panel over business work.
+    return false;
+  }
+  function notify(message, isError) {
+    // Preserve the legacy API for callers, but never render a red bar or popup.
+    console.warn('ANAS ERP notice (silent):', String(message || ''), !!isError);
+    return false;
+  }
+  function anasModernInteractions() {
+    if (window.__anasModernInteractionsReady) return;
+    window.__anasModernInteractionsReady = true;
+    document.addEventListener('keydown', function(event) {
+      if ((event.key === 'Enter' || event.key === ' ') && event.target &&
+          event.target.matches('[role="button"]:not(button)')) {
+        event.preventDefault();
+        event.target.click();
+      }
+    });
+    document.addEventListener('click', function(event) {
+      const target = event.target && event.target.closest ? event.target.closest('button,[role="button"]') : null;
+      if (!target || target.disabled) return;
+      target.classList.add('anas-just-clicked');
+      setTimeout(() => target.classList.remove('anas-just-clicked'), 180);
+    }, true);
+  }
+  window.anasNotify = notify;
   window.addEventListener('error', function(event) {
     if (event && event.target && event.target.tagName === 'SCRIPT') {
-      console.warn('ANAS ERP script load failure:', event.target.src || '(unknown script)');
+      console.warn('ANAS ERP script load failure (console only):', event.target.src || '(unknown script)');
       return;
     }
-    if (event && event.message) console.warn('ANAS ERP JavaScript error:', {
-      message: event.message, source: event.filename || '',
-      line: event.lineno || 0, column: event.colno || 0
-    });
+    if (event && event.message) recordDiagnostic('JavaScript', event.message, event.filename, event.lineno);
   }, true);
   window.addEventListener('unhandledrejection', function(event) {
-    console.warn('ANAS ERP unhandled promise rejection:', event && event.reason);
+    recordDiagnostic('Async rejection', event && event.reason, '', 0);
   });
-  // Preserve keyboard activation and subtle click feedback without creating any UI.
-  document.addEventListener('keydown', function(event) {
-    if ((event.key === 'Enter' || event.key === ' ') && event.target &&
-        event.target.matches('[role="button"]:not(button)')) {
-      event.preventDefault();
-      event.target.click();
-    }
-  });
-  document.addEventListener('click', function(event) {
-    const target = event.target && event.target.closest ? event.target.closest('button,[role="button"]') : null;
-    if (!target || target.disabled) return;
-    target.classList.add('anas-just-clicked');
-    setTimeout(() => target.classList.remove('anas-just-clicked'), 180);
-  }, true);
+  anasModernInteractions();
 })();
 
 </script>
