@@ -24,11 +24,11 @@ test('local product import auto-detects headers and persists a verified IndexedD
     'the backup must be read back and verified before import');
   assert.ok(preview.includes("const byId=next.filter") && preview.includes("const byBarcode=") && preview.includes("const byName="),
     'product upsert must match by code, barcode, and normalized name');
-  assert.ok(preview.includes("const liveStock=existingProduct.stock") &&
-    preview.includes("existingProduct.stock=liveStock"),
-    'catalog upsert must preserve an existing live stock balance');
+  assert.ok(preview.includes("Object.assign(existingProduct,item,{id:existingProduct.id})") &&
+    !preview.includes("const liveStock=existingProduct.stock"),
+    'catalog upsert must apply imported stock values instead of retaining stale stock');
   assert.ok(!preview.includes('anasGetFirebaseIdToken') && !preview.includes('fetch(url'),
     'local header analysis must not require Firebase login or cloud AI');
-  assert.ok(preview.includes("if(saved!==true) throw new Error('فشل حفظ قاعدة البيانات')"),
-    'the import must fail closed if the durable application save fails');
+  assert.ok(preview.includes("await saveDBDurably();"),
+    'the import must wait for the durable IndexedDB application save acknowledgement');
 });
