@@ -909,7 +909,7 @@ test('cross-tab IndexedDB compare-and-set rejects a stale full-snapshot write an
   assert.equal(recovered.ready, true);
 
   // The losing tab remains write-locked until it explicitly reloads the winner.
-  const loser = attempts[0].status === 'rejected' ? secondPage : firstPage;
+  const loser = attempts[0].status === 'rejected' ? firstPage : secondPage;
   const blocked = await loser.evaluate(async () => {
     try {
       await window.ANASResilientStorage.setItem(
