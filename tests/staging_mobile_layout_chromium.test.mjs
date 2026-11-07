@@ -37,23 +37,33 @@ function startServer() {
 test('ANAS ERP mobile UI hides the floating assistant and suppresses external-script overlays', async () => {
   const server = await startServer();
   let browser;
+  const startupDialogs = [];
   try {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
+    page.on('dialog', async dialog => {
+      startupDialogs.push({ type: dialog.type(), message: dialog.message() });
+      await dialog.dismiss();
+    });
     await page.route('https://**/*', route => route.abort());
     await page.goto('http://127.0.0.1:' + PORT, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.body && !document.body.inert, { timeout: 15000 });
     const startup = await page.evaluate(() => ({
       fabDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
       fabVisibility: getComputedStyle(document.getElementById('anasContextAiFab')).visibility,
+      fabPointerEvents: getComputedStyle(document.getElementById('anasContextAiFab')).pointerEvents,
       diagnosticText: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
       storedDiagnostics: localStorage.getItem('ANAS_ERP_DIAGNOSTICS_V1'),
+      storedDiagnosticBuild: localStorage.getItem('ANAS_ERP_DIAGNOSTICS_BUILD'),
       externalToastVisible: !!document.querySelector('#anasActionToast.show')
     }));
     assert.equal(startup.fabDisplay, 'none');
     assert.equal(startup.fabVisibility, 'visible');
+    assert.equal(startup.fabPointerEvents, 'none');
     assert.equal(startup.diagnosticText, false);
-    assert.equal(startup.storedDiagnostics, '[]');
+    assert.equal(startup.storedDiagnostics, null);
+    assert.equal(startup.storedDiagnosticBuild, null);
+    assert.deepEqual(startupDialogs, [], 'no native alert/confirm/prompt may appear during startup');
     await page.evaluate(() => {
       const script = document.createElement('script');
       script.src = 'https://invalid.example.test/anas-external-failure.js';
@@ -74,6 +84,48 @@ test('ANAS ERP mobile UI hides the floating assistant and suppresses external-sc
   }
 });
 
+
+
+test('ANAS ERP ignores late customer GPS callbacks after saving or closing the form', async () => {
+  const server = await startServer();
+  let browser;
+  const dialogs = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    page.on('dialog', async dialog => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+    await page.route('https://**/*', route => route.abort());
+    await page.goto('http://127.0.0.1:' + PORT, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof window.openAddCustomerModal === 'function' &&
+      typeof window.detectCustomerGPS === 'function' && typeof window.closeModal === 'function');
+    await page.evaluate(() => {
+      let lateError;
+      Object.defineProperty(navigator, 'geolocation', {
+        configurable: true,
+        value: { getCurrentPosition(_success, error) { lateError = error; } }
+      });
+      window.__triggerLateGpsError = () => lateError && lateError({ code: 3 });
+      window.openAddCustomerModal();
+      window.detectCustomerGPS();
+      window.closeModal('addCustomerModal');
+      window.__triggerLateGpsError();
+    });
+    await page.waitForTimeout(50);
+    assert.deepEqual(dialogs, [], 'a cancelled GPS request must not alert after the customer form closes');
+    const requestState = await page.evaluate(() => ({
+      pending: window.activeCustomerGpsRequest || null,
+      modalOpen: document.getElementById('addCustomerModal').classList.contains('active')
+    }));
+    assert.equal(requestState.pending, null);
+    assert.equal(requestState.modalOpen, false);
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
 
 test('ANAS AI data cards execute file-picker and data-protection actions on mobile', async () => {
   const server = await startServer();
