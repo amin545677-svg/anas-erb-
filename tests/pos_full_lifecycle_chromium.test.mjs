@@ -159,6 +159,14 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
       'adding a valid product from the picker must restore checkout');
+    const quantityEditor = page.locator('#hasibCartItems input[type="number"]');
+    await quantityEditor.fill('2');
+    assert.equal(await page.locator('#hasibTotalText').textContent(), '50.00 د.ج',
+      'direct quantity editing must refresh the invoice total');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2);
+    await page.locator('#hasibCartItems input[type="number"]').fill('1');
+    assert.equal(await page.locator('#hasibTotalText').textContent(), '25.00 د.ج');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1);
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
