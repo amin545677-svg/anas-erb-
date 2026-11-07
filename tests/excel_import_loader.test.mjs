@@ -24,3 +24,14 @@ test('Excel import and export use the vendored offline SheetJS build', async () 
   assert.ok(upload.includes('xlsxLib.read(buf,{type:\'array\',cellDates:false})'));
   assert.ok(upload.includes('xlsxLib.utils.sheet_to_json'));
 });
+
+
+test('smart import rejects duplicate customer/supplier IDs and reports complete row totals', async () => {
+  const html = await readFile('index.html', 'utf8');
+  assert.match(html, /if\(\(target!=='products' && existingCodes\.has\(norm\(recordId\)\)\) \|\| seenIds\.has\(norm\(recordId\)\)\)/,
+    'customer and supplier IDs already in local storage must not be silently duplicated');
+  assert.match(html, /const skipped=importDecisions\.filter\(decision=>decision==='ignore'\|\|decision==='delete'\)\.length;/,
+    'ignored and deleted preview rows must be counted as skipped');
+  assert.match(html, /إجمالي '\+staged\.length\+'.*أضيف '\+added\+'.*حُدث '\+updated\+'.*تم تخطي '\+skipped/,
+    'the import summary must report total, added, updated, and skipped counts');
+});
