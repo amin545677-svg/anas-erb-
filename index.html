@@ -11545,7 +11545,23 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           try{unsubscribe=auth.onAuthStateChanged(u=>finish(resolve,u||null),e=>finish(reject,new Error('تعذر استعادة جلسة Firebase: '+(e.code||e.message||e))));}
           catch(e){finish(reject,new Error('تعذر قراءة حالة Firebase Auth: '+(e.code||e.message||e)));}
         });
-        if(!resolvedUser) throw new Error('الجلسة السحابية غير مفعّلة على هذا الجهاز؛ استخدم الأدوات المحلية أو سجّل الدخول عند الحاجة إلى خدمة سحابية.');
+        // The ERP itself remains usable without an account. For cloud AI only,
+        // create a persisted Firebase anonymous identity instead of forcing an email login.
+        // The AI Worker still verifies the signed Firebase ID token and never accepts public unauthenticated calls.
+        if(!resolvedUser){
+          try{
+            if(typeof auth.signInAnonymously!=='function')
+              throw new Error('Firebase Anonymous Authentication is unavailable in this SDK.');
+            const credential=await auth.signInAnonymously();
+            resolvedUser=(credential&&credential.user)||auth.currentUser||null;
+          }catch(e){
+            const code=String(e&&e.code||'');
+            if(code==='auth/operation-not-allowed')
+              throw new Error('المصادقة المجهولة غير مفعّلة في مشروع Firebase. فعّل Anonymous من Authentication > Sign-in method ثم أعد المحاولة.');
+            throw new Error('تعذر إنشاء جلسة Firebase تلقائية: '+(code||e.message||e));
+          }
+        }
+        if(!resolvedUser) throw new Error('لم يتمكن Firebase من إنشاء جلسة مجهولة. تحقق من إعدادات Authentication والاتصال.');
         if(typeof resolvedUser.getIdToken!=='function') throw new Error('جلسة Firebase غير صالحة للحصول على رمز المصادقة.');
         try{
           const token=await resolvedUser.getIdToken();
