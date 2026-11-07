@@ -10777,7 +10777,7 @@ function wtAuditTransfers(){
                     if (status) status.textContent = '⏳ الاستيراد الذكي ' + quotaState.used + ' من ' + quotaState.limit + ' لهذا اليوم…';
                 }
                 if(isPdfUpload){
-                    if(!/\\.pdf$/i.test(String(file.name||''))&&!/application\\/(?:x-)?pdf/i.test(String(file.type||'')))
+                    if(!/\.pdf$/i.test(String(file.name||''))&&!/application\/(?:x-)?pdf/i.test(String(file.type||'')))
                         throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
                     if(file.size>10*1024*1024)throw new Error('يتجاوز ملف PDF الحد الأقصى المسموح به (10MB).');
                     window.anasCurrentPdfFile=file;
@@ -10887,18 +10887,18 @@ function wtAuditTransfers(){
                     if(pageText)recognized.push(pageText);
                     canvas.width=0;canvas.height=0;if(page.cleanup)page.cleanup();
                 }
-                return {text:recognized.join('\\n\\n'),pagesRecognized:recognized.length,pagesProcessed:maxPages};
+                return {text:recognized.join('\n\n'),pagesRecognized:recognized.length,pagesProcessed:maxPages};
             }finally{if(pdf.destroy)await pdf.destroy();}
         }
 
         function anasPdfTextToReviewRows(extractedText){
-            const raw=String(extractedText||'').replace(/\\r/g,'').trim();
+            const raw=String(extractedText||'').replace(/\r/g,'').trim();
             if(!raw)throw new Error('لم يتم استخراج نص من ملف PDF.');
             const parsed=anasDetectCsvDelimiter(raw);
             if(parsed.columns>=2&&parsed.rows.length>=2)return anasValidateSmartImportRows(parsed.rows);
-            const lines=raw.split('\\n').map(line=>line.trim()).filter(line=>line&&!/^---\\s*الصفحة\\s+\\d+/i.test(line));
+            const lines=raw.split('\n').map(line=>line.trim()).filter(line=>line&&!/^---\s*الصفحة\s+\d+/i.test(line));
             const pairs=lines.map(line=>{
-                const match=line.match(/^(.{2,80}?)\\s*[:：]\\s*(.{1,500})$/);
+                const match=line.match(/^(.{2,80}?)\s*[:：]\s*(.{1,500})$/);
                 return match?[match[1].trim(),match[2].trim()]:null;
             }).filter(Boolean);
             if(pairs.length>=2){
@@ -10914,7 +10914,7 @@ function wtAuditTransfers(){
         }
 
         async function processPDFInvoiceFile(file,existingDB={}){
-            if(!file||(!/\\.pdf$/i.test(String(file.name||''))&&!/application\\/(?:x-)?pdf/i.test(String(file.type||''))))
+            if(!file||(!/\.pdf$/i.test(String(file.name||''))&&!/application\/(?:x-)?pdf/i.test(String(file.type||''))))
                 throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
             if(file.size>10*1024*1024)throw new Error('يتجاوز ملف PDF الحد الأقصى المسموح به (10MB).');
             const extracted=await anasExtractPdfText(file);
