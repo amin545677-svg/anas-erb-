@@ -38,11 +38,12 @@ test('ChatGPT helper opens, closes, sends and has an offline local fallback', ()
   assert.match(html, /وضع محلي — تعذر الاتصال بالخادم/);
 });
 
-test('AI Center mobile layout avoids stacked sticky headers and reserves FAB space', () => {
+test('AI Center mobile layout hides the floating assistant while keeping the panel and navigation available', () => {
   assert.match(css, /\.sub-header-bar\s*\{[^}]*position:\s*relative\s*!important/s);
-  assert.match(css, /#view-ai-excel-hub\s*\{[^}]*padding-bottom:\s*calc\(104px/s);
-  assert.match(css, /#anasContextAiFab\s*\{[^}]*z-index:\s*80\s*!important/s);
+  assert.match(html, /#anasContextAiFab\{display:none!important;pointer-events:none!important\}/);
   assert.match(css, /#anasContextAiPanel\s*\{[^}]*z-index:\s*81\s*!important/s);
+  assert.match(html, /onclick="openView\('ai-excel-hub'\)"/, 'home card must open AI Center');
+  assert.match(html, /closeDrawer\(\); openView\('ai-excel-hub'\)/, 'sidebar item must open AI Center');
 });
 
 test('ERP script and stylesheet references are relative for the /erp/ deployment path', () => {
@@ -51,12 +52,17 @@ test('ERP script and stylesheet references are relative for the /erp/ deployment
     'Found root-relative assets that can break below /erp/: ' + rootRelativeAssets.map(match => match[1]).join(', '));
 });
 
-test('cloud AI document analysis waits for Firebase persisted auth state before reading the ID token', () => {
+test('Excel header analysis is local while PDF analysis retains its separate persisted-auth guard', () => {
   assert.match(html, /window\.anasGetFirebaseIdToken=async function\(timeoutMs=8000\)/);
   assert.match(html, /auth\.onAuthStateChanged\(u=>finish\(resolve,u\|\|null\)/);
   assert.match(html, /انتهت مهلة استعادة جلسة Firebase/);
-  assert.match(html, /const token=await window\.anasGetFirebaseIdToken\(4000\)/, 'Excel analysis must wait for persisted Firebase auth state');
-  assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/, 'PDF analysis must wait for persisted Firebase auth state');
+  const start = html.indexOf('function showSmartImportPreview');
+  const end = html.indexOf('function clearAllSalesInvoices', start);
+  assert.ok(start >= 0 && end > start, 'smart import preview must remain available');
+  const importSource = html.slice(start, end);
+  assert.match(importSource, /smartImportAiAnalyze['"]\)\.click\(\)/, 'local header analysis must run automatically');
+  assert.doesNotMatch(importSource, /anasGetFirebaseIdToken|Authorization:\s*['"]Bearer/);
+  assert.match(html, /const firebaseIdToken=await window\.anasGetFirebaseIdToken\(\)/, 'PDF analysis may use its own persisted-auth guard');
 });
 
 
@@ -66,7 +72,8 @@ test('Excel and PDF parsers are bundled locally and not loaded from runtime CDNs
   assert.match(html, /new URL\('\.\/vendor\/pdfjs\/pdf\.worker\.min\.js'/);
   assert.doesNotMatch(html, /cdn\.sheetjs\.com|cdn\.jsdelivr\.net\/npm\/xlsx|cdnjs\.cloudflare\.com\/ajax\/libs\/pdf\.js/);
   assert.match(html, /مطابقة الأعمدة/);
-  assert.match(html, /الاقتراح المحلي ما زال متاحاً/);
+  assert.match(html, /تحليل الأعمدة محلياً دون اتصال/);
+  assert.match(html, /ANAS_ERP_PRE_IMPORT_BACKUP_V1/);
 });
 
 test('store movement report toolbar wraps on mobile without vertically breaking action labels', () => {
