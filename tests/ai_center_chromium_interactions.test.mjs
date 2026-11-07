@@ -11,7 +11,7 @@ import { buildStagingHosting } from '../scripts/build-staging-hosting.mjs';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function createMinimalPdf(text) {
-  const escaped = String(text).replace(/\\/g, '\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+  const escaped = String(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\\\(').replace(/\)/g, '\\\\)');
   const stream = 'BT /F1 18 Tf 72 720 Td (' + escaped + ') Tj ET';
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
