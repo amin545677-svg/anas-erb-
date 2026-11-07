@@ -26,6 +26,17 @@ test('Excel import and export use the vendored offline SheetJS build', async () 
 });
 
 
+
+test('smart import counts skipped decisions from its keyed decision map after durable save', async () => {
+  const html = await readFile('index.html', 'utf8');
+  assert.match(html, /const importDecisions=\{\};[\s\S]*?importDecisions\[Number\(select\.dataset\.importDecision\)\]=select\.value;/,
+    'review decisions are stored by row index in an object map');
+  assert.match(html, /Object\.values\(importDecisions\)\.filter\(decision=>decision==='ignore'\|\|decision==='delete'\)\.length/,
+    'skip totals must iterate the keyed decision map instead of calling Array.filter');
+  assert.doesNotMatch(html, /importDecisions\.filter\(decision=>decision==='ignore'\|\|decision==='delete'\)/,
+    'a post-save type error must not prevent the UI from reporting durable import success');
+});
+
 test('smart import rejects duplicate customer/supplier IDs and reports complete row totals', async () => {
   const html = await readFile('index.html', 'utf8');
   assert.match(html, /if\(\(target!=='products' && existingCodes\.has\(norm\(recordId\)\)\) \|\| seenIds\.has\(norm\(recordId\)\)\)/,
