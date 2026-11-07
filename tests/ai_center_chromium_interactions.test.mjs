@@ -74,8 +74,44 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // Deliberately deny all external requests: all five controls must retain useful local behavior.
   await page.route('https://**/*', route => route.abort());
   await page.goto('http://127.0.0.1:' + address.port + '/erp/', { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => { if (typeof openView === 'function') openView('ai-excel-hub'); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    if (!window.AppData) throw new Error('hydrated AppData bridge is unavailable');
+    window.AppData.products = [{ id:'AI-P-1', name:'أريشا كرستال 200غ', stock:2, buyPrice:100, price1:250 }];
+    window.AppData.customers = [{ id:'AI-C-1', name:'عمر شريفي', debt:0 }];
+    if (typeof openView === 'function') openView('ai-excel-hub');
+  });
   await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => window.__anasLastAudit &&
+    window.__anasLastAudit.summary.stockCost === 200 &&
+    window.__anasLastAudit.summary.stockSell === 500,
+    { timeout: 5000 });
+  const aiScroll = await page.locator('#aiHubTabContent').evaluate(node => ({
+    overflowY: getComputedStyle(node).overflowY,
+    maxHeight: getComputedStyle(node).maxHeight,
+    viewportHeight: window.innerHeight
+  }));
+  assert.equal(aiScroll.overflowY, 'auto');
+  assert.ok(parseFloat(aiScroll.maxHeight) <= aiScroll.viewportHeight * 0.86,
+    'AI Center content must remain scrollable within the 85dvh mobile viewport');
+  await page.locator('#anasAiQuestion').fill('بيع 3 أريشا للعميل عمر شريفي بسعر 250');
+  await page.evaluate(() => anasPrepareNaturalLanguageDraft());
+  const parsedDraft = await page.evaluate(() => ({
+    transaction: document.querySelector('#anasAiNaturalDraft [data-draft-field="transaction"]')?.value,
+    quantity: document.querySelector('#anasAiNaturalDraft [data-draft-field="quantity"]')?.value,
+    item: document.querySelector('#anasAiNaturalDraft [data-draft-field="item"]')?.value,
+    customer: document.querySelector('#anasAiNaturalDraft [data-draft-field="customer"]')?.value,
+    unitPrice: document.querySelector('#anasAiNaturalDraft [data-draft-field="unitPrice"]')?.value,
+    convertButton: [...document.querySelectorAll('#anasAiNaturalDraft button')].some(button => button.textContent.includes('تحويل إلى فاتورة مبيعات جاهزة'))
+  }));
+  assert.deepEqual(parsedDraft, {
+    transaction: 'بيع (مستنتج من النص)',
+    quantity: '3',
+    item: 'أريشا كرستال 200غ',
+    customer: 'عمر شريفي',
+    unitPrice: '250',
+    convertButton: true
+  });
 
   // 1) Ask Anas AI: actual HTMLElement.click(), then verify a local answer appears.
   await page.locator('#anasAiQuestion').fill('كيف أراجع المخزون؟');
