@@ -105,7 +105,9 @@ def main():
         '<script src="./vendor/xlsx/xlsx.full.min.js"></script>',
         '<script src="./vendor/pdfjs/pdf.min.js"></script>',
         "if(!window.XLSX) await anasLoadSheetJs();",
-        "const maxImportBytes=20*1024*1024",
+        "file.size > 2 * 1024 * 1024",
+        "file.size > 10 * 1024 * 1024",
+        "createDailyImportQuota(window.localStorage, { limit: 50 })",
         "const maxImportRows=100000,maxImportColumns=200",
     ]
     if re.search(r"https?://(?:cdn\.sheetjs\.com|cdn\.jsdelivr\.net/npm/xlsx|unpkg\.com/xlsx)", source, re.IGNORECASE):
