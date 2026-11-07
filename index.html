@@ -11508,7 +11508,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       'عنوان التطبيق ليس HTTPS. استخدم رابط HTTPS منشورًا قبل اختبار تسجيل Google أو الاتصال السحابي.';
   }
   const firebaseConfig={apiKey:"AIzaSyAAddW_X2CG_V9C661jO3gyc5E1Afqj34Q",authDomain:"anas-erb.firebaseapp.com",projectId:"anas-erb",storageBucket:"anas-erb.firebasestorage.app",messagingSenderId:"859983503318",appId:"1:859983503318:web:152390b27f97cb27dd8e77",measurementId:"G-926GGNRVN4"};
-  let auth=null,user=null;
+  let auth=null,user=null,anonymousSignInPromise=null;
   const status=(msg,ok=false)=>{const e=document.getElementById('anasFirebaseAuthStatus');if(e){e.textContent=msg;e.style.color=ok?'#15803d':'var(--mp-text-muted)';}};
   const urlInput=()=>document.getElementById('anasWorkerUrl');
   try{
@@ -11552,7 +11552,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           try{
             if(typeof auth.signInAnonymously!=='function')
               throw new Error('Firebase Anonymous Authentication is unavailable in this SDK.');
-            const credential=await auth.signInAnonymously();
+            // Coalesce rapid/double-tap AI requests so they cannot race multiple anonymous sign-ins.
+            if(!anonymousSignInPromise){
+              anonymousSignInPromise=auth.signInAnonymously().finally(()=>{anonymousSignInPromise=null;});
+            }
+            const credential=await anonymousSignInPromise;
             resolvedUser=(credential&&credential.user)||auth.currentUser||null;
           }catch(e){
             const code=String(e&&e.code||'');
