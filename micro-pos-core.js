@@ -45,7 +45,7 @@
   function stockStatus(quantity, minimum = 5) {
     const qty = Number(quantity);
     const min = Number(minimum);
-    if (!Number.isFinite(qty) || qty <= 0) return { code: 'out', label: 'نافد' };
+    if (!Number.isFinite(qty)) return { code: 'invalid', label: 'غير صالح' };\n    if (qty <= 0) return { code: 'out', label: 'نافد' };
     if (qty <= (Number.isFinite(min) && min > 0 ? min : 5)) return { code: 'low', label: 'منخفض' };
     return { code: 'available', label: 'متوفر' };
   }
@@ -55,7 +55,7 @@
     const status = options.status || 'ALL';
     return (Array.isArray(items) ? items : []).filter(item => {
       if (!item) return false;
-      if ((options.onlyFeatured || status === 'featured') && !(item.is_featured || item.featured)) return false;
+      if ((options.onlyFeatured || status === 'featured') && !(item.is_featured || item.featured || item.favorite || item.isFavorite)) return false;
       const itemCategory = item.category ?? item.cat ?? 'عام';
       if (category !== 'ALL' && category !== 'الكل' && String(itemCategory) !== String(category)) return false;
       const stock = stockStatus(item.stock ?? item.quantity, item.minAlert ?? item.min_limit).code;
