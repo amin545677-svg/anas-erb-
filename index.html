@@ -2863,6 +2863,11 @@ input:focus, select:focus, textarea:focus {
                 <label id="newCustDebtLabel">رصيد دين سابق عند إنشاء العميل (د.ج):</label>
                 <input type="number" id="newCustDebtInput" class="field-input" value="0">
             </div>
+            <div class="field-group">
+                <label for="newCustCreditLimitInput">حد الائتمان المسموح للعميل (د.ج، اتركه فارغاً دون حد):</label>
+                <input type="number" id="newCustCreditLimitInput" class="field-input" min="0" step="0.01" inputmode="decimal" placeholder="مثال: 50000.00">
+                <small style="color:var(--mp-text-muted)">يُوقف البيع الآجل إذا تجاوز الدين المتوقع هذا السقف.</small>
+            </div>
             <button class="btn-full-submit" style="background:var(--mp-navy);" onclick="saveNewCustomerMpos()">💾 حفظ العميل</button>
             <button class="btn-full-submit" style="background:#64748b; margin-top:6px;" onclick="closeModal('addCustomerModal')">إلغاء</button>
         </div>
@@ -6574,6 +6579,8 @@ function renderPurchasesTable() {
             document.getElementById('newCustAddressInput').value = '';
             document.getElementById('newCustLocationInput').value = '';
             document.getElementById('newCustDebtInput').value = '0';
+            const creditLimitInput=document.getElementById('newCustCreditLimitInput');
+            if(creditLimitInput)creditLimitInput.value='';
             document.getElementById('addCustomerModal').classList.add('active'); 
         }
 
@@ -6591,11 +6598,20 @@ function renderPurchasesTable() {
             const debtInput = document.getElementById('newCustDebtInput');
             const rawDebt = debtInput ? String(debtInput.value ?? '').trim() : '';
             const debt = rawDebt === '' ? 0 : Number(rawDebt);
+            const creditLimitInput=document.getElementById('newCustCreditLimitInput');
+            const rawCreditLimit=creditLimitInput?String(creditLimitInput.value??'').trim():'';
+            const creditLimitCents=rawCreditLimit===''?null:anasToCents(rawCreditLimit);
+            const creditLimit=creditLimitCents===null?null:anasCentsToCurrency(creditLimitCents);
 
             if (!name) { alert('يرجى كتابة اسم العميل / المحل'); return; }
             if (!Number.isFinite(debt) || debt < 0 || debt > Number.MAX_SAFE_INTEGER) {
                 if (debtInput && typeof debtInput.focus === 'function') debtInput.focus();
                 alert('رصيد دين العميل يجب أن يكون رقماً صالحاً غير سالب ولا يتجاوز المجال المالي الآمن. لم تُحفظ أي تغييرات.');
+                return;
+            }
+            if(rawCreditLimit!==''&&(!Number.isSafeInteger(creditLimitCents)||creditLimitCents<0)){
+                if(creditLimitInput&&typeof creditLimitInput.focus==='function')creditLimitInput.focus();
+                alert('حد الائتمان يجب أن يكون مبلغاً صالحاً بدقة السنتيمتر وغير سالب. لم تُحفظ أي تغييرات.');
                 return;
             }
             if (!Array.isArray(AppData.customers)) {
@@ -6630,7 +6646,7 @@ function renderPurchasesTable() {
             const previousExisting = existing ? {...existing} : null;
             const preservedDebt = window.anasCustomerDebtForSave(editing, existing, debt);
             const preservedDebtDate = editing && existing ? (existing.debtDate ?? "") : (debt > 0 ? new Date().toISOString().slice(0, 10) : "");
-            const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt: preservedDebt, debtDate: preservedDebtDate};
+            const data = {name, phone, phone2, rc, nif, nis, art, address, location, debt: preservedDebt, debtDate: preservedDebtDate, credit_limit: creditLimit};
 
             if (editing) {
                 Object.assign(existing, data);
@@ -6718,7 +6734,7 @@ function renderPurchasesTable() {
         function editCustomer(id) {
             const c=(AppData.customers||[]).find(x=>String(x.id)===String(id)); if(!c){alert('العميل غير موجود');return;}
             editingCustomerId=c.id;
-            const fields={newCustNameInput:c.name,newCustPhoneInput:c.phone,newCustPhone2Input:c.phone2,newCustRCInput:c.rc,newCustNIFInput:c.nif,newCustNISInput:c.nis,newCustArtInput:c.art,newCustAddressInput:c.address,newCustLocationInput:c.location,newCustDebtInput:c.debt??0};
+            const fields={newCustNameInput:c.name,newCustPhoneInput:c.phone,newCustPhone2Input:c.phone2,newCustRCInput:c.rc,newCustNIFInput:c.nif,newCustNISInput:c.nis,newCustArtInput:c.art,newCustAddressInput:c.address,newCustLocationInput:c.location,newCustDebtInput:c.debt??0,newCustCreditLimitInput:c.credit_limit??''};
             Object.entries(fields).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val??'';});
             const debtField=document.getElementById('newCustDebtInput');
             if(debtField){debtField.readOnly=true;debtField.setAttribute('aria-readonly','true');}
@@ -10758,6 +10774,7 @@ function wtAuditTransfers(){
                     minStock:['الحد الأدنى','حد الطلب','minstock','minimumstock'],
                     debt:['الدين','الديون','الرصيد المدين','debt'],
                     debtDate:['تاريخ الدين','debtdate'],
+                    credit_limit:['حد الائتمان','الحد الائتماني','سقف الدين','creditlimit','credit_limit'],
                     email:['البريد الإلكتروني','البريدالالكتروني','email','e-mail'],
                     rc:['rc'],nif:['nif'],nis:['nis'],art:['art'],location:['الموقع','location'],
                     supplier:['المورد','اسم المورد','supplier']
@@ -10809,7 +10826,10 @@ function wtAuditTransfers(){
                         }else if(target==='customers'){
                             const debt=num(val(r,'debt'),'الدين',rowNo); if(debt<0) throw new Error('الدين لا يمكن أن يكون سالبًا');
                             const phone=val(r,'phone'); if(phone && staged.some(c=>norm(c.phone)===norm(phone))) throw new Error('رقم الهاتف موجود مسبقًا');
-                            Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),rc:val(r,'rc'),nif:val(r,'nif'),nis:val(r,'nis'),art:val(r,'art'),location:val(r,'location'),debt,debtDate:val(r,'debtDate')});
+                            const rawLimit=val(r,'credit_limit');
+                            const creditLimitCents=rawLimit===''?null:anasToCents(rawLimit);
+                            if(rawLimit!==''&&(!Number.isSafeInteger(creditLimitCents)||creditLimitCents<0))throw new Error('حد الائتمان غير صالح');
+                            Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),rc:val(r,'rc'),nif:val(r,'nif'),nis:val(r,'nis'),art:val(r,'art'),location:val(r,'location'),debt,debtDate:val(r,'debtDate'),credit_limit:creditLimitCents===null?null:anasCentsToCurrency(creditLimitCents)});
                         }else{
                             const phone=val(r,'phone'); if(phone && staged.some(s=>norm(s.phone)===norm(phone))) throw new Error('رقم الهاتف موجود مسبقًا');
                             Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),email:val(r,'email'),nif:val(r,'nif'),nis:val(r,'nis'),rc:val(r,'rc')});
