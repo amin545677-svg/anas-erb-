@@ -22,6 +22,7 @@ test('one inventory filter contract supports legacy and canonical product fields
     { id: 3, name: 'Rice', barcode: '333', stock: 0, minAlert: 5, category: 'Grain' }
   ];
   assert.deepEqual(Core.filterInventoryItems(rows, { status: 'available' }).map(x => x.id), [1]);
+  assert.deepEqual(Core.filterInventoryItems(rows, { status: 'all' }).map(x => x.id), [1, 2, 3]);
   assert.deepEqual(Core.filterInventoryItems(rows, { status: 'low' }).map(x => x.id), [2]);
   assert.deepEqual(Core.filterInventoryItems(rows, { status: 'out' }).map(x => x.id), [3]);
   assert.deepEqual(Core.filterInventoryItems(rows, { query: '222' }).map(x => x.id), [2]);
@@ -48,6 +49,7 @@ test('sales period and status logic are deterministic and centime accurate', () 
   assert.equal(Core.invoiceStatus(invoices[0]), 'paid');
   assert.equal(Core.invoiceStatus(invoices[1]), 'partial');
   assert.equal(Core.invoiceStatus(invoices[2]), 'unpaid');
+  assert.equal(Core.invoiceStatus({ total: 'bad', paid: 0 }), 'invalid');
 });
 
 test('inventory bridge refreshes both views only after successful sync or durable persistence', async () => {
