@@ -1011,7 +1011,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # Transaction-safety regression guards for money and inventory mutations.
     def function_source(name, end_marker=None):
-        declaration = re.search(r"\\b(?:async\\s+)?function\\s+" + re.escape(name) + r"\\s*\\(", source)
+        declaration = re.search(r"\b(?:async\s+)?function\s+" + re.escape(name) + r"\s*\(", source)
         if not declaration:
             return ""
         # Keep the async keyword: callers may compile this source in a VM,
