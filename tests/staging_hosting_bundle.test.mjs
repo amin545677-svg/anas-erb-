@@ -18,6 +18,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       }
     });
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
+    await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
+    assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
