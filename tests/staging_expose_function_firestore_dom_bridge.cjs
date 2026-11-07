@@ -237,7 +237,9 @@ async function main() {
     const postedReturn = finalSnapshot.local.returns[0];
     assert.equal(postedReturn.items[0].quantityMicroUnits, 1000000);
     assert.equal(operationIds.length, 1, 'local return must not create a second server operation');
-    assert.ok(finalSnapshot.persistedPayload.includes('"status":"POSTED"'));
+    const persistedState = JSON.parse(finalSnapshot.persistedPayload);
+    assert.equal(persistedState.returns.length, 1, 'local return must be durably stored in IndexedDB');
+    assert.equal(persistedState.returns[0].status, 'POSTED');
     const returnOperations = await db.collection('reverseLedgerOperations').where('operationType', '==', 'SALE_RETURN').get();
     assert.equal(returnOperations.size, 0, 'local sale return must not write a server operation');
 
@@ -255,7 +257,7 @@ async function main() {
     process.stdout.write('ANAS_EXPOSE_FUNCTION_FIRESTORE_DOM_E2E ' + JSON.stringify({
       allocation: 'POSTED', allocationCentimes: 5000,
       partialSaleReturn: 'POSTED', returnedMicroUnits: 1000000,
-      centimeDelta, firestoreReadBack: true, pageExposeFunction: true
+      centimeDelta, settlementFirestoreReadBack: true, returnPersistedLocally: true
     }) + '\n');
   } finally {
     if (browser) await browser.close().catch(() => {});
