@@ -75,6 +75,8 @@ jobs:
         run: node --test tests/micro_pos_core.test.mjs
       - name: Verify smart import merge and ledger-safe replacement behavior
         run: node --test tests/smart_import_replace_guard.test.mjs
+      - name: Run complete workbook import and offline Excel loader regressions
+        run: node --test tests/advanced_import_safety.test.mjs tests/excel_import_loader.test.mjs
       - name: Verify durable POS credit-limit enforcement precedes financial mutations
         run: node --test tests/pos_credit_limit_guard.test.mjs
       - name: Level 9 adversarial identity, valuation and idempotency proofs
