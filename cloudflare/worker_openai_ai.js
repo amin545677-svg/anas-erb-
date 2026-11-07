@@ -82,16 +82,42 @@ function allowedOrigins(env) {
     .split(",").map(v => v.trim()).filter(Boolean))];
 }
 
-function json(data, status, origin) {
+function json(data, status, origin, extraHeaders = {}) {
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization"
+    "Access-Control-Allow-Headers": "Content-Type,Accept,Authorization",
+    ...extraHeaders
   };
   if (origin) headers["Access-Control-Allow-Origin"] = origin;
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function enforceAiRateLimits(request, env, uid) {
+  const userLimiter = env.AI_USER_RATE_LIMITER;
+  const ipLimiter = env.AI_IP_RATE_LIMITER;
+  if (!userLimiter || typeof userLimiter.limit !== "function" ||
+      !ipLimiter || typeof ipLimiter.limit !== "function") {
+    return { ok: false, status: 503, error: "AI rate limiting is not configured. Contact the ANAS ERP administrator." };
+  }
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  if (!ip || ip.length > 128 || /[\\s,]/.test(ip)) {
+    return { ok: false, status: 403, error: "A trusted client IP address is required for AI access." };
+  }
+  try {
+    const [userResult, ipResult] = await Promise.all([
+      userLimiter.limit({ key: "uid:" + uid }),
+      ipLimiter.limit({ key: "ip:" + ip })
+    ]);
+    if (!userResult || userResult.success !== true || !ipResult || ipResult.success !== true) {
+      return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
+    }
+    return { ok: true };
+  } catch (_) {
+    return { ok: false, status: 503, error: "AI rate limiting is temporarily unavailable. No AI request was sent." };
+  }
 }
 
 function cleanText(value, max = 6000) {
@@ -210,6 +236,12 @@ export default {
 
     const identity = await verifyFirebaseIdToken(request, env);
     if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
+
+    const rateLimit = await enforceAiRateLimits(request, env, identity.uid);
+    if (!rateLimit.ok) {
+      return json({ error: rateLimit.error }, rateLimit.status, origin,
+        rateLimit.status === 429 ? { "Retry-After": "60" } : {});
+    }
 
     const instructions = [
       "أنت مساعد ANAS ERP التجاري، وتجيب بالعربية الواضحة ما لم يطلب المستخدم لغة أخرى.",

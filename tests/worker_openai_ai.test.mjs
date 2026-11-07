@@ -12,7 +12,11 @@ const { default: worker } = await import(moduleUrl);
 function request(path, { method = "GET", origin, body, tokenProjectId = "anas-erb" } = {}) {
   const headers = new Headers();
   if (origin) headers.set("Origin", origin);
-  if (body !== undefined) { headers.set("Content-Type", "application/json"); headers.set("Authorization", "Bearer " + firebaseToken({}, tokenProjectId)); }
+  if (body !== undefined) {
+    headers.set("Content-Type", "application/json");
+    headers.set("Authorization", "Bearer " + firebaseToken({}, tokenProjectId));
+    headers.set("CF-Connecting-IP", "203.0.113.10");
+  }
   return new Request("https://worker.test" + path, {
     method,
     headers,
@@ -40,6 +44,8 @@ function installFetch(mock = async () => { throw new Error("unexpected upstream 
 }
 installFetch();
 const allowedOrigin = "https://amin545677-svg.github.io";
+const allowLimiter = { limit: async () => ({ success: true }) };
+const testEnv = () => ({ OPENAI_API_KEY: "test-secret", AI_USER_RATE_LIMITER: allowLimiter, AI_IP_RATE_LIMITER: allowLimiter });
 
 test("preflight permits the isolated Staging ERP origin and required auth headers", async () => {
   const origin = "https://anas-erp-staging-a25e1.web.app";
@@ -93,7 +99,7 @@ test("interrupted OpenAI response returns a readable CORS-enabled 502 instead of
       method: "POST", origin: "https://anas-erp-staging-a25e1.web.app",
       tokenProjectId: "anas-erp-staging-a25e1",
       body: { message: "اختبار انقطاع الاستجابة" }
-    }), { OPENAI_API_KEY: "test-secret" });
+    }), testEnv());
     assert.equal(response.status, 502);
     assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://anas-erp-staging-a25e1.web.app");
     assert.match((await response.json()).error, /connection ended/i);
@@ -103,7 +109,7 @@ test("interrupted OpenAI response returns a readable CORS-enabled 502 instead of
 });
 
 test("health reports service status without exposing the API key", async () => {
-  const response = await worker.fetch(request("/health"), { OPENAI_API_KEY: "test-secret" });
+  const response = await worker.fetch(request("/health"), testEnv());
   const data = await response.json();
   assert.equal(response.status, 200);
   assert.equal(data.ok, true);
@@ -114,14 +120,14 @@ test("health reports service status without exposing the API key", async () => {
 test("browser requests from an unapproved origin are rejected", async () => {
   const response = await worker.fetch(request("/", {
     method: "POST", origin: "https://evil.example", body: { message: "hello" }
-  }), { OPENAI_API_KEY: "test-secret" });
+  }), testEnv());
   assert.equal(response.status, 403);
 });
 
 test("POST without an Origin is rejected", async () => {
   const response = await worker.fetch(request("/", {
     method: "POST", body: { message: "hello" }
-  }), { OPENAI_API_KEY: "test-secret" });
+  }), testEnv());
   assert.equal(response.status, 403);
 });
 
@@ -139,7 +145,7 @@ test("invalid JSON is rejected before calling OpenAI", async () => {
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin, body: "{bad json"
-    }), { OPENAI_API_KEY: "test-secret" });
+    }), testEnv());
     assert.equal(response.status, 400);
   } finally {
     globalThis.fetch = oldFetch;
@@ -149,7 +155,7 @@ test("invalid JSON is rejected before calling OpenAI", async () => {
 test("empty question is rejected", async () => {
   const response = await worker.fetch(request("/", {
     method: "POST", origin: allowedOrigin, body: { message: "   " }
-  }), { OPENAI_API_KEY: "test-secret" });
+  }), testEnv());
   assert.equal(response.status, 400);
 });
 
@@ -167,7 +173,7 @@ test("successful request returns only the expected answer contract", async () =>
   try {
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin, body: { message: "حلل المبيعات", language: "ar" }
-    }), { OPENAI_API_KEY: "test-secret" });
+    }), testEnv());
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
     assert.deepEqual(await response.json(), { ok: true, text: "تحليل تجريبي", model: "gpt-4.1-mini" });
@@ -197,7 +203,7 @@ test("streaming requests forward text deltas as server-sent events", async () =>
     const response = await worker.fetch(request("/", {
       method: "POST", origin: allowedOrigin,
       body: { message: "اختبار بث", stream: true }
-    }), { OPENAI_API_KEY: "test-secret" });
+    }), testEnv());
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/event-stream/);
     const body = await response.text();
@@ -213,7 +219,7 @@ test("oversized request body is rejected", async () => {
   const oversized = { message: "x".repeat(121 * 1024) };
   const response = await worker.fetch(request("/", {
     method: "POST", origin: allowedOrigin, body: oversized
-  }), { OPENAI_API_KEY: "test-secret" });
+  }), testEnv());
   assert.equal(response.status, 413);
 });
 
@@ -232,10 +238,10 @@ test("oversized request stream is cancelled as soon as it crosses the byte limit
   try {
     const response = await worker.fetch(new Request("https://worker.test/", {
       method: "POST",
-      headers: { Origin: allowedOrigin, "Content-Type": "application/json", Authorization: "Bearer " + firebaseToken() },
+      headers: { Origin: allowedOrigin, "Content-Type": "application/json", Authorization: "Bearer " + firebaseToken(), "CF-Connecting-IP": "203.0.113.10" },
       body,
       duplex: "half"
-    }), { OPENAI_API_KEY: "test-secret" });
+    }), testEnv());
     assert.equal(response.status, 413);
     assert.match((await response.json()).error, /too large/i);
     assert.equal(cancelled, true, "request body stream must be cancelled at the limit");
@@ -338,7 +344,7 @@ test("Staging-origin AI requests validate Firebase ID tokens against the Staging
       origin: stagingOrigin,
       tokenProjectId: "anas-erp-staging-a25e1",
       body: { message: "اختبار بيئة Staging" }
-    }), { OPENAI_API_KEY: "test-secret" });
+    }), testEnv());
     assert.equal(response.status, 200, "Staging Firebase token must not be rejected as a Production token");
     assert.equal(response.headers.get("Access-Control-Allow-Origin"), stagingOrigin);
     assert.deepEqual(await response.json(), { ok: true, text: "إجابة Staging", model: "gpt-4.1-mini" });
@@ -354,7 +360,64 @@ test("Staging-origin AI requests reject Production Firebase tokens", async () =>
     origin: stagingOrigin,
     tokenProjectId: "anas-erb",
     body: { message: "must be rejected" }
-  }), { OPENAI_API_KEY: "test-secret" });
+  }), testEnv());
   assert.equal(response.status, 401);
   assert.match((await response.json()).error, /Invalid or expired Firebase session/);
+});
+
+
+test("paid AI requests fail closed when rate-limit bindings are missing", async () => {
+  const oldFetch = globalThis.fetch; let openAiCalls = 0;
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called"); });
+  try {
+    const response = await worker.fetch(request("/", { method: "POST", origin: allowedOrigin, body: { message: "missing limiter" } }), { OPENAI_API_KEY: "test-secret" });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /rate limiting is not configured/i);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("per-user rate limit blocks before OpenAI and keys the Firebase UID", async () => {
+  const oldFetch = globalThis.fetch; let openAiCalls = 0; let userKey = ""; let ipKey = "";
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called"); });
+  try {
+    const response = await worker.fetch(request("/", { method: "POST", origin: allowedOrigin, body: { message: "rate limit" } }), {
+      OPENAI_API_KEY: "test-secret",
+      AI_USER_RATE_LIMITER: { limit: async ({ key }) => { userKey = key; return { success: false }; } },
+      AI_IP_RATE_LIMITER: { limit: async ({ key }) => { ipKey = key; return { success: true }; } }
+    });
+    assert.equal(response.status, 429);
+    assert.equal(response.headers.get("Retry-After"), "60");
+    assert.equal(userKey, "uid:test-user");
+    assert.equal(ipKey, "ip:203.0.113.10");
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("per-IP rate limit blocks requests when the Firebase UID is within quota", async () => {
+  const oldFetch = globalThis.fetch; let openAiCalls = 0;
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called"); });
+  try {
+    const response = await worker.fetch(request("/", { method: "POST", origin: allowedOrigin, body: { message: "rate limit" } }), {
+      OPENAI_API_KEY: "test-secret", AI_USER_RATE_LIMITER: allowLimiter,
+      AI_IP_RATE_LIMITER: { limit: async ({ key }) => ({ success: key !== "ip:203.0.113.10" }) }
+    });
+    assert.equal(response.status, 429);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("rate-limit backend errors fail closed without contacting OpenAI", async () => {
+  const oldFetch = globalThis.fetch; let openAiCalls = 0;
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called"); });
+  try {
+    const response = await worker.fetch(request("/", { method: "POST", origin: allowedOrigin, body: { message: "limiter error" } }), {
+      OPENAI_API_KEY: "test-secret",
+      AI_USER_RATE_LIMITER: { limit: async () => { throw new Error("limiter unavailable"); } },
+      AI_IP_RATE_LIMITER: allowLimiter
+    });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /temporarily unavailable/i);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
 });
