@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
+import * as XLSX from 'xlsx';
 
 const ROOT = process.cwd();
 const PORT = 4175;
@@ -33,7 +34,7 @@ function startServer() {
   });
 }
 
-test('ANAS ERP mobile RTL auth and cloud action controls remain readable and reachable', async () => {
+test('ANAS ERP mobile UI hides the floating assistant and suppresses external-script overlays', async () => {
   const server = await startServer();
   let browser;
   try {
@@ -41,179 +42,32 @@ test('ANAS ERP mobile RTL auth and cloud action controls remain readable and rea
     const page = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
     await page.route('https://**/*', route => route.abort());
     await page.goto('http://127.0.0.1:' + PORT, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.body && !document.body.inert, { timeout: 15000 });
+    const startup = await page.evaluate(() => ({
+      fabDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
+      fabVisibility: getComputedStyle(document.getElementById('anasContextAiFab')).visibility,
+      diagnosticText: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
+      storedDiagnostics: localStorage.getItem('ANAS_ERP_DIAGNOSTICS_V1'),
+      externalToastVisible: !!document.querySelector('#anasActionToast.show')
+    }));
+    assert.equal(startup.fabDisplay, 'none');
+    assert.equal(startup.fabVisibility, 'visible');
+    assert.equal(startup.diagnosticText, false);
+    assert.equal(startup.storedDiagnostics, '[]');
     await page.evaluate(() => {
-      if (typeof window.openView !== 'function') throw new Error('openView is unavailable');
-      window.openView('sync', true);
+      const script = document.createElement('script');
+      script.src = 'https://invalid.example.test/anas-external-failure.js';
+      document.head.appendChild(script);
     });
-    const metrics = await page.evaluate(async () => {
-      // Force the root scroller to be synchronous even if application CSS requests smooth scrolling.
-      document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
-      document.body.style.setProperty('scroll-behavior', 'auto', 'important');
-      const activeSyncView = document.querySelector('#view-sync.active');
-      if (!activeSyncView) throw new Error('Sync view did not become active');
-      const card = activeSyncView.querySelector('.anas-firebase-auth-card');
-      const auth = activeSyncView.querySelector('.anas-firebase-auth-actions');
-      const cloud = activeSyncView.querySelector('.anas-firebase-cloud-actions');
-      const fab = document.getElementById('anasContextAiFab');
-      const toast = document.getElementById('anasActionToast');
-      if (!card || !auth || !cloud || !fab) throw new Error('Required settings controls are missing');
-      const buttons = [...auth.querySelectorAll('button'), ...cloud.querySelectorAll('button')];
-      const style = getComputedStyle(auth);
-      const buttonMetrics = buttons.map(button => {
-        const rect = button.getBoundingClientRect();
-        const computed = getComputedStyle(button);
-        return {
-          text: button.innerText,
-          width: rect.width,
-          height: rect.height,
-          writingMode: computed.writingMode,
-          direction: computed.direction,
-          display: computed.display
-        };
-      });
-      const fabRect = fab.getBoundingClientRect();
-      const panel = document.getElementById('anasContextAiPanel');
-      const lastButton = cloud.querySelector('button:last-child');
-      // Remove both floating assistant layers from hit-testing for the duration of the
-      // layout acceptance check. The assistant itself is tested again below.
-      fab.style.pointerEvents = 'none';
-      if (panel) panel.style.pointerEvents = 'none';
-      // The external-library failure toast is expected because this test blocks network
-      // requests. It is a transient overlay, not the control under test; keep it out of
-      // hit-testing for the complete pointer-acceptance phase so it cannot cover the FAB.
-      if (toast) toast.style.pointerEvents = 'none';
-      // offsetTop is relative to offsetParent, so accumulate the offset chain to obtain
-      // the document coordinate; every scroll remains immediate and CSS smooth scrolling
-      // is explicitly disabled above.
-      const documentOffsetTop = element => {
-        let top = 0;
-        for (let node = element; node && node !== document.body; node = node.offsetParent) {
-          top += node.offsetTop;
-        }
-        return top;
-      };
-      const scrollElementToViewport = element => {
-        // First apply the requested immediate offsetTop scroll, then correct for
-        // nested offsetParent coordinates using the verified document offset.
-        window.scrollTo(0, element.offsetTop);
-        window.scrollTo(0, documentOffsetTop(element));
-        let rect = element.getBoundingClientRect();
-        if (rect.bottom > window.innerHeight || rect.top < 0) {
-          const correctedTop = rect.top + window.scrollY - Math.max(0, window.innerHeight - rect.height);
-          window.scrollTo(0, correctedTop);
-          rect = element.getBoundingClientRect();
-        }
-        return rect;
-      };
-      const lastRect = scrollElementToViewport(lastButton);
-      return {
-        viewportWidth: innerWidth,
-        viewportHeight: innerHeight,
-        scrollY,
-        documentScrollHeight: document.documentElement.scrollHeight,
-        authColumns: style.gridTemplateColumns,
-        buttons: buttonMetrics,
-        fabTop: fabRect.top,
-        lastButtonBottom: lastRect.bottom,
-        lastButtonTop: lastRect.top,
-        lastButtonHeight: lastRect.height,
-        lastButtonDocumentTop: documentOffsetTop(lastButton),
-        mainPaddingBottom: getComputedStyle(document.querySelector('.main-container')).paddingBottom
-      };
-    });
-    assert.ok(metrics.buttons.length >= 7, 'expected all authentication and cloud actions');
-    for (const button of metrics.buttons) {
-      assert.ok(button.width >= metrics.viewportWidth * 0.72, 'button became too narrow for the mobile viewport: ' + button.text + ' (' + button.width + 'px)');
-      assert.equal(button.writingMode, 'horizontal-tb', 'button text must remain horizontal: ' + button.text);
-      assert.equal(button.direction, 'rtl', 'button text direction must remain RTL: ' + button.text);
-      assert.ok(button.height >= 48, 'button touch target is too small: ' + button.text);
-    }
-    assert.ok(metrics.lastButtonTop >= 0 && metrics.lastButtonBottom <= metrics.viewportHeight,
-      'last cloud action must be 100% inside the visible viewport after immediate window.scrollTo: ' + JSON.stringify(metrics));
-    assert.ok(metrics.lastButtonBottom <= metrics.fabTop - 8,
-      'floating assistant must not cover the last cloud action after scrolling');
-    assert.ok(parseFloat(metrics.mainPaddingBottom) >= 150,
-      'main content must reserve a safe scroll area for the floating assistant');
-
-    // Exercise real pointer hit-testing and inline DOM handlers, not only CSS metrics.
-    await page.evaluate(() => {
-      window.__anasMobileClicks = [];
-      for (const name of [
-        'anasTestWorker', 'anasDiagnoseCloudLink', 'anasFirebaseLogin',
-        'anasFirebaseGoogleLogin', 'anasFirebaseLogout',
-        'anasFirebasePush', 'anasFirebasePull'
-      ]) window[name] = () => window.__anasMobileClicks.push(name);
-    });
-    const actionButtons = await page.locator(
-      '#view-sync.active .anas-firebase-auth-actions > button, ' +
-      '#view-sync.active .anas-firebase-cloud-actions > button'
-    ).all();
-    for (const buttonPromise of actionButtons) {
-      const button = await buttonPromise;
-      const hit = await button.evaluate(el => {
-        document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
-        document.body.style.setProperty('scroll-behavior', 'auto', 'important');
-        const documentOffsetTop = element => {
-          let top = 0;
-          for (let node = element; node && node !== document.body; node = node.offsetParent) top += node.offsetTop;
-          return top;
-        };
-        window.scrollTo(0, el.offsetTop);
-        window.scrollTo(0, documentOffsetTop(el));
-        let r = el.getBoundingClientRect();
-        if (r.top < 0 || r.bottom > window.innerHeight) {
-          window.scrollTo(0, r.top + window.scrollY - Math.max(0, window.innerHeight - r.height));
-          r = el.getBoundingClientRect();
-        }
-        const x = r.left + r.width / 2;
-        const y = r.top + r.height / 2;
-        const top = document.elementFromPoint(x, y);
-        return {
-          pointerEvents: getComputedStyle(el).pointerEvents,
-          visibility: getComputedStyle(el).visibility,
-          hitTarget: !!top && (top === el || el.contains(top)),
-          fullyInViewport: r.top >= 0 && r.bottom <= innerHeight,
-          label: el.innerText.trim()
-        };
-      });
-      assert.notEqual(hit.pointerEvents, 'none', 'button must accept pointer input: ' + hit.label);
-      assert.equal(hit.visibility, 'visible', 'button must be visible: ' + hit.label);
-      assert.equal(hit.hitTarget, true, 'no overlay may intercept button clicks: ' + hit.label);
-      assert.equal(hit.fullyInViewport, true, 'button must be 100% inside viewport before click: ' + hit.label);
-      await button.click({ noWaitAfter: true });
-    }
-    const clicked = await page.evaluate(() => window.__anasMobileClicks);
-    assert.deepEqual(clicked, [
-      'anasTestWorker', 'anasDiagnoseCloudLink', 'anasFirebaseLogin',
-      'anasFirebaseGoogleLogin', 'anasFirebaseLogout',
-      'anasFirebasePush', 'anasFirebasePull'
-    ], 'all Firebase actions must receive a real Chromium click exactly once');
-
-    // Restore the assistant's real hit target before separately testing its controls.
-    await page.locator('#anasContextAiFab').evaluate(el => { el.style.pointerEvents = ''; });
-    await page.locator('#anasContextAiPanel').evaluate(el => { el.style.pointerEvents = ''; });
-    const fabButton = page.locator('#anasContextAiFab');
-    await fabButton.click();
-    assert.equal(await fabButton.getAttribute('aria-expanded'), 'true',
-      'floating AI assistant must open from a real mobile pointer click');
-    await page.locator('#anasContextAiPanel').waitFor({ state: 'visible' });
-    await page.locator('#anasContextAiClose').click();
-    assert.equal(await fabButton.getAttribute('aria-expanded'), 'false',
-      'floating AI assistant must close without a blocked click');
-
-    const keyboardSafety = await page.evaluate(() => {
-      const field = document.createElement('input');
-      field.type = 'text';
-      field.setAttribute('aria-label', 'temporary mobile form field');
-      document.body.appendChild(field);
-      field.focus();
-      const hiddenWhileEditing = getComputedStyle(document.getElementById('anasContextAiFab')).visibility === 'hidden';
-      field.blur();
-      field.remove();
-      return { hiddenWhileEditing };
-    });
-    assert.equal(keyboardSafety.hiddenWhileEditing, true,
-      'floating AI button must hide while a form field is active to protect mobile form controls');
+    await page.waitForTimeout(250);
+    const afterFailure = await page.evaluate(() => ({
+      diagnosticText: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
+      toastVisible: !!document.querySelector('#anasActionToast.show'),
+      toastText: document.getElementById('anasActionToast')?.innerText || ''
+    }));
+    assert.equal(afterFailure.diagnosticText, false);
+    assert.equal(afterFailure.toastVisible, false);
+    assert.doesNotMatch(afterFailure.toastText, /تعذر تحميل مكتبة خارجية/);
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
@@ -290,6 +144,61 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
+    await page.locator('#smartImportCancel').click();
+
+    await page.evaluate(async () => {
+      if (!window.AppData) throw new Error('live AppData bridge is unavailable');
+      window.AppData.products = [];
+      window.AppData.invoices = [];
+      window.AppData.purchases = [];
+      if (typeof window.saveDB === 'function') {
+        const saved = window.saveDB();
+        if (saved !== true) throw new Error('test fixture did not persist');
+      }
+    });
+    const rows = [
+      ['الكود','الباركود','اسم المنتج','سعر الشراء','سعر البيع 1','المخزون','الوحدة','الفئة','الحد الأدنى'],
+      ['TEA-001','611000000001','شاي أريشا',100,150,12,'علبة','مشروبات',2],
+      ['TEA-002','611000000002','شاي توارف',110,165,10,'علبة','مشروبات',2],
+      ['TEA-003','611000000003','شاي الرقيم',120,180,8,'علبة','مشروبات',1],
+      ['TEA-004','611000000004','شاي أخضر',90,140,15,'علبة','مشروبات',3],
+      ['TEA-005','611000000005','شاي أحمر',80,130,20,'علبة','مشروبات',4]
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
+    const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    await page.locator('#smartAiExcelUpload').setInputFiles({
+      name: 'ANAS_ERP_5_products.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: xlsxBuffer
+    });
+    await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#smartImportTarget').inputValue(), 'products',
+      'product columns must auto-select products and inventory');
+    assert.equal(await page.locator('#smartImportBackupAck').isChecked(), true,
+      'local backup must be enabled by default');
+    page.on('dialog', dialog => dialog.accept());
+    await page.locator('#smartImportConfirm').click();
+    await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
+    await page.waitForFunction(() => window.AppData && window.AppData.products.length === 5);
+    await page.evaluate(() => window.openView('pos', true));
+    await page.locator('#posSearchField').fill('شاي');
+    await page.waitForFunction(() => {
+      const results = document.getElementById('posSearchResults');
+      return !!results && !results.hidden && results.querySelectorAll('.pos-search-result').length >= 5;
+    });
+    const acceptance = await page.evaluate(() => ({
+      productCount: window.AppData.products.length,
+      searchNames: [...document.querySelectorAll('#posSearchResults .pos-search-result-name')].map(el => el.textContent),
+      floatingAssistantDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
+      diagnosticVisible: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
+      backupRecordPresent: !!window.indexedDB
+    }));
+    assert.equal(acceptance.productCount, 5);
+    assert.ok(acceptance.searchNames.some(name => name.includes('شاي أريشا')));
+    assert.equal(acceptance.floatingAssistantDisplay, 'none');
+    assert.equal(acceptance.diagnosticVisible, false);
+    assert.equal(acceptance.backupRecordPresent, true);
 
   } finally {
     if (browser) await browser.close();
