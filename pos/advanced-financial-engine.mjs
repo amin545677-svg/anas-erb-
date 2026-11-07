@@ -93,10 +93,9 @@ function decimalToUnits(value, digits = 6) {
   const raw = text(value === '' || value == null ? '0' : value).replace(/\s/g, '').replace(',', '.');
   if (!/^[+]?(?:\d+)(?:\.\d*)?$/.test(raw)) throw new TypeError('INVALID_QUANTITY');
   const [whole, fraction = ''] = raw.replace(/^\+/, '').split('.');
+  if (fraction.length > digits) throw new TypeError('INVALID_QUANTITY_PRECISION');
   const kept = (fraction + '0'.repeat(digits)).slice(0, digits);
-  const discarded = fraction.slice(digits);
-  let units = BigInt(whole || '0') * (10n ** BigInt(digits)) + BigInt(kept || '0');
-  if (discarded && discarded[0] >= '5') units += 1n;
+  const units = BigInt(whole || '0') * (10n ** BigInt(digits)) + BigInt(kept || '0');
   return units;
 }
 function safeInteger(value, code) {
