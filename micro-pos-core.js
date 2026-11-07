@@ -119,6 +119,14 @@
         return result;
       };
     }
+    const originalDurable = typeof target.saveDBDurably === 'function' ? target.saveDBDurably : null;
+    if (originalDurable) {
+      target.saveDBDurably = async function () {
+        const result = await originalDurable.apply(this, arguments);
+        if (result === true) target.dispatchEvent(new target.CustomEvent('anas:inventory-changed', { detail: { source: 'saveDBDurably' } }));
+        return result;
+      };
+    }
     return true;
   }
   return Object.freeze({ decimalToScaledBigInt, toCents, toMicroUnits, centsToCurrency, lineTotalCents, stockStatus, filterInventoryItems, normalizeAlgeriaPhone, invoiceStatus, filterSalesInvoices, createInventoryEventBridge });
