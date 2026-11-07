@@ -354,3 +354,77 @@ test('Unified V42 DOM mounts both financial modals and all admin/customer/sync m
   await new Promise(resolve => server.close(resolve));
  }
 });
+
+
+test('Chromium posts sales and purchase returns locally without a server gateway or financial period ID', async () => {
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.setContent('<!doctype html><html><body><main>local return acceptance</main></body></html>');
+  await page.evaluate(() => {
+   window.__saveCalls=0;
+   window.saveDB=()=>{window.__saveCalls++;return true;};
+   window.AppData={
+    invoices:[{id:'INV-LOCAL-RET',status:'POSTED',customerId:'C-LOCAL-RET',total:30,paid:10,remaining:20,
+     items:[{id:'P-LOCAL-RET',qty:3,price:10,total:30}],warehouse:'المخزن الرئيسي'}],
+    purchases:[],
+    products:[{id:'P-LOCAL-RET',name:'Tea',stock:0,buyPrice:10,price1:15,warehouseStock:{}}],
+    customers:[{id:'C-LOCAL-RET',name:'Customer',debt:20}],
+    suppliers:[],cashMovements:[{id:'SALE-CASH-LOCAL',type:'add',amount:10,referenceType:'sales_invoice',referenceId:'INV-LOCAL-RET'}],
+    stockMovements:[{id:'SALE-STOCK-LOCAL',productId:'P-LOCAL-RET',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-LOCAL-RET'}],
+    supplierMovements:[],clientMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
+    caisseBalance:100,currentUser:{id:'U-LOCAL'}
+   };
+  });
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger.js')});
+  await page.addScriptTag({path:path.join(process.cwd(),'reverse-ledger/reverse-ledger-modal.js')});
+  await page.evaluate(()=>window.returnSalePrompt());
+  await page.locator('#rev-invoice-select').selectOption('0');
+  await page.locator('#modal-reverse-ledger input[data-line-index="0"]').fill('3');
+  await page.locator('#rev-reason-input').fill('مرتجع اختبار محلي');
+  await page.waitForFunction(()=>!document.getElementById('rev-submit-btn').disabled);
+  assert.equal(await page.locator('#rev-submit-btn').innerText(),'اعتماد المرتجع محلياً');
+  await page.locator('#rev-submit-btn').click();
+  await page.waitForFunction(()=>!document.getElementById('modal-reverse-ledger').classList.contains('active'));
+  const sale=await page.evaluate(()=>({
+   stock:window.AppData.products[0].stock,
+   customerDebt:window.AppData.customers[0].debt,
+   returnStatus:window.AppData.returns[0]?.status,
+   cash:window.AppData.caisseBalance,
+   saves:window.__saveCalls,
+   periodField:!!document.getElementById('rev-period-id')
+  }));
+  assert.deepEqual(sale,{stock:3,customerDebt:0,returnStatus:'POSTED',cash:90,saves:1,periodField:false});
+
+  await page.evaluate(()=>{
+   window.AppData={
+    invoices:[],
+    purchases:[{id:'PUR-LOCAL-RET',status:'POSTED',supplierId:'SUP-LOCAL-RET',total:30,paid:10,remaining:20,
+     productId:'P-LOCAL-RET',qty:3,cost:10,warehouse:'المخزن الرئيسي'}],
+    products:[{id:'P-LOCAL-RET',name:'Tea',stock:3,buyPrice:10,price1:15,warehouseStock:{}}],
+    customers:[],suppliers:[{id:'SUP-LOCAL-RET',name:'Supplier',balance:20}],
+    cashMovements:[{id:'PUR-CASH-LOCAL',type:'subtract',amount:10,referenceType:'purchase_invoice',referenceId:'PUR-LOCAL-RET'}],
+    stockMovements:[{id:'PUR-STOCK-LOCAL',productId:'P-LOCAL-RET',qty:3,type:'PURCHASE_IN',referenceType:'purchase_invoice',referenceId:'PUR-LOCAL-RET'}],
+    supplierMovements:[{id:'SUP-PUR-LOCAL',supplierId:'SUP-LOCAL-RET',type:'purchase',amount:30,referenceType:'purchase_invoice',referenceId:'PUR-LOCAL-RET'}],
+    clientMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
+    caisseBalance:100,currentUser:{id:'U-LOCAL'}
+   };
+   window.__saveCalls=0;
+  });
+  await page.evaluate(()=>window.returnPurchasePrompt());
+  await page.locator('#rev-invoice-select').selectOption('0');
+  await page.locator('#modal-reverse-ledger input[data-line-index="0"]').fill('3');
+  await page.locator('#rev-reason-input').fill('إرجاع مشتريات اختبار محلي');
+  await page.waitForFunction(()=>!document.getElementById('rev-submit-btn').disabled);
+  await page.locator('#rev-submit-btn').click();
+  await page.waitForFunction(()=>!document.getElementById('modal-reverse-ledger').classList.contains('active'));
+  const purchase=await page.evaluate(()=>({
+   stock:window.AppData.products[0].stock,
+   supplierBalance:window.AppData.suppliers[0].balance,
+   returnStatus:window.AppData.returns[0]?.status,
+   cash:window.AppData.caisseBalance,
+   saves:window.__saveCalls
+  }));
+  assert.deepEqual(purchase,{stock:0,supplierBalance:0,returnStatus:'POSTED',cash:110,saves:1});
+ } finally { await browser.close(); }
+});
