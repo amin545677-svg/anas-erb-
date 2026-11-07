@@ -95,21 +95,23 @@ test('requires App Check compat SDK only when a site key is configured', () => {
 test('Firebase enforces shared App Check options server-side on all protected staging callables', () => {
   const fs = require('node:fs');
   const source = fs.readFileSync(require('node:path').join(__dirname, '../functions/index.js'), 'utf8');
-  const shared = source.match(/const CALLABLE_BASE_OPTIONS = Object\\.freeze\\(\\{([\\s\\S]*?)\\}\\);/);
-  assert.ok(shared, 'all callables must inherit the shared runtime policy');
-  assert.match(shared[1], /region:\\s*['"]us-central1['"]/);
-  assert.match(shared[1], /enforceAppCheck:\\s*true/, 'shared options must enforce App Check');
-  assert.match(shared[1], /timeoutSeconds:\\s*60/);
+  const sharedStart = source.indexOf('const CALLABLE_BASE_OPTIONS = Object.freeze({');
+  const sharedEnd = source.indexOf('});', sharedStart);
+  assert.ok(sharedStart >= 0 && sharedEnd > sharedStart, 'all callables must inherit the shared runtime policy');
+  const shared = source.slice(sharedStart, sharedEnd);
+  assert.match(shared, /region:\\s*['"]us-central1['"]/);
+  assert.match(shared, /enforceAppCheck:\\s*true/, 'shared options must enforce App Check');
+  assert.match(shared, /timeoutSeconds:\\s*60/);
   for (const name of [
     'executeReverseLedger',
     'executeSettlementAllocation',
     'createTrustedReverseLedgerBackup',
     'restoreTrustedReverseLedgerBackup'
   ]) {
-    const declaration = source.match(new RegExp(
-      'exports\\\\.' + name + '\\\\s*=\\\\s*onCall\\\\(\\\\{([\\\\s\\\\S]*?)\\\\}\\\\s*,'
-    ));
-    assert.ok(declaration, name + ' must be registered as a Firebase callable');
-    assert.match(declaration[1], /\\.\\.\\.CALLABLE_BASE_OPTIONS/, name + ' must inherit the shared App Check policy');
+    const declarationStart = source.indexOf('exports.' + name + ' = onCall({');
+    const declarationEnd = source.indexOf('},', declarationStart);
+    assert.ok(declarationStart >= 0 && declarationEnd > declarationStart, name + ' must be registered as a Firebase callable');
+    assert.ok(source.slice(declarationStart, declarationEnd).includes('...CALLABLE_BASE_OPTIONS'),
+      name + ' must inherit the shared App Check policy');
   }
 });
