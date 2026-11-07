@@ -1,4 +1,4 @@
-const CACHE = 'anas-erp-v54-25-r15';
+const CACHE = 'anas-erp-v54-25-r16';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
@@ -7,6 +7,9 @@ const CORE = [
   './reverse-ledger/settlement-allocation-modal.js',
   './storage/android-resilient-storage.js',
   './core/ai-operations-engine.js',
+  './micro-pos-core.js',
+  './pos/micro-pos-engine.mjs',
+  './pos/micro-pos-deep-core.mjs',
   './vendor/firebase/firebase-compat.js',
   './vendor/xlsx/xlsx.full.min.js',
   './vendor/pdfjs/pdf.min.js',
