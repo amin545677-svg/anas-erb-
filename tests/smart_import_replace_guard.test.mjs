@@ -11,6 +11,10 @@ test('smart import exposes explicit merge and ledger-safe replace modes', async 
   assert.match(html, /const protectedExisting=importMode==='replace'\?existing\.filter\(record=>isReferenced\(record,target\)\):\[\]/);
   assert.match(html, /const next=importMode==='replace'\?protectedExisting\.map\(record=>\(\{\.\.\.record\}\)\):JSON\.parse\(before\)/);
   assert.match(html, /warehouseBalances/);
+  assert.match(html, /const productItemRef=item=>hasId\(item\?\.productId\)\|\|hasId\(item\?\.product_id\)\|\|hasId\(item\?\.product\?\.id\)\|\|hasId\(item\?\.id\)/,
+    'product history checks must inspect product IDs separately from invoice-line IDs');
+  assert.ok(html.includes('inv.customer_id') && html.includes('inv.supplier_id'),
+    'safe replace must recognize snake-case customer and supplier references too');
   assert.match(html, /'debt','balance','creditUsed','initial_debt','credit_limit'/);
   assert.match(html, /ANAS_ERP_PRE_IMPORT_BACKUP_V1/);
   assert.match(html, /await saveDBDurably\(\)/);
