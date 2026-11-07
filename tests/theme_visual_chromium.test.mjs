@@ -112,6 +112,20 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       'customer modal input text must meet WCAG AA contrast');
     await page.evaluate(() => window.closeModal('addCustomerModal'));
 
+    await page.evaluate(() => {
+      const fixture = document.createElement('div');
+      fixture.id = 'anasThemeTableFixture';
+      fixture.innerHTML = '<table><thead><tr><th>المنتج</th><th>الرصيد</th></tr></thead><tbody><tr><td>منتج تجريبي</td><td>12</td></tr></tbody></table>';
+      document.getElementById('view-settings').appendChild(fixture);
+    });
+    const tableVisual = await page.locator('#anasThemeTableFixture th').first().evaluate(el => {
+      const css = getComputedStyle(el);
+      return { background: css.backgroundColor, color: css.color };
+    });
+    assert.ok(!/255,\\s*255,\\s*255/.test(tableVisual.background), 'table headers must not retain a white background in dark mode');
+    assert.ok(contrast(tableVisual.color, tableVisual.background) >= 4.5, 'table header text must meet WCAG AA contrast');
+    await page.locator('#anasThemeTableFixture').evaluate(el => el.remove());
+
     await page.evaluate(() => window.openView('pos'));
     await page.locator('#view-pos').waitFor({ state: 'visible' });
     const pos = await page.evaluate(() => {
