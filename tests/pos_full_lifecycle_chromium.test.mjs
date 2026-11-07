@@ -126,7 +126,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.evaluate(() => openView('pos'));
     const productButton = page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME });
     await productButton.waitFor({ state: 'visible', timeout: 10000 });
+    const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
+    assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
     await productButton.click();
+    assert.equal(await page.locator('#posCheckoutBtn').isEnabled(), true,
+      'the single guided checkout action must enable after a valid product is added');
 
     const cartProof = await page.evaluate(() => ({
       count: Array.isArray(posCart) ? posCart.length : -1,
