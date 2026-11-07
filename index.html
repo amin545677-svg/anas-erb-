@@ -2895,7 +2895,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             try { updateUIState(); } catch (e) { console.error('Anas ERP UI refresh failed:', e); }
             try { checkSystemAlerts(); } catch (e) { console.error('Anas ERP alerts refresh failed:', e); }
             try { updateDashboardStats(); } catch (e) { console.error('Anas ERP dashboard refresh failed:', e); }
-            if(document.getElementById('anasLocalAuditResults')){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
+            if(typeof document!=='undefined'&&document.getElementById('anasLocalAuditResults')){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
             return true;
         }
 
@@ -9320,7 +9320,7 @@ function wtAuditTransfers(){
             if(!input||!target)return;
             const original=String(input.value||'').trim();
             if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
-            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/٬/g,'').replace(/٫/g,'.')).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
+            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/٫/g,'.')).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
             const raw=normalizeDigits(original).replace(/٫/g,'.');
             const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\u200e\u200f\u061c]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
             const number='(?<![\\d.,٫٬])(-?\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
@@ -9330,7 +9330,9 @@ function wtAuditTransfers(){
             const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+(.+?)(?=\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
             const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\s*(?:هي|:)?\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\b/i);
             const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات|اشتر/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
-            let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\s*/i,'').replace(new RegExp('^'+number+'\\s*'),'').trim();
+            let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\s*/i,'');
+            // Ambiguous grouped thousands are not accepted as quantities; remove the token from the item label.
+            itemText=itemText.replace(/(?<!\d)\d{1,3}(?:[٬,]\d{3})+(?!\d)/g,'').replace(new RegExp('^'+number+'\\s*'),'').trim();
             itemText=itemText.replace(new RegExp('^'+unit+'\\s*','i'),'').trim();
             const stop=itemText.search(/\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)/i);
             if(stop>=0)itemText=itemText.slice(0,stop).trim();
@@ -9409,7 +9411,7 @@ function wtAuditTransfers(){
                 const n=Number(raw.replace(',','.'));
                 return Number.isFinite(n)?n:null;
             };
-            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/٬/g,'').replace(/٫/g,'.')).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
+            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/٫/g,'.')).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
             const parseInvoiceDate=value=>{
                 if(value===null||value===undefined||value==='')return null;
                 if(value instanceof Date)return Number.isNaN(value.getTime())?null:new Date(value.getFullYear(),value.getMonth(),value.getDate());
