@@ -203,8 +203,10 @@ def main():
 
     # Customer data and imported product images must be safe at HTML output boundaries.
     safety_guards = [
-        "anasEscapeHTML(c.phone || '-')",
-        "(typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح'",
+        "phone.textContent = '📞 ' + String(c.phone || 'بدون هاتف')",
+        "const debtRaw = c.debt;",
+        "Number.isFinite(Number(debtRaw)) && Number(debtRaw) >= 0",
+        "amount.textContent = debt === null ? 'رصيد غير صالح' : (debt > 0 ? debt.toLocaleString() + ' د.ج' : 'خالص ✅');",
         "const safeStoredImage = /^(https:\\/\\/|data:image\\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(storedImage) ? storedImage : '';",
         'src="${anasEscapeHTML(safeStoredImage)}"',
         "${i.remaining !== null && i.remaining !== undefined && i.remaining !== '' && Number.isFinite(Number(i.remaining)) ? Number(i.remaining) : 'غير صالح'}",
