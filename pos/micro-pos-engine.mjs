@@ -37,6 +37,7 @@ export function filterPosProducts(products, options = {}) {
     if (!Number.isFinite(stock)) return false;
     const minimum = Number(product.minAlert ?? product.min_limit ?? 5);
     const threshold = Number.isFinite(minimum) && minimum > 0 ? minimum : 5;
+    // Keep stock chips mutually exclusive: available is above threshold, low is positive up to threshold.
     if (stockFilter === 'favorite' && !favoriteFor(product)) return false;
     if (stockFilter === 'available' && stock <= threshold) return false;
     if (stockFilter === 'low' && !(stock > 0 && stock <= threshold)) return false;
