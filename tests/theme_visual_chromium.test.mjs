@@ -63,6 +63,26 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     assert.equal(initial.theme, 'light');
     assert.ok(initial.modules >= 10, 'real ERP dashboard modules must render');
     assert.equal(initial.overflow, false, 'dashboard must not overflow at 390px');
+    const lightDashboardContrast = await page.evaluate(() => {
+      const card = document.querySelector('#view-dashboard .grid-card-item');
+      const title = card?.querySelector('.card-title-text');
+      const value = card?.querySelector('strong, b, .card-value');
+      const css = node => node ? { color:getComputedStyle(node).color, background:getComputedStyle(card).backgroundColor } : null;
+      const action = document.querySelector('#view-dashboard .menu-action-card');
+      return { title:css(title), value:css(value), action:action ? {
+        color:getComputedStyle(action).color, background:getComputedStyle(action).backgroundColor
+      } : null };
+    });
+    assert.ok(lightDashboardContrast.title, 'dashboard KPI title must exist');
+    assert.ok(contrast(lightDashboardContrast.title.color, lightDashboardContrast.title.background) >= 4.5,
+      'light dashboard KPI title must meet WCAG AA');
+    if (lightDashboardContrast.value) assert.ok(
+      contrast(lightDashboardContrast.value.color, lightDashboardContrast.value.background) >= 4.5,
+      'light dashboard KPI value must meet WCAG AA');
+    if (lightDashboardContrast.action) assert.ok(
+      contrast(lightDashboardContrast.action.color, lightDashboardContrast.action.background) >= 4.5,
+      'sky-blue action control text must meet WCAG AA');
+
 
     await page.locator('#anasThemeQuickToggle').click();
     await page.waitForFunction(() => document.documentElement.getAttribute('data-anas-theme') === 'dark');
@@ -82,7 +102,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     assert.equal(visual.pressed, 'true');
     assert.equal(visual.stored, 'dark');
     assert.match(visual.cardGradient, /rgb\(27,\s*41,\s*64\)/i, 'dark dashboard card gradient must be active');
-    assert.match(visual.navGradient, /rgb\(7,\s*87,\s*102\)/i, 'ANAS dark teal navigation gradient must be active');
+    assert.match(visual.navGradient, /rgb\(7,\s*89,\s*133\)/i, 'ANAS sky-blue navigation gradient must be active');
     assert.ok(contrast(visual.cardText, 'rgb(27, 41, 64)') >= 4.5, 'dashboard title must meet WCAG AA against its rendered gradient stop');
     assert.ok(contrast(visual.brandText, 'rgb(7, 87, 102)') >= 4.5, 'navigation brand must meet WCAG AA against its rendered gradient stop');
 
