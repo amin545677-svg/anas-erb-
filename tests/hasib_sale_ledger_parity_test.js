@@ -18,7 +18,7 @@ const purchaseHelperSource = html.slice(purchaseHelperStart, purchaseHelperEnd);
 const source = helperSource + purchaseHelperSource + html.slice(start, end);
 
 function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, unit = 'كغ', doubleConfirm = false} = {}) {
-  const product = {id:'P-1', name:'Test product', unit, stock:productStock, warehouseStock:{'فرع 1':12}};
+  const product = {id:'P-1', name:productName, unit, stock:productStock, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:customerDebt};
   const AppData = {
     products:[product], customers:[customer], invoices:[],
@@ -422,7 +422,6 @@ function assertAccountingIdentity(result, openingDebt = 0) {
     unit: 'كغ',
     caisseBalance: 0
   });
-  console.log('DEBUG_REQUESTED_SALE', JSON.stringify({alerts:r.alerts,saves:r.saves,stock:r.product.stock,customer:r.customer,cash:r.AppData.caisseBalance,invoiceCount:r.AppData.invoices.length}));
   assert.equal(total, 26775);
   assert.equal(half, 13387.5);
   assert.equal(r.product.stock, 90, '10.5 kg sale must reduce 100.5 kg to exactly 90 kg');
