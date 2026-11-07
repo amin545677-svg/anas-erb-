@@ -188,9 +188,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     AppData: structuredClone(initial),
     Date, Math, Number, String, Set, Map, Array, Object, JSON,
     document: { getElementById: id => elements[id] || null },
-    prompt: message => String(message).startsWith("خصّص")
-      ? JSON.stringify([{ invoiceId: "inv_1", amount: "500.50" }])
-      : "500.50",
+    prompt: () => "500.50",
     alert: message => alerts.push(String(message)),
     console,
     updateCashUI: () => {},
@@ -274,7 +272,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   assert.equal(cloud.data.cashMovements.filter(m => m.id === pending[0].payload.cashMovementId).length, 1);
   assert.equal(cloud.data.cashMovements.find(m => m.id === pending[0].payload.cashMovementId).amount, 500.5);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
-  assert.equal(alerts.some(message => message.includes("تم تسجيل القبض وتخصيصه يدوياً")), true);
+  assert.equal(alerts.some(message => message.includes("تم تسجيل سند القبض وتوزيعه تلقائياً FIFO")), true);
   assert.equal(installer.uninstall(), true);
 });
 
