@@ -5565,40 +5565,78 @@ function renderPurchasesTable() {
             const request = activeCustomerGpsRequest;
             if (!request) return;
             request.cancelled = true;
-            if (request.button && request.button.isConnected) { request.button.disabled = false; request.button.textContent = request.originalLabel; }
+            if (request.timeoutId !== null) clearTimeout(request.timeoutId);
+            if (request.button && request.button.isConnected) {
+                request.button.disabled = false;
+                request.button.textContent = request.originalLabel;
+            }
             activeCustomerGpsRequest = null;
         }
+        function isCustomerGpsRequestActive(request) {
+            const modal = document.getElementById('addCustomerModal');
+            return !!request && !request.cancelled && activeCustomerGpsRequest === request &&
+                !!modal && modal.classList.contains('active');
+        }
         function requestGPS(onSuccess, scope) {
-            if (!navigator.geolocation) { alert('المتصفح لا يدعم تحديد الموقع. يمكنك إدخال الإحداثيات يدويًا.'); return; }
+            const customerScoped = scope === 'customer';
+            const customerModal = customerScoped ? document.getElementById('addCustomerModal') : null;
+            if (customerScoped && (!customerModal || !customerModal.classList.contains('active'))) return;
+            if (!navigator.geolocation) {
+                if (!customerScoped || isCustomerGpsRequestActive(activeCustomerGpsRequest)) {
+                    alert('المتصفح لا يدعم تحديد الموقع. يمكنك إدخال الإحداثيات يدويًا.');
+                }
+                return;
+            }
+            if (customerScoped) cancelPendingCustomerGpsRequest();
             const button = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
             const originalLabel = button ? button.textContent : '';
-            const request = {cancelled:false,button,originalLabel};
-            if (scope === 'customer') { cancelPendingCustomerGpsRequest(); activeCustomerGpsRequest = request; }
-            let finished = false;
-            const restoreButton = () => {
-                if (finished) return;
-                finished = true;
+            const request = { cancelled: false, timeoutId: null, button, originalLabel };
+            if (customerScoped) activeCustomerGpsRequest = request;
+            const isActive = () => customerScoped ? isCustomerGpsRequestActive(request) : !request.cancelled;
+            const finish = () => {
+                if (request.cancelled) return false;
+                request.cancelled = true;
+                if (request.timeoutId !== null) clearTimeout(request.timeoutId);
                 if (button && button.isConnected) { button.disabled = false; button.textContent = originalLabel; }
                 if (activeCustomerGpsRequest === request) activeCustomerGpsRequest = null;
+                return true;
             };
             if (button) { button.disabled = true; button.textContent = '⏳ جارٍ تحديد الموقع…'; }
+            if (customerScoped) {
+                request.timeoutId = setTimeout(() => {
+                    if (!isActive()) return;
+                    finish();
+                    if (customerModal && customerModal.classList.contains('active')) {
+                        alert('انتهت مهلة تحديد الموقع. حاول في مكان مفتوح أو أدخل الإحداثيات يدويًا.');
+                    }
+                }, 25000);
+            }
             try {
                 navigator.geolocation.getCurrentPosition(
-                    position => { if (request.cancelled) return; restoreButton(); onSuccess(position); },
-                    error => { if (request.cancelled) return; restoreButton(); alert(gpsErrorMessage(error)); },
-                    { enableHighAccuracy: false, timeout: 25000, maximumAge: 300000 }
+                    position => {
+                        if (!isActive()) return;
+                        finish();
+                        onSuccess(position);
+                    },
+                    error => {
+                        if (!isActive()) return;
+                        finish();
+                        alert(gpsErrorMessage(error));
+                    },
+                    { enableHighAccuracy: false, timeout: customerScoped ? 27000 : 25000, maximumAge: 300000 }
                 );
             } catch (error) {
-                // Some WebViews throw synchronously (e.g. Permissions Policy); never leave the button locked.
-                if (!request.cancelled) { restoreButton(); alert(gpsErrorMessage(error)); }
+                if (isActive()) { finish(); alert(gpsErrorMessage(error)); }
             }
         }
         function detectCustomerGPS() {
+            const modal = document.getElementById('addCustomerModal');
+            if (!modal || !modal.classList.contains('active')) return;
             requestGPS(pos => {
+                if (!modal.classList.contains('active')) return;
                 const coords = pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6);
                 const field = document.getElementById('newCustLocationInput');
                 if (field) field.value = coords;
-                alert('تم التقاط موقع العميل بنجاح: ' + coords);
             }, 'customer');
         }
         function detectStoreGPS() {
@@ -5613,6 +5651,7 @@ function renderPurchasesTable() {
         
         let editingCustomerId = null;
         function openAddCustomerModal() { 
+            cancelPendingCustomerGpsRequest();
             const debtField = document.getElementById('newCustDebtInput');
             if (debtField) { debtField.readOnly = false; debtField.removeAttribute('aria-readonly'); }
             const debtLabel = document.getElementById('newCustDebtLabel');
@@ -10391,103 +10430,44 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   }catch(e){console.warn('Could not restore stocktake draft',e);}
 })();
 
-/* Modern button feedback and visible diagnostics for Anas ERP */
-(function anasModernInteractions(){
-  if (window.__anasModernInteractionsReady) return;
-  window.__anasModernInteractionsReady = true;
-  let toastTimer = null;
-  const DIAG_KEY = 'ANAS_ERP_DIAGNOSTICS_V1';
-  const DIAG_BUILD = 'ANAS-ERP-V23-2026-10-21';
-  // Clear legacy diagnostic noise on every launch; do not archive stale records.
-  try { localStorage.setItem(DIAG_KEY, '[]'); localStorage.setItem('ANAS_ERP_DIAGNOSTICS_BUILD', DIAG_BUILD); } catch (_) {}
+/* ANAS ERP: console-only diagnostics; no modal, toast, banner, or persistent error log. */
+(function anasSilentDiagnostics(){
+  if (window.__anasSilentDiagnosticsReady) return;
+  window.__anasSilentDiagnosticsReady = true;
+  try {
+    localStorage.removeItem('ANAS_ERP_DIAGNOSTICS_V1');
+    localStorage.removeItem('ANAS_ERP_DIAGNOSTICS_BUILD');
+  } catch (_) {}
   window.__anasLastDiagnostic = null;
-  function recordDiagnostic(kind, message, source, line){
-    try {
-      const old = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]');
-      const entry = {time:new Date().toISOString(), kind:String(kind||'error'), message:String(message||'خطأ غير محدد').slice(0,1200), source:String(source||'').slice(0,500), line:Number(line)||0};
-      old.push(entry);
-      localStorage.setItem(DIAG_KEY, JSON.stringify(old.slice(-30)));
-      window.__anasLastDiagnostic = entry;
-    } catch(storageError) { window.__anasLastDiagnostic = {time:new Date().toISOString(),kind:String(kind||'error'),message:String(message||'خطأ غير محدد'),source:String(source||''),line:Number(line)||0}; }
-  }
-  function showDiagnostics(){
-    let entries=[];
-    try { entries=JSON.parse(localStorage.getItem(DIAG_KEY)||'[]'); } catch(_) {}
-    if(window.__anasLastDiagnostic && !entries.some(x => x && x.time === window.__anasLastDiagnostic.time && x.kind === window.__anasLastDiagnostic.kind && x.message === window.__anasLastDiagnostic.message)) entries.push(window.__anasLastDiagnostic);
-    const unique=entries.slice(-10);
-    const details=unique.length?unique.map((x,i)=>(i+1)+') '+x.time+'\nالنوع: '+x.kind+'\nالرسالة: '+x.message+'\nالمصدر: '+(x.source||'غير متاح')+'\nالسطر: '+(x.line||'غير متاح')).join('\n\n'):'لا توجد تفاصيل محفوظة حتى الآن. أعد تنفيذ العملية التي تُظهر الخطأ.';
-    const panel=document.createElement('div'); panel.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:14px;direction:rtl';
-    const card=document.createElement('div'); card.style.cssText='background:#fff;color:#111827;border-radius:12px;padding:16px;width:100%;max-width:560px;max-height:82vh;overflow:auto;box-shadow:0 15px 45px #0005';
-    const title=document.createElement('h3'); title.textContent='تشخيص أخطاء ANAS ERP — V23'; title.style.margin='0 0 6px';
-    const subtitle=document.createElement('div'); subtitle.textContent='الأخطاء الخارجية غير المحددة تُسجّل للتدقيق ولا توقف واجهة التطبيق. أعد الاختبار لمعرفة إن كانت وظائف ERP نفسها تفشل.'; subtitle.style.cssText='font-size:12px;color:#475569;margin-bottom:10px';
-    const pre=document.createElement('pre'); pre.textContent=details; pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6;background:#f1f5f9;padding:10px;border-radius:8px;max-height:55vh;overflow:auto';
-    const actions=document.createElement('div'); actions.style.cssText='display:flex;gap:8px;margin-top:12px;flex-wrap:wrap';
-    const copy=document.createElement('button'); copy.textContent='نسخ التفاصيل'; copy.style.cssText='padding:10px;border:0;border-radius:8px;background:#1e3a6d;color:#fff'; copy.onclick=()=>{const done=()=>alert('انسخ التفاصيل وأرسلها هنا.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(details).then(done).catch(()=>{pre.focus();alert('تعذر النسخ التلقائي؛ حدّد النص وانسخه يدويًا.');});else alert('حدّد النص وانسخه يدويًا.');};
-    const close=document.createElement('button'); close.textContent='إغلاق'; close.style.cssText='padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff'; close.onclick=()=>panel.remove();
-    actions.append(copy,close);card.append(title,subtitle,pre,actions);panel.appendChild(card);panel.addEventListener('click',e=>{if(e.target===panel)panel.remove();});document.body.appendChild(panel);
-  }
-  function notify(message, isError){
-    let el = document.getElementById('anasActionToast');
-    if(!el){
-      el = document.createElement('div');
-      el.id = 'anasActionToast';
-      el.className = 'anas-action-toast';
-      el.setAttribute('role','status');
-      el.setAttribute('aria-live','polite');
-      el.innerHTML = '<span class="toast-dot" aria-hidden="true"></span><span class="toast-message"></span>';
-      document.body.appendChild(el);
-    }
-    el.classList.toggle('error', !!isError);
-    el.querySelector('.toast-message').textContent = String(message || (isError ? 'تعذر تنفيذ العملية.' : 'تم تنفيذ العملية.'));
-    if(isError){ el.style.cursor='pointer'; el.title='اضغط لعرض تفاصيل الخطأ'; el.onclick=showDiagnostics; }
-    else { el.style.cursor=''; el.title=''; el.onclick=null; }
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(()=>el.classList.remove('show'), isError ? 5200 : 2300);
-  }
-  window.anasNotify = notify;
-  // Catch real JavaScript errors and show a useful message instead of leaving buttons apparently dead.
-  window.addEventListener('error', function(e){
-    const target = e && e.target;
-    if (target && target.tagName === 'SCRIPT') {
-      const src = target.src || '(مصدر غير معروف)';
-      console.error('Anas ERP external script failed to load:', src);
-      // Optional external assets must never block the local ERP UI with an overlay or toast.
+  window.anasNotify = function(message) {
+    console.warn('ANAS ERP notice (silent):', String(message || ''));
+  };
+  window.addEventListener('error', function(event) {
+    if (event && event.target && event.target.tagName === 'SCRIPT') {
+      console.warn('ANAS ERP script load failure:', event.target.src || '(unknown script)');
       return;
     }
-    if(e && e.message) {
-      const opaque = e.message === 'Script error.' && !e.filename && !e.lineno && !e.error;
-      console.error('Anas ERP action error:', {message:e.message, source:e.filename || '(غير متاح)', line:e.lineno || '(غير متاح)', column:e.colno || '(غير متاح)', stack:(e.error && e.error.stack) || '(لا يوجد stack)'});
-      if (opaque) {
-        // V42: mobile browsers hide details for cross-origin script errors; avoid duplicate diagnostic spam.
-        if (!window.__anasV42OpaqueScriptErrorRecorded) {
-          window.__anasV42OpaqueScriptErrorRecorded = true;
-          recordDiagnostic('Opaque external script error', 'المتصفح أخفى مصدر خطأ سكربت خارجي. افتح النسخة عبر HTTPS للتحقق من تحميل المكتبات؛ هذا السجل وحده لا يثبت تلف بيانات ERP.', '', 0);
-        }
-        console.warn('ANAS ERP: opaque cross-origin script error (duplicate records suppressed).');
-      } else {
-        recordDiagnostic('JavaScript', e.message, e.filename, e.lineno);
-        notify('حدث خطأ أثناء تنفيذ العملية. اضغط هنا لعرض التفاصيل.', true);
-      }
-    }
+    if (event && event.message) console.warn('ANAS ERP JavaScript error:', {
+      message: event.message, source: event.filename || '',
+      line: event.lineno || 0, column: event.colno || 0
+    });
   }, true);
-  window.addEventListener('unhandledrejection', function(e){
-    const reason=e && e.reason; const msg=reason && (reason.stack || reason.message) ? (reason.stack || reason.message) : String(reason || 'رفض غير معروف');
-    console.error('Anas ERP async action error:', reason);
-    recordDiagnostic('Async rejection', msg, '', 0);
-    notify('تعذر إكمال العملية. اضغط هنا لعرض التفاصيل.', true);
+  window.addEventListener('unhandledrejection', function(event) {
+    console.warn('ANAS ERP unhandled promise rejection:', event && event.reason);
   });
-  // Keep keyboard users able to activate clickable cards and improve mobile tap feedback.
-  document.addEventListener('keydown', function(e){
-    if((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches('[role="button"]:not(button)')){
-      e.preventDefault(); e.target.click();
+  // Preserve keyboard activation and subtle click feedback without creating any UI.
+  document.addEventListener('keydown', function(event) {
+    if ((event.key === 'Enter' || event.key === ' ') && event.target &&
+        event.target.matches('[role="button"]:not(button)')) {
+      event.preventDefault();
+      event.target.click();
     }
   });
-  document.addEventListener('click', function(e){
-    const target = e.target && e.target.closest ? e.target.closest('button,[role="button"]') : null;
-    if(!target || target.disabled) return;
+  document.addEventListener('click', function(event) {
+    const target = event.target && event.target.closest ? event.target.closest('button,[role="button"]') : null;
+    if (!target || target.disabled) return;
     target.classList.add('anas-just-clicked');
-    setTimeout(()=>target.classList.remove('anas-just-clicked'), 180);
+    setTimeout(() => target.classList.remove('anas-just-clicked'), 180);
   }, true);
 })();
 
@@ -11121,8 +11101,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 <!-- ANAS ERP: contextual AI helper available throughout the app; additive only -->
 <style>
-#anasContextAiFab{display:none!important}
-#anasContextAiPanel{position:fixed;z-index:99999;right:12px;bottom:76px;width:min(420px,calc(100vw - 24px));max-height:min(78vh,680px);overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#111827);border:1px solid var(--mp-border,#d1d5db);border-radius:16px;box-shadow:0 12px 42px #0004;padding:14px;display:none}
+#anasContextAiFab{display:none!important;pointer-events:none!important}
+#anasContextAiPanel{display:none!important;position:fixed;z-index:99999;right:12px;bottom:76px;width:min(420px,calc(100vw - 24px));max-height:min(78vh,680px);overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#111827);border:1px solid var(--mp-border,#d1d5db);border-radius:16px;box-shadow:0 12px 42px #0004;padding:14px;display:none}
 #anasContextAiPanel input,#anasContextAiPanel textarea{box-sizing:border-box;width:100%;font:inherit;color:inherit;background:var(--mp-input-bg,#fff);border:1px solid var(--mp-border,#d1d5db);border-radius:9px;padding:10px;margin-top:6px}
 #anasContextAiPanel button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:10px 12px;font-weight:700}
 #anasContextAiAnswer{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin-top:10px;padding:10px;border-radius:9px;background:rgba(124,58,237,.08);display:none}
