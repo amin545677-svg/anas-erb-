@@ -144,6 +144,16 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#posCheckoutBtn').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#hasibCartItems button').filter({ hasText: 'حذف' }).click();
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
+      'removing the final cart line must disable checkout immediately');
+    assert.equal(await page.locator('#hasibTotalText').textContent(), 'أضف منتجاً للمتابعة');
+    await page.locator('#hasibCartEditor button').filter({ hasText: 'إضافة منتجات' }).click();
+    await page.locator('#productPickerModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#productPickerList button').filter({ hasText: PRODUCT_NAME }).click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
+      'adding a valid product from the picker must restore checkout');
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
