@@ -92,9 +92,14 @@ test('requires App Check compat SDK only when a site key is configured', () => {
   assert.throws(() => gatewayModule.initialize({ ...baseConfig, appCheckSiteKey: 'staging-recaptcha-site-key' }, { firebase, location }), /App Check compat SDK is required/);
 });
 
-test('Firebase enforces App Check server-side on every protected staging callable', () => {
+test('Firebase enforces shared App Check options server-side on all protected staging callables', () => {
   const fs = require('node:fs');
   const source = fs.readFileSync(require('node:path').join(__dirname, '../functions/index.js'), 'utf8');
+  const shared = source.match(/const CALLABLE_BASE_OPTIONS = Object\\.freeze\\(\\{([\\s\\S]*?)\\}\\);/);
+  assert.ok(shared, 'all callables must inherit the shared runtime policy');
+  assert.match(shared[1], /region:\\s*['"]us-central1['"]/);
+  assert.match(shared[1], /enforceAppCheck:\\s*true/, 'shared options must enforce App Check');
+  assert.match(shared[1], /timeoutSeconds:\\s*60/);
   for (const name of [
     'executeReverseLedger',
     'executeSettlementAllocation',
@@ -102,9 +107,9 @@ test('Firebase enforces App Check server-side on every protected staging callabl
     'restoreTrustedReverseLedgerBackup'
   ]) {
     const declaration = source.match(new RegExp(
-      'exports\\.' + name + '\\s*=\\s*onCall\\(\\{([\\s\\S]*?)\\}\\s*,'
+      'exports\\\\.' + name + '\\\\s*=\\\\s*onCall\\\\(\\\\{([\\\\s\\\\S]*?)\\\\}\\\\s*,'
     ));
     assert.ok(declaration, name + ' must be registered as a Firebase callable');
-    assert.match(declaration[1], /enforceAppCheck:\s*true/, name + ' must enforce App Check on the server');
+    assert.match(declaration[1], /\\.\\.\\.CALLABLE_BASE_OPTIONS/, name + ' must inherit the shared App Check policy');
   }
 });
