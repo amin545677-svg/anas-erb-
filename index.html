@@ -5539,11 +5539,12 @@ function renderPurchasesTable() {
             });
             let expenseSaved = false;
             try {
-                // Keep the synchronous legacy commit guard, then await the durable IndexedDB acknowledgement.
-                if (saveDB() !== true) throw new Error('فشل تأكيد الحفظ المحلي الأولي.');
+                // Keep the exact legacy save acknowledgement, then await the durable IndexedDB commit.
+                expenseSaved = saveDB() === true;
+                if (!expenseSaved) throw new Error('فشل تأكيد الحفظ المحلي الأولي.');
                 await saveDBDurably();
-                expenseSaved = true;
             } catch (err) {
+                expenseSaved = false;
                 console.error('ANAS durable expense save failed', err);
             }
             if (!expenseSaved) {
@@ -5551,7 +5552,8 @@ function renderPurchasesTable() {
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 if (hadCashMovements) AppData.cashMovements = previousCashMovements; else delete AppData.cashMovements;
                 try {
-                    if (saveDB() !== true) throw new Error('فشل حفظ الاسترجاع المحلي الأولي.');
+                    const rollbackSaved = saveDB() === true;
+                    if (!rollbackSaved) throw new Error('فشل حفظ الاسترجاع المحلي الأولي.');
                     await saveDBDurably();
                 } catch (rollbackError) { console.error('ANAS expense rollback persistence failed', rollbackError); }
                 updateCashUI();
