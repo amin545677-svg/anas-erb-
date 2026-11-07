@@ -6517,6 +6517,10 @@ function renderPurchasesTable() {
                         amountCentimes: row.amount, createdAt: new Date().toISOString()
                     });
                     AppData.settlementAllocations.push(allocation);
+                    // Keep the invoice collection-facing balance/status synchronized with its
+                    // immutable original total and the appended settlement-allocation ledger.
+                    row.invoice.collectionRemaining = anasCentsToCurrency(row.newRemaining);
+                    row.invoice.statusLabel = row.newRemaining === 0 ? 'مدفوعة' : 'جزئية';
                 }
                 if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند القبض.');
             } catch (error) {
