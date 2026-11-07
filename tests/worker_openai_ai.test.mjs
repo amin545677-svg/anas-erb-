@@ -317,7 +317,7 @@ test("local AI audit values stock at both purchase and selling prices", () => {
 test("mobile customer, expense and purchase forms scroll focused fields above the keyboard", () => {
   assert.match(appHtml, /max-height: 85dvh/);
   assert.match(appHtml, /overflow-y: auto/);
-  assert.match(appHtml, /field\.scrollIntoView\(\{behavior:'smooth',block:'center'/);
+  assert.match(appHtml, /field\.scrollIntoView\(\{behavior:'smooth',block:'center',inline:'nearest'\}/);
   assert.match(appHtml, /#view-expenses \.panel-card-form/);
   assert.match(appHtml, /#view-purchases \.panel-card-form/);
 });
