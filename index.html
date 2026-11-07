@@ -9672,33 +9672,47 @@ function wtAuditTransfers(){
             }));
         }
 
-        function anasExecuteReversePosting(request) {
-            // Never post a financial reversal by mutating browser-local AppData.
-            // The server adapter must verify Firebase identity, trusted grants, OPEN
-            // fiscal period, ledger parity, stock/liquidity and a durable operationId
-            // reservation before committing one atomic backend transaction.
+        async function anasExecuteReversePosting(request) {
+            let before = null;
             try {
                 if (!request || typeof request !== 'object' || Array.isArray(request))
                     throw new Error('طلب العملية العكسية غير صالح.');
-                const gateway = globalThis.ANASReverseLedgerServer;
-                if (!gateway || typeof gateway.execute !== 'function')
-                    throw new Error('التنفيذ معطّل: لا توجد بوابة ترحيل خادمية موثوقة ومتصلة.');
-                const result = gateway.execute(request);
-                if (!result || typeof result.then !== 'function')
-                    throw new Error('بوابة الترحيل الخادمية يجب أن تنفذ طلبًا غير متزامنًا موثقًا.');
-                return result.then(response => {
-                    if (!response || response.ok !== true || !response.document)
-                        throw new Error(response && response.error ? String(response.error) : 'لم يؤكد الخادم نجاح الترحيل.');
-                    alert('أكد الخادم ترحيل المستند العكسي. رقم المستند: ' + String(response.document.returnId || '—'));
-                    return response.document;
-                }).catch(error => {
-                    const detail = (error && error.message ? String(error.message) : 'فشل التفويض أو الترحيل').replace(/[.؟!،\s]+$/u, '');
-                    alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + detail + '. لم يتم اعتماد أي نجاح محلي.');
-                    return null;
+                if (typeof AppData !== 'object' || !AppData)
+                    throw new Error('بيانات التطبيق المحلية غير جاهزة.');
+                const ledger = globalThis.ANASReverseLedger;
+                if (!ledger || typeof ledger.localPostReturnTransaction !== 'function')
+                    throw new Error('محرك المرتجعات المحلي غير متاح؛ لم يتم تغيير أي بيانات.');
+                if (typeof saveDBDurably !== 'function')
+                    throw new Error('واجهة الحفظ المحلي الموثوق غير متاحة؛ لم يتم اعتماد المرتجع.');
+                before = JSON.parse(JSON.stringify(AppData));
+                const document = ledger.localPostReturnTransaction(AppData, request, {
+                    operatorId: String(AppData.currentUser?.id ?? 'local-operator'),
+                    persist: () => true
                 });
+                try {
+                    // Wait for the resilient storage adapter's IndexedDB acknowledgement before
+                    // reporting success. A failed durable write restores the complete prior snapshot.
+                    await saveDBDurably();
+                } catch (persistError) {
+                    AppData = before;
+                    try { await saveDBDurably(); }
+                    catch (rollbackError) { console.error('ANAS local reverse-post rollback persistence failed:', rollbackError); }
+                    throw persistError;
+                }
+                try {
+                    if (typeof renderInventoryList === 'function') renderInventoryList();
+                    if (typeof renderQuickProducts === 'function') renderQuickProducts();
+                    if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
+                    if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                } catch (renderError) {
+                    console.error('ANAS local reverse posting saved; UI refresh failed:', renderError);
+                }
+                alert('تم اعتماد المرتجع محلياً وحفظه في التخزين الآمن. رقم المستند: ' + String(document.returnId || '—'));
+                return document;
             } catch (error) {
-                const detail = (error && error.message ? String(error.message) : 'فشل التفويض أو الترحيل').replace(/[.؟!،\s]+$/u, '');
-                alert('لم يتم تنفيذ المرتجع أو الإلغاء: ' + detail + '. لم يتم اعتماد أي نجاح محلي.');
+                const detail = (error && error.message ? String(error.message) : 'تعذر التحقق من المرتجع').replace(/[.؟!،\\s]+$/u, '');
+                alert('لم يتم اعتماد المرتجع محلياً: ' + detail + '. لم يتم اعتماد أي تغيير غير محفوظ.');
                 return null;
             }
         }
