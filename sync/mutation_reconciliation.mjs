@@ -322,7 +322,12 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
 
       const totalCents = moneyCents(invoice.total);
       const paidCents = moneyCents(invoice.paid ?? invoice.total);
-      const remainingCents = moneyCents(invoice.remaining ?? Math.max(0, Number(invoice.total) - Number(invoice.paid ?? invoice.total)));
+      // Derive omitted remaining amounts in integer centimes. Subtracting decimal
+      // Numbers first can produce values such as 0.19999999999999998 and wrongly
+      // quarantine a valid sale even though both source amounts are exact cents.
+      const remainingCents = invoice.remaining == null
+        ? (totalCents !== null && paidCents !== null ? totalCents - paidCents : null)
+        : moneyCents(invoice.remaining);
       if (totalCents === null || paidCents === null || remainingCents === null ||
           paidCents > totalCents || remainingCents !== totalCents - paidCents) {
         review.push({ opId: op.opId, reason: "INVALID_SALE_PAYMENT_SPLIT", operation: op });
