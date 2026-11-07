@@ -3700,15 +3700,26 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             setPosQty(idx, raw);
         }
 
+        function setPosPrice(idx, rawValue) {
+            const item = posCart[idx];
+            if (!item) return false;
+            const priceCents = anasToCents(rawValue);
+            if (!Number.isSafeInteger(priceCents) || priceCents < 0) {
+                alert('أدخل سعراً صحيحاً يساوي صفراً أو أكثر، وبحد أقصى منزلتين عشريتين.');
+                renderPosTable();
+                return false;
+            }
+            const oldCart = posCart.map(row => ({...row}));
+            item.price = anasCentsToCurrency(priceCents);
+            return savePosCartChange(() => { posCart = oldCart; });
+        }
+
         function editPosPrice(idx) {
             const item = posCart[idx];
             if (!item) return;
-            const p = parseFloat(prompt('تعديل سعر البيع للوحدة (د.ج):', item.price));
-            if (Number.isFinite(p) && p >= 0) {
-                const oldPrice = item.price;
-                item.price = p;
-                savePosCartChange(() => { item.price = oldPrice; });
-            }
+            const raw = prompt('تعديل سعر البيع للوحدة (د.ج):', item.price);
+            if (raw === null || String(raw).trim() === '') return;
+            setPosPrice(idx, raw);
         }
 
         function clearPosCart() {
@@ -3827,11 +3838,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 sub.style.cssText = 'display:block;color:#64748b;font-weight:500;';
                 sub.textContent = 'الإجمالي: ' + (Number(item.qty) * Number(item.price)).toFixed(2) + ' د.ج';
                 info.appendChild(sub);
-                const price = document.createElement('button');
-                price.type = 'button'; price.textContent = Number(item.price).toFixed(2) + ' د.ج';
-                price.title = 'اضغط لتعديل سعر الوحدة';
-                price.style.cssText = 'border:1px solid #bae6fd;border-radius:7px;background:#f0f9ff;color:#0369a1;padding:7px;font-weight:800;';
-                price.onclick = () => editPosPrice(idx);
+                const price = document.createElement('input');
+                price.type = 'number'; price.min = '0'; price.step = '0.01'; price.inputMode = 'decimal';
+                price.value = String(item.price); price.setAttribute('aria-label', 'سعر الوحدة ' + String(item.name || 'المنتج'));
+                price.title = 'أدخل سعر الوحدة بالدينار';
+                price.style.cssText = 'width:104px;min-height:38px;border:1px solid #bae6fd;border-radius:8px;background:#f0f9ff;color:#0369a1;padding:6px;text-align:center;font-weight:800;';
+                price.addEventListener('change', () => setPosPrice(idx, price.value));
                 const minus = document.createElement('button');
                 minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label','إنقاص الكمية');
                 minus.style.cssText = 'border:0;border-radius:7px;background:#e2e8f0;padding:7px 11px;font-size:18px;font-weight:900;';
