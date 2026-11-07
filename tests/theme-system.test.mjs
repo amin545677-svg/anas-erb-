@@ -108,7 +108,7 @@ test('theme remains usable when localStorage is unavailable', () => {
 });
 
 test('early bootstrap applies the saved theme before the stylesheet is parsed', () => {
-  const match = html.match(/<script id="anasThemeBootstrap">([\\s\\S]*?)<\\/script>/);
+  const match = html.match(/<script id="anasThemeBootstrap">([\s\S]*?)<\/script>/);
   assert.ok(match, 'early theme bootstrap must exist');
   const root = { attrs: {}, style: {}, setAttribute(k, v) { this.attrs[k] = v; } };
   const context = {
@@ -122,7 +122,7 @@ test('early bootstrap applies the saved theme before the stylesheet is parsed', 
 });
 
 test('early bootstrap falls back safely when storage access is blocked', () => {
-  const match = html.match(/<script id="anasThemeBootstrap">([\\s\\S]*?)<\\/script>/);
+  const match = html.match(/<script id="anasThemeBootstrap">([\s\S]*?)<\/script>/);
   assert.ok(match, 'early theme bootstrap must exist');
   const root = { attrs: {}, style: {}, setAttribute(k, v) { this.attrs[k] = v; } };
   const context = {
