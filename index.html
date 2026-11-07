@@ -2675,7 +2675,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
     <div class="modal-bg-backdrop" id="productPickerModal">
         <div class="picker-dialog-scroll">
             <h3 style="font-size:1.1rem; margin-bottom:12px; text-align:center; font-weight:900;">📦 اختيار منتج للفاتورة</h3>
-            <div id="productPickerList"></div>
+            <input id="productPickerSearch" type="search" class="field-input" placeholder="ابحث باسم المنتج أو الباركود..." aria-label="البحث عن منتج لإضافته إلى الفاتورة" oninput="openProductPickerModal()" style="margin-bottom:10px;">
+            <div id="productPickerList" aria-live="polite"></div>
             <button class="btn-full-submit" style="background:#64748b; margin-top:10px;" onclick="closeModal('productPickerModal')">إغلاق</button>
         </div>
     </div>
@@ -3722,12 +3723,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const list = document.getElementById('productPickerList');
             if (!list) return;
             list.replaceChildren();
+            const query = String(document.getElementById('productPickerSearch')?.value || '').trim().toLocaleLowerCase();
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const safeImage = value => {
                 const src = String(value || '');
                 return /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(src) ? src : '';
             };
-            products.forEach(p => {
+            const filteredProducts = products.filter(p => {
+                if (!query) return true;
+                const haystack = [p && p.name, p && p.barcode, p && p.id].map(value => String(value ?? '').toLocaleLowerCase()).join(' ');
+                return haystack.includes(query);
+            });
+            if (!filteredProducts.length) {
+                const empty = document.createElement('div');
+                empty.className = 'pos-empty-hint';
+                empty.textContent = query ? 'لا توجد منتجات مطابقة. تحقق من الاسم أو الباركود.' : 'لا توجد منتجات متاحة.';
+                list.appendChild(empty);
+            }
+            filteredProducts.forEach(p => {
                 const pr = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
                 const card = document.createElement('button');
                 card.type = 'button';
