@@ -4537,7 +4537,7 @@ input:focus, select:focus, textarea:focus {
                 if (!Number.isSafeInteger(stockUnits) || stockUnits < 0 || stockUnits > Number.MAX_SAFE_INTEGER) {
                     alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '».'); return;
                 }
-                if (stockUnits < qtyUnits) {
+                if (stockUnits < qtyUnits && !AppData.allowNegativeStock) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + anasQtyFromUnits(qtyUnits) + '، المتوفر: ' + anasQtyFromUnits(stockUnits)); return;
                 }
             }
