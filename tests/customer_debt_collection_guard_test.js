@@ -4,6 +4,7 @@ const vm = require('node:vm');
 const customerDebtProtection = require('../customer-debt-protection.js');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const currentHtml = html;
 const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
 const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer-centime helpers must be present and isolatable');
