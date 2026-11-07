@@ -2063,6 +2063,11 @@ input:focus, select:focus, textarea:focus {
                 <div style="font-size:0.9rem; font-weight:800; margin:10px 4px; color:var(--mp-text-dark);">
                     قائمة السلع والكميات المتوفرة بالمخزن:
                 </div>
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(112px,.7fr);gap:8px;margin:8px 0;">
+                  <input id="inventoryUnifiedSearch" class="field-input" type="search" placeholder="بحث بالاسم أو الباركود..." oninput="renderInventoryList()" aria-label="بحث المخزون">
+                  <select id="inventoryUnifiedStatus" class="field-input" onchange="renderInventoryList()" aria-label="فلتر حالة المخزون"><option value="ALL">كل الحالات</option><option value="featured">⭐ مميز</option><option value="available">متوفر</option><option value="low">منخفض</option><option value="out">نافد</option></select>
+                </div>
+                <div id="inventoryUnifiedCount" style="font-size:12px;color:var(--mp-text-muted);margin:4px 2px;" aria-live="polite"></div>
                 <div id="inventoryItemsContainer" class="action-menu-list"></div>
             </div>
             <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -3055,20 +3060,18 @@ input:focus, select:focus, textarea:focus {
             if (!cont) return;
             cont.replaceChildren();
             const products = Array.isArray(AppData.products) ? AppData.products : [];
-            const categoryFiltered = products.filter(p => currentPosCategoryFilter === 'الكل' || String(p.cat || p.category || 'عام') === String(currentPosCategoryFilter));
-            const filtered = categoryFiltered.filter(p => {
-                const stock = Number(typeof wtAvailableStock === 'function'
-                    ? wtAvailableStock(p, typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي')
-                    : (p.stock ?? p.quantity ?? 0));
-                if (!Number.isFinite(stock)) return false;
-                const thresholdValue = Number(p.minAlert ?? p.min_limit ?? 5);
-                const threshold = Number.isFinite(thresholdValue) && thresholdValue >= 0 ? thresholdValue : 5;
-                if (currentPosStockFilter === 'favorite') return p.favorite === true || p.isFavorite === true || p.featured === true;
-                if (currentPosStockFilter === 'available') return stock > 0;
-                if (currentPosStockFilter === 'low') return stock > 0 && stock <= threshold;
-                if (currentPosStockFilter === 'out') return stock <= 0;
-                return true;
-            });
+            const core = window.ANASMicroPOSCore;
+            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            const withSaleStock = products.map(p => ({
+                ...p,
+                stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0))
+            }));
+            const filtered = core
+                ? core.filterInventoryItems(withSaleStock, {
+                    category: currentPosCategoryFilter === 'الكل' ? 'ALL' : currentPosCategoryFilter,
+                    status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter
+                })
+                : withSaleStock;
             filtered.forEach(p => {
                 const pr = AppData.activePriceTier === 2 ? (p.price2 ?? p.price1) : (AppData.activePriceTier === 3 ? (p.price3 ?? p.price1) : p.price1);
                 const stock = Number(typeof wtAvailableStock === 'function'
@@ -7694,8 +7697,14 @@ function wtAuditTransfers(){
                 return /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(src) ? src : '';
             };
             const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const core = window.ANASMicroPOSCore;
+            const search = document.getElementById("inventoryUnifiedSearch")?.value || "";
+            const status = document.getElementById("inventoryUnifiedStatus")?.value || "ALL";
+            const visibleProducts = core ? core.filterInventoryItems(products, { query: search, status }) : products;
+            const count = document.getElementById("inventoryUnifiedCount");
+            if (count) count.textContent = "المعروض: " + visibleProducts.length + " من " + products.length + " منتج";
             const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
-            products.forEach(p => {
+            visibleProducts.forEach(p => {
                 const id = String(p.id ?? '');
                 const image = safeImage(p.image);
                 const imgThumb = image
@@ -13016,5 +13025,12 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
 </style>
 
 <script type="module" src="./pos/micro-pos-engine.mjs"></script>
+<script src="./micro-pos-core.js"></script>
+<script>
+  (function(){
+    if (!window.ANASMicroPOSCore) { console.error("ANAS Micro POS core failed to load"); return; }
+    window.ANASMicroPOSCore.createInventoryEventBridge(window);
+  })();
+</script>
 </body>
 </html>
