@@ -108,6 +108,8 @@ test('safe bulk import backs up first, commits one complete batch and restores m
 test('Algerian WhatsApp statements normalize valid mobile numbers and omit invalid numbers', () => {
   assert.equal(normalizeAlgeriaPhone('0550 12 34 56'), '213550123456');
   assert.equal(normalizeAlgeriaPhone('+213 660 12 34 56'), '213660123456');
+  assert.equal(normalizeAlgeriaPhone('٠٥٥٠١٢٣٤٥٦'), '213550123456',
+    'Arabic-Indic digits must normalize to the same canonical Algerian mobile number');
   assert.equal(normalizeAlgeriaPhone('012345'), '');
   const url = buildWhatsAppStatementUrl({ name: 'عميل تجريبي', phone: '0550123456', debt: '1250.50' });
   assert.match(url, /^https:\/\/wa\.me\/213550123456\?text=/);
@@ -259,4 +261,17 @@ test('workbook preview rejects a product ID that conflicts with the matched barc
   assert.equal(staged.products[0].isDuplicate, true);
   assert.equal(staged.products[0].identityConflict, true);
   assert.equal(staged.products[0].action, 'review_conflict');
+});
+
+
+test('product identity normalization preserves meaningful SKU punctuation', () => {
+  const staged = classifyAndStageWorkbookSheets({
+    Products: [{ ID: 'P 1', Barcode: 'B 2', Name: 'منتج مختلف', Quantity: 1 }]
+  }, {
+    products: [{ id: 'P-1', barcode: 'B-2', name: 'منتج أصلي', quantity: 1 }]
+  });
+  assert.equal(staged.products.length, 1);
+  assert.equal(staged.products[0].isDuplicate, false,
+    'hyphenated product identifiers must not collapse into space-separated identifiers');
+  assert.deepEqual(staged.products[0].identityKeys, ['id:p 1', 'barcode:b 2']);
 });
