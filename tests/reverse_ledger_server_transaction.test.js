@@ -44,6 +44,7 @@ class MemoryFirestore {
     const writes = [];
     const tx = {
       get: async ref => new FakeSnapshot(ref, this.records.get(ref.path)),
+      getAll: async (...refs) => refs.map(ref => new FakeSnapshot(ref, this.records.get(ref.path))),
       update: (ref, value) => writes.push({ type: 'update', ref, value: structuredClone(value) }),
       create: (ref, value) => writes.push({ type: 'create', ref, value: structuredClone(value) })
     };
