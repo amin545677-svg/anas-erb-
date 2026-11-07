@@ -12824,5 +12824,65 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
 
 
 
+
+<style id="anas-theme-contrast-arabic-fix">
+/* Keep Arabic shaping intact and prevent inherited theme colors from disappearing on controls. */
+html[lang="ar"], html[lang="ar"] body, html[lang="ar"] button,
+html[lang="ar"] input, html[lang="ar"] select, html[lang="ar"] textarea,
+html[lang="ar"] label, html[lang="ar"] p, html[lang="ar"] span,
+html[lang="ar"] strong, html[lang="ar"] b, html[lang="ar"] a {
+  letter-spacing: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+html[lang="ar"] button, html[lang="ar"] [role="button"],
+html[lang="ar"] .grid-card-item, html[lang="ar"] .menu-action-card,
+html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+:root[data-anas-theme="dark"] button:not(.btn-pos-hasib):not(.anas-ai-quick-actions button):not(#anasAiAskBtn),
+:root[data-anas-theme="dark"] [role="button"]:not(.btn-pos-hasib),
+:root[data-anas-theme="dark"] .grid-card-item,
+:root[data-anas-theme="dark"] .menu-action-card,
+:root[data-anas-theme="dark"] .quick-product-btn,
+:root[data-anas-theme="dark"] .pill-select-btn,
+:root[data-anas-theme="dark"] .btn-multi-tab {
+  background-color: var(--anas-surface, #151f32) !important;
+  color: var(--anas-text, #f3f6fc) !important;
+  border-color: var(--anas-border, #3b4b65) !important;
+}
+:root[data-anas-theme="dark"] button:not(.btn-pos-hasib):not(.anas-ai-quick-actions button):not(#anasAiAskBtn) *,
+:root[data-anas-theme="dark"] [role="button"]:not(.btn-pos-hasib) * {
+  color: inherit !important;
+}
+:root[data-anas-theme="light"] button:not(.btn-pos-hasib):not(.anas-ai-quick-actions button):not(#anasAiAskBtn),
+:root[data-anas-theme="light"] [role="button"]:not(.btn-pos-hasib),
+:root[data-anas-theme="light"] .grid-card-item,
+:root[data-anas-theme="light"] .menu-action-card,
+:root[data-anas-theme="light"] .quick-product-btn,
+:root[data-anas-theme="light"] .pill-select-btn,
+:root[data-anas-theme="light"] .btn-multi-tab {
+  color: #172033;
+}
+:root[data-anas-theme="dark"] .anas-ai-grid button,
+:root[data-anas-theme="dark"] #anasAiAskBtn,
+:root[data-anas-theme="dark"] .anas-ai-draft-action {
+  color: #ffffff !important;
+}
+@media (max-width: 420px) {
+  html[lang="ar"] button, html[lang="ar"] [role="button"],
+  html[lang="ar"] .grid-card-item, html[lang="ar"] .menu-action-card {
+    min-height: 44px;
+    padding-inline: 10px;
+    font-size: clamp(13px, 3.6vw, 16px);
+  }
+}
+</style>
+
 </body>
 </html>
