@@ -3513,6 +3513,30 @@ input:focus, select:focus, textarea:focus {
             if (event.key === 'Escape') closePosSearchResults(false);
         }, true);
 
+        // Snapshot and restore the active cart without replacing its array or row identities.
+        // This keeps AppData.posScreensCarts references stable when a synchronous save fails.
+        function snapshotPosCart() {
+            return posCart.map(row => ({
+                reference: row,
+                values: row && typeof row === 'object' ? {...row} : row
+            }));
+        }
+        function restorePosCart(snapshot) {
+            if (!Array.isArray(snapshot)) throw new Error('Invalid POS cart rollback snapshot');
+            const restoredRows = snapshot.map(entry => {
+                const row = entry.reference;
+                const values = entry.values;
+                if (row && typeof row === 'object' && values && typeof values === 'object') {
+                    for (const key of Object.keys(row)) {
+                        if (!Object.prototype.hasOwnProperty.call(values, key)) delete row[key];
+                    }
+                    Object.assign(row, values);
+                }
+                return row;
+            });
+            posCart.splice(0, posCart.length, ...restoredRows);
+        }
+
         function addItemToPosCart(pId) {
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const matches = products.filter(x => x && String(x.id) === String(pId));
@@ -3560,7 +3584,7 @@ input:focus, select:focus, textarea:focus {
                 alert('الكمية المطلوبة تتجاوز رصيد مخزن البيع «' + warehouse + '». المتوفر: ' + anasQtyFromUnits(availableUnits));
                 return;
             }
-            const oldCart = posCart.map(row => ({...row}));
+            const oldCart = snapshotPosCart();
             if (existingRows.length) {
                 const firstRow = posCart.find(row => row && String(row.id) === String(product.id));
                 const firstUnits = anasToQtyUnits(firstRow.qty);
@@ -3575,13 +3599,13 @@ input:focus, select:focus, textarea:focus {
                     image: product.image || ''
                 });
             }
-            savePosCartChange(() => { posCart = oldCart; });
+            savePosCartChange(() => { restorePosCart(oldCart); });
         }
         function removePosCartItem(idx) {
             if (!Number.isInteger(idx) || idx < 0 || idx >= posCart.length) return;
-            const oldCart = posCart.map(row => ({...row}));
+            const oldCart = snapshotPosCart();
             posCart.splice(idx, 1);
-            savePosCartChange(() => { posCart = oldCart; });
+            savePosCartChange(() => { restorePosCart(oldCart); });
         }
 
         function renderPosTable() {
@@ -3720,14 +3744,14 @@ input:focus, select:focus, textarea:focus {
                 alert('تعذر تعديل السلة: الكمية الناتجة تتجاوز المجال الرقمي الآمن.');
                 return;
             }
-            const oldCart = posCart.map(row => ({...row}));
+            const oldCart = snapshotPosCart();
             if (next <= 0) { posCart.splice(idx, 1); }
             else {
                 const nextUnits = anasToQtyUnits(next);
                 if (!validatePosCartStock(idx, nextUnits)) return;
                 item.qty = anasQtyFromUnits(nextUnits);
             }
-            savePosCartChange(() => { posCart = oldCart; });
+            savePosCartChange(() => { restorePosCart(oldCart); });
         }
 
         function setPosQty(idx, rawValue) {
@@ -3744,9 +3768,9 @@ input:focus, select:focus, textarea:focus {
                 renderPosTable();
                 return false;
             }
-            const oldCart = posCart.map(row => ({...row}));
+            const oldCart = snapshotPosCart();
             item.qty = nextQty;
-            return savePosCartChange(() => { posCart = oldCart; });
+            return savePosCartChange(() => { restorePosCart(oldCart); });
         }
 
         function editPosQty(idx) {
@@ -3767,9 +3791,9 @@ input:focus, select:focus, textarea:focus {
                 renderPosTable();
                 return false;
             }
-            const oldCart = posCart.map(row => ({...row}));
+            const oldCart = snapshotPosCart();
             item.price = anasCentsToCurrency(priceCents);
-            return savePosCartChange(() => { posCart = oldCart; });
+            return savePosCartChange(() => { restorePosCart(oldCart); });
         }
 
         function editPosPrice(idx) {
