@@ -54,6 +54,7 @@ test('sales period and status logic are deterministic and centime accurate', () 
 
 test('inventory bridge refreshes both views only after successful sync or durable persistence', async () => {
   const listeners = new Map();
+  let saveResult = true;
   const target = {
     refreshes: [],
     renderInventoryList() { this.refreshes.push('inventory'); },
@@ -61,7 +62,7 @@ test('inventory bridge refreshes both views only after successful sync or durabl
     addEventListener(name, fn) { listeners.set(name, fn); },
     dispatchEvent(event) { const fn = listeners.get(event.type); if (fn) fn(event); },
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init && init.detail; } },
-    saveDB() { return true; },
+    saveDB() { return saveResult; },
     async saveDBDurably() { return true; }
   };
   assert.equal(Core.createInventoryEventBridge(target), true);
@@ -71,7 +72,7 @@ test('inventory bridge refreshes both views only after successful sync or durabl
   assert.equal(await target.saveDBDurably(), true);
   assert.deepEqual(target.refreshes, ['inventory', 'pos']);
   target.refreshes.length = 0;
-  target.saveDB = () => false;
+  saveResult = false;
   assert.equal(target.saveDB(), false);
   assert.deepEqual(target.refreshes, []);
 });
