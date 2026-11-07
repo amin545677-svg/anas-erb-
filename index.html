@@ -9656,7 +9656,7 @@ function wtAuditTransfers(){
             }finally{if(timer!==null)clearTimeout(timer);if(btn){btn.disabled=false;btn.textContent='✨ اسأل Anas AI';}}
         }
 
-        // Load the vendored SheetJS build on demand; no runtime CDN dependency.
+        // Load the vendored SheetJS CE 0.20.3 build on demand; no runtime CDN dependency.
         let anasSheetJsLoadPromise = null;
         async function anasLoadSheetJs(){
             const isReady = lib => !!(lib && typeof lib.read === 'function' &&
