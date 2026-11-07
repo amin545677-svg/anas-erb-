@@ -183,6 +183,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     });
     assert.equal(await page.evaluate(() => posCart[0].qty), 2,
       'POS must block stock overrun even if a legacy allowNegativeStock flag is true because warehouse balances reject negatives');
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    assert.equal(await page.evaluate(() => AppData.invoices.length), 0,
+      'durable sale commit must reject a stock overrun even when the legacy negative-stock flag is enabled');
+    assert.ok(dialogMessages.some(message => message.includes('المخزون غير كافٍ')),
+      'durable stock guard must explain why the sale was rejected');
     await page.evaluate(() => {
       AppData.products[0].stock = 10;
       AppData.allowNegativeStock = false;
