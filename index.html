@@ -3125,7 +3125,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }).slice(0, 12);
             const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
             if (!matches.length) {
-                results.innerHTML = '<div class="pos-search-empty">لا توجد منتجات مطابقة</div>';
+                results.innerHTML = '<div class="pos-search-empty">لا توجد منتجات مطابقة</div>' +
+                    '<button type="button" class="pos-search-result pos-search-quick-add" onclick="openQuickAddPosProduct()">' +
+                    '<span class="pos-search-result-name">＋ إضافة صنف جديد</span><span class="pos-search-result-meta">' +
+                    esc(query) + '</span></button>';
                 results.hidden = false;
                 return;
             }
@@ -3155,6 +3158,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 const chosen = items[posSearchActiveIndex >= 0 ? posSearchActiveIndex : 0];
                 if (chosen) chosen.click();
             } else if (event.key === 'Escape') { results.hidden = true; }
+        }
+        function openQuickAddPosProduct() {
+            const input = document.getElementById('posSearchField');
+            const query = String(input?.value || '').trim();
+            if (!query) return;
+            const barcodeLike = /^[A-Za-z0-9._-]{5,}$/.test(anasNormalizeBarcode(query)) && !/\s/.test(query);
+            openAddProductModal();
+            const nameField = document.getElementById('newProdNameInput');
+            const barcodeField = document.getElementById('newProdBarcodeInput');
+            const stockField = document.getElementById('newProdStockInput');
+            if (stockField) stockField.value = '0';
+            if (barcodeLike) {
+                if (nameField) nameField.value = '';
+                if (barcodeField) barcodeField.value = query;
+            } else if (nameField) nameField.value = query;
+            posQuickAddPending = { kind: barcodeLike ? 'barcode' : 'name', value: query };
+            const results = document.getElementById('posSearchResults');
+            if (results) { results.hidden = true; results.innerHTML = ''; }
         }
         function selectPosSearchProduct(productId) {
             const product = (AppData.products || []).find(p => String(p.id) === String(productId));
@@ -4839,6 +4860,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
         let purchaseSearchActiveIndex = -1;
         let purchaseQuickAddPending = null;
+        let posQuickAddPending = null;
         function closePurchaseSearchResults() {
             const results = document.getElementById('purProductSearchResults');
             if (results) { results.hidden = true; results.innerHTML = ''; }
@@ -7289,6 +7311,7 @@ function wtAuditTransfers(){
 
         function openAddProductModal() {
             purchaseQuickAddPending = null;
+            posQuickAddPending = null;
             populateSuppliersDropdowns();
             populateProductCategorySuggestions();
             populateProductUnitOptions();
@@ -7433,9 +7456,22 @@ function wtAuditTransfers(){
                 return;
             }
             const quickAddContext = purchaseQuickAddPending;
+            const posQuickAddContext = posQuickAddPending;
             purchaseQuickAddPending = null;
+            posQuickAddPending = null;
             closeModal('addProductModal');
-            if (quickAddContext && index < 0) {
+            if (index < 0 && posQuickAddContext) {
+                const posQuickMatches = AppData.products.filter(product => posQuickAddContext.kind === 'barcode'
+                    ? anasNormalizeBarcode(product.barcode) === anasNormalizeBarcode(posQuickAddContext.value)
+                    : normalizePosSearch(product.name) === normalizePosSearch(posQuickAddContext.value));
+                if (posQuickMatches.length === 1) {
+                    const posInput = document.getElementById('posSearchField');
+                    if (posInput) posInput.value = String(posQuickMatches[0].name || '');
+                    if (Number(posQuickMatches[0].stock) > 0) selectPosSearchProduct(posQuickMatches[0].id);
+                    else handlePosSearch(posInput ? posInput.value : posQuickMatches[0].name);
+                }
+            }
+            if (index < 0 && quickAddContext) {
                 const quickMatches = AppData.products.filter(product => quickAddContext.kind === 'barcode'
                     ? anasNormalizeBarcode(product.barcode) === anasNormalizeBarcode(quickAddContext.value)
                     : normalizePosSearch(product.name) === normalizePosSearch(quickAddContext.value));
