@@ -334,6 +334,20 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.equal(acceptance.importedProductsPersisted, true, 'all five imported product rows must be durably represented (including the intentional duplicate name)');
     assert.equal(acceptance.backupPreImportProductCount, 0, 'backup must be captured before the first product is added');
 
+    // Prove the XLSX import survives a real browser reload, not only the in-memory AppData bridge.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.AppData?.products?.length === 5, { timeout: 10000 });
+    const xlsxRestored = await page.evaluate(() => (window.AppData.products || [])
+      .map(product => ({ id: product.id, name: product.name, stock: product.stock }))
+      .sort((a, b) => a.id.localeCompare(b.id)));
+    assert.deepEqual(xlsxRestored, [
+      { id: 'TEA-001', name: 'أريشا كرستال 200غ', stock: 12 },
+      { id: 'TEA-002', name: 'توارف ساشي 200غ', stock: 10 },
+      { id: 'TEA-003', name: 'الرقيم 500غ', stock: 8 },
+      { id: 'TEA-004', name: 'توارف ساشي 200غ', stock: 15 },
+      { id: 'TEA-005', name: 'شاي أخضر 200غ', stock: 20 }
+    ], 'XLSX import must restore all five selected-sheet rows and stock values after a full browser reload');
+
     // Re-import the same product identity with changed catalog fields and a different file stock.
     // The importer must update the catalog but never overwrite an already-posted live balance/cost basis.
     await page.evaluate(async () => {
