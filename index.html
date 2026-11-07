@@ -3063,6 +3063,7 @@ input:focus, select:focus, textarea:focus {
             if (!cont) return;
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const core = window.ANASMicroPOSCore;
+            const selectedCategory = currentPosCategoryFilter;
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             const withSaleStock = products.map(p => ({
                 ...p,
@@ -3071,7 +3072,7 @@ input:focus, select:focus, textarea:focus {
             }));
             const filtered = core
                 ? core.filterInventoryItems(withSaleStock, {
-                    category: currentPosCategoryFilter === 'الكل' ? 'ALL' : currentPosCategoryFilter,
+                    category: selectedCategory === 'الكل' ? 'ALL' : selectedCategory,
                     status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter
                 })
                 : withSaleStock;
