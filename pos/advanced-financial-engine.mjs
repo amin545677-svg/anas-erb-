@@ -70,9 +70,14 @@ function identityKeysFor(type, row) {
     ]
   };
   return (groups[type] || [['id']]).flatMap((aliases, index) => {
-    const value = norm(first(row, aliases));
-    return value ? [(type === 'products' ? (index === 0 ? 'id:' : 'barcode:') :
-      type === 'customers' || type === 'suppliers' ? (index === 0 ? 'phone:' : 'id:') : 'invoice:') + value] : [];
+    const raw = text(first(row, aliases));
+    if (!raw) return [];
+    const field = type === 'products' ? (index === 0 ? 'id' : 'barcode') :
+      type === 'customers' || type === 'suppliers' ? (index === 0 ? 'phone' : 'id') : 'invoice';
+    const value = field === 'phone'
+      ? (normalizeAlgeriaPhone(raw) || raw.toLocaleLowerCase().replace(/\s+/g, ''))
+      : raw.toLocaleLowerCase().replace(/[\u064B-\u065F\u0670]/g, '').replace(/\s+/g, ' ');
+    return [field + ':' + value];
   });
 }
 
@@ -312,7 +317,10 @@ export async function executeSafeBulkImport({ rows, mode = 'merge', entityType =
 }
 
 export function normalizeAlgeriaPhone(rawPhone) {
-  let digits = String(rawPhone ?? '').replace(/\D+/g, '');
+  let digits = String(rawPhone ?? '')
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x06F0))
+    .replace(/\D+/g, '');
   if (digits.startsWith('00213')) digits = '213' + digits.slice(5);
   else if (digits.startsWith('0') && digits.length === 10) digits = '213' + digits.slice(1);
   else if (digits.length === 9 && /^[567]/.test(digits)) digits = '213' + digits;
