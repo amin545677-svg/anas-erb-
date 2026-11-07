@@ -5017,7 +5017,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     (validTotal ? 'تحقق من المبلغ المدفوع' : '—');
             }
         }
-        if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') {
+        if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function' && typeof document.getElementById === 'function' && typeof document.querySelector === 'function') {
             document.addEventListener('click', function(event) {
                 const wrap = document.querySelector('#view-purchases .pos-search-wrap');
                 if (wrap && !wrap.contains(event.target)) closePurchaseSearchResults();
