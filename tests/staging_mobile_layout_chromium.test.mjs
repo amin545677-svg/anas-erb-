@@ -398,6 +398,8 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await page.locator('#smartImportPreviewModal').waitFor({ state:'visible' });
     assert.equal(await page.locator('#smartImportTarget').inputValue(), 'products');
     await page.locator('#smartImportConfirm').click();
+    await page.locator('#smartImportReview').getByText('أريشا كرستال تحديث').waitFor({ state: 'visible' });
+    await page.locator('#smartImportConfirm').click();
     await page.locator('#smartImportPreviewModal').waitFor({ state:'detached' });
     await page.waitForFunction(() => window.AppData.products[0]?.name === 'أريشا كرستال تحديث');
     const upsert = await page.evaluate(() => ({
