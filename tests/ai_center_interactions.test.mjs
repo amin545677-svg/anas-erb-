@@ -55,6 +55,8 @@ test('ERP script and stylesheet references are relative for the /erp/ deployment
 test('Excel header analysis is local while PDF analysis retains its separate persisted-auth guard', () => {
   assert.match(html, /window\.anasGetFirebaseIdToken=async function\(timeoutMs=8000\)/);
   assert.match(html, /auth\.onAuthStateChanged\(u=>finish\(resolve,u\|\|null\)/);
+  assert.match(html, /auth\.signInAnonymously\(\)/, 'cloud AI should obtain a persisted anonymous Firebase identity when no user is signed in');
+  assert.match(html, /المصادقة المجهولة غير مفعّلة في مشروع Firebase/, 'disabled anonymous provider must produce an actionable setup message');
   assert.match(html, /انتهت مهلة استعادة جلسة Firebase/);
   const start = html.indexOf('function showSmartImportPreview');
   const end = html.indexOf('function clearAllSalesInvoices', start);
