@@ -18,13 +18,13 @@ class FixedDate extends Date {
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
 
-function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1' } = {}) {
+function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1', invoices = null } = {}) {
   const alerts = [];
   let saves = 0;
   const customer = { id: customerId, name: 'Test customer', debt };
   const invoice = { id: 'INV-1', customerId: customerId, total: debt, paid: 0, remaining: debt };
   const appData = {
-    customers: [customer], invoices: [invoice],
+    customers: [customer], invoices: invoices || [invoice],
     caisseBalance: cash,
     cashMovements: movements.map(m => ({ ...m }))
   };
@@ -187,3 +187,26 @@ console.log('PASS: customer and supplier saves fail closed on malformed records 
   assert.equal(result.appData.cashMovements[0].amount,0.11);
 }
 console.log('PASS: debt collection and cash receipt use the same integer-centime arithmetic');
+
+{
+  const invoices = [
+    { id: 'INV-OLD', customerId: 'C-1', date: '2026-01-01T10:00:00Z', total: 30, paid: 0, remaining: 30 },
+    { id: 'INV-MID', customerId: 'C-1', date: '2026-02-01T10:00:00Z', total: 50, paid: 10, remaining: 40 },
+    { id: 'INV-NEW', customerId: 'C-1', date: '2026-03-01T10:00:00Z', total: 60, paid: 0, remaining: 60 }
+  ];
+  const result = runCollection({ debt: 100, cash: 10, amount: '45', invoices });
+  assert.equal(result.saves, 1, 'FIFO receipt must commit exactly once');
+  assert.equal(result.customer.debt, 55, 'customer debt must decrease by the exact receipt');
+  assert.equal(result.appData.caisseBalance, 55, 'cashbox must receive the exact receipt');
+  assert.deepEqual(result.appData.settlementAllocations.map(x => [x.invoiceId, x.amountCentimes]),
+    [['INV-OLD', 3000], ['INV-MID', 1500]], 'allocation must exhaust the oldest invoice before moving to the next');
+  assert.equal(invoices[0].statusLabel, 'مدفوعة');
+  assert.equal(invoices[0].collectionRemaining, 0);
+  assert.equal(invoices[1].statusLabel, 'جزئية');
+  assert.equal(invoices[1].collectionRemaining, 25);
+  assert.equal(invoices[2].statusLabel, undefined, 'newer invoices must remain untouched when the receipt is exhausted');
+  assert.equal(result.appData.cashMovements[0].referenceType, 'customer_debt');
+  assert.equal(result.appData.cashMovements[0].amount, 45);
+}
+console.log('PASS: customer debt receipt allocates oldest-first and updates invoice collection balances/statuses');
+
