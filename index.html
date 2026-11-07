@@ -10839,7 +10839,8 @@ function wtAuditTransfers(){
                     console.error('ANAS ERP import saved; UI refresh failed:',err);
                     refreshWarning=' تم حفظ البيانات، لكن تعذّر تحديث إحدى الواجهات. أعد تحميل التطبيق للتحقق من العرض.';
                 }
-                const importSummary='اكتمل الاستيراد المحلي: '+(target==='products'?(added+' إضافة، '+updated+' تحديث'):added+' إضافة، '+updated+' تحديث')+' إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning;
+                const skipped=importDecisions.filter(decision=>decision==='ignore'||decision==='delete').length;
+                const importSummary='اكتمل الاستيراد المحلي: إجمالي '+staged.length+'، أضيف '+added+'، حُدث '+updated+'، تم تخطي '+skipped+' إلى قسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'.'+refreshWarning;
                 const importStatus=document.getElementById('smartAiExcelStatus');
                 if(importStatus) importStatus.textContent='✅ '+importSummary;
                 console.info('ANAS ERP local import:',importSummary);
