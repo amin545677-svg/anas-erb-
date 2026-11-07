@@ -63,10 +63,7 @@
       const rawStock = item.stock ?? item.quantity;
       if (rawStock === undefined || rawStock === null || rawStock === '' || !Number.isFinite(Number(rawStock))) return false;
       const stock = stockStatus(rawStock, item.minAlert ?? item.min_limit).code;
-      if (status === 'available' && Number(rawStock) <= 0) return false;
-      if (status === 'low' && stock !== 'low') return false;
-      if (status === 'out' && stock !== 'out') return false;
-      if (status !== 'ALL' && status !== 'featured' && !['available', 'low', 'out'].includes(status) && stock !== status) return false;
+      if (status !== 'ALL' && status !== 'featured' && stock !== status) return false;
       if (!query) return true;
       return [item.name, item.title, item.barcode, item.sku].some(v => String(v || '').toLocaleLowerCase().includes(query));
     });
