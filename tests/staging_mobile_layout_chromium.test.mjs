@@ -116,10 +116,10 @@ test('ANAS ERP ignores late customer GPS callbacks after saving or closing the f
     await page.waitForTimeout(50);
     assert.deepEqual(dialogs, [], 'a cancelled GPS request must not alert after the customer form closes');
     const requestState = await page.evaluate(() => ({
-      pending: window.activeCustomerGpsRequest || null,
+      location: document.getElementById('newCustLocationInput').value,
       modalOpen: document.getElementById('addCustomerModal').classList.contains('active')
     }));
-    assert.equal(requestState.pending, null);
+    assert.equal(requestState.location, '', 'late GPS callbacks must not mutate a closed customer form');
     assert.equal(requestState.modalOpen, false);
   } finally {
     if (browser) await browser.close();
