@@ -99,9 +99,9 @@ test('Firebase enforces shared App Check options server-side on all protected st
   const sharedEnd = source.indexOf('});', sharedStart);
   assert.ok(sharedStart >= 0 && sharedEnd > sharedStart, 'all callables must inherit the shared runtime policy');
   const shared = source.slice(sharedStart, sharedEnd);
-  assert.match(shared, /region:\\s*['"]us-central1['"]/);
-  assert.match(shared, /enforceAppCheck:\\s*true/, 'shared options must enforce App Check');
-  assert.match(shared, /timeoutSeconds:\\s*60/);
+  assert.ok(shared.includes("region: 'us-central1'"));
+  assert.ok(shared.includes('enforceAppCheck: true'), 'shared options must enforce App Check');
+  assert.ok(shared.includes('timeoutSeconds: 60'));
   for (const name of [
     'executeReverseLedger',
     'executeSettlementAllocation',
