@@ -282,15 +282,18 @@ test("PDF analysis sends a Firebase ID token to the protected AI gateway", () =>
   assert.match(handler, /خدمة استعادة جلسة Firebase غير جاهزة/);
 });
 
-test("Excel import analysis sends a Firebase ID token to the protected AI gateway", () => {
+test("Excel import column analysis is local and does not require a Firebase or cloud AI session", () => {
   const start = appHtml.indexOf("box.querySelector('#smartImportAiAnalyze').onclick=async()=>{");
   const end = appHtml.indexOf("box.querySelector('#smartImportCancel')", start);
-  assert.notEqual(start, -1, "Excel AI analysis handler must exist");
+  assert.notEqual(start, -1, "Excel local analysis handler must exist");
   assert.ok(end > start, "Excel handler boundary must exist");
   const handler = appHtml.slice(start, end);
-  assert.match(handler, /anasGetFirebaseIdToken/);
-  assert.match(handler, /Authorization.*token/, "Excel AI request must send the shared Firebase ID token");
-  assert.match(handler, /لم تتوفر جلسة\/خدمة AI السحابية/);
+  assert.match(handler, /const norm=s=>/);
+  assert.match(handler, /const aliases=/);
+  assert.match(handler, /Header matching is entirely local/);
+  assert.match(handler, /return;/);
+  assert.doesNotMatch(handler, /anasGetFirebaseIdToken|Authorization|fetch\(/,
+    "local column analysis must not request Firebase credentials or call a cloud endpoint");
 });
 
 test("Staging-origin AI requests validate Firebase ID tokens against the Staging project", async () => {

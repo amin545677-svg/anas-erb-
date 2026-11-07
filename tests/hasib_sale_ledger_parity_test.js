@@ -381,37 +381,20 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 }
 
 {
-  const executeStart=html.indexOf('function anasExecuteReversePosting(');
-  const executeEnd=html.indexOf('\n        function cancelInvoicePrompt()',executeStart);
-  assert.ok(executeStart>=0&&executeEnd>executeStart,'reverse posting entry point must be present and isolatable');
+  const executeStart=html.indexOf('async function anasExecuteReversePosting(');
+  const executeEnd=html.indexOf('\n        function anasReadReversePrompt()',executeStart);
+  assert.ok(executeStart>=0&&executeEnd>executeStart,'local reverse posting entry point must be present and isolatable');
+  const reverseSource=html.slice(executeStart,executeEnd);
+  assert.match(reverseSource,/localPostReturnTransaction\(/,'reverse posting must use the local atomic ledger engine');
+  assert.match(reverseSource,/await saveDBDurably\(\)/,'reverse posting must await durable local storage acknowledgement');
+  assert.match(reverseSource,/AppData\s*=\s*before/,'failed durable persistence must restore the complete prior local snapshot');
+  assert.doesNotMatch(reverseSource,/ANASReverseLedgerServer|periodId|financialPeriodId/,'local reverse posting must not depend on a server gateway or server fiscal period');
   for (const name of ['returnSalePrompt','returnPurchasePrompt','cancelInvoicePrompt']) {
     const fnStart=html.indexOf('function '+name+'()');
     const fnEnd=html.indexOf('\n        function ',fnStart+20);
     assert.ok(fnStart>=0&&fnEnd>fnStart,'missing reverse UI handler: '+name);
     assert.ok(html.slice(fnStart,fnEnd).includes('anasExecuteReversePosting('),
-      name+' must delegate through the single guarded reverse-posting entry point');
+      name+' must delegate through the single local reverse-posting entry point');
   }
-  const customer={id:'C-CANCEL',name:'Customer',debt:0.20};
-  const invoice={id:'INV-CANCEL',customerId:'C-CANCEL',customerObj:customer,total:0.30,paid:0.10,remaining:0.20,
-    items:[{id:'P-CANCEL',qty:3,price:0.10}],warehouse:'المخزن الرئيسي'};
-  const AppData={customers:[customer],suppliers:[],invoices:[invoice],purchases:[],
-    products:[{id:'P-CANCEL',name:'Tea',stock:0}],
-    cashMovements:[{id:'SALE-CASH-CANCEL',type:'add',amount:0.10,referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
-    stockMovements:[{id:'SALE-STOCK-CANCEL',productId:'P-CANCEL',qty:-3,type:'SALE_OUT',referenceType:'sales_invoice',referenceId:'INV-CANCEL'}],
-    clientMovements:[],supplierMovements:[],settlementAllocations:[],returns:[],customerCreditMovements:[],
-    caisseBalance:1,currentUser:{id:'U-CANCEL'}};
-  const before=JSON.stringify(AppData);
-  const alerts=[];
-  let localEngineCalls=0;
-  const cancelContext={AppData,ANASReverseLedger:{executeReturnTransaction(){localEngineCalls++;throw new Error('local engine must not run');}},
-    alert:m=>alerts.push(String(m))};
-  vm.createContext(cancelContext);
-  vm.runInContext(html.slice(executeStart,executeEnd)+'\nglobalThis.__cancelResult = anasExecuteReversePosting({returnType:"INVOICE_CANCEL"});',
-    cancelContext,{timeout:1500});
-  assert.equal(cancelContext.__cancelResult,null,'missing server gateway must block the reversal');
-  assert.equal(localEngineCalls,0,'browser-local financial engine must never execute a reverse posting');
-  assert.equal(JSON.stringify(AppData),before,'blocked reverse posting must not mutate invoice, debt, stock, cash or ledgers');
-  assert.ok(alerts.some(m=>m.includes('لا توجد بوابة ترحيل خادمية موثوقة')),
-    'the operator must receive an explicit server-authorization block reason');
-  console.log('PASS: reverse posting fails closed without a trusted server gateway and preserves all local state');
+  console.log('PASS: reverse posting uses the local atomic engine and awaits durable storage without server fiscal-period gating');
 }

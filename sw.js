@@ -1,4 +1,4 @@
-const CACHE = 'anas-erp-v54-25-r9';
+const CACHE = 'anas-erp-v54-25-r10';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
