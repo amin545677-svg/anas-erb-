@@ -1084,7 +1084,9 @@ jobs:
           helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
           start = s.find("function submitCashOperation()")
-          mid = s.find("function submitExpenseOperation()", start)
+          mid = s.find("async function submitExpenseOperation()", start)
+          if mid < 0:
+            mid = s.find("function submitExpenseOperation()", start)
           end = s.find("\n        function ", mid + 10)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
@@ -1107,6 +1109,7 @@ jobs:
           global.document = {getElementById:(id)=>elements[id]};
           global.AppData = {caisseBalance:20,cashMovements:[],expenses:[]};
           let saves=0; global.saveDB=()=>{saves++;return true;};
+          global.saveDBDurably=async()=>true;
           submitCashOperation();
           assert.equal(AppData.caisseBalance,30,'valid cash-in increases balance');
           assert.equal(AppData.cashMovements.length,1,'valid cash-in records movement');
