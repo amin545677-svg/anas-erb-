@@ -9194,7 +9194,7 @@ function wtAuditTransfers(){
         function anasExportLocalAuditXLSX(){
             const d=window.__anasLastAudit;if(!d){anasRunLocalBusinessAudit();return;}
             if(!window.XLSX||!XLSX.utils||typeof XLSX.writeFile!=='function'){alert('مكتبة Excel المحلية غير متاحة؛ استخدم تصدير CSV.');return;}
-            const rows=[['وقت الفحص',d.at],['المنتجات',d.summary.products],['العملاء',d.summary.customers],['الموردون',d.summary.suppliers],['الفواتير',d.summary.invoices],['قيمة المخزون التقديرية',d.summary.stockCost],['ديون العملاء',d.summary.debtTotal],['الأولوية','الفحص','العدد','أمثلة'],...d.issues];
+            const rows=[['وقت الفحص',d.at],['المنتجات',d.summary.products],['العملاء',d.summary.customers],['الموردون',d.summary.suppliers],['الفواتير',d.summary.invoices],['قيمة المخزون بسعر الشراء',d.summary.stockCost],['قيمة المخزون بسعر البيع',d.summary.stockSell],['ديون العملاء',d.summary.debtTotal],['الأولوية','الفحص','العدد','أمثلة'],...d.issues];
             const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'تقرير الفحص');XLSX.writeFile(wb,'ANAS_ERP_Local_Audit.xlsx',{compression:true});
         }
 
