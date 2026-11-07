@@ -67,7 +67,7 @@ export async function buildStagingHosting(options = {}) {
 
   // Vendor pinned parsers and OCR runtime into the ERP's local PWA scope.
   for (const [sourceRelative, destinationRelative] of [
-    ['node_modules/xlsx/dist/xlsx.full.min.js', 'vendor/xlsx/xlsx.full.min.js'],
+    ['vendor/xlsx/xlsx.full.min.js', 'vendor/xlsx/xlsx.full.min.js'],
     ['node_modules/pdfjs-dist/legacy/build/pdf.min.js', 'vendor/pdfjs/pdf.min.js'],
     ['node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', 'vendor/pdfjs/pdf.worker.min.js'],
     ['node_modules/tesseract.js/dist/tesseract.min.js', 'vendor/tesseract/tesseract.min.js'],
