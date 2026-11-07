@@ -49,3 +49,27 @@ test('sales period and status logic are deterministic and centime accurate', () 
   assert.equal(Core.invoiceStatus(invoices[1]), 'partial');
   assert.equal(Core.invoiceStatus(invoices[2]), 'unpaid');
 });
+
+test('inventory bridge refreshes both views only after successful sync or durable persistence', async () => {
+  const listeners = new Map();
+  const target = {
+    refreshes: [],
+    renderInventoryList() { this.refreshes.push('inventory'); },
+    renderQuickProducts() { this.refreshes.push('pos'); },
+    addEventListener(name, fn) { listeners.set(name, fn); },
+    dispatchEvent(event) { const fn = listeners.get(event.type); if (fn) fn(event); },
+    CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init && init.detail; } },
+    saveDB() { return true; },
+    async saveDBDurably() { return true; }
+  };
+  assert.equal(Core.createInventoryEventBridge(target), true);
+  assert.equal(target.saveDB(), true);
+  assert.deepEqual(target.refreshes, ['inventory', 'pos']);
+  target.refreshes.length = 0;
+  assert.equal(await target.saveDBDurably(), true);
+  assert.deepEqual(target.refreshes, ['inventory', 'pos']);
+  target.refreshes.length = 0;
+  target.saveDB = () => false;
+  assert.equal(target.saveDB(), false);
+  assert.deepEqual(target.refreshes, []);
+});
