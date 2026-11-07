@@ -10997,25 +10997,26 @@ function wtAuditTransfers(){
                         const id=String(record?.id??'');
                         if(!id)return false;
                         const hasId=value=>value!==undefined&&value!==null&&String(value)===id;
+                        const productItemRef=item=>hasId(item?.productId)||hasId(item?.product_id)||hasId(item?.product?.id)||hasId(item?.id);
                         if(kind==='products'){
-                            const invoiceRef=(AppData.invoices||[]).some(inv=>(inv.items||[]).some(item=>hasId(item.id??item.productId)));
-                            const purchaseRef=(AppData.purchases||[]).some(inv=>(inv.items||[]).some(item=>hasId(item.id??item.productId)));
-                            const stockRef=(AppData.stockMovements||[]).some(m=>hasId(m.productId??m.itemId??m.product?.id));
-                            const transferRef=(AppData.warehouseTransfers||[]).some(m=>hasId(m.productId??m.itemId));
-                            const truckRef=(AppData.truckTrips||[]).some(trip=>(trip.items||trip.products||[]).some(item=>hasId(item.id??item.productId)));
+                            const invoiceRef=(AppData.invoices||[]).some(inv=>(inv.items||[]).some(productItemRef));
+                            const purchaseRef=(AppData.purchases||[]).some(inv=>(inv.items||[]).some(productItemRef));
+                            const stockRef=(AppData.stockMovements||[]).some(m=>hasId(m.productId)||hasId(m.itemId)||hasId(m.product?.id));
+                            const transferRef=(AppData.warehouseTransfers||[]).some(m=>hasId(m.productId)||hasId(m.itemId)||hasId(m.product?.id));
+                            const truckRef=(AppData.truckTrips||[]).some(trip=>(trip.items||trip.products||[]).some(productItemRef));
                             const warehouseBalances=record.warehouseStock&&typeof record.warehouseStock==='object'
                                 ?Object.values(record.warehouseStock).some(value=>Number(value&&typeof value==='object'?(value.quantity??value.stock):value)>0):false;
                             return Number(record.stock)>0||warehouseBalances||invoiceRef||purchaseRef||stockRef||transferRef||truckRef;
                         }
                         if(kind==='customers'){
                             return Number(record.debt??record.initial_debt??0)>0||Number(record.creditUsed??0)>0||
-                                (AppData.invoices||[]).some(inv=>hasId(inv.customerId??inv.customerObj?.id))||
-                                (AppData.clientMovements||[]).some(m=>hasId(m.clientId??m.customerId))||
-                                (AppData.settlementAllocations||[]).some(a=>a.partyType==='customer'&&hasId(a.partyId??a.clientId));
+                                (AppData.invoices||[]).some(inv=>hasId(inv.customerId)||hasId(inv.customer_id)||hasId(inv.customerObj?.id)||hasId(inv.customer?.id))||
+                                (AppData.clientMovements||[]).some(m=>hasId(m.clientId)||hasId(m.customerId))||
+                                (AppData.settlementAllocations||[]).some(a=>a.partyType==='customer'&&(hasId(a.partyId)||hasId(a.clientId)||hasId(a.customerId)));
                         }
                         return Number(record.debt??record.balance??record.openingBalance??0)>0||
-                            (AppData.purchases||[]).some(inv=>hasId(inv.supplierId??inv.supplierObj?.id))||
-                            (AppData.supplierMovements||[]).some(m=>hasId(m.supplierId));
+                            (AppData.purchases||[]).some(inv=>hasId(inv.supplierId)||hasId(inv.supplier_id)||hasId(inv.supplierObj?.id)||hasId(inv.supplier?.id))||
+                            (AppData.supplierMovements||[]).some(m=>hasId(m.supplierId)||hasId(m.supplier_id));
                     };
                     const protectedExisting=importMode==='replace'?existing.filter(record=>isReferenced(record,target)):[];
                     const next=importMode==='replace'?protectedExisting.map(record=>({...record})):JSON.parse(before);
