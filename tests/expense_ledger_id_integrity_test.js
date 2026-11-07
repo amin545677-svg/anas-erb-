@@ -16,7 +16,7 @@ class FixedDate extends Date {
   static now() { return fixedNow; }
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
-function runExpense({ expenses = [], math = Math, saveResult = true, amount = '10', cash = 100 } = {}) {
+function runExpense({ expenses = [], math = Math, saveResult = true, amount = '10', cash = 100, confirmResult = true, openingInput = '0' } = {}) {
   const alerts = [];
   let saves = 0;
   const fields = {
@@ -29,6 +29,8 @@ function runExpense({ expenses = [], math = Math, saveResult = true, amount = '1
     AppData: appData,
     document: { getElementById: id => fields[id] || null },
     alert: message => alerts.push(String(message)),
+    confirm: message => { alerts.push('CONFIRM: ' + String(message)); return confirmResult; },
+    prompt: () => openingInput,
     saveDB: () => { saves++; return saveResult; },
     updateCashUI() {},
     Date: FixedDate,
@@ -71,3 +73,27 @@ console.log('PASS: generated expense ID collisions are resolved without losing l
     'expense amount and cash decrease must use the same integer-centime value');
 }
 console.log('PASS: fractional cash expense settles exactly in integer centimes');
+
+{
+  const result = runExpense({ amount:'2000', cash:0, confirmResult:true });
+  assert.equal(result.saves,1,'driver-advance path must persist even when the cashbox is empty');
+  assert.equal(result.appData.caisseBalance,0,'driver advance must not debit an empty cashbox');
+  assert.equal(result.appData.expenses.length,1);
+  assert.equal(result.appData.expenses[0].paymentMethod,'driver_advance');
+  assert.equal(result.appData.expenses[0].settlementStatus,'pending');
+  assert.equal(result.appData.cashMovements,undefined,'driver advance must not create a cash movement');
+}
+console.log('PASS: empty-cashbox expense can be recorded as a pending driver advance without cash deduction');
+
+{
+  const result = runExpense({ amount:'2000', cash:0, confirmResult:false, openingInput:'2000' });
+  assert.equal(result.saves,1,'quick opening balance plus cash expense must persist');
+  assert.equal(result.appData.caisseBalance,0,'opening balance is immediately offset by the expense');
+  assert.equal(result.appData.expenses.length,1);
+  assert.equal(result.appData.expenses[0].paymentMethod,'cash');
+  assert.equal(result.appData.expenses[0].settlementStatus,'settled');
+  assert.equal(result.appData.cashMovements.length,1);
+  assert.equal(result.appData.cashMovements[0].referenceType,'opening_balance');
+  assert.equal(result.appData.cashMovements[0].amount,2000);
+}
+console.log('PASS: empty-cashbox expense can be funded by an auditable quick opening-balance movement');
