@@ -25,6 +25,6 @@ test('replace mode guards preserve invoice, stock, debt and supplier history ref
   for (const token of [
     'AppData.invoices', 'AppData.purchases', 'AppData.stockMovements',
     'AppData.warehouseTransfers', 'AppData.clientMovements',
-    'AppData.settlementAllocations', 'AppData.supplierMovements'
+    'AppData.settlementAllocations', 'AppData.supplierMovements', 'AppData.truckTrips'
   ]) assert.ok(html.includes(token), 'missing safe-replace reference guard: ' + token);
 });
