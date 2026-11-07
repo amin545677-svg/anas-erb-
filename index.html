@@ -28,8 +28,15 @@
           document.documentElement.setAttribute('data-anas-theme', theme);
           document.documentElement.style.colorScheme = theme;
         } catch (_) {
-          document.documentElement.setAttribute('data-anas-theme', 'light');
-          document.documentElement.style.colorScheme = 'light';
+          // Storage can be blocked in private browsing or constrained WebViews.
+          // Preserve the operating-system preference instead of forcing light mode.
+          var fallbackTheme = 'light';
+          try {
+            fallbackTheme = window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } catch (__) {}
+          document.documentElement.setAttribute('data-anas-theme', fallbackTheme);
+          document.documentElement.style.colorScheme = fallbackTheme;
         }
       })();
     </script>
