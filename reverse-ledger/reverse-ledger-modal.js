@@ -239,7 +239,7 @@ function updatePreview() {
     byId('rev-preview-invoice-remaining').textContent = formatMoney(total - paid - allocations);
     const engine = window.ANASReverseLedger;
     const reason = byId('rev-reason-input').value.trim();
-    byId('rev-submit-btn').disabled = !(engine && typeof engine.executeReturnTransaction === 'function' && reason);
+    byId('rev-submit-btn').disabled = !(engine && typeof engine.localPostReturnTransaction === 'function' && reason);
     status('المعاينة ناجحة على نسخة منفصلة. ستُعتمد الحركة محلياً بعد إعادة التحقق وحفظ IndexedDB.', true);
   } catch (error) {
     status(error && error.message ? error.message : 'تعذر حساب المعاينة.', false);
@@ -346,7 +346,7 @@ async function submit() {
   if (!state.preview || !state.invoice) return;
   const engine = window.ANASReverseLedger;
   const reason = byId('rev-reason-input').value.trim();
-  if (!engine || typeof engine.executeReturnTransaction !== 'function') {
+  if (!engine || typeof engine.localPostReturnTransaction !== 'function') {
     status('محرك المرتجعات المحلي غير متاح؛ لم تتغير البيانات.', false);
     return;
   }
@@ -357,7 +357,7 @@ async function submit() {
   button.disabled = true;
   button.textContent = 'جارٍ اعتماد المرتجع محلياً…';
   try {
-    const document = engine.executeReturnTransaction(appData(), request, {
+    const document = engine.localPostReturnTransaction(appData(), request, {
       createId: () => request.operationId,
       operatorId: String(appData().currentUser?.id ?? 'local'),
       persist: () => typeof saveDB === 'function' && saveDB() === true
