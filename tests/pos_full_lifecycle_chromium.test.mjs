@@ -358,11 +358,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(salesBarcodeProof.selected, true, 'sales POS barcode search must add the exact product to the cart');
     assert.equal(salesBarcodeProof.resultHidden, true);
 
-    await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي');
+    await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي POS-20261107-001');
     await page.locator('#posSearchResults .pos-search-quick-add').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#posSearchResults .pos-search-quick-add').click();
     await page.locator('#addProductModal.active').waitFor({ state: 'visible', timeout: 5000 });
-    assert.equal(await page.locator('#newProdNameInput').inputValue(), 'صنف مبيعات سريع تجريبي');
+    assert.equal(await page.locator('#newProdNameInput').inputValue(), 'صنف مبيعات سريع تجريبي POS-20261107-001');
     assert.equal(await page.locator('#newProdStockInput').inputValue(), '0');
     const beforePosQuickAddRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
     await page.locator('#addProductModal button[onclick="saveNewProductFromModal()"]').click();
@@ -370,12 +370,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       const storage = window.ANASResilientStorage;
       const snapshot = storage && storage.getCommittedSnapshot();
       return storage && storage.status().revision > beforeRevision && snapshot &&
-        snapshot.products.some(row => row && row.name === 'صنف مبيعات سريع تجريبي') &&
-        document.getElementById('posSearchField')?.value === 'صنف مبيعات سريع تجريبي';
+        snapshot.products.some(row => row && row.name === 'صنف مبيعات سريع تجريبي POS-20261107-001') &&
+        document.getElementById('posSearchField')?.value === 'صنف مبيعات سريع تجريبي POS-20261107-001';
     }, beforePosQuickAddRevision, { timeout: 15000 });
     const salesQuickAddProof = await page.evaluate(() => {
       const snapshot = ANASResilientStorage.getCommittedSnapshot();
-      const product = snapshot.products.find(row => row && row.name === 'صنف مبيعات سريع تجريبي');
+      const product = snapshot.products.find(row => row && row.name === 'صنف مبيعات سريع تجريبي POS-20261107-001');
       return { productStock: product && product.stock,
         visibleSearchResult: document.querySelectorAll('#posSearchResults .pos-search-result').length,
         cartContainsNewProduct: posCart.some(row => String(row.id) === String(product && product.id)) };
