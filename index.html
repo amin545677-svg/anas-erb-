@@ -10709,7 +10709,7 @@ function wtAuditTransfers(){
                 const reviewLabel=row=>String(row.record&&row.record.name||row.record&&row.record.id||'سجل بلا اسم');
                 if(!box.dataset.smartImportReviewReady){
                     reviewHost.innerHTML='<div style="border:1px solid var(--mp-border);border-radius:10px;padding:9px;background:var(--mp-card,#fff)"><div style="display:flex;gap:7px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong>مراجعة البيانات المستخرجة ('+staged.length+')</strong><button type="button" id="smartImportAutoMatch" class="btn-full-submit" style="width:auto;padding:7px 10px;background:#6d28d9">مطابقة كل البنود تلقائياً</button></div><p style="font-size:11px;color:var(--mp-text-muted)">راجع كل سجل. المطابقة بالاسم وحده تحتاج مراجعة يدوية؛ السجلات الملتبسة لا تُدمج تلقائياً.</p><div style="max-height:34vh;overflow:auto">'+importMatches.map((row,index)=>{
-                        const options=row.matches.length===1?'<option value="match" '+(row.status==='matched'?'selected':'')+'>مطابقة / تحديث</option><option value="insert">إضافة كسجل جديد</option><option value="ignore" '+(row.status!=='matched'?'selected':'')+'>تجاهل</option><option value="delete">حذف السجل المطابق</option>':'<option value="insert" '+(row.status==='new'?'selected':'')+'>إضافة كسجل جديد</option><option value="ignore" selected>تجاهل</option>';
+                        const options=row.matches.length===1?'<option value="match" '+(row.status==='matched'?'selected':'')+'>مطابقة / تحديث</option><option value="insert">إضافة كسجل جديد</option><option value="ignore" '+(row.status!=='matched'?'selected':'')+'>تجاهل</option><option value="delete">حذف البند من الاستيراد</option>':'<option value="insert" '+(row.status==='new'?'selected':'')+'>إضافة كسجل جديد</option><option value="ignore" selected>تجاهل</option><option value="delete">حذف البند من الاستيراد</option>';
                         return '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--mp-border);flex-wrap:wrap"><span style="min-width:130px;flex:1"><strong>'+esc(reviewLabel(row))+'</strong><small style="display:block;color:var(--mp-text-muted)">'+esc(row.status==='matched'?'مطابقة مؤكدة':row.status==='review'?'تطابق بالاسم — راجع':row.status==='ambiguous'?'أكثر من سجل محتمل':row.status==='new'?'سجل جديد':'سجل غير صالح')+'</small></span><select data-import-decision="'+index+'" aria-label="قرار '+esc(reviewLabel(row))+'" style="min-width:145px;padding:7px;border:1px solid var(--mp-border);border-radius:8px;background:var(--mp-card,#fff);color:var(--mp-text)">'+options+'</select></div>';
                     }).join('')+'</div></div>';
                     box.querySelector('#smartImportAutoMatch').onclick=()=>{
@@ -10727,7 +10727,7 @@ function wtAuditTransfers(){
                 reviewHost.querySelectorAll('[data-import-decision]').forEach(select=>{importDecisions[Number(select.dataset.importDecision)]=select.value;});
                 for(const row of importMatches){
                     const decision=importDecisions[row.index];
-                    if((decision==='match'||decision==='delete')&&row.matches.length!==1){validation.textContent='❌ لا يمكن مطابقة أو حذف سجل ملتبس. اختر تجاهل أو إضافة بعد مراجعة الهوية.';return;}
+                    if(decision==='match'&&row.matches.length!==1){validation.textContent='❌ لا يمكن مطابقة أو حذف سجل ملتبس. اختر تجاهل أو إضافة بعد مراجعة الهوية.';return;}
                     if(decision==='insert'&&row.matches.length){validation.textContent='❌ يوجد سجل مطابق بالفعل. اختر المطابقة أو التجاهل بدلاً من إنشاء تكرار.';return;}
                 }
                 // The preview confirm button is the single confirmation.
@@ -10760,8 +10760,6 @@ function wtAuditTransfers(){
                     backupDb.close();
                     if(!verified || !verified.payload || JSON.parse(verified.payload).recordCount!==(arr||[]).length) throw new Error('لم يتم التحقق من اللقطة الاحتياطية؛ أُلغي الاستيراد.');
                     const next=JSON.parse(before);
-                    const deleteIndexes=importMatches.filter(row=>importDecisions[row.index]==='delete').map(row=>row.matches[0].existingIndex).sort((a,b)=>b-a);
-                    for(const index of deleteIndexes){if(index>=0&&index<next.length)next.splice(index,1);}
                     if(target==='products'){
                         for(let stagedIndex=0;stagedIndex<staged.length;stagedIndex++){
                             const item=staged[stagedIndex];
