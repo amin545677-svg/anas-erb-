@@ -9598,8 +9598,8 @@ function wtAuditTransfers(){
                         for(const item of staged){
                             const byId=next.filter(p=>p && String(p.id)===String(item.id));
                             const byBarcode=item.barcode?next.filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):[];
-                            const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').toLowerCase();
-                            const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').toLowerCase()===normalizedName):[];
+                            const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase();
+                            const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase()===normalizedName):[];
                             const matches=byId.length?byId:(byBarcode.length?byBarcode:byName);
                             if(matches.length>1) throw new Error('تطابق متعدد للكود أو الباركود؛ أُلغي الاستيراد دون تعديل.');
                             if(matches.length===1){
