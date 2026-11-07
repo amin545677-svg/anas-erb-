@@ -10044,7 +10044,7 @@ function wtAuditTransfers(){
                 if(!compatible){validation.textContent='❌ عناوين الملف لا تبدو مطابقة لقسم '+({products:'المنتجات',customers:'العملاء',suppliers:'الموردين'}[target])+'. استخدم القالب الخاص بالقسم ولا تتابع بملف مختلف.';return;}
                 const num=(v,field,rowNo)=>anasParseImportNumber(v,field,rowNo);
                 const val=(r,k)=>indexes[k]>=0?String(r[indexes[k]]??'').trim():'';
-                const staged=[], errors=[], seenNames=new Set(), seenIds=new Set();
+                const staged=[], errors=[], seenNames=new Set(), seenIds=new Set(), explicitImportIds=new Set();
                 const existing=target==='products'?(AppData.products||[]):target==='customers'?(AppData.customers||[]):(AppData.suppliers||[]);
                 const existingNames=new Set(existing.map(x=>norm(x.name)));
                 const existingCodes=new Set(existing.map(x=>norm(x.id)));
@@ -10085,7 +10085,7 @@ function wtAuditTransfers(){
                             const phone=val(r,'phone'); if(phone && (existingPhones.has(norm(phone))||staged.some(s=>norm(s.phone)===norm(phone)))) throw new Error('رقم الهاتف موجود مسبقًا');
                             Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),email:val(r,'email'),nif:val(r,'nif'),nis:val(r,'nis'),rc:val(r,'rc')});
                         }
-                        seenNames.add(keyName); seenIds.add(norm(recordId)); staged.push(rec);
+                        seenNames.add(keyName); seenIds.add(norm(recordId)); if(id) explicitImportIds.add(recordId); staged.push(rec);
                     }catch(err){errors.push('الصف '+rowNo+': '+(err.message||'خطأ غير معروف'));}
                 });
                 if(errors.length){
@@ -10125,15 +10125,16 @@ function wtAuditTransfers(){
                     let added=0,updated=0;
                     if(target==='products'){
                         for(const item of staged){
-                            const byId=item.id?next.filter(p=>p && String(p.id)===String(item.id)):[];
+                            const hasExplicitId=explicitImportIds.has(item.id);
+                            const byId=hasExplicitId?next.filter(p=>p && String(p.id)===String(item.id)):[];
                             const byBarcode=item.barcode?next.filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):[];
                             const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase();
                             const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase()===normalizedName):[];
                             if(byId.length>1||byBarcode.length>1) throw new Error('الكود أو الباركود مرتبط بأكثر من صنف؛ أُلغي الاستيراد دون تعديل.');
                             if(byId.length&&byBarcode.length&&byId[0]!==byBarcode[0]) throw new Error('تعارض هوية: الكود والباركود يشيران إلى صنفين مختلفين؛ أُلغي الاستيراد دون تعديل.');
-                            if(item.id&&!byId.length&&byBarcode.length) throw new Error('تعارض هوية: الباركود موجود لصنف آخر ولا يطابق الكود المستورد؛ أُلغي الاستيراد.');
+                            if(hasExplicitId&&!byId.length&&byBarcode.length) throw new Error('تعارض هوية: الباركود موجود لصنف آخر ولا يطابق الكود المستورد؛ أُلغي الاستيراد.');
                             if(byBarcode.length===1&&byName.length===1&&byBarcode[0]!==byName[0]) throw new Error('تعارض هوية: اسم المنتج والباركود يشيران إلى صنفين مختلفين؛ أُلغي الاستيراد.');
-                            const matches=byId.length?byId:(byBarcode.length?byBarcode:(!item.id&&!item.barcode?byName:[]));
+                            const matches=byId.length?byId:(byBarcode.length?byBarcode:(!hasExplicitId&&!item.barcode?byName:[]));
                             if(matches.length>1) throw new Error('اسم المنتج يطابق أكثر من صنف؛ أضف كوداً أو باركوداً فريداً للتمييز.');
                             if(matches.length===1){
                                 const existingProduct=matches[0];
