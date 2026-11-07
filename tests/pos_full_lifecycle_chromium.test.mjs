@@ -352,7 +352,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#posSearchResults .pos-search-result').first().waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#posSearchResults .pos-search-result').first().click();
     const salesBarcodeProof = await page.evaluate(() => ({
-      selected: (AppData.posCart || []).some(row => String(row.productId || row.id) === 'STG-POS-LIFECYCLE-001'),
+      selected: posCart.some(row => String(row.id) === 'STG-POS-LIFECYCLE-001'),
       resultHidden: document.getElementById('posSearchResults')?.hidden
     }));
     assert.equal(salesBarcodeProof.selected, true, 'sales POS barcode search must add the exact product to the cart');
@@ -378,7 +378,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       const product = snapshot.products.find(row => row && row.name === 'صنف مبيعات سريع تجريبي');
       return { productStock: product && product.stock,
         visibleSearchResult: document.querySelectorAll('#posSearchResults .pos-search-result').length,
-        cartContainsNewProduct: (AppData.posCart || []).some(row => String(row.productId || row.id) === String(product && product.id)) };
+        cartContainsNewProduct: posCart.some(row => String(row.id) === String(product && product.id)) };
     });
     assert.equal(salesQuickAddProof.productStock, 0, 'quick-added sales catalogue items must not receive phantom stock');
     assert.ok(salesQuickAddProof.visibleSearchResult >= 1, 'new product must be immediately searchable in POS');
