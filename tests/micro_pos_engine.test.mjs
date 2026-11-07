@@ -15,10 +15,10 @@ test('POS stock chips filter in-memory records with exclusive stock states', () 
     { id: 'c', stock: 0, minAlert: 5, cat: 'عام' },
     { id: 'd', stock: 4, minAlert: 2, cat: 'آخر' }
   ];
-  assert.deepEqual(filterPosProducts(rows, { stockFilter: 'available' }).map(x => x.id), ['a', 'b', 'd']);
+  assert.deepEqual(filterPosProducts(rows, { stockFilter: 'available' }).map(x => x.id), ['a', 'd']);
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'low' }).map(x => x.id), ['b']);
   assert.deepEqual(filterPosProducts(rows, { stockFilter: 'out' }).map(x => x.id), ['c']);
-  assert.deepEqual(filterPosProducts(rows, { stockFilter: 'favorite' }).map(x => x.id), ['a']);
+  assert.deepEqual(filterPosProducts(rows, { stockFilter: 'favorite' }).map(x => x.id), ['a', 'd']);
   assert.deepEqual(filterPosProducts(rows, { category: 'آخر', stockFilter: 'available' }).map(x => x.id), ['d']);
 });
 
