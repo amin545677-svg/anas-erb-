@@ -72,7 +72,7 @@ test('credit ceiling form persists a validated centime-safe limit and restores i
     'invalid, negative, or unsafe credit limits must fail closed');
   assert.match(html, /credit_limit: creditLimit/,
     'customer save must persist the credit limit under the canonical field');
-  assert.match(html, /newCustCreditLimitInput:c\.credit_limit\?\?' '/,
+  assert.match(html, /newCustCreditLimitInput:c\.credit_limit\?\?''/,
     'editing a customer must restore the saved credit ceiling');
   assert.match(html, /credit_limit:\['حد الائتمان','الحد الائتماني','سقف الدين','creditlimit','credit_limit'\]/,
     'customer spreadsheet import must recognize credit-limit headers');
