@@ -361,6 +361,18 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       { id: 'TEA-005', name: 'شاي أخضر 200غ', stock: 20 }
     ], 'XLSX import must restore all five selected-sheet rows and stock values after a full browser reload');
 
+    // A full reload returns to the dashboard and lazily mounts the AI Center file inputs.
+    // Reopen the hub before exercising the subsequent catalog-update import.
+    await page.evaluate(() => {
+      if (typeof window.openView !== 'function') throw new Error('openView is unavailable after XLSX reload');
+      window.openView('ai-excel-hub', true);
+    });
+    await page.waitForFunction(() => {
+      const view = document.getElementById('view-ai-excel-hub');
+      const input = document.getElementById('smartAiExcelUpload');
+      return !!view && view.classList.contains('active') && !!input && input.isConnected && !document.body.inert;
+    }, { timeout: 10000 });
+
     // Re-import the same product identity with changed catalog fields and a different file stock.
     // The importer must update the catalog but never overwrite an already-posted live balance/cost basis.
     await page.evaluate(async () => {
