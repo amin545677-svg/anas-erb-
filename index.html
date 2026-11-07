@@ -9073,7 +9073,7 @@ function wtAuditTransfers(){
             cont.querySelectorAll('#anasAiQuestion, #anasAiNaturalDraft input, #anasAiNaturalDraft select').forEach(field => {
                 field.addEventListener('focus', () => {
                     setTimeout(() => {
-                        try { field.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (_) {}
+                        try { field.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'}); } catch (_) {}
                     }, 250);
                 });
             });
