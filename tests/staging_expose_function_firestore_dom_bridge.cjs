@@ -12,8 +12,6 @@ const { initializeApp, deleteApp } = functionsRequire('firebase-admin/app');
 const { getFirestore, FieldValue } = functionsRequire('firebase-admin/firestore');
 const ReverseLedger = require('../functions/lib/reverse-ledger.js');
 const { createSettlementAllocationHandler } = require('../functions/settlement-allocation-service.js');
-const { createReverseLedgerHandler } = require('../functions/reverse-ledger-service.js');
-const { authorizePreparedReverseOperation } = require('../functions/reverse-ledger-adapter.js');
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT || 'demo-anas-erp';
 const UID = 'emu-dom-bridge-' + crypto.randomUUID();
@@ -34,11 +32,6 @@ const token = {
 const getUser = async uid => ({ uid, disabled: false, displayName: 'ANAS Staging E2E Operator' });
 const settlementHandler = createSettlementAllocationHandler({
   db, getUser, FieldValue, HttpsError: EmulatorHttpsError, ReverseLedger,
-  now: () => 1793400200000
-});
-const reverseHandler = createReverseLedgerHandler({
-  db, getUser, FieldValue, HttpsError: EmulatorHttpsError, ReverseLedger,
-  authorizePreparedReverseOperation, projectId: PROJECT_ID,
   now: () => 1793400200000
 });
 
@@ -104,7 +97,7 @@ async function main() {
     await db.collection('reverseLedgerGrants').doc(UID).set({
       uid: UID, active: true, status: 'ACTIVE', schemaVersion: 1,
       tenantId: 'TENANT_DEFAULT', storeIds: ['STORE_DEFAULT'],
-      permissions: ['settlement_allocation_post', 'reverse_sale_return']
+      permissions: ['settlement_allocation_post']
     });
     await db.collection('financialPeriods').doc(PERIOD).set({
       periodId: PERIOD, status: 'OPEN'
@@ -155,18 +148,6 @@ async function main() {
         throw error;
       }
     });
-    await page.exposeFunction('__anasExecuteReverseLedger', async data => {
-      try {
-        const result = await reverseHandler({
-          auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
-        });
-        if (result && result.operationId) operationIds.push(result.operationId);
-        return result;
-      } catch (error) {
-        bridgeFailure = String(error && error.message || error);
-        throw error;
-      }
-    });
     await page.exposeFunction('__anasBridgeState', () => ({
       operationIds: [...operationIds], failure: bridgeFailure
     }));
@@ -186,9 +167,6 @@ async function main() {
       window.alert = () => {};
       window.ANASSettlementAllocationServer = {
         execute: request => window.__anasExecuteSettlementAllocation(request)
-      };
-      window.ANASReverseLedgerServer = {
-        execute: request => window.__anasExecuteReverseLedger(request)
       };
       window.ANASReloadStagingSnapshot = async () => {
         window.AppData = await window.__anasReadCloudSnapshot();
@@ -218,86 +196,62 @@ async function main() {
     assert.equal(allocationSnapshot.settlementAllocations.length, 1);
     assert.equal(allocationSnapshot.settlementAllocations[0].amountCentimes, 5000);
     assert.equal(allocationSnapshot.settlementAllocations[0].ledgerVersion, 2);
-    assert.equal(operationIds.length, 1, 'settlement gateway must return its operation ID');
+    assert.equal(operationIds.length, 1, 'only the settlement allocation may use the server bridge');
     const allocationOperation = await db.collection('reverseLedgerOperations').doc(operationIds[0]).get();
     assert.equal(allocationOperation.get('status'), 'POSTED');
     assert.equal(allocationOperation.get('operationType'), 'SETTLEMENT_ALLOCATION');
 
-    // Drive the real partial-sale-return modal and its visible submit control.
+    // Refresh the local IndexedDB-backed state, then prove returns post locally without a server bridge or period ID.
+    await page.evaluate(async () => {
+      window.AppData = await window.__anasReadCloudSnapshot();
+      if (typeof window.saveDBDurably === 'function') await window.saveDBDurably();
+    });
     await page.evaluate(() => window.ANASReverseLedgerModal.open('SALE_RETURN'));
     await page.waitForSelector('#modal-reverse-ledger.active');
     await page.selectOption('#rev-invoice-select', '0');
-    await page.fill('#rev-period-id', PERIOD);
-    await page.fill('#rev-reason-input', 'Staging partial sale return');
+    await page.fill('#rev-reason-input', 'Staging partial sale return - local');
     await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
-    try {
-      await page.waitForFunction(() => document.querySelector('#rev-submit-btn')?.disabled === false, { timeout: 30000 });
-    } catch (error) {
-      const diagnostic = await page.evaluate(() => ({
-        buttonDisabled: document.querySelector('#rev-submit-btn')?.disabled,
-        status: document.querySelector('#rev-eligibility-status')?.textContent,
-        previewTotal: document.querySelector('#rev-preview-total')?.textContent,
-        invoiceValue: document.querySelector('#rev-invoice-select')?.value,
-        itemQuantity: document.querySelector('#rev-items-body input[data-line-index="0"]')?.value,
-        customerDebt: window.AppData?.customers?.find(row => row.id === 'C-DOM-1')?.debt,
-        allocations: window.AppData?.settlementAllocations?.length,
-        stock: window.AppData?.products?.find(row => row.id === 'P-DOM-1')?.stock
-      }));
-      throw new Error('reverse preview did not enable posting: ' + JSON.stringify(diagnostic) + '; ' + error.message);
-    }
+    await page.waitForFunction(() => document.querySelector('#rev-submit-btn')?.disabled === false, { timeout: 30000 });
+    assert.equal(await page.locator('#rev-submit-btn').innerText(), 'اعتماد المرتجع محلياً');
     await page.click('#rev-submit-btn');
-    try {
-      await page.waitForFunction(async () => {
-        const state = await window.__anasBridgeState();
-        return state.operationIds.length === 2 || Boolean(state.failure);
-      }, { timeout: 30000 });
-    } catch (error) {
-      const diagnostic = await page.evaluate(() => ({
-        gatewayType: typeof window.ANASReverseLedgerServer?.execute,
-        buttonDisabled: document.querySelector('#rev-submit-btn')?.disabled,
-        buttonText: document.querySelector('#rev-submit-btn')?.textContent,
-        status: document.querySelector('#rev-eligibility-status')?.textContent,
-        previewTotal: document.querySelector('#rev-preview-total')?.textContent,
-        invoiceValue: document.querySelector('#rev-invoice-select')?.value
-      }));
-      throw new Error('reverse DOM bridge timed out: ' + JSON.stringify({
-        diagnostic, bridgeFailure, operationIds
-      }) + '; ' + error.message);
-    }
-    assert.equal(bridgeFailure, null, 'reverse service rejected the DOM request: ' + bridgeFailure);
     await page.waitForFunction(() => !document.querySelector('#modal-reverse-ledger')?.classList.contains('active'), { timeout: 10000 });
-    const reverseModalState = await page.evaluate(() => ({
-      active: document.querySelector('#modal-reverse-ledger')?.classList.contains('active'),
-      status: document.querySelector('#rev-eligibility-status')?.textContent,
-      buttonText: document.querySelector('#rev-submit-btn')?.textContent,
-      buttonDisabled: document.querySelector('#rev-submit-btn')?.disabled
-    }));
-    assert.equal(reverseModalState.active, false,
-      'reverse modal must close only after server confirms POSTED: ' + JSON.stringify(reverseModalState));
 
-    const finalSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
-    const finalState = await userRef.collection('snapshots').doc('latest').get();
-    assert.equal(finalState.exists, true);
-    assert.equal(finalSnapshot.returns.length, 1);
-    assert.equal(finalSnapshot.returns[0].status, 'POSTED');
-    const postedReturn = finalSnapshot.returns[0];
+    const finalSnapshot = await page.evaluate(async () => {
+      const local = JSON.parse(JSON.stringify(window.AppData));
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('anas_erp_v42_resilient_db', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const persisted = await new Promise((resolve, reject) => {
+        const tx = db.transaction('snapshots', 'readonly');
+        const request = tx.objectStore('snapshots').get('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      return { local, persistedPayload: String(persisted?.payload || '') };
+    });
+    assert.equal(finalSnapshot.local.returns.length, 1);
+    assert.equal(finalSnapshot.local.returns[0].status, 'POSTED');
+    const postedReturn = finalSnapshot.local.returns[0];
     assert.equal(postedReturn.items[0].quantityMicroUnits, 1000000);
-    assert.equal(operationIds.length, 2, 'reverse gateway must return its operation ID');
-    const postedOperation = await db.collection('reverseLedgerOperations').doc(operationIds[1]).get();
-    assert.equal(postedOperation.get('status'), 'POSTED');
-    assert.equal(postedOperation.get('operationType'), 'SALE_RETURN');
+    assert.equal(operationIds.length, 1, 'local return must not create a second server operation');
+    assert.ok(finalSnapshot.persistedPayload.includes('"status":"POSTED"'));
+    const returnOperations = await db.collection('reverseLedgerOperations').where('operationType', '==', 'SALE_RETURN').get();
+    assert.equal(returnOperations.size, 0, 'local sale return must not write a server operation');
 
-    const customer = finalSnapshot.customers.find(row => row.id === 'C-DOM-1');
-    const ledgerNet = finalSnapshot.clientMovements
+    const customer = finalSnapshot.local.customers.find(row => row.id === 'C-DOM-1');
+    const ledgerNet = finalSnapshot.local.clientMovements
       .filter(row => row.clientId === 'C-DOM-1')
       .reduce((sum, row) => sum + (row.direction === 'debit' ? BigInt(row.amountCentimes) : -BigInt(row.amountCentimes)), 0n);
     const balanceCentimes = BigInt(Math.round(Number(customer.debt) * 100));
     const centimeDelta = (balanceCentimes - ledgerNet).toString();
     assert.equal(centimeDelta, '0', 'customer balance and sealed ledger must reconcile to zero centimes');
     assert.equal(pageErrors.length, 0, 'Chromium page must not emit uncaught JavaScript errors: ' + pageErrors.join(' | '));
-    assert.equal(finalSnapshot.settlementAllocations[0].amountCentimes, 5000);
-    assert.equal(finalSnapshot.returns.length, 1);
-    ReverseLedger.validateReverseLedgerParity(finalSnapshot);
+    assert.equal(finalSnapshot.local.settlementAllocations[0].amountCentimes, 5000);
+    assert.equal(finalSnapshot.local.returns.length, 1);
+    ReverseLedger.validateReverseLedgerParity(finalSnapshot.local);
     process.stdout.write('ANAS_EXPOSE_FUNCTION_FIRESTORE_DOM_E2E ' + JSON.stringify({
       allocation: 'POSTED', allocationCentimes: 5000,
       partialSaleReturn: 'POSTED', returnedMicroUnits: 1000000,
