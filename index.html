@@ -4761,6 +4761,20 @@ input:focus, select:focus, textarea:focus {
                 !Number.isSafeInteger(newDebtCents) || newDebtCents > Number.MAX_SAFE_INTEGER) {
                 alert('تعذر تأكيد البيع: رصيد دين العميل الناتج يتجاوز المجال المالي الآمن.'); return;
             }
+            // Enforce the customer's configured credit ceiling in the durable posting path.
+            if (registeredCustomer && Object.prototype.hasOwnProperty.call(cust, 'credit_limit') &&
+                cust.credit_limit !== null && cust.credit_limit !== '') {
+                const creditLimitCents = anasToCents(cust.credit_limit);
+                if (!Number.isSafeInteger(creditLimitCents) || creditLimitCents < 0) {
+                    alert('تعذر تأكيد البيع: حد ائتمان العميل غير صالح. صحّح سجل العميل قبل المتابعة.'); return;
+                }
+                if (remainingCents > 0 && newDebtCents > creditLimitCents) {
+                    alert('تم إيقاف البيع الآجل: الدين المتوقع (' + anasCentsToCurrency(newDebtCents).toLocaleString('fr-DZ') +
+                        ' د.ج) يتجاوز حد الائتمان (' + anasCentsToCurrency(creditLimitCents).toLocaleString('fr-DZ') +
+                        ' د.ج). خفّض الدين أو ارفع الحد بصلاحية مناسبة.');
+                    return;
+                }
+            }
             const currentCashCents = anasToCents(AppData.caisseBalance ?? 0);
             const newCashCents = currentCashCents + paidCents;
             if (!Number.isSafeInteger(currentCashCents) || currentCashCents < 0 ||
