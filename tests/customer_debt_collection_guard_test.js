@@ -200,11 +200,27 @@ console.log('PASS: debt collection and cash receipt use the same integer-centime
   assert.equal(result.appData.caisseBalance, 55, 'cashbox must receive the exact receipt');
   assert.deepEqual(Array.from(result.appData.settlementAllocations, x => [x.invoiceId, x.amountCentimes]),
     [['INV-OLD', 3000], ['INV-MID', 1500]], 'allocation must exhaust the oldest invoice before moving to the next');
-  assert.equal(invoices[0].statusLabel, 'مدفوعة');
-  assert.equal(invoices[0].collectionRemaining, 0);
-  assert.equal(invoices[1].statusLabel, 'جزئية');
-  assert.equal(invoices[1].collectionRemaining, 25);
-  assert.equal(invoices[2].statusLabel, undefined, 'newer invoices must remain untouched when the receipt is exhausted');
+  assert.equal(invoices[0].remaining, 30, 'original invoice balances remain immutable ledger facts');
+  assert.equal(invoices[1].remaining, 40, 'settlement allocations must not rewrite original invoice totals');
+  assert.equal(invoices[2].remaining, 60, 'newer invoices remain untouched when the receipt is exhausted');
+  const viewStart = currentHtml.indexOf('function anasGetInvoiceCollectionBalance(invoice)');
+  const viewEnd = currentHtml.indexOf('function renderInvoicesList()', viewStart);
+  assert.ok(viewStart >= 0 && viewEnd > viewStart, 'invoice list must expose a derived collection-balance helper');
+  const viewContext = {
+    AppData: { settlementAllocations: result.appData.settlementAllocations },
+    anasToCents: value => Math.round(Number(value) * 100),
+    Number, String, Object, Array, Set, BigInt
+  };
+  vm.createContext(viewContext);
+  vm.runInContext(currentHtml.slice(viewStart, viewEnd), viewContext);
+  const oldState = viewContext.anasGetInvoiceCollectionBalance(invoices[0]);
+  const middleState = viewContext.anasGetInvoiceCollectionBalance(invoices[1]);
+  assert.equal(oldState.status, 'paid');
+  assert.equal(oldState.remainingCents, 0);
+  assert.equal(middleState.status, 'partial');
+  assert.equal(middleState.remainingCents, 2500);
+  assert.match(currentHtml, /const collectionBalance = anasGetInvoiceCollectionBalance\(inv\)/,
+    'invoice cards must render the derived FIFO balance rather than stale original fields');
   assert.equal(result.appData.cashMovements[0].referenceType, 'customer_debt');
   assert.equal(result.appData.cashMovements[0].amount, 45);
 }
