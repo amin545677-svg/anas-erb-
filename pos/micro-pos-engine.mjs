@@ -79,39 +79,72 @@ export function calculateQuickCheckoutCents(totalCents, splitMode, customer = nu
  * Pure staging planner. It never mutates inputs or writes storage. Callers must
  * validate domain-specific fields and persist the complete result atomically.
  */
-export function prepareBulkImport(existingRows, incomingRows, mode = 'merge', keyFields = ['barcode', 'id', 'name']) {
+export function prepareBulkImport(existingRows, incomingRows, mode = 'merge', keyFields = ['id', 'barcode'], options = {}) {
   if (!Array.isArray(existingRows) || !Array.isArray(incomingRows)) throw new TypeError('IMPORT_ROWS_MUST_BE_ARRAYS');
   if (!['merge', 'replace'].includes(mode)) throw new TypeError('INVALID_IMPORT_MODE');
-  const keyOf = row => {
-    for (const field of keyFields) {
-      const value = row && row[field];
-      if (value !== undefined && value !== null && String(value).trim()) return String(value).trim().toLocaleLowerCase();
-    }
-    return '';
+  if (!Array.isArray(keyFields) || keyFields.length === 0 || keyFields.some(field => typeof field !== 'string' || !field.trim())) {
+    throw new TypeError('INVALID_IMPORT_IDENTITY_FIELDS');
+  }
+  const strictIdentity = options.strictIdentity === true;
+  const fields = [...new Set(keyFields.map(field => field.trim()))];
+  const valueOf = (row, field) => {
+    const value = row && row[field];
+    return value === undefined || value === null || String(value).trim() === ''
+      ? '' : String(value).normalize('NFKC').trim().toLocaleLowerCase();
   };
+  const keysOf = row => fields.map(field => {
+    const value = valueOf(row, field);
+    return value ? field + '\\u0000' + value : '';
+  }).filter(Boolean);
   const output = mode === 'replace' ? [] : existingRows.map(row => ({ ...row }));
   const index = new Map();
-  output.forEach((row, position) => {
-    const key = keyOf(row);
-    if (key && !index.has(key)) index.set(key, position);
-  });
+  const addToIndex = (row, position, existing = false) => {
+    for (const key of keysOf(row)) {
+      const previous = index.get(key);
+      if (previous !== undefined && previous !== position) {
+        throw new Error(existing ? 'IMPORT_EXISTING_IDENTITY_COLLISION' : 'IMPORT_IDENTITY_CONFLICT');
+      }
+      index.set(key, position);
+    }
+  };
+  output.forEach((row, position) => addToIndex(row, position, true));
   const stats = { total: incomingRows.length, added: 0, updated: 0, skipped: 0 };
   for (const row of incomingRows) {
-    if (!row || typeof row !== 'object' || Array.isArray(row) || !keyOf(row)) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
       stats.skipped++;
       continue;
     }
-    const key = keyOf(row);
-    if (index.has(key)) {
-      const position = index.get(key);
+    const keys = keysOf(row);
+    if (!keys.length) {
+      stats.skipped++;
+      continue;
+    }
+    const matches = [...new Set(keys.map(key => index.get(key)).filter(position => position !== undefined))];
+    if (matches.length > 1) throw new Error('IMPORT_IDENTITY_CONFLICT');
+    if (matches.length === 1) {
+      const position = matches[0];
       const previous = output[position];
+      if (strictIdentity && fields.some(field => {
+        const before = valueOf(previous, field);
+        const incoming = valueOf(row, field);
+        return before && incoming && before !== incoming;
+      })) throw new Error('IMPORT_IDENTITY_CONFLICT');
       const merged = { ...previous, ...row, id: previous.id ?? row.id };
+      const mergedKeys = keysOf(merged);
+      for (const key of mergedKeys) {
+        const owner = index.get(key);
+        if (owner !== undefined && owner !== position) throw new Error('IMPORT_IDENTITY_CONFLICT');
+      }
       if (JSON.stringify(previous) === JSON.stringify(merged)) stats.skipped++;
-      else { output[position] = merged; stats.updated++; }
+      else {
+        output[position] = merged;
+        addToIndex(merged, position);
+        stats.updated++;
+      }
     } else {
       const position = output.length;
       output.push({ ...row });
-      index.set(key, position);
+      addToIndex(row, position);
       stats.added++;
     }
   }
