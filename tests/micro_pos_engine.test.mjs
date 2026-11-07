@@ -77,4 +77,6 @@ test('credit ceiling form persists a validated centime-safe limit and restores i
     'editing a customer must restore the saved credit ceiling');
   assert.match(html, /credit_limit:\['حد الائتمان','الحد الائتماني','سقف الدين','creditlimit','credit_limit'\]/,
     'customer spreadsheet import must recognize credit-limit headers');
+  assert.match(html, /\['debt','balance','creditUsed',\.\.\.\(indexes\.credit_limit<0\?\['credit_limit'\]:\[\]\)\]/,
+    'spreadsheet imports without a credit-limit column must preserve the existing ceiling');
 });
