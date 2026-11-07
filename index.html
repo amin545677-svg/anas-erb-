@@ -10162,6 +10162,7 @@ function wtAuditTransfers(){
                 // The preview confirm button is the single confirmation.
                 const arr=target==='products'?AppData.products:target==='customers'?AppData.customers:AppData.suppliers;
                 const before=JSON.stringify(arr||[]);
+                let added=0,updated=0;
                 try{
                     const backupKey='ANAS_ERP_PRE_IMPORT_BACKUP_V1';
                     const backup={createdAt:new Date().toISOString(),target,recordCount:(arr||[]).length,data:JSON.parse(JSON.stringify(AppData))};
@@ -10188,7 +10189,6 @@ function wtAuditTransfers(){
                     backupDb.close();
                     if(!verified || !verified.payload || JSON.parse(verified.payload).recordCount!==(arr||[]).length) throw new Error('لم يتم التحقق من اللقطة الاحتياطية؛ أُلغي الاستيراد.');
                     const next=JSON.parse(before);
-                    let added=0,updated=0;
                     if(target==='products'){
                         for(const item of staged){
                             const hasExplicitId=explicitImportIds.has(item.id);
