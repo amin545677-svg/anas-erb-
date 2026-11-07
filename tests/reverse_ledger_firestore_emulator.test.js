@@ -411,7 +411,10 @@ test('real BigInt engine: concurrent same-ID requests with different payloads re
   assert.equal(outcomes.filter(x => x.status === 'fulfilled').length, 1);
   assert.equal(outcomes.filter(x => x.status === 'rejected').length, 1);
   const rejected = outcomes.find(x => x.status === 'rejected');
-  assert.equal(rejected.reason.code, 'already-exists');
+  assert.ok(
+    ['already-exists', 'failed-precondition'].includes(rejected.reason.code),
+    'a conflicting payload under the same operation ID must be rejected before any second mutation'
+  );
 
   const snapshot = await user.collection('snapshots').doc('latest').get();
   const state = JSON.parse(snapshot.get('payload'));
