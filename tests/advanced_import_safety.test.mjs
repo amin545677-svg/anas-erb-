@@ -113,3 +113,22 @@ test('Algerian WhatsApp statements normalize valid mobile numbers and omit inval
   assert.match(url, /^https:\/\/wa\.me\/213550123456\?text=/);
   assert.equal(buildWhatsAppStatementUrl({ name: 'بدون هاتف', debt: 10 }), null);
 });
+
+test('replace imports deduplicate repeated customer rows by normalized phone number', async () => {
+  const storage = memoryStorage({ anas_customers: JSON.stringify([{ id: 'C-OLD', name: 'قديم', phone: '0550123456' }]) });
+  let saved;
+  const stats = await executeSafeBulkImport({
+    rows: [
+      { id: 'C-NEW', name: 'عميل أول', phone: '0550123456' },
+      { id: 'C-NEWER', name: 'عميل محدث', phone: '0550123456' }
+    ],
+    mode: 'replace', entityType: 'customers', storage,
+    repository: { async saveBatchSafe(type, rows) { saved = { type, rows }; } }
+  });
+  assert.equal(saved.type, 'customers');
+  assert.equal(saved.rows.length, 1);
+  assert.equal(saved.rows[0].name, 'عميل محدث');
+  assert.equal(stats.added, 1);
+  assert.equal(stats.updated, 1);
+  assert.equal(stats.skipped, 0);
+});
