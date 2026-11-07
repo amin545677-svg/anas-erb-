@@ -94,7 +94,7 @@ test('V42 shell loads the shared core and wires inventory, POS, CRM and sales hi
 test('V42 exposes fixed six-action field navigation and offsets the POS checkout bar safely', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const nav = html.slice(html.indexOf('<nav id="anasQuickBottomNav"'), html.indexOf('</nav>', html.indexOf('<nav id="anasQuickBottomNav"')) + 6);
-  assert.ok(nav.includes('data-nav-view="dashboard"'));
+  assert.match(nav, /data-nav-view="dashboard" class="active" aria-current="page"/);
   assert.ok(nav.includes('data-nav-view="pos"'));
   assert.ok(nav.includes('data-nav-view="inventory"'));
   assert.ok(nav.includes('data-nav-view="invoices-list"'));
