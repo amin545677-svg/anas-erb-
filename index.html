@@ -10683,10 +10683,8 @@ function wtAuditTransfers(){
         }
 
         async function anasExtractPdfText(file){
-            const maxBytes=20*1024*1024;
-            const isAndroidWebView = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
-            if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 20 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
-            if(isAndroidWebView && file.size>10*1024*1024) throw new Error('حجم ملف PDF يتجاوز الحد الآمن لأجهزة Android (10 ميغابايت). قلّص الملف أو قسّمه ثم أعد المحاولة.');
+            const maxBytes=10*1024*1024;
+            if(file.size>maxBytes) throw new Error('حجم ملف PDF يتجاوز 10 ميغابايت. قلّص الملف أو قسّمه ثم أعد المحاولة.');
             if(!window.pdfjsLib) throw new Error('حزمة PDF المحلية غير متاحة. أعد تحميل التطبيق بعد تحديثه.');
             window.pdfjsLib.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdfjs/pdf.worker.min.js',document.baseURI).href;
             const bytes=await file.arrayBuffer();
