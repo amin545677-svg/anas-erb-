@@ -13,7 +13,12 @@ const saveEnd = html.indexOf('function validatePosCartStock(', saveStart);
 assert.ok(arithmeticStart >= 0 && arithmeticEnd > arithmeticStart &&
   saveStart >= 0 && saveEnd > saveStart,
   'POS cart test must isolate the production integer arithmetic and persistence helpers');
+const snapshotStart = html.indexOf('function snapshotPosCart() {');
+const snapshotEnd = html.indexOf('function addItemToPosCart(pId) {', snapshotStart);
+assert.ok(snapshotStart >= 0 && snapshotEnd > snapshotStart,
+  'POS rollback test must isolate the production cart snapshot/restore helpers');
 const source = html.slice(arithmeticStart, arithmeticEnd) + '\n' +
+  html.slice(snapshotStart, snapshotEnd) + '\n' +
   html.slice(start, end) + '\n' + html.slice(saveStart, saveEnd);
 
 function run({ initialMap, includeMap = true, saveResult = false }) {
