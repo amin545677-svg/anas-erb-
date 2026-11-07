@@ -3064,7 +3064,8 @@ input:focus, select:focus, textarea:focus {
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             const withSaleStock = products.map(p => ({
                 ...p,
-                stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0))
+                stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)),
+                is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite)
             }));
             const filtered = core
                 ? core.filterInventoryItems(withSaleStock, {
