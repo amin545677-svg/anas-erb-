@@ -103,7 +103,7 @@ async function enforceAiRateLimits(request, env, uid) {
     return { ok: false, status: 503, error: "AI rate limiting is not configured. Contact the ANAS ERP administrator." };
   }
   const ip = request.headers.get("CF-Connecting-IP") || "";
-  if (!ip || ip.length > 128 || /[\\s,]/.test(ip)) {
+  if (!ip || ip.length > 128 || /[\s,]/.test(ip)) {
     return { ok: false, status: 403, error: "A trusted client IP address is required for AI access." };
   }
   try {
