@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "manifest.webmanifest"
       - "*.js"
       - "*.css"
       - "docs/**"
@@ -21,6 +22,7 @@ on:
     branches: [staging/firebase-snapshot-worker, staging/unified-release-candidate, 'feat/**', 'fix/**', 'feature/**']
     paths:
       - "index.html"
+      - "manifest.webmanifest"
       - "*.js"
       - "*.css"
       - "cloudflare/**"
