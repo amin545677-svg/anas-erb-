@@ -75,11 +75,21 @@
     if (!/^213[567]\d{8}$/.test(digits)) return '';
     return digits;
   }
+  function invoiceAmounts(invoice) {
+    try {
+      const totalCents = toCents(invoice && invoice.total || 0);
+      const paidCents = toCents(invoice && invoice.paid || 0);
+      if (totalCents < 0 || paidCents < 0) return { valid: false, totalCents: 0, paidCents: 0, remainingCents: 0 };
+      return { valid: true, totalCents, paidCents, remainingCents: Math.max(0, totalCents - paidCents) };
+    } catch (_) {
+      return { valid: false, totalCents: 0, paidCents: 0, remainingCents: 0 };
+    }
+  }
   function invoiceStatus(invoice) {
-    const total = toCents(invoice && invoice.total || 0);
-    const paid = toCents(invoice && invoice.paid || 0);
-    if (total <= 0 || paid >= total) return 'paid';
-    return paid <= 0 ? 'unpaid' : 'partial';
+    const amounts = invoiceAmounts(invoice);
+    if (!amounts.valid) return 'invalid';
+    if (amounts.totalCents <= 0 || amounts.paidCents >= amounts.totalCents) return 'paid';
+    return amounts.paidCents <= 0 ? 'unpaid' : 'partial';
   }
   function filterSalesInvoices(invoices, { period = 'all', sort = 'newest', now = new Date() } = {}) {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -95,7 +105,7 @@
       const ta = Date.parse(a.createdAt || a.timestamp || a.date || a.invoiceDate || '') || 0;
       const tb = Date.parse(b.createdAt || b.timestamp || b.date || b.invoiceDate || '') || 0;
       if (sort === 'oldest') return ta - tb;
-      if (sort === 'amount') return toCents(b.total || 0) - toCents(a.total || 0);
+      if (sort === 'amount') return invoiceAmounts(b).totalCents - invoiceAmounts(a).totalCents;
       return tb - ta;
     });
   }
@@ -132,5 +142,5 @@
     }
     return true;
   }
-  return Object.freeze({ decimalToScaledBigInt, toCents, toMicroUnits, centsToCurrency, lineTotalCents, stockStatus, filterInventoryItems, normalizeAlgeriaPhone, invoiceStatus, filterSalesInvoices, createInventoryEventBridge });
+  return Object.freeze({ decimalToScaledBigInt, toCents, toMicroUnits, centsToCurrency, lineTotalCents, stockStatus, filterInventoryItems, normalizeAlgeriaPhone, invoiceAmounts, invoiceStatus, filterSalesInvoices, createInventoryEventBridge });
 });
