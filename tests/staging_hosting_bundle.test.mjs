@@ -24,7 +24,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const sourceXlsx = await fs.readFile(path.join(rootDir, 'vendor/xlsx/xlsx.full.min.js'));
     const builtXlsx = await fs.readFile(path.join(outDir, 'erp/vendor/xlsx/xlsx.full.min.js'));
     assert.deepEqual(builtXlsx, sourceXlsx, 'deployed PWA must use the exact vetted offline SheetJS artifact');
-    assert.match(builtXlsx.toString('utf8'), /0\\.20\\.3/, 'deployed PWA must retain the vetted SheetJS 0.20.3 version');
+    assert.match(builtXlsx.toString('utf8'), /0\.20\.3/, 'deployed PWA must retain the vetted SheetJS 0.20.3 version');
 
     // Validate the actual built PWA, not just the source manifest: every precached
     // asset must be present under /erp/ or the service worker install will fail.
