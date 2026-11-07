@@ -48,7 +48,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, colorScheme: 'light' });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, colorScheme: 'light', serviceWorkers: 'block' });
     await context.addInitScript(() => localStorage.setItem('ANAS_ERP_THEME', 'light'));
     const page = await context.newPage();
     await page.route('https://**/*', route => route.abort());
