@@ -325,3 +325,22 @@ test("Level 24-D orders by BigInt localSeq then NFC-normalized UTF-16 opId", () 
     { localSeq: "9007199254740992", opId: "z" }
   ), 1);
 });
+
+
+test("derives omitted sale remaining balance using exact integer centimes", () => {
+  const initial = cloud();
+  initial.customers[0].name = "عميل دقيق";
+  const op = saleOp({
+    opId: "sale-centime-derived",
+    total: 0.3,
+    paid: 0.1,
+    customerId: "cust_s"
+  });
+  delete op.payload.invoice.remaining;
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.products[0].stock, 88);
+  assert.equal(result.snapshot.caisseBalance, 54000.1);
+  assert.equal(result.snapshot.customers[0].debt, 26000.2);
+  assert.equal(result.snapshot.invoices[0].total, 0.3);
+});
