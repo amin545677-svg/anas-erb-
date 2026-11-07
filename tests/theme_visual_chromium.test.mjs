@@ -132,6 +132,28 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       assert.equal(pill.wordBreak, 'normal', 'Arabic AI pill text must not split into characters');
     }
 
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const layout = await page.locator('#view-ai-excel-hub > .pills-group-row').evaluate(el => ({
+        clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
+        children: [...el.children].map(child => ({
+          width: child.getBoundingClientRect().width,
+          height: child.getBoundingClientRect().height,
+          scrollWidth: child.scrollWidth,
+          clientWidth: child.clientWidth
+        }))
+      }));
+      assert.ok(layout.clientWidth > 0 && layout.scrollWidth <= layout.clientWidth + 1,
+        'AI category grid must not overflow at ' + width + 'px');
+      for (const pill of layout.children) {
+        assert.ok(pill.width >= 90 && pill.height >= 44 && pill.height <= 72,
+          'AI category touch target must stay usable at ' + width + 'px');
+        assert.ok(pill.scrollWidth <= pill.clientWidth + 1,
+          'AI category label must not be clipped at ' + width + 'px');
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+
     await page.evaluate(() => window.openView('settings'));
     await page.locator('#view-settings').waitFor({ state: 'visible' });
     const field = await page.locator('#cfgAppName').evaluate(el => {
