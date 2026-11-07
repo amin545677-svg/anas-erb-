@@ -5,6 +5,9 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const XLSX = require('xlsx');
 import { chromium } from 'playwright';
 import { buildStagingHosting } from '../scripts/build-staging-hosting.mjs';
 
@@ -204,6 +207,29 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     const status = document.querySelector('#smartImportAiStatus')?.textContent || '';
     return /اقتراح محلي/.test(status) && document.querySelector('#smartImportTarget')?.value === 'products';
   });
+
+  // Real XLSX upload path: multiple non-empty sheets must be selectable before preview.
+  await page.locator('#smartImportCancel').evaluate(button => button.click());
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook,
+    XLSX.utils.aoa_to_sheet([['name','stock','price'],['Widget XLSX',5,12]]), 'Products');
+  XLSX.utils.book_append_sheet(workbook,
+    XLSX.utils.aoa_to_sheet([['memo'],['not an import sheet']]), 'Notes');
+  const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const xlsxChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
+  const xlsxChooser = await xlsxChooserPromise;
+  await xlsxChooser.setFiles({
+    name: 'multi-sheet-smoke.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: xlsxBuffer
+  });
+  await page.locator('#smartImportSheetPicker').waitFor({ state: 'visible' });
+  await page.locator('#smartImportSheetChoice').selectOption({ label: /Products/ });
+  await page.locator('#smartImportSheetContinue').evaluate(button => button.click());
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#smartImportPreviewModal').innerText(), /Widget XLSX/);
+  await page.locator('#smartImportCancel').evaluate(button => button.click());
 
   // 3) Generate a blank, safe template and assert the browser download.
   const downloadPromise = page.waitForEvent('download');
