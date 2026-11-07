@@ -5017,7 +5017,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     (validTotal ? 'تحقق من المبلغ المدفوع' : '—');
             }
         }
-        if (document && typeof document.addEventListener === 'function') {
+        if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') {
             document.addEventListener('click', function(event) {
                 const wrap = document.querySelector('#view-purchases .pos-search-wrap');
                 if (wrap && !wrap.contains(event.target)) closePurchaseSearchResults();
@@ -5093,10 +5093,11 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
 
             const selectedProductId = String(document.getElementById('purProductId')?.value || '').trim();
+            const normalizedName = name.toLocaleLowerCase();
             const productRows = Array.isArray(AppData.products) ? AppData.products : [];
             const productMatches = selectedProductId
                 ? productRows.filter(row => String(row.id) === selectedProductId)
-                : productRows.filter(row => normalizePosSearch(row.name) === normalizePosSearch(name));
+                : productRows.filter(row => String(row.name || '').trim().toLocaleLowerCase() === normalizedName);
             if (selectedProductId && productMatches.length !== 1) {
                 alert('الصنف المحدد لم يعد موجوداً أو أن معرّفه مكرر؛ أعد اختياره من نتائج البحث.');
                 return;
@@ -5106,7 +5107,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return;
             }
             const existingProduct = productMatches[0] || null;
-            if (existingProduct && normalizePosSearch(existingProduct.name) !== normalizePosSearch(name)) {
+            if (existingProduct && String(existingProduct.name || '').trim().toLocaleLowerCase() !== normalizedName) {
                 alert('اسم الصنف المحدد تغير؛ أعد اختياره من نتائج البحث قبل تسجيل الشراء.');
                 return;
             }
@@ -5274,8 +5275,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (paidInput) paidInput.value = '0.00';
             const selectedProductInput = document.getElementById('purProductId');
             if (selectedProductInput) selectedProductInput.value = '';
-            closePurchaseSearchResults();
-            updatePurchaseDraftPreview();
+            if (typeof closePurchaseSearchResults === 'function') closePurchaseSearchResults();
+            if (typeof updatePurchaseDraftPreview === 'function') updatePurchaseDraftPreview();
             try {
                 renderPurchasesTable();
                 if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
