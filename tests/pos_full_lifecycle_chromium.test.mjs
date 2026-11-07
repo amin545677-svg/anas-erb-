@@ -23,7 +23,7 @@ function initialData() {
     caisseBalance: 100000,
     products: [{
       id: PRODUCT_ID, name: PRODUCT_NAME, stock: 10, buyPrice: 10,
-      lastPurchaseCost: 10, price1: 25, price2: 24, price3: 23,
+      lastPurchaseCost: 10, price1: 25, price2: 24, price3: 23, favorite: true,
       barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
     }],
     customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0, credit_limit: 50 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
@@ -138,11 +138,17 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.evaluate(() => filterPosProductsByStock('low'));
     assert.equal(await page.locator('#quickProductsContainer button').count(), 0,
       'low-stock chip must exclude products above their minimum threshold');
+    await page.evaluate(() => filterPosProductsByStock('favorite'));
+    assert.equal(await page.locator('#quickProductsContainer button').count(), 1,
+      'favorite chip must use the product feature flag in memory');
     await page.evaluate(() => filterPosProductsByStock('all'));
     await productButton.click();
     await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
       'products with three distinct configured tiers must expose three prices and cancel');
+    const tierLabels = await page.locator('#anasPosPriceTierModal').textContent();
+    assert.match(tierLabels, /تجزئة \/ الدفعة/);
+    assert.match(tierLabels, /جملة الجملة/);
     await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'تجزئة / الدفعة' }).click();
     await page.evaluate(() => {
       AppData.products[0].price2 = 25;
