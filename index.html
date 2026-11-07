@@ -51,6 +51,14 @@
         }
 
         /* AI hub mobile ergonomics: collapse grids, keep touch targets comfortable, and contain scrolling. */
+        @media (max-width: 768px) {
+            #aiHubTabContent {
+                max-height: 85dvh;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
         #aiHubTabContent .anas-ai-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5405,7 +5413,7 @@ function renderPurchasesTable() {
             alert('تم تنفيذ حركة الصندوق بنجاح ✅');
         }
 
-        function submitExpenseOperation() {
+        async function submitExpenseOperation() {
             const amountInput = document.getElementById('expAmountInput');
             const rawAmount = amountInput ? String(amountInput.value).trim() : '';
             const parsedAmount = Number(rawAmount.replace(',', '.'));
@@ -5530,14 +5538,20 @@ function renderPurchasesTable() {
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
             });
             let expenseSaved = false;
-            try { expenseSaved = saveDB() === true; }
-            catch (err) { console.error('ANAS expense save failed', err); }
+            try {
+                await saveDBDurably();
+                expenseSaved = true;
+            } catch (err) {
+                console.error('ANAS durable expense save failed', err);
+            }
             if (!expenseSaved) {
                 if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
                 if (hadCashMovements) AppData.cashMovements = previousCashMovements; else delete AppData.cashMovements;
+                try { await saveDBDurably(); }
+                catch (rollbackError) { console.error('ANAS expense rollback persistence failed', rollbackError); }
                 updateCashUI();
-                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وسجلا المصروفات والحركات إلى حالتهما السابقة.');
+                alert('تعذر حفظ المصروف في التخزين الدائم؛ أُعيد رصيد الصندوق وسجلا المصروفات والحركات إلى الحالة السابقة.');
                 return;
             }
             updateCashUI();
