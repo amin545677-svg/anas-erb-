@@ -6777,6 +6777,26 @@ function renderPurchasesTable() {
                 const debtFilter = window.anasCustomerDirectoryDebtFilter || 'all';
                 const money = value => (Number(value) || 0).toLocaleString('fr-DZ', {maximumFractionDigits:2}) + ' د.ج';
                 const safe = value => escapeQuickText(String(value ?? ''));
+                const customerInitials = fullName => {
+                    const parts = String(fullName || '').trim().split(/\\s+/).filter(Boolean);
+                    if (!parts.length) return 'ز';
+                    return parts.length > 1
+                        ? Array.from(parts[0])[0] + Array.from(parts[1])[0]
+                        : Array.from(parts[0]).slice(0, 2).join('');
+                };
+                const customerWhatsAppUrl = customer => {
+                    try {
+                        const engine = window.ANASAdvancedFinancialEngine;
+                        return engine && typeof engine.buildWhatsAppStatementUrl === 'function'
+                            ? (engine.buildWhatsAppStatementUrl(customer) || '') : '';
+                    } catch (_) { return ''; }
+                };
+                const customerTelUrl = customer => {
+                    const engine = window.ANASAdvancedFinancialEngine;
+                    const normalized = engine && typeof engine.normalizeAlgeriaPhone === 'function'
+                        ? engine.normalizeAlgeriaPhone(customer?.phone) : '';
+                    return normalized ? '+' + normalized : String(customer?.phone || '').replace(/[^0-9+]/g, '');
+                };
                 const list = customers.filter(c => {
                     const fields = [c.name,c.phone,c.phone2,c.address,c.rc,c.nif,c.nis,c.art];
                     return window.anasCustomerDebtFilterMatches(c, debtFilter) && window.anasQueryMatches(fields, q);
@@ -6789,15 +6809,17 @@ function renderPurchasesTable() {
                   </div>` + (list.length ? list.map(c => `
                     <article class="card" style="margin:8px 0;padding:13px;border:1px solid var(--border-color,#e2e8f0);border-radius:14px">
                       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-                        <div style="min-width:0;flex:1"><strong style="font-size:16px;overflow-wrap:anywhere">${safe(c.name || 'عميل بدون اسم')}</strong>
+                        <div style="min-width:0;flex:1"><div style="display:flex;align-items:center;gap:9px;min-width:0">
+                          <span aria-hidden="true" style="width:38px;height:38px;flex:0 0 38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--mp-accent-soft,#eff6ff);color:var(--mp-accent,#1d4ed8);font-weight:900">${safe(customerInitials(c.name))}</span>
+                          <strong style="font-size:16px;overflow-wrap:anywhere">${safe(c.name || 'عميل بدون اسم')}</strong></div>
                           <div style="font-size:13px;margin-top:6px">📞 ${safe(c.phone || 'لا يوجد هاتف')}${c.phone2 ? ' · '+safe(c.phone2) : ''}</div>
                           <div style="font-size:12px;color:var(--text-muted,#64748b);margin-top:5px;overflow-wrap:anywhere">📍 ${safe(c.address || 'العنوان غير مسجل')}</div>
                         </div>
                         <div style="text-align:left;white-space:nowrap"><div style="font-size:11px;color:var(--text-muted,#64748b)">الرصيد</div><strong style="color:${Number(c.debt)>0?'#dc2626':'#16a34a'}">${money(c.debt)}</strong></div>
                       </div>
                       <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
-                        ${c.phone ? `<a class="pill-select-btn" style="text-decoration:none" href="tel:${safe(c.phone).replace(/[^0-9+]/g,'')}">📞 اتصال</a>` : ''}
-                        ${c.phone ? `<a class="pill-select-btn" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${String(c.phone).replace(/[^0-9]/g,'')}">واتساب</a>` : ''}
+                        ${c.phone ? `<a class="pill-select-btn" style="text-decoration:none" href="tel:${safe(customerTelUrl(c))}">📞 اتصال</a>` : ''}
+                        ${c.phone && customerWhatsAppUrl(c) ? `<a class="pill-select-btn" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="${safe(customerWhatsAppUrl(c))}">واتساب · كشف الرصيد</a>` : ''}
                         <button type="button" class="pill-select-btn" onclick="editCustomer(decodeURIComponent('${encodeURIComponent(String(c.id ?? '')).replace(/'/g,'%27')}'))">✏️ تعديل البيانات</button>
                       </div>
                       <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--text-muted,#64748b)">عرض البيانات الإدارية</summary><div style="font-size:12px;line-height:1.9;margin-top:7px;overflow-wrap:anywhere">RC: ${safe(c.rc||'—')} · NIF: ${safe(c.nif||'—')}<br>NIS: ${safe(c.nis||'—')} · Art: ${safe(c.art||'—')}<br>GPS: ${safe(c.location||'—')}</div></details>
