@@ -170,9 +170,16 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibCartItems input[type="number"]').fill('11');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'quantity above available stock must be rejected');
-    await page.locator('#hasibCartItems input[type="number"]').fill('1');
+    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('30.00');
+    assert.equal(await page.locator('#hasibTotalText').textContent(), '30.00 د.ج',
+      'direct unit price editing must refresh invoice total');
+    assert.equal(await page.evaluate(() => posCart[0].price), 30);
+    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('-1');
+    assert.equal(await page.evaluate(() => posCart[0].price), 30,
+      'negative unit price must be rejected and restored');
+    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('25.00');
     assert.equal(await page.locator('#hasibTotalText').textContent(), '25.00 د.ج');
-    assert.equal(await page.evaluate(() => posCart[0].qty), 1);
+    assert.equal(await page.evaluate(() => posCart[0].price), 25);
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
