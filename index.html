@@ -1720,7 +1720,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
                     <button type="button" class="btn-multi-tab" onclick="anasStartStocktake()">➕ إنشاء جلسة جرد</button>
                     <button type="button" class="btn-multi-tab" onclick="anasRenderStocktake()">↻ تحديث الجدول</button>
-                    <button type="button" class="btn-multi-tab" onclick="anasExportStocktake()">⬇ تصدير محضر CSV</button>
+                    <button type="button" class="btn-multi-tab" onclick="anasExportStocktake()">⬇ تصدير محضر Excel / CSV</button>
                 </div>
                 <div id="anasStocktakeStatus" role="status" style="margin:10px 0;font-size:12px;color:#475569;">لا توجد جلسة جرد مفتوحة.</div>
                 <div id="anasStocktakeTableWrap" style="overflow:auto;max-height:460px;border:1px solid #e2e8f0;border-radius:8px;"></div>
@@ -7653,6 +7653,17 @@ function wtAuditTransfers(){
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
 
+        function anasExportCurrentReportXLSX(){
+            const root=document.getElementById('customReportContent');
+            const title=(document.getElementById('customReportTitle')?.textContent||'ANAS_ERP_Report').trim();
+            if(!root){alert('لا يوجد تقرير مفتوح للتصدير.');return;}
+            if(!window.XLSX||!XLSX.utils||typeof XLSX.writeFile!=='function'){alert('مكتبة Excel المحلية غير متاحة؛ استخدم تصدير CSV.');return;}
+            const table=root.querySelector('table');
+            const rows=table?Array.from(table.querySelectorAll('tr')).filter(tr=>!tr.hidden).map(tr=>Array.from(tr.querySelectorAll('th,td')).map(cell=>cell.innerText||cell.textContent)): [['التقرير'],...(root.innerText||root.textContent||'').split(/\r?\n/).filter(Boolean).map(line=>[line])];
+            if(!rows.length){alert('لا توجد بيانات لتصديرها.');return;}
+            const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'التقرير');XLSX.writeFile(wb,'ANAS_ERP_'+title.replace(/[^\p{L}\p{N}_-]+/gu,'_').slice(0,70)+'.xlsx',{compression:true});
+        }
+
         function anasPrintCurrentReport() {
             const title = document.getElementById('customReportTitle')?.textContent || 'تقرير ANAS ERP';
             const root = document.getElementById('customReportContent');
@@ -8911,7 +8922,7 @@ function wtAuditTransfers(){
               ['المنتجات',products.length],['العملاء',customers.length],['الموردون',suppliers.length],['الفواتير',invoices.length],['قيمة المخزون التقديرية',fmt(stockCost)],['ديون العملاء',fmt(debtTotal)],['المصاريف المسجلة',expenses.length]
             ].map(x=>'<div style="padding:9px;border:1px solid #dbe3ec;border-radius:9px;background:var(--mp-card,#fff)"><small>'+escAudit(x[0])+'</small><div style="font-weight:800;margin-top:3px">'+escAudit(x[1])+'</div></div>').join('')+'</div>';
             const table=issues.length?'<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الأولوية</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الفحص</th><th style="padding:7px;border-bottom:1px solid #cbd5e1">العدد</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">أمثلة</th></tr></thead><tbody>'+issues.map(i=>'<tr><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[0])+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[1])+'</td><td style="padding:7px;text-align:center;border-bottom:1px solid #e2e8f0">'+i[2]+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[3])+'</td></tr>').join('')+'</tbody></table></div>':'<p style="padding:10px;border-radius:8px;background:#dcfce7;color:#166534">لم تُكتشف المشكلات المحددة في هذا الفحص المحلي. هذا لا يثبت خلو كل بيانات التطبيق من الأخطاء.</p>';
-            box.innerHTML='<div style="padding:10px;border:1px solid #cbd5e1;border-radius:10px">'+cards+'<h4 style="margin:10px 0 5px">نتائج فحص البيانات</h4>'+table+(info.length?'<p>'+info.map(escAudit).join('<br>')+'</p>':'')+'<p style="font-size:11px;color:var(--mp-text-muted);margin-top:10px">فحص إرشادي محلي، لا يغيّر البيانات ولا يرسلها إلى الخادم. مراجعة الفواتير تعتمد على الحقول المتاحة وقد تحتاج قواعد محاسبية خاصة بك.</p><button type="button" class="btn-full-submit" style="background:#334155;margin-top:8px" onclick="anasExportLocalAudit()">⬇ تصدير تقرير الفحص CSV</button></div>';
+            box.innerHTML='<div style="padding:10px;border:1px solid #cbd5e1;border-radius:10px">'+cards+'<h4 style="margin:10px 0 5px">نتائج فحص البيانات</h4>'+table+(info.length?'<p>'+info.map(escAudit).join('<br>')+'</p>':'')+'<p style="font-size:11px;color:var(--mp-text-muted);margin-top:10px">فحص إرشادي محلي، لا يغيّر البيانات ولا يرسلها إلى الخادم. مراجعة الفواتير تعتمد على الحقول المتاحة وقد تحتاج قواعد محاسبية خاصة بك.</p><button type="button" class="btn-full-submit" style="background:#334155;margin-top:8px" onclick="anasExportLocalAudit()">⬇ تصدير تقرير الفحص CSV</button><button type="button" class="btn-full-submit" style="background:#0f766e;margin-top:8px" onclick="anasExportLocalAuditXLSX()">⬇ تصدير تقرير الفحص Excel (.xlsx)</button></div>';
             window.__anasLastAudit={at:new Date().toISOString(),summary:{products:products.length,customers:customers.length,suppliers:suppliers.length,invoices:invoices.length,stockCost,debtTotal},issues};
         }
         function anasExportLocalAudit(){
@@ -8919,6 +8930,13 @@ function wtAuditTransfers(){
             const rows=[['وقت الفحص',d.at],['المنتجات',d.summary.products],['العملاء',d.summary.customers],['الموردون',d.summary.suppliers],['الفواتير',d.summary.invoices],['قيمة المخزون التقديرية',d.summary.stockCost],['ديون العملاء',d.summary.debtTotal],['الأولوية','الفحص','العدد','أمثلة'],...d.issues];
             const csv='\uFEFFsep=;\r\n'+rows.map(r=>r.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"'}).join(';')).join('\r\n');
             const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=u;a.download='ANAS_ERP_Local_Audit.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+        }
+
+        function anasExportLocalAuditXLSX(){
+            const d=window.__anasLastAudit;if(!d){anasRunLocalBusinessAudit();return;}
+            if(!window.XLSX||!XLSX.utils||typeof XLSX.writeFile!=='function'){alert('مكتبة Excel المحلية غير متاحة؛ استخدم تصدير CSV.');return;}
+            const rows=[['وقت الفحص',d.at],['المنتجات',d.summary.products],['العملاء',d.summary.customers],['الموردون',d.summary.suppliers],['الفواتير',d.summary.invoices],['قيمة المخزون التقديرية',d.summary.stockCost],['ديون العملاء',d.summary.debtTotal],['الأولوية','الفحص','العدد','أمثلة'],...d.issues];
+            const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'تقرير الفحص');XLSX.writeFile(wb,'ANAS_ERP_Local_Audit.xlsx',{compression:true});
         }
 
         function anasAiSafeText(v,max=120){ return String(v??'').replace(/[\r\n]+/g,' ').slice(0,max); }
@@ -9491,7 +9509,7 @@ function wtAuditTransfers(){
             const box=document.createElement('div');box.id='smartImportPreviewModal';
             let backupDownloadRequested=true;
             box.style.cssText='position:fixed;inset:0;z-index:100001;background:#020617dd;overflow:auto;padding:12px;';
-            box.innerHTML=`<div style="max-width:760px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:14px"><h3>📊 معاينة الملف قبل الاستيراد</h3><p style="overflow-wrap:anywhere">الملف: ${esc(fileName)}<br>عدد الصفوف: ${rows.length}. هذه معاينة فقط ولم يتم تعديل بياناتك.</p><div style="overflow:auto;max-height:45vh"><table style="border-collapse:collapse;width:100%;font-size:12px;direction:auto">${sample.map(r=>'<tr>'+r.slice(0,12).map(c=>'<td style="border:1px solid #cbd5e1;padding:6px">'+esc(c)+'</td>').join('')+'</tr>').join('')}</table></div><button id="smartImportAiAnalyze" class="btn-full-submit" style="background:#7c3aed;margin-top:10px">🤖 تحليل العناوين وتحديد الأعمدة بالذكاء الاصطناعي</button><div id="smartImportAiStatus" role="status" style="margin:8px 0;font-size:13px;line-height:1.7"></div><label style="display:block;margin-top:12px;font-weight:bold">اختر القسم المطابق للملف (إلزامي):</label><select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked style="margin-top:4px"> إنشاء لقطة احتياطية محلية قبل الاستيراد</label><p style="font-size:12px;color:#92400e">الاستيراد يضيف سجلات جديدة فقط ولا يحدّث سجلات موجودة. تُرفض الصفوف غير الصالحة والتكرارات قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
+            box.innerHTML=`<div style="max-width:760px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:14px"><h3>📊 معاينة الملف قبل الاستيراد</h3><p style="overflow-wrap:anywhere">الملف: ${esc(fileName)}<br>عدد الصفوف: ${rows.length}. هذه معاينة فقط ولم يتم تعديل بياناتك.</p><div style="overflow:auto;max-height:45vh"><table style="border-collapse:collapse;width:100%;font-size:12px;direction:auto">${sample.map(r=>'<tr>'+r.slice(0,12).map(c=>'<td style="border:1px solid #cbd5e1;padding:6px">'+esc(c)+'</td>').join('')+'</tr>').join('')}</table></div><button id="smartImportAiAnalyze" class="btn-full-submit" style="background:#7c3aed;margin-top:10px">🤖 تحليل العناوين وتحديد الأعمدة بالذكاء الاصطناعي</button><div id="smartImportAiStatus" role="status" style="margin:8px 0;font-size:13px;line-height:1.7"></div><label style="display:block;margin-top:12px;font-weight:bold">اختر القسم المطابق للملف (إلزامي):</label><select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked style="margin-top:4px"> إنشاء لقطة احتياطية محلية قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
             document.body.appendChild(box);
             box.querySelector('#smartImportBackupAck').checked=true;
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
@@ -9542,7 +9560,7 @@ function wtAuditTransfers(){
                 const validation=box.querySelector('#smartImportValidation');
                 if(target==='preview'){box.remove();return;}
                 if(!target){validation.textContent='❌ اختر القسم الصحيح أولاً.';return;}
-                if(!box.querySelector('#smartImportBackupAck').checked){validation.textContent='❌ فعّل خيار إنشاء اللقطة الاحتياطية المحلية قبل الاستيراد.';return;}
+                // Verified IndexedDB backup is automatic; no manual acknowledgement gate.
                 if(target==='invoices'){validation.textContent='❌ استيراد الفواتير غير متاح في هذا المسار؛ استخدم وظيفة الفواتير المخصصة لتجنب تغيير الأرصدة خطأً.';return;}
                 const rawHeaders=(rows[0]||[]).map(v=>String(v??'').trim());
                 const norm=s=>String(s??'').toLowerCase().replace(/[ًٌٍَُِّْـ]/g,'').replace(/[\s_\-()./]+/g,'');
@@ -9604,9 +9622,9 @@ function wtAuditTransfers(){
                             if([buy,price1,price2,price3,stock,pack,minStock].some(n=>n<0)) throw new Error('لا يسمح بقيمة سالبة للسعر أو الكمية أو العبوة');
                             if(pack<=0) throw new Error('العبوة يجب أن تكون أكبر من صفر');
                             const barcode=val(r,'barcode');
-                            if(barcode && (AppData.products||[]).some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode) && String(p.id)!==String(recordId))) {
-                                const barcodeMatches=(AppData.products||[]).filter(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode));
-                                if(barcodeMatches.length!==1 || String(barcodeMatches[0].id)!==String(recordId)) throw new Error('الباركود مرتبط بصنف آخر؛ أوقف الاستيراد لتجنب دمج خاطئ');
+                            if(barcode){
+                                const barcodeMatches=(AppData.products||[]).filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode));
+                                if(barcodeMatches.length>1) throw new Error('الباركود مرتبط بأكثر من صنف؛ أوقف الاستيراد لتجنب دمج خاطئ');
                             }
                             if(barcode && staged.some(p=>anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(barcode))) throw new Error('باركود مكرر داخل الملف');
                             Object.assign(rec,{id:recordId,name,unit:val(r,'unit')||'قطعة',pack,buyPrice:buy,price1,price2,price3,stock,barcode,cat:val(r,'cat')||'عام',minStock:minStock||0});
@@ -9627,7 +9645,7 @@ function wtAuditTransfers(){
                     return;
                 }
                 if(!staged.length){validation.textContent='❌ لا توجد سجلات صالحة للاستيراد.';return;}
-                if(!confirm('فحص الملف نجح. سيتم استيراد '+staged.length+' سجل إلى قسم '+({products:'المنتجات والمخزون',customers:'العملاء والديون',suppliers:'الموردين'}[target])+'. سيتم تحديث الصنف المطابق بالكود أو الباركود وإضافة الصنف الجديد. هل تريد المتابعة؟')) return;
+                // The preview confirm button is the single confirmation.
                 const arr=target==='products'?AppData.products:target==='customers'?AppData.customers:AppData.suppliers;
                 const before=JSON.stringify(arr||[]);
                 try{
@@ -9667,9 +9685,7 @@ function wtAuditTransfers(){
                             if(matches.length>1) throw new Error('تطابق متعدد للكود أو الباركود؛ أُلغي الاستيراد دون تعديل.');
                             if(matches.length===1){
                                 const existingProduct=matches[0];
-                                const liveStock=existingProduct.stock;
                                 Object.assign(existingProduct,item,{id:existingProduct.id});
-                                if (liveStock !== undefined && liveStock !== null) existingProduct.stock=liveStock;
                                 updated++;
                             }else{next.push(item);added++;}
                         }
@@ -9677,8 +9693,7 @@ function wtAuditTransfers(){
                     if(target==='products') AppData.products=next;
                     else if(target==='customers') AppData.customers=next;
                     else AppData.suppliers=next;
-                    const saved=saveDB();
-                    if(saved!==true) throw new Error('فشل حفظ قاعدة البيانات');
+                    await saveDBDurably();
                 }catch(err){
                     const restored=JSON.parse(before);
                     if(target==='products')AppData.products=restored;else if(target==='customers')AppData.customers=restored;else AppData.suppliers=restored;
@@ -10083,7 +10098,7 @@ function wtAuditTransfers(){
             <h3 style="font-size:1.15rem; margin-bottom:12px; text-align:center; color:var(--mp-navy); font-weight:900;" id="customReportTitle">تقرير</h3>
             <div id="anasReportToolbar" style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;margin:0 0 10px;align-items:center;">
                 <input id="anasReportSearch" type="search" class="field-input" placeholder="ابحث داخل التقرير أو الجرد..." aria-label="البحث داخل التقرير" oninput="anasFilterCurrentReport(this.value)" style="min-width:0;margin:0;">
-                <button type="button" class="btn-multi-tab" onclick="anasExportCurrentReportCSV()" style="min-height:42px;padding:7px 10px;">تصدير CSV</button>
+                <button type="button" class="btn-multi-tab" onclick="anasExportCurrentReportCSV()" style="min-height:42px;padding:7px 10px;">تصدير CSV</button><button type="button" class="btn-multi-tab" onclick="anasExportCurrentReportXLSX()" style="min-height:42px;padding:7px 10px;">تصدير Excel</button>
                 <button type="button" class="btn-multi-tab" onclick="anasPrintCurrentReport()" style="min-height:42px;padding:7px 10px;">طباعة</button>
             </div>
             <div id="anasReportFilterStatus" role="status" style="font-size:12px;color:var(--mp-text-muted);margin-bottom:8px;"></div>
@@ -10408,10 +10423,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
   };
   window.anasExportStocktake=function(){
     const s=current();if(!s){alert('لا توجد جلسة جرد للتصدير.');return;}
-    const cell=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
     const lines=[['رقم الجرد','اسم الجرد','تاريخ الإنشاء','المعتمد بواسطة','الكود','المنتج','الباركود','رصيد النظام','الكمية الفعلية','الفرق','فرق القيمة بالتكلفة','الحالة']];
     s.items.forEach(i=>{const d=i.physicalQty==null?null:safeNum(i.physicalQty)-safeNum(i.systemQty);lines.push([s.id,s.name,s.createdAt,s.approvedBy||'',i.sku||i.productId,i.productName,i.barcode,i.systemQty,i.physicalQty==null?'':i.physicalQty,d==null?'':d,d==null?'':d*safeNum(i.buyPrice),d==null?'لم يُعدّ':d<0?'عجز':d>0?'زيادة':'مطابق']);});
-    const blob=new Blob(['\uFEFFsep=;\r\n'+lines.map(r=>r.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8;'});
+    if(window.XLSX&&XLSX.utils&&typeof XLSX.writeFile==='function'){
+      const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(lines),'محضر الجرد');XLSX.writeFile(wb,s.id+'_stocktake.xlsx',{compression:true});return;
+    }
+    const cell=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    const csv='\uFEFFsep=;\r\n'+lines.map(r=>r.map(cell).join(';')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=s.id+'_stocktake.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   window.anasApproveStocktake=function(){
