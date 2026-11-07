@@ -276,3 +276,68 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.match(builtConfig, /"projectId":"anas-erp-staging-a25e1"/);
   await fs.access(path.join(siteRoot, 'erp/sync/mutation_queue_orchestrator.mjs'));
 });
+
+
+test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on rendered page pixels', async t => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'anas-real-pdf-ocr-'));
+  const siteRoot = path.join(tempRoot, 'site');
+  await buildStagingHosting({
+    rootDir: repoRoot,
+    outDir: siteRoot,
+    env: {
+      FIREBASE_STAGING_WEB_API_KEY: 'STAGING_PUBLIC_API_KEY',
+      FIREBASE_STAGING_WEB_APP_ID: '1:123456:web:staging'
+    }
+  });
+  const server = await startStaticServer(siteRoot);
+  const browser = await chromium.launch({ headless: true });
+  t.after(async () => {
+    await browser.close();
+    await new Promise(resolve => server.close(resolve));
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  page.on('console', message => {
+    if (message.type() === 'error') t.diagnostic('Browser console: ' + message.text());
+  });
+  await page.goto('http://127.0.0.1:' + server.address().port + '/erp/', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    window.anasCurrentPdfFile = new File(['scanned-pdf-ocr-fixture'], 'scanned-fixture.pdf', { type: 'application/pdf' });
+    window.anasPdfExtractedBaseText = '';
+    window.anasPdfExtractedBaseMeta = 'scanned-fixture.pdf — 1 page';
+    window.pdfjsLib = {
+      GlobalWorkerOptions: {},
+      getDocument: () => ({ promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 612, height: 792 }),
+          render: ({ canvasContext }) => ({
+            promise: Promise.resolve().then(() => {
+              canvasContext.fillStyle = '#fff';
+              canvasContext.fillRect(0, 0, canvasContext.canvas.width, canvasContext.canvas.height);
+              canvasContext.fillStyle = '#000';
+              canvasContext.font = 'bold 64px Arial';
+              canvasContext.fillText('INVOICE 12345', 60, 170);
+              canvasContext.fillText('TOTAL 1250 DZD', 60, 270);
+            })
+          }),
+          cleanup() {}
+        }),
+        destroy: async () => {}
+      }) })
+    };
+  });
+
+  await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
+  await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
+    document.querySelector('#smartAiExcelStatus')?.textContent || ''
+  ), { timeout: 120000 });
+  const recognized = await page.locator('#smartPdfExtractText').inputValue();
+  assert.match(recognized, /INVOICE/i, 'real OCR must recognize the invoice heading from rendered pixels');
+  assert.match(recognized, /12345/, 'real OCR must recognize the invoice number');
+  assert.match(recognized, /1250/, 'real OCR must recognize the amount');
+  assert.equal(await page.locator('#smartPdfExtractText').isEditable(), true);
+  await context.close();
+});
