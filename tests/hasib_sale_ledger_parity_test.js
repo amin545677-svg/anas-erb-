@@ -411,3 +411,26 @@ function assertAccountingIdentity(result, openingDebt = 0) {
   assert.doesNotMatch(modal, /ANASReverseLedgerServer|periodId|financialPeriodId/);
   console.log('PASS: local return modal waits for device invoices and commits without server fiscal-period gating');
 }
+
+{
+  const total = 10.5 * 2550;
+  const half = Math.round(total * 100 / 2) / 100;
+  const r = runSale({
+    cart: [{ id: 'P-TEA-250', name: 'شاي الرقيم 250غ', qty: 10.5, price: 2550 }],
+    paid: half,
+    productStock: 100.5,
+    unit: 'كغ',
+    caisseBalance: 0
+  });
+  assert.equal(total, 26775);
+  assert.equal(half, 13387.5);
+  assert.equal(r.product.stock, 90, '10.5 kg sale must reduce 100.5 kg to exactly 90 kg');
+  assert.equal(r.AppData.invoices[0].total, 26775);
+  assert.equal(r.AppData.invoices[0].paid, 13387.5);
+  assert.equal(r.AppData.invoices[0].remaining, 13387.5);
+  assert.equal(r.customer.debt, 13387.5);
+  assert.equal(r.AppData.caisseBalance, 13387.5);
+  assert.equal(r.AppData.cashMovements[0].amount, 13387.5);
+  assert.equal(r.AppData.stockMovements[0].qty, -10.5);
+  console.log('PASS: requested 10.5 kg tea wholesale partial-sale scenario reconciles stock, invoice, customer debt and cash to the centime');
+}
