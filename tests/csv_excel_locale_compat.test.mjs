@@ -45,7 +45,7 @@ test('local AI audit XLSX exports both purchase-cost and retail-value inventory 
   const end = html.indexOf('function anasAiSafeText', start);
   assert.ok(start >= 0 && end > start, 'local audit XLSX exporter must exist');
   const exporter = html.slice(start, end);
-  assert.ok(exporter.includes("['قيمة المخزون بسعر الشراء',d.summary.stockCost]"));
-  assert.ok(exporter.includes("['قيمة المخزون بسعر البيع',d.summary.stockSell]"));
+  assert.match(exporter, /\['قيمة المخزون بسعر الشراء'\s*,\s*d\.summary\.stockCost\]/);
+  assert.match(exporter, /\['قيمة المخزون بسعر البيع'\s*,\s*d\.summary\.stockSell\]/);
   assert.ok(exporter.includes("XLSX.writeFile(wb,'ANAS_ERP_Local_Audit.xlsx'"), 'audit export must be a real XLSX workbook');
 });
