@@ -817,7 +817,7 @@ jobs:
           missing = [x for x in required_handler if x not in handler]
           missing += [x for x in required_rows if x not in row_validator]
           assert not missing, f"Missing spreadsheet import safeguards: {missing}"
-          Path("/tmp/anas-import-handler.js").write_text(handler + "\\n" + row_validator, encoding="utf-8")
+          Path("/tmp/anas-import-handler.js").write_text(handler + "\n" + row_validator, encoding="utf-8")
           print("Spreadsheet byte, sheet, row, and column guards passed")
           PY
           node --check /tmp/anas-import-handler.js
