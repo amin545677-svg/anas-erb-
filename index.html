@@ -9011,6 +9011,12 @@ function wtAuditTransfers(){
                         <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#0f766e" onclick="anasSetAiPrompt('راجع جودة البيانات التجارية وحدد التناقضات والمخاطر التي تستحق مراجعة بشرية.')">🛡️ تدقيق البيانات</button>
                       </div>
                     </section>
+                    <section class="anas-ai-section" aria-label="لوحة المؤشرات التنفيذية المحلية" style="margin:10px 0;padding:12px;border:1px solid var(--mp-border);border-radius:12px">
+                      <strong style="display:block;font-size:13px;margin-bottom:5px">📊 لوحة الذكاء التشغيلي — بيانات حقيقية من سجلاتك</strong>
+                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 8px">تحليل محلي للمنتجات والمخزون وديون العملاء وفواتير آخر 30 يومًا. لا تُرسل البيانات إلى الإنترنت ولا تُعدّل السجلات.</p>
+                      <div id="anasAiExecutiveMetrics" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ حساب المؤشرات…</div>
+                      <button type="button" class="btn-full-submit" style="background:#0f766e;width:100%;margin-top:9px" onclick="anasRefreshAiExecutiveDashboard()">🔄 تحديث المؤشرات الآن</button>
+                    </section>
                     <section class="anas-ai-section" aria-label="الملخص الصباحي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
                       <strong style="display:block;font-size:13px;margin-bottom:5px">🌅 ملخص بداية اليوم</strong>
                       <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">ملخص محلي فوري من السجلات المتاحة، دون إرسال بيانات أو افتراض أن أرقام اليوم السابق مكتملة.</p>
@@ -9100,6 +9106,7 @@ function wtAuditTransfers(){
             });
             anasRefreshAiProactiveInsights();
             anasRefreshAiMorningBrief();
+            anasRefreshAiExecutiveDashboard();
         }
 
         function triggerAiGeneration(section) {
@@ -9522,6 +9529,96 @@ function wtAuditTransfers(){
             notes.forEach(note=>{const li=document.createElement('li');li.textContent=note;list.appendChild(li);});
             target.replaceChildren(list);
         }
+        function anasRenderAiExecutiveDashboard(){
+            const target=document.getElementById('anasAiExecutiveMetrics');
+            if(!target)return;
+            const products=Array.isArray(AppData&&AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData&&AppData.customers)?AppData.customers:[];
+            const invoices=Array.isArray(AppData&&AppData.invoices)?AppData.invoices:[];
+            const strictNumber=value=>{
+                if(typeof value==='number')return Number.isFinite(value)?value:null;
+                if(value===null||value===undefined||typeof value==='boolean'||typeof value==='object')return null;
+                const raw=String(value).trim();
+                if(!/^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$/.test(raw))return null;
+                const parsed=Number(raw);
+                return Number.isFinite(parsed)?parsed:null;
+            };
+            const stockRows=products.map(product=>({
+                product,
+                stock:strictNumber(product&&product.stock),
+                minimum:strictNumber(product&&(product.minStock??product.min_stock??product.reorderLevel)),
+                cost:strictNumber(product&&(product.buyPrice??product.buy_price??product.cost))
+            }));
+            const lowStock=stockRows.filter(row=>row.stock!==null&&row.minimum!==null&&row.stock<=row.minimum);
+            const zeroStock=stockRows.filter(row=>row.stock!==null&&row.stock<=0);
+            const missingStock=stockRows.filter(row=>row.stock===null);
+            let inventoryValue=0,valuedProducts=0;
+            stockRows.forEach(row=>{if(row.stock!==null&&row.cost!==null&&row.stock>=0&&row.cost>=0){inventoryValue+=row.stock*row.cost;valuedProducts++;}});
+            let debtTotal=0,debtors=0,invalidDebts=0;
+            customers.forEach(customer=>{
+                const debt=strictNumber(customer&&customer.debt);
+                if(debt===null){if(customer&&customer.debt!==undefined&&customer.debt!==null&&String(customer.debt).trim()!=='')invalidDebts++;return;}
+                if(debt>0){debtTotal+=debt;debtors++;}
+            });
+            const now=new Date(),start=new Date(now);
+            start.setDate(start.getDate()-29);start.setHours(0,0,0,0);
+            let sales30=0,datedInvoices=0,invalidInvoiceTotals=0,undatedInvoices=0;
+            invoices.forEach(invoice=>{
+                if(!invoice||typeof invoice!=='object')return;
+                const status=String(invoice.status||invoice.state||'').toLowerCase();
+                if(/cancel|void|revers|ملغ/.test(status))return;
+                const dateCandidates=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(key=>invoice[key]);
+                let date=null;
+                for(const candidate of dateCandidates){if(candidate===null||candidate===undefined||candidate==='')continue;try{date=parseInvoiceDate(candidate);}catch(_){date=null;}if(date)break;}
+                if(!date){undatedInvoices++;return;}
+                if(date<start||date>now)return;
+                datedInvoices++;
+                const total=strictNumber(invoice.total);
+                if(total===null)invalidInvoiceTotals++;else sales30+=total;
+            });
+            const fmt=value=>Number(value||0).toLocaleString('fr-DZ',{maximumFractionDigits:2});
+            const grid=document.createElement('div');
+            grid.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px';
+            const metrics=[
+                ['المنتجات المسجلة',fmt(products.length)],
+                ['أصناف عند حد الطلب أو دونه',fmt(lowStock.length)],
+                ['أصناف بلا مخزون موجب',fmt(zeroStock.length)],
+                ['قيمة المخزون المقدّرة',fmt(inventoryValue)+' دج'],
+                ['ديون العملاء المسجلة',fmt(debtTotal)+' دج'],
+                ['فواتير آخر 30 يوماً',fmt(datedInvoices)],
+                ['إجمالي الفواتير المؤرخة',fmt(sales30)+' دج'],
+                ['العملاء ذوو الدين',fmt(debtors)]
+            ];
+            metrics.forEach(([label,value])=>{
+                const card=document.createElement('div');
+                card.style.cssText='min-width:0;padding:9px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-input-bg,rgba(148,163,184,.06))';
+                const name=document.createElement('div');name.textContent=label;name.style.cssText='font-size:10px;color:var(--mp-text-muted);line-height:1.5';
+                const number=document.createElement('strong');number.textContent=value;number.style.cssText='display:block;margin-top:3px;font-size:14px;overflow-wrap:anywhere';
+                card.append(name,number);grid.appendChild(card);
+            });
+            const notes=[];
+            if(lowStock.length)notes.push('⚠️ '+lowStock.length+' صنفاً بلغ حد إعادة الطلب أو تجاوزه؛ راجع الكميات والطلبيات قبل الشراء.');
+            if(zeroStock.length)notes.push('🔴 '+zeroStock.length+' صنفاً لديه مخزون صفري أو سالب مسجل.');
+            if(missingStock.length)notes.push('ℹ️ '+missingStock.length+' صنفاً لا يملك قيمة مخزون رقمية؛ لم يُعامل كصفر.');
+            if(valuedProducts<products.length)notes.push('ℹ️ قيمة المخزون محسوبة لـ '+valuedProducts+' من '+products.length+' صنفاً فقط لتوفر الكمية وتكلفة الشراء.');
+            if(debtors.length)notes.push('💳 توجد أرصدة مدينة موجبة لدى '+debtors.length+' عميل؛ هذه ليست أعمار ديون ولا إثباتاً لتاريخ الاستحقاق.');
+            if(undatedInvoices)notes.push('ℹ️ '+undatedInvoices+' فاتورة بلا تاريخ قابل للتحقق؛ لم تدخل في حساب آخر 30 يوماً.');
+            if(invalidInvoiceTotals)notes.push('⚠️ تعذر قراءة إجمالي '+invalidInvoiceTotals+' فاتورة ضمن الفترة.');
+            if(!datedInvoices)notes.push('لا توجد فواتير مؤرخة قابلة للحساب خلال آخر 30 يوماً، لذلك لا يصدر المحرك توقع مبيعات.');
+            const note=document.createElement('div');
+            note.style.cssText='margin-top:8px;font-size:11px;line-height:1.7;color:var(--mp-text-muted)';
+            note.textContent=notes.join(' ');
+            target.replaceChildren(grid,note);
+        }
+        function anasRefreshAiExecutiveDashboard(){
+            try{anasRenderAiExecutiveDashboard();}
+            catch(error){
+                const target=document.getElementById('anasAiExecutiveMetrics');
+                if(target)target.textContent='تعذر حساب المؤشرات المحلية بأمان: '+String(error&&error.message||error);
+                console.error('ANAS AI executive dashboard:',error);
+            }
+        }
+
         function anasRefreshAiHubStatus(){
             const status=document.getElementById('anasAiHubConnectionStatus');
             if(!status)return;
