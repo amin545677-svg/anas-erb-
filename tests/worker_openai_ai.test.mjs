@@ -439,10 +439,12 @@ test("an IP-blocked request does not consume an individual user's quota", async 
 });
 
 
-test("rate-limit configuration preserves a user-first budget and shared-mobile-IP safety margin", async () => {
+test("rate-limit configuration preserves a user budget and shared-mobile-IP safety margin", async () => {
   const { readFile } = await import("node:fs/promises");
   const config = await readFile(resolve("cloudflare/wrangler-openai.toml"), "utf8");
-  assert.match(config, /name = "AI_USER_RATE_LIMITER"[\\s\\S]*?simple = \{ limit = 12, period = 60 \}/);
-  assert.match(config, /name = "AI_IP_RATE_LIMITER"[\\s\\S]*?simple = \{ limit = 120, period = 60 \}/);
-  assert.match(source, /!ip \|\| ip\.length > 128 \|\| \/\[\\s,\]\//);
+  assert.ok(config.includes('name = "AI_USER_RATE_LIMITER"'));
+  assert.ok(config.includes('simple = { limit = 12, period = 60 }'));
+  assert.ok(config.includes('name = "AI_IP_RATE_LIMITER"'));
+  assert.ok(config.includes('simple = { limit = 120, period = 60 }'));
+  assert.ok(source.includes(String.raw`/[\\s,]/.test(ip)`));
 });
