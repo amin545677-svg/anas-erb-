@@ -17,8 +17,8 @@ assert.ok(purchaseHelperStart >= 0 && purchaseHelperEnd > purchaseHelperStart,
 const purchaseHelperSource = html.slice(purchaseHelperStart, purchaseHelperEnd);
 const source = helperSource + purchaseHelperSource + html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, doubleConfirm = false} = {}) {
-  const product = {id:'P-1', name:'Test product', stock:productStock, warehouseStock:{'فرع 1':12}};
+function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, unit = 'كغ', doubleConfirm = false} = {}) {
+  const product = {id:'P-1', name:'Test product', unit, stock:productStock, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:customerDebt};
   const AppData = {
     products:[product], customers:[customer], invoices:[],
