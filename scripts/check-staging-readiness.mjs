@@ -29,7 +29,8 @@ function requirePattern(file, pattern, label) {
 }
 
 const functionsIndex = requireText('functions/index.js', 'exports.executeSettlementAllocation', 'Callable is exported');
-requirePattern('functions/index.js', /executeSettlementAllocation[\s\S]*?enforceAppCheck:\s*true/, 'Callable enforces App Check');
+requirePattern('functions/index.js', /CALLABLE_BASE_OPTIONS[\s\S]*?enforceAppCheck:\s*true/, 'Shared callable options enforce App Check');
+requirePattern('functions/index.js', /exports\.executeSettlementAllocation\s*=\s*onCall\(\{\s*\.\.\.CALLABLE_BASE_OPTIONS/, 'Settlement allocation uses shared callable options');
 const service = requireText('functions/settlement-allocation-service.js', 'db.runTransaction', 'Allocation uses Firestore transaction');
 requireText('functions/settlement-allocation-service.js', 'request.auth.uid', 'Allocation requires Firebase Auth');
 requireText('functions/settlement-allocation-service.js', 'request.app', 'Allocation validates App Check context');
@@ -61,6 +62,9 @@ requireText('tests/reverse_ledger_firestore_emulator.test.js', 'createSettlement
 requireText('tests/reverse_ledger_firestore_emulator.test.js', 'serializes two-device allocation races', 'Firestore Emulator covers concurrent allocation ceiling');
 requireText('tests/settlement_allocation_modal_chromium.test.mjs', 'uses the callable', 'Chromium covers allocation modal gateway');
 requireText('index.html', 'V42', 'Production shell retains V42 identity');
+requireText('index.html', './core/ai-operations-engine.js', 'Offline local operations engine is loaded by the ERP shell');
+requireText('core/ai-operations-engine.js', 'function classifyImportRows', 'AI import deduplication engine is available');
+requireText('core/ai-operations-engine.js', 'function analyze(data,options)', 'Local stockout and debt-aging engine is available');
 
 const report = {
   ok: true,
