@@ -69,6 +69,8 @@ jobs:
         run: node --test tests/theme-system.test.mjs
       - name: Run Micro POS filtering, dual-pricing, credit and import-engine tests
         run: node --test tests/micro_pos_engine.test.mjs
+      - name: Run Micro POS deep-core rendering, cart, import quota and device identity tests
+        run: node --test tests/micro_pos_deep_core.test.mjs
       - name: Run exact Micro POS decimal, shared inventory, CRM and sales history tests
         run: node --test tests/micro_pos_core.test.mjs
       - name: Verify smart import merge and ledger-safe replacement behavior
