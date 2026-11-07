@@ -26,7 +26,7 @@ function initialData() {
       lastPurchaseCost: 10, price1: 25, price2: 25, price3: 25,
       barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
     }],
-    customers: [], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
+    customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
     invoices: [], cashMovements: [], stockMovements: [], expenses: [], users: [], alerts: [],
     warehouseTransfers: [], warehouses: [], truckTrips: [], trucks: [], returns: [],
     stocktakeRecords: [], syncUrl: ''
@@ -252,6 +252,60 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(localReturnProof.caisseBalance, 100000, 'cash refund must reverse the original receipt');
     assert.ok(localReturnProof.saleReturnMovements >= 1, 'local return must write a linked reverse stock movement');
 
+    // Partial payment must collect only the entered amount and allocate the balance to the selected customer.
+    await page.evaluate(() => openView('pos'));
+    await page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME }).click();
+    await page.locator('#posCheckoutBtn').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#hasibPaymentMethod').selectOption('partial');
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '12.50');
+    assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25.00 د.ج');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '12.50 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '12.50 د.ج');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    const partialRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        s.invoices.some(row => row && row.paymentMethod === 'partial' && row.paid === 12.5 && row.remaining === 12.5);
+    }, partialRevision, { timeout: 15000 });
+    const partialProof = await page.evaluate(() => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = s.invoices.find(row => row && row.paymentMethod === 'partial');
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      const cash = s.cashMovements.filter(row => row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      return { paid: invoice.paid, remaining: invoice.remaining, customerDebt: customer.debt,
+        cashRows: cash.length, cashAmount: cash[0] && cash[0].amount };
+    });
+    assert.deepEqual(partialProof, { paid: 12.5, remaining: 12.5, customerDebt: 12.5, cashRows: 1, cashAmount: 12.5 });
+
+    // Full credit must create customer debt without adding cash to the cashbox.
+    await page.evaluate(() => openView('pos'));
+    await page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME }).click();
+    await page.locator('#posCheckoutBtn').click();
+    await page.locator('#hasibPaymentMethod').selectOption('credit');
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0.00 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '25.00 د.ج');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    const creditRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        s.invoices.some(row => row && row.paymentMethod === 'credit' && row.paid === 0 && row.remaining === 25);
+    }, creditRevision, { timeout: 15000 });
+    const creditProof = await page.evaluate(() => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = s.invoices.find(row => row && row.paymentMethod === 'credit');
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      const cash = s.cashMovements.filter(row => row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      return { paid: invoice.paid, remaining: invoice.remaining, customerDebt: customer.debt,
+        cashRows: cash.length, cashBalance: s.caisseBalance };
+    });
+    assert.deepEqual(creditProof, { paid: 0, remaining: 25, customerDebt: 37.5, cashRows: 0, cashBalance: 100012.5 });
+
     // Driver advance acceptance with an empty cashbox must persist without a cash deduction.
     const beforeExpenseSetupRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
     await page.evaluate(() => {
@@ -297,9 +351,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       cartLines: Array.isArray(posCart) ? posCart.length : -1,
       modalOpen: document.getElementById('hasibModal')?.classList.contains('active') === true
     }));
-    assert.equal(runtimeParity.invoices, 1, 'reload must not duplicate invoice');
-    assert.equal(runtimeParity.cashMovements, 1, 'reload must not duplicate cash movement');
-    assert.equal(runtimeParity.stockMovements, 1, 'reload must not duplicate stock movement');
+    assert.equal(runtimeParity.invoices, 3, 'cash, partial and credit invoices must each persist exactly once');
+    assert.equal(runtimeParity.cashMovements, 2, 'cash and partial sales must each persist one receipt; credit must persist none');
+    assert.equal(runtimeParity.stockMovements, 3, 'each committed sale must persist one stock movement');
     assert.equal(runtimeParity.cartLines, 0, 'committed cart must remain cleared after reload');
     assert.equal(runtimeParity.modalOpen, false, 'payment modal must remain closed after reload');
 
