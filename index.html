@@ -1476,19 +1476,21 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <div style="width:140px;">
                     <select id="purSupplierSelect" class="field-input" style="padding:6px; font-size:0.8rem;"></select>
                 </div>
-                <div class="search-field-box">
-                    <input type="text" id="purProductName" class="input-pos-search" placeholder="ابحث عن منتج أو اكتب اسم السلعة...">
+                <div class="search-field-box pos-search-wrap" style="position:relative;flex:1;min-width:0;">
+                    <input type="text" id="purProductName" class="input-pos-search" placeholder="ابحث بالاسم أو الباركود..." autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="البحث عن صنف للمشتريات" oninput="handlePurchaseProductSearch(this.value)" onkeydown="handlePurchaseSearchKeydown(event)">
+                    <input type="hidden" id="purProductId" value="">
+                    <div id="purProductSearchResults" class="pos-search-results" role="listbox" aria-label="نتائج بحث المشتريات" hidden></div>
                 </div>
-                <button class="btn-scanner-icon">|||</button>
+                <button type="button" class="btn-scanner-icon" onclick="focusPurchaseSearchField()" title="تركيز حقل الباركود">|||</button>
             </div>
 
             <div style="background:#fff; padding:8px 10px; border-bottom:1px solid var(--mp-border); display:flex; gap:6px;">
-                <input type="number" id="purBuyCost" min="0.01" step="0.01" placeholder="سعر شراء الوحدة (د.ج)" class="field-input" style="flex:1;">
-                <input type="number" id="purBuyQty" min="0.000001" step="any" placeholder="الكمية" value="10" class="field-input" style="flex:1;">
+                <input type="number" id="purBuyCost" min="0.01" step="0.01" placeholder="سعر شراء الوحدة (د.ج)" class="field-input" style="flex:1;" oninput="updatePurchaseDraftPreview()">
+                <input type="number" id="purBuyQty" min="0.000001" step="any" placeholder="الكمية" value="10" class="field-input" style="flex:1;" oninput="updatePurchaseDraftPreview()">
             </div>
             <div style="background:#fff;padding:8px 10px;border-bottom:1px solid var(--mp-border);">
                 <label for="purPaidAmount" style="display:block;margin-bottom:4px;font-size:.8rem;font-weight:800;color:var(--mp-text-muted);">المبلغ المدفوع الآن من الصندوق (د.ج) — المتبقي يُسجل ديناً على المورد</label>
-                <input type="number" id="purPaidAmount" min="0" step="0.01" value="0.00" class="field-input" style="width:100%;">
+                <input type="number" id="purPaidAmount" min="0" step="0.01" value="0.00" class="field-input" style="width:100%;" oninput="updatePurchaseDraftPreview()">
                 <small style="display:block;margin-top:4px;color:#64748b;">إذا لم تختر مورداً، يجب دفع كامل الفاتورة نقداً. لا يُسمح بتسجيل دين بلا مورد محدد.</small>
             </div>
             <div style="background:#fff; padding:8px 10px; border-bottom:1px solid var(--mp-border);">
@@ -1496,13 +1498,15 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <input type="date" id="purInvoiceDate" class="field-input" style="width:100%;">
             </div>
 
-            <div class="invoice-table-header">
-                <div>المنتج</div>
-                <div>التكلفه</div>
-                <div>الكمية</div>
-                <div>الإجمالي</div>
+            <div style="margin:10px 8px 4px;font-weight:900;color:var(--mp-navy);">معاينة الفاتورة الحالية</div>
+            <div class="invoice-table-header"><div>المنتج</div><div>التكلفة</div><div>الكمية</div><div>الإجمالي</div></div>
+            <div class="invoice-items-body" id="purDraftTableBody" aria-live="polite"></div>
+            <div class="bottom-totals-bar" style="margin:0 8px 12px;">
+                <div style="display:flex;flex-direction:column;gap:3px;"><small>المتبقي بعد الدفع</small><strong id="purDraftRemainingDisplay">—</strong></div>
+                <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:.8rem;font-weight:800;color:#64748b;">إجمالي الفاتورة</span><div class="box-total-green" id="purDraftTotalDisplay" data-total-centimes="0" style="min-width:140px;">—</div></div>
             </div>
-
+            <div style="margin:10px 8px 4px;font-weight:900;color:var(--mp-navy);">سجل فواتير المشتريات</div>
+            <div class="invoice-table-header"><div>المنتج</div><div>التكلفة</div><div>الكمية</div><div>الإجمالي</div></div>
             <div class="invoice-items-body" id="purchasesTableBody"></div>
 
             <div class="bottom-totals-bar">
@@ -2962,6 +2966,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
             if(viewName === 'reports') { applyReportDateRange(); renderAllStatistics(); }
             if (viewName === 'pos') setTimeout(() => { const f=document.getElementById('posSearchField'); if(f) f.focus({preventScroll:true}); }, 120);
+            if (viewName === 'purchases' && typeof updatePurchaseDraftPreview === 'function') updatePurchaseDraftPreview();
             if(viewName === 'pos') { renderQuickProducts(); renderPosTable(); }
             if(viewName === 'purchases') { populateSuppliersDropdowns(); renderPurchasesTable(); }
             if(viewName === 'customers') { renderCustomerDirectory(); }
@@ -3114,8 +3119,8 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const products = Array.isArray(AppData?.products) ? AppData.products : [];
             const matches = products.filter(p => {
                 const name = normalizePosSearch(p.name);
-                const barcode = normalizePosSearch(p.barcode);
-                return name.includes(q) || barcode.includes(q);
+                const barcode = anasNormalizeBarcode(p.barcode);
+                return name.includes(q) || barcode.includes(anasNormalizeBarcode(q));
             }).slice(0, 12);
             const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
             if (!matches.length) {
@@ -4831,6 +4836,166 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             }
         }
 
+        let purchaseSearchActiveIndex = -1;
+        let purchaseQuickAddPending = null;
+        function closePurchaseSearchResults() {
+            const results = document.getElementById('purProductSearchResults');
+            if (results) { results.hidden = true; results.innerHTML = ''; }
+            purchaseSearchActiveIndex = -1;
+        }
+        function focusPurchaseSearchField() {
+            const input = document.getElementById('purProductName');
+            if (input) input.focus({ preventScroll: true });
+        }
+        function handlePurchaseProductSearch(query) {
+            const input = document.getElementById('purProductName');
+            const results = document.getElementById('purProductSearchResults');
+            const selectedId = document.getElementById('purProductId');
+            if (!input || !results) return;
+            if (selectedId) selectedId.value = '';
+            const nameQuery = normalizePosSearch(query);
+            const barcodeQuery = anasNormalizeBarcode(query);
+            purchaseSearchActiveIndex = -1;
+            if (!nameQuery && !barcodeQuery) { closePurchaseSearchResults(); updatePurchaseDraftPreview(); return; }
+            const products = Array.isArray(AppData?.products) ? AppData.products : [];
+            const matches = products.filter(product =>
+                normalizePosSearch(product?.name).includes(nameQuery) ||
+                anasNormalizeBarcode(product?.barcode).includes(barcodeQuery)
+            ).slice(0, 12);
+            const esc = value => String(value ?? '').replace(/[&<>"']/g, c =>
+                ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            if (!matches.length) {
+                results.innerHTML = '<div class="pos-search-empty">لا يوجد صنف مطابق للاسم أو الباركود</div>' +
+                    '<button type="button" class="pos-search-result pos-search-quick-add" onclick="openQuickAddPurchaseProduct()">' +
+                    '<span class="pos-search-result-name">＋ إضافة صنف جديد</span><span class="pos-search-result-meta">' +
+                    esc(query) + '</span></button>';
+                results.hidden = false;
+                updatePurchaseDraftPreview();
+                return;
+            }
+            results.innerHTML = matches.map((product, index) => {
+                const encodedId = encodeURIComponent(String(product.id)).replace(/'/g, '%27');
+                return '<button type="button" class="pos-search-result" role="option" data-index="' + index +
+                    '" onclick="selectPurchaseSearchProduct(decodeURIComponent(\\'' + encodedId + '\\'))">' +
+                    '<span class="pos-search-result-name">' + esc(product.name) + '</span>' +
+                    '<span class="pos-search-result-meta">' + esc(product.barcode || 'بدون باركود') +
+                    ' · تكلفة ' + esc(product.buyPrice ?? '—') + ' د.ج · مخزون ' + esc(product.stock ?? '—') +
+                    '</span></button>';
+            }).join('');
+            results.hidden = false;
+        }
+        function handlePurchaseSearchKeydown(event) {
+            const results = document.getElementById('purProductSearchResults');
+            if (!results || results.hidden) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handlePurchaseProductSearch(document.getElementById('purProductName')?.value || '');
+                }
+                return;
+            }
+            const items = Array.from(results.querySelectorAll('.pos-search-result'));
+            if (!items.length) { if (event.key === 'Escape') closePurchaseSearchResults(); return; }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                purchaseSearchActiveIndex = (purchaseSearchActiveIndex +
+                    (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+                items.forEach((item, index) => item.classList.toggle('active', index === purchaseSearchActiveIndex));
+                items[purchaseSearchActiveIndex].scrollIntoView({ block: 'nearest' });
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                const chosen = items[purchaseSearchActiveIndex >= 0 ? purchaseSearchActiveIndex : 0];
+                if (chosen) chosen.click();
+            } else if (event.key === 'Escape') closePurchaseSearchResults();
+        }
+        function selectPurchaseSearchProduct(productId) {
+            const products = Array.isArray(AppData?.products) ? AppData.products : [];
+            const matches = products.filter(product => String(product?.id) === String(productId));
+            if (matches.length !== 1) {
+                alert(matches.length ? 'معرّف الصنف مكرر؛ أصلح سجل المنتجات قبل الشراء.' : 'لم يعد الصنف موجوداً؛ أعد البحث.');
+                closePurchaseSearchResults();
+                return;
+            }
+            const product = matches[0];
+            const nameInput = document.getElementById('purProductName');
+            const idInput = document.getElementById('purProductId');
+            const costInput = document.getElementById('purBuyCost');
+            if (nameInput) nameInput.value = String(product.name || '');
+            if (idInput) idInput.value = String(product.id);
+            if (costInput) costInput.value = product.buyPrice == null ? '' : String(product.buyPrice);
+            closePurchaseSearchResults();
+            updatePurchaseDraftPreview();
+            const qtyInput = document.getElementById('purBuyQty');
+            if (qtyInput) qtyInput.focus({ preventScroll: true });
+        }
+        function openQuickAddPurchaseProduct() {
+            const input = document.getElementById('purProductName');
+            const costInput = document.getElementById('purBuyCost');
+            const query = String(input?.value || '').trim();
+            if (!query) return;
+            const barcodeLike = /^[A-Za-z0-9._-]{5,}$/.test(anasNormalizeBarcode(query)) && !/\\s/.test(query);
+            openAddProductModal();
+            const nameField = document.getElementById('newProdNameInput');
+            const barcodeField = document.getElementById('newProdBarcodeInput');
+            const stockField = document.getElementById('newProdStockInput');
+            const buyField = document.getElementById('newProdBuyCostInput');
+            if (stockField) stockField.value = '0';
+            if (buyField) buyField.value = costInput?.value || '0';
+            if (barcodeLike) {
+                if (nameField) nameField.value = '';
+                if (barcodeField) barcodeField.value = query;
+            } else if (nameField) nameField.value = query;
+            purchaseQuickAddPending = { kind: barcodeLike ? 'barcode' : 'name', value: query };
+            closePurchaseSearchResults();
+        }
+        function updatePurchaseDraftPreview() {
+            const body = document.getElementById('purDraftTableBody');
+            const name = String(document.getElementById('purProductName')?.value || '').trim();
+            const costCents = anasPurchaseToCents(document.getElementById('purBuyCost')?.value);
+            const qtyUnits = anasPurchaseToQtyUnits(document.getElementById('purBuyQty')?.value);
+            const paidInput = document.getElementById('purPaidAmount');
+            const paidRaw = paidInput ? String(paidInput.value || '').trim() : '0';
+            const paidCents = paidRaw === '' ? 0 : anasPurchaseToCents(paidRaw);
+            const totalCents = Number.isSafeInteger(costCents) && costCents > 0 &&
+                Number.isSafeInteger(qtyUnits) && qtyUnits > 0
+                ? anasPurchaseLineTotalCents(qtyUnits, costCents) : null;
+            const format = cents => anasPurchaseCentsToCurrency(cents).toLocaleString('fr-DZ', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            }) + ' د.ج';
+            if (body) {
+                body.replaceChildren();
+                const row = document.createElement('div');
+                row.className = 'invoice-table-row';
+                row.style.gridTemplateColumns = '1.5fr .7fr .6fr .8fr';
+                [
+                    name || '—',
+                    Number.isSafeInteger(costCents) && costCents > 0 ? format(costCents) : '—',
+                    Number.isSafeInteger(qtyUnits) && qtyUnits > 0 ? String(anasPurchaseQtyFromUnits(qtyUnits)) : '—',
+                    Number.isSafeInteger(totalCents) && totalCents > 0 ? format(totalCents) : '—'
+                ].forEach(value => {
+                    const cell = document.createElement('div');
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+                body.appendChild(row);
+            }
+            const totalDisplay = document.getElementById('purDraftTotalDisplay');
+            const remainingDisplay = document.getElementById('purDraftRemainingDisplay');
+            const validTotal = Number.isSafeInteger(totalCents) && totalCents > 0;
+            if (totalDisplay) {
+                totalDisplay.dataset.totalCentimes = validTotal ? String(totalCents) : '0';
+                totalDisplay.textContent = validTotal ? format(totalCents) : '—';
+            }
+            if (remainingDisplay) {
+                remainingDisplay.textContent = validTotal && Number.isSafeInteger(paidCents) &&
+                    paidCents >= 0 && paidCents <= totalCents ? format(totalCents - paidCents) :
+                    (validTotal ? 'تحقق من المبلغ المدفوع' : '—');
+            }
+        }
+        document.addEventListener('click', function(event) {
+            const wrap = document.querySelector('#view-purchases .pos-search-wrap');
+            if (wrap && !wrap.contains(event.target)) closePurchaseSearchResults();
+        }, true);
+
         function savePurchaseItem() {
             const nameInput = document.getElementById('purProductName');
             const costInput = document.getElementById('purBuyCost');
@@ -4899,11 +5064,24 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return;
             }
 
-            const normalizedName = name.toLocaleLowerCase();
-            const productMatches = (Array.isArray(AppData.products) ? AppData.products : [])
-                .filter(row => String(row.name || '').trim().toLocaleLowerCase() === normalizedName);
-            if (productMatches.length > 1) { alert('يوجد أكثر من منتج بالاسم نفسه. وحّد سجل المنتجات قبل تعديل المخزون.'); return; }
+            const selectedProductId = String(document.getElementById('purProductId')?.value || '').trim();
+            const productRows = Array.isArray(AppData.products) ? AppData.products : [];
+            const productMatches = selectedProductId
+                ? productRows.filter(row => String(row.id) === selectedProductId)
+                : productRows.filter(row => normalizePosSearch(row.name) === normalizePosSearch(name));
+            if (selectedProductId && productMatches.length !== 1) {
+                alert('الصنف المحدد لم يعد موجوداً أو أن معرّفه مكرر؛ أعد اختياره من نتائج البحث.');
+                return;
+            }
+            if (!selectedProductId && productMatches.length > 1) {
+                alert('يوجد أكثر من منتج بالاسم نفسه. اختر الصنف من قائمة البحث لتحديده بمعرّفه.');
+                return;
+            }
             const existingProduct = productMatches[0] || null;
+            if (existingProduct && normalizePosSearch(existingProduct.name) !== normalizePosSearch(name)) {
+                alert('اسم الصنف المحدد تغير؛ أعد اختياره من نتائج البحث قبل تسجيل الشراء.');
+                return;
+            }
             if (existingProduct && (existingProduct.id === undefined || existingProduct.id === null || String(existingProduct.id).trim() === '')) {
                 alert('المنتج المطابق لا يملك معرّفاً صالحاً؛ لم يتم تعديل المخزون.');
                 return;
@@ -5066,6 +5244,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             if (costInput) costInput.value = '';
             if (qtyInput) qtyInput.value = '';
             if (paidInput) paidInput.value = '0.00';
+            const selectedProductInput = document.getElementById('purProductId');
+            if (selectedProductInput) selectedProductInput.value = '';
+            closePurchaseSearchResults();
+            updatePurchaseDraftPreview();
             try {
                 renderPurchasesTable();
                 if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
@@ -7102,6 +7284,7 @@ function wtAuditTransfers(){
         let currentTempProdImageBase64 = "";
 
         function openAddProductModal() {
+            purchaseQuickAddPending = null;
             populateSuppliersDropdowns();
             populateProductCategorySuggestions();
             populateProductUnitOptions();
@@ -7245,7 +7428,15 @@ function wtAuditTransfers(){
                 alert((e.message||'فشل حفظ المنتج')+' لم يتم تأكيد العملية؛ تحقق من التخزين قبل إعادة المحاولة.');
                 return;
             }
+            const quickAddContext = purchaseQuickAddPending;
+            purchaseQuickAddPending = null;
             closeModal('addProductModal');
+            if (quickAddContext && index < 0) {
+                const quickMatches = AppData.products.filter(product => quickAddContext.kind === 'barcode'
+                    ? anasNormalizeBarcode(product.barcode) === anasNormalizeBarcode(quickAddContext.value)
+                    : normalizePosSearch(product.name) === normalizePosSearch(quickAddContext.value));
+                if (quickMatches.length === 1) selectPurchaseSearchProduct(quickMatches[0].id);
+            }
             alert(index>=0?'تم حفظ تعديلات المنتج بنجاح.':'تم حفظ المنتج بكافة التفاصيل والوحدة والصورة بنجاح.');
             try{renderQuickProducts();}catch(e){console.error('Quick products refresh failed',e);}
             try{renderInventoryList();}catch(e){console.error('Inventory refresh failed',e);}
