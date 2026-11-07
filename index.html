@@ -1631,7 +1631,7 @@ input:focus, select:focus, textarea:focus {
                 <div class="dashboard-grid-8">
                   <button type="button" class="grid-card-item" onclick="openView('inventory')"><span class="card-icon-box">📦</span><span class="card-title-text">المخزون</span></button>
                   <button type="button" class="grid-card-item" onclick="openAddProductModal()"><span class="card-icon-box">➕</span><span class="card-title-text">إضافة منتج</span></button>
-                  <button type="button" class="grid-card-item" onclick="renderAlertsList();openModal('alertModal')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" hidden>0</span></button>
+                  <button type="button" class="grid-card-item" onclick="renderAlertsList();document.getElementById('alertModal').classList.add('active')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" hidden>0</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('purchases')"><span class="card-icon-box">🧾</span><span class="card-title-text">فواتير الشراء</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('suppliers')"><span class="card-icon-box">🤝</span><span class="card-title-text">الموردون</span></button>
                 </div>
@@ -1647,6 +1647,7 @@ input:focus, select:focus, textarea:focus {
               <section class="anas-dashboard-group" aria-labelledby="anasSmartGroupTitle">
                 <h3 id="anasSmartGroupTitle" class="anas-dashboard-group-title">الأدوات الذكية</h3>
                 <div class="dashboard-grid-8">
+                  <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي"><span class="card-icon-box" aria-hidden="true">🤖</span><span class="card-title-text">مركز الذكاء الاصطناعي</span></button>
                   <button type="button" class="grid-card-item" onclick="openInvoiceOcr()"><span class="card-icon-box">📷</span><span class="card-title-text">ممسح الفواتير AI</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')"><span class="card-icon-box">🤖</span><span class="card-title-text">الاستيراد الذكي AI</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')"><span class="card-icon-box">📊</span><span class="card-title-text">استيراد Excel</span></button>
@@ -8655,65 +8656,17 @@ function wtAuditTransfers(){
             if (!root) return;
             const w = window.open('', '_blank');
             if (!w) { alert('اسمح بفتح نافذة الطباعة لهذا الملف ثم أعد المحاولة.'); return; }
-            const styles = `<style>body{font-family:Arial,sans-serif;direction:rtl;padding:18px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:7px;text-align:right;font-size:12px}th{background:#eee}button,input{display:none!important} [hidden]{display:none!important}</style>`;
+            const escapeHtml = value => String(value ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+            const styles = '<style>body{font-family:Arial,sans-serif;direction:rtl;padding:18px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:7px;text-align:right;font-size:12px}th{background:#eee}button,input{display:none!important}[hidden]{display:none!important}</style>';
+            const printable = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
+                escapeHtml(title) + '</title>' + styles + '</head><body><h1>' +
+                escapeHtml(title) + '</h1>' + root.innerHTML + '</body></html>';
             w.document.open();
-            w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</title>' + styles + '</head><body><h1>' + String(title).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</h1>' + root.innerHTML + '\x3Cscript src="./reverse-ledger/reverse-ledger-modal.js">
-<style id="anas-micro-pos-bottom-nav">
-  #anasQuickBottomNav {
-    position:fixed; inset-inline:0; bottom:0; z-index:45;
-    display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:3px;
-    padding:6px 5px calc(6px + env(safe-area-inset-bottom));
-    background:var(--mp-card,#fff); border-top:1px solid var(--mp-border,#dbe2ea);
-    box-shadow:0 -4px 18px rgba(15,23,42,.10);
-  }
-  #anasQuickBottomNav button {
-    min-width:0; min-height:48px; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:3px; padding:4px 1px;
-    border:0; border-radius:10px; background:transparent;
-    color:var(--mp-text,#334155); font:inherit; font-weight:800;
-    touch-action:manipulation; cursor:pointer;
-  }
-  #anasQuickBottomNav button .nav-icon { font-size:18px; line-height:1.1; }
-  #anasQuickBottomNav button .nav-label {
-    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    font-size:clamp(9px,2.45vw,11px); line-height:1.2;
-  }
-  #anasQuickBottomNav button.active {
-    color:var(--mp-accent,#2563eb);
-    background:var(--mp-accent-soft,#eff6ff);
-  }
-  :root[data-anas-theme="dark"] #anasQuickBottomNav {
-    background:#101a2b; border-color:#334155; box-shadow:0 -4px 18px #0006;
-  }
-  :root[data-anas-theme="dark"] #anasQuickBottomNav button { color:#dbe7f5; }
-  :root[data-anas-theme="dark"] #anasQuickBottomNav button.active {
-    color:#93c5fd; background:#1e3a5f;
-  }
-  body { padding-bottom:calc(66px + env(safe-area-inset-bottom)) !important; }
-  #view-pos .bottom-totals-bar {
-    bottom:calc(66px + env(safe-area-inset-bottom));
-  }
-  @media(max-width:360px) {
-    #anasQuickBottomNav { gap:1px; padding-inline:2px; }
-    #anasQuickBottomNav button { border-radius:8px; }
-    #anasQuickBottomNav button .nav-icon { font-size:16px; }
-  }
-</style>
-<nav id="anasQuickBottomNav" aria-label="التنقل الرئيسي">
-  <button type="button" data-nav-view="dashboard" class="active" aria-current="page" aria-label="الرئيسية" onclick="openView('dashboard')"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">الرئيسية</span></button>
-  <button type="button" data-nav-view="pos" aria-label="نقطة البيع" onclick="openView('pos')"><span class="nav-icon" aria-hidden="true">🛒</span><span class="nav-label">نقطة البيع</span></button>
-  <button type="button" data-nav-view="inventory" aria-label="المخزون" onclick="openView('inventory')"><span class="nav-icon" aria-hidden="true">📦</span><span class="nav-label">المخزون</span></button>
-  <button type="button" data-nav-view="invoices-list" aria-label="المبيعات" onclick="openView('invoices-list')"><span class="nav-icon" aria-hidden="true">🧾</span><span class="nav-label">المبيعات</span></button>
-  <button type="button" data-nav-view="customers" aria-label="الزبائن" onclick="openView('customers')"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">الزبائن</span></button>
-  <button type="button" aria-label="المزيد والإعدادات والذكاء الاصطناعي" onclick="openDrawer()"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">المزيد</span></button>
-</nav>
-
-</body></html>');
+            w.document.write(printable);
             w.document.close();
             w.focus();
             setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
         }
-
         function old_showReportDetails(title) {
             alert(`عرض [${title}]:\nجميع العمليات مسجلة بدقة أوفلاين في قاعدة البيانات.`);
         }
@@ -13312,5 +13265,27 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
     window.ANASMicroPOSCore.createInventoryEventBridge(window);
   })();
 </script>
+<style id="anas-micro-pos-bottom-nav">
+  #anasQuickBottomNav{position:fixed;inset-inline:0;bottom:0;z-index:45;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px;padding:6px 5px calc(6px + env(safe-area-inset-bottom));background:var(--mp-card,#fff);border-top:1px solid var(--mp-border,#dbe2ea);box-shadow:0 -4px 18px rgba(15,23,42,.10)}
+  #anasQuickBottomNav button{min-width:0;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:4px 1px;border:0;border-radius:10px;background:transparent;color:var(--mp-text,#334155);font:inherit;font-weight:800;touch-action:manipulation;cursor:pointer}
+  #anasQuickBottomNav button .nav-icon{font-size:18px;line-height:1.1}
+  #anasQuickBottomNav button .nav-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(9px,2.45vw,11px);line-height:1.2}
+  #anasQuickBottomNav button.active{color:var(--mp-accent,#2563eb);background:var(--mp-accent-soft,#eff6ff)}
+  :root[data-anas-theme="dark"] #anasQuickBottomNav{background:#101a2b;border-color:#334155;box-shadow:0 -4px 18px #0006}
+  :root[data-anas-theme="dark"] #anasQuickBottomNav button{color:#dbe7f5}
+  :root[data-anas-theme="dark"] #anasQuickBottomNav button.active{color:#93c5fd;background:#1e3a5f}
+  body{padding-bottom:calc(66px + env(safe-area-inset-bottom))!important}
+  #view-pos .bottom-totals-bar{bottom:calc(66px + env(safe-area-inset-bottom))}
+  @media(max-width:360px){#anasQuickBottomNav{gap:1px;padding-inline:2px}#anasQuickBottomNav button{border-radius:8px}#anasQuickBottomNav button .nav-icon{font-size:16px}}
+</style>
+<nav id="anasQuickBottomNav" aria-label="التنقل الرئيسي">
+  <button type="button" data-nav-view="dashboard" class="active" aria-current="page" aria-label="الرئيسية" onclick="openView('dashboard')"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">الرئيسية</span></button>
+  <button type="button" data-nav-view="pos" aria-label="نقطة البيع" onclick="openView('pos')"><span class="nav-icon" aria-hidden="true">🛒</span><span class="nav-label">نقطة البيع</span></button>
+  <button type="button" data-nav-view="inventory" aria-label="المخزون" onclick="openView('inventory')"><span class="nav-icon" aria-hidden="true">📦</span><span class="nav-label">المخزون</span></button>
+  <button type="button" data-nav-view="invoices-list" aria-label="المبيعات" onclick="openView('invoices-list')"><span class="nav-icon" aria-hidden="true">🧾</span><span class="nav-label">المبيعات</span></button>
+  <button type="button" data-nav-view="customers" aria-label="الزبائن" onclick="openView('customers')"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">الزبائن</span></button>
+  <button type="button" aria-label="المزيد والإعدادات والذكاء الاصطناعي" onclick="openDrawer()"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">المزيد</span></button>
+</nav>
+
 </body>
 </html>
