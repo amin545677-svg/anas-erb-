@@ -190,7 +190,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await excelChooser.setFiles({
       name: 'mobile-preview.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from('name;quantity\\nItem A;4\\nItem B;7', 'utf8')
+      buffer: Buffer.from('name;quantity\nItem A;4\nItem B;7', 'utf8')
     });
     await page.locator('#smartAiExcelStatus').waitFor({ state: 'visible' });
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
