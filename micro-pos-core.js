@@ -45,7 +45,8 @@
   function stockStatus(quantity, minimum = 5) {
     const qty = Number(quantity);
     const min = Number(minimum);
-    if (!Number.isFinite(qty)) return { code: 'invalid', label: 'غير صالح' };\n    if (qty <= 0) return { code: 'out', label: 'نافد' };
+    if (!Number.isFinite(qty)) return { code: 'invalid', label: 'غير صالح' };
+    if (qty <= 0) return { code: 'out', label: 'نافد' };
     if (qty <= (Number.isFinite(min) && min > 0 ? min : 5)) return { code: 'low', label: 'منخفض' };
     return { code: 'available', label: 'متوفر' };
   }
