@@ -199,10 +199,17 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       await editor.fill(value);
       await editor.press('Tab'); // commit the native change event used by the editor
     };
+    // fr-DZ may render decimal commas while other Chromium locales render dots.
+    // Compare the numeric amount, not a locale-specific currency label.
+    const waitForDisplayedTotal = expected => page.waitForFunction(value => {
+      const text = document.getElementById('hasibTotalText')?.textContent || '';
+      const match = text.match(/[0-9]+(?:[.,][0-9]+)?/);
+      return !!match && Math.abs(Number(match[0].replace(',', '.')) - value) < 1e-9;
+    }, expected);
     const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
     const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
     await commitNumberEditor(quantitySelector, '1.5');
-    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '37.50 د.ج');
+    await waitForDisplayedTotal(37.5);
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5);
     await commitNumberEditor(quantitySelector, '0');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
@@ -219,7 +226,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'quantity editing must include legacy duplicate rows for the same product and preserve the last valid quantity');
     await page.evaluate(() => { posCart.splice(1, 1); renderPosTable(); });
     await commitNumberEditor(priceSelector, '30.00');
-    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '30.00 د.ج');
+    await waitForDisplayedTotal(30);
     assert.equal(await page.evaluate(() => posCart[0].price), 30);
     await commitNumberEditor(priceSelector, '-1');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
@@ -228,16 +235,16 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'prices with more than two decimal places must be rejected, not silently rounded');
     await commitNumberEditor(priceSelector, '25.00');
-    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '25.00 د.ج');
+    await waitForDisplayedTotal(25);
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
     await commitNumberEditor(priceSelector, '0.10');
     await commitNumberEditor(quantitySelector, '0.15');
-    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '0.02 د.ج');
+    await waitForDisplayedTotal(0.02);
     assert.equal(await page.locator('#posTotalDisplay').textContent(), '0.02 د.ج',
       'main POS and checkout totals must use identical centime rounding');
     await commitNumberEditor(quantitySelector, '1');
     await commitNumberEditor(priceSelector, '25.00');
-    await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '25.00 د.ج');
+    await waitForDisplayedTotal(25);
     await page.evaluate(() => {
       window.__posOriginalSaveDBForTest = window.saveDB;
       window.saveDB = () => false;
