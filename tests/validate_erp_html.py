@@ -158,8 +158,8 @@ def main():
         "${anasEscapeHTML(item.unit || '')}",
         "(typeof item.qty === 'number' || typeof item.qty === 'string') && item.qty !== null && item.qty !== undefined && item.qty !== '' && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0 ? Number(item.qty) : null",
         "(typeof item.price === 'number' || typeof item.price === 'string') && item.price !== null && item.price !== undefined && item.price !== '' && !(typeof item.price === 'string' && item.price.trim() === '') && Number.isFinite(Number(item.price)) && Number(item.price) >= 0 ? Number(item.price) : null",
-        "hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : total.toFixed(2) + ' د.ج'",
-        "if (invalidCart) return;",
+        "hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : anasCentsToCurrency(totalCents).toFixed(2) + ' د.ج'",
+        "checkout.disabled = hasInvalidCartValues || !validTotal;", 
         "تعذر فتح الدفع: السلة تحتوي على كمية أو سعر غير صالح",
         "${sub===null||!Number.isFinite(sub)?'غير صالح':sub.toFixed(2)}",
     ]
@@ -1036,12 +1036,15 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     transfer = function_source("wtCreateTransfer")
     backup_import = function_source("importDataBackup", "// ================= مركز الإكسل")
     stock_edit = function_source("editPosQty")
+    stock_edit_setter = function_source("setPosQty")
+    stock_edit_validator = function_source("validatePosCartStock")
     stock_balance = function_source("wtReadStockBalance")
     stock_transfer = function_source("wtCreateTransfer")
     stock_balance_checks = {
         "POS quantity edit rejects invalid or negative assigned-warehouse balances":
-            "(!Number.isFinite(available) || available < 0)" in stock_edit
-            and "q > available" in stock_edit,
+            "validatePosCartStock(idx, qtyUnits)" in stock_edit_setter
+            and "(!Number.isFinite(available) || available < 0)" in stock_edit_validator
+            and "aggregateUnits > availableUnits" in stock_edit_validator,
         "warehouse balance reader rejects negative, non-finite, and malformed stock":
             "Number(raw)<0" in stock_balance
             and "Number.isFinite(Number(raw))" in stock_balance
@@ -1188,10 +1191,10 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "previousCarts[activeTab] = previousTabCart" in function_source("clearPosCart")
             and "AppData.posScreensCarts = previousCarts" in function_source("clearPosCart"),
         "POS add/remove/clear cart reject missing or implicit persistence success":
-            ("typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_add
-             or "cartSaved = typeof saveDB === 'function' && saveDB() === true" in pos_cart_add)
-            and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_remove
-            and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_clear,
+            "savePosCartChange(() => { posCart = oldCart; });" in pos_cart_add
+            and "savePosCartChange(() => { posCart = oldCart; });" in pos_cart_remove
+            and "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_clear
+            and "saved = typeof saveDB === 'function' && saveDB() === true" in pos_cart_change,
         "failed user edit restores the prior record and active-user reference":
             "previousUser = Object.assign({}, u)" in function_source("saveUserRecord")
             and "Object.keys(u).forEach(key => { if (!previousUserKeys.includes(key)) delete u[key]; });" in function_source("saveUserRecord")
@@ -1214,7 +1217,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "const previousCashBalance = AppData.caisseBalance;" in expense_operation
             and "if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;" in expense_operation,
         "POS cart and screen operations reject false, undefined, and missing persistence":
-            "typeof saveDB !== 'function' || saveDB() !== true" in pos_cart_change
+            "saved = typeof saveDB === 'function' && saveDB() === true" in pos_cart_change
             and "saved = saveDB() === true" in pos_screen_switch
             and "saved = saveDB() === true" in pos_clear_screens
             and "saved = saveDB() === true" in pos_price_tier,
