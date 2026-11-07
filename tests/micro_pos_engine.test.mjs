@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { calculateQuickCheckoutCents, filterPosProducts, prepareBulkImport, resolveProductPrice } from '../pos/micro-pos-engine.mjs';
 
 test('POS stock chips filter in-memory records with exclusive stock states', () => {
@@ -58,4 +59,21 @@ test('bulk import planner supports merge, replace, stable IDs and exact counters
   const replaced = prepareBulkImport(existing, incoming.slice(1, 3), 'replace');
   assert.deepEqual(replaced.stats, { total: 2, added: 1, updated: 0, skipped: 1 });
   assert.deepEqual(replaced.rows.map(row => row.barcode), ['B']);
+});
+
+
+test('credit ceiling form persists a validated centime-safe limit and restores it while editing', () => {
+  const html = readFileSync('index.html', 'utf8');
+  assert.match(html, /id="newCustCreditLimitInput"[^>]*min="0"[^>]*step="0\.01"/,
+    'customer form must expose a non-negative DA credit-limit input');
+  assert.match(html, /const rawCreditLimit=creditLimitInput\?String\(creditLimitInput\.value\?\?''\)\.trim\(\):'';/,
+    'blank credit limit must remain an explicit no-limit value');
+  assert.match(html, /!Number\.isSafeInteger\(creditLimitCents\)\|\|creditLimitCents<0/,
+    'invalid, negative, or unsafe credit limits must fail closed');
+  assert.match(html, /credit_limit: creditLimit/,
+    'customer save must persist the credit limit under the canonical field');
+  assert.match(html, /newCustCreditLimitInput:c\.credit_limit\?\?' '/,
+    'editing a customer must restore the saved credit ceiling');
+  assert.match(html, /credit_limit:\['حد الائتمان','الحد الائتماني','سقف الدين','creditlimit','credit_limit'\]/,
+    'customer spreadsheet import must recognize credit-limit headers');
 });
