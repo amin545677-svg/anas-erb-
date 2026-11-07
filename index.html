@@ -8711,11 +8711,14 @@ function wtAuditTransfers(){
             });
 
             const badge = document.getElementById('notifBadgeCount');
-            if(alerts.length > 0) {
-                badge.style.display = 'block';
-                badge.innerText = alerts.length;
-            } else {
-                badge.style.display = 'none';
+            if (badge) {
+                badge.style.display = alerts.length > 0 ? 'block' : 'none';
+                badge.innerText = String(alerts.length);
+            }
+            const dashboardBadge = document.getElementById('dashboardStockAlertBadge');
+            if (dashboardBadge) {
+                dashboardBadge.textContent = String(alerts.length);
+                dashboardBadge.hidden = alerts.length === 0;
             }
         }
 
