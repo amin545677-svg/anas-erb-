@@ -3630,6 +3630,38 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             return true;
         }
 
+        function validatePosCartStock(idx, candidateQtyUnits) {
+            const item = posCart[idx];
+            if (!item || !Number.isSafeInteger(candidateQtyUnits) || candidateQtyUnits <= 0) return false;
+            const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
+            if (!product) return true; // Final invoice validation reports a deleted product.
+            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            const available = typeof wtAvailableStock === 'function'
+                ? wtAvailableStock(product, warehouse) : Number(product.stock);
+            const availableUnits = anasToQtyUnits(available);
+            if (!Number.isSafeInteger(availableUnits) || availableUnits < 0) {
+                alert('تعذر تعديل الكمية: رصيد المخزون غير صالح في «' + warehouse + '».');
+                return false;
+            }
+            let otherUnits = 0;
+            for (let i = 0; i < posCart.length; i++) {
+                if (i === idx || String(posCart[i]?.id) !== String(item.id)) continue;
+                const rowUnits = anasToQtyUnits(posCart[i]?.qty);
+                if (!Number.isSafeInteger(rowUnits) || rowUnits <= 0 ||
+                    !Number.isSafeInteger(otherUnits + rowUnits)) {
+                    alert('تعذر تعديل الكمية: توجد كمية أخرى غير صالحة للصنف نفسه في السلة.');
+                    return false;
+                }
+                otherUnits += rowUnits;
+            }
+            const aggregateUnits = otherUnits + candidateQtyUnits;
+            if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > availableUnits) {
+                alert('إجمالي كمية هذا الصنف في الفاتورة يتجاوز رصيد مخزن البيع «' + warehouse + '». المتوفر: ' + anasQtyFromUnits(availableUnits));
+                return false;
+            }
+            return true;
+        }
+
         function changePosQty(idx, delta) {
             const item = posCart[idx];
             if (!item) return;
@@ -3650,14 +3682,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const oldCart = posCart.map(row => ({...row}));
             if (next <= 0) { posCart.splice(idx, 1); }
             else {
-                const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-                const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
-                if (product && (!Number.isFinite(available) || available < 0)) { alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.'); return; }
-                if (product && Number.isFinite(available) && available >= 0 && next > available && !AppData.allowNegativeStock) {
-                    alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
-                    return;
-                }
-                item.qty = next;
+                const nextUnits = anasToQtyUnits(next);
+                if (!validatePosCartStock(idx, nextUnits)) return;
+                item.qty = anasQtyFromUnits(nextUnits);
             }
             savePosCartChange(() => { posCart = oldCart; });
         }
@@ -3672,18 +3699,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 return false;
             }
             const nextQty = anasQtyFromUnits(qtyUnits);
-            const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
-            const available = product && typeof wtAvailableStock === 'function'
-                ? wtAvailableStock(product, warehouse) : Number(product && product.stock);
-            if (product && (!Number.isFinite(available) || available < 0)) {
-                alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.');
-                renderPosTable();
-                return false;
-            }
-            const availableUnits = anasToQtyUnits(available);
-            if (product && Number.isSafeInteger(availableUnits) && qtyUnits > availableUnits && !AppData.allowNegativeStock) {
-                alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
+            if (!validatePosCartStock(idx, qtyUnits)) {
                 renderPosTable();
                 return false;
             }
@@ -4109,7 +4125,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 if (!Number.isSafeInteger(stockUnits) || stockUnits < 0 || stockUnits > Number.MAX_SAFE_INTEGER) {
                     alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '».'); return;
                 }
-                if (stockUnits < qtyUnits) {
+                if (stockUnits < qtyUnits && !AppData.allowNegativeStock) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + anasQtyFromUnits(qtyUnits) + '، المتوفر: ' + anasQtyFromUnits(stockUnits)); return;
                 }
             }
