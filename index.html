@@ -3201,17 +3201,23 @@ input:focus, select:focus, textarea:focus {
             setText('luminaAvgBasket', invoices.length ? fmt(Math.round(metrics.revenueCents / invoices.length)) : fmt(0));
             setText('luminaCashIn', fmt(metrics.collectedCents));
             setText('luminaCashOut', fmt(metrics.expenseCents));
-            const debtList = document.getElementById('luminaDebtsList');
-            if (!debtList) return;
-            const debtCustomers = customers.filter(customer => Number(customer.debt) > 0);
-            if (!debtCustomers.length) {
-                debtList.innerHTML = '<p style="text-align:center;color:#16a34a;font-size:12px;padding:10px;">جميع حسابات الزبائن خالصة بنجاح ✅</p>';
+
+            // Keep the legacy escaped customer fields and numeric validity guard intact.
+            const dList = document.getElementById('luminaDebtsList');
+            if (!dList) return;
+            const debtCustomers = customers.filter(c => Number(c.debt) > 0);
+            if (debtCustomers.length === 0) {
+                dList.innerHTML = '<p style="text-align:center; color:#16a34a; font-size:12px; padding:10px;">جميع حسابات الزبائن خالصة بنجاح ✅</p>';
             } else {
-                debtList.innerHTML = debtCustomers.map(customer => `
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px;">
-                        <div><strong>${anasEscapeHTML(customer.name)}</strong><br><small style="color:#64748b;">📞 ${anasEscapeHTML(customer.phone || '-')}</small></div>
-                        <strong style="color:#ef4444;font-size:13px;">${Number.isFinite(Number(customer.debt)) ? Number(customer.debt).toFixed(2) : 'غير صالح'} د.ج</strong>
-                    </div>`).join('');
+                dList.innerHTML = debtCustomers.map(c => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #e2e8f0; font-size:12px;">
+                        <div>
+                            <strong>${anasEscapeHTML(c.name)}</strong><br>
+                            <small style="color:#64748b;">📞 ${anasEscapeHTML(c.phone || '-')}</small>
+                        </div>
+                        <strong style="color:#ef4444; font-size:13px;">${((typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')} د.ج</strong>
+                    </div>
+                `).join('');
             }
         }
 
