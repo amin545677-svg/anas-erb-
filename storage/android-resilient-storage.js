@@ -300,7 +300,7 @@
   // IndexedDB abort() may throw InvalidStateError after a transaction has already settled.
   // Preserve the original conflict and let completion handlers reject it deterministically.
   function abortTransactionSafely(tx) {
-    try { abortTransactionSafely(tx); return true; }
+    try { tx.abort(); return true; }
     catch (error) {
       if (error && (error.name === 'InvalidStateError' || error.code === 11)) return false;
       throw error;
