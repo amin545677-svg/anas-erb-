@@ -1,4 +1,4 @@
-const CACHE = 'anas-erp-v54-25-r12';
+const CACHE = 'anas-erp-v54-25-r13';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
@@ -16,8 +16,8 @@ const CORE = [
   './customer-debt-protection.js',
   './warehouse-transfer-audit.js'
 ];
-// OCR is a large optional offline pack. Its cache failure must never prevent the ERP shell
-// from installing; the OCR UI reports missing local assets and can retry after a refresh.
+// OCR is a large optional offline pack. Cache each asset independently: one missing file or
+// quota failure must not discard every successfully cached OCR runtime/language asset.
 const OCR_ASSETS = [
   './vendor/tesseract/tesseract.min.js',
   './vendor/tesseract/worker.min.js',
@@ -36,7 +36,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE)
       .then(cache => cache.addAll(CORE))
-      .then(() => caches.open(CACHE).then(cache => cache.addAll(OCR_ASSETS).catch(() => undefined)))
+      .then(() => caches.open(CACHE).then(cache => Promise.allSettled(OCR_ASSETS.map(path => cache.add(path)))))
       .then(() => self.skipWaiting())
   );
 });
