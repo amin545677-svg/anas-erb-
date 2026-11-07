@@ -11042,8 +11042,10 @@ function wtAuditTransfers(){
                             if(existingProtected){Object.assign(existingProtected,replacement,{id:existingProtected.id});updated++;}
                             else{next.push(replacement);added++;}
                         }
-                        retainedProtected=protectedExisting.filter(record=>!staged.some(item=>
-                            importMatches.some(row=>row.matches.length===1&&String(row.matches[0].candidate.id)===String(record.id)))).length;
+                        retainedProtected=protectedExisting.filter(record=>{
+                            const matchedIndex=importMatches.findIndex(row=>row.matches.length===1&&String(row.matches[0].candidate.id)===String(record.id));
+                            return matchedIndex<0||importDecisions[matchedIndex]==='ignore'||importDecisions[matchedIndex]==='delete';
+                        }).length;
                     }else if(target==='products'){
                         for(let stagedIndex=0;stagedIndex<staged.length;stagedIndex++){
                             const item=staged[stagedIndex];
