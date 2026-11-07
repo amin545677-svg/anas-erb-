@@ -3556,8 +3556,7 @@ input:focus, select:focus, textarea:focus {
                 existingUnits += rowUnits;
             }
             const nextUnits = existingUnits + ANAS_QTY_SCALE;
-            if (!Number.isSafeInteger(nextUnits) ||
-                (nextUnits > availableUnits && !AppData.allowNegativeStock)) {
+            if (!Number.isSafeInteger(nextUnits) || nextUnits > availableUnits) {
                 alert('الكمية المطلوبة تتجاوز رصيد مخزن البيع «' + warehouse + '». المتوفر: ' + anasQtyFromUnits(availableUnits));
                 return;
             }
@@ -3697,8 +3696,7 @@ input:focus, select:focus, textarea:focus {
                 otherUnits += rowUnits;
             }
             const aggregateUnits = otherUnits + candidateQtyUnits;
-            if (!Number.isSafeInteger(aggregateUnits) ||
-                (aggregateUnits > availableUnits && !AppData.allowNegativeStock)) {
+            if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > availableUnits) {
                 alert('إجمالي كمية هذا الصنف في الفاتورة يتجاوز رصيد مخزن البيع «' + warehouse + '». المتوفر: ' + anasQtyFromUnits(availableUnits));
                 return false;
             }
@@ -4171,7 +4169,7 @@ input:focus, select:focus, textarea:focus {
                 if (!Number.isSafeInteger(stockUnits) || stockUnits < 0 || stockUnits > Number.MAX_SAFE_INTEGER) {
                     alert('تعذر تأكيد البيع: رصيد المخزون غير صالح أو يتجاوز المجال الرقمي الآمن للمنتج ' + (product.name || id) + ' في «' + saleWarehouse + '».'); return;
                 }
-                if (stockUnits < qtyUnits && !AppData.allowNegativeStock) {
+                if (stockUnits < qtyUnits) {
                     alert('المخزون غير كافٍ للمنتج: ' + (product.name || id) + ' في «'+saleWarehouse+'». المطلوب: ' + anasQtyFromUnits(qtyUnits) + '، المتوفر: ' + anasQtyFromUnits(stockUnits)); return;
                 }
             }
