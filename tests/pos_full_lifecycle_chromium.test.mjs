@@ -177,6 +177,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('-1');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'negative unit price must be rejected and restored');
+    await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('30.005');
+    assert.equal(await page.evaluate(() => posCart[0].price), 30,
+      'prices with more than two decimal places must be rejected, not silently rounded');
     await page.locator('#hasibCartItems input[aria-label^="سعر الوحدة"]').fill('25.00');
     assert.equal(await page.locator('#hasibTotalText').textContent(), '25.00 د.ج');
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
