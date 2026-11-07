@@ -175,8 +175,9 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
     new URL('../.github/workflows/verify-live-staging-e2e.yml', import.meta.url), 'utf8'
   );
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /confirm_staging_functions_deploy/);
-  assert.match(workflow, /DEPLOY_STAGING_FUNCTIONS/);
+  const functionsWorkflow = await fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8');
+  assert.match(functionsWorkflow, /confirm_staging_functions_deploy/);
+  assert.match(functionsWorkflow, /DEPLOY_STAGING_FUNCTIONS/);
   assert.match(workflow, /github\.event_name == 'workflow_dispatch'[\s\S]*?inputs\.confirm_staging_functions_deploy/);
   assert.doesNotMatch(workflow, /if:\s*\$\{\{\s*false\s*\}\}/,
     'Functions deployment must be available through an explicit Staging-only manual release switch');
