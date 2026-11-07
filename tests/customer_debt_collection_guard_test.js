@@ -218,7 +218,7 @@ console.log('PASS: customer debt receipt allocates oldest-first and updates invo
     'POS must reject fractional quantities for piece-counted products');
   assert.match(currentHtml, /isWeight && qtyUnits % 10000 !== 0/,
     'POS must enforce at most two decimal places for kilogram quantities');
-  assert.match(currentHtml, /async function triggerAiGeneration\(section\)[\s\S]*?bookType:'xlsx'[\s\S]*?anasLoadSheetJs\(\)/,
+  assert.match(currentHtml, /async function triggerAiGeneration\(section\)[\s\S]*?anasLoadSheetJs\(\)[\s\S]*?bookType:'xlsx'/,
     'Excel templates must be generated as XLSX by the local offline SheetJS loader');
   assert.match(currentHtml, /قالب_المنتجات\.xlsx[\s\S]*?قالب_العملاء\.xlsx[\s\S]*?قالب_الموردين\.xlsx/,
     'all three Arabic Excel templates must be available locally');
