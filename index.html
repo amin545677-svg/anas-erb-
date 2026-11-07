@@ -6465,13 +6465,6 @@ function renderPurchasesTable() {
             const clientMovementsBefore = hadClientMovements ? (Array.isArray(AppData.clientMovements) ? AppData.clientMovements.slice() : AppData.clientMovements) : null;
             const hadSettlementAllocations = Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations');
             const settlementAllocationsBefore = hadSettlementAllocations ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
-            const invoiceStatusSnapshots = invoiceRows.map(row => ({
-                invoice: row.invoice,
-                hadStatus: Object.prototype.hasOwnProperty.call(row.invoice, 'statusLabel'),
-                oldStatus: row.invoice.statusLabel,
-                hadCollectionRemaining: Object.prototype.hasOwnProperty.call(row.invoice, 'collectionRemaining'),
-                oldCollectionRemaining: row.invoice.collectionRemaining
-            }));
             const hadLedgerVersion = Object.prototype.hasOwnProperty.call(customer, 'ledgerVersion');
             const oldLedgerVersion = customer.ledgerVersion;
             const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -6526,19 +6519,9 @@ function renderPurchasesTable() {
                         amountCentimes: row.amount, createdAt: new Date().toISOString()
                     });
                     AppData.settlementAllocations.push(allocation);
-                    // Keep the invoice collection-facing balance/status synchronized with its
-                    // immutable original total and the appended settlement-allocation ledger.
-                    row.invoice.collectionRemaining = anasCentsToCurrency(row.newRemaining);
-                    row.invoice.statusLabel = row.newRemaining === 0 ? 'مدفوعة' : 'جزئية';
                 }
                 if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند القبض.');
             } catch (error) {
-                for (const snapshot of invoiceStatusSnapshots) {
-                    if (snapshot.hadStatus) snapshot.invoice.statusLabel = snapshot.oldStatus;
-                    else delete snapshot.invoice.statusLabel;
-                    if (snapshot.hadCollectionRemaining) snapshot.invoice.collectionRemaining = snapshot.oldCollectionRemaining;
-                    else delete snapshot.invoice.collectionRemaining;
-                }
                 if (hadDebt) customer.debt = oldDebtValue; else delete customer.debt;
                 if (hadLedgerVersion) customer.ledgerVersion = oldLedgerVersion; else delete customer.ledgerVersion;
                 if (hadCashBalance) AppData.caisseBalance = oldCashBalance; else delete AppData.caisseBalance;
@@ -7271,6 +7254,29 @@ function renderPurchasesTable() {
             printLegalA4Invoice(latest);
         }
 
+        function anasGetInvoiceCollectionBalance(invoice) {
+            try {
+                if (!invoice || invoice.id === undefined || invoice.id === null || String(invoice.id).trim() === '') throw new Error('INVALID_INVOICE_ID');
+                const totalCents = anasToCents(invoice.total ?? 0);
+                const originalPaidCents = anasToCents(invoice.paid ?? 0);
+                if (!Number.isSafeInteger(totalCents) || totalCents < 0 || !Number.isSafeInteger(originalPaidCents) ||
+                    originalPaidCents < 0 || originalPaidCents > totalCents) throw new Error('INVALID_INVOICE_BALANCE');
+                let allocatedCents = 0;
+                for (const allocation of (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations : [])) {
+                    if (!allocation || allocation.partyType !== 'customer' || allocation.invoiceType !== 'sales_invoice' ||
+                        allocation.sourceMovementType !== 'customer_debt' || String(allocation.invoiceId) !== String(invoice.id)) continue;
+                    if (!Number.isSafeInteger(allocation.amountCentimes) || allocation.amountCentimes <= 0 ||
+                        !Number.isSafeInteger(allocatedCents + allocation.amountCentimes)) throw new Error('INVALID_SETTLEMENT_ALLOCATION');
+                    allocatedCents += allocation.amountCentimes;
+                }
+                const remainingCents = totalCents - originalPaidCents - allocatedCents;
+                if (remainingCents < 0) throw new Error('OVER_ALLOCATED_INVOICE');
+                const paidCents = totalCents - remainingCents;
+                return {totalCents, paidCents, remainingCents,
+                    status: remainingCents === 0 ? 'paid' : paidCents === 0 ? 'unpaid' : 'partial'};
+            } catch (_) { return {totalCents:0, paidCents:0, remainingCents:0, status:'invalid'}; }
+        }
+
         function renderInvoicesList() {
             const cont = document.getElementById('invoicesListContainer');
             if (!cont) return;
@@ -7306,11 +7312,14 @@ function renderPurchasesTable() {
                 card.className = 'menu-action-card';
                 card.style.marginBottom = '8px';
                 const info = document.createElement('div');
-                const paymentStatus = core ? core.invoiceStatus(inv) : (Number(inv.paid || 0) >= Number(inv.total || 0) ? 'paid' : (Number(inv.paid || 0) > 0 ? 'partial' : 'unpaid'));
-                const statusMeta = paymentStatus === 'paid' ? { label: 'مدفوعة', color: '#15803d', bg: '#dcfce7' } : (paymentStatus === 'partial' ? { label: 'جزئية', color: '#b45309', bg: '#ffedd5' } : { label: 'غير مدفوعة', color: '#b91c1c', bg: '#fee2e2' });
-                const totalCents = core ? core.toCents(inv.total || 0) : Math.round((Number(inv.total) || 0) * 100);
-                const paidCents = core ? core.toCents(inv.paid || 0) : Math.round((Number(inv.paid) || 0) * 100);
-                const debt = Math.max(0, totalCents - paidCents) / 100;
+                const collectionBalance = anasGetInvoiceCollectionBalance(inv);
+                const paymentStatus = collectionBalance.status;
+                const statusMeta = paymentStatus === 'paid' ? { label: 'مدفوعة', color: '#15803d', bg: '#dcfce7' } :
+                    (paymentStatus === 'partial' ? { label: 'جزئية', color: '#b45309', bg: '#ffedd5' } :
+                    (paymentStatus === 'invalid' ? { label: 'رصيد غير صالح', color: '#7f1d1d', bg: '#fee2e2' } : { label: 'غير مدفوعة', color: '#b91c1c', bg: '#fee2e2' }));
+                const totalCents = collectionBalance.totalCents;
+                const paidCents = collectionBalance.paidCents;
+                const debt = collectionBalance.remainingCents / 100;
                 const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
                 info.innerHTML = `<strong>${esc(inv.id || 'فاتورة')} - ${esc(inv.customer || 'عميل نقدي')}</strong><br><small style="color:#64748b">${esc(inv.date || inv.createdAt || '')} · ${itemCount} صنف</small><br><strong style="color:#15803d">${esc(inv.total ?? 0)} د.ج</strong> <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:${statusMeta.bg};color:${statusMeta.color};font-size:11px;font-weight:800;">${statusMeta.label}</span>${debt > 0 ? `<br><strong style="color:#b91c1c;font-size:12px;">دين متبقٍ: ${debt.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})} DA</strong>` : ''}`;
                 const actions = document.createElement('div');
