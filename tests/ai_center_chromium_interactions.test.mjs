@@ -303,6 +303,9 @@ test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on r
     if (message.type() === 'error') t.diagnostic('Browser console: ' + message.text());
   });
   await page.goto('http://127.0.0.1:' + server.address().port + '/erp/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!window.AppData, { timeout: 15000 });
+  await page.evaluate(() => { if (typeof openView === 'function') openView('ai-excel-hub'); });
+  await page.locator('#smartPdfOcrButton').waitFor({ state: 'visible' });
   await page.evaluate(() => {
     window.anasCurrentPdfFile = new File(['scanned-pdf-ocr-fixture'], 'scanned-fixture.pdf', { type: 'application/pdf' });
     window.anasPdfExtractedBaseText = '';
