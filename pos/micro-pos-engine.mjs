@@ -1,3 +1,5 @@
+import * as DeepCore from './micro-pos-deep-core.mjs';
+
 /**
  * ANAS ERP Micro POS primitives.
  * Pure functions only: no storage, DOM, network, or transaction side effects.
@@ -119,6 +121,6 @@ if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'ANASMicroPOSEngine', {
     configurable: true,
     enumerable: false,
-    value: Object.freeze({ resolveProductPrice, filterPosProducts, calculateQuickCheckoutCents, prepareBulkImport })
+    value: Object.freeze({ resolveProductPrice, filterPosProducts, calculateQuickCheckoutCents, prepareBulkImport, deepCore: DeepCore })
   });
 }
