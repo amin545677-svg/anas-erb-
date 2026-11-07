@@ -210,3 +210,25 @@ console.log('PASS: debt collection and cash receipt use the same integer-centime
 }
 console.log('PASS: customer debt receipt allocates oldest-first and updates invoice collection balances/statuses');
 
+
+
+{
+  const currentHtml = fs.readFileSync('index.html', 'utf8');
+  assert.match(currentHtml, /isPiece && qtyUnits % 1000000 !== 0/,
+    'POS must reject fractional quantities for piece-counted products');
+  assert.match(currentHtml, /isWeight && qtyUnits % 10000 !== 0/,
+    'POS must enforce at most two decimal places for kilogram quantities');
+  assert.match(currentHtml, /async function triggerAiGeneration\(section\)[\s\S]*?bookType:'xlsx'[\s\S]*?anasLoadSheetJs\(\)/,
+    'Excel templates must be generated as XLSX by the local offline SheetJS loader');
+  assert.match(currentHtml, /قالب_المنتجات\.xlsx[\s\S]*?قالب_العملاء\.xlsx[\s\S]*?قالب_الموردين\.xlsx/,
+    'all three Arabic Excel templates must be available locally');
+  assert.match(currentHtml, /function anasCalculateExecutiveAnalytics\([\s\S]*?grossCents[\s\S]*?netCents/,
+    'executive analytics must separate gross profit and net profit');
+  assert.match(currentHtml, /const product = saleProducts\.get\(String\(it\.id\)\)[\s\S]*?costPrice/,
+    'new invoices must snapshot acquisition cost per sale line');
+  assert.doesNotMatch(currentHtml, /it\.price\s*\*\s*0\.8/,
+    'analytics must never invent COGS as 80 percent of the selling price');
+  assert.match(currentHtml, /id="luminaNetProfit"/,
+    'analytics UI must display net profit after operating expenses');
+}
+console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-profit analytics are present');
