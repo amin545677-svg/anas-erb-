@@ -17,7 +17,7 @@ assert.ok(purchaseHelperStart >= 0 && purchaseHelperEnd > purchaseHelperStart,
 const purchaseHelperSource = html.slice(purchaseHelperStart, purchaseHelperEnd);
 const source = helperSource + purchaseHelperSource + html.slice(start, end);
 
-function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, unit = 'كغ', doubleConfirm = false} = {}) {
+function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveResult = true, cart, cashMovements = [], stockMovements = [], omitLedgers = false, customerDebt = 0, caisseBalance = 100, productStock = 20, unit = 'كغ', productName = 'Test product', doubleConfirm = false} = {}) {
   const product = {id:'P-1', name:productName, unit, stock:productStock, warehouseStock:{'فرع 1':12}};
   const customer = {id:'C-1', name:'Test customer', debt:customerDebt};
   const AppData = {
@@ -416,7 +416,8 @@ function assertAccountingIdentity(result, openingDebt = 0) {
   const total = 10.5 * 2550;
   const half = Math.round(total * 100 / 2) / 100;
   const r = runSale({
-    cart: [{ id: 'P-TEA-250', name: 'شاي الرقيم 250غ', qty: 10.5, price: 2550 }],
+    cart: [{ id: 'P-1', name: 'شاي الرقيم 250غ', qty: 10.5, price: 2550 }],
+    productName: 'شاي الرقيم 250غ',
     paid: half,
     productStock: 100.5,
     unit: 'كغ',
