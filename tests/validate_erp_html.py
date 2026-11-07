@@ -1015,7 +1015,12 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
         start = source.find(marker)
         if start < 0:
             return ""
-        candidates = [pos for pos in (source.find("\n        function ", start + len(marker)), source.find("\nfunction ", start + len(marker))) if pos >= 0]
+        candidates = [pos for pos in (
+            source.find("\n        function ", start + len(marker)),
+            source.find("\nfunction ", start + len(marker)),
+            source.find("\n        async function ", start + len(marker)),
+            source.find("\nasync function ", start + len(marker)),
+        ) if pos >= 0]
         end = min(candidates) if candidates else len(source)
         if end_marker:
             marker_end = source.find(end_marker, start)
@@ -1451,6 +1456,8 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
     # Intercept the real AI request function with a fake fetch and synthetic records.
     # Assert consent gates the actual serialized payload and no sensitive value is logged.
     ai_ask_fn = function_source("askAnasBusinessAI")
+    if ai_ask_fn and "async function anasLoadSheetJs(" in ai_ask_fn:
+        errors.append("AI payload runtime extraction crossed into the next async function")
     ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
     ai_append_fn = function_source("anasAiAppendMessage")
     ai_fallback_fn = function_source("anasAiLocalFallback")
