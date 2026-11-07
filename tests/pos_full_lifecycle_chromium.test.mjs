@@ -46,7 +46,7 @@ function startServer() {
       if (error) { res.writeHead(404).end('Not found'); return; }
       const ext = path.extname(target);
       const mime = ext === '.html' ? 'text/html; charset=utf-8'
-        : ext === '.js' ? 'text/javascript; charset=utf-8'
+        : ext === '.js' || ext === '.mjs' ? 'text/javascript; charset=utf-8'
         : ext === '.css' ? 'text/css; charset=utf-8'
         : ext === '.json' || ext === '.webmanifest' ? 'application/json; charset=utf-8'
         : 'application/octet-stream';
