@@ -80,3 +80,22 @@ test('store movement report toolbar wraps on mobile without vertically breaking 
   assert.match(css, /#anasReportToolbar\s*\{[^}]*display:\s*flex\s*!important[^}]*flex-wrap:\s*wrap\s*!important/s);
   assert.match(css, /#anasReportToolbar button\s*\{[^}]*flex:\s*0 0 auto\s*!important[^}]*white-space:\s*nowrap\s*!important/s);
 });
+
+test('AI Center auto-runs local inventory valuation and accepts unitless Arabic sale commands', () => {
+  const start = html.indexOf('function anasPrepareNaturalLanguageDraft()');
+  const end = html.indexOf('function anasConvertNaturalDraftToSale(form)', start);
+  assert.ok(start >= 0 && end > start, 'natural-language sales parser must be present');
+  const parser = html.slice(start, end);
+  assert.ok(parser.includes("const qtyMatch=raw.match(new RegExp('(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)"), 
+    'quantity extraction must accept a numeric quantity without a unit word');
+  assert.ok(parser.includes('بسعر') && parser.includes('للعميل'));
+  const openStart = html.indexOf('function openView(viewName');
+  const openEnd = html.indexOf('function old_openQuickSale', openStart);
+  assert.ok(openStart >= 0 && openEnd > openStart);
+  const open = html.slice(openStart, openEnd);
+  assert.ok(open.includes("if(viewName === 'ai-excel-hub')") && open.includes('anasRunLocalBusinessAudit()'));
+  assert.ok(html.includes('stockCost,stockSell'));
+  assert.ok(html.includes('قيمة المخزون بسعر الشراء'));
+  assert.ok(html.includes('قيمة المخزون بسعر البيع'));
+  assert.ok(html.includes('max-height: 85dvh') && html.includes('overflow-y: auto'));
+});
