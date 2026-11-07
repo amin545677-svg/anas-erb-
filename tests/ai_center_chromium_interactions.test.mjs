@@ -10,6 +10,29 @@ import { buildStagingHosting } from '../scripts/build-staging-hosting.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+function createMinimalPdf(text) {
+  const escaped = String(text).replace(/\\/g, '\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+  const stream = 'BT /F1 18 Tf 72 720 Td (' + escaped + ') Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    '<< /Length ' + Buffer.byteLength(stream, 'ascii') + ' >>\\nstream\\n' + stream + '\\nendstream',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+  ];
+  let pdf = '%PDF-1.4\\n';
+  const offsets = [0];
+  for (let i = 0; i < objects.length; i++) {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'));
+    pdf += (i + 1) + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii');
+  pdf += 'xref\\n0 ' + (objects.length + 1) + '\\n0000000000 65535 f \\n';
+  for (const offset of offsets.slice(1)) pdf += String(offset).padStart(10, '0') + ' 00000 n \\n';
+  pdf += 'trailer\\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
+  return Buffer.from(pdf, 'ascii');
+}
+
 async function startStaticServer(rootDir) {
   const types = {
     '.html': 'text/html; charset=utf-8',
@@ -120,6 +143,19 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     const log = document.querySelector('#anasAiChatLog');
     return !!log && /وضع محلي|تحليل محلي|المخزون/.test(log.textContent || '');
   });
+
+  // Android document providers can return a PDF without its suffix and with a generic MIME type.
+  // The dedicated PDF input must still route it to PDF.js, not the Excel/CSV rejection branch.
+  await page.locator('#smartAiPdfUpload').setInputFiles({
+    name: 'android-provider-document',
+    mimeType: 'application/octet-stream',
+    buffer: createMinimalPdf('ANAS ERP PDF Smoke Test')
+  });
+  await page.waitForFunction(() => /تم استخراج النص محليًا/.test(
+    document.querySelector('#smartAiExcelStatus')?.textContent || ''
+  ), { timeout: 10000 });
+  assert.match(await page.locator('#smartPdfExtractText').inputValue(), /ANAS ERP PDF Smoke Test/,
+    'PDF text must be extracted locally even when Android omits the extension and reports generic MIME');
 
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
