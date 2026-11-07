@@ -122,7 +122,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       const css = getComputedStyle(el);
       return { background: css.backgroundColor, color: css.color };
     });
-    assert.ok(!/255,\\s*255,\\s*255/.test(tableVisual.background), 'table headers must not retain a white background in dark mode');
+    assert.ok(!/255,\s*255,\s*255/.test(tableVisual.background), 'table headers must not retain a white background in dark mode');
     assert.ok(contrast(tableVisual.color, tableVisual.background) >= 4.5, 'table header text must meet WCAG AA contrast');
     await page.locator('#anasThemeTableFixture').evaluate(el => el.remove());
 
