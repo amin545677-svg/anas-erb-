@@ -220,3 +220,30 @@ test('workbook preview uses product ID/barcode aliases and never treats names as
     'barcode-only legacy rows must still match an existing row that also has a database ID');
   assert.deepEqual(staged.products[1].identityKeys, ['barcode:111']);
 });
+
+
+test('workbook preview normalizes case-insensitive English headers and preserves Arabic names', () => {
+  const staged = classifyAndStageWorkbookSheets({
+    Products: [{ ID: 'P-CASE', Barcode: '888', Name: 'منتج بحروف إنجليزية كبيرة', Quantity: 2 }]
+  });
+  assert.equal(staged.products.length, 1);
+  assert.equal(staged.products[0].name, 'منتج بحروف إنجليزية كبيرة');
+  assert.deepEqual(staged.products[0].identityKeys, ['id:p-case', 'barcode:888']);
+  assert.equal(staged.products[0].action, 'create');
+});
+
+test('workbook preview flags an ID and barcode that resolve to different existing products', () => {
+  const staged = classifyAndStageWorkbookSheets({
+    'المنتجات': [{ id: 'P-1', barcode: '222', name: 'منتج متعارض', quantity: 3 }]
+  }, {
+    products: [
+      { id: 'P-1', barcode: '111', name: 'منتج أول', quantity: 4 },
+      { id: 'P-2', barcode: '222', name: 'منتج ثان', quantity: 5 }
+    ]
+  });
+  assert.equal(staged.products.length, 1);
+  assert.equal(staged.products[0].isDuplicate, true);
+  assert.equal(staged.products[0].identityConflict, true);
+  assert.equal(staged.products[0].action, 'review_conflict');
+  assert.equal(staged.products[0].duplicateScope, 'database');
+});
