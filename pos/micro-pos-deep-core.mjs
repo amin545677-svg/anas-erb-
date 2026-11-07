@@ -6,13 +6,14 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 
 function decimalToScaledBigInt(value, digits) {
   const raw = String(value == null || value === '' ? '0' : value).trim().replace(',', '.');
-  if (!/^[+]?(?:\d+)(?:\.\d*)?$/.test(raw)) throw new TypeError('INVALID_DECIMAL');
-  const [whole, fraction = ''] = raw.replace(/^\+/, '').split('.');
+  if (!/^[+-]?(?:\d+)(?:\.\d*)?$/.test(raw)) throw new TypeError('INVALID_DECIMAL');
+  const negative = raw.startsWith('-');
+  const [whole, fraction = ''] = raw.replace(/^[+-]/, '').split('.');
   const kept = (fraction + '0'.repeat(digits)).slice(0, digits);
   const discarded = fraction.slice(digits);
   let scaled = BigInt(whole || '0') * (10n ** BigInt(digits)) + BigInt(kept || '0');
   if (discarded && discarded[0] >= '5') scaled += 1n;
-  return scaled;
+  return negative ? -scaled : scaled;
 }
 function safeNumber(value) {
   if (value < 0n || value > MAX_SAFE) throw new RangeError('VALUE_OUT_OF_RANGE');
