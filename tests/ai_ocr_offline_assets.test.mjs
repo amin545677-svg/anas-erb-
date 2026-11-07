@@ -25,5 +25,8 @@ test('AI invoice OCR uses only locally bundled Arabic, English and French runtim
     assert.ok(builder.includes(file));
     assert.ok(worker.includes(file));
   }
-  assert.ok(worker.includes('cache.addAll(OCR_ASSETS).catch(() => undefined)'));
+  // Optional OCR assets are cached independently so one missing/large language pack
+  // cannot reject the install or discard other successfully cached offline assets.
+  assert.ok(worker.includes('Promise.allSettled(OCR_ASSETS.map(path => cache.add(path)))'));
+  assert.ok(worker.includes('.then(() => self.skipWaiting())'));
 });
