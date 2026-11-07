@@ -8,7 +8,7 @@ const MODES = Object.freeze({
   INVOICE_CANCEL: { title: 'إلغاء فاتورة', invoiceType: null, collection: null }
 });
 const byId = id => document.getElementById(id);
-const state = { mode: null, invoice: null, invoiceType: null, preview: null, lines: [] };
+const state = { mode: null, invoice: null, invoiceType: null, preview: null, lines: [], openToken: 0 };
 const MICRO = 1000000n;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -43,8 +43,21 @@ function appData() {
   // AppData is a top-level lexical binding in the V42 shell (let AppData), not necessarily window.AppData.
   // Resolve that binding first so this separately loaded module sees the actual hydrated local database.
   const current = typeof AppData !== 'undefined' ? AppData : window.AppData;
-  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('بيانات التطبيق المحلية غير جاهزة؛ انتظر اكتمال تحميل IndexedDB.');
+  if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error('قاعدة بيانات الجهاز المحلية لم تكتمل تهيئتها بعد.');
   return current;
+}
+async function waitForLocalAppData(maxWaitMs = 12000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < maxWaitMs) {
+    try {
+      const data = appData();
+      if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+    } catch (_) {
+      // IndexedDB hydration may still be completing; keep the modal non-blocking and retry.
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error('لم تكتمل قراءة قاعدة بيانات الجهاز بعد. أعد المحاولة بعد لحظات.');
 }
 function invoiceRows(mode) {
   const data = appData();
@@ -275,7 +288,7 @@ function mount() {
   const style = document.createElement('style');
   style.id = 'anas-reverse-ledger-style';
   style.textContent = '#modal-reverse-ledger{position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.62);display:none;align-items:center;justify-content:center;padding:12px}'+
-    '#modal-reverse-ledger.active{display:flex}#modal-reverse-ledger .rev-dialog{width:min(980px,100%);max-height:94vh;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.28);direction:rtl;color:#0f172a}'+
+    '#modal-reverse-ledger.active{display:flex}#modal-reverse-ledger .rev-dialog{width:min(980px,100%);max-height:85dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.28);direction:rtl;color:#0f172a}'+
     '#modal-reverse-ledger .rev-head{position:sticky;top:0;background:#1e3a6d;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:1}'+
     '#modal-reverse-ledger .rev-head h2{font-size:1.05rem;margin:0}#modal-reverse-ledger .rev-close{border:0;background:transparent;color:#fff;font-size:1.5rem;cursor:pointer;padding:2px 8px}'+
     '#modal-reverse-ledger .rev-body{padding:14px;display:grid;gap:12px}#modal-reverse-ledger .rev-section{border:1px solid #dbe3ed;border-radius:10px;padding:12px;display:grid;gap:10px;min-width:0}'+
@@ -310,8 +323,9 @@ function mount() {
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && overlay.classList.contains('active')) close(); });
   byId('rev-submit-btn').addEventListener('click', submit);
 }
-function open(mode) {
+async function open(mode) {
   if (!MODES[mode]) throw new Error('Unsupported reverse-ledger mode');
+  const openToken = ++state.openToken;
   mount();
   state.mode = mode;
   state.invoice = null;
@@ -320,19 +334,26 @@ function open(mode) {
   byId('rev-modal-title').textContent = MODES[mode].title;
   byId('rev-reason-input').value = '';
   byId('rev-excess-mode').value = 'cash';
-  byId('modal-reverse-ledger').classList.add('active');
+  const modal = byId('modal-reverse-ledger');
+  modal.classList.add('active');
+  const submitButton = byId('rev-submit-btn');
+  if (submitButton) submitButton.disabled = true;
+  status('جارٍ تحميل فواتير هذا الجهاز من قاعدة البيانات المحلية…', true);
   try {
+    await waitForLocalAppData();
+    if (openToken !== state.openToken || !modal.classList.contains('active')) return;
     fillInvoices();
     renderLines();
     updatePreview();
     byId('rev-invoice-select').focus();
   } catch (error) {
-    status(error && error.message ? error.message : 'بيانات التطبيق غير جاهزة.', false);
-    const submitButton = byId('rev-submit-btn');
+    if (openToken !== state.openToken || !modal.classList.contains('active')) return;
+    status(error && error.message ? error.message : 'تعذر قراءة الفواتير المحلية. أعد المحاولة.', false);
     if (submitButton) submitButton.disabled = true;
   }
 }
 function close() {
+  state.openToken++;
   const modal = byId('modal-reverse-ledger');
   if (modal) modal.classList.remove('active');
 }
