@@ -114,6 +114,7 @@ test("health reports service status without exposing the API key", async () => {
   assert.equal(response.status, 200);
   assert.equal(data.ok, true);
   assert.equal(data.configured, true);
+  assert.equal(data.rateLimitConfigured, true);
   assert.equal(JSON.stringify(data).includes("test-secret"), false);
 });
 
@@ -447,4 +448,23 @@ test("rate-limit configuration preserves a user budget and shared-mobile-IP safe
   assert.ok(config.includes('name = "AI_IP_RATE_LIMITER"'));
   assert.ok(config.includes('simple = { limit = 120, period = 60 }'));
   assert.ok(source.includes("/[\\s,]/.test(ip)"));
+});
+
+
+test("health reports rate-limit bindings as unavailable when they are not bound", async () => {
+  const response = await worker.fetch(request("/health"), { OPENAI_API_KEY: "test-secret" });
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.configured, true);
+  assert.equal(data.rateLimitConfigured, false);
+});
+
+test("deployment workflow pins Wrangler v4 and verifies rate-limit bindings in its smoke test", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const workflow = await readFile(resolve(".github/workflows/deploy-openai-ai-worker.yml"), "utf8");
+  assert.ok(workflow.includes("cloudflare/wrangler-action@v4"));
+  assert.ok(workflow.includes('wranglerVersion: "4.158.0"'));
+  assert.ok(workflow.includes("wrangler@4.158.0"));
+  assert.ok(workflow.includes("rateLimitConfigured!==true"));
+  assert.ok(!workflow.includes("wrangler@3.90.0"));
 });

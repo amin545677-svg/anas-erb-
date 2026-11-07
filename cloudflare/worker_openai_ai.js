@@ -184,6 +184,10 @@ export default {
         ok: true,
         service: "anas-erp-openai-ai",
         configured: Boolean(env.OPENAI_API_KEY),
+        rateLimitConfigured: Boolean(
+          env.AI_USER_RATE_LIMITER && typeof env.AI_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_IP_RATE_LIMITER && typeof env.AI_IP_RATE_LIMITER.limit === "function"
+        ),
         model: env.OPENAI_MODEL || DEFAULT_MODEL
       }, 200);
     }
@@ -195,6 +199,10 @@ export default {
         ok: true,
         service: "anas-erp-openai-ai",
         configured: Boolean(env.OPENAI_API_KEY),
+        rateLimitConfigured: Boolean(
+          env.AI_USER_RATE_LIMITER && typeof env.AI_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_IP_RATE_LIMITER && typeof env.AI_IP_RATE_LIMITER.limit === "function"
+        ),
         model: env.OPENAI_MODEL || DEFAULT_MODEL
       }, 200, origin);
     }
