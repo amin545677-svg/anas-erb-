@@ -115,17 +115,13 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.getByRole('button', { name: /مسح الفواتير بالذكاء الاصطناعي/ }).evaluate(button => button.click());
   await page.locator('#invoiceOcrModal').waitFor({ state: 'visible' });
 
-  // 5) ChatGPT helper: opening and sending must both work without cloud services.
-  const fab = page.locator('#anasContextAiFab');
-  await fab.evaluate(button => button.click());
-  await page.locator('#anasContextAiPanel').waitFor({ state: 'visible' });
-  assert.equal(await fab.getAttribute('aria-expanded'), 'true');
-  await page.locator('#anasContextAiQuestion').fill('اشرح هذه الشاشة');
-  await page.locator('#anasContextAiSend').evaluate(button => button.click());
-  await page.waitForFunction(() => {
-    const answer = document.querySelector('#anasContextAiAnswer');
-    return !!answer && /وضع محلي/.test(answer.textContent || '');
-  });
+  // 5) Floating contextual assistant must not cover the ERP work surface.
+  const assistantState = await page.evaluate(() => ({
+    fabDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
+    panelDisplay: getComputedStyle(document.getElementById('anasContextAiPanel')).display
+  }));
+  assert.equal(assistantState.fabDisplay, 'none');
+  assert.equal(assistantState.panelDisplay, 'none');
 
   // Verify both parsers are present in the built /erp/ bundle and usable with external network denied.
   await page.evaluate(async () => {
