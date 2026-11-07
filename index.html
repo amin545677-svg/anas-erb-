@@ -1387,7 +1387,9 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 
 <style id="anas-pos-guided-checkout">
 /* Guided POS: one obvious path from product selection to payment. */
-#view-pos .sales-toolbar > .btn-pos-hasib[onclick="openQuickSale()"] { display:none !important; }
+#view-pos .sales-toolbar > .btn-pos-hasib { display:none !important; }
+#view-pos .sales-toolbar .btn-person-cust { display:none !important; }
+#view-pos .sales-toolbar .search-field-box { flex:1 1 220px; }
 #view-pos .sales-toolbar { gap:8px; }
 #view-pos .sales-toolbar .btn-pos-hasib[onclick="openHasibModal()"] { min-height:44px; padding-inline:16px; }
 #view-pos .quick-products-grid { max-height:min(28vh,250px); overflow-y:auto; }
@@ -2459,7 +2461,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
     <!-- نافذة "حاسب" لدفع الفاتورة مع خيار الفاتورة القانونية A4 والوصل الحراري -->
     <div class="modal-bg-backdrop" id="hasibModal">
         <div class="picker-dialog-scroll">
-            <h3 style="font-size:1.15rem; margin-bottom:12px; text-align:center; color:var(--mp-navy); font-weight:900;">📟 محاسبة الفاتورة</h3>
+            <h3 style="font-size:1.15rem; margin-bottom:12px; text-align:center; color:var(--mp-navy); font-weight:900;">🧾 إتمام البيع</h3>
             <div style="background:#f1f5f9; padding:12px; border-radius:8px; margin-bottom:12px; text-align:center;">
                 <span style="font-size:0.85rem; color:var(--mp-text-muted); font-weight:700;">المجموع الصافي المطلوب:</span>
                 <div style="font-size:1.7rem; font-weight:900; color:var(--mp-green);" id="hasibTotalText">0.00 د.ج</div>
