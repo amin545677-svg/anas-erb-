@@ -936,4 +936,32 @@ test('cross-tab IndexedDB compare-and-set rejects a stale full-snapshot write an
   assert.deepEqual(afterRecovery, { revision: 3, ready: true });
   await context.close();
 });
-\ntest('synchronous mirror removal refuses to orphan the authoritative IndexedDB ERP snapshot', async () => {\n  const context = await browser.newContext();\n  const page = await context.newPage();\n  await page.goto(origin + '/');\n  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });\n  const result = await page.evaluate(async () => {\n    const S = window.ANASResilientStorage;\n    await S.hydrate(null);\n    const snapshot = S.encode({ invoices: [{ id: 'DELETE-GUARD-1', totalCentimes: 12500n }] });\n    await S.setSync(S.APP_KEY, snapshot);\n    let rejected = false, code = null;\n    try { S.removeSync(S.APP_KEY); } catch (error) { rejected = true; code = error.code; }\n    const durable = await new Promise((resolve, reject) => {\n      const request = indexedDB.open(S.DB_NAME);\n      request.onsuccess = () => {\n        const get = request.result.transaction(S.STORE_NAME, 'readonly').objectStore(S.STORE_NAME).get(S.APP_KEY);\n        get.onsuccess = () => resolve(get.result);\n        get.onerror = () => reject(get.error);\n      };\n      request.onerror = () => reject(request.error);\n    });\n    return { rejected, code, localMirrorPreserved: localStorage.getItem(S.APP_KEY) === snapshot,\n      durableSnapshotPreserved: durable.payload === snapshot, invoice: S.decode(durable.payload).invoices[0].totalCentimes.toString() };\n  });\n  assert.deepEqual(result, { rejected: true, code: 'ANAS_STORAGE_DURABLE_DELETE_REQUIRED',\n    localMirrorPreserved: true, durableSnapshotPreserved: true, invoice: '12500' });\n  await context.close();\n});\n
+
+test('synchronous mirror removal refuses to orphan the authoritative IndexedDB ERP snapshot', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    await S.hydrate(null);
+    const snapshot = S.encode({ invoices: [{ id: 'DELETE-GUARD-1', totalCentimes: 12500n }] });
+    await S.setSync(S.APP_KEY, snapshot);
+    let rejected = false, code = null;
+    try { S.removeSync(S.APP_KEY); } catch (error) { rejected = true; code = error.code; }
+    const durable = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(S.DB_NAME);
+      request.onsuccess = () => {
+        const get = request.result.transaction(S.STORE_NAME, 'readonly').objectStore(S.STORE_NAME).get(S.APP_KEY);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+    return { rejected, code, localMirrorPreserved: localStorage.getItem(S.APP_KEY) === snapshot,
+      durableSnapshotPreserved: durable.payload === snapshot, invoice: S.decode(durable.payload).invoices[0].totalCentimes.toString() };
+  });
+  assert.deepEqual(result, { rejected: true, code: 'ANAS_STORAGE_DURABLE_DELETE_REQUIRED',
+    localMirrorPreserved: true, durableSnapshotPreserved: true, invoice: '12500' });
+  await context.close();
+});
