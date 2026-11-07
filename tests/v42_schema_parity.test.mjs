@@ -83,7 +83,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
     currentUser: { id: "user_1", name: "مدير" }
   };
   const original = runV42Collection(initial, 5000);
-  assert.deepEqual(original.alerts, ["تم تسجيل القبض وتخصيصه يدوياً للفواتير المحددة بنجاح."]);
+  assert.deepEqual(original.alerts, ["تم تسجيل سند القبض وتوزيعه تلقائياً FIFO من أقدم فاتورة إلى أحدث فاتورة."]);
   assert.equal(original.snapshot.customers[0].debt, 21000);
   assert.equal(original.snapshot.caisseBalance, 59000);
   assert.equal(original.snapshot.cashMovements.length, 1);
