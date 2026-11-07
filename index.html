@@ -9098,7 +9098,7 @@ function wtAuditTransfers(){
             const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات|اشتر/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
             let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\s*/i,'').replace(new RegExp('^'+number+'\\s*'),'').trim();
             itemText=itemText.replace(new RegExp('^'+unit+'\\s*','i'),'').trim();
-            const stop=itemText.search(/\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)\b/i);
+            const stop=itemText.search(/\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)/i);
             if(stop>=0)itemText=itemText.slice(0,stop).trim();
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
