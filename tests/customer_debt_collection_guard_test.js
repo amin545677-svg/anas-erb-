@@ -249,3 +249,19 @@ console.log('PASS: customer debt receipt allocates oldest-first and updates invo
     'analytics UI must display net profit after operating expenses');
 }
 console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-profit analytics are present');
+
+{
+  const invoices = [
+    { id: 'INV-FIFO-OLD', customerId: 'C-1', total: 5000, paid: 0, remaining: 5000, date: '2026-11-01' },
+    { id: 'INV-FIFO-NEW', customerId: 'C-1', total: 8387.5, paid: 0, remaining: 8387.5, date: '2026-11-05' }
+  ];
+  const result = runCollection({ invoices, debt: 13387.5, cash: 0, amount: '13387.50' });
+  assert.equal(result.saves, 1);
+  assert.equal(result.customer.debt, 0);
+  assert.equal(result.appData.caisseBalance, 13387.5);
+  assert.equal(result.appData.cashMovements.at(-1).amount, 13387.5);
+  assert.deepEqual(result.appData.settlementAllocations.map(row => [row.invoiceId, row.amountCentimes]), [
+    ['INV-FIFO-OLD', 500000], ['INV-FIFO-NEW', 838750]
+  ], 'full customer receipt must allocate oldest invoice first and settle both balances exactly');
+  console.log('PASS: requested 13,387.50 DA customer receipt clears the partial debt using FIFO invoice allocation');
+}
