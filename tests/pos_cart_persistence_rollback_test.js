@@ -6,7 +6,15 @@ const html = fs.readFileSync('index.html', 'utf8');
 const start = html.indexOf('function addItemToPosCart(pId) {');
 const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'addItemToPosCart must be present and isolatable');
-const source = html.slice(start, end);
+const arithmeticStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const arithmeticEnd = html.indexOf('function updatePaymentMethodFromAmount()', arithmeticStart);
+const saveStart = html.indexOf('function savePosCartChange(rollback) {');
+const saveEnd = html.indexOf('function validatePosCartStock(', saveStart);
+assert.ok(arithmeticStart >= 0 && arithmeticEnd > arithmeticStart &&
+  saveStart >= 0 && saveEnd > saveStart,
+  'POS cart test must isolate the production integer arithmetic and persistence helpers');
+const source = html.slice(arithmeticStart, arithmeticEnd) + '\n' +
+  html.slice(start, end) + '\n' + html.slice(saveStart, saveEnd);
 
 function run({ initialMap, includeMap = true, saveResult = false }) {
   const alerts = [];
@@ -22,7 +30,7 @@ function run({ initialMap, includeMap = true, saveResult = false }) {
     renderPosTable() {},
     wtCurrentSaleWarehouse: () => 'Main',
     wtAvailableStock: p => Number(p.stock),
-    String, Number, Array, Object, Math, Set, console
+    String, Number, Array, Object, Math, Set, BigInt, console
   };
   vm.createContext(context);
   vm.runInContext(source + '\naddItemToPosCart("p1");', context);
