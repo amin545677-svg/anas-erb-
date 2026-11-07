@@ -63,6 +63,10 @@ class ServiceWorkerCacheRegressionTests(unittest.TestCase):
             check=True,
         )
 
+    def test_ocr_assets_are_cached_individually_without_blocking_shell_install(self):
+        self.assertIn("Promise.allSettled(OCR_ASSETS.map(path => cache.add(path)))", SOURCE)
+        self.assertNotIn("cache.addAll(OCR_ASSETS)", SOURCE)
+        self.assertIn("const OCR_ASSETS = [", SOURCE)
 
 if __name__ == "__main__":
     unittest.main()
