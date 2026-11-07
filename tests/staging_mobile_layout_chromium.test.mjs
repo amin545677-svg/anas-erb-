@@ -239,18 +239,35 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       const results = document.getElementById('posSearchResults');
       return !!results && !results.hidden && results.querySelectorAll('.pos-search-result').length >= 5;
     });
-    const acceptance = await page.evaluate(() => ({
-      productCount: window.AppData.products.length,
-      searchNames: [...document.querySelectorAll('#posSearchResults .pos-search-result-name')].map(el => el.textContent),
-      floatingAssistantDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
-      diagnosticVisible: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
-      backupRecordPresent: !!window.indexedDB
-    }));
+    const acceptance = await page.evaluate(async () => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('anas_erp_v42_resilient_db', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const backupRecord = await new Promise((resolve, reject) => {
+        const tx = db.transaction('snapshots', 'readonly');
+        const request = tx.objectStore('snapshots').get('ANAS_ERP_PRE_IMPORT_BACKUP_V1');
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      const backup = backupRecord?.payload ? JSON.parse(backupRecord.payload) : null;
+      db.close();
+      return {
+        productCount: window.AppData.products.length,
+        searchNames: [...document.querySelectorAll('#posSearchResults .pos-search-result-name')].map(el => el.textContent),
+        floatingAssistantDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
+        diagnosticVisible: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
+        backupRecordPresent: !!backup && Array.isArray(backup.data?.products),
+        backupPreImportProductCount: backup?.recordCount
+      };
+    });
     assert.equal(acceptance.productCount, 5);
     assert.ok(acceptance.searchNames.some(name => name.includes('شاي أريشا')));
     assert.equal(acceptance.floatingAssistantDisplay, 'none');
     assert.equal(acceptance.diagnosticVisible, false);
     assert.equal(acceptance.backupRecordPresent, true);
+    assert.equal(acceptance.backupPreImportProductCount, 0, 'backup must be captured before the first product is added');
 
   } finally {
     if (browser) await browser.close();
