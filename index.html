@@ -5017,10 +5017,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     (validTotal ? 'تحقق من المبلغ المدفوع' : '—');
             }
         }
-        document.addEventListener('click', function(event) {
-            const wrap = document.querySelector('#view-purchases .pos-search-wrap');
-            if (wrap && !wrap.contains(event.target)) closePurchaseSearchResults();
-        }, true);
+        if (document && typeof document.addEventListener === 'function') {
+            document.addEventListener('click', function(event) {
+                const wrap = document.querySelector('#view-purchases .pos-search-wrap');
+                if (wrap && !wrap.contains(event.target)) closePurchaseSearchResults();
+            }, true);
+        }
 
         function savePurchaseItem() {
             const nameInput = document.getElementById('purProductName');
