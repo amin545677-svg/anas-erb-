@@ -103,6 +103,17 @@ test('cloud AI creates an anonymous Firebase session when ERP is used without ma
   assert.deepEqual(tokens, ['signed-firebase-id-token', 'signed-firebase-id-token']);
   assert.equal(anonymousCalls - beforeConcurrent, 1, 'concurrent requests must share one anonymous sign-in');
 
+  const signedInUser = { getIdToken: async () => 'existing-user-token' };
+  let forbiddenAnonymousCalls = 0;
+  const signedInAuth = {
+    onAuthStateChanged(callback) { callback(signedInUser); return () => {}; },
+    signInAnonymously: async () => { forbiddenAnonymousCalls++; throw new Error('must not replace existing user'); }
+  };
+  const signedInWindow = {};
+  vm.runInNewContext(helper, { window: signedInWindow, auth: signedInAuth, anonymousSignInPromise: null, setTimeout, clearTimeout, Error, String, Number });
+  assert.equal(await signedInWindow.anasGetFirebaseIdToken(), 'existing-user-token');
+  assert.equal(forbiddenAnonymousCalls, 0, 'existing authenticated users must never be replaced by anonymous sessions');
+
   const disabledAuth = {
     onAuthStateChanged(callback) { callback(null); return () => {}; },
     signInAnonymously: async () => { const error = new Error('provider disabled'); error.code = 'auth/operation-not-allowed'; throw error; }
