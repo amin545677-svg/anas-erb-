@@ -3662,21 +3662,42 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             savePosCartChange(() => { posCart = oldCart; });
         }
 
+        function setPosQty(idx, rawValue) {
+            const item = posCart[idx];
+            if (!item) return false;
+            const qtyUnits = anasToQtyUnits(rawValue);
+            if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) {
+                alert('أدخل كمية صحيحة أكبر من صفر.');
+                renderPosTable();
+                return false;
+            }
+            const nextQty = anasQtyFromUnits(qtyUnits);
+            const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
+            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            const available = product && typeof wtAvailableStock === 'function'
+                ? wtAvailableStock(product, warehouse) : Number(product && product.stock);
+            if (product && (!Number.isFinite(available) || available < 0)) {
+                alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.');
+                renderPosTable();
+                return false;
+            }
+            const availableUnits = anasToQtyUnits(available);
+            if (product && Number.isSafeInteger(availableUnits) && qtyUnits > availableUnits && !AppData.allowNegativeStock) {
+                alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
+                renderPosTable();
+                return false;
+            }
+            const oldCart = posCart.map(row => ({...row}));
+            item.qty = nextQty;
+            return savePosCartChange(() => { posCart = oldCart; });
+        }
+
         function editPosQty(idx) {
             const item = posCart[idx];
             if (!item) return;
-            const q = parseInt(prompt('تعديل الكمية:', item.qty), 10);
-            if (!Number.isFinite(q) || q <= 0) return;
-            const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
-            const available=product&&typeof wtAvailableStock==='function'?wtAvailableStock(product,typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي'):Number(product&&product.stock);
-            if (product && (!Number.isFinite(available) || available < 0)) { alert('تعذر تعديل الكمية: رصيد المخزون غير صالح. أصلح البيانات قبل متابعة البيع.'); return; }
-            if (product && Number.isFinite(available) && available >= 0 && q > available && !AppData.allowNegativeStock) {
-                alert('الكمية المطلوبة أكبر من رصيد مخزن البيع (' + available + ').');
-                return;
-            }
-            const oldQty = item.qty;
-            item.qty = q;
-            savePosCartChange(() => { item.qty = oldQty; });
+            const raw = prompt('تعديل الكمية:', item.qty);
+            if (raw === null || String(raw).trim() === '') return;
+            setPosQty(idx, raw);
         }
 
         function editPosPrice(idx) {
@@ -3815,7 +3836,12 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label','إنقاص الكمية');
                 minus.style.cssText = 'border:0;border-radius:7px;background:#e2e8f0;padding:7px 11px;font-size:18px;font-weight:900;';
                 minus.onclick = () => changePosQty(idx, -1);
-                const qty = document.createElement('strong'); qty.textContent = String(item.qty); qty.style.minWidth = '20px'; qty.style.textAlign = 'center';
+                const qty = document.createElement('input');
+                qty.type = 'number'; qty.min = '0.000001'; qty.step = 'any'; qty.inputMode = 'decimal';
+                qty.value = String(item.qty); qty.setAttribute('aria-label', 'كمية ' + String(item.name || 'المنتج'));
+                qty.title = 'أدخل الكمية المطلوبة مباشرة';
+                qty.style.cssText = 'width:82px;min-height:38px;border:1px solid #cbd5e1;border-radius:8px;padding:5px;text-align:center;font-weight:800;color:#0f172a;';
+                qty.addEventListener('change', () => setPosQty(idx, qty.value));
                 const plus = document.createElement('button');
                 plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label','زيادة الكمية');
                 plus.style.cssText = 'border:0;border-radius:7px;background:#dcfce7;color:#166534;padding:7px 11px;font-size:18px;font-weight:900;';
