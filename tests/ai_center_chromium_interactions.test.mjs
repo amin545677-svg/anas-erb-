@@ -225,7 +225,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     buffer: xlsxBuffer
   });
   await page.locator('#smartImportSheetPicker').waitFor({ state: 'visible' });
-  await page.locator('#smartImportSheetChoice').selectOption({ label: /Products/ });
+  await page.locator('#smartImportSheetChoice').selectOption('0');
   await page.locator('#smartImportSheetContinue').evaluate(button => button.click());
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportPreviewModal').innerText(), /Widget XLSX/);
