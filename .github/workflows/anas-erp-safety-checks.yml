@@ -772,7 +772,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
-          start = s.find("// Build the next array before mutating the live one")
+          start = s.find("const before=JSON.stringify(arr||[]);")
           end = s.find("function clearAllSalesInvoices()", start)
           assert start >= 0 and end > start, "Could not locate import persistence transaction"
           block = s[start:end]
