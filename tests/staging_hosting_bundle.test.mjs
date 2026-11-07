@@ -81,6 +81,9 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/vendor/tesseract/lang/eng.traineddata.gz',
       'erp/vendor/tesseract/lang/fra.traineddata.gz',
       'erp/reverse-ledger/reverse-ledger.js',
+      'erp/micro-pos-core.js',
+      'erp/pos/micro-pos-engine.mjs',
+      'erp/pos/micro-pos-deep-core.mjs',
       'erp/supplier-account-statement.js',
       'erp/cashbox-readonly-ledger.js'
     ]) await fs.access(path.join(outDir, file));
