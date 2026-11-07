@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const html = fs.readFileSync('index.html', 'utf8');
-const start = html.indexOf('function addItemToPosCart(pId) {');
+const start = html.indexOf('function addItemToPosCart(pId, selectedTier) {');
 const end = html.indexOf('\n        function ', start + 20);
 assert.ok(start >= 0 && end > start, 'addItemToPosCart must be present and isolatable');
 const arithmeticStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
@@ -14,7 +14,7 @@ assert.ok(arithmeticStart >= 0 && arithmeticEnd > arithmeticStart &&
   saveStart >= 0 && saveEnd > saveStart,
   'POS cart test must isolate the production integer arithmetic and persistence helpers');
 const snapshotStart = html.indexOf('function snapshotPosCart() {');
-const snapshotEnd = html.indexOf('function addItemToPosCart(pId) {', snapshotStart);
+const snapshotEnd = html.indexOf('function addItemToPosCart(pId, selectedTier) {', snapshotStart);
 assert.ok(snapshotStart >= 0 && snapshotEnd > snapshotStart,
   'POS rollback test must isolate the production cart snapshot/restore helpers');
 const source = html.slice(arithmeticStart, arithmeticEnd) + '\n' +
