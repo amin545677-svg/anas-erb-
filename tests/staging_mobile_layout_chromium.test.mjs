@@ -229,9 +229,23 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       'product columns must auto-select products and inventory');
     assert.equal(await page.locator('#smartImportBackupAck').isChecked(), true,
       'local backup must be enabled by default');
+    const importBrowserErrors = [];
+    page.on('pageerror', error => importBrowserErrors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') importBrowserErrors.push(message.text());
+    });
     page.on('dialog', dialog => dialog.accept());
     await page.locator('#smartImportConfirm').click();
-    await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
+    await page.waitForTimeout(1200);
+    const importCommitState = await page.evaluate(() => ({
+      modalPresent: !!document.getElementById('smartImportPreviewModal'),
+      validation: document.getElementById('smartImportValidation')?.textContent || '',
+      status: document.getElementById('smartAiExcelStatus')?.textContent || '',
+      productCount: Array.isArray(window.AppData?.products) ? window.AppData.products.length : null
+    }));
+    assert.equal(importCommitState.modalPresent, false,
+      'confirmed import must close its preview only after durable commit; state=' +
+      JSON.stringify(importCommitState) + '; browserErrors=' + JSON.stringify(importBrowserErrors));
     await page.waitForFunction(() => window.AppData && window.AppData.products.length === 5);
     await page.evaluate(() => window.openView('pos', true));
     await page.locator('#posSearchField').fill('أريشا');
