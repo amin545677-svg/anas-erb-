@@ -273,7 +273,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       window.saveDB = window.__posOriginalSaveDBForTest;
       delete window.__posOriginalSaveDBForTest;
     });
+    // The cart total was reduced from 50 to 25 during editor validation.
+    // Reconcile the paid amount before the real commit; the durable path rejects overpayment.
+    await page.locator('#hasibPaidAmount').fill('25.00');
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '25.00',
+      'the cash amount must equal the final invoice total before committing');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
       'a fully paid cash sale must not require a registered customer');
