@@ -1558,6 +1558,10 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 :root[data-anas-theme="dark"] #hasibModal .anas-payment-summary strong { color:#e5edf8; }
 :root[data-anas-theme="dark"] #hasibModal .anas-payment-summary .anas-payment-debt { border-color:#334155; }
 </style>
+<style id="anas-pos-checkout-safety">
+#hasibModal .anas-payment-back-btn { width:100%; min-height:44px; border:1px solid var(--mp-border,#cbd5e1); border-radius:10px; background:transparent; color:var(--mp-text,#334155); font-weight:800; }
+#hasibModal #hasibConfirmSaleBtn:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+</style>
 </head>
 <body>
 
@@ -2653,13 +2657,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                 <button id="hasibConfirmSaleBtn" class="btn-full-submit" style="background:var(--mp-green); margin:0;" onclick="confirmHasibPaymentDurable()">
                     ✅ تأكيد البيع وحفظ الفاتورة
                 </button>
-                <button class="btn-full-submit" style="background:#0369a1; margin:0;" onclick="printLastConfirmedInvoice('thermal')">
-                    🖨️ طباعة آخر فاتورة محفوظة (58mm)
-                </button>
-                <button class="btn-full-submit" style="background:var(--mp-navy); margin:0;" onclick="printLastConfirmedInvoice('legalA4')">
-                    📑 طباعة آخر فاتورة محفوظة (A4)
-                </button>
-                <button class="btn-full-submit" style="display:none!important" onclick="closeModal('hasibModal')">إلغاء</button>
+                <button type="button" class="anas-payment-back-btn" onclick="closeModal('hasibModal')">العودة إلى السلة دون تأكيد</button>
             </div>
         </div>
     </div>
@@ -3825,8 +3823,19 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const total = anasCentsToCurrency(totalCents);
             const totalEl = document.getElementById('hasibTotalText');
             const invalidCart = !posCart.length || !Number.isSafeInteger(totalCents) || totalCents <= 0;
-            if (totalEl) totalEl.textContent = invalidCart ? 'بيانات السلة غير صالحة' : total.toFixed(2) + ' د.ج';
-            if (invalidCart) return;
+            const confirm = document.getElementById('hasibConfirmSaleBtn');
+            if (totalEl) totalEl.textContent = invalidCart ? (posCart.length ? 'راجع بيانات المنتجات' : 'أضف منتجاً للمتابعة') : total.toFixed(2) + ' د.ج';
+            if (invalidCart) {
+                renderHasibCartEditor();
+                const summaryTotal = document.getElementById('hasibSummaryTotal');
+                const summaryPaid = document.getElementById('hasibSummaryPaid');
+                const remaining = document.getElementById('hasibRemainingText');
+                if (summaryTotal) summaryTotal.textContent = '—';
+                if (summaryPaid) summaryPaid.textContent = '—';
+                if (remaining) remaining.textContent = '—';
+                if (confirm) { confirm.disabled = true; confirm.setAttribute('aria-disabled', 'true'); }
+                return;
+            }
             renderHasibCartEditor();
             const paidInput = document.getElementById('hasibPaidAmount');
             if (paidInput && anasToCents(paidInput.value) > totalCents) paidInput.value = total.toFixed(2);
