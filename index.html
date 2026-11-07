@@ -11538,7 +11538,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       // currentUser can be null briefly while Firebase restores LOCAL persistence.
       window.anasGetFirebaseIdToken=async function(timeoutMs=8000){
         if(!auth) throw new Error('Firebase Auth غير مهيأ؛ تحقق من تحميل مكتبات Firebase.');
-        const resolvedUser=await new Promise((resolve,reject)=>{
+        let resolvedUser=await new Promise((resolve,reject)=>{
           let settled=false,unsubscribe=()=>{},timer=null;
           const finish=(fn,value)=>{if(settled)return;settled=true;if(timer)clearTimeout(timer);try{unsubscribe();}catch(_){}fn(value);};
           timer=setTimeout(()=>finish(reject,new Error('انتهت مهلة استعادة جلسة Firebase. تحقق من الاتصال ثم أعد المحاولة.')),Math.max(1000,Math.min(Number(timeoutMs)||8000,15000)));
