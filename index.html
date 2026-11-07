@@ -2891,7 +2891,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             try { updateUIState(); } catch (e) { console.error('Anas ERP UI refresh failed:', e); }
             try { checkSystemAlerts(); } catch (e) { console.error('Anas ERP alerts refresh failed:', e); }
             try { updateDashboardStats(); } catch (e) { console.error('Anas ERP dashboard refresh failed:', e); }
-            if(anasCurrentView==='ai-excel-hub'){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
+            if(typeof anasCurrentView!=='undefined'&&anasCurrentView==='ai-excel-hub'){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
             return true;
         }
 
@@ -9086,7 +9086,7 @@ function wtAuditTransfers(){
             if(!input||!target)return;
             const original=String(input.value||'').trim();
             if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
-            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
             const raw=normalizeDigits(original).replace(/٫/g,'.');
             const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\u200e\u200f\u061c]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
             const number='(?<![\\d.,٫٬])(\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
@@ -9172,7 +9172,7 @@ function wtAuditTransfers(){
                 const n=Number(raw.replace(',','.'));
                 return Number.isFinite(n)?n:null;
             };
-            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
+            const normalizeDigits=s=>Array.from(String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))).filter(ch=>{const cp=ch.codePointAt(0);return cp!==8206&&cp!==8207&&cp!==1564&&!(cp>=8234&&cp<=8238)&&!(cp>=8294&&cp<=8297);}).join('');
             const parseInvoiceDate=value=>{
                 if(value===null||value===undefined||value==='')return null;
                 if(value instanceof Date)return Number.isNaN(value.getTime())?null:new Date(value.getFullYear(),value.getMonth(),value.getDate());
