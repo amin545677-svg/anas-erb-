@@ -443,7 +443,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
-          start = s.find("const staged=[], errors=[], seenNames=new Set(), seenIds=new Set();")
+          start = s.find("const staged=[], errors=[], seenNames=new Set(), seenIds=new Set(), explicitImportIds=new Set();")
           end = s.find("if(errors.length){", start)
           assert start >= 0 and end > start, "Could not locate import record validation"
           block = s[start:end]
@@ -452,6 +452,7 @@ jobs:
           assert "if((target!=='products' && existingCodes.has(norm(recordId))) || seenIds.has(norm(recordId)))" in block, "Existing customer/supplier IDs and duplicate imported IDs must be rejected; product IDs may be upserted"
           assert "seenNames.has(keyName)" in block and "seenIds.add(norm(recordId))" in block, "Name and ID duplicate tracking must be separate"
           assert "Object.assign(rec,{id:recordId,name," in block, "The validated ID must be the one persisted"
+          assert "if(id) explicitImportIds.add(recordId)" in block, "Explicit product IDs must be distinguished from generated IDs"
           print("Import record ID uniqueness guards passed")
           PY
       - name: Reject unsafe financial magnitudes in backup restore
