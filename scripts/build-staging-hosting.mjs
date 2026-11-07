@@ -25,6 +25,7 @@ const ERP_FILES = [
   'micro-pos-core.js',
   'pos/micro-pos-engine.mjs',
   'pos/micro-pos-deep-core.mjs',
+  'pos/advanced-financial-engine.mjs',
   'sync/mutation_queue_orchestrator.mjs'
 ];
 
@@ -173,7 +174,7 @@ export async function buildStagingHosting(options = {}) {
     'erp/index.html', 'erp/sw.js', 'erp/manifest.webmanifest',
     'erp/storage/android-resilient-storage.js',
     'erp/core/ai-operations-engine.js',
-    'erp/micro-pos-core.js', 'erp/pos/micro-pos-engine.mjs', 'erp/pos/micro-pos-deep-core.mjs',
+    'erp/micro-pos-core.js', 'erp/pos/micro-pos-engine.mjs', 'erp/pos/micro-pos-deep-core.mjs', 'erp/pos/advanced-financial-engine.mjs',
     'erp/icons/icon.svg',
     'erp/vendor/firebase/firebase-compat.js',
     'erp/vendor/xlsx/xlsx.full.min.js',
