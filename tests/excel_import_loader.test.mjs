@@ -46,3 +46,27 @@ test('smart import rejects duplicate customer/supplier IDs and reports complete 
   assert.match(html, /إجمالي '\+staged\.length\+'.*أضيف '\+added\+'.*حُدث '\+updated\+'.*تم تخطي '\+skipped/,
     'the import summary must report total, added, updated, and skipped counts');
 });
+
+test('Android document-provider uploads resolve Excel and CSV formats from MIME when filenames lack extensions', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const start = html.indexOf('function anasResolveImportExtension(file)');
+  const end = html.indexOf('async function handleSmartAiUpload(e)', start);
+  assert.ok(start >= 0 && end > start, 'upload format resolver must run before file classification');
+  const resolver = html.slice(start, end);
+  for (const mime of [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'text/csv',
+    'application/csv',
+    'text/tab-separated-values'
+  ]) assert.ok(resolver.includes(mime), 'missing Android-compatible MIME mapping: ' + mime);
+  assert.match(resolver, /if\(supported\.has\(namedExtension\)\) return namedExtension;/,
+    'a supported explicit filename extension must take precedence over MIME metadata');
+  assert.match(resolver, /return mimeExtensions\[mime\]\|\|namedExtension;/,
+    'MIME fallback must preserve unknown extensions for the normal unsupported-format error');
+  const uploadStart = html.indexOf('async function handleSmartAiUpload(e)');
+  const uploadEnd = html.indexOf('async function anasExtractPdfText(file)', uploadStart);
+  const upload = html.slice(uploadStart, uploadEnd);
+  assert.ok(upload.includes('const ext=anasResolveImportExtension(file);'),
+    'upload routing must use the MIME-aware resolver');
+});
