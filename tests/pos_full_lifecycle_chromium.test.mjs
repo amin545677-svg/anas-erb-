@@ -346,9 +346,47 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(quickAddProof.selectedId, quickAddProof.productId);
     assert.equal(quickAddProof.selectedName, 'صنف شراء سريع تجريبي');
 
+    // Sales POS search also resolves barcodes and quick-creates absent catalogue items safely.
+    await page.evaluate(() => openView('pos'));
+    await page.locator('#posSearchField').fill('STGPOSLIFE001');
+    await page.locator('#posSearchResults .pos-search-result').first().waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#posSearchResults .pos-search-result').first().click();
+    const salesBarcodeProof = await page.evaluate(() => ({
+      selected: (AppData.posCart || []).some(row => String(row.productId || row.id) === 'STG-POS-LIFECYCLE-001'),
+      resultHidden: document.getElementById('posSearchResults')?.hidden
+    }));
+    assert.equal(salesBarcodeProof.selected, true, 'sales POS barcode search must add the exact product to the cart');
+    assert.equal(salesBarcodeProof.resultHidden, true);
+
+    await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي');
+    await page.locator('#posSearchResults .pos-search-quick-add').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#posSearchResults .pos-search-quick-add').click();
+    await page.locator('#addProductModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#newProdNameInput').inputValue(), 'صنف مبيعات سريع تجريبي');
+    assert.equal(await page.locator('#newProdStockInput').inputValue(), '0');
+    const beforePosQuickAddRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#addProductModal button[onclick="saveNewProductFromModal()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage && storage.getCommittedSnapshot();
+      return storage && storage.status().revision > beforeRevision && snapshot &&
+        snapshot.products.some(row => row && row.name === 'صنف مبيعات سريع تجريبي') &&
+        document.getElementById('posSearchField')?.value === 'صنف مبيعات سريع تجريبي';
+    }, beforePosQuickAddRevision, { timeout: 15000 });
+    const salesQuickAddProof = await page.evaluate(() => {
+      const snapshot = ANASResilientStorage.getCommittedSnapshot();
+      const product = snapshot.products.find(row => row && row.name === 'صنف مبيعات سريع تجريبي');
+      return { productStock: product && product.stock,
+        visibleSearchResult: document.querySelectorAll('#posSearchResults .pos-search-result').length,
+        cartContainsNewProduct: (AppData.posCart || []).some(row => String(row.productId || row.id) === String(product && product.id)) };
+    });
+    assert.equal(salesQuickAddProof.productStock, 0, 'quick-added sales catalogue items must not receive phantom stock');
+    assert.ok(salesQuickAddProof.visibleSearchResult >= 1, 'new product must be immediately searchable in POS');
+    assert.equal(salesQuickAddProof.cartContainsNewProduct, false, 'zero-stock product must not be added to a sale cart');
+
     console.log('POS_FULL_LIFECYCLE_CHROMIUM_REPORT ' + JSON.stringify({
       checkout: 'PASS', durableCommit: 'PASS', invoiceCashStockParity: 'PASS',
-      reloadHydration: 'PASS', noDuplicatePosting: 'PASS', purchaseBarcodeSearch: 'PASS', purchaseQuickAdd: 'PASS', invoiceId,
+      reloadHydration: 'PASS', noDuplicatePosting: 'PASS', purchaseBarcodeSearch: 'PASS', purchaseQuickAdd: 'PASS', salesBarcodeSearch: 'PASS', salesQuickAdd: 'PASS', invoiceId,
       revisionBeforePayment, revisionAfterPayment: afterReload.revision, storageMode: afterReload.mode
     }));
   } finally {
