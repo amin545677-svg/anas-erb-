@@ -98,8 +98,13 @@ test('staging console deployment waits for the exact successful Gate and require
   assert.ok(functionsWorkflow.includes('service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}'));
   assert.ok(functionsWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'json'"));
   assert.ok(functionsWorkflow.includes("steps.auth_preflight.outputs.auth_mode == 'oidc'"));
-  assert.match(functionsWorkflow, /deploy-reverse-ledger-staging:\s*\n\s*if: \$\{\{ false \}\}/,
-    'Functions deployment must remain frozen while the ActAs prerequisite is unresolved');
+  assert.ok(functionsWorkflow.includes('confirm_staging_functions_deploy'));
+  assert.ok(functionsWorkflow.includes('DEPLOY_STAGING_FUNCTIONS'));
+  assert.ok(functionsWorkflow.includes('default: "NO"'));
+  assert.ok(functionsWorkflow.includes("github.event_name == 'workflow_dispatch'"));
+  assert.ok(functionsWorkflow.includes("inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS'"));
+  assert.doesNotMatch(functionsWorkflow, /if:\\s*\\$\\{\\{\\s*false\\s*\\}\\}/,
+    'Functions deployment must be available only through an explicit Staging manual confirmation');
   assert.ok(functionsWorkflow.includes('FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT'));
   assert.ok(functionsWorkflow.includes('firebase-staging-bootstrap-service-account.json'));
   assert.ok(!functionsWorkflow.slice(0, functionsWorkflow.indexOf('jobs:')).includes('id-token: write'));
