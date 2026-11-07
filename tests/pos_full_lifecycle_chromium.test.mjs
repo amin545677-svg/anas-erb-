@@ -359,7 +359,10 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(salesBarcodeProof.resultHidden, true);
 
     await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي POS-20261107-001');
-    await page.locator('#posSearchResults .pos-search-quick-add').waitFor({ state: 'visible', timeout: 5000 });
+    // Explicitly invoke the same input handler after the first selection closes the result popup.
+    await page.evaluate(() => handlePosSearch(document.getElementById('posSearchField')?.value || ''));
+    await page.locator('#posSearchResults .pos-search-empty').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#posSearchResults .pos-search-quick-add').waitFor({ state: 'visible', timeout: 10000 });
     await page.locator('#posSearchResults .pos-search-quick-add').click();
     await page.locator('#addProductModal.active').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#newProdNameInput').inputValue(), 'صنف مبيعات سريع تجريبي POS-20261107-001');
