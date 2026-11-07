@@ -81,8 +81,8 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     });
     assert.equal(visual.pressed, 'true');
     assert.equal(visual.stored, 'dark');
-    assert.match(visual.cardGradient, /rgb\\(27,\\s*41,\\s*64\\)/i, 'dark dashboard card gradient must be active');
-    assert.match(visual.navGradient, /rgb\\(5,\\s*39,\\s*71\\)/i, 'dark navy navigation gradient must be active');
+    assert.match(visual.cardGradient, /rgb\(27,\\s*41,\\s*64\)/i, 'dark dashboard card gradient must be active');
+    assert.match(visual.navGradient, /rgb\(5,\\s*39,\\s*71\)/i, 'dark navy navigation gradient must be active');
     assert.ok(contrast(visual.cardText, 'rgb(27, 41, 64)') >= 4.5, 'dashboard title must meet WCAG AA against its rendered gradient stop');
     assert.ok(contrast(visual.brandText, 'rgb(5, 39, 71)') >= 4.5, 'navigation brand must meet WCAG AA against its rendered gradient stop');
 
