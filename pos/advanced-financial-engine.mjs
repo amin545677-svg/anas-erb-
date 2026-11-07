@@ -47,15 +47,33 @@ function classifyImportRow(row, sheetName = '') {
   return scores[0][0];
 }
 
-function identityFor(type, row) {
-  const keySets = {
-    products: ['barcode', 'الباركود', 'sku', 'code', 'رمز المنتج', 'name', 'الاسم', 'اسم المنتج'],
-    customers: ['phone', 'الهاتف', 'mobile', 'telephone', 'customer_id', 'رقم العميل', 'name', 'الاسم', 'العميل'],
-    suppliers: ['phone', 'الهاتف', 'mobile', 'telephone', 'supplier_id', 'رقم المورد', 'name', 'الاسم', 'المورد'],
-    invoices: ['invoice_no', 'رقم الفاتورة', 'invoice', 'id', 'رقم', 'date']
+function identityKeysFor(type, row) {
+  const groups = {
+    products: [
+      ['id', 'product_id', 'productId', 'معرف المنتج', 'رقم المنتج'],
+      ['barcode', 'الباركود', 'sku', 'code', 'رمز المنتج']
+    ],
+    customers: [
+      ['phone', 'الهاتف', 'mobile', 'telephone'],
+      ['id', 'customer_id', 'customerId', 'رقم العميل']
+    ],
+    suppliers: [
+      ['phone', 'الهاتف', 'mobile', 'telephone'],
+      ['id', 'supplier_id', 'supplierId', 'رقم المورد']
+    ],
+    invoices: [
+      ['id', 'invoice_id', 'invoiceId', 'invoice_no', 'invoiceNumber', 'رقم الفاتورة', 'number']
+    ]
   };
-  const value = first(row, keySets[type] || ['id', 'name']);
-  return norm(value);
+  return (groups[type] || [['id']]).flatMap((aliases, index) => {
+    const value = norm(first(row, aliases));
+    return value ? [(type === 'products' ? (index === 0 ? 'id:' : 'barcode:') :
+      type === 'customers' || type === 'suppliers' ? (index === 0 ? 'phone:' : 'id:') : 'invoice:') + value] : [];
+  });
+}
+
+function identityFor(type, row) {
+  return identityKeysFor(type, row)[0] || '';
 }
 
 export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
@@ -63,7 +81,7 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
   const existing = {};
   for (const type of ['suppliers', 'products', 'customers', 'invoices']) {
     existing[type] = new Set((Array.isArray(existingDB[type]) ? existingDB[type] : [])
-      .map(row => identityFor(type, row)).filter(Boolean));
+      .flatMap(row => identityKeysFor(type, row)));
   }
   const seen = Object.fromEntries(Object.keys(existing).map(type => [type, new Set()]));
   for (const [sheetName, rows] of Object.entries(sheetsDataMap || {})) {
@@ -77,12 +95,15 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
       const name = text(first(row, ['name', 'الاسم', 'اسم المنتج', 'العميل', 'الزبون', 'المورد']));
       const normalized = { ...row, name: name || text(first(row, ['رقم الفاتورة', 'invoice_no', 'barcode', 'الباركود'])) };
       if (!normalized.name) { staged.unclassified++; continue; }
-      const key = identityFor(type, normalized);
-      if (!key) { staged.unclassified++; continue; }
-      const isDuplicate = existing[type].has(key) || seen[type].has(key);
-      seen[type].add(key);
-      staged[type].push({ ...normalized, sourceSheet: sheetName, identityKey: key, isDuplicate,
-        duplicateScope: existing[type].has(key) ? 'database' : isDuplicate ? 'workbook' : null,
+      const identityKeys = identityKeysFor(type, normalized);
+      if (!identityKeys.length) { staged.unclassified++; continue; }
+      const key = identityKeys[0];
+      const isDatabaseDuplicate = identityKeys.some(identity => existing[type].has(identity));
+      const isWorkbookDuplicate = identityKeys.some(identity => seen[type].has(identity));
+      const isDuplicate = isDatabaseDuplicate || isWorkbookDuplicate;
+      identityKeys.forEach(identity => seen[type].add(identity));
+      staged[type].push({ ...normalized, sourceSheet: sheetName, identityKey: key, identityKeys, isDuplicate,
+        duplicateScope: isDatabaseDuplicate ? 'database' : isWorkbookDuplicate ? 'workbook' : null,
         action: isDuplicate ? 'match' : 'create' });
       staged.totalValidRows++;
     }
