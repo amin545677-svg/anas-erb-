@@ -12,6 +12,8 @@ test('report CSV declares semicolon delimiter for Excel regional settings and qu
   assert.ok(exporter.includes(".join(';')"));
   assert.ok(exporter.includes(".join('\\r\\n')"));
   assert.ok(html.includes('function anasCsvCell(value)'));
+  assert.ok(html.includes('function anasExportCurrentReportXLSX()'));
+  assert.ok(html.includes('function anasExportLocalAuditXLSX()'));
   const cellStart = html.indexOf('function anasCsvCell(value)');
   const cellEnd = html.indexOf('function anasExportCurrentReportCSV()', cellStart);
   const cell = html.slice(cellStart, cellEnd);
@@ -25,10 +27,13 @@ test('local audit and stocktake CSV declare their semicolon delimiter for Androi
   const auditEnd = html.indexOf('function anasAiSafeText', auditStart);
   assert.ok(auditStart >= 0 && auditEnd > auditStart, 'local audit exporter must exist');
   assert.ok(html.slice(auditStart, auditEnd).includes("const csv='\\uFEFFsep=;\\r\\n'"),
-    'audit CSV must carry UTF-8 BOM and explicit comma delimiter');
+    'audit CSV must carry UTF-8 BOM and explicit semicolon delimiter');
   const stocktakeStart = html.indexOf('window.anasExportStocktake=function()');
   const stocktakeEnd = html.indexOf('window.anasApproveStocktake=function()', stocktakeStart);
   assert.ok(stocktakeStart >= 0 && stocktakeEnd > stocktakeStart, 'stocktake exporter must exist');
-  assert.ok(html.slice(stocktakeStart, stocktakeEnd).includes("new Blob(['\\uFEFFsep=;\\r\\n'+lines.map"),
-    'stocktake CSV must carry UTF-8 BOM and explicit comma delimiter');
+  const stocktake = html.slice(stocktakeStart, stocktakeEnd);
+  assert.ok(stocktake.includes("XLSX.writeFile(wb,s.id+'_stocktake.xlsx'"),
+    'stocktake must export a real XLSX workbook when the bundled library is available');
+  assert.ok(stocktake.includes("const csv='\\uFEFFsep=;\\r\\n'") && stocktake.includes(".join(';')"),
+    'CSV fallback must carry UTF-8 BOM and an explicit semicolon delimiter');
 });
