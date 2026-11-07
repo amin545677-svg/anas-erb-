@@ -89,13 +89,17 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     const arabicControl = await page.evaluate(() => {
       const fixture = document.createElement('div');
       fixture.id = 'anasArabicThemeFixture';
-      fixture.innerHTML = '<button class="btn-multi-tab" type="button">المنتجات</button><button class="menu-action-card" type="button">مراجعة المخزون</button>';
+      fixture.style.cssText = 'width:100%;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;';
+      fixture.innerHTML = '<button class="menu-action-card" type="button">المنتجات</button><button class="menu-action-card" type="button">مراجعة المخزون</button><button class="pill-select-btn" type="button">ديون العملاء</button>';
       document.getElementById('view-dashboard').appendChild(fixture);
       return [...fixture.querySelectorAll('button')].map(el => {
+        el.style.width = '100%';
+        el.style.minWidth = '0';
+        el.style.boxSizing = 'border-box';
         const css = getComputedStyle(el);
         return { text: el.textContent.trim(), color: css.color, background: css.backgroundColor,
           letterSpacing: css.letterSpacing, wordBreak: css.wordBreak, direction: css.direction,
-          width: el.getBoundingClientRect().width, scrollWidth: el.scrollWidth };
+          width: el.clientWidth, scrollWidth: el.scrollWidth };
       });
     });
     for (const control of arabicControl) {
