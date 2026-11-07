@@ -190,10 +190,12 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await excelChooser.setFiles({
       name: 'mobile-preview.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from('name,quantity\\nItem A,4\\nItem B,7', 'utf8')
+      buffer: Buffer.from('name;quantity\\nItem A;4\\nItem B;7', 'utf8')
     });
     await page.locator('#smartAiExcelStatus').waitFor({ state: 'visible' });
     await page.waitForFunction(() => /تم فتح الملف بنجاح/.test(document.getElementById('smartAiExcelStatus')?.textContent || ''));
+    assert.match(await page.locator('#smartAiExcelStatus').innerText(), /الفاصل المكتشف: ;/,
+      'CSV delimiter detection must identify semicolon-separated data even when the first line is not sufficient');
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
     await page.locator('#smartImportCancel').click();
@@ -217,6 +219,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       ['TEA-005','611000000005','شاي أخضر 200غ',80,130,20,'مشروبات','علبة',4,'']
     ];
     const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['ملاحظات'], ['هذه الورقة ليست بيانات منتجات']]), 'Notes');
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
     const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     await page.locator('#smartAiExcelUpload').setInputFiles({
@@ -224,6 +227,11 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer: xlsxBuffer
     });
+    await page.locator('#smartImportSheetPicker').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#smartImportSheetChoice option').count(), 2,
+      'Excel import must expose every non-empty sheet when multiple sheets contain data');
+    await page.locator('#smartImportSheetChoice').selectOption({ label: 'Products — 6 صف' });
+    await page.locator('#smartImportSheetContinue').click();
     await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#smartImportTarget').inputValue(), 'products',
       'product columns must auto-select products and inventory');
