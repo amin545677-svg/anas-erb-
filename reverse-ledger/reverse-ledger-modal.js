@@ -239,7 +239,6 @@ function updatePreview() {
         row.sourceMovementType === movementType)
       .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
     byId('rev-preview-invoice-remaining').textContent = formatMoney(total - paid - allocations);
-    const engine = window.ANASReverseLedger;
     const reason = byId('rev-reason-input').value.trim();
     byId('rev-submit-btn').disabled = !(engine && typeof engine.localPostReturnTransaction === 'function' && reason);
     status('المعاينة ناجحة على نسخة بيانات معزولة. ستُعتمد الحركة محلياً بعد إعادة التحقق والحفظ الدائم.', true);
