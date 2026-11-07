@@ -9086,19 +9086,19 @@ function wtAuditTransfers(){
             if(!input||!target)return;
             const original=String(input.value||'').trim();
             if(!original){target.textContent='اكتب الأمر أولًا ثم أعد المحاولة.';return;}
-            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\\u200e\\u200f\\u061c\\u202a-\\u202e\\u2066-\\u2069]/g,'');
+            const normalizeDigits=s=>String(s??'').replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch))).replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g,'');
             const raw=normalizeDigits(original).replace(/٫/g,'.');
-            const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\\u200e\\u200f\\u061c]/g,'').replace(/\\s+/g,' ').trim().toLowerCase();
-            const number='(?<![\\\\d.,٫٬])(\\\\d+(?:[.,]\\\\d+)?)(?![\\\\d.,٫٬])';
+            const normalizeName=s=>String(s??'').normalize('NFKC').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[\u200e\u200f\u061c]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+            const number='(?<![\\d.,٫٬])(\\d+(?:[.,]\\d+)?)(?![\\d.,٫٬])';
             const unit='(?:علب|علبة|حبات|حبة|قطع|قطعة|كغ|كيلوغرام|لتر|وحدات|وحدة|كرتونة|كرتون|باكي|باكية|باكيات|سربيس)';
-            const qtyMatch=raw.match(new RegExp('(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\\\s*'+number,'i'))||raw.match(new RegExp(number+'\\\\s*'+unit+'(?=\\\\s|$)','i'));
-            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\\\s*'+number,'i'));
-            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\\s+(.+?)(?=\\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
-            const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\\s*(?:هي|:)?\\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\\b/i);
+            const qtyMatch=raw.match(new RegExp('(?:بيع|شراء|اشتر|أضف|اضف|كمية|عدد|بكمية)\\s*'+number,'i'))||raw.match(new RegExp(number+'\\s*'+unit+'(?=\\s|$)','i'));
+            const priceMatch=raw.match(new RegExp('(?:بسعر|السعر|ثمن|سعر الوحدة|بـ)\\s*'+number,'i'));
+            const customerMatch=raw.match(/(?:للعميل|للزبون|لزبون|العميل|الزبون)\s+(.+?)(?=\s+(?:بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع|على الحساب)|$)/i);
+            const paymentMatch=raw.match(/(?:طريقة الدفع|الدفع|دفع)\s*(?:هي|:)?\s*(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل|على الحساب)/i)||raw.match(/\b(نقدا|نقدًا|نقدي|تحويل|بطاقة|آجل)\b/i);
             const transaction=/مرتجع|إرجاع|استرجاع/.test(raw)?'مرتجع (مستنتج من النص)':/شراء|مشتريات|اشتر/.test(raw)?'شراء (مستنتج من النص)':/بيع|فاتورة بيع|سجل/.test(raw)?'بيع (مستنتج من النص)':'غير محدد';
-            let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\\s*/i,'').replace(new RegExp('^'+number+'\\\\s*'),'').trim();
-            itemText=itemText.replace(new RegExp('^'+unit+'\\\\s*','i'),'').trim();
-            const stop=itemText.search(/\\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)\\b/i);
+            let itemText=raw.replace(/^(?:بيع|شراء|اشتر|أضف|اضف)\s*/i,'').replace(new RegExp('^'+number+'\\s*'),'').trim();
+            itemText=itemText.replace(new RegExp('^'+unit+'\\s*','i'),'').trim();
+            const stop=itemText.search(/\s+(?:للعميل|للزبون|لزبون|العميل|الزبون|بسعر|السعر|ثمن|سعر الوحدة|طريقة الدفع|دفع)\b/i);
             if(stop>=0)itemText=itemText.slice(0,stop).trim();
             const products=Array.isArray(AppData.products)?AppData.products:[];
             const customers=Array.isArray(AppData.customers)?AppData.customers:[];
@@ -9124,13 +9124,9 @@ function wtAuditTransfers(){
             if(matchedCustomer)form.dataset.customerId=String(matchedCustomer.id);
             target.appendChild(form);
             const missing=fields.filter(([,key])=>!draft[key]).map(([labelText])=>labelText);
-            const invalidNumeric=[];
-            const qtyField=form.querySelector('[data-draft-field="quantity"]');
-            const priceField=form.querySelector('[data-draft-field="unitPrice"]');
-            if(qtyField&&qtyField.value!==''&&(!Number.isFinite(Number(qtyField.value))||Number(qtyField.value)<=0))invalidNumeric.push('الكمية يجب أن تكون رقمًا أكبر من صفر');
-            if(priceField&&priceField.value!==''&&(!Number.isFinite(Number(priceField.value))||Number(priceField.value)<0))invalidNumeric.push('سعر الوحدة يجب أن يكون رقمًا غير سالب');
+            const qtyField=form.querySelector('[data-draft-field="quantity"]'),priceField=form.querySelector('[data-draft-field="unitPrice"]');
             const note=document.createElement('p');note.style.cssText='margin:6px 0 0;color:var(--mp-text-muted)';
-            note.textContent='مسودة للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون قبل اعتمادك. '+(matchedProduct?'تمت مطابقة الصنف محليًا: '+matchedProduct.name+'. ':'')+(customerQuery?(matchedCustomer?'تمت مطابقة العميل محليًا: '+matchedCustomer.name+'. ':'لم تتم مطابقة العميل بشكل فريد مع السجلات المحلية. '):'')+(productCandidates.length>1?'اسم الصنف ملتبس؛ حسّن عبارة الصنف. ':'')+(customerCandidates.length>1?'اسم العميل ملتبس؛ أضف الاسم الكامل. ':'')+(missing.length?'حقول تحتاج إلى استكمال: '+missing.join('، ')+'. ':'')+(invalidNumeric.length?'تحذيرات رقمية: '+invalidNumeric.join('؛ ')+'. ':'');
+            note.textContent='مسودة للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون قبل اعتمادك. '+(matchedProduct?'تمت مطابقة الصنف محليًا: '+matchedProduct.name+'. ':'')+(customerQuery?(matchedCustomer?'تمت مطابقة العميل محليًا: '+matchedCustomer.name+'. ':'لم تتم مطابقة العميل بشكل فريد مع السجلات المحلية. '):'')+(productCandidates.length>1?'اسم الصنف ملتبس؛ حسّن عبارة الصنف. ':'')+(customerCandidates.length>1?'اسم العميل ملتبس؛ أضف الاسم الكامل. ':'')+(missing.length?'حقول تحتاج إلى استكمال: '+missing.join('، ')+'. ':'');
             target.appendChild(note);
             if(transaction.startsWith('بيع')&&matchedProduct&&matchedCustomer&&qtyField&&Number(qtyField.value)>0&&(!priceField.value||Number(priceField.value)>=0)){
                 const action=document.createElement('button');action.type='button';action.className='btn-full-submit';action.style.cssText='background:#0f766e;width:100%;margin-top:8px;min-height:46px';action.textContent='تحويل إلى فاتورة مبيعات جاهزة';
@@ -9141,17 +9137,14 @@ function wtAuditTransfers(){
             if(!form||!form.dataset.productId||!form.dataset.customerId){alert('تعذر التحويل: طابق الصنف والعميل من السجلات المحلية أولًا.');return false;}
             const product=(Array.isArray(AppData.products)?AppData.products:[]).find(p=>String(p.id)===String(form.dataset.productId));
             const customer=(Array.isArray(AppData.customers)?AppData.customers:[]).find(c=>String(c.id)===String(form.dataset.customerId));
-            const quantity=Number(form.querySelector('[data-draft-field="quantity"]')?.value);
-            const priceRaw=form.querySelector('[data-draft-field="unitPrice"]')?.value;
-            const price=priceRaw===''||priceRaw==null?null:Number(priceRaw);
-            const qtyUnits=anasToQtyUnits(quantity);
+            const quantity=Number(form.querySelector('[data-draft-field="quantity"]')?.value),priceRaw=form.querySelector('[data-draft-field="unitPrice"]')?.value;
+            const price=priceRaw===''||priceRaw==null?null:Number(priceRaw),qtyUnits=anasToQtyUnits(quantity);
             if(!product||!customer||!Number.isSafeInteger(qtyUnits)||qtyUnits<=0||price!==null&&(!Number.isFinite(price)||price<0)){alert('تحقق من الصنف والعميل والكمية والسعر قبل التحويل.');return false;}
             const saleWarehouse=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
             const available=typeof wtAvailableStock==='function'?wtAvailableStock(product,saleWarehouse):Number(product.stock)||0;
-            const existing=posCart.find(item=>String(item.id)===String(product.id));
-            const oldQty=existing?Number(existing.qty)||0:0,nextQty=oldQty+quantity;
+            const existing=posCart.find(item=>String(item.id)===String(product.id)),oldQty=existing?Number(existing.qty)||0,nextQty=oldQty+quantity;
             if(!Number.isFinite(available)||nextQty>available){alert('الكمية المطلوبة تتجاوز الرصيد المتاح في '+saleWarehouse+'.');return false;}
-            const oldCart=posCart.slice(),oldCarts=AppData.posScreensCarts,oldActive=AppData.activePosScreenTab;
+            const oldCart=posCart.map(item=>({...item})),oldCarts=AppData.posScreensCarts,oldActive=AppData.activePosScreenTab;
             const unitPrice=price===null?(AppData.activePriceTier===2?(product.price2||product.price1):(AppData.activePriceTier===3?(product.price3||product.price1):product.price1)):price;
             if(existing){existing.qty=nextQty;if(price!==null)existing.price=price;}
             else posCart.push({id:product.id,name:product.name,price:unitPrice,qty:quantity,unit:product.unit||'قطعة',image:product.image||''});
@@ -9166,13 +9159,6 @@ function wtAuditTransfers(){
             renderPosTable();return true;
         }
 
-        document.addEventListener('focusin',function(event){
-            const field=event.target;
-            if(!field||!field.matches||!field.matches('input,select,textarea'))return;
-            const container=field.closest('#addCustomerModal .picker-dialog-scroll, #view-customers .panel-card-form, #view-expenses .panel-card-form, #view-purchases .panel-card-form, #addSupplierModal .picker-dialog-scroll, #hasibModal .picker-dialog-scroll');
-            if(!container)return;
-            setTimeout(()=>{try{field.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});}catch(_){}},160);
-        },true);
         function anasRefreshAiMorningBrief(){
             const target=document.getElementById('anasAiMorningBrief');if(!target)return;
             const invoices=Array.isArray(AppData.invoices)?AppData.invoices:[];
