@@ -157,6 +157,34 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.match(await page.locator('#smartPdfExtractText').inputValue(), /ANAS ERP PDF Smoke Tes/,
     'PDF text must be extracted locally even when Android omits the extension and reports generic MIME');
 
+  // Scanned-PDF OCR: exercise page rendering, local OCR handoff, page labels and review output.
+  await page.evaluate(() => {
+    window.pdfjsLib = {
+      GlobalWorkerOptions: {},
+      getDocument: () => ({ promise: Promise.resolve({
+        numPages: 2,
+        getPage: async pageNumber => ({
+          getViewport: () => ({ width: 612, height: 792 }),
+          render: () => ({ promise: Promise.resolve() }),
+          cleanup() {}
+        }),
+        destroy: async () => {}
+      }) })
+    };
+    window.anasGetInvoiceOcrWorker = async () => ({
+      recognize: async () => ({ data: { text: 'OCR PAGE TEXT VERIFIED' } })
+    });
+  });
+  await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
+  await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
+    document.querySelector('#smartAiExcelStatus')?.textContent || ''
+  ));
+  const scannedPdfText = await page.locator('#smartPdfExtractText').inputValue();
+  assert.match(scannedPdfText, /الصفحة 1 \(OCR\)/);
+  assert.match(scannedPdfText, /الصفحة 2 \(OCR\)/);
+  assert.equal(await page.locator('#smartPdfExtractText').isEditable(), true,
+    'OCR output must be editable for human correction before export or AI analysis');
+
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
