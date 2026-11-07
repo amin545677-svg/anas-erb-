@@ -3111,32 +3111,67 @@ input:focus, select:focus, textarea:focus {
             const empty = document.getElementById('posQuickProductsEmpty');
             if (empty) empty.hidden = filtered.length > 0;
         }
+        function anasCalculateExecutiveAnalytics(invoices = [], expenses = [], customers = []) {
+            const rows = Array.isArray(invoices) ? invoices : [];
+            const expenseRows = Array.isArray(expenses) ? expenses : [];
+            let revenueCents = 0, collectedCents = 0, cogsCents = 0, expenseCents = 0;
+            let costComplete = true, dataValid = true;
+            for (const invoice of rows) {
+                try {
+                    const total = anasToCents(invoice?.total ?? 0), paid = anasToCents(invoice?.paid ?? 0);
+                    if (!Number.isSafeInteger(total) || total < 0 || !Number.isSafeInteger(paid) || paid < 0 || paid > total) throw new Error('INVALID_INVOICE_MONEY');
+                    revenueCents += total; collectedCents += paid;
+                    if (!Number.isSafeInteger(revenueCents) || !Number.isSafeInteger(collectedCents)) throw new Error('MONEY_OVERFLOW');
+                    for (const item of (Array.isArray(invoice.items) ? invoice.items : [])) {
+                        const quantityUnits = anasToQtyUnits(item?.qty ?? item?.quantity);
+                        if (!Number.isSafeInteger(quantityUnits) || quantityUnits < 0) throw new Error('INVALID_SALE_QUANTITY');
+                        if (item?.costPrice === null || item?.costPrice === undefined || item?.costPrice === '') { costComplete = false; continue; }
+                        const unitCostCents = anasToCents(item.costPrice);
+                        if (!Number.isSafeInteger(unitCostCents) || unitCostCents < 0) throw new Error('INVALID_COST_SNAPSHOT');
+                        const lineCost = (BigInt(quantityUnits) * BigInt(unitCostCents) + 500000n) / 1000000n;
+                        if (lineCost > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('COST_OVERFLOW');
+                        cogsCents += Number(lineCost);
+                        if (!Number.isSafeInteger(cogsCents)) throw new Error('COST_OVERFLOW');
+                    }
+                } catch (_) { dataValid = false; }
+            }
+            for (const expense of expenseRows) {
+                try {
+                    const amount = anasToCents(expense?.amt ?? expense?.amount ?? 0);
+                    if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('INVALID_EXPENSE');
+                    expenseCents += amount;
+                    if (!Number.isSafeInteger(expenseCents)) throw new Error('EXPENSE_OVERFLOW');
+                } catch (_) { dataValid = false; }
+            }
+            const debtsCents = (Array.isArray(customers) ? customers : []).reduce((sum, customer) => {
+                try { const debt = anasToCents(customer?.debt ?? 0); return sum + (debt > 0 ? debt : 0); }
+                catch (_) { dataValid = false; return sum; }
+            }, 0);
+            const grossCents = dataValid && costComplete ? revenueCents - cogsCents : null;
+            const netCents = grossCents === null ? null : grossCents - expenseCents;
+            return { invoiceCount: rows.length, revenueCents, collectedCents, cogsCents, expenseCents,
+                debtsCents, grossCents, netCents, costComplete, dataValid };
+        }
+
         function updateDashboardStats() {
             const today = new Date();
-            const sameLocalDay = (value) => {
+            const sameLocalDay = value => {
                 if (!value) return false;
-                const d = new Date(value);
-                return !Number.isNaN(d.getTime()) && d.getFullYear() === today.getFullYear() &&
-                    d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+                const date = new Date(value);
+                return !Number.isNaN(date.getTime()) && date.getFullYear() === today.getFullYear() &&
+                    date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
             };
-            const todayInvoices = (Array.isArray(AppData.invoices) ? AppData.invoices : []).filter(inv =>
-                sameLocalDay(inv.date || inv.createdAt || inv.timestamp || inv.invoiceDate)
-            );
-            const todaySales = todayInvoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
-            const todayCost = todayInvoices.reduce((sum, inv) => sum + (Array.isArray(inv.items) ? inv.items.reduce((sub, it) => {
-                const prod = (AppData.products || []).find(p => String(p.id) === String(it.id));
-                const unitCost = prod ? (Number(prod.buyPrice) || 0) : ((Number(it.price) || 0) * 0.8);
-                return sub + unitCost * (Number(it.qty) || 0);
-            }, 0) : 0), 0);
-            const todayProfit = todaySales - todayCost;
-            const totalDebts = (Array.isArray(AppData.customers) ? AppData.customers : []).reduce((sum, c) => sum + (Number(c.debt) || 0), 0);
-            const fmt = n => n.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ج';
-            const sEl = document.getElementById('dashTodaySales');
-            const pEl = document.getElementById('dashTodayProfit');
-            const dEl = document.getElementById('dashTotalDebts');
-            if (sEl) sEl.innerText = fmt(todaySales);
-            if (pEl) pEl.innerText = fmt(todayProfit);
-            if (dEl) dEl.innerText = fmt(totalDebts);
+            const todayInvoices = (Array.isArray(AppData.invoices) ? AppData.invoices : []).filter(invoice =>
+                sameLocalDay(invoice.date || invoice.createdAt || invoice.timestamp || invoice.invoiceDate));
+            const todayExpenses = (Array.isArray(AppData.expenses) ? AppData.expenses : []).filter(expense =>
+                sameLocalDay(expense.date || expense.createdAt || expense.timestamp));
+            const metrics = anasCalculateExecutiveAnalytics(todayInvoices, todayExpenses, AppData.customers || []);
+            const fmt = cents => (cents / 100).toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' د.ج';
+            const sales = document.getElementById('dashTodaySales'), profit = document.getElementById('dashTodayProfit');
+            const debts = document.getElementById('dashTotalDebts');
+            if (sales) sales.innerText = fmt(metrics.revenueCents);
+            if (profit) profit.innerText = metrics.netCents === null ? 'غير مكتمل — تكلفة بعض الأصناف غير مسجلة' : fmt(metrics.netCents);
+            if (debts) debts.innerText = fmt(metrics.debtsCents);
         }
 
         function openLuminaAnalyticsModal() {
@@ -3153,47 +3188,30 @@ input:focus, select:focus, textarea:focus {
         }
 
         function renderLuminaAnalytics() {
-            let totalRev = 0;
-            let totalCost = 0;
-            let cashIn = 0;
-
-            AppData.invoices.forEach(inv => {
-                totalRev += inv.total;
-                cashIn += (inv.paid || 0);
-                inv.items.forEach(it => {
-                    const p = AppData.products.find(x => x.id === it.id);
-                    totalCost += (p ? p.buyPrice : (it.price * 0.8)) * it.qty;
-                });
-            });
-
-            const grossProfit = totalRev - totalCost;
-            const avgBasket = AppData.invoices.length > 0 ? (totalRev / AppData.invoices.length) : 0;
-            const totalExpenses = (AppData.expenses || []).reduce((a, b) => a + (b.amt || 0), 0);
-
-            const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
-            setText('luminaNetRev', totalRev.toFixed(2) + ' د.ج');
-            setText('luminaCostSales', totalCost.toFixed(2) + ' د.ج');
-            setText('luminaGrossProfit', grossProfit.toFixed(2) + ' د.ج');
-            setText('luminaAvgBasket', avgBasket.toFixed(2) + ' د.ج');
-            setText('luminaCashIn', cashIn.toFixed(2) + ' د.ج');
-            setText('luminaCashOut', totalExpenses.toFixed(2) + ' د.ج');
-
-            // كشف ديون العملاء
-            const dList = document.getElementById('luminaDebtsList');
-            if (!dList) return;
-            const debtCustomers = AppData.customers.filter(c => Number(c.debt) > 0);
-            if(debtCustomers.length === 0) {
-                dList.innerHTML = '<p style="text-align:center; color:#16a34a; font-size:12px; padding:10px;">جميع حسابات الزبائن خالصة بنجاح ✅</p>';
+            const invoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];
+            const expenses = Array.isArray(AppData.expenses) ? AppData.expenses : [];
+            const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
+            const metrics = anasCalculateExecutiveAnalytics(invoices, expenses, customers);
+            const fmt = cents => (cents / 100).toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' د.ج';
+            const setText = (id, value) => { const element = document.getElementById(id); if (element) element.innerText = value; };
+            setText('luminaNetRev', fmt(metrics.revenueCents));
+            setText('luminaCostSales', metrics.costComplete ? fmt(metrics.cogsCents) : 'غير مكتمل — تكلفة شراء غير محفوظة لبعض الفواتير');
+            setText('luminaGrossProfit', metrics.grossCents === null ? 'غير مكتمل' : fmt(metrics.grossCents));
+            setText('luminaNetProfit', metrics.netCents === null ? 'غير مكتمل' : fmt(metrics.netCents));
+            setText('luminaAvgBasket', invoices.length ? fmt(Math.round(metrics.revenueCents / invoices.length)) : fmt(0));
+            setText('luminaCashIn', fmt(metrics.collectedCents));
+            setText('luminaCashOut', fmt(metrics.expenseCents));
+            const debtList = document.getElementById('luminaDebtsList');
+            if (!debtList) return;
+            const debtCustomers = customers.filter(customer => Number(customer.debt) > 0);
+            if (!debtCustomers.length) {
+                debtList.innerHTML = '<p style="text-align:center;color:#16a34a;font-size:12px;padding:10px;">جميع حسابات الزبائن خالصة بنجاح ✅</p>';
             } else {
-                dList.innerHTML = debtCustomers.map(c => `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #e2e8f0; font-size:12px;">
-                        <div>
-                            <strong>${anasEscapeHTML(c.name)}</strong><br>
-                            <small style="color:#64748b;">📞 ${anasEscapeHTML(c.phone || '-')}</small>
-                        </div>
-                        <strong style="color:#ef4444; font-size:13px;">${((typeof c.debt === 'number' || typeof c.debt === 'string') && c.debt !== null && c.debt !== undefined && c.debt !== '' && !(typeof c.debt === 'string' && c.debt.trim() === '') && Number.isFinite(Number(c.debt)) ? Number(c.debt).toFixed(2) : 'غير صالح')} د.ج</strong>
-                    </div>
-                `).join('');
+                debtList.innerHTML = debtCustomers.map(customer => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px;">
+                        <div><strong>${anasEscapeHTML(customer.name)}</strong><br><small style="color:#64748b;">📞 ${anasEscapeHTML(customer.phone || '-')}</small></div>
+                        <strong style="color:#ef4444;font-size:13px;">${Number.isFinite(Number(customer.debt)) ? Number(customer.debt).toFixed(2) : 'غير صالح'} د.ج</strong>
+                    </div>`).join('');
             }
         }
 
@@ -4464,7 +4482,13 @@ input:focus, select:focus, textarea:focus {
             const normalizedItems = cart.map(it => {
                 const qtyUnits = anasToQtyUnits(it.qty);
                 const priceCents = anasToCents(it.price);
-                return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents),
+                const product = saleProducts.get(String(it.id));
+                let costPrice = null;
+                try {
+                    const costCents = anasToCents(product?.buyPrice ?? product?.cost_price);
+                    if (Number.isSafeInteger(costCents) && costCents >= 0) costPrice = anasCentsToCurrency(costCents);
+                } catch (_) {}
+                return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents), costPrice,
                     total:anasCentsToCurrency(Math.round(qtyUnits * priceCents / ANAS_QTY_SCALE))};
             });
             const invObj = {
@@ -11591,6 +11615,10 @@ function wtAuditTransfers(){
                     <div style="background:#fff; padding:8px; border-radius:6px; border:1px solid #cbd5e1;">
                         <small style="color:#64748b; font-size:11px;">إجمالي الربح:</small>
                         <div style="font-weight:900; color:#16a34a;" id="luminaGrossProfit">0.00 د.ج</div>
+                    </div>
+                    <div style="background:#fff; padding:8px; border-radius:6px; border:1px solid #cbd5e1;">
+                        <small style="color:#64748b; font-size:11px;">صافي الربح بعد المصاريف:</small>
+                        <div style="font-weight:900; color:#0f766e;" id="luminaNetProfit">0.00 د.ج</div>
                     </div>
                     <div style="background:#fff; padding:8px; border-radius:6px; border:1px solid #cbd5e1;">
                         <small style="color:#64748b; font-size:11px;">متوسط الفاتورة:</small>
