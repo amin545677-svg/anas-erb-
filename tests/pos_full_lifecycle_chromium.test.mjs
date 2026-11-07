@@ -203,6 +203,24 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await commitNumberEditor(quantitySelector, '1');
     await commitNumberEditor(priceSelector, '25.00');
     await page.waitForFunction(() => document.getElementById('hasibTotalText')?.textContent === '25.00 د.ج');
+    await page.evaluate(() => {
+      window.__posOriginalSaveDBForTest = window.saveDB;
+      window.saveDB = () => false;
+    });
+    await commitNumberEditor(priceSelector, '26.00');
+    assert.equal(await page.evaluate(() => posCart[0].price), 25,
+      'failed persistence must roll back the edited unit price');
+    assert.equal(await page.evaluate(() => AppData.posScreensCarts[AppData.activePosScreenTab][0].price), 25,
+      'failed persistence must restore the active persisted cart mirror');
+    await page.locator('#hasibCartItems button').filter({ hasText: 'حذف' }).click();
+    assert.equal(await page.evaluate(() => posCart.length), 1,
+      'failed persistence must roll back a cart-line removal');
+    assert.equal(await page.evaluate(() => AppData.posScreensCarts[AppData.activePosScreenTab].length), 1,
+      'failed removal must restore the active cart mirror as well');
+    await page.evaluate(() => {
+      window.saveDB = window.__posOriginalSaveDBForTest;
+      delete window.__posOriginalSaveDBForTest;
+    });
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
