@@ -237,11 +237,10 @@ function updatePreview() {
         row.sourceMovementType === movementType)
       .reduce((sum, row) => sum + BigInt(row.amountCentimes), 0n);
     byId('rev-preview-invoice-remaining').textContent = formatMoney(total - paid - allocations);
-    const gateway = window.ANASReverseLedgerServer;
-    const periodId = byId('rev-period-id').value.trim();
+    const engine = window.ANASReverseLedger;
     const reason = byId('rev-reason-input').value.trim();
-    byId('rev-submit-btn').disabled = !(gateway && typeof gateway.execute === 'function' && periodId && reason);
-    status('المعاينة ناجحة على نسخة بيانات معزولة. لم يتغير أي سجل محلي. الترحيل يتطلب بوابة خادمية موثوقة وصلاحية فترة مالية مفتوحة.', true);
+    byId('rev-submit-btn').disabled = !(engine && typeof engine.executeReturnTransaction === 'function' && reason);
+    status('المعاينة ناجحة على نسخة منفصلة. ستُعتمد الحركة محلياً بعد إعادة التحقق وحفظ IndexedDB.', true);
   } catch (error) {
     status(error && error.message ? error.message : 'تعذر حساب المعاينة.', false);
   }
@@ -298,15 +297,14 @@ function mount() {
     '<div class="rev-body"><section class="rev-section"><h3>1. الفاتورة والأهلية</h3><label>الفاتورة<select id="rev-invoice-select"><option value="">اختر الفاتورة...</option></select></label><div id="rev-eligibility-status" class="rev-status" role="status" aria-live="polite">اختر فاتورة لبدء فحص الأهلية.</div></section>'+
     '<section class="rev-section"><h3>2. الأصناف والكميات</h3><div class="rev-items"><table><thead><tr><th>الصنف</th><th>الأصلية</th><th>مرتجع سابقاً</th><th>المتاح للإرجاع</th><th>المخزون الحالي</th><th>الكمية الآن</th><th>قيمة السطر</th></tr></thead><tbody id="rev-items-body"><tr><td colspan="7">اختر فاتورة لعرض الأصناف.</td></tr></tbody></table></div></section>'+
     '<section class="rev-section"><h3>3. المعاينة المالية الدقيقة</h3><div class="rev-preview"><div><small>إجمالي المرتجع</small><strong id="rev-preview-total">—</strong></div><div><small>المتبقي المشتق على الفاتورة</small><strong id="rev-preview-invoice-remaining">—</strong></div><div><small>إطفاء الدين أولاً</small><strong id="rev-preview-debt-reduction">—</strong></div><div><small>الفائض النقدي / الدائن</small><strong id="rev-preview-cash-excess">—</strong></div></div>'+
-    '<div class="rev-grid"><label>معالجة الفائض<select id="rev-excess-mode"><option value="cash">نقداً</option><option value="credit">رصيد دائن</option></select></label><label>الفترة المالية (معرّف الخادم)<input id="rev-period-id" maxlength="128" autocomplete="off" placeholder="يتطلب معرّف فترة مفتوحة"></label><label>سبب العملية<input id="rev-reason-input" maxlength="500" placeholder="سبب الإرجاع أو الإلغاء"></label></div></section>'+
-    '<div class="rev-actions"><button type="button" id="rev-submit-btn" disabled>طلب الترحيل الخادمي</button><button type="button" id="rev-cancel-btn">إغلاق</button></div><p style="font-size:.75rem;color:#64748b;margin:0">المعاينة تعمل على نسخة منفصلة من البيانات. لا يُسمح بأي تعديل محلي. زر الترحيل لا يعمل إلا عند اتصال بوابة خادمية موثوقة وتحديد فترة مالية مفتوحة.</p></div></div>';
+    '<div class="rev-grid"><label>معالجة الفائض<select id="rev-excess-mode"><option value="cash">نقداً</option><option value="credit">رصيد دائن</option></select></label><label>سبب العملية<input id="rev-reason-input" maxlength="500" placeholder="سبب الإرجاع أو الإلغاء"></label></div></section>'+
+    '<div class="rev-actions"><button type="button" id="rev-submit-btn" disabled>اعتماد المرتجع محلياً</button><button type="button" id="rev-cancel-btn">إغلاق</button></div><p style="font-size:.75rem;color:#64748b;margin:0">تُقرأ الفواتير من بيانات هذا الجهاز، وتُسجّل حركة المرتجع في IndexedDB دون الحاجة إلى اتصال.</p></div></div>';
   document.body.appendChild(overlay);
   byId('rev-close-btn').addEventListener('click', close);
   byId('rev-cancel-btn').addEventListener('click', close);
   overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
   byId('rev-invoice-select').addEventListener('change', onInvoiceChange);
   byId('rev-excess-mode').addEventListener('change', updatePreview);
-  byId('rev-period-id').addEventListener('input', updatePreview);
   byId('rev-reason-input').addEventListener('input', updatePreview);
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && overlay.classList.contains('active')) close(); });
   byId('rev-submit-btn').addEventListener('click', submit);
@@ -320,7 +318,6 @@ function open(mode) {
   state.preview = null;
   byId('rev-modal-title').textContent = MODES[mode].title;
   byId('rev-reason-input').value = '';
-  byId('rev-period-id').value = '';
   byId('rev-excess-mode').value = 'cash';
   byId('modal-reverse-ledger').classList.add('active');
   try {
@@ -347,37 +344,39 @@ function operationId() {
 async function submit() {
   const button = byId('rev-submit-btn');
   if (!state.preview || !state.invoice) return;
-  const gateway = window.ANASReverseLedgerServer;
-  if (!gateway || typeof gateway.execute !== 'function') {
-    status('الترحيل محجوب: لم يتم تهيئة بوابة Firebase الخادمية الموثوقة. لم تتغير البيانات.', false);
-    button.disabled = true;
-    return;
-  }
-  const periodId = byId('rev-period-id').value.trim();
+  const engine = window.ANASReverseLedger;
   const reason = byId('rev-reason-input').value.trim();
-  if (!periodId || !reason) {
-    status('أدخل الفترة المالية وسبب العملية قبل طلب الترحيل.', false);
+  if (!engine || typeof engine.executeReturnTransaction !== 'function') {
+    status('محرك المرتجعات المحلي غير متاح؛ لم تتغير البيانات.', false);
     return;
   }
+  if (!reason) { status('أدخل سبب المرتجع قبل الاعتماد.', false); return; }
   const request = buildRequest();
   request.reason = reason;
-  request.periodId = periodId;
   request.operationId = operationId();
   button.disabled = true;
-  button.textContent = 'جارٍ التحقق والترحيل الخادمي…';
+  button.textContent = 'جارٍ اعتماد المرتجع محلياً…';
   try {
-    const response = await gateway.execute(request);
-    if (!response || response.ok !== true || !response.document) {
-      throw new Error(response && response.error ? String(response.error) : 'لم يؤكد الخادم نجاح الترحيل.');
-    }
-    status('أكد الخادم نجاح الترحيل. رقم المستند: ' + String(response.document.returnId || '—'), true);
-    button.textContent = 'تم تأكيد الترحيل';
-    window.alert('تم تأكيد الترحيل الخادمي. رقم المستند: ' + String(response.document.returnId || '—') + '. أعد تحميل بيانات السحابة قبل متابعة العمل.');
+    const document = engine.executeReturnTransaction(appData(), request, {
+      createId: () => request.operationId,
+      operatorId: String(appData().currentUser?.id ?? 'local'),
+      persist: () => typeof saveDB === 'function' && saveDB() === true
+    });
+    if (!document || document.status !== 'POSTED') throw new Error('لم يُنشأ قيد مرتجع محلي مؤكد.');
+    status('تم اعتماد المرتجع محلياً. رقم القيد: ' + String(document.returnId || '—'), true);
+    button.textContent = 'تم الاعتماد محلياً';
+    try {
+      if (typeof renderInventoryList === 'function') renderInventoryList();
+      if (typeof renderQuickProducts === 'function') renderQuickProducts();
+      if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
+      if (typeof updateCashUI === 'function') updateCashUI();
+      if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
+    } catch (refreshError) { console.error('Local return saved; UI refresh failed', refreshError); }
     close();
   } catch (error) {
-    status('لم يتم الترحيل: ' + String(error && error.message || error) + '. لم يتم اعتماد أي نجاح محلي.', false);
-    button.textContent = 'طلب الترحيل الخادمي';
-    button.disabled = true;
+    status('لم يتم اعتماد المرتجع: ' + String(error && error.message || error) + '. لم تُعلن أي حركة ناجحة.', false);
+    button.textContent = 'اعتماد المرتجع محلياً';
+    button.disabled = false;
   }
 }
 window.ANASReverseLedgerModal = Object.freeze({ open, close, modes: MODES });
