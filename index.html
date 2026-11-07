@@ -5673,7 +5673,7 @@ function renderPurchasesTable() {
         }
 
         function saveNewCustomerMpos() {
-            cancelPendingCustomerGpsRequest();
+            if (typeof cancelPendingCustomerGpsRequest === 'function') cancelPendingCustomerGpsRequest();
             const name = document.getElementById('newCustNameInput').value.trim();
             const phone = document.getElementById('newCustPhoneInput').value.trim();
             const phone2 = document.getElementById('newCustPhone2Input').value.trim();
