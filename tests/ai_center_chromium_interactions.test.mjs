@@ -243,6 +243,9 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // verified pre-import snapshot before the modal reports success.
   await page.locator('#smartImportTarget').selectOption('products');
   await page.locator('#smartImportConfirm').evaluate(button => button.click());
+  await page.locator('#smartImportReview').getByText('Widget XLSX').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#smartImportReview').innerText(), /مطابقة كل البنود تلقائياً/);
+  await page.locator('#smartImportConfirm').evaluate(button => button.click());
   await page.waitForFunction(() => /اكتمل الاستيراد المحلي/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ), { timeout: 15000 });

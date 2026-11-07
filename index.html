@@ -10548,9 +10548,27 @@ function wtAuditTransfers(){
             const box=document.createElement('div');box.id='smartImportPreviewModal';
             let backupDownloadRequested=true;
             box.style.cssText='position:fixed;inset:0;z-index:100001;background:#020617dd;overflow:auto;padding:12px;';
-            box.innerHTML=`<div style="max-width:760px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:14px"><h3>📊 معاينة الملف قبل الاستيراد</h3><p style="overflow-wrap:anywhere">الملف: ${esc(fileName)}<br>عدد السجلات المحتملة: ${Math.max(0,rows.length-1)}. هذه معاينة فقط ولم يتم تعديل بياناتك.</p><div style="overflow:auto;max-height:45vh"><table style="border-collapse:collapse;width:100%;font-size:12px;direction:auto">${sample.map(r=>'<tr>'+r.slice(0,12).map(c=>'<td style="border:1px solid #cbd5e1;padding:6px">'+esc(c)+'</td>').join('')+'</tr>').join('')}</table></div><button id="smartImportAiAnalyze" class="btn-full-submit" style="background:#7c3aed;margin-top:10px">🔎 تحليل الأعمدة محلياً دون اتصال</button><div id="smartImportAiStatus" role="status" style="margin:8px 0;font-size:13px;line-height:1.7"></div><label style="display:block;margin-top:12px;font-weight:bold">القسم المكتشف تلقائياً (يمكن تغييره عند الحاجة):</label><select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked disabled style="margin-top:4px"> تُنشأ لقطة احتياطية محلية تلقائياً قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
+            box.innerHTML=`<div style="max-width:760px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:14px"><h3>📊 معاينة الملف قبل الاستيراد</h3><p style="overflow-wrap:anywhere">الملف: ${esc(fileName)}<br>عدد السجلات المحتملة: ${Math.max(0,rows.length-1)}. هذه معاينة فقط ولم يتم تعديل بياناتك.</p><div style="overflow:auto;max-height:45vh"><table style="border-collapse:collapse;width:100%;font-size:12px;direction:auto">${sample.map(r=>'<tr>'+r.slice(0,12).map(c=>'<td style="border:1px solid #cbd5e1;padding:6px">'+esc(c)+'</td>').join('')+'</tr>').join('')}</table></div><button id="smartImportAiAnalyze" class="btn-full-submit" style="background:#7c3aed;margin-top:10px">🔎 تحليل الأعمدة محلياً دون اتصال</button><div id="smartImportAiStatus" role="status" style="margin:8px 0;font-size:13px;line-height:1.7"></div><label style="display:block;margin-top:12px;font-weight:bold">القسم المكتشف تلقائياً (يمكن تغييره عند الحاجة):</label><div id="smartImportCategoryTabs" role="tablist" aria-label="نوع البيانات المستوردة" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:8px 0">
+<button type="button" data-smart-import-target="suppliers" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">موردين</button>
+<button type="button" data-smart-import-target="products" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">منتجات</button>
+<button type="button" data-smart-import-target="customers" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">عملاء</button>
+<button type="button" data-smart-import-target="invoices" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">فواتير</button>
+</div>
+<select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><div id="smartImportReview" style="margin:8px 0"></div><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked disabled style="margin-top:4px"> تُنشأ لقطة احتياطية محلية تلقائياً قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
             document.body.appendChild(box);
             box.querySelector('#smartImportBackupAck').checked=true;
+            box.querySelectorAll('[data-smart-import-target]').forEach(button=>{
+                button.addEventListener('click',()=>{
+                    const target=button.dataset.smartImportTarget;
+                    if(target==='invoices'){
+                        box.querySelector('#smartImportValidation').textContent='⚠️ استيراد الفواتير يحتاج قالباً محاسبياً مستقلاً يربط قيود الصندوق والمخزون والديون. لم نفعّل استيراداً عاماً قد يغيّر الأرصدة خطأً.';
+                        return;
+                    }
+                    box.querySelector('#smartImportTarget').value=target;
+                    box.querySelectorAll('[data-smart-import-target]').forEach(x=>x.style.outline=x===button?'2px solid var(--mp-accent,#2563eb)':'none');
+                });
+            });
+
             box.querySelector('#smartImportAiAnalyze').onclick=async()=>{
                 const st=box.querySelector('#smartImportAiStatus');
                 const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').trim();
@@ -10652,10 +10670,9 @@ function wtAuditTransfers(){
                         const keyName=norm(name);
                         if(seenNames.has(keyName) && target!=='products') throw new Error('اسم مكرر داخل الملف');
                         if(target==='products' && seenNames.has(keyName) && !id && !val(r,'barcode')) throw new Error('اسم منتج مكرر دون كود أو باركود فريد');
-                        if(target!=='products' && existingNames.has(keyName)) throw new Error('الاسم موجود مسبقًا في النظام؛ لم يتم دمجه تلقائيًا');
                         const recordId=id||((target==='products'?'P-IMP-':target==='customers'?'CUST-IMP-':'SUP-IMP-')+Date.now()+'-'+ix);
                         if(!id && target==='products' && existingCodes.has(norm(recordId))) throw new Error('معرّف الصنف المولد موجود مسبقاً؛ أوقف الاستيراد لحماية السجلات.');
-                        if((target!=='products' && existingCodes.has(norm(recordId))) || seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل مكرر داخل الملف');
+                        if(seenIds.has(norm(recordId))) throw new Error('رقم/كود السجل مكرر داخل الملف');
                         const rec={};
                         if(target==='products'){
                             const buy=num(val(r,'buy'),'سعر الشراء',rowNo), price1=num(val(r,'price1'),'سعر البيع',rowNo), stock=num(val(r,'stock'),'المخزون',rowNo), pack=num(val(r,'pack')||'1','العبوة',rowNo);
@@ -10672,10 +10689,10 @@ function wtAuditTransfers(){
                             if(val(r,'supplier')) rec.supplier=val(r,'supplier');
                         }else if(target==='customers'){
                             const debt=num(val(r,'debt'),'الدين',rowNo); if(debt<0) throw new Error('الدين لا يمكن أن يكون سالبًا');
-                            const phone=val(r,'phone'); if(phone && (existingPhones.has(norm(phone))||staged.some(c=>norm(c.phone)===norm(phone)))) throw new Error('رقم الهاتف موجود مسبقًا');
+                            const phone=val(r,'phone'); if(phone && staged.some(c=>norm(c.phone)===norm(phone))) throw new Error('رقم الهاتف موجود مسبقًا');
                             Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),rc:val(r,'rc'),nif:val(r,'nif'),nis:val(r,'nis'),art:val(r,'art'),location:val(r,'location'),debt,debtDate:val(r,'debtDate')});
                         }else{
-                            const phone=val(r,'phone'); if(phone && (existingPhones.has(norm(phone))||staged.some(s=>norm(s.phone)===norm(phone)))) throw new Error('رقم الهاتف موجود مسبقًا');
+                            const phone=val(r,'phone'); if(phone && staged.some(s=>norm(s.phone)===norm(phone))) throw new Error('رقم الهاتف موجود مسبقًا');
                             Object.assign(rec,{id:recordId,name,phone,address:val(r,'address'),email:val(r,'email'),nif:val(r,'nif'),nis:val(r,'nis'),rc:val(r,'rc')});
                         }
                         seenNames.add(keyName); seenIds.add(norm(recordId)); if(id) explicitImportIds.add(recordId); staged.push(rec);
@@ -10686,6 +10703,33 @@ function wtAuditTransfers(){
                     return;
                 }
                 if(!staged.length){validation.textContent='❌ لا توجد سجلات صالحة للاستيراد.';return;}
+                if(!window.ANASLocalOperations) throw new Error('محرك المطابقة المحلي غير متاح؛ أُلغي الاستيراد دون تغيير.');
+                const importMatches=window.ANASLocalOperations.classifyImportRows(staged,existing,target);
+                const reviewHost=box.querySelector('#smartImportReview');
+                const reviewLabel=row=>String(row.record&&row.record.name||row.record&&row.record.id||'سجل بلا اسم');
+                if(!box.dataset.smartImportReviewReady){
+                    reviewHost.innerHTML='<div style="border:1px solid var(--mp-border);border-radius:10px;padding:9px;background:var(--mp-card,#fff)"><div style="display:flex;gap:7px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong>مراجعة البيانات المستخرجة ('+staged.length+')</strong><button type="button" id="smartImportAutoMatch" class="btn-full-submit" style="width:auto;padding:7px 10px;background:#6d28d9">مطابقة كل البنود تلقائياً</button></div><p style="font-size:11px;color:var(--mp-text-muted)">راجع كل سجل. المطابقة بالاسم وحده تحتاج مراجعة يدوية؛ السجلات الملتبسة لا تُدمج تلقائياً.</p><div style="max-height:34vh;overflow:auto">'+importMatches.map((row,index)=>{
+                        const options=row.matches.length===1?'<option value="match" '+(row.decision==='match'?'selected':'')+'>مطابقة / تحديث</option><option value="insert">إضافة كسجل جديد</option><option value="ignore">تجاهل</option><option value="delete">حذف السجل المطابق</option>':'<option value="insert" '+(row.status==='new'?'selected':'')+'>إضافة كسجل جديد</option><option value="ignore" selected>تجاهل</option>';
+                        return '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--mp-border);flex-wrap:wrap"><span style="min-width:130px;flex:1"><strong>'+esc(reviewLabel(row))+'</strong><small style="display:block;color:var(--mp-text-muted)">'+esc(row.status==='matched'?'مطابقة مؤكدة':row.status==='review'?'تطابق بالاسم — راجع':row.status==='ambiguous'?'أكثر من سجل محتمل':row.status==='new'?'سجل جديد':'سجل غير صالح')+'</small></span><select data-import-decision="'+index+'" aria-label="قرار '+esc(reviewLabel(row))+'" style="min-width:145px;padding:7px;border:1px solid var(--mp-border);border-radius:8px;background:var(--mp-card,#fff);color:var(--mp-text)">'+options+'</select></div>';
+                    }).join('')+'</div></div>';
+                    box.querySelector('#smartImportAutoMatch').onclick=()=>{
+                        reviewHost.querySelectorAll('[data-import-decision]').forEach(select=>{
+                            const row=importMatches[Number(select.dataset.importDecision)];
+                            select.value=row.status==='matched'?'match':row.status==='new'?'insert':'ignore';
+                        });
+                    };
+                    box.dataset.smartImportReviewReady='1';
+                    box.querySelector('#smartImportConfirm').textContent='تطبيق الكل بعد المراجعة';
+                    validation.textContent='راجع قرارات المطابقة لكل بند، ثم اضغط «تطبيق الكل بعد المراجعة». لم تُحفظ أي بيانات بعد.';
+                    return;
+                }
+                const importDecisions={};
+                reviewHost.querySelectorAll('[data-import-decision]').forEach(select=>{importDecisions[Number(select.dataset.importDecision)]=select.value;});
+                for(const row of importMatches){
+                    const decision=importDecisions[row.index];
+                    if((decision==='match'||decision==='delete')&&row.matches.length!==1){validation.textContent='❌ لا يمكن مطابقة أو حذف سجل ملتبس. اختر تجاهل أو إضافة بعد مراجعة الهوية.';return;}
+                    if(decision==='insert'&&row.matches.length){validation.textContent='❌ يوجد سجل مطابق بالفعل. اختر المطابقة أو التجاهل بدلاً من إنشاء تكرار.';return;}
+                }
                 // The preview confirm button is the single confirmation.
                 const arr=target==='products'?AppData.products:target==='customers'?AppData.customers:AppData.suppliers;
                 const before=JSON.stringify(arr||[]);
@@ -10716,9 +10760,21 @@ function wtAuditTransfers(){
                     backupDb.close();
                     if(!verified || !verified.payload || JSON.parse(verified.payload).recordCount!==(arr||[]).length) throw new Error('لم يتم التحقق من اللقطة الاحتياطية؛ أُلغي الاستيراد.');
                     const next=JSON.parse(before);
+                    const deleteIndexes=importMatches.filter(row=>importDecisions[row.index]==='delete').map(row=>row.matches[0].existingIndex).sort((a,b)=>b-a);
+                    for(const index of deleteIndexes){if(index>=0&&index<next.length)next.splice(index,1);}
                     if(target==='products'){
-                        for(const item of staged){
+                        for(let stagedIndex=0;stagedIndex<staged.length;stagedIndex++){
+                            const item=staged[stagedIndex];
+                            const decision=importDecisions[stagedIndex];
+                            if(decision==='ignore'||decision==='delete')continue;
+                            const matchRow=importMatches[stagedIndex];
+                            if(decision==='match'&&matchRow.matches.length!==1)throw new Error('تعذر المطابقة: لم يوجد سجل واحد فقط.');
+                            if(decision==='insert'&&matchRow.matches.length)throw new Error('رفض إضافة نسخة مكررة لصنف موجود.');
+
                             const hasExplicitId=explicitImportIds.has(item.id);
+                            const importDecision=importDecisions[stagedIndex];
+                            if(importDecision==='insert'&& (item.barcode?next.some(p=>p&&anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):next.some(p=>p&&String(p.id)===String(item.id)))) throw new Error('رفض إنشاء صنف مكرر بعد المراجعة.');
+
                             const byId=hasExplicitId?next.filter(p=>p && String(p.id)===String(item.id)):[];
                             const byBarcode=item.barcode?next.filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):[];
                             const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase();
@@ -10729,6 +10785,8 @@ function wtAuditTransfers(){
                             if(byBarcode.length===1&&byName.length===1&&byBarcode[0]!==byName[0]) throw new Error('تعارض هوية: اسم المنتج والباركود يشيران إلى صنفين مختلفين؛ أُلغي الاستيراد.');
                             const matches=byId.length?byId:(byBarcode.length?byBarcode:(!hasExplicitId&&!item.barcode?byName:[]));
                             if(matches.length>1) throw new Error('اسم المنتج يطابق أكثر من صنف؛ أضف كوداً أو باركوداً فريداً للتمييز.');
+                            if(importDecision==='match'&&matches.length!==1) throw new Error('تعذر العثور على صنف مطابق وحيد.');
+                            if(importDecision==='insert'&&matches.length) throw new Error('رفض إنشاء نسخة مكررة من صنف موجود.');
                             if(matches.length===1){
                                 const existingProduct=matches[0];
                                 const liveStock=existingProduct.stock;
@@ -10742,7 +10800,20 @@ function wtAuditTransfers(){
                                 updated++;
                             }else{next.push(item);added++;}
                         }
-                    }else{for(const item of staged){next.push(item);added++;}}
+                    }else{
+                        for(let stagedIndex=0;stagedIndex<staged.length;stagedIndex++){
+                            const item=staged[stagedIndex],decision=importDecisions[stagedIndex],row=importMatches[stagedIndex];
+                            if(decision==='ignore'||decision==='delete')continue;
+                            if(decision==='insert'){next.push(item);added++;continue;}
+                            if(decision!=='match'||row.matches.length!==1)throw new Error('تعذر تحديث سجل غير مطابق بشكل فريد.');
+                            const original=row.matches[0].candidate;
+                            const live=next.find(record=>record&&String(record.id)===String(original.id));
+                            if(!live)throw new Error('السجل المطابق تغير أثناء المراجعة؛ أعد تحميل المعاينة.');
+                            const protectedFields=target==='customers'?['debt','balance','creditUsed']:['balance','debt','openingBalance'];
+                            const preserved={};for(const field of protectedFields)if(Object.prototype.hasOwnProperty.call(live,field))preserved[field]=live[field];
+                            Object.assign(live,item,{id:live.id},preserved);updated++;
+                        }
+                    }
                     if(target==='products') AppData.products=next;
                     else if(target==='customers') AppData.customers=next;
                     else AppData.suppliers=next;
