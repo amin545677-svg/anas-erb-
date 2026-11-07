@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import Core from '../micro-pos-core.js';
 
 test('fractional quantity and DZD line totals use exact micro-units and centimes', () => {
@@ -77,4 +78,14 @@ test('inventory bridge refreshes both views only after successful sync or durabl
   saveResult = false;
   assert.equal(target.saveDB(), false);
   assert.deepEqual(target.refreshes, []);
+});
+
+test('V42 shell loads the shared core and wires inventory, POS, CRM and sales history', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<script src="\.\/micro-pos-core\.js"><\/script>/);
+  assert.match(html, /createInventoryEventBridge\(window\)/);
+  assert.match(html, /core\.filterInventoryItems\(withSaleStock/);
+  assert.match(html, /inventoryUnifiedSearch/);
+  assert.match(html, /core\.filterSalesInvoices\(allInvoices/);
+  assert.match(html, /normalizeAlgeriaPhone\(rawPhone\)/);
 });
