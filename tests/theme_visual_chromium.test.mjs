@@ -112,6 +112,26 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     }
     await page.locator('#anasArabicThemeFixture').evaluate(el => el.remove());
 
+    await page.evaluate(() => window.openView('ai-excel-hub'));
+    await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+    const darkAiPills = await page.locator('#view-ai-excel-hub > .pills-group-row > .pill-select-btn').evaluateAll(items =>
+      items.map(el => {
+        const css = getComputedStyle(el), rect = el.getBoundingClientRect();
+        return { text: el.textContent.trim(), color: css.color, background: css.backgroundColor,
+          height: rect.height, width: rect.width, letterSpacing: css.letterSpacing,
+          wordBreak: css.wordBreak, display: css.display };
+      }));
+    assert.equal(darkAiPills.length, 5, 'all five AI Center category filters must render');
+    for (const pill of darkAiPills) {
+      assert.ok(contrast(pill.color, pill.background) >= 4.5,
+        'dark AI category pill must meet WCAG AA: ' + pill.text);
+      assert.ok(pill.height >= 44 && pill.height <= 72,
+        'AI category pill must keep a compact touch target: ' + pill.text);
+      assert.ok(pill.width > 0, 'AI category pill must remain visible: ' + pill.text);
+      assert.equal(pill.letterSpacing, 'normal', 'Arabic AI pill text must retain natural letter spacing');
+      assert.equal(pill.wordBreak, 'normal', 'Arabic AI pill text must not split into characters');
+    }
+
     await page.evaluate(() => window.openView('settings'));
     await page.locator('#view-settings').waitFor({ state: 'visible' });
     const field = await page.locator('#cfgAppName').evaluate(el => {
@@ -177,6 +197,19 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     await second.waitForFunction(() => document.body && !document.body.inert, { timeout: 20000 });
     await second.locator('#anasThemeQuickToggle').click();
     await page.waitForFunction(() => document.documentElement.getAttribute('data-anas-theme') === 'light', { timeout: 5000 });
+
+    await page.evaluate(() => window.openView('ai-excel-hub'));
+    await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+    const lightAiPills = await page.locator('#view-ai-excel-hub > .pills-group-row > .pill-select-btn').evaluateAll(items =>
+      items.map(el => {
+        const css = getComputedStyle(el);
+        return { text: el.textContent.trim(), color: css.color, background: css.backgroundColor };
+      }));
+    assert.equal(lightAiPills.length, 5, 'all AI Center category filters must remain in light mode');
+    for (const pill of lightAiPills) {
+      assert.ok(contrast(pill.color, pill.background) >= 4.5,
+        'light AI category pill must meet WCAG AA: ' + pill.text);
+    }
     assert.equal(await page.evaluate(() => localStorage.getItem('ANAS_ERP_THEME')), 'light',
       'theme choice must synchronize across two live tabs');
     await second.close();
