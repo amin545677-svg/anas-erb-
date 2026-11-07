@@ -9,7 +9,7 @@ test('durable POS posting enforces credit_limit before any financial or stock mu
   const end = html.indexOf('\n        function ', start + 20);
   const durable = html.slice(start, end < 0 ? undefined : end);
   const guard = durable.indexOf('const creditLimitCents = anasToCents(cust.credit_limit)');
-  const firstMutation = durable.search(/(?:\.stock\s*=|cust\.debt\s*=|AppData\.caisseBalance\s*=|AppData\.invoices\.push)/);
+  const firstMutation = durable.search(/(?:\.stock\s*=(?!=)|cust\.debt\s*=(?!=)|AppData\.caisseBalance\s*=(?!=)|AppData\.invoices\.push\s*\()/);
   assert.ok(guard >= 0, 'credit ceiling must be checked inside the durable posting function');
   assert.ok(firstMutation < 0 || guard < firstMutation,
     'credit ceiling check must precede all stock, debt, cash and invoice mutations');
