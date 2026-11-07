@@ -382,7 +382,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
 
 {
   const executeStart=html.indexOf('async function anasExecuteReversePosting(');
-  const executeEnd=html.indexOf('\n        function anasReadReversePrompt()',executeStart);
+  const executeEnd=html.indexOf('\n        function anasReadReversePrompt(',executeStart);
   assert.ok(executeStart>=0&&executeEnd>executeStart,'local reverse posting entry point must be present and isolatable');
   const reverseSource=html.slice(executeStart,executeEnd);
   assert.match(reverseSource,/localPostReturnTransaction\(/,'reverse posting must use the local atomic ledger engine');
