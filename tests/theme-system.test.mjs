@@ -169,3 +169,18 @@ test('dark compatibility layer normalizes common pale panels and neutral inline 
     '[style*="color:#64748b"]'
   ]) assert.ok(bridge.includes(token), 'missing dark palette normalization: ' + token);
 });
+
+test('legacy and modern theme variables resolve from the same palette', () => {
+  const start = html.indexOf('/* ANAS ERP unified appearance layer');
+  const end = html.indexOf('</style>', start);
+  const palette = html.slice(start, end);
+  for (const token of [
+    '--mp-card:var(--anas-surface)',
+    '--mp-input-bg:var(--anas-input)',
+    '--mp-text:var(--anas-text)',
+    '--text-muted:var(--anas-muted)',
+    '--card-bg:var(--anas-surface)',
+    '--border-color:var(--anas-border)'
+  ]) assert.ok(palette.includes(token), 'missing shared theme token: ' + token);
+  assert.match(palette, /--mp-light:var\(--anas-surface-raised\)/);
+});
