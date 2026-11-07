@@ -164,6 +164,16 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'adding the same product twice must merge into one cart line');
     assert.equal(await page.evaluate(() => posCart[0].qty), 2,
       'adding the same product twice must increment the existing quantity');
+    // Cart edits can increase the invoice total while the paid amount remains unchanged.
+    // Set the intended full-cash payment explicitly so this stock-guard assertion is
+    // independent of the registered-customer requirement for partial/credit sales.
+    await page.locator('#hasibPaidAmount').fill('50.00');
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash',
+      'the stock-overrun case must exercise a fully paid cash sale');
+    assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '',
+      'a fully paid cash sale must not require a registered customer');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
+      'full-cash payment must remain confirmable without a registered customer');
     await page.evaluate(() => {
       const original = AppData.products[0];
       AppData.products.push({ ...original });
