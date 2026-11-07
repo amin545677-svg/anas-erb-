@@ -6,7 +6,7 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
 export function resolveProductPrice(product, tier = 1) {
   if (!product || typeof product !== 'object') throw new TypeError('PRODUCT_REQUIRED');
-  const fields = tier === 3 ? ['price3', 'price2', 'price1']
+  const fields = tier === 3 ? ['price3', 'price1']
     : tier === 2 ? ['price2', 'price1'] : ['price1'];
   for (const field of fields) {
     const value = product[field];
@@ -113,4 +113,12 @@ export function prepareBulkImport(existingRows, incomingRows, mode = 'merge', ke
     }
   }
   return Object.freeze({ rows: output, stats: Object.freeze(stats) });
+}
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'ANASMicroPOSEngine', {
+    configurable: true,
+    enumerable: false,
+    value: Object.freeze({ resolveProductPrice, filterPosProducts, calculateQuickCheckoutCents, prepareBulkImport })
+  });
 }
