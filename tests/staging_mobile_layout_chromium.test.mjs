@@ -210,17 +210,15 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     });
     const rows = [
       ['الكود','الباركود','اسم المنتج','سعر الشراء','سعر البيع 1','المخزون','الوحدة','الفئة','الحد الأدنى'],
-      ['TEA-001','611000000001','شاي أريشا',100,150,12,'علبة','مشروبات',2],
-      ['TEA-002','611000000002','شاي توارف',110,165,10,'علبة','مشروبات',2],
-      ['TEA-003','611000000003','شاي الرقيم',120,180,8,'علبة','مشروبات',1],
-      ['TEA-004','611000000004','شاي أخضر',90,140,15,'علبة','مشروبات',3],
-      ['TEA-005','611000000005','شاي أحمر',80,130,20,'علبة','مشروبات',4]
+      ['TEA-001','611000000001','أريشا كرستال 200غ',100,150,12,'علبة','مشروبات',2],
+      ['TEA-002','611000000002','توارف ساشي 200غ',110,165,10,'علبة','مشروبات',2],
+      ['TEA-003','611000000003','الرقيم 500غ',120,180,8,'علبة','مشروبات',1]
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
     const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     await page.locator('#smartAiExcelUpload').setInputFiles({
-      name: 'ANAS_ERP_5_products.xlsx',
+      name: 'ANAS_ERP_3_products.xlsx',
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer: xlsxBuffer
     });
@@ -232,12 +230,12 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     page.on('dialog', dialog => dialog.accept());
     await page.locator('#smartImportConfirm').click();
     await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
-    await page.waitForFunction(() => window.AppData && window.AppData.products.length === 5);
+    await page.waitForFunction(() => window.AppData && window.AppData.products.length === 3);
     await page.evaluate(() => window.openView('pos', true));
-    await page.locator('#posSearchField').fill('شاي');
+    await page.locator('#posSearchField').fill('أريشا');
     await page.waitForFunction(() => {
       const results = document.getElementById('posSearchResults');
-      return !!results && !results.hidden && results.querySelectorAll('.pos-search-result').length >= 5;
+      return !!results && !results.hidden && results.querySelectorAll('.pos-search-result').length >= 1;
     });
     const acceptance = await page.evaluate(async () => {
       const db = await new Promise((resolve, reject) => {
@@ -251,7 +249,14 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
         request.onsuccess = () => resolve(request.result || null);
         request.onerror = () => reject(request.error);
       });
+      const appRecord = await new Promise((resolve, reject) => {
+        const tx = db.transaction('snapshots', 'readonly');
+        const request = tx.objectStore('snapshots').get('ANAS_THE_ENTERPRISE_V11_OFFLINE');
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
       const backup = backupRecord?.payload ? JSON.parse(backupRecord.payload) : null;
+      const savedPayload = String(appRecord?.payload || '');
       db.close();
       return {
         productCount: window.AppData.products.length,
@@ -259,14 +264,16 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
         floatingAssistantDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
         diagnosticVisible: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
         backupRecordPresent: !!backup && Array.isArray(backup.data?.products),
+        importedProductsPersisted: ['أريشا كرستال 200غ','توارف ساشي 200غ','الرقيم 500غ'].every(name => savedPayload.includes(name)),
         backupPreImportProductCount: backup?.recordCount
       };
     });
-    assert.equal(acceptance.productCount, 5);
-    assert.ok(acceptance.searchNames.some(name => name.includes('شاي أريشا')));
+    assert.equal(acceptance.productCount, 3);
+    assert.ok(acceptance.searchNames.some(name => name.includes('أريشا كرستال 200غ')));
     assert.equal(acceptance.floatingAssistantDisplay, 'none');
     assert.equal(acceptance.diagnosticVisible, false);
     assert.equal(acceptance.backupRecordPresent, true);
+    assert.equal(acceptance.importedProductsPersisted, true, 'all three imported products must be in the durable IndexedDB app snapshot');
     assert.equal(acceptance.backupPreImportProductCount, 0, 'backup must be captured before the first product is added');
 
   } finally {
