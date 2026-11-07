@@ -1573,6 +1573,17 @@ input:focus, select:focus, textarea:focus {
 #hasibModal .anas-payment-back-btn { width:100%; min-height:44px; border:1px solid var(--mp-border,#cbd5e1); border-radius:10px; background:transparent; color:var(--mp-text,#334155); font-weight:800; }
 #hasibModal #hasibConfirmSaleBtn:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
 </style>
+<style id="anas-dashboard-groups-v1">
+.anas-dashboard-groups{display:flex;flex-direction:column;gap:16px;margin-top:8px}
+.anas-dashboard-group{min-width:0}
+.anas-dashboard-group-title{font-size:.96rem;font-weight:900;color:var(--mp-text-dark);margin:0 2px 8px;padding-inline-start:9px;border-inline-start:4px solid var(--mp-blue)}
+.anas-dashboard-group .dashboard-grid-8{margin-top:0;gap:8px}
+.anas-dashboard-group .grid-card-item{min-height:94px;padding:12px 8px;gap:7px}
+.anas-dashboard-group .grid-card-item .card-icon-box{font-size:1.8rem;height:36px}
+.anas-dashboard-group .grid-card-item .card-title-text{font-size:.88rem;line-height:1.45}
+#dashboardStockAlertBadge[hidden]{display:none}
+@media(max-width:360px){.anas-dashboard-group .dashboard-grid-8{grid-template-columns:repeat(2,minmax(0,1fr))}.anas-dashboard-group .grid-card-item{min-height:88px}}
+</style>
 </head>
 <body>
 
@@ -1604,82 +1615,49 @@ input:focus, select:focus, textarea:focus {
 
         <!-- لوحة التحكم الرئيسية مع لمسات Lumina POS المتطورة -->
         <section id="view-dashboard" class="page-view active">
-            <div class="dashboard-grid-8">
-                <!-- 1. المبيعات -->
-                <div class="grid-card-item" onclick="openView('pos')">
-                    <div class="card-icon-box">🛒</div>
-                    <div class="card-title-text">المبيعات</div>
+            <div class="anas-dashboard-groups">
+              <section class="anas-dashboard-group" aria-labelledby="anasDailyGroupTitle">
+                <h3 id="anasDailyGroupTitle" class="anas-dashboard-group-title">العمل اليومي</h3>
+                <div class="dashboard-grid-8">
+                  <button type="button" class="grid-card-item" onclick="openQuickSale()"><span class="card-icon-box">⚡</span><span class="card-title-text">بيع سريع</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('pos')"><span class="card-icon-box">🛒</span><span class="card-title-text">نقطة البيع</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('invoices-list')"><span class="card-icon-box">🧾</span><span class="card-title-text">المبيعات والفواتير</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('customers')"><span class="card-icon-box">👥</span><span class="card-title-text">الزبائن</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('trucks')"><span class="card-icon-box">🚚</span><span class="card-title-text">حركة الشاحنات</span></button>
                 </div>
-
-                <!-- 2. المشتريات -->
-                <div class="grid-card-item" onclick="openView('purchases')">
-                    <div class="card-icon-box">📦</div>
-                    <div class="card-title-text">المشتريات</div>
+              </section>
+              <section class="anas-dashboard-group" aria-labelledby="anasStockGroupTitle">
+                <h3 id="anasStockGroupTitle" class="anas-dashboard-group-title">المخزون والشراء</h3>
+                <div class="dashboard-grid-8">
+                  <button type="button" class="grid-card-item" onclick="openView('inventory')"><span class="card-icon-box">📦</span><span class="card-title-text">المخزون</span></button>
+                  <button type="button" class="grid-card-item" onclick="openAddProductModal()"><span class="card-icon-box">➕</span><span class="card-title-text">إضافة منتج</span></button>
+                  <button type="button" class="grid-card-item" onclick="renderAlertsList();openModal('alertModal')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" hidden>0</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('purchases')"><span class="card-icon-box">🧾</span><span class="card-title-text">فواتير الشراء</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('suppliers')"><span class="card-icon-box">🤝</span><span class="card-title-text">الموردون</span></button>
                 </div>
-
-                <!-- 3. العملاء -->
-                <div class="grid-card-item" onclick="openView('customers')">
-                    <div class="card-icon-box">👤</div>
-                    <div class="card-title-text">العملاء</div>
+              </section>
+              <section class="anas-dashboard-group" aria-labelledby="anasMoneyGroupTitle">
+                <h3 id="anasMoneyGroupTitle" class="anas-dashboard-group-title">المال والتقارير</h3>
+                <div class="dashboard-grid-8">
+                  <button type="button" class="grid-card-item" onclick="openView('reports')"><span class="card-icon-box">📊</span><span class="card-title-text">الإحصائيات والتقارير</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('expenses')"><span class="card-icon-box">💼</span><span class="card-title-text">مصاريف التشغيل</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('cash')"><span class="card-icon-box">🗄️</span><span class="card-title-text">الصندوق والمناوبة</span></button>
                 </div>
-
-                <!-- 4. الموردين -->
-                <div class="grid-card-item" onclick="openView('suppliers')">
-                    <div class="card-icon-box">🤝</div>
-                    <div class="card-title-text">الموردين</div>
+              </section>
+              <section class="anas-dashboard-group" aria-labelledby="anasSmartGroupTitle">
+                <h3 id="anasSmartGroupTitle" class="anas-dashboard-group-title">الأدوات الذكية</h3>
+                <div class="dashboard-grid-8">
+                  <button type="button" class="grid-card-item" onclick="openInvoiceOcr()"><span class="card-icon-box">📷</span><span class="card-title-text">ممسح الفواتير AI</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')"><span class="card-icon-box">🤖</span><span class="card-title-text">الاستيراد الذكي AI</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')"><span class="card-icon-box">📊</span><span class="card-title-text">استيراد Excel</span></button>
                 </div>
-
-                <!-- 5. المصروفات -->
-                <div class="grid-card-item" onclick="openView('expenses')">
-                    <div class="card-icon-box">💼</div>
-                    <div class="card-title-text">المصروفات</div>
-                </div>
-
-                <!-- 6. الصندوق -->
-                <div class="grid-card-item" onclick="openView('cash')">
-                    <div class="card-icon-box">🗄️</div>
-                    <div class="card-title-text">الصندوق</div>
-                </div>
-
-                <!-- 7. الاستعلامات -->
-                <div class="grid-card-item" onclick="openView('reports')">
-                    <div class="card-icon-box">📊</div>
-                    <div class="card-title-text">الاستعلامات</div>
-                </div>
-
-                <!-- 8. المخزون -->
-                <div class="grid-card-item" onclick="openView('inventory')">
-                    <div class="card-icon-box">🏷️</div>
-                    <div class="card-title-text">المخزون</div>
-                </div>
-
-                <!-- 9. حركة الشاحنات -->
-                <div class="grid-card-item" onclick="openView('trucks')">
-                    <div class="card-icon-box">🚚</div>
-                    <div class="card-title-text">حركة الشاحنات</div>
-                </div>
-
-                <!-- مركز الذكاء الاصطناعي: وصول مباشر من الواجهة الرئيسية -->
-                <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي">
-                    <span class="card-icon-box" aria-hidden="true">🤖</span>
-                    <span class="card-title-text">مركز الذكاء الاصطناعي</span>
-                </button>
+              </section>
             </div>
 
-            <!-- أزرار الوصول السريع للإعدادات والنسخ والذكاء الاصطناعي -->
-            <div style="margin-top:14px; display:grid; grid-template-columns: repeat(3, 1fr); gap:8px;">
-                <button class="grid-card-item" style="min-height:75px; padding:8px;" onclick="openView('ai-excel-hub')">
-                    <span style="font-size:1.3rem;">✨</span>
-                    <span style="font-size:0.8rem; font-weight:800;">إكسل والذكاء</span>
-                </button>
-                <button class="grid-card-item" style="min-height:75px; padding:8px;" onclick="openView('settings')">
-                    <span style="font-size:1.3rem;">⚙️</span>
-                    <span style="font-size:0.8rem; font-weight:800;">الإعدادات</span>
-                </button>
-                <button class="grid-card-item" style="min-height:75px; padding:8px;" onclick="openView('sync')">
-                    <span style="font-size:1.3rem;">🔄</span>
-                    <span style="font-size:0.8rem; font-weight:800;">المزامنة والنسخ</span>
-                </button>
+            <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+              <button class="grid-card-item" style="min-height:75px;padding:8px;" onclick="openView('settings')"><span style="font-size:1.3rem;">⚙️</span><span style="font-size:.8rem;font-weight:800;">الإعدادات</span></button>
+              <button class="grid-card-item" style="min-height:75px;padding:8px;" onclick="openView('sync')"><span style="font-size:1.3rem;">🔄</span><span style="font-size:.8rem;font-weight:800;">المزامنة والنسخ</span></button>
+              <button class="grid-card-item" style="min-height:75px;padding:8px;" onclick="openView('customers')"><span style="font-size:1.3rem;">👤</span><span style="font-size:.8rem;font-weight:800;">ملفات العملاء</span></button>
             </div>
 
             <div class="system-footer-status">
