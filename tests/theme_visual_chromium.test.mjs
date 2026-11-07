@@ -94,6 +94,24 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     assert.ok(!/255,\s*255,\s*255/.test(field.background), 'settings input must not remain white in dark mode');
     assert.ok(contrast(field.color, field.background) >= 4.5, 'settings input text must meet WCAG AA contrast');
 
+    await page.evaluate(() => window.openAddCustomerModal());
+    const customerModal = page.locator('#addCustomerModal');
+    await customerModal.waitFor({ state: 'visible' });
+    const modalVisual = await page.locator('#addCustomerModal .picker-dialog-scroll').evaluate(el => {
+      const css = getComputedStyle(el);
+      const input = el.querySelector('#newCustNameInput');
+      const field = input ? getComputedStyle(input) : null;
+      return { surface: css.backgroundColor, text: css.color,
+        inputBackground: field?.backgroundColor, inputText: field?.color };
+    });
+    assert.ok(!/255,\\s*255,\\s*255/.test(modalVisual.surface), 'customer modal surface must use the dark palette');
+    assert.ok(contrast(modalVisual.text, modalVisual.surface) >= 4.5, 'customer modal text must meet WCAG AA contrast');
+    assert.ok(modalVisual.inputBackground && !/255,\\s*255,\\s*255/.test(modalVisual.inputBackground),
+      'customer modal fields must use the dark input surface');
+    assert.ok(contrast(modalVisual.inputText, modalVisual.inputBackground) >= 4.5,
+      'customer modal input text must meet WCAG AA contrast');
+    await page.evaluate(() => window.closeModal('addCustomerModal'));
+
     await page.evaluate(() => window.openView('pos'));
     await page.locator('#view-pos').waitFor({ state: 'visible' });
     const pos = await page.evaluate(() => {
