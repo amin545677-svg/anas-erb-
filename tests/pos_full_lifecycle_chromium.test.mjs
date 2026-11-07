@@ -174,6 +174,21 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'duplicate product IDs in the catalog must block ambiguous cart additions');
     assert.equal(await page.evaluate(() => posCart[0].qty), 2,
       'ambiguous product ID must not mutate the cart');
+    await page.evaluate(() => {
+      AppData.products[0].stock = 0;
+      AppData.allowNegativeStock = true;
+      if (saveDB() !== true) throw new Error('Could not persist zero-stock policy fixture');
+      addItemToPosCart('STG-POS-LIFECYCLE-001');
+      setPosQty(0, 3);
+    });
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'POS must block stock overrun even if a legacy allowNegativeStock flag is true because warehouse balances reject negatives');
+    await page.evaluate(() => {
+      AppData.products[0].stock = 10;
+      AppData.allowNegativeStock = false;
+      if (saveDB() !== true) throw new Error('Could not restore stock fixture');
+      renderPosTable();
+    });
     const commitNumberEditor = async (selector, value) => {
       const editor = page.locator(selector).first(); // target the first cart row when duplicate-row guards are under test
       await editor.fill(value);
