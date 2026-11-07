@@ -58,7 +58,9 @@
       if ((options.onlyFeatured || status === 'featured') && !(item.is_featured || item.featured || item.favorite || item.isFavorite)) return false;
       const itemCategory = item.category ?? item.cat ?? 'عام';
       if (category !== 'ALL' && category !== 'الكل' && String(itemCategory) !== String(category)) return false;
-      const stock = stockStatus(item.stock ?? item.quantity, item.minAlert ?? item.min_limit).code;
+      const rawStock = item.stock ?? item.quantity;
+      if (rawStock === undefined || rawStock === null || rawStock === '' || !Number.isFinite(Number(rawStock))) return false;
+      const stock = stockStatus(rawStock, item.minAlert ?? item.min_limit).code;
       if (status !== 'ALL' && status !== 'featured' && stock !== status) return false;
       if (!query) return true;
       return [item.name, item.title, item.barcode, item.sku].some(v => String(v || '').toLocaleLowerCase().includes(query));
