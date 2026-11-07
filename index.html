@@ -2212,7 +2212,12 @@ input:focus, select:focus, textarea:focus {
         <!-- 11. شاشة الإعدادات العامة والبيانات الجبائية -->
         <section id="view-settings" class="page-view">
             <div class="settings-card" style="padding:16px;margin:12px;border-radius:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-              <div><h3 style="margin:0 0 6px">🎨 مظهر التطبيق</h3><p style="margin:0;color:var(--mp-text-muted)">اختر الوضع الليلي أو النهاري. سيتم حفظ اختيارك على هذا الجهاز.</p></div>
+              <div><h3 style="margin:0 0 6px">🎨 مظهر التطبيق</h3><p style="margin:0;color:var(--mp-text-muted)">اختر تلقائي حسب الجهاز أو الوضع النهاري أو الليلي.</p>
+                <label for="anasThemeMode" style="display:block;margin-top:8px;font-size:12px;font-weight:800;">نمط المظهر</label>
+                <select id="anasThemeMode" class="field-input" style="min-width:150px;max-width:100%;margin-top:4px;">
+                  <option value="system">تلقائي حسب الجهاز</option><option value="light">نهاري</option><option value="dark">ليلي</option>
+                </select>
+              </div>
               <button id="anasThemeToggle" type="button" aria-label="تفعيل الوضع الليلي" aria-pressed="false" style="display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;border:1px solid #7890b2;border-radius:14px;padding:10px 16px;background:linear-gradient(135deg,#1e3a6d,#2563eb);color:#fff;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px #0f172a22;"><span class="theme-icon" aria-hidden="true" style="font-size:20px;">🌙</span><span class="theme-copy"><span class="theme-label">الوضع الليلي</span><small style="display:block;font-size:11px;font-weight:600;opacity:.85;">تغيير مظهر التطبيق</small></span></button>
             </div>
             <div class="sub-header-bar">
@@ -11624,9 +11629,15 @@ function wtAuditTransfers(){
   const KEY = 'ANAS_ERP_THEME';
   const root = document.documentElement;
   const buttons = Array.from(document.querySelectorAll('#anasThemeToggle, #anasThemeQuickToggle'));
+  const modeSelect = document.querySelector('#anasThemeMode');
   const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  let themeMode = 'system';
   let explicitChoice = null;
-  try { const stored = localStorage.getItem(KEY); if (stored === 'dark' || stored === 'light') explicitChoice = stored; } catch (_) {}
+  try {
+    const stored = localStorage.getItem(KEY);
+    if (stored === 'dark' || stored === 'light') themeMode = stored;
+    else if (stored === 'system') themeMode = 'system';
+  } catch (_) {}
   function systemTheme() { return media && media.matches ? 'dark' : 'light'; }
   function applyTheme(theme, persist) {
     const next = theme === 'dark' ? 'dark' : 'light';
@@ -11644,26 +11655,44 @@ function wtAuditTransfers(){
       button.setAttribute('aria-label', dark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي');
       button.setAttribute('title', dark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي');
     });
+    if (modeSelect) modeSelect.value = themeMode;
     if (persist) {
+      themeMode = next;
       explicitChoice = next;
+      if (modeSelect) modeSelect.value = themeMode;
       try { localStorage.setItem(KEY, next); } catch (_) {}
     }
   }
-  applyTheme(explicitChoice || systemTheme(), false);
+  function setThemeMode(mode, persist) {
+    const selected = ['system', 'light', 'dark'].includes(mode) ? mode : 'system';
+    themeMode = selected;
+    explicitChoice = selected === 'system' ? null : selected;
+    applyTheme(explicitChoice || systemTheme(), false);
+    if (modeSelect) modeSelect.value = selected;
+    if (persist) {
+      try { localStorage.setItem(KEY, selected); } catch (_) {}
+    }
+  }
+  setThemeMode(themeMode, false);
   buttons.forEach(function (button) {
     button.addEventListener('click', function () {
       applyTheme(root.getAttribute('data-anas-theme') === 'dark' ? 'light' : 'dark', true);
     });
   });
+  if (modeSelect) modeSelect.addEventListener('change', function () { setThemeMode(modeSelect.value, true); });
   if (media) {
-    const onSystemChange = function (event) { if (!explicitChoice) applyTheme(event.matches ? 'dark' : 'light', false); };
+    const onSystemChange = function (event) {
+      if (themeMode === 'system') applyTheme(event.matches ? 'dark' : 'light', false);
+    };
     if (media.addEventListener) media.addEventListener('change', onSystemChange);
     else if (media.addListener) media.addListener(onSystemChange);
   }
   window.addEventListener('storage', function (event) {
     if (event.key !== KEY) return;
-    explicitChoice = event.newValue === 'dark' || event.newValue === 'light' ? event.newValue : null;
-    applyTheme(explicitChoice || systemTheme(), false);
+    const value = event.newValue;
+    themeMode = ['dark', 'light', 'system'].includes(value) ? value : 'system';
+    explicitChoice = themeMode === 'system' ? null : themeMode;
+    setThemeMode(themeMode, false);
   });
 })();
 </script>
