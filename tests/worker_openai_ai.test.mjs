@@ -446,5 +446,5 @@ test("rate-limit configuration preserves a user budget and shared-mobile-IP safe
   assert.ok(config.includes('simple = { limit = 12, period = 60 }'));
   assert.ok(config.includes('name = "AI_IP_RATE_LIMITER"'));
   assert.ok(config.includes('simple = { limit = 120, period = 60 }'));
-  assert.ok(source.includes(String.raw`/[\\s,]/.test(ip)`));
+  assert.ok(source.includes("/[\\s,]/.test(ip)"));
 });
