@@ -23,7 +23,7 @@ function initialData() {
     caisseBalance: 100000,
     products: [{
       id: PRODUCT_ID, name: PRODUCT_NAME, stock: 10, buyPrice: 10,
-      lastPurchaseCost: 10, price1: 25, price2: 25, price3: 25,
+      lastPurchaseCost: 10, price1: 25, price2: 24, price3: 23,
       barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
     }],
     customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0, credit_limit: 50 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
@@ -140,6 +140,15 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'low-stock chip must exclude products above their minimum threshold');
     await page.evaluate(() => filterPosProductsByStock('all'));
     await productButton.click();
+    await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
+      'products with three distinct configured tiers must expose three prices and cancel');
+    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'تجزئة / الدفعة' }).click();
+    await page.evaluate(() => {
+      AppData.products[0].price2 = 25;
+      AppData.products[0].price3 = 25;
+      if (saveDB() !== true) throw new Error('Could not restore legacy price-tier fixture');
+    });
     assert.equal(await page.locator('#posCheckoutBtn').isEnabled(), true,
       'the single guided checkout action must enable after a valid product is added');
 
