@@ -83,15 +83,21 @@ function identityFor(type, row) {
 export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
   const staged = { suppliers: [], products: [], customers: [], invoices: [], totalValidRows: 0, sheetCount: 0, unclassified: 0 };
   const existing = {};
+  const recordByIdentity = {};
   for (const type of ['suppliers', 'products', 'customers', 'invoices']) {
     const index = new Map();
-    (Array.isArray(existingDB[type]) ? existingDB[type] : []).forEach((row, rowIndex) => {
+    const records = Array.isArray(existingDB[type]) ? existingDB[type] : [];
+    records.forEach((row, rowIndex) => {
+      const recordKey = 'database:' + rowIndex;
+      recordByIdentity[type] = recordByIdentity[type] || new Map();
+      recordByIdentity[type].set(recordKey, row);
       for (const identity of identityKeysFor(type, row)) {
         if (!index.has(identity)) index.set(identity, new Set());
-        index.get(identity).add('database:' + rowIndex);
+        index.get(identity).add(recordKey);
       }
     });
     existing[type] = index;
+    recordByIdentity[type] = recordByIdentity[type] || new Map();
   }
   const seen = Object.fromEntries(Object.keys(existing).map(type => [type, new Map()]));
   for (const [sheetName, rows] of Object.entries(sheetsDataMap || {})) {
@@ -116,12 +122,26 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
       const isDatabaseDuplicate = identityKeys.some(identity => existing[type].has(identity));
       const isWorkbookDuplicate = identityKeys.some(identity => seen[type].has(identity));
       const isDuplicate = isDatabaseDuplicate || isWorkbookDuplicate;
-      const identityConflict = matches.size > 1;
       const resolvedIdentity = matches.size === 1 ? [...matches][0] : 'workbook:' + staged[type].length;
+      let identityConflict = matches.size > 1;
+      if (type === 'products' && matches.size === 1) {
+        const matchedRow = recordByIdentity[type].get(resolvedIdentity);
+        const matchedKeys = new Map(identityKeysFor(type, matchedRow).map(identity => {
+          const separator = identity.indexOf(':');
+          return [identity.slice(0, separator), identity];
+        }));
+        identityConflict = identityKeys.some(identity => {
+          const separator = identity.indexOf(':');
+          const field = identity.slice(0, separator);
+          const previousIdentity = matchedKeys.get(field);
+          return previousIdentity && previousIdentity !== identity;
+        });
+      }
       identityKeys.forEach(identity => {
         if (!seen[type].has(identity)) seen[type].set(identity, new Set());
         seen[type].get(identity).add(resolvedIdentity);
       });
+      if (!recordByIdentity[type].has(resolvedIdentity)) recordByIdentity[type].set(resolvedIdentity, normalized);
       staged[type].push({ ...normalized, sourceSheet: sheetName, identityKey: key, identityKeys, isDuplicate,
         identityConflict,
         duplicateScope: isDatabaseDuplicate ? 'database' : isWorkbookDuplicate ? 'workbook' : null,
