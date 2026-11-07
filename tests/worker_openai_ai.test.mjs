@@ -9,12 +9,12 @@ const source = await readFile(resolve("cloudflare/worker_openai_ai.js"), "utf8")
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
 
-function request(path, { method = "GET", origin, body, tokenProjectId = "anas-erb" } = {}) {
+function request(path, { method = "GET", origin, body, tokenProjectId = "anas-erb", tokenClaims = {} } = {}) {
   const headers = new Headers();
   if (origin) headers.set("Origin", origin);
   if (body !== undefined) {
     headers.set("Content-Type", "application/json");
-    headers.set("Authorization", "Bearer " + firebaseToken({}, tokenProjectId));
+    headers.set("Authorization", "Bearer " + firebaseToken(tokenClaims, tokenProjectId));
     headers.set("CF-Connecting-IP", "203.0.113.10");
   }
   return new Request("https://worker.test" + path, {
@@ -45,7 +45,7 @@ function installFetch(mock = async () => { throw new Error("unexpected upstream 
 installFetch();
 const allowedOrigin = "https://amin545677-svg.github.io";
 const allowLimiter = { limit: async () => ({ success: true }) };
-const testEnv = () => ({ OPENAI_API_KEY: "test-secret", AI_USER_RATE_LIMITER: allowLimiter, AI_IP_RATE_LIMITER: allowLimiter });
+const testEnv = () => ({ OPENAI_API_KEY: "test-secret", AI_USER_RATE_LIMITER: allowLimiter, AI_ANON_USER_RATE_LIMITER: allowLimiter, AI_IP_RATE_LIMITER: allowLimiter });
 
 test("preflight permits the isolated Staging ERP origin and required auth headers", async () => {
   const origin = "https://anas-erp-staging-a25e1.web.app";
@@ -445,6 +445,8 @@ test("rate-limit configuration preserves a user budget and shared-mobile-IP safe
   const config = await readFile(resolve("cloudflare/wrangler-openai.toml"), "utf8");
   assert.ok(config.includes('name = "AI_USER_RATE_LIMITER"'));
   assert.ok(config.includes('simple = { limit = 12, period = 60 }'));
+  assert.ok(config.includes('name = "AI_ANON_USER_RATE_LIMITER"'));
+  assert.ok(config.includes('simple = { limit = 3, period = 60 }'));
   assert.ok(config.includes('name = "AI_IP_RATE_LIMITER"'));
   assert.ok(config.includes('simple = { limit = 120, period = 60 }'));
   assert.ok(source.includes("/[\\s,]/.test(ip)"));
@@ -467,4 +469,39 @@ test("deployment workflow pins Wrangler v4 and verifies rate-limit bindings in i
   assert.ok(workflow.includes("wrangler@4.158.0"));
   assert.ok(workflow.includes("rateLimitConfigured!==true"));
   assert.ok(!workflow.includes("wrangler@3.90.0"));
+});
+
+
+test("anonymous Firebase users receive a separate stricter UID quota", async () => {
+  const oldFetch = globalThis.fetch; let anonymousKey = ""; let registeredCalls = 0; let openAiCalls = 0;
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called after anonymous quota denial"); });
+  try {
+    const response = await worker.fetch(request("/", {
+      method: "POST", origin: allowedOrigin, tokenClaims: { firebase: { sign_in_provider: "anonymous" } },
+      body: { message: "anonymous rate limit" }
+    }), {
+      OPENAI_API_KEY: "test-secret",
+      AI_USER_RATE_LIMITER: { limit: async () => { registeredCalls++; return { success: true }; } },
+      AI_ANON_USER_RATE_LIMITER: { limit: async ({ key }) => { anonymousKey = key; return { success: false }; } },
+      AI_IP_RATE_LIMITER: allowLimiter
+    });
+    assert.equal(response.status, 429);
+    assert.equal(anonymousKey, "anon:uid:test-user");
+    assert.equal(registeredCalls, 0);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("anonymous requests fail closed when their dedicated limiter is missing", async () => {
+  const oldFetch = globalThis.fetch; let openAiCalls = 0;
+  installFetch(async () => { openAiCalls++; throw new Error("OpenAI must not be called"); });
+  try {
+    const response = await worker.fetch(request("/", {
+      method: "POST", origin: allowedOrigin, tokenClaims: { firebase: { sign_in_provider: "anonymous" } },
+      body: { message: "missing anonymous limiter" }
+    }), { OPENAI_API_KEY: "test-secret", AI_USER_RATE_LIMITER: allowLimiter, AI_IP_RATE_LIMITER: allowLimiter });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /rate limiting is not configured/i);
+    assert.equal(openAiCalls, 0);
+  } finally { globalThis.fetch = oldFetch; }
 });

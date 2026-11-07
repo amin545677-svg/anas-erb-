@@ -72,7 +72,7 @@ async function verifyFirebaseIdToken(request, env) {
     const signingInput = new TextEncoder().encode(parts[0] + "." + parts[1]);
     const valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, publicKey, decodeBase64Url(parts[2]), signingInput);
     if (!valid) throw new Error("Token signature is invalid.");
-    return { ok: true, uid: claims.sub };
+    return { ok: true, uid: claims.sub, isAnonymous: claims.firebase?.sign_in_provider === "anonymous" };
   } catch (_) { return { ok: false, status: 401, error: "Invalid or expired Firebase session. Sign in again and retry." }; }
 }
 
@@ -95,8 +95,8 @@ function json(data, status, origin, extraHeaders = {}) {
   return new Response(JSON.stringify(data), { status, headers });
 }
 
-async function enforceAiRateLimits(request, env, uid) {
-  const userLimiter = env.AI_USER_RATE_LIMITER;
+async function enforceAiRateLimits(request, env, uid, isAnonymous) {
+  const userLimiter = isAnonymous ? env.AI_ANON_USER_RATE_LIMITER : env.AI_USER_RATE_LIMITER;
   const ipLimiter = env.AI_IP_RATE_LIMITER;
   if (!userLimiter || typeof userLimiter.limit !== "function" ||
       !ipLimiter || typeof ipLimiter.limit !== "function") {
@@ -113,7 +113,7 @@ async function enforceAiRateLimits(request, env, uid) {
     if (!ipResult || ipResult.success !== true) {
       return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
     }
-    const userResult = await userLimiter.limit({ key: "uid:" + uid });
+    const userResult = await userLimiter.limit({ key: (isAnonymous ? "anon:uid:" : "uid:") + uid });
     if (!userResult || userResult.success !== true) {
       return { ok: false, status: 429, error: "AI request limit reached. Wait before sending another request." };
     }
@@ -186,6 +186,7 @@ export default {
         configured: Boolean(env.OPENAI_API_KEY),
         rateLimitConfigured: Boolean(
           env.AI_USER_RATE_LIMITER && typeof env.AI_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_ANON_USER_RATE_LIMITER && typeof env.AI_ANON_USER_RATE_LIMITER.limit === "function" &&
           env.AI_IP_RATE_LIMITER && typeof env.AI_IP_RATE_LIMITER.limit === "function"
         ),
         model: env.OPENAI_MODEL || DEFAULT_MODEL
@@ -201,6 +202,7 @@ export default {
         configured: Boolean(env.OPENAI_API_KEY),
         rateLimitConfigured: Boolean(
           env.AI_USER_RATE_LIMITER && typeof env.AI_USER_RATE_LIMITER.limit === "function" &&
+          env.AI_ANON_USER_RATE_LIMITER && typeof env.AI_ANON_USER_RATE_LIMITER.limit === "function" &&
           env.AI_IP_RATE_LIMITER && typeof env.AI_IP_RATE_LIMITER.limit === "function"
         ),
         model: env.OPENAI_MODEL || DEFAULT_MODEL
@@ -248,7 +250,7 @@ export default {
     const identity = await verifyFirebaseIdToken(request, env);
     if (!identity.ok) return json({ error: identity.error }, identity.status, origin);
 
-    const rateLimit = await enforceAiRateLimits(request, env, identity.uid);
+    const rateLimit = await enforceAiRateLimits(request, env, identity.uid, identity.isAnonymous);
     if (!rateLimit.ok) {
       return json({ error: rateLimit.error }, rateLimit.status, origin,
         rateLimit.status === 429 ? { "Retry-After": "60" } : {});

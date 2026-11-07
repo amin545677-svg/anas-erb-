@@ -20,3 +20,8 @@ simple = { limit = 12, period = 60 }
 name = "AI_IP_RATE_LIMITER"
 namespace_id = "930002"
 simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "AI_ANON_USER_RATE_LIMITER"
+namespace_id = "930003"
+simple = { limit = 3, period = 60 }
