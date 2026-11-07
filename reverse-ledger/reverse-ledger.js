@@ -5,8 +5,10 @@
   if (root) {
     const runtimeApi = { ...api };
     // The browser UI receives validators only; trusted Worker runtimes have no window.
-    // The browser ERP may post a return locally after a preview and durable saveDB commit.
-    // This is a local-device ledger operation; no remote callable is required.
+    // Keep the generic transaction executor out of the public browser API.
+    // The ERP exposes only an explicitly named local-posting entry point to its own UI.
+    runtimeApi.localPostReturnTransaction = api.executeReturnTransaction;
+    delete runtimeApi.executeReturnTransaction;
     root.ANASReverseLedger = Object.freeze(runtimeApi);
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
