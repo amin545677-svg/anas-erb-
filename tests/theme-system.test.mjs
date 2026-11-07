@@ -186,3 +186,13 @@ test('legacy and modern theme variables resolve from the same palette', () => {
   ]) assert.ok(palette.includes(token), 'missing shared theme token: ' + token);
   assert.match(palette, /--mp-light:var\(--anas-surface-raised\)/);
 });
+
+
+test('dark theme is not overridden by a global forced-black typography rule', () => {
+  assert.doesNotMatch(html, /body, body \\*, body \\*::before, body \\*::after \\{[\\s\\S]{0,180}#080b10 !important/);
+  const bridge = html.split('id="anasThemeCompatibility"', 2)[1] || '';
+  assert.match(bridge, /Last-mile contrast guard/);
+  assert.ok(bridge.includes(':root[data-anas-theme="dark"] body *'));
+  assert.ok(bridge.includes('-webkit-text-fill-color:currentColor!important'));
+  assert.ok(bridge.includes(':root[data-anas-theme="dark"] .grid-card-item .card-title-text'));
+});
