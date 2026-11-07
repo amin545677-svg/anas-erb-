@@ -109,7 +109,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
     const page = await context.newPage();
     page.on('pageerror', error => pageErrors.push(error.message));
-    page.on('dialog', async dialog => { await dialog.accept(); });
+    const dialogMessages = [];
+    page.on('dialog', async dialog => { dialogMessages.push(dialog.message()); await dialog.accept(); });
 
     await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
@@ -210,6 +211,80 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       },
       'invoice, cash ledger, stock ledger and balances must survive reload unchanged'
     );
+
+    // Local return acceptance: use the real POS invoice created above and the actual drawer entry.
+    const returnRevisionBefore = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.evaluate(() => openDrawer());
+    await page.locator('.drawer-nav-row').filter({ hasText: 'ارجاع فاتورة مبيعات' }).click();
+    await page.locator('#rev-invoice-select').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#rev-invoice-select').selectOption('0');
+    await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
+    await page.locator('#rev-reason-input').fill('اختبار مرتجع محلي من فاتورة POS');
+    assert.equal(await page.locator('#rev-submit-btn').isEnabled(), true, 'local return must enable after a valid preview and reason');
+    await page.locator('#rev-submit-btn').click();
+    await page.waitForFunction(({ beforeRevision, id, productId }) => {
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage && storage.getCommittedSnapshot();
+      const product = snapshot && snapshot.products && snapshot.products.find(row => String(row.id) === productId);
+      const returned = snapshot && Array.isArray(snapshot.returns) &&
+        snapshot.returns.some(row => row && row.status === 'POSTED' && String(row.originalInvoiceId) === id);
+      return storage && storage.ready() && storage.status().revision > beforeRevision &&
+        !document.getElementById('modal-reverse-ledger')?.classList.contains('active') &&
+        returned && product && product.stock === 10;
+    }, { beforeRevision: returnRevisionBefore, id: invoiceId, productId: PRODUCT_ID }, { timeout: 15000 });
+    const localReturnProof = await page.evaluate(({ id, productId }) => {
+      const snapshot = ANASResilientStorage.getCommittedSnapshot();
+      const document = snapshot.returns.find(row => row && row.status === 'POSTED' && String(row.originalInvoiceId) === id);
+      const product = snapshot.products.find(row => String(row.id) === productId);
+      return {
+        returnId: document && document.returnId, returnStatus: document && document.status,
+        productStock: product && product.stock, caisseBalance: snapshot.caisseBalance,
+        saleReturnMovements: snapshot.stockMovements.filter(row => row && row.referenceType === 'sales_return' &&
+          String(row.referenceId) === String(document && document.returnId)).length
+      };
+    }, { id: invoiceId, productId: PRODUCT_ID });
+    assert.equal(localReturnProof.returnStatus, 'POSTED');
+    assert.equal(localReturnProof.productStock, 10, 'sales return must restore the sold unit to inventory');
+    assert.equal(localReturnProof.caisseBalance, 100000, 'cash refund must reverse the original receipt');
+    assert.ok(localReturnProof.saleReturnMovements >= 1, 'local return must write a linked reverse stock movement');
+
+    // Driver advance acceptance with an empty cashbox must persist without a cash deduction.
+    const beforeExpenseSetupRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.evaluate(() => {
+      AppData.caisseBalance = 0;
+      if (saveDB() !== true) throw new Error('Could not persist zero-cashbox test fixture');
+    });
+    await page.waitForFunction(beforeRevision => {
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage && storage.getCommittedSnapshot();
+      return storage && storage.status().revision > beforeRevision && snapshot && snapshot.caisseBalance === 0;
+    }, beforeExpenseSetupRevision, { timeout: 15000 });
+    await page.evaluate(() => openView('expenses'));
+    await page.locator('#expAccountInput').fill('مصاريف الطريق');
+    await page.locator('#expDescInput').fill('مازوت');
+    await page.locator('#expAmountInput').fill('2000');
+    await page.locator('#expPaymentMethod').selectOption('driver_advance');
+    const beforeExpenseRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#view-expenses button[onclick="submitExpenseOperation()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage && storage.getCommittedSnapshot();
+      return storage && storage.status().revision > beforeRevision && snapshot &&
+        snapshot.expenses.some(row => row && row.desc === 'مازوت' && row.amt === 2000 &&
+          row.paymentMethod === 'driver_advance' && row.settlementStatus === 'pending');
+    }, beforeExpenseRevision, { timeout: 15000 });
+    const expenseProof = await page.evaluate(() => {
+      const snapshot = ANASResilientStorage.getCommittedSnapshot();
+      const row = snapshot.expenses.find(item => item && item.desc === 'مازوت');
+      return { amount: row && row.amt, paymentMethod: row && row.paymentMethod,
+        settlementStatus: row && row.settlementStatus, cashBalance: snapshot.caisseBalance };
+    });
+    assert.deepEqual(expenseProof, {
+      amount: 2000, paymentMethod: 'driver_advance', settlementStatus: 'pending', cashBalance: 0
+    });
+    assert.ok(dialogMessages.some(message => message.includes('تم تسجيل المصروف بنجاح')));
+    assert.ok(dialogMessages.every(message => !/يتطلب معرف فترة مفتوحة|طلب الترحيل الخادمي|بوابة ترحيل خادمية/.test(message)),
+      'local return and expense flows must not require a server fiscal-period gate');
 
     const runtimeParity = await page.evaluate(() => ({
       invoices: AppData.invoices.length,

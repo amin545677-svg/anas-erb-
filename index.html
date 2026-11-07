@@ -1663,10 +1663,14 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
                     <input type="number" id="expAmountInput" class="field-input" value="0">
                 </div>
 
-                <div class="pills-group-row" style="margin:10px 0;">
-                    <div class="pill-select-btn active">نقداً</div>
-                    <div class="pill-select-btn">بطاقه</div>
-                    <div class="pill-select-btn">شيك</div>
+                <div class="field-group" style="margin:10px 0;">
+                    <label for="expPaymentMethod">طريقة الدفع</label>
+                    <select id="expPaymentMethod" class="field-input">
+                        <option value="cash">نقداً</option>
+                        <option value="card">بطاقة</option>
+                        <option value="cheque">شيك</option>
+                        <option value="driver_advance">عهدة / على الحساب (دون خصم من الصندوق)</option>
+                    </select>
                 </div>
 
                 <button class="btn-full-submit" style="background:var(--mp-navy);" onclick="submitExpenseOperation()">حفظ</button>
@@ -5176,6 +5180,12 @@ function renderPurchasesTable() {
             const desc = (descInput ? String(descInput.value || '').trim() : '') || 'مصروف عام';
             const accountInput = document.getElementById('expAccountInput');
             const acc = (accountInput ? String(accountInput.value || '').trim() : '') || 'مصاريف عامة';
+            const paymentInput = document.getElementById('expPaymentMethod');
+            let paymentMethod = paymentInput ? String(paymentInput.value || 'cash') : 'cash';
+            if (!['cash', 'card', 'cheque', 'driver_advance'].includes(paymentMethod)) {
+                alert('طريقة الدفع غير صالحة؛ لم يتم تسجيل المصروف.');
+                return;
+            }
             if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || !Number.isFinite(amt)) {
                 if (amountInput && typeof amountInput.focus === 'function') amountInput.focus();
                 alert('أدخل مبلغاً صالحاً أكبر من صفر، باستخدام أرقام فقط.');
@@ -5194,6 +5204,11 @@ function renderPurchasesTable() {
                 alert('سجل المصروفات تالف؛ أُوقف التسجيل دون استبدال السجل.');
                 return;
             }
+            if (Object.prototype.hasOwnProperty.call(AppData, 'cashMovements') &&
+                (!Array.isArray(AppData.cashMovements) || AppData.cashMovements.some(x => !x || typeof x !== 'object' || Array.isArray(x)))) {
+                alert('سجل حركات الصندوق تالف؛ أُوقف التسجيل دون استبدال السجل.');
+                return;
+            }
             const expenseIds = new Set();
             for (const expense of (Array.isArray(AppData.expenses) ? AppData.expenses : [])) {
                 if (expense.id === undefined || expense.id === null || String(expense.id).trim() === '') continue;
@@ -5207,27 +5222,74 @@ function renderPurchasesTable() {
             const hadCashBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const previousCashBalance = AppData.caisseBalance;
             const previousBalanceCents = anasToCents(hadCashBalance ? previousCashBalance : 0);
-            const cashAvailable = Number.isSafeInteger(previousBalanceCents) && previousBalanceCents >= amountCents;
-            const registerAsDriverAdvance = !cashAvailable && confirm('رصيد الصندوق غير كافٍ. هل تريد تسجيل المصروف كآجل / عهدة سائق دون خصم فوري من الصندوق؟');
-            if (!cashAvailable && !registerAsDriverAdvance) return;
-            const nextBalanceCents = cashAvailable ? previousBalanceCents - amountCents : previousBalanceCents;
-            if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0 ||
-                !Number.isSafeInteger(nextBalanceCents) || Math.abs(nextBalanceCents) > Number.MAX_SAFE_INTEGER) {
+            if (!Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0) {
+                alert('رصيد الصندوق غير صالح؛ لم يتم تسجيل المصروف.');
+                return;
+            }
+            let registerAsDriverAdvance = paymentMethod === 'driver_advance';
+            let openingBalanceCents = 0;
+            if (paymentMethod === 'cash' && previousBalanceCents < amountCents) {
+                const chooseAdvance = confirm(
+                    'رصيد الصندوق لا يكفي. اختر طريقة المتابعة:\nموافق: تسجيل المصروف كعهدة / على الحساب دون خصم من الصندوق.\nإلغاء: إدخال رصيد افتتاحي سريع ثم إتمام الصرف.'
+                );
+                if (chooseAdvance) {
+                    paymentMethod = 'driver_advance';
+                    registerAsDriverAdvance = true;
+                } else {
+                    const deficit = amountCents - previousBalanceCents;
+                    const openingInput = prompt(
+                        'أدخل مبلغ الرصيد الافتتاحي النقدي (د.ج) — الحد الأدنى لإتمام هذا المصروف: ' +
+                        anasCentsToCurrency(deficit).toFixed(2),
+                        anasCentsToCurrency(deficit).toFixed(2)
+                    );
+                    if (openingInput === null) return;
+                    openingBalanceCents = anasToCents(String(openingInput).trim().replace(',', '.'));
+                    if (!Number.isSafeInteger(openingBalanceCents) || openingBalanceCents < deficit) {
+                        alert('الرصيد الافتتاحي يجب أن يغطي العجز على الأقل؛ لم يتم تسجيل أي حركة.');
+                        return;
+                    }
+                }
+            }
+            const cashDeductionCents = paymentMethod === 'cash' ? amountCents : 0;
+            const nextBalanceCents = previousBalanceCents + openingBalanceCents - cashDeductionCents;
+            if (!Number.isSafeInteger(nextBalanceCents) || nextBalanceCents < 0 ||
+                nextBalanceCents > Number.MAX_SAFE_INTEGER) {
                 alert('رصيد الصندوق أو نتيجة المصروف خارج المجال المالي الآمن؛ لم يتم تسجيل المصروف.');
                 return;
             }
             const hadExpenses = Array.isArray(AppData.expenses);
             const previousExpenses = hadExpenses ? AppData.expenses.slice() : null;
-            AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
-            if (!hadExpenses) AppData.expenses = [];
+            const hadCashMovements = Array.isArray(AppData.cashMovements);
+            const previousCashMovements = hadCashMovements ? AppData.cashMovements.slice() : null;
             const baseExpenseId = 'EXP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
             let expenseId = baseExpenseId;
             let expenseSuffix = 1;
             while (expenseIds.has(expenseId)) expenseId = baseExpenseId + '-' + (expenseSuffix++);
+            if (openingBalanceCents > 0) {
+                if (!hadCashMovements) AppData.cashMovements = [];
+                const movementId = 'CASH-OPEN-' + expenseId;
+                if (AppData.cashMovements.some(row => String(row.id ?? '') === movementId)) {
+                    alert('تعذر إنشاء حركة الرصيد الافتتاحي بسبب تعارض معرّف الحركة.');
+                    if (!hadCashMovements) delete AppData.cashMovements;
+                    return;
+                }
+                AppData.cashMovements.push({
+                    id: movementId, type: 'add', amount: anasCentsToCurrency(openingBalanceCents),
+                    description: 'رصيد افتتاحي سريع قبل المصروف ' + expenseId,
+                    referenceType: 'opening_balance', referenceId: expenseId,
+                    date: new Date().toISOString(),
+                    userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                    userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+                });
+            }
+            if (paymentMethod === 'cash' || openingBalanceCents > 0) {
+                AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
+            }
+            if (!hadExpenses) AppData.expenses = [];
             AppData.expenses.push({
                 id: expenseId,
                 account: acc, desc: desc, amt: amt, date: new Date().toISOString(),
-                paymentMethod: registerAsDriverAdvance ? 'driver_advance' : 'cash',
+                paymentMethod: registerAsDriverAdvance ? 'driver_advance' : paymentMethod,
                 settlementStatus: registerAsDriverAdvance ? 'pending' : 'settled',
                 userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                 userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
@@ -5238,8 +5300,9 @@ function renderPurchasesTable() {
             if (!expenseSaved) {
                 if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;
                 if (hadExpenses) AppData.expenses = previousExpenses; else delete AppData.expenses;
+                if (hadCashMovements) AppData.cashMovements = previousCashMovements; else delete AppData.cashMovements;
                 updateCashUI();
-                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وسجل المصروفات إلى حالتهما السابقة.');
+                alert('تعذر حفظ المصروف؛ أُعيد رصيد الصندوق وسجلا المصروفات والحركات إلى حالتهما السابقة.');
                 return;
             }
             updateCashUI();

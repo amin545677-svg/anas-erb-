@@ -240,7 +240,7 @@ function updatePreview() {
     const engine = window.ANASReverseLedger;
     const reason = byId('rev-reason-input').value.trim();
     byId('rev-submit-btn').disabled = !(engine && typeof engine.localPostReturnTransaction === 'function' && reason);
-    status('المعاينة ناجحة على نسخة منفصلة. ستُعتمد الحركة محلياً بعد إعادة التحقق وحفظ IndexedDB.', true);
+    status('المعاينة ناجحة على نسخة بيانات معزولة. ستُعتمد الحركة محلياً بعد إعادة التحقق والحفظ الدائم.', true);
   } catch (error) {
     status(error && error.message ? error.message : 'تعذر حساب المعاينة.', false);
   }
