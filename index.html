@@ -10236,8 +10236,10 @@ function wtAuditTransfers(){
                     const box=document.getElementById('smartPdfExtractResults');
                     const textBox=document.getElementById('smartPdfExtractText');
                     const meta=document.getElementById('smartPdfExtractMeta');
-                    if(textBox) textBox.value=extracted.text;
-                    if(meta) meta.textContent='📄 '+file.name+' — '+extracted.pages+' صفحة — '+extracted.text.length.toLocaleString('fr-FR')+' حرف';
+                    window.anasPdfExtractedBaseText=extracted.text;
+                    window.anasPdfExtractedBaseMeta='📄 '+file.name+' — '+extracted.pages+' صفحة — '+extracted.text.length.toLocaleString('fr-FR')+' حرف';
+                    if(textBox){textBox.value=extracted.text;textBox.readOnly=true;}
+                    if(meta) meta.textContent=window.anasPdfExtractedBaseMeta;
                     if(box) box.style.display='block';
                     if(status) status.textContent=extracted.text.trim()
                       ? '✅ تم استخراج النص محليًا. راجعه قبل التنزيل أو التحليل.'
@@ -10344,11 +10346,11 @@ function wtAuditTransfers(){
                     if(text)recognized.push('--- الصفحة '+pageNo+' (OCR) ---\n'+text);
                     canvas.width=0;canvas.height=0;if(page.cleanup)page.cleanup();
                 }
-                const ocrText=recognized.join('\n\n'),previous=(output?.value||'').trim();
+                const ocrText=recognized.join('\n\n'),baseText=String(window.anasPdfExtractedBaseText||'').trim();
                 if(!ocrText){if(status)status.textContent='⚠️ لم يتعرف OCR على نص في الصفحات المحددة. جرّب صوراً أوضح.';return;}
-                if(output){output.value=[previous,ocrText].filter(Boolean).join('\n\n');output.readOnly=false;}
+                if(output){output.value=[baseText,ocrText].filter(Boolean).join('\n\n');output.readOnly=false;}
                 const meta=document.getElementById('smartPdfExtractMeta');
-                if(meta)meta.textContent+=' — OCR: '+recognized.length+' صفحة';
+                if(meta)meta.textContent=(window.anasPdfExtractedBaseMeta||meta.textContent.split(' — OCR:')[0])+' — OCR: '+recognized.length+' صفحة';
                 if(status)status.textContent='✅ اكتمل OCR محلياً لـ '+recognized.length+' صفحة. راجع الأرقام والأسماء يدوياً قبل استخدام النتائج.';
             }catch(error){if(status)status.textContent='❌ تعذر OCR لصفحات PDF: '+(error.message||error);}
             finally{if(pdf&&pdf.destroy)try{await pdf.destroy();}catch(_){}if(button){button.disabled=false;button.textContent='📷 إعادة OCR للصفحات المصوّرة';}}
