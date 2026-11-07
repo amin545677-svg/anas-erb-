@@ -38,7 +38,7 @@ export function filterPosProducts(products, options = {}) {
     const minimum = Number(product.minAlert ?? product.min_limit ?? 5);
     const threshold = Number.isFinite(minimum) && minimum > 0 ? minimum : 5;
     if (stockFilter === 'favorite' && !favoriteFor(product)) return false;
-    if (stockFilter === 'available' && stock <= 0) return false;
+    if (stockFilter === 'available' && stock <= threshold) return false;
     if (stockFilter === 'low' && !(stock > 0 && stock <= threshold)) return false;
     if (stockFilter === 'out' && stock > 0) return false;
     return true;
