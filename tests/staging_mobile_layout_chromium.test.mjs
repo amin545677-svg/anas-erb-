@@ -212,7 +212,9 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       ['الكود','الباركود','اسم المنتج','سعر الشراء','سعر البيع 1','المخزون','الوحدة','الفئة','الحد الأدنى'],
       ['TEA-001','611000000001','أريشا كرستال 200غ',100,150,12,'علبة','مشروبات',2],
       ['TEA-002','611000000002','توارف ساشي 200غ',110,165,10,'علبة','مشروبات',2],
-      ['TEA-003','611000000003','الرقيم 500غ',120,180,8,'علبة','مشروبات',1]
+      ['TEA-003','611000000003','الرقيم 500غ',120,180,8,'علبة','مشروبات',1],
+      ['TEA-004','611000000004','شاي أحمر 200غ',90,140,15,'علبة','مشروبات',3],
+      ['TEA-005','611000000005','شاي أخضر 200غ',80,130,20,'علبة','مشروبات',4]
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
@@ -230,7 +232,7 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     page.on('dialog', dialog => dialog.accept());
     await page.locator('#smartImportConfirm').click();
     await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
-    await page.waitForFunction(() => window.AppData && window.AppData.products.length === 3);
+    await page.waitForFunction(() => window.AppData && window.AppData.products.length === 5);
     await page.evaluate(() => window.openView('pos', true));
     await page.locator('#posSearchField').fill('أريشا');
     await page.waitForFunction(() => {
@@ -264,11 +266,11 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
         floatingAssistantDisplay: getComputedStyle(document.getElementById('anasContextAiFab')).display,
         diagnosticVisible: document.body.innerText.includes('تشخيص أخطاء ANAS ERP — V23'),
         backupRecordPresent: !!backup && Array.isArray(backup.data?.products),
-        importedProductsPersisted: ['أريشا كرستال 200غ','توارف ساشي 200غ','الرقيم 500غ'].every(name => savedPayload.includes(name)),
+        importedProductsPersisted: ['أريشا كرستال 200غ','توارف ساشي 200غ','الرقيم 500غ','شاي أحمر 200غ','شاي أخضر 200غ'].every(name => savedPayload.includes(name)),
         backupPreImportProductCount: backup?.recordCount
       };
     });
-    assert.equal(acceptance.productCount, 3);
+    assert.equal(acceptance.productCount, 5);
     assert.ok(acceptance.searchNames.some(name => name.includes('أريشا كرستال 200غ')));
     assert.equal(acceptance.floatingAssistantDisplay, 'none');
     assert.equal(acceptance.diagnosticVisible, false);
