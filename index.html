@@ -4876,7 +4876,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             results.innerHTML = matches.map((product, index) => {
                 const encodedId = encodeURIComponent(String(product.id)).replace(/'/g, '%27');
                 return '<button type="button" class="pos-search-result" role="option" data-index="' + index +
-                    '" onclick="selectPurchaseSearchProduct(decodeURIComponent(\\'' + encodedId + '\\'))">' +
+                    '" onclick="selectPurchaseSearchProduct(decodeURIComponent(\'' + encodedId + '\'))">' +
                     '<span class="pos-search-result-name">' + esc(product.name) + '</span>' +
                     '<span class="pos-search-result-meta">' + esc(product.barcode || 'بدون باركود') +
                     ' · تكلفة ' + esc(product.buyPrice ?? '—') + ' د.ج · مخزون ' + esc(product.stock ?? '—') +
@@ -4932,7 +4932,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             const costInput = document.getElementById('purBuyCost');
             const query = String(input?.value || '').trim();
             if (!query) return;
-            const barcodeLike = /^[A-Za-z0-9._-]{5,}$/.test(anasNormalizeBarcode(query)) && !/\\s/.test(query);
+            const barcodeLike = /^[A-Za-z0-9._-]{5,}$/.test(anasNormalizeBarcode(query)) && !/\s/.test(query);
             openAddProductModal();
             const nameField = document.getElementById('newProdNameInput');
             const barcodeField = document.getElementById('newProdBarcodeInput');
