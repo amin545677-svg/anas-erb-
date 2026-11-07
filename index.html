@@ -1223,7 +1223,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
 #smartImportPreviewModal button,#smartImportPreviewModal select {box-sizing:border-box;min-height:44px;max-width:100%;white-space:normal}
 #smartImportPreviewModal > div {box-sizing:border-box;width:100%;max-width:760px}
 #smartImportPreviewModal table {direction:rtl}
-@media(max-width:520px){#smartImportPreviewModal{padding:6px!important}#smartImportPreviewModal > div{margin:4px auto!important;padding:10px!important}#smartImportPreviewModal button{width:100%;line-height:1.45}}
+@media(max-width:520px){#smartImportPreviewModal{padding:6px!important;overscroll-behavior:contain}#smartImportPreviewModal > div{margin:4px auto!important;padding:10px!important;max-height:85dvh!important;overflow-y:auto!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}#smartImportPreviewModal button{width:100%;line-height:1.45}}
 </style>
 <style>
 /* ANAS ERP V28 — responsive stocktake action buttons (mobile fix) */
