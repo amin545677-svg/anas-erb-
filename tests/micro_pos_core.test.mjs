@@ -89,3 +89,18 @@ test('V42 shell loads the shared core and wires inventory, POS, CRM and sales hi
   assert.match(html, /core\.filterSalesInvoices\(allInvoices/);
   assert.match(html, /normalizeAlgeriaPhone\(rawPhone\)/);
 });
+
+
+test('V42 exposes fixed six-action field navigation and offsets the POS checkout bar safely', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const nav = html.slice(html.indexOf('<nav id="anasQuickBottomNav"'), html.indexOf('</nav>', html.indexOf('<nav id="anasQuickBottomNav"')) + 6);
+  assert.ok(nav.includes('data-nav-view="dashboard"'));
+  assert.ok(nav.includes('data-nav-view="pos"'));
+  assert.ok(nav.includes('data-nav-view="inventory"'));
+  assert.ok(nav.includes('data-nav-view="invoices-list"'));
+  assert.ok(nav.includes('data-nav-view="customers"'));
+  assert.ok(nav.includes('onclick="openDrawer()"'));
+  assert.match(html, /quickNavView = viewName === 'cust-debts' \? 'customers' : viewName/);
+  assert.match(html, /button\.classList\.toggle\('active', active\)/);
+  assert.match(html, /#view-pos \.bottom-totals-bar\s*\{\s*bottom:calc\(66px \+ env\(safe-area-inset-bottom\)\)/);
+});
