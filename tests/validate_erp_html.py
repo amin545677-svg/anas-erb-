@@ -1011,10 +1011,13 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
 
     # Transaction-safety regression guards for money and inventory mutations.
     def function_source(name, end_marker=None):
-        marker = "function " + name + "("
-        start = source.find(marker)
-        if start < 0:
+        declaration = re.search(r"\\b(?:async\\s+)?function\\s+" + re.escape(name) + r"\\s*\\(", source)
+        if not declaration:
             return ""
+        # Keep the async keyword: callers may compile this source in a VM,
+        # and dropping it turns await expressions into syntax errors.
+        start = declaration.start()
+        marker = declaration.group(0)
         candidates = [pos for pos in (
             source.find("\n        function ", start + len(marker)),
             source.find("\nfunction ", start + len(marker)),
@@ -1456,6 +1459,8 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
     # Intercept the real AI request function with a fake fetch and synthetic records.
     # Assert consent gates the actual serialized payload and no sensitive value is logged.
     ai_ask_fn = function_source("askAnasBusinessAI")
+    if ai_ask_fn and not ai_ask_fn.lstrip().startswith("async function askAnasBusinessAI("):
+        errors.append("AI payload runtime extraction must preserve the async function declaration")
     if ai_ask_fn and "async function anasLoadSheetJs(" in ai_ask_fn:
         errors.append("AI payload runtime extraction crossed into the next async function")
     ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
