@@ -278,6 +278,39 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.equal(acceptance.importedProductsPersisted, true, 'all three imported products must be in the durable IndexedDB app snapshot');
     assert.equal(acceptance.backupPreImportProductCount, 0, 'backup must be captured before the first product is added');
 
+    // Re-import the same product identity with changed catalog fields and a different file stock.
+    // The importer must update the catalog but never overwrite an already-posted live balance/cost basis.
+    await page.evaluate(async () => {
+      window.AppData.products[0].stock = 777;
+      window.AppData.products[0].buyPrice = 100;
+      if (typeof window.saveDBDurably === 'function') await window.saveDBDurably();
+    });
+    const updateWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(updateWorkbook, XLSX.utils.aoa_to_sheet([
+      ['الكود','الباركود','اسم المنتج','سعر الشراء','سعر البيع','المخزون','الفئة','الوحدة','الحد الأدنى','الوصف'],
+      ['TEA-001','611000000001','أريشا كرستال تحديث',999,999,999,'مشروبات','علبة',99,'']
+    ]), 'Products');
+    await page.locator('#smartAiExcelUpload').setInputFiles({
+      name: 'ANAS_ERP_Product_Update.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: XLSX.write(updateWorkbook, { type:'buffer', bookType:'xlsx' })
+    });
+    await page.locator('#smartImportPreviewModal').waitFor({ state:'visible' });
+    assert.equal(await page.locator('#smartImportTarget').inputValue(), 'products');
+    await page.locator('#smartImportConfirm').click();
+    await page.locator('#smartImportPreviewModal').waitFor({ state:'detached' });
+    await page.waitForFunction(() => window.AppData.products[0]?.name === 'أريشا كرستال تحديث');
+    const upsert = await page.evaluate(() => ({
+      count:window.AppData.products.length,
+      name:window.AppData.products[0].name,
+      stock:window.AppData.products[0].stock,
+      buyPrice:window.AppData.products[0].buyPrice,
+      price1:window.AppData.products[0].price1
+    }));
+    assert.deepEqual(upsert, {
+      count:5, name:'أريشا كرستال تحديث', stock:777, buyPrice:100, price1:999
+    }, 'product upsert must update catalog fields while preserving live stock and its current cost basis');
+
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
