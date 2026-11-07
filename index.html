@@ -2895,7 +2895,7 @@ input::placeholder, textarea::placeholder { opacity: 1 !important; color: #30384
             try { updateUIState(); } catch (e) { console.error('Anas ERP UI refresh failed:', e); }
             try { checkSystemAlerts(); } catch (e) { console.error('Anas ERP alerts refresh failed:', e); }
             try { updateDashboardStats(); } catch (e) { console.error('Anas ERP dashboard refresh failed:', e); }
-            if(typeof anasCurrentView!=='undefined'&&anasCurrentView==='ai-excel-hub'){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
+            if(document.getElementById('anasLocalAuditResults')){try{anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights();anasRunLocalBusinessAudit();}catch(e){console.warn('ANAS AI local refresh failed',e);}}
             return true;
         }
 
