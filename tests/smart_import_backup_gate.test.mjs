@@ -30,6 +30,9 @@ test('local product import auto-detects headers and persists a verified IndexedD
     'the backup must be read back and verified before import');
   assert.ok(preview.includes("const byId=next.filter") && preview.includes("const byBarcode=") && preview.includes("const byName="),
     'product upsert must match by code, barcode, and normalized name');
+  assert.ok(preview.includes("if(seenNames.has(keyName) && target!=='products')") &&
+    preview.includes("if(target==='products' && seenNames.has(keyName) && !id && !val(r,'barcode'))"),
+    'product names may repeat when stable product codes or barcodes distinguish the records');
   assert.ok(preview.includes("const liveStock=existingProduct.stock") &&
     preview.includes("existingProduct.stock=liveStock") &&
     preview.includes("const liveBuyPrice=existingProduct.buyPrice"),
