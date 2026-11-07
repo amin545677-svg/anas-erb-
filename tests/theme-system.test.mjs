@@ -144,7 +144,9 @@ test('installed PWA theme colors match the light application palette', () => {
 test('dark theme compatibility layer loads after the premium dashboard stylesheet', () => {
   const linkIndex = html.indexOf('anas-erp-ui-safe-enhancements.css');
   const bridgeIndex = html.indexOf('id="anasThemeCompatibility"');
+  const bodyIndex = html.indexOf('<body>');
   assert.ok(linkIndex >= 0 && bridgeIndex > linkIndex, 'theme bridge must load after the external premium stylesheet');
+  assert.ok(bodyIndex > bridgeIndex, 'theme bridge must load in the document head before first paint');
 });
 
 test('dark dashboard preserves readable cards, icon surfaces, and footer contrast', () => {
