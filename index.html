@@ -10125,12 +10125,16 @@ function wtAuditTransfers(){
                     let added=0,updated=0;
                     if(target==='products'){
                         for(const item of staged){
-                            const byId=next.filter(p=>p && String(p.id)===String(item.id));
+                            const byId=item.id?next.filter(p=>p && String(p.id)===String(item.id)):[];
                             const byBarcode=item.barcode?next.filter(p=>p && anasNormalizeBarcode(p.barcode)===anasNormalizeBarcode(item.barcode)):[];
-                            const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase();
-                            const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\u064b-\u065f\u0670ـ]/g,'').replace(/[\s_\-()./]+/g,'').toLowerCase()===normalizedName):[];
-                            const matches=byId.length?byId:(byBarcode.length?byBarcode:byName);
-                            if(matches.length>1) throw new Error('تطابق متعدد للكود أو الباركود؛ أُلغي الاستيراد دون تعديل.');
+                            const normalizedName=String(item.name||'').normalize('NFKD').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').toLowerCase();
+                            const byName=normalizedName?next.filter(p=>p && String(p.name||'').normalize('NFKD').replace(/[\\u064b-\\u065f\\u0670ـ]/g,'').replace(/[\\s_\\-()./]+/g,'').toLowerCase()===normalizedName):[];
+                            if(byId.length>1||byBarcode.length>1) throw new Error('الكود أو الباركود مرتبط بأكثر من صنف؛ أُلغي الاستيراد دون تعديل.');
+                            if(byId.length&&byBarcode.length&&byId[0]!==byBarcode[0]) throw new Error('تعارض هوية: الكود والباركود يشيران إلى صنفين مختلفين؛ أُلغي الاستيراد دون تعديل.');
+                            if(item.id&&!byId.length&&byBarcode.length) throw new Error('تعارض هوية: الباركود موجود لصنف آخر ولا يطابق الكود المستورد؛ أُلغي الاستيراد.');
+                            if(byBarcode.length===1&&byName.length===1&&byBarcode[0]!==byName[0]) throw new Error('تعارض هوية: اسم المنتج والباركود يشيران إلى صنفين مختلفين؛ أُلغي الاستيراد.');
+                            const matches=byId.length?byId:(byBarcode.length?byBarcode:(!item.id&&!item.barcode?byName:[]));
+                            if(matches.length>1) throw new Error('اسم المنتج يطابق أكثر من صنف؛ أضف كوداً أو باركوداً فريداً للتمييز.');
                             if(matches.length===1){
                                 const existingProduct=matches[0];
                                 const liveStock=existingProduct.stock;
