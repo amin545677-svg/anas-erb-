@@ -236,7 +236,52 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.locator('#smartImportSheetContinue').evaluate(button => button.click());
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportPreviewModal').innerText(), /Widget XLSX/);
-  await page.locator('#smartImportCancel').evaluate(button => button.click());
+
+  // Commit the reviewed XLSX preview through the real import confirmation path.
+  // This proves the AI Center does more than parse and display a spreadsheet:
+  // the row must enter AppData, be acknowledged by durable storage, and have a
+  // verified pre-import snapshot before the modal reports success.
+  await page.locator('#smartImportTarget').selectOption('products');
+  await page.locator('#smartImportConfirm').evaluate(button => button.click());
+  await page.waitForFunction(() => /اكتمل الاستيراد المحلي/.test(
+    document.querySelector('#smartAiExcelStatus')?.textContent || ''
+  ), { timeout: 15000 });
+  await page.waitForFunction(() => {
+    const snapshot = window.ANASResilientStorage?.getCommittedSnapshot?.();
+    return Array.isArray(snapshot?.products) &&
+      snapshot.products.some(product => product.name === 'Widget XLSX' &&
+        Number(product.stock) === 5 && Number(product.price1) === 12);
+  }, { timeout: 15000 });
+  const importProof = await page.evaluate(async () => {
+    const snapshot = window.ANASResilientStorage.getCommittedSnapshot();
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('anas_erp_v42_resilient_db', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const backup = await new Promise((resolve, reject) => {
+      const tx = db.transaction('snapshots', 'readonly');
+      const request = tx.objectStore('snapshots').get('ANAS_ERP_PRE_IMPORT_BACKUP_V1');
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    const payload = backup?.payload ? JSON.parse(backup.payload) : null;
+    return {
+      imported: snapshot.products.filter(product => product.name === 'Widget XLSX').length,
+      stock: snapshot.products.find(product => product.name === 'Widget XLSX')?.stock,
+      price1: snapshot.products.find(product => product.name === 'Widget XLSX')?.price1,
+      backupExists: !!payload,
+      backupTarget: payload?.target,
+      backupRecordCount: payload?.recordCount,
+      backupDidNotContainNewRow: !payload?.data?.products?.some(product => product.name === 'Widget XLSX')
+    };
+  });
+  assert.deepEqual(importProof, {
+    imported: 1, stock: 5, price1: 12,
+    backupExists: true, backupTarget: 'products',
+    backupRecordCount: 1, backupDidNotContainNewRow: true
+  }, 'XLSX import must persist exactly once and retain a verified pre-import backup');
 
   // 3) Generate a blank, safe template and assert the browser download.
   const downloadPromise = page.waitForEvent('download');
