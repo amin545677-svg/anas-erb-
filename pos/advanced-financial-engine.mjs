@@ -215,7 +215,7 @@ export function canPerformRoleAction(role, action) {
  * one atomic IndexedDB transaction for the entity snapshot.
  */
 export async function executeSafeBulkImport({ rows, mode = 'merge', entityType = 'products',
-  storage = globalThis.localStorage, repository, keyFields = ['barcode', 'id', 'name'] } = {}) {
+  storage = globalThis.localStorage, repository, keyFields = null } = {}) {
   if (!Array.isArray(rows)) throw new TypeError('IMPORT_ROWS_MUST_BE_ARRAY');
   if (!/^(products|customers|suppliers|invoices)$/.test(entityType)) throw new TypeError('INVALID_IMPORT_ENTITY');
   if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
@@ -229,7 +229,10 @@ export async function executeSafeBulkImport({ rows, mode = 'merge', entityType =
   try { existing = JSON.parse(raw); } catch (_) { throw new Error('EXISTING_DATA_CORRUPT'); }
   if (!Array.isArray(existing)) throw new Error('EXISTING_DATA_NOT_ARRAY');
   storage.setItem(backupKey, raw);
-  const planned = prepareBulkImport(existing, rows, mode, keyFields);
+  const effectiveKeyFields = Array.isArray(keyFields) && keyFields.length ? keyFields
+    : entityType === 'customers' || entityType === 'suppliers' ? ['phone', 'id', 'name']
+    : entityType === 'invoices' ? ['id', 'invoiceNumber', 'number'] : ['barcode', 'id', 'name'];
+  const planned = prepareBulkImport(existing, rows, mode, effectiveKeyFields);
   const serialized = JSON.stringify(planned.rows);
   try {
     // The local mirror is staged first so a failed durable write can restore it.
