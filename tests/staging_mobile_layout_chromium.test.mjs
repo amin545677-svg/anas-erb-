@@ -203,6 +203,9 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.equal(await page.locator('#smartImportPreviewModal').count() > 0, true,
       'Excel/CSV click must produce a local import preview');
     await page.locator('#smartImportConfirm').click();
+    await page.locator('#smartImportReview').getByText('CSV-001').waitFor({ state: 'visible' });
+    assert.match(await page.locator('#smartImportReview').innerText(), /مطابقة كل البنود تلقائياً/);
+    await page.locator('#smartImportConfirm').click();
     await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
     await page.waitForFunction(() => window.AppData?.products?.some(p => p.id === 'CSV-001'));
     const csvSaved = await page.evaluate(async () => {
