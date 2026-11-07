@@ -4,6 +4,15 @@ name: Deploy Reverse Ledger Firebase Functions (Staging)
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_staging_functions_deploy:
+        description: "Deploy trusted financial callables and Firestore rules to the isolated Staging project only."
+        required: true
+        type: choice
+        default: "NO"
+        options:
+          - "NO"
+          - "DEPLOY_STAGING_FUNCTIONS"
   pull_request:
     paths:
       - 'functions/**'
@@ -52,10 +61,10 @@ jobs:
           node --check tests/staging_deployment_identity_guard.test.mjs
           node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js tests/staging_grant_scope.test.cjs
 
-  # TEMPORARILY FROZEN: Functions deployment is intentionally disabled while the
-  # isolated staging IAM ActAs prerequisite is unresolved. PR validation remains active.
+  # Manual-only release switch: enable after the Staging runtime service-account ActAs binding is verified.
+  # Push and PR runs remain credential-free/skipped; no automatic financial backend deployment occurs.
   deploy-reverse-ledger-staging:
-    if: ${{ false }}
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate' && inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS'
     permissions:
       contents: read
       id-token: write
