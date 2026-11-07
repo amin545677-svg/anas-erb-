@@ -59,6 +59,17 @@ test('Arabic customer initials and phone-independent rendering helper are determ
   assert.equal(MicroPOSHelpers.getArabicInitials(''), 'ز');
 });
 
+test('customer contact actions hide without a phone and invoices carry a stable device identity', () => {
+  assert.deepEqual(MicroPOSHelpers.getCustomerContactState(''), {
+    hasPhone: false, phone: '', showCall: false, showWhatsApp: false, label: 'بدون هاتف'
+  });
+  assert.equal(MicroPOSHelpers.getCustomerContactState('0550123456').showCall, true);
+  const invoice = MicroPOSHelpers.stampInvoiceWithDeviceId({ id: 'INV-1', total: 100 }, 'device_123456789012');
+  assert.equal(invoice.device_id, 'device_123456789012');
+  assert.equal(invoice.total, 100);
+  assert.throws(() => MicroPOSHelpers.stampInvoiceWithDeviceId({}, ''), /DEVICE_ID_REQUIRED/);
+});
+
 test('file guard enforces 2MB sheets, 10MB media and rejects unsupported formats', () => {
   const mb = 1024 * 1024;
   assert.equal(MicroPOSHelpers.validateImportFile({ name: 'data.xlsx', size: 2 * mb }).valid, true);
