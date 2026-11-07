@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
 
 function bootTheme({ saved = null, systemDark = false, storageThrows = false } = {}) {
   const values = new Map(saved ? [['ANAS_ERP_THEME', saved]] : []);
@@ -132,4 +133,10 @@ test('early bootstrap falls back safely when storage access is blocked', () => {
   };
   vm.runInNewContext(match[1], context);
   assert.equal(root.attrs['data-anas-theme'], 'dark');
+});
+
+test('installed PWA theme colors match the light application palette', () => {
+  assert.equal(manifest.background_color, '#f5f7fb');
+  assert.equal(manifest.theme_color, '#1e3a6d');
+  assert.match(html, /<meta name="theme-color" content="#1e3a6d">/);
 });
