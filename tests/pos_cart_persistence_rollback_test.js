@@ -269,25 +269,27 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
   const paymentStart = html.indexOf('function confirmHasibPaymentDurable()');
   const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
   const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
-  const product = { id:'P-NONCASH', name:'Rice', stock:3, buyPrice:5 };
-  const AppData = { products:[product], customers:[], invoices:[], caisseBalance:100,
-    cashMovements:[], bankMovements:[], stockMovements:[], currentUser:{id:'U-1',name:'Tester'} };
-  const elements = { hasibCustomerSelect:{value:''}, hasibPaidAmount:{value:'25'}, hasibPaymentChannel:{value:'transfer'} };
-  const context = { AppData, posCart:[{id:'P-NONCASH',name:'Rice',qty:1,price:25,unit:'كيس'}],
-    lastConfirmedInvoice:null,hasibPaymentInFlight:false,document:{getElementById:id=>elements[id]||null},
-    wtTryEnsureData:()=>true,wtCurrentSaleWarehouse:()=>'المخزن الرئيسي',wtAvailableStock:p=>p.stock,
-    saveDBDurably:()=>Promise.resolve({revision:22,mode:'INDEXEDDB'}),renderPosTable(){},renderCustomersDebts(){},
-    updateCashUI(){},closeModal(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
-  vm.createContext(context);
-  vm.runInContext(source + '\nthis.__paymentPromise = confirmHasibPaymentDurable();',context,{timeout:1500});
-  assert.equal(await context.__paymentPromise,true);
-  assert.equal(AppData.caisseBalance,100,'bank transfer must not increase physical cash');
-  assert.equal(AppData.cashMovements.length,0,'non-cash receipt must not enter the cash movement ledger');
-  assert.equal(AppData.bankMovements.length,1);
-  assert.equal(AppData.bankMovements[0].paymentChannel,'transfer');
-  assert.equal(AppData.bankMovements[0].cashImpact,false);
-  assert.equal(AppData.invoices[0].paymentChannel,'transfer');
-  assert.equal(product.stock,2);
+  for (const paymentChannel of ['cheque','transfer','card','other']) {
+    const product = { id:'P-NONCASH-' + paymentChannel, name:'Rice', stock:3, buyPrice:5 };
+    const AppData = { products:[product], customers:[], invoices:[], caisseBalance:100,
+      cashMovements:[], bankMovements:[], stockMovements:[], currentUser:{id:'U-1',name:'Tester'} };
+    const elements = { hasibCustomerSelect:{value:''}, hasibPaidAmount:{value:'25'}, hasibPaymentChannel:{value:paymentChannel} };
+    const context = { AppData, posCart:[{id:product.id,name:'Rice',qty:1,price:25,unit:'كيس'}],
+      lastConfirmedInvoice:null,hasibPaymentInFlight:false,document:{getElementById:id=>elements[id]||null},
+      wtTryEnsureData:()=>true,wtCurrentSaleWarehouse:()=>'المخزن الرئيسي',wtAvailableStock:p=>p.stock,
+      saveDBDurably:()=>Promise.resolve({revision:22,mode:'INDEXEDDB'}),renderPosTable(){},renderCustomersDebts(){},
+      updateCashUI(){},closeModal(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
+    vm.createContext(context);
+    vm.runInContext(source + '\\nthis.__paymentPromise = confirmHasibPaymentDurable();',context,{timeout:1500});
+    assert.equal(await context.__paymentPromise,true,paymentChannel + ' sale must commit');
+    assert.equal(AppData.caisseBalance,100,paymentChannel + ' must not increase physical cash');
+    assert.equal(AppData.cashMovements.length,0,paymentChannel + ' must not enter cash movement ledger');
+    assert.equal(AppData.bankMovements.length,1);
+    assert.equal(AppData.bankMovements[0].paymentChannel,paymentChannel);
+    assert.equal(AppData.bankMovements[0].cashImpact,false);
+    assert.equal(AppData.invoices[0].paymentChannel,paymentChannel);
+    assert.equal(product.stock,2);
+  }
 }
 await verifyNonCashSaleDoesNotChangePhysicalCash();
 console.log('PASS: non-cash receipt remains outside physical cash balance');
