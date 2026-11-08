@@ -108,7 +108,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     }, { key: DB_KEY, data: initialData() });
 
     const page = await context.newPage();
-    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
     const dialogMessages = [];
     page.on('dialog', async dialog => { dialogMessages.push(dialog.message()); await dialog.accept(); });
 
