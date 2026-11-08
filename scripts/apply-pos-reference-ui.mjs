@@ -13,8 +13,8 @@ if (!html.includes('id="anasPosProductViewToggle"')) {
   if (html.split(anchor).length !== 2) throw new Error('POS_VIEW_TOGGLE_ANCHOR_NOT_UNIQUE');
   const toolbar = '            <div id="anasPosProductViewToggle" class="anas-pos-view-toggle" role="group" aria-label="طريقة عرض المنتجات">\n' +
     '                <span>عرض المنتجات</span>\n' +
-    '                <button type="button" id="anasPosListViewBtn" aria-pressed="true" onclick="setAnasPosProductView(\\'list\\')">☷ قائمة</button>\n' +
-    '                <button type="button" id="anasPosGridViewBtn" aria-pressed="false" onclick="setAnasPosProductView(\\'grid\\')">▦ شبكة</button>\n' +
+    '                <button type="button" id="anasPosListViewBtn" aria-pressed="true" onclick="setAnasPosProductView(\'list\')">☷ قائمة</button>\n' +
+    '                <button type="button" id="anasPosGridViewBtn" aria-pressed="false" onclick="setAnasPosProductView(\'grid\')">▦ شبكة</button>\n' +
     '            </div>\n' + anchor;
   html = html.replace(anchor, toolbar);
 }
@@ -41,8 +41,8 @@ const replacement = [
 '            const core = window.ANASMicroPOSCore;',
 '            const selectedCategory = currentPosCategoryFilter;',
 "            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';",
-'            const withSaleStock = products.map(p => ({ ...p, stock: Number(typeof wtAvailableStock === \\'function\\' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)), is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite) }));',
-'            const filtered = core ? core.filterInventoryItems(withSaleStock, { category: selectedCategory === \\'الكل\\' ? \\'ALL\\' : selectedCategory, status: currentPosStockFilter === \\'favorite\\' ? \\'featured\\' : currentPosStockFilter }) : withSaleStock;',
+'            const withSaleStock = products.map(p => ({ ...p, stock: Number(typeof wtAvailableStock === \'function\' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)), is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite) }));',
+'            const filtered = core ? core.filterInventoryItems(withSaleStock, { category: selectedCategory === \'الكل\' ? \'ALL\' : selectedCategory, status: currentPosStockFilter === \'favorite\' ? \'featured\' : currentPosStockFilter }) : withSaleStock;',
 '            let mode = window.__anasPosProductViewMode;',
 "            if (!['list', 'grid'].includes(mode)) { try { mode = localStorage.getItem('ANAS_POS_PRODUCT_VIEW_V1'); } catch (_) {} }",
 "            if (!['list', 'grid'].includes(mode)) mode = 'list';",
@@ -80,14 +80,14 @@ const replacement = [
 "                const action = document.createElement('small'); action.textContent = 'اختيار السعر ›';",
 '                priceBlock.append(price, action); card.append(info, priceBlock);',
 "                card.title = String(p.name ?? '') + ' — ' + money(pr);",
-'                card.addEventListener(\\'click\\', () => openPosPriceTierPicker(p.id));',
+'                card.addEventListener(\'click\', () => openPosPriceTierPicker(p.id));',
 '                return card;',
 '            };',
 '            const deep = window.ANASMicroPOSDeepCore;',
 '            if (deep?.ProgressiveListRenderer) {',
 "                if (!window.__anasPosProgressiveRenderer || window.__anasPosProgressiveRenderer.containerEl !== cont) {",
 '                    window.__anasPosProgressiveRenderer?.destroy?.();',
-'                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(cont, document.getElementById(\\'posQuickProductsProgress\\'), 20);',
+'                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(cont, document.getElementById(\'posQuickProductsProgress\'), 20);',
 '                }',
 '                window.__anasPosProgressiveRenderer.setItems(filtered, renderCard);',
 '            } else {',
