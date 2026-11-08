@@ -81,7 +81,7 @@
       '<div class="anas-pos-mini-head"><strong>🛒 السلة <span data-mini-cart-count>0</span></strong><strong data-mini-cart-total>0.00 د.ج</strong></div>',
       '<div class="anas-pos-mini-lines" data-mini-cart-lines></div>',
       '<div class="anas-pos-mini-actions">',
-      '<button type="button" data-mini-action="free">منتج حر</button>',
+      '<button type="button" data-mini-action="free">إضافة منتج</button>',
       '<button type="button" data-mini-action="discount" disabled title="تطبيق الخصم غير متاح قبل ربطه بقيود الفاتورة والدفتر">تخفيض</button>',
       '<button type="button" data-mini-action="quote">مبدئية</button>',
       '<button type="button" data-mini-action="expand">توسيع</button>',
