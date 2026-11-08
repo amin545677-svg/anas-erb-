@@ -33,7 +33,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'AI import script must be injected before the real document body close');
     assert.ok(safeUpdateScript > erp.lastIndexOf('<body') && safeUpdateScript < actualBodyClose,
       'safe update script must be injected before the real document body close');
-    assert.match(erp, /root\\.innerHTML \\+ '<\\/body><\\/html>'/,
+    assert.ok(erp.includes("root.innerHTML + '</body></html>'"),
       'printable HTML closing tags inside JavaScript strings must remain untouched');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
