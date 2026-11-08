@@ -395,7 +395,7 @@
   function originalInvoiceItems(invoice, invoiceType) {
     if (invoice.importedHistorical === true || invoice.financiallyPosted === false) return [];
     if (Array.isArray(invoice.items)) return invoice.items.filter(item =>
-      !(item && (item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)));
+      !(item && (item.isFreeItem === true || item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)));
     if (invoiceType === 'purchase_invoice' && invoice.productId != null) {
       return [{
         productId: invoice.productId,
