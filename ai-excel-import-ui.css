@@ -1,0 +1,50 @@
+/* ANAS ERP — AI Excel Import experience; additive and scoped. */
+.anas-ai-import-pro{--ai-blue:#0865d7;--ai-navy:#102b65;--ai-line:#d8e4fa;--ai-muted:#66758f;direction:rtl;box-sizing:border-box;margin:14px 0 22px;padding:clamp(14px,2.5vw,26px);border:1px solid #dbe6fb;border-radius:24px;background:linear-gradient(145deg,#fafdff 0%,#edf4ff 52%,#f7f9ff 100%);box-shadow:0 12px 34px rgba(25,67,135,.09);color:#10234b;overflow:hidden}
+.anas-ai-import-pro *{box-sizing:border-box}
+.anas-ai-import-head{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:20px;background:linear-gradient(115deg,#092f8e,#176ee0 58%,#6b54e8);color:#fff;position:relative;overflow:hidden}
+.anas-ai-import-head:after{content:"";position:absolute;width:220px;height:220px;border:1px solid rgba(255,255,255,.14);border-radius:50%;left:-70px;top:-130px;box-shadow:0 0 0 22px rgba(255,255,255,.04),0 0 0 48px rgba(255,255,255,.035)}
+.anas-ai-import-orb{width:54px;height:54px;flex:0 0 54px;display:grid;place-items:center;border-radius:17px;background:rgba(255,255,255,.17);font-size:30px;color:#fff}
+.anas-ai-import-head-copy{min-width:0;flex:1}
+.anas-ai-import-kicker{display:block;font-size:10px;letter-spacing:1.3px;opacity:.78;font-weight:800}
+.anas-ai-import-head h2{margin:4px 0;font-size:clamp(18px,3vw,25px);line-height:1.35;color:#fff}
+.anas-ai-import-head p{margin:0;font-size:13px;line-height:1.6;color:rgba(255,255,255,.86)}
+.anas-ai-import-head-check{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#fff;color:#0871df;font-weight:900;font-size:20px;flex:0 0 34px}
+.anas-ai-import-benefits{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0 22px;padding:13px;border:1px solid var(--ai-line);border-radius:17px;background:rgba(255,255,255,.82)}
+.anas-ai-import-benefits>div{min-width:0;text-align:center;border-left:1px solid var(--ai-line);padding:2px 5px}
+.anas-ai-import-benefits>div:last-child{border-left:0}
+.anas-ai-import-benefits b,.anas-ai-import-benefits small{display:block}
+.anas-ai-import-benefits b{font-size:14px;color:var(--ai-navy)}
+.anas-ai-import-benefits small{font-size:11px;color:var(--ai-muted);margin-top:4px;line-height:1.5}
+.anas-ai-import-section-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.anas-ai-import-section-title h3{margin:0;font-size:17px;color:#132b5c}
+.anas-ai-import-section-title span{font-size:11px;color:var(--ai-muted)}
+.anas-ai-import-types{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.anas-ai-import-type{min-width:0;min-height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px solid #d5e0f4;border-radius:15px;background:#fff;color:#17366e;padding:10px 6px;cursor:pointer;transition:transform .15s,border-color .15s,background .15s}
+.anas-ai-import-type span{font-size:23px;line-height:1;color:#0865d7}
+.anas-ai-import-type b{font-size:13px}
+.anas-ai-import-type.is-active{border-color:#0865d7;background:linear-gradient(145deg,#087fe9,#1749ca);color:#fff;box-shadow:0 8px 18px rgba(8,101,215,.2)}
+.anas-ai-import-type.is-active span{color:#fff}
+.anas-ai-import-type:focus-visible,.anas-ai-import-pro button:focus-visible{outline:3px solid #f4a72c;outline-offset:3px}
+.anas-ai-import-drop{margin-top:16px;padding:25px 14px 22px;border:2px dashed #6aa3fa;border-radius:20px;background:linear-gradient(140deg,rgba(255,255,255,.94),rgba(232,242,255,.92));text-align:center}
+.anas-ai-import-file-icon{width:54px;height:62px;display:grid;place-items:center;margin:0 auto 12px;border-radius:10px 10px 14px 10px;background:linear-gradient(145deg,#fff,#e6f0ff);border:1px solid #c5d9f8;color:#08734c;font-size:14px;font-weight:900;box-shadow:0 5px 12px rgba(25,66,135,.1)}
+.anas-ai-import-drop h3{margin:0;color:#112a5a;font-size:17px}
+.anas-ai-import-drop p{margin:7px 0 14px;color:#64748c;font-size:12px;line-height:1.7}
+.anas-ai-import-primary{min-height:46px;border:0;border-radius:999px;padding:10px 25px;background:linear-gradient(100deg,#0986ef,#1744ce);color:#fff;font-weight:800;font-size:14px;box-shadow:0 6px 15px rgba(15,88,206,.22);cursor:pointer}
+.anas-ai-import-status{margin-top:12px;color:#65748c;font-size:12px;overflow-wrap:anywhere}
+.anas-ai-import-status[data-state=error]{color:#b42318;font-weight:700}
+.anas-ai-import-status[data-state=success]{color:#087443;font-weight:700}
+.anas-ai-import-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.anas-ai-import-actions button{min-height:48px;border:1px solid #1d67bd;border-radius:14px;background:#fff;color:#1455a3;font-weight:800;cursor:pointer}
+.anas-ai-import-actions button span{font-size:18px;margin-left:8px}
+.anas-ai-import-rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px;padding:13px;border-radius:15px;background:#e7effc;border:1px solid #d5e2f8}
+.anas-ai-import-rules>div{min-width:0;display:flex;flex-direction:column;gap:4px;padding-inline:8px;border-left:1px solid #c5d5f0}
+.anas-ai-import-rules>div:last-child{border-left:0}
+.anas-ai-import-rules b{font-size:11px;color:#19366e}
+.anas-ai-import-rules span{font-size:10px;line-height:1.6;color:#66758f}
+.anas-ai-import-note{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:12px 14px;border:1px solid #dce6f6;border-radius:14px;background:rgba(255,255,255,.78)}
+.anas-ai-import-note>span{font-size:20px;color:#7256df}
+.anas-ai-import-note p{margin:0;font-size:11px;line-height:1.8;color:#5e6c84}
+.anas-ai-import-note b{color:#19366e}
+@media(max-width:760px){.anas-ai-import-types{grid-template-columns:repeat(3,minmax(0,1fr))}.anas-ai-import-type{min-height:72px}.anas-ai-import-benefits{grid-template-columns:repeat(2,minmax(0,1fr))}.anas-ai-import-benefits>div:nth-child(2){border-left:0}.anas-ai-import-benefits>div:nth-child(-n+2){border-bottom:1px solid var(--ai-line);padding-bottom:9px}.anas-ai-import-benefits>div:nth-child(n+3){padding-top:8px}.anas-ai-import-rules{grid-template-columns:1fr}.anas-ai-import-rules>div{border-left:0;border-bottom:1px solid #c5d5f0;padding:5px 0 8px}.anas-ai-import-rules>div:last-child{border-bottom:0;padding-bottom:0}}
+@media(max-width:420px){.anas-ai-import-head{gap:9px;padding:13px}.anas-ai-import-orb{width:43px;height:43px;flex-basis:43px}.anas-ai-import-head-check{display:none}.anas-ai-import-section-title{display:block}.anas-ai-import-section-title span{display:block;margin-top:4px}.anas-ai-import-drop{padding:20px 10px}.anas-ai-import-actions{gap:7px}.anas-ai-import-actions button{font-size:12px;padding:8px 5px}}
+@media(prefers-reduced-motion:reduce){.anas-ai-import-type{transition:none}}
