@@ -66,6 +66,11 @@
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
+      const targetSelect = document.getElementById('smartImportTarget');
+      if (type !== 'auto' && targetSelect && Array.from(targetSelect.options || []).some(function (option) { return option.value === type; })) {
+        targetSelect.value = type;
+        targetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       window.dispatchEvent(new CustomEvent('anas:import-target-selected', {
         detail: { entityType: type, label: label }
       }));
@@ -143,6 +148,12 @@
         inventory: ['مخزون', 'المخزون', 'inventory', 'stock']
       };
       const wanted = aliases[selectedType] || [];
+      const directTarget = document.getElementById('smartImportTarget');
+      if (directTarget && Array.from(directTarget.options || []).some(function (option) { return option.value === selectedType; })) {
+        directTarget.value = selectedType;
+        directTarget.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }
       const scopes = Array.from(document.querySelectorAll('[id*="smartImport"],[class*="smartImport"],[role="dialog"]'));
       const selects = scopes.reduce(function (all, scope) {
         return all.concat(Array.from(scope.querySelectorAll('select')));
