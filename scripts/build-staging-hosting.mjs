@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 
@@ -37,6 +38,27 @@ const ERP_FILES = [
   'core/sovereign-kernel.mjs',
   'safe-update-ui.js'
 ];
+
+function assertInlineClassicScriptsParse(html) {
+  const scriptPattern = /<script\\b([^>]*)>([\\s\\S]*?)<\\/script\\s*>/gi;
+  let scriptIndex = 0;
+  for (const match of html.matchAll(scriptPattern)) {
+    const attributes = match[1] || '';
+    if (/\\bsrc\\s*=/i.test(attributes)) continue;
+    const typeMatch = attributes.match(/\\btype\\s*=\\s*["']?([^"'\\s>]+)/i);
+    const type = (typeMatch?.[1] || '').toLowerCase();
+    if (type && type !== 'text/javascript' && type !== 'application/javascript') continue;
+    const source = match[2] || '';
+    try {
+      new vm.Script(source, { filename: 'erp/index.html:inline-script-' + scriptIndex });
+    } catch (error) {
+      throw new Error('Staging ERP inline classic script #' + scriptIndex +
+        ' has invalid JavaScript: ' + (error?.message || String(error)));
+    }
+    scriptIndex++;
+  }
+  if (scriptIndex === 0) throw new Error('Staging ERP shell contains no inline classic scripts to validate');
+}
 
 async function copyRelative(rootDir, outDir, relativePath) {
   const source = path.join(rootDir, relativePath);
@@ -184,7 +206,7 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
   stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r28 | Env: Staging');
-  await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
+  // Parse the exact transformed staging shell before it can reach Chromium or Hosting.\n  assertInlineClassicScriptsParse(stagedHtml);\n  await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.
   let consoleHtml = await fs.readFile(path.join(rootDir, 'staging/index.html'), 'utf8');
