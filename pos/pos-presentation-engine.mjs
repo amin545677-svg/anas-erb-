@@ -67,13 +67,16 @@ export function createPosPresentationController(options = {}) {
     const filtered = filterPosProducts(products, { category, stockFilter });
     return searchPosProducts(filtered, query);
   };
-  const snapshot = () => Object.freeze({
-    mode, query, category, stockFilter,
-    products, cart, invoiceDraft,
-    visibleProducts: visibleProducts(),
-    visibleCount: visibleProducts().length,
-    cartLineCount: cart.length
-  });
+  const snapshot = () => {
+    const visible = visibleProducts();
+    return Object.freeze({
+      mode, query, category, stockFilter,
+      products, cart, invoiceDraft,
+      visibleProducts: visible,
+      visibleCount: visible.length,
+      cartLineCount: cart.length
+    });
+  };
 
   return Object.freeze({
     snapshot,
