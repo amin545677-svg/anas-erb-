@@ -55,23 +55,20 @@ test('multi-sheet import reports a rollback when the single durable repository t
   }), /SAFE_MULTI_SHEET_IMPORT_ROLLED_BACK/);
 });
 
-test('partial multi-sheet workbooks atomically preserve collections whose sheets are absent', async () => {
+test('multi-sheet atomic apply rejects partial workbooks instead of silently preserving absent tabs', async () => {
   const existingDB = {
     suppliers: [{ id: 'S-KEEP', name: 'مورد قائم' }],
     products: [], customers: [], invoices: [{ id: 'INV-KEEP', importedHistorical: true }]
   };
-  let committed;
-  const result = await executeSafeMultiSheetImport({
+  let calls = 0;
+  await assert.rejects(() => executeSafeMultiSheetImport({
     sheetsDataMap: {
       'المنتجات': [{ id: 'P-ONLY', barcode: 'P-ONLY', name: 'منتج', stock: '1', price1: '10' }],
       'العملاء': [{ id: 'C-ONLY', name: 'عميل', phone: '0550000003', debt: '0' }]
     },
     targetBySheet: { 'المنتجات': 'products', 'العملاء': 'customers' },
     existingDB,
-    repository: { async saveMultiSheetBatchSafe(batches) { committed = batches; } }
-  });
-  assert.equal(result.sheetCount, 2);
-  assert.equal(result.totalAdded, 2);
-  assert.equal(committed.suppliers.rows[0].id, 'S-KEEP');
-  assert.equal(committed.invoices.rows[0].id, 'INV-KEEP');
+    repository: { async saveMultiSheetBatchSafe() { calls++; } }
+  }), /MULTI_SHEET_REQUIRED_TYPES_MISSING/);
+  assert.equal(calls, 0, 'a partial workbook must be rejected before the single atomic commit');
 });
