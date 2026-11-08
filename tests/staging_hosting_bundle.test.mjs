@@ -21,7 +21,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r20 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r21 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /anas-import-review-cards/);
@@ -31,7 +31,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
-    assert.match(serviceWorker, /anas-erp-v54-25-r20/, 'built PWA must install the r20 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r21/, 'built PWA must install the r20 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
@@ -78,8 +78,14 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /value="https:\/\/anas-erp-firebase-snapshot-staging\.amin545677\.workers\.dev"/);
     assert.equal(erp.includes('www.gstatic.com/firebasejs'), false);
     const layoutMarker = erp.lastIndexOf('<style id="anas-firebase-mobile-layout-v3">');
-    assert.ok(layoutMarker > erp.lastIndexOf("</script>"), "Firebase responsive CSS must be in the live document, not embedded in a generated HTML string");
-    assert.ok(layoutMarker < erp.lastIndexOf("</body>"), "Firebase responsive CSS must be part of the deployed ERP shell");
+    const liveHeadStart = erp.indexOf('<head');
+    const liveHeadEnd = erp.indexOf('</head>');
+    assert.ok(layoutMarker > liveHeadStart && layoutMarker < liveHeadEnd,
+      "Firebase responsive CSS must be a live style element inside the deployed ERP document head");
+    assert.equal((erp.match(/<style id="anas-firebase-mobile-layout-v3">/g) || []).length, 1,
+      "Firebase responsive CSS must be emitted exactly once as a document style element");
+    assert.equal(erp.includes('&lt;style id="anas-firebase-mobile-layout-v3">'), false,
+      "Firebase responsive CSS must not be HTML-escaped inside a generated string");
     assert.match(erp, /auth\/api-key-not-valid/);
     assert.match(erp, /تحقق من CORS وقائمة ALLOWED_ORIGINS/);
 
