@@ -1248,102 +1248,47 @@ button:focus-visible, [role="button"]:focus-visible, input:focus-visible, select
 </style>
 
 <style id="anas-premium-gold-turquoise-theme">
-/* ANAS ERP accessible sky-blue theme: visual-only; preserve workflows and layout. */
+/* ANAS ERP neutral comfort theme: calm grayscale palette; visual-only. */
 :root, html[data-theme], body {
-  --anas-turquoise: #0ea5e9;
-  --anas-turquoise-deep: #075985;
-  --anas-turquoise-light: #e0f2fe;
-  --anas-gold: #38bdf8;
-  --anas-gold-dark: #0284c7;
-  --anas-silver: #e2e8f0;
-  --anas-white: #ffffff;
-  --mp-navy: #075985;
-  --mp-navy-dark: #0c4a6e;
-  --mp-primary: #0284c7;
-  --primary: #0284c7;
-  --accent: #38bdf8;
-  --text-color: #172b4d;
-  --mp-text-dark: #172b4d;
-  --mp-text-muted: #52657a;
-  --mp-border: #cbd5e1;
+  --anas-turquoise:#777a7e; --anas-turquoise-deep:#45484c; --anas-turquoise-light:#f0f0ed;
+  --anas-gold:#d6d6d1; --anas-gold-dark:#66696d; --anas-silver:#deded9; --anas-white:#ffffff;
+  --mp-navy:#45484c; --mp-navy-dark:#34373a; --mp-primary:#66696d; --primary:#66696d;
+  --accent:#85888b; --text-color:#303236; --mp-text-dark:#303236; --mp-text-muted:#666a6e; --mp-border:#d5d5d0;
 }
-body { color: #172b4d; }
-header, .app-header, .top-bar, .navbar, .sidebar, .side-menu,
-.bottom-nav, .bottom-navigation, .menu-header, .top-navbar, .sub-header-bar {
-  background: linear-gradient(135deg, #075985 0%, #087fc1 55%, #0ea5e9 100%) !important;
-  color: #ffffff !important;
+body { color:#303236; }
+header, .app-header, .top-bar, .navbar, .sidebar, .side-menu, .bottom-nav, .bottom-navigation, .menu-header, .top-navbar, .sub-header-bar {
+  background:#55595d !important; color:#ffffff !important;
 }
-/* Replace the previous gold controls with sky-blue; dark lettering remains legible. */
-button, .btn, [role="button"], .btn-pos-hasib, .btn-primary,
-button.primary, input[type="button"], input[type="submit"],
-.menu-action-card button, .action-btn,
-.bottom-nav button, .bottom-navigation button {
-  background: #38bdf8 !important; background-image:none !important;
-  color: #082f49 !important;
-  -webkit-text-fill-color: #082f49 !important;
-  border-color: #38bdf8 !important;
-  text-shadow: none !important;
-  box-shadow: 0 3px 9px rgba(2, 132, 199, .18);
+button, .btn, [role="button"], .btn-pos-hasib, .btn-primary, button.primary, input[type="button"], input[type="submit"],
+.menu-action-card button, .action-btn, .bottom-nav button, .bottom-navigation button {
+  background:#e7e7e3 !important; background-image:none !important; color:#303236 !important;
+  -webkit-text-fill-color:#303236 !important; border-color:#d0d0ca !important; text-shadow:none !important;
+  box-shadow:0 2px 5px rgba(35,35,35,.08);
 }
-button *, .btn *, [role="button"] *, .action-btn * {
-  color: inherit;
-  -webkit-text-fill-color: inherit;
+button *, .btn *, [role="button"] *, .action-btn * { color:inherit; -webkit-text-fill-color:inherit; }
+button:active, .btn:active, [role="button"]:active { filter:brightness(.97); transform:translateY(1px); }
+.menu-action-card, .card, .dashboard-card, .stat-card, .grid-card-item, .modal-content, .panel, .section-card, .distributor-dashboard-summary { border-color:#deded9; }
+.menu-action-card strong, .card strong, .dashboard-card strong, .stat-card strong, .section-title, .view-title,
+.grid-card-item, .grid-card-item .card-title-text, .grid-card-item strong, .grid-card-item span {
+  color:#303236 !important; -webkit-text-fill-color:#303236 !important;
 }
-button:active, .btn:active, [role="button"]:active {
-  filter: brightness(.96);
-  transform: translateY(1px);
-}
-/* White cards must never inherit pale text from dark headers or dark-theme rules. */
-.menu-action-card, .card, .dashboard-card, .stat-card, .grid-card-item,
-.modal-content, .panel, .section-card, .distributor-dashboard-summary {
-  border-color: rgba(14, 165, 233, .30);
-}
-.menu-action-card strong, .card strong, .dashboard-card strong,
-.stat-card strong, .section-title, .view-title,
-.grid-card-item, .grid-card-item .card-title-text,
-.grid-card-item strong, .grid-card-item span {
-  color: #172b4d !important;
-  -webkit-text-fill-color: #172b4d !important;
-}
-.view, .view-container, .page-content { color: #172b4d; }
-.view h1, .view h2, .view h3, .view h4,
-.view-container h1, .view-container h2, .view-container h3,
-.page-content h1, .page-content h2, .page-content h3,
-.anas-dashboard-group-title {
-  color: #123b63;
-}
-input, select, textarea {
-  color: #172b4d !important;
-  -webkit-text-fill-color: #172b4d !important;
-  border-color: #7dd3fc !important;
-}
-input::placeholder, textarea::placeholder { color: #64748b !important; -webkit-text-fill-color: #64748b !important; opacity: 1; }
-input:focus, select:focus, textarea:focus {
-  border-color: #0284c7 !important;
-  box-shadow: 0 0 0 3px rgba(14,165,233,.18) !important;
-}
-.badge, .count-badge, .notification-badge { border-color: #38bdf8; }
-/* Dark mode keeps dark surfaces and switches their typography to high-contrast white. */
-:root[data-anas-theme="dark"] body { color: #eaf4ff; }
-:root[data-anas-theme="dark"] .view,
-:root[data-anas-theme="dark"] .view-container,
-:root[data-anas-theme="dark"] .page-content { color: #eaf4ff; }
-:root[data-anas-theme="dark"] .view h1,
-:root[data-anas-theme="dark"] .view h2,
-:root[data-anas-theme="dark"] .view h3,
-:root[data-anas-theme="dark"] .view h4,
-:root[data-anas-theme="dark"] .view-container h1,
-:root[data-anas-theme="dark"] .view-container h2,
-:root[data-anas-theme="dark"] .view-container h3,
-:root[data-anas-theme="dark"] .page-content h1,
-:root[data-anas-theme="dark"] .page-content h2,
-:root[data-anas-theme="dark"] .page-content h3 { color: #eaf4ff; }
-:root[data-anas-theme="dark"] .grid-card-item,
-:root[data-anas-theme="dark"] .grid-card-item .card-title-text,
-:root[data-anas-theme="dark"] .grid-card-item strong,
-:root[data-anas-theme="dark"] .grid-card-item span {
-  color: #eaf4ff !important;
-  -webkit-text-fill-color: #eaf4ff !important;
+.view, .view-container, .page-content { color:#303236; }
+.view h1, .view h2, .view h3, .view h4, .view-container h1, .view-container h2, .view-container h3,
+.page-content h1, .page-content h2, .page-content h3, .anas-dashboard-group-title { color:#45484c; }
+input, select, textarea { color:#303236 !important; -webkit-text-fill-color:#303236 !important; border-color:#d0d0ca !important; }
+input::placeholder, textarea::placeholder { color:#777a7e !important; -webkit-text-fill-color:#777a7e !important; opacity:1; }
+input:focus, select:focus, textarea:focus { border-color:#777a7e !important; box-shadow:0 0 0 3px rgba(90,90,90,.12) !important; }
+.badge, .count-badge, .notification-badge { border-color:#d0d0ca; }
+/* Preserve the existing dark-mode contrast behavior. */
+:root[data-anas-theme="dark"] body { color:#eaf4ff; }
+:root[data-anas-theme="dark"] .view, :root[data-anas-theme="dark"] .view-container, :root[data-anas-theme="dark"] .page-content { color:#eaf4ff; }
+:root[data-anas-theme="dark"] .view h1, :root[data-anas-theme="dark"] .view h2, :root[data-anas-theme="dark"] .view h3,
+:root[data-anas-theme="dark"] .view h4, :root[data-anas-theme="dark"] .view-container h1, :root[data-anas-theme="dark"] .view-container h2,
+:root[data-anas-theme="dark"] .view-container h3, :root[data-anas-theme="dark"] .page-content h1, :root[data-anas-theme="dark"] .page-content h2,
+:root[data-anas-theme="dark"] .page-content h3 { color:#eaf4ff; }
+:root[data-anas-theme="dark"] .grid-card-item, :root[data-anas-theme="dark"] .grid-card-item .card-title-text,
+:root[data-anas-theme="dark"] .grid-card-item strong, :root[data-anas-theme="dark"] .grid-card-item span {
+  color:#eaf4ff !important; -webkit-text-fill-color:#eaf4ff !important;
 }
 </style>
 <style>
@@ -1621,48 +1566,27 @@ input:focus, select:focus, textarea:focus {
 </style>
 
 <style id="anas-sky-blue-contrast-final">
-/* Last-layer contrast guard for the mobile dashboard and both appearance modes. */
+/* Final neutral palette guard for dashboard and both appearance modes. */
 :root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item,
 :root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item *,
 :root:not([data-anas-theme="dark"]) #view-dashboard .distributor-dashboard-summary,
 :root:not([data-anas-theme="dark"]) #view-dashboard .distributor-dashboard-summary * {
-  color:#172b4d !important;
-  -webkit-text-fill-color:#172b4d !important;
+  color:#303236 !important; -webkit-text-fill-color:#303236 !important;
 }
-:root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item {
-  background:#ffffff !important;
-  border-color:#cbd5e1 !important;
-}
+:root:not([data-anas-theme="dark"]) #view-dashboard .grid-card-item { background:#f7f7f4 !important; border-color:#deded9 !important; }
 :root[data-anas-theme="dark"] #view-dashboard .grid-card-item,
-:root[data-anas-theme="dark"] #view-dashboard .grid-card-item * {
-  color:#f1f7ff !important;
-  -webkit-text-fill-color:#f1f7ff !important;
+:root[data-anas-theme="dark"] #view-dashboard .grid-card-item * { color:#f1f7ff !important; -webkit-text-fill-color:#f1f7ff !important; }
+:root:not([data-anas-theme="dark"]) .view, :root:not([data-anas-theme="dark"]) .view-container,
+:root:not([data-anas-theme="dark"]) .page-content { color:#303236; }
+:root:not([data-anas-theme="dark"]) .view h1, :root:not([data-anas-theme="dark"]) .view h2,
+:root:not([data-anas-theme="dark"]) .view h3, :root:not([data-anas-theme="dark"]) .page-content h1,
+:root:not([data-anas-theme="dark"]) .page-content h2, :root:not([data-anas-theme="dark"]) .page-content h3 { color:#45484c !important; }
+button, .btn, [role="button"], .bottom-nav button, .bottom-navigation button, .menu-action-card, .action-btn {
+  background:#e7e7e3 !important; background-image:none !important; color:#303236 !important;
+  -webkit-text-fill-color:#303236 !important; border-color:#d0d0ca !important; text-shadow:none !important;
 }
-:root:not([data-anas-theme="dark"]) .view,
-:root:not([data-anas-theme="dark"]) .view-container,
-:root:not([data-anas-theme="dark"]) .page-content { color:#172b4d; }
-:root:not([data-anas-theme="dark"]) .view h1,
-:root:not([data-anas-theme="dark"]) .view h2,
-:root:not([data-anas-theme="dark"]) .view h3,
-:root:not([data-anas-theme="dark"]) .page-content h1,
-:root:not([data-anas-theme="dark"]) .page-content h2,
-:root:not([data-anas-theme="dark"]) .page-content h3 { color:#123b63 !important; }
-button, .btn, [role="button"], .bottom-nav button, .bottom-navigation button,
-.menu-action-card, .action-btn {
-  background:#38bdf8 !important;background-image:none !important;
-  color:#082f49 !important;
-  -webkit-text-fill-color:#082f49 !important;
-  border-color:#38bdf8 !important;
-  text-shadow:none !important;
-}
-button *, .btn *, [role="button"] *, .menu-action-card * {
-  color:inherit !important;
-  -webkit-text-fill-color:inherit !important;
-}
-.top-navbar, .sub-header-bar, .bottom-nav, .bottom-navigation,
-.app-header, .sidebar, .side-menu {
-  background:linear-gradient(135deg,#075985 0%,#087fc1 55%,#0ea5e9 100%) !important;
-}
+button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !important; -webkit-text-fill-color:inherit !important; }
+.top-navbar, .sub-header-bar, .bottom-nav, .bottom-navigation, .app-header, .sidebar, .side-menu { background:#55595d !important; }
 </style>
 
 <style id="anas-pdf-upload-tile-visibility-fix">
