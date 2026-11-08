@@ -108,6 +108,12 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     if (typeof openView === 'function') openView('ai-excel-hub');
   });
   await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+  await page.locator('[data-anas-ai-import-ui]').waitFor({ state: 'attached' });
+  assert.equal(await page.locator('[data-anas-ai-import-ui]').isVisible(), true,
+    'the new responsive Excel import experience must mount inside the AI hub');
+  await page.locator('[data-import-type="customers"]').click();
+  assert.equal(await page.evaluate(() => window.ANAS_AI_IMPORT_CONTEXT?.entityType), 'customers',
+    'the selected entity type must be exposed as the active import context');
   await page.waitForFunction(() => window.__anasLastAudit &&
     window.__anasLastAudit.summary.stockCost === 200 &&
     window.__anasLastAudit.summary.stockSell === 500,
@@ -209,6 +215,12 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.waitForFunction(() => /ai-smoke|تم فتح الملف|صفوف/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ));
+  await page.locator('[data-import-type="suppliers"]').click();
+  await page.waitForFunction(() => document.querySelector('#smartImportTarget')?.value === 'suppliers',
+    { timeout: 5000 });
+  assert.equal(await page.locator('#smartImportTarget').inputValue(), 'suppliers',
+    'the new type selector must synchronize with the existing import target control');
+  await page.locator('[data-import-type="auto"]').click();
 
   // Local header heuristic must still propose a category when cloud AI is unavailable.
   await page.locator('#smartImportAiAnalyze').evaluate(button => button.click());
