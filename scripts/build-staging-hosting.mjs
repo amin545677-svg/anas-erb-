@@ -52,8 +52,9 @@ function assertInlineClassicScriptsParse(html) {
     try {
       new vm.Script(source, { filename: 'erp/index.html:inline-script-' + scriptIndex });
     } catch (error) {
+      const detail = error?.stack || error?.message || String(error);
       throw new Error('Staging ERP inline classic script #' + scriptIndex +
-        ' has invalid JavaScript: ' + (error?.message || String(error)));
+        ' has invalid JavaScript. Parser detail: ' + detail);
     }
     scriptIndex++;
   }
