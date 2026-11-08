@@ -11614,7 +11614,10 @@ function wtAuditTransfers(){
                             const backupKey='ANAS_MULTI_SHEET_IMPORT_'+Date.now();
                             const app=window.AppData||AppData;
                             const names=['suppliers','products','customers','invoices'];
-                            const before=Object.fromEntries(names.map(name=>[name,{had:Object.prototype.hasOwnProperty.call(app,name),value:app[name]}]));
+                            const backup=JSON.parse(backupPayload);
+                            if(!backup||backup.schema!=='ANAS_MULTI_SHEET_BACKUP_V1'||!backup.snapshot||typeof backup.snapshot!=='object'||Array.isArray(backup.snapshot))
+                                throw new Error('النسخة الاحتياطية الكاملة متعددة الأوراق غير صالحة.');
+                            const before=backup.snapshot;
                             try{
                                 if(!db.objectStoreNames.contains('snapshots'))throw new Error('مخزن النسخ الاحتياطية snapshots غير موجود.');
                                 await new Promise((resolve,reject)=>{
@@ -11632,8 +11635,10 @@ function wtAuditTransfers(){
                                 if(saved===false)throw new Error('رفض التخزين الدائم اعتماد مجموعة الأوراق.');
                                 return {durable:true,backupKey};
                             }catch(error){
-                                names.forEach(name=>{if(before[name].had)app[name]=before[name].value;else delete app[name];});
-                                try{await saveDBDurably();}catch(rollbackError){throw new Error('فشل حفظ الاسترجاع بعد تعذر الاعتماد: '+(rollbackError.message||rollbackError));}
+                                // Restore the complete application snapshot, including dependent ledgers and settings.
+                                for(const key of Object.keys(app))if(!Object.prototype.hasOwnProperty.call(before,key))delete app[key];
+                                for(const [key,value] of Object.entries(before))app[key]=value;
+                                try{await saveDBDurably();}catch(rollbackError){throw new Error('فشل حفظ الاسترجاع الكامل بعد تعذر الاعتماد: '+(rollbackError.message||rollbackError));}
                                 throw error;
                             }finally{db.close();}
                         }
