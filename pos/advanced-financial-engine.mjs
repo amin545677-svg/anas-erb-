@@ -327,7 +327,7 @@ function stripImportMetadata(row) {
 function normalizeMultiSheetImportRow(type, stagedRow, index, existingRows) {
   const row = stripImportMetadata(stagedRow);
   const name = text(first(row, ['name','الاسم','اسم المنتج','العميل','الزبون','المورد','اسم المورد']));
-  if (!name) throw new Error('IMPORT_NAME_REQUIRED:' + type + ':' + (index + 1));
+  if (type !== 'invoices' && !name) throw new Error('IMPORT_NAME_REQUIRED:' + type + ':' + (index + 1));
   if (type === 'products') {
     const explicitId = text(first(row, ['id','product_id','productId','معرف المنتج','رقم المنتج']));
     const barcode = text(first(row, ['barcode','الباركود','sku','code','رمز المنتج']));
