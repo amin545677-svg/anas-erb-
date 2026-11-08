@@ -12413,6 +12413,19 @@ function wtAuditTransfers(){
             // Cloud health checks are manual only; application startup remains silent and offline-first.
         }catch(e){if(i)i.value=fallback;const status=document.getElementById('anasAiGatewayStatus');if(status)status.textContent='❌ تعذر تهيئة رابط بوابة AI: '+(e.message||e);}});
 
+        // Stable browser-global bridge for deferred startup, isolated modules and Android WebView.
+        // Keep these entry points explicitly attached to window even if bundling/scope changes occur.
+        try {
+            if (typeof AppData !== 'undefined') window.AppData = AppData;
+            if (typeof openView === 'function') window.openView = openView;
+            if (typeof updateUIState === 'function') window.updateUIState = updateUIState;
+            if (typeof checkSystemAlerts === 'function') window.checkSystemAlerts = checkSystemAlerts;
+            if (typeof updateDashboardStats === 'function') window.updateDashboardStats = updateDashboardStats;
+            if (typeof renderQuickProducts === 'function') window.renderQuickProducts = renderQuickProducts;
+            window.__ANAS_APP_BRIDGE_READY__ = !!window.AppData && typeof window.openView === 'function';
+        } catch (error) {
+            console.error('ANAS global application bridge initialization failed:', error);
+        }
 </script>
 
     <!-- نافذة عرض تفاصيل التقارير الاحترافية -->
