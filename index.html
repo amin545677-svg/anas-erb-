@@ -1711,6 +1711,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
 }
 </style>
 
+  <link rel="stylesheet" href="./anas-pos-floating-cart.css">
 </head>
 <body>
 
@@ -8857,7 +8858,8 @@ function wtAuditTransfers(){
             const styles = '<style>body{font-family:Arial,sans-serif;direction:rtl;padding:18px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:7px;text-align:right;font-size:12px}th{background:#eee}button,input{display:none!important}[hidden]{display:none!important}</style>';
             const printable = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
                 escapeHtml(title) + '</title>' + styles + '</head><body><h1>' +
-                escapeHtml(title) + '</h1>' + root.innerHTML + '</body></html>';
+                escapeHtml(title) + '</h1>' + root.innerHTML + '  <script src="./anas-pos-floating-cart.js" defer></script>
+</body></html>';
             w.document.open();
             w.document.write(printable);
             w.document.close();
