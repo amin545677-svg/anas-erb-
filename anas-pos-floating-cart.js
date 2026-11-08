@@ -128,6 +128,12 @@
       observer.observe(body, { childList: true, subtree: true, characterData: true });
       body.__anasMiniCartObserver = observer;
     }
+    const view = document.getElementById('view-pos');
+    if (view && !view.__anasMiniCartViewObserver) {
+      const viewObserver = new MutationObserver(render);
+      viewObserver.observe(view, { attributes: true, attributeFilter: ['class'] });
+      view.__anasMiniCartViewObserver = viewObserver;
+    }
     document.addEventListener('click', function (event) {
       if (event.target.closest('#posCheckoutBtn,[onclick*="addItemToPosCart"],#quickProductsContainer button')) {
         setTimeout(function () { hookRender(); render(); }, 0);
