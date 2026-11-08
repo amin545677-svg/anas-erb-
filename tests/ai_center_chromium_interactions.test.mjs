@@ -62,6 +62,7 @@ async function startStaticServer(rootDir) {
       });
       res.end(body);
     } catch (_) {
+      console.error('ANAS static asset 404:', pathname);
       res.writeHead(404); res.end('Not found');
     }
   });
@@ -96,6 +97,10 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
   });
   const page = await context.newPage();
+  page.on('pageerror', error => console.error('ANAS browser pageerror:', error && (error.stack || error.message) || String(error)));
+  page.on('response', response => {
+    if (response.status() >= 400) console.error('ANAS browser HTTP failure:', response.status(), response.url());
+  });
   page.on('dialog', dialog => dialog.accept());
   // Deliberately deny all external requests: all five controls must retain useful local behavior.
   await page.route('https://**/*', route => route.abort());
