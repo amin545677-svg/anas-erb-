@@ -4173,7 +4173,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
         function validatePosCartStock(idx, candidateQtyUnits) {
             const item = posCart[idx];
             if (!item || !Number.isSafeInteger(candidateQtyUnits) || candidateQtyUnits <= 0) return false;
-            if (item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) return true;
+            if (item.isFreeItem === true || item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) return true;
             const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
             if (!product) return true; // Final invoice validation reports a deleted product.
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
@@ -4598,7 +4598,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             posCart.push({
                 id, name: cleanName, price: anasCentsToCurrency(priceCents),
                 qty: anasQtyFromUnits(qtyUnits), unit: String(unit || 'قطعة').trim() || 'قطعة',
-                isFreeProduct: true, nonInventory: true
+                isFreeItem: true, isFreeProduct: true, nonInventory: true
             });
             return savePosCartChange(() => { restorePosCart(before); });
         }
@@ -4681,6 +4681,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             let subtotalCents = 0;
             for (const item of cart) {
                 const id = String(item.id ?? '');
+                const isNonInventory = item.isFreeItem === true || item.isFreeProduct === true ||
+                    item.freeProduct === true || item.nonInventory === true;
                 const qty = Number(item.qty);
                 const price = Number(item.price);
                 if (!id ||
@@ -4705,7 +4707,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                     !Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
                     alert('تعذر تأكيد الفاتورة: مجموع الكمية أو قيمة الفاتورة يتجاوز المجال الحسابي الآمن.'); return;
                 }
-                requiredUnits.set(id, aggregateUnits);
+                if (!isNonInventory) requiredUnits.set(id, aggregateUnits);
                 subtotalCents += lineCents;
             }
             // This sales flow has no discount input; keep the discount explicit and in integer centimes.
