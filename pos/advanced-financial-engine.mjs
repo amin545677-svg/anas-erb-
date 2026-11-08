@@ -85,7 +85,7 @@ function identityFor(type, row) {
   return identityKeysFor(type, row)[0] || '';
 }
 
-export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
+export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}, targetBySheet = {}) {
   const staged = { suppliers: [], products: [], customers: [], invoices: [], totalValidRows: 0, sheetCount: 0, unclassified: 0 };
   const existing = {};
   const recordByIdentity = {};
@@ -111,7 +111,9 @@ export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}) {
     for (const row of rows) {
       if (!row || typeof row !== 'object' || Array.isArray(row) ||
           !Object.values(row).some(value => text(value))) continue;
-      const type = classifyImportRow(row, sheetName);
+      const forcedType = targetBySheet && targetBySheet[sheetName];
+      const type = ['suppliers','products','customers','invoices'].includes(forcedType)
+        ? forcedType : classifyImportRow(row, sheetName);
       if (!type) { staged.unclassified++; continue; }
       const name = text(first(row, ['name', 'الاسم', 'اسم المنتج', 'العميل', 'الزبون', 'المورد']));
       const normalized = { ...row, name: name || text(first(row, ['رقم الفاتورة', 'invoice_no', 'barcode', 'الباركود'])) };
@@ -316,6 +318,157 @@ export async function executeSafeBulkImport({ rows, mode = 'merge', entityType =
   }
 }
 
+function stripImportMetadata(row) {
+  const clean = { ...row };
+  for (const key of ['sourceSheet','identityKey','identityKeys','isDuplicate','identityConflict','duplicateScope','action']) delete clean[key];
+  return clean;
+}
+
+function normalizeMultiSheetImportRow(type, stagedRow, index, existingRows) {
+  const row = stripImportMetadata(stagedRow);
+  const name = text(first(row, ['name','الاسم','اسم المنتج','العميل','الزبون','المورد','اسم المورد']));
+  if (!name) throw new Error('IMPORT_NAME_REQUIRED:' + type + ':' + (index + 1));
+  if (type === 'products') {
+    const explicitId = text(first(row, ['id','product_id','productId','معرف المنتج','رقم المنتج']));
+    const barcode = text(first(row, ['barcode','الباركود','sku','code','رمز المنتج']));
+    if (!explicitId && !barcode) throw new Error('IMPORT_PRODUCT_IDENTITY_REQUIRED');
+    const matched = (existingRows || []).find(item =>
+      (explicitId && String(item.id || '') === explicitId) || (barcode && String(item.barcode || '') === barcode));
+    if (matched && explicitId && String(matched.id || '') !== explicitId) throw new Error('IMPORT_IDENTITY_CONFLICT');
+    const stockRaw = first(row, ['stock','quantity','المخزون','الكمية','الرصيد']);
+    const stockUnits = decimalToUnits(stockRaw || '0', 6);
+    const priceRaw = first(row, ['price1','price','سعر البيع','السعر','سعر التجزئة']);
+    const costRaw = first(row, ['buyPrice','cost','cost_price','سعر التكلفة','سعر الشراء']);
+    const priceCents = priceRaw !== '' ? toCents(priceRaw) : (matched ? toCents(matched.price1 ?? matched.price ?? 0) : null);
+    if (priceCents === null || priceCents < 0) throw new Error('IMPORT_PRODUCT_PRICE_REQUIRED');
+    const costCents = costRaw !== '' ? toCents(costRaw) : (matched ? toCents(matched.buyPrice ?? 0) : 0);
+    if (costCents < 0) throw new Error('INVALID_PRODUCT_COST');
+    return {
+      ...(matched || {}), ...row,
+      id: matched?.id || explicitId || ('IMP-PROD-' + barcode),
+      barcode: barcode || matched?.barcode || '',
+      name,
+      stock: matched ? Number(matched.stock ?? matched.quantity ?? 0) : unitsToNumber(stockUnits, 6),
+      price1: fromCents(priceCents),
+      buyPrice: matched ? Number(matched.buyPrice ?? fromCents(costCents)) : fromCents(costCents),
+      unit: text(first(row, ['unit','الوحدة','وحدة القياس'])) || matched?.unit || 'قطعة'
+    };
+  }
+  if (type === 'customers' || type === 'suppliers') {
+    const explicitId = text(first(row, ['id', type === 'customers' ? 'customer_id' : 'supplier_id',
+      type === 'customers' ? 'customerId' : 'supplierId', type === 'customers' ? 'رقم العميل' : 'رقم المورد']));
+    const phoneRaw = text(first(row, ['phone','الهاتف','mobile','telephone','رقم الهاتف']));
+    const phone = normalizeAlgeriaPhone(phoneRaw) || phoneRaw;
+    if (!explicitId && !phone) throw new Error('IMPORT_PARTY_IDENTITY_REQUIRED:' + type);
+    const matched = (existingRows || []).find(item =>
+      (explicitId && String(item.id || '') === explicitId) || (phone && String(item.phone || '') === phone));
+    const balanceRaw = first(row, type === 'customers'
+      ? ['debt','initial_debt','الرصيد','الدين','المبلغ المستحق']
+      : ['balance','payable','الرصيد','الدين','المبلغ المستحق']);
+    const balanceCents = balanceRaw !== '' ? toCents(balanceRaw) : 0;
+    if (balanceCents < 0) throw new Error('INVALID_PARTY_OPENING_BALANCE');
+    const limitRaw = first(row, ['credit_limit','حد الائتمان','السقف الائتماني']);
+    const limitCents = limitRaw !== '' ? toCents(limitRaw) : null;
+    if (limitCents !== null && limitCents < 0) throw new Error('INVALID_CREDIT_LIMIT');
+    const id = matched?.id || explicitId || ('IMP-' + (type === 'customers' ? 'CUST-' : 'SUP-') + phone.replace(/\D/g, ''));
+    if (type === 'customers') return {
+      ...(matched || {}), ...row, id, name, phone: phone || matched?.phone || '',
+      debt: matched ? Number(matched.debt ?? matched.initial_debt ?? 0) : fromCents(balanceCents),
+      credit_limit: limitCents === null ? (matched?.credit_limit ?? null) : fromCents(limitCents),
+      ledgerVersion: matched?.ledgerVersion ?? 0
+    };
+    return {
+      ...(matched || {}), ...row, id, name, phone: phone || matched?.phone || '',
+      balance: matched ? Number(matched.balance ?? 0) : fromCents(balanceCents),
+      ledgerVersion: matched?.ledgerVersion ?? 0
+    };
+  }
+  if (type === 'invoices') {
+    const invoiceNo = text(first(row, ['id','invoice_id','invoiceId','invoice_no','invoiceNumber','number','رقم الفاتورة','رقم الفاتوره']));
+    const date = text(first(row, ['date','تاريخ','تاريخ الفاتورة','تاريخ الفاتوره']));
+    const customerName = text(first(row, ['customerName','customer','client','العميل','الزبون','اسم العميل']));
+    const customerId = text(first(row, ['customerId','customer_id','معرف العميل']));
+    const totalRaw = first(row, ['total','الإجمالي','الاجمالي','المبلغ','قيمة الفاتورة']);
+    const paidRaw = first(row, ['paid','المدفوع','المبلغ المدفوع']);
+    const remainingRaw = first(row, ['remaining','المتبقي','الباقي']);
+    if (!invoiceNo || !date || (!customerName && !customerId) || totalRaw === '') throw new Error('IMPORT_INVOICE_REQUIRED_FIELDS');
+    if (!Number.isFinite(Date.parse(date))) throw new Error('IMPORT_INVOICE_DATE_INVALID');
+    const total = toCents(totalRaw);
+    const paid = paidRaw !== '' ? toCents(paidRaw) : 0;
+    const remaining = remainingRaw !== '' ? toCents(remainingRaw) : total - paid;
+    if (total < 0 || paid < 0 || remaining < 0 || paid > total || paid + remaining !== total) {
+      throw new Error('IMPORT_INVOICE_FINANCIAL_MISMATCH');
+    }
+    return {
+      ...row, id: invoiceNo, invoiceNumber: invoiceNo, date,
+      customerId: customerId || null, customerName: customerName || '',
+      total: fromCents(total), paid: fromCents(paid), remaining: fromCents(remaining),
+      items: [], invoiceLedgerVersion: 0, importedHistorical: true,
+      financiallyPosted: false, status: 'imported_archive',
+      paymentMethod: 'imported_archive', importedAt: new Date().toISOString()
+    };
+  }
+  throw new TypeError('INVALID_IMPORT_ENTITY');
+}
+
+/**
+ * Stages four entity collections before a single durable repository transaction.
+ * Imported invoice headers are archived only: they do not post stock, cash, or debt.
+ */
+export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet = {}, existingDB = {},
+  storage = globalThis.localStorage, repository } = {}) {
+  if (!sheetsDataMap || typeof sheetsDataMap !== 'object' || Array.isArray(sheetsDataMap)) throw new TypeError('IMPORT_SHEETS_REQUIRED');
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') throw new TypeError('IMPORT_STORAGE_REQUIRED');
+  if (!repository || typeof repository.saveMultiSheetBatchSafe !== 'function') throw new TypeError('ATOMIC_MULTI_SHEET_REPOSITORY_REQUIRED');
+  const staged = classifyAndStageWorkbookSheets(sheetsDataMap, existingDB, targetBySheet);
+  const types = ['suppliers','products','customers','invoices'];
+  if (staged.sheetCount < 4 || types.some(type => staged[type].length === 0)) throw new Error('MULTI_SHEET_REQUIRED_TYPES_MISSING');
+  if (staged.unclassified > 0) throw new Error('MULTI_SHEET_UNCLASSIFIED_ROWS:' + staged.unclassified);
+  const batches = {}, stats = {};
+  for (const type of types) {
+    const existingRows = Array.isArray(existingDB[type]) ? existingDB[type] : [];
+    if (existingDB[type] !== undefined && !Array.isArray(existingDB[type])) throw new Error('EXISTING_DATA_NOT_ARRAY:' + type);
+    const sourceRows = type === 'invoices' ? staged[type].filter(row => !row.isDuplicate) : staged[type];
+    const normalizedRows = sourceRows.map((row, index) => normalizeMultiSheetImportRow(type, row, index, existingRows));
+    const keys = type === 'products' ? ['id','barcode'] : type === 'customers' || type === 'suppliers' ? ['phone','id'] : ['id'];
+    const plan = prepareBulkImport(existingRows, normalizedRows, 'merge', keys, { strictIdentity: type === 'products' });
+    batches[type] = Object.freeze({ rows: plan.rows, stats: plan.stats });
+    stats[type] = Object.freeze({ ...plan.stats, duplicateSkipped: type === 'invoices' ? staged[type].length - sourceRows.length : 0 });
+  }
+  const backupPayload = JSON.stringify({
+    schema: 'ANAS_MULTI_SHEET_BACKUP_V1', createdAt: new Date().toISOString(),
+    collections: Object.fromEntries(types.map(type => [type, Array.isArray(existingDB[type]) ? existingDB[type] : []]))
+  });
+  const mirrors = types.map(type => ({
+    key: 'anas_' + type, backupKey: 'anas_' + type + '_backup_pre_import',
+    previous: storage.getItem('anas_' + type), next: JSON.stringify(batches[type].rows)
+  }));
+  try {
+    storage.setItem('anas_multi_sheet_backup_pre_import', backupPayload);
+    for (const mirror of mirrors) {
+      const previous = mirror.previous ?? JSON.stringify(Array.isArray(existingDB[mirror.key.slice(5)]) ? existingDB[mirror.key.slice(5)] : []);
+      storage.setItem(mirror.backupKey, previous);
+    }
+    for (const mirror of mirrors) storage.setItem(mirror.key, mirror.next);
+    await repository.saveMultiSheetBatchSafe(batches, backupPayload);
+    return Object.freeze({
+      durable: true, sheetCount: staged.sheetCount, totalValidRows: staged.totalValidRows,
+      unclassified: staged.unclassified, stats: Object.freeze(stats),
+      totalAdded: types.reduce((sum, type) => sum + stats[type].added, 0),
+      totalUpdated: types.reduce((sum, type) => sum + stats[type].updated, 0),
+      totalSkipped: types.reduce((sum, type) => sum + stats[type].skipped + stats[type].duplicateSkipped, 0)
+    });
+  } catch (error) {
+    for (const mirror of mirrors) {
+      try {
+        if (mirror.previous === null && typeof storage.removeItem === 'function') storage.removeItem(mirror.key);
+        else storage.setItem(mirror.key, mirror.previous ?? '[]');
+      } catch (_) {}
+    }
+    throw new Error('SAFE_MULTI_SHEET_IMPORT_ROLLED_BACK: ' + (error?.message || String(error)));
+  }
+}
+
 export function normalizeAlgeriaPhone(rawPhone) {
   let digits = String(rawPhone ?? '')
     .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
@@ -341,7 +494,7 @@ export function buildWhatsAppStatementUrl(customer, companyName = 'أصحاب ا
 if (typeof window !== 'undefined') {
   window.ANASAdvancedFinancialEngine = Object.freeze({
     classifyAndStageWorkbookSheets, createProformaDraft, convertProformaToActualInvoice,
-    calculateZakatSummary, canPerformRoleAction, executeSafeBulkImport,
+    calculateZakatSummary, canPerformRoleAction, executeSafeBulkImport, executeSafeMultiSheetImport,
     normalizeAlgeriaPhone, buildWhatsAppStatementUrl
   });
 }
