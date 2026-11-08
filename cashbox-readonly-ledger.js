@@ -2,7 +2,8 @@
 'use strict';
 function buildCashLedger(movements,query='',filter='all'){
  if(!Array.isArray(movements))throw new TypeError('سجل الحركات النقدية غير صالح');
- const all=movements.map((m,index)=>{
+ const cashOnly=movements.filter(m=>!(m&&typeof m==='object'&&(m.cashImpact===false||(m.paymentChannel&&m.paymentChannel!=='cash'))));
+ const all=cashOnly.map((m,index)=>{
   const object=!!m&&typeof m==='object'&&!Array.isArray(m),type=object?m.type:'';
   const amount=object?Number(m.amount):NaN,cents=Math.round(amount*100);
   const valid=object&&(type==='add'||type==='subtract')&&Number.isFinite(amount)&&amount>0&&Number.isSafeInteger(cents);
@@ -27,7 +28,7 @@ function renderCashLedgerUI(){
   const summary=document.createElement('p');summary.id='anasCashLedgerSummary';const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;font-size:12px;';
   const head=document.createElement('tr');['التاريخ','النوع','البيان','المبلغ','المستخدم','المرجع'].forEach(v=>{const th=document.createElement('th');th.textContent=v;head.appendChild(th);});
   const thead=document.createElement('thead');thead.appendChild(head);const tbody=document.createElement('tbody');tbody.id='anasCashLedgerRows';table.append(thead,tbody);
-  const note=document.createElement('p');note.textContent='يعرض السجلات الموجودة فعلياً في cashMovements فقط؛ لا يحسب رصيداً افتتاحياً أو إقفالاً يومياً ولا يعدّل أي حركة.';note.style.cssText='font-size:11px;color:#64748b;';
+  const note=document.createElement('p');note.textContent='يعرض الحركات النقدية فقط من cashMovements، ويستبعد الشيكات والتحويلات والبطاقات حتى لو وُجدت بسجل قديم؛ لا يعدّل أي حركة.';note.style.cssText='font-size:11px;color:#64748b;';
   panel.append(search,filter,summary,table,note);host.appendChild(panel);
   search.addEventListener('input',renderCashLedgerUI);filter.addEventListener('change',renderCashLedgerUI);
  }
