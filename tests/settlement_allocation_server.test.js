@@ -69,7 +69,7 @@ test('rejects empty, oversized and non-positive allocations', () => {
 });
 
 test('settlement handler recognizes bank receipt sources separately from cash movements', () => {
-  const source = require('../functions/settlement-allocation-service.js').createSettlementAllocationHandler.toString();
-  assert.match(source, /bankRows/);
-  assert.match(source, /sourceMovementType === 'sales_invoice'/);
+  const source = require('fs').readFileSync(require.resolve('../functions/settlement-allocation-service.js'), 'utf8');
+  assert.match(source, /const bankRows = request\.sourceMovementType === 'sales_invoice'/);
+  assert.match(source, /const rows = \[\.\.\.cashRows, \.\.\.bankRows\]/);
 });
