@@ -15,5 +15,5 @@ test('multi-sheet import UI exposes one atomic Apply All action and warns that i
 test('staging build stamp is visible in the About section and names the current service-worker generation', () => {
   const html = fs.readFileSync('index.html', 'utf8');
   assert.match(html, /id="anasBuildStamp"/);
-  assert.match(html, /Build SHA: __ANAS_BUILD_SHA__ \| SW: r23 \| Env: Staging/);
+  assert.match(html, /Build SHA: __ANAS_BUILD_SHA__ \| SW: r24 \| Env: Staging/);
 });
