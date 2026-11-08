@@ -206,7 +206,9 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
   stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r28 | Env: Staging');
-  // Parse the exact transformed staging shell before it can reach Chromium or Hosting.\n  assertInlineClassicScriptsParse(stagedHtml);\n  await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
+  // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
+  assertInlineClassicScriptsParse(stagedHtml);
+  await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.
   let consoleHtml = await fs.readFile(path.join(rootDir, 'staging/index.html'), 'utf8');
