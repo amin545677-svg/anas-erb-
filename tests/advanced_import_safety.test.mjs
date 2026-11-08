@@ -310,6 +310,20 @@ test('four-sheet workbook commits all collections through one atomic repository 
   assert.equal(committed.invoices.rows[0].items.length, 0);
 });
 
+test('multi-sheet atomic apply rejects a workbook missing any of the four required tabs', async () => {
+  const sheetsDataMap = {
+    Suppliers: [{ name: 'مورد', phone: '0660123456' }],
+    Products: [{ name: 'منتج', barcode: 'P-REQUIRED', quantity: '1', price: '10' }],
+    Customers: [{ name: 'عميل', phone: '0550123456' }]
+  };
+  let calls = 0;
+  await assert.rejects(() => executeSafeMultiSheetImport({
+    sheetsDataMap, existingDB: { suppliers: [], products: [], customers: [], invoices: [] },
+    repository: { async saveMultiSheetBatchSafe() { calls++; } }
+  }), /MULTI_SHEET_REQUIRED_TYPES_MISSING/);
+  assert.equal(calls, 0, 'a partial workbook must never reach durable commit');
+});
+
 test('multi-sheet commit failure is surfaced as a full rollback and never returns a partial success', async () => {
   const sheetsDataMap = {
     Suppliers: [{ name: 'مورد', phone: '0660123456' }],
