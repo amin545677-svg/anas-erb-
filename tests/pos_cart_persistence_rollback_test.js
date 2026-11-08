@@ -244,7 +244,7 @@ async function verifyFreeProductAndDiscountSale() {
     Date, Math, Number, String, Object, Array, Map, Set, BigInt
   };
   vm.createContext(context);
-  vm.runInContext(source + '\\nthis.__preTotal = anasCartTotalCents(posCart); this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+  vm.runInContext(source + '\nthis.__preTotal = anasCartTotalCents(posCart); this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
   assert.equal(context.__preTotal, 800, 'cart total must apply the persisted centime discount');
   assert.equal(await context.__paymentPromise, true);
   assert.equal(AppData.products.length, 0, 'free product must never be inserted into the inventory table');
