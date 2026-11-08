@@ -30,7 +30,10 @@ const ERP_FILES = [
   'pos/micro-pos-engine.mjs',
   'pos/micro-pos-deep-core.mjs',
   'pos/advanced-financial-engine.mjs',
-  'sync/mutation_queue_orchestrator.mjs'
+  'sync/mutation_queue_orchestrator.mjs',
+  'sync/mutation_reconciliation.mjs',
+  'sync/mutation_keys.mjs',
+  'sync/v42_transactional_bridge.mjs'
 ];
 
 async function copyRelative(rootDir, outDir, relativePath) {

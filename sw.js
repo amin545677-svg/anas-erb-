@@ -23,7 +23,11 @@ const CORE = [
   './cashbox-readonly-ledger.js',
   './arabic-query-engine.js',
   './customer-debt-protection.js',
-  './warehouse-transfer-audit.js'
+  './warehouse-transfer-audit.js',
+  './sync/mutation_queue_orchestrator.mjs',
+  './sync/mutation_reconciliation.mjs',
+  './sync/mutation_keys.mjs',
+  './sync/v42_transactional_bridge.mjs'
 ];
 // OCR is a large optional offline pack. Cache each asset independently: one missing file or
 // quota failure must not discard every successfully cached OCR runtime/language asset.

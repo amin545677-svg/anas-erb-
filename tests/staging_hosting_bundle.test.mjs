@@ -44,7 +44,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r27/, 'built PWA must install the r26 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r27/, 'built PWA must install the r27 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
@@ -63,6 +63,9 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(coreMatch, 'built service worker must declare a core asset list');
     const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
+    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs']) {
+      assert.ok(coreAssets.includes(syncAsset), 'sync module must be precached for the ERP runtime: ' + syncAsset);
+    }
     for (const asset of coreAssets) {
       assert.ok(asset.startsWith('./'), 'core asset must remain relative to /erp/: ' + asset);
       const resolved = path.resolve(outDir, 'erp', asset.slice(2));
@@ -106,6 +109,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/sw.js',
       'erp/manifest.webmanifest',
       'erp/storage/android-resilient-storage.js',
+      'erp/sync/mutation_queue_orchestrator.mjs',
+      'erp/sync/mutation_reconciliation.mjs',
+      'erp/sync/mutation_keys.mjs',
+      'erp/sync/v42_transactional_bridge.mjs',
       'erp/icons/icon.svg',
       'erp/vendor/firebase/firebase-compat.js',
       'erp/vendor/tesseract/tesseract.min.js',
