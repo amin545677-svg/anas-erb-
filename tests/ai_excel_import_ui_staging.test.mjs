@@ -28,6 +28,9 @@ test('staging ERP builds the AI Excel import experience as local offline-first a
     assert.match(script, /new DataTransfer\(\)/);
     assert.match(script, /MAX_TABLE_BYTES/);
     assert.match(script, /MAX_IMAGE_PDF_BYTES/);
+    assert.match(script, /applyEntityHintToPreview/);
+    assert.match(script, /window\.showSmartImportPreview/);
+    assert.match(script, /entityType: selectedType/);
     assert.match(css, /\.anas-ai-import-pro/);
     assert.match(css, /@media\(max-width:760px\)/);
     assert.match(worker, /ai-excel-import-ui\.js/);
