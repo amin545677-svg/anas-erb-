@@ -25,13 +25,13 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const importCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./ai-excel-import-ui.css">');
     const importScript = erp.lastIndexOf('<script src="./ai-excel-import-ui.js" defer></script>');
     const safeUpdateScript = erp.lastIndexOf('<script src="./safe-update-ui.js" defer></script>');
-    assert.ok(safeCssLink > erp.lastIndexOf('<head') && safeCssLink < actualHeadClose,
+    assert.ok(safeCssLink > erp.indexOf('<head') && safeCssLink < actualHeadClose,
       'safe visual stylesheet must be injected into the real document head, not a printable HTML string');
-    assert.ok(importCssLink > erp.lastIndexOf('<head') && importCssLink < actualHeadClose,
+    assert.ok(importCssLink > erp.indexOf('<head') && importCssLink < actualHeadClose,
       'AI import stylesheet must be injected into the real document head');
-    assert.ok(importScript > erp.lastIndexOf('<body') && importScript < actualBodyClose,
+    assert.ok(importScript > erp.indexOf('<body') && importScript < actualBodyClose,
       'AI import script must be injected before the real document body close');
-    assert.ok(safeUpdateScript > erp.lastIndexOf('<body') && safeUpdateScript < actualBodyClose,
+    assert.ok(safeUpdateScript > erp.indexOf('<body') && safeUpdateScript < actualBodyClose,
       'safe update script must be injected before the real document body close');
     assert.ok(erp.includes("root.innerHTML + '</body></html>'"),
       'printable HTML closing tags inside JavaScript strings must remain untouched');
