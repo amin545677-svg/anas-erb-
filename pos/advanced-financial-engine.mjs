@@ -420,7 +420,9 @@ export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet
   if (!repository || typeof repository.saveMultiSheetBatchSafe !== 'function') throw new TypeError('ATOMIC_MULTI_SHEET_REPOSITORY_REQUIRED');
   const staged = classifyAndStageWorkbookSheets(sheetsDataMap, existingDB, targetBySheet);
   const types = ['suppliers','products','customers','invoices'];
-  if (staged.sheetCount < 1 || types.every(type => staged[type].length === 0)) throw new Error('MULTI_SHEET_NO_RECOGNIZED_ROWS');
+  if (staged.sheetCount < 4 || types.some(type => staged[type].length === 0)) {
+    throw new Error('MULTI_SHEET_REQUIRED_TYPES_MISSING');
+  }
   if (staged.unclassified > 0) throw new Error('MULTI_SHEET_UNCLASSIFIED_ROWS:' + staged.unclassified);
   const batches = {}, stats = {};
   for (const type of types) {
