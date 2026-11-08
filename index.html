@@ -4710,8 +4710,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 if (!isNonInventory) requiredUnits.set(id, aggregateUnits);
                 subtotalCents += lineCents;
             }
-            // This sales flow has no discount input; keep the discount explicit and in integer centimes.
-            const discountCents = 0;
+            // Apply the active POS tab discount in integer centimes; never infer it from a float.
+            const discountCents = typeof anasGetPosCartDiscountCents === 'function' ? anasGetPosCartDiscountCents() : 0;
+            if (!Number.isSafeInteger(discountCents) || discountCents < 0 || discountCents >= subtotalCents) {
+                alert('تعذر تأكيد البيع: قيمة التخفيض غير صالحة أو تتجاوز إجمالي السلة.'); return;
+            }
             const totalCents = subtotalCents - discountCents;
             const total = anasCentsToCurrency(totalCents);
             if (!Number.isSafeInteger(totalCents) || totalCents <= 0 || !Number.isFinite(total)) {
