@@ -154,9 +154,11 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     mimeType: 'application/octet-stream',
     buffer: createMinimalPdf('ANAS ERP PDF Smoke Test')
   });
-  await page.waitForFunction(() => /تم استخراج النص محليًا/.test(
+  await page.waitForFunction(() => /اكتمل الاستخراج المحلي/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
-  ), { timeout: 10000 });
+  ), { timeout: 20000 });
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible', timeout: 10000 });
+  assert.match(await page.locator('#smartImportPreviewModal').innerText(), /هذه معاينة فقط ولم يتم تعديل بياناتك/);
   assert.match(await page.locator('#smartPdfExtractText').inputValue(), /ANAS ERP PDF Smoke Tes/,
     'PDF text must be extracted locally even when Android omits the extension and reports generic MIME');
 
