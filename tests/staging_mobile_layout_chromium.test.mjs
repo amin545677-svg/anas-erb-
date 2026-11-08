@@ -418,3 +418,90 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('inventory product cards remain isolated and readable at narrow mobile widths', async () => {
+  const server = await startServer();
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 320, height: 900 }, deviceScaleFactor: 1 });
+    await page.route('https://**/*', route => route.abort());
+    await page.goto('http://127.0.0.1:' + PORT, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.AppData && typeof window.renderInventoryList === 'function', { timeout: 15000 });
+
+    await page.evaluate(() => {
+      const longName = 'شاي أخضر ممتاز فاخر مستورد عبوة اقتصادية كبيرة جداً للاستخدام التجاري والمنزلي 500 غرام';
+      window.AppData.products = [
+        { id:'UI-001', name:longName, barcode:'611000000001', buyPrice:1420, price1:1470, stock:24, unit:'كغ', supplierId:'S-1' },
+        { id:'UI-002', name:'قهوة ممتازة محمصة ومطحونة بدرجة ناعمة جداً للاستخدام اليومي', barcode:'611000000002', buyPrice:1170, price1:1270, stock:12, unit:'علبة' },
+        { id:'UI-003', name:'منتج عربي طويل الاسم مع وصف إضافي لاختبار التفاف النص دون تداخل', barcode:'611000000003', buyPrice:1590, price1:1650, stock:3, unit:'كغ' },
+        { id:'UI-004', name:'سكر أبيض', barcode:'611000000004', buyPrice:1570, price1:1650, stock:0, unit:'كغ' },
+        { id:'UI-005', name:'منتج خامس', barcode:'611000000005', buyPrice:1400, price1:1500, stock:18, unit:'كغ' }
+      ];
+      window.AppData.suppliers = [{ id:'S-1', name:'مورد تجريبي طويل الاسم للتأكد من التفاف بيانات المورد بشكل سليم' }];
+      window.renderInventoryList();
+    });
+    await page.locator('#inventoryItemsContainer .anas-inventory-product-card').first().waitFor({ state:'attached' });
+
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const layout = await page.evaluate(() => {
+        const root = document.getElementById('inventoryItemsContainer');
+        const cards = [...root.querySelectorAll(':scope > .anas-inventory-product-card')];
+        const rect = el => {
+          const r = el.getBoundingClientRect();
+          return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height };
+        };
+        const overlaps = (a,b) => a.left < b.right - 1 && a.right > b.left + 1 &&
+          a.top < b.bottom - 1 && a.bottom > b.top + 1;
+        return {
+          viewport:innerWidth,
+          documentWidth:document.documentElement.scrollWidth,
+          count:cards.length,
+          cards:cards.map(card => {
+            const main=card.querySelector('.anas-inventory-card-main');
+            const actions=card.querySelector('.anas-inventory-card-actions');
+            const info=card.querySelector('.anas-inventory-card-info');
+            const name=card.querySelector('.anas-inventory-product-name');
+            const meta=card.querySelector('.anas-inventory-product-meta');
+            const stock=card.querySelector('.anas-inventory-product-stock');
+            const buttons=[...actions.querySelectorAll('button')];
+            const cr=rect(card), mr=rect(main), ar=rect(actions), ir=rect(info);
+            return {
+              card:cr, main:mr, actions:ar, info:ir,
+              mainActionsOverlap:overlaps(mr,ar),
+              cardOverflow:card.scrollWidth > card.clientWidth + 1,
+              nameInsideInfo:rect(name).left >= ir.left - 1 && rect(name).right <= ir.right + 1,
+              metaInsideInfo:rect(meta).left >= ir.left - 1 && rect(meta).right <= ir.right + 1,
+              stockInsideInfo:rect(stock).left >= ir.left - 1 && rect(stock).right <= ir.right + 1,
+              buttons:buttons.map(rect),
+              buttonOverlap:buttons.length > 1 && overlaps(rect(buttons[0]),rect(buttons[1])),
+              editLabel:buttons[0]?.getAttribute('aria-label'),
+              deleteLabel:buttons[1]?.getAttribute('aria-label')
+            };
+          })
+        };
+      });
+      assert.equal(layout.count, 5, 'all five inventory cards must be rendered at ' + width + 'px');
+      assert.ok(layout.documentWidth <= width + 1, 'inventory must not create horizontal page overflow: ' + JSON.stringify(layout));
+      for (const card of layout.cards) {
+        assert.equal(card.cardOverflow, false, 'card content must stay inside its own bounds: ' + JSON.stringify(card));
+        assert.equal(card.mainActionsOverlap, false, 'product details and action buttons must not overlap: ' + JSON.stringify(card));
+        assert.equal(card.nameInsideInfo, true, 'product name must remain inside the information column');
+        assert.equal(card.metaInsideInfo, true, 'barcode/prices/supplier must remain inside the information column');
+        assert.equal(card.stockInsideInfo, true, 'stock quantity must remain inside the information column');
+        assert.equal(card.buttonOverlap, false, 'edit and delete controls must not overlap');
+        assert.match(card.editLabel || '', /^تعديل /);
+        assert.match(card.deleteLabel || '', /^حذف /);
+      }
+      for (let i=1;i<layout.cards.length;i++) {
+        assert.ok(layout.cards[i].card.top >= layout.cards[i-1].card.bottom - 1,
+          'neighboring inventory product cards must not overlap vertically');
+      }
+    }
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
