@@ -226,7 +226,7 @@ async function verifyFreeProductAndDiscountSale() {
   };
   const freeCart = [{
     id: 'FREE-TEST-1', name: 'خدمة تركيب', qty: 2, price: 5,
-    unit: 'خدمة', isFreeProduct: true, nonInventory: true
+    unit: 'خدمة', isFreeItem: true
   }];
   const elements = {
     hasibCustomerSelect: { value: '' },
@@ -253,7 +253,9 @@ async function verifyFreeProductAndDiscountSale() {
   assert.equal(AppData.invoices[0].subtotal, 10);
   assert.equal(AppData.invoices[0].discount, 2);
   assert.equal(AppData.invoices[0].total, 8);
-  assert.equal(AppData.invoices[0].items[0].isFreeProduct, true);
+  assert.equal(AppData.invoices[0].items[0].isFreeItem, true);
+  assert.equal(AppData.invoices[0].invoiceLedgerVersion, 1,
+    'free-item invoice must use the compatibility ledger path without a stock posting');
   assert.equal(AppData.caisseBalance, 8);
   assert.equal(AppData.posCartDiscounts.tab1, undefined, 'successful sale clears only the active tab discount');
 }
