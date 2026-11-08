@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ANAS ERP</string>
+    <string name="biometric_title">فتح ANAS ERP</string>
+    <string name="biometric_subtitle">تحقق ببصمة الإصبع أو وسيلة قفل الجهاز لإظهار بيانات العمل</string>
+</resources>

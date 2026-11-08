@@ -1,0 +1,77 @@
+name: Deploy ANAS ERP OpenAI AI Worker
+
+on:
+  # Keep manual deployment available.
+  workflow_dispatch:
+  # Deploy reviewed Worker/config changes after they reach main.
+  push:
+    branches:
+      - main
+      - staging/unified-release-candidate
+    paths:
+      - "cloudflare/worker_openai_ai.js"
+      - "cloudflare/wrangler-openai.toml"
+      - ".github/workflows/deploy-openai-ai-worker.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "::error::Add repository secret CLOUDFLARE_API_TOKEN first." && exit 1)
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Add repository secret CLOUDFLARE_ACCOUNT_ID first." && exit 1)
+          test -n "$OPENAI_API_KEY" || (echo "::error::Add repository secret OPENAI_API_KEY first." && exit 1)
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check OpenAI Worker JavaScript syntax
+        run: node --check cloudflare/worker_openai_ai.js
+      - name: Verify Cloudflare token and account access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_response="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)"
+          token_success="$(printf '%s' "$token_response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success===true?"true":"false");if(j.success!==true)for(const e of j.errors||[])console.error("Cloudflare token verification:",e.code||"",e.message||"request rejected")}catch{console.log("false");console.error("Cloudflare token verification returned invalid JSON")}})')"
+          if [ "$token_success" != "true" ]; then
+            echo "::error::Cloudflare rejected CLOUDFLARE_API_TOKEN. Create/activate a valid token and update the GitHub repository secret."
+            exit 1
+          fi
+          echo "Cloudflare token is active."
+          account_response="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID")"
+          account_success="$(printf '%s' "$account_response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success===true?"true":"false");if(j.success!==true)for(const e of j.errors||[])console.error("Cloudflare account access:",e.code||"",e.message||"request rejected")}catch{console.log("false");console.error("Cloudflare account check returned invalid JSON")}})')"
+          if [ "$account_success" != "true" ]; then
+            echo "::error::Token verification passed, but the configured Cloudflare account could not be read. Check CLOUDFLARE_ACCOUNT_ID and grant Account Settings: Read for the matching account."
+            exit 1
+          fi
+          echo "Cloudflare account access verified. Worker deployment will now test the Workers Scripts permission."
+      - name: Validate Wrangler v4 rate-limit bindings before deployment
+        working-directory: cloudflare
+        run: npx --yes wrangler@4.158.0 deploy --config wrangler-openai.toml --dry-run
+      - name: Deploy separate OpenAI AI Worker with rate-limit bindings and secret
+        uses: cloudflare/wrangler-action@v4
+        with:
+          workingDirectory: cloudflare
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.158.0"
+          command: deploy --config wrangler-openai.toml
+          secrets: |
+            OPENAI_API_KEY
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Smoke-test deployed AI Worker health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors https://anas-erp-openai-ai.amin545677.workers.dev/health)"
+          printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);if(j.ok!==true||j.service!=="anas-erp-openai-ai"||j.configured!==true||j.rateLimitConfigured!==true){console.error("Worker health check failed: expected ok=true, configured=true, and rateLimitConfigured=true.");process.exit(1)}console.log("Worker health check passed. Service:",j.service,"Model:",j.model)}catch(e){console.error("Worker health endpoint returned invalid JSON.");process.exit(1)}})'
