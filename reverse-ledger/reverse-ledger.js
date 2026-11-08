@@ -396,7 +396,8 @@
     return String(item.productId ?? item.id ?? item.product?.id ?? '');
   }
   function originalInvoiceItems(invoice, invoiceType) {
-    if (Array.isArray(invoice.items)) return invoice.items;
+    if (Array.isArray(invoice.items)) return invoice.items.filter(item =>
+      !(item && (item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)));
     if (invoiceType === 'purchase_invoice' && invoice.productId != null) {
       return [{
         productId: invoice.productId,

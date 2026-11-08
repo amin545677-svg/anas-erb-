@@ -50,6 +50,7 @@ export async function buildStagingHosting(options = {}) {
   const rootDir = path.resolve(options.rootDir || ROOT);
   const outDir = path.resolve(options.outDir || path.join(rootDir, 'staging-site'));
   const env = options.env || process.env;
+  const buildSha = String(env.GITHUB_SHA || env.ANAS_BUILD_SHA || 'local').trim().slice(0, 7);
   const apiKey = requirePublicValue(env, 'FIREBASE_STAGING_WEB_API_KEY');
   const appId = requirePublicValue(env, 'FIREBASE_STAGING_WEB_APP_ID');
   const siteKey = typeof env.FIREBASE_STAGING_APP_CHECK_SITE_KEY === 'string'
@@ -149,6 +150,11 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
+  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r20 | Env: Staging';
+  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r20 \| Env: Staging/g) || []).length !== 1) {
+    throw new Error('Expected exactly one staging build stamp in the ERP shell');
+  }
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r20 | Env: Staging');
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.

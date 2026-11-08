@@ -211,4 +211,54 @@ console.log('PASS: POS payment modal closes only after durable commit ACK');
 await verifyDurablePaymentGate(true);
 console.log('PASS: failed POS durable commit rolls back invoice, cash, stock and cart without closing modal');
 
+async function verifyFreeProductAndDiscountSale() {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+  const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
+  const paymentStart = html.indexOf('function confirmHasibPaymentDurable()');
+  const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart && paymentStart >= 0 && paymentEnd > paymentStart);
+  const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
+  const AppData = {
+    products: [], customers: [], invoices: [], caisseBalance: 0,
+    cashMovements: [], stockMovements: [], currentUser: { id: 'U-FREE', name: 'Tester' },
+    activePosScreenTab: 'tab1', posCartDiscounts: { tab1: 200 }
+  };
+  const freeCart = [{
+    id: 'FREE-TEST-1', name: 'خدمة تركيب', qty: 2, price: 5,
+    unit: 'خدمة', isFreeProduct: true, nonInventory: true
+  }];
+  const elements = {
+    hasibCustomerSelect: { value: '' },
+    hasibPaidAmount: { value: '8.00' }
+  };
+  const context = {
+    AppData, posCart: freeCart, lastConfirmedInvoice: null, hasibPaymentInFlight: false,
+    document: { getElementById: id => elements[id] || null },
+    wtTryEnsureData: () => true,
+    wtCurrentSaleWarehouse: () => 'المخزن الرئيسي',
+    wtAvailableStock: () => 0,
+    saveDBDurably: () => Promise.resolve({ revision: 21, mode: 'INDEXEDDB' }),
+    renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
+    closeModal() {}, alert() {}, console,
+    Date, Math, Number, String, Object, Array, Map, Set, BigInt
+  };
+  vm.createContext(context);
+  vm.runInContext(source + '\\nthis.__preTotal = anasCartTotalCents(posCart); this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+  assert.equal(context.__preTotal, 800, 'cart total must apply the persisted centime discount');
+  assert.equal(await context.__paymentPromise, true);
+  assert.equal(AppData.products.length, 0, 'free product must never be inserted into the inventory table');
+  assert.equal(AppData.stockMovements.length, 0, 'free product must never create stock movements');
+  assert.equal(AppData.invoices.length, 1);
+  assert.equal(AppData.invoices[0].subtotal, 10);
+  assert.equal(AppData.invoices[0].discount, 2);
+  assert.equal(AppData.invoices[0].total, 8);
+  assert.equal(AppData.invoices[0].items[0].isFreeProduct, true);
+  assert.equal(AppData.caisseBalance, 8);
+  assert.equal(AppData.posCartDiscounts.tab1, undefined, 'successful sale clears only the active tab discount');
+}
+await verifyFreeProductAndDiscountSale();
+console.log('PASS: free product and centime discount post to invoice without inventory deduction');
+
+
 })().catch(error => { console.error(error); process.exitCode = 1; });

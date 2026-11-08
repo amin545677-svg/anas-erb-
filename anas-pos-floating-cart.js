@@ -66,7 +66,8 @@
       row.append(info, controls);
       list.appendChild(row);
     });
-    totalNode.textContent = money(total);
+    const netCents = typeof anasCartTotalCents === 'function' ? anasCartTotalCents(cart) : Math.round(total * 100);
+    totalNode.textContent = Number.isSafeInteger(netCents) ? money(netCents / 100) : '—';
     countNode.textContent = String(cart.length);
   }
   function mount() {
@@ -82,7 +83,7 @@
       '<div class="anas-pos-mini-lines" data-mini-cart-lines></div>',
       '<div class="anas-pos-mini-actions">',
       '<button type="button" data-mini-action="free">إضافة منتج</button>',
-      '<button type="button" data-mini-action="discount" disabled title="تطبيق الخصم غير متاح قبل ربطه بقيود الفاتورة والدفتر">تخفيض</button>',
+      '<button type="button" data-mini-action="discount">تخفيض</button>',
       '<button type="button" data-mini-action="quote">مبدئية</button>',
       '<button type="button" data-mini-action="expand">توسيع</button>',
       '<button type="button" class="anas-pos-mini-checkout" data-mini-action="checkout">✓ تأكيد الدفع</button>',
@@ -94,7 +95,27 @@
       if (!button) return;
       const action = button.dataset.miniAction;
       if (action === 'free') {
-        if (typeof openAddProductModal === 'function') openAddProductModal();
+        const name = prompt('اسم المنتج الحر (لا يُضاف إلى جدول المخزون):');
+        if (name === null || !name.trim()) return;
+        const price = prompt('سعر الوحدة بالدينار:', '0');
+        if (price === null) return;
+        const quantity = prompt('الكمية:', '1');
+        if (quantity === null) return;
+        const unit = prompt('الوحدة:', 'قطعة') || 'قطعة';
+        if (typeof anasAddFreeCartItem !== 'function') {
+          alert('محرك المنتج الحر غير متاح؛ لم تتم إضافة أي بيانات.');
+          return;
+        }
+        anasAddFreeCartItem(name, price, quantity, unit);
+      } else if (action === 'discount') {
+        const current = typeof anasGetPosCartDiscountCents === 'function' ? anasGetPosCartDiscountCents() : 0;
+        const value = prompt('قيمة التخفيض الإجمالي بالدينار:', Number.isSafeInteger(current) ? (current / 100).toFixed(2) : '0.00');
+        if (value === null) return;
+        if (typeof setPosCartDiscount !== 'function') {
+          alert('محرك التخفيض غير متاح؛ لم يتم تعديل الفاتورة.');
+          return;
+        }
+        setPosCartDiscount(value);
       } else if (action === 'quote') {
         if (typeof switchPosScreen === 'function') switchPosScreen('quote');
       } else if (action === 'expand') {

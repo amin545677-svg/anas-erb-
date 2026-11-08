@@ -2517,6 +2517,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                             <strong>نسخة تطويرية</strong>
                         </div>
                     </div>
+                    <p id="anasBuildStamp" dir="ltr" style="margin:8px 0 0;padding:8px 10px;border:1px solid var(--mp-border);border-radius:8px;font:700 11px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;color:var(--mp-text-muted);">Build SHA: __ANAS_BUILD_SHA__ | SW: r20 | Env: Staging</p>
                     <p style="line-height:1.8;font-size:13px;margin:12px 0 6px;">نظام لإدارة المبيعات والمشتريات والعملاء والموردين والمخزون والديون والصندوق والتقارير، مع أدوات الاستيراد والنسخ الاحتياطي بحسب الوظائف المتاحة في هذه النسخة.</p>
                     <p style="line-height:1.8;font-size:12px;color:var(--mp-text-muted);margin:0;">تُحفظ البيانات والإعدادات وفق آلية التخزين المفعّلة في التطبيق. احتفظ بنسخة احتياطية منتظمة من بياناتك.</p>
                 </div>
@@ -4019,7 +4020,13 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                     </div>
                 `;
             });
-            document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues ? 'بيانات السلة غير صالحة — راجع السعر والكمية' : anasCentsToCurrency(totalCents).toFixed(2) + ' د.ج';
+            const discountCents = anasGetPosCartDiscountCents();
+            const netTotalCents = Number.isSafeInteger(discountCents) && discountCents >= 0
+                ? totalCents - discountCents : NaN;
+            document.getElementById('posTotalDisplay').innerText = hasInvalidCartValues || !Number.isSafeInteger(netTotalCents) || netTotalCents <= 0
+                ? 'بيانات السلة أو التخفيض غير صالحة — راجع الإجمالي'
+                : anasCentsToCurrency(netTotalCents).toFixed(2) + ' د.ج' +
+                  (discountCents > 0 ? ' (بعد تخفيض ' + anasCentsToCurrency(discountCents).toFixed(2) + ')' : '');
             const checkout = document.getElementById('posCheckoutBtn');
             if (checkout) {
                 const validTotal = Number.isSafeInteger(anasCartTotalCents(posCart)) && anasCartTotalCents(posCart) > 0;
@@ -4070,6 +4077,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
         function validatePosCartStock(idx, candidateQtyUnits) {
             const item = posCart[idx];
             if (!item || !Number.isSafeInteger(candidateQtyUnits) || candidateQtyUnits <= 0) return false;
+            if (item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) return true;
             const product = (AppData.products || []).find(p => String(p.id) === String(item.id));
             if (!product) return true; // Final invoice validation reports a deleted product.
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
@@ -4419,7 +4427,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
             } catch (_) { return NaN; }
         }
-        function anasCartTotalCents(cart) {
+        function anasCartSubtotalCents(cart) {
             if (!Array.isArray(cart) || !cart.length) return NaN;
             let total = 0;
             for (const item of cart) {
@@ -4430,6 +4438,70 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 total += lineCents;
             }
             return total;
+        }
+        function anasGetPosCartDiscountCents() {
+            const key = String(AppData.activePosScreenTab ?? 'default');
+            const map = AppData.posCartDiscounts;
+            if (map === undefined) return 0;
+            if (!map || typeof map !== 'object' || Array.isArray(map)) return NaN;
+            const raw = map[key] ?? 0;
+            if (Number.isSafeInteger(raw) && raw >= 0) return raw;
+            if (typeof raw === 'string' && /^\d+$/.test(raw)) {
+                const value = Number(raw);
+                return Number.isSafeInteger(value) ? value : NaN;
+            }
+            return NaN;
+        }
+        function anasCartTotalCents(cart) {
+            const subtotal = anasCartSubtotalCents(cart);
+            const discount = anasGetPosCartDiscountCents();
+            if (!Number.isSafeInteger(subtotal) || !Number.isSafeInteger(discount) ||
+                discount < 0 || discount >= subtotal) return NaN;
+            return subtotal - discount;
+        }
+        function setPosCartDiscount(rawValue) {
+            const discount = anasToCents(rawValue);
+            const subtotal = anasCartSubtotalCents(posCart);
+            if (!Number.isSafeInteger(discount) || discount < 0 ||
+                !Number.isSafeInteger(subtotal) || discount >= subtotal) {
+                alert('التخفيض غير صالح: يجب أن يكون موجباً أو صفراً وأقل من إجمالي السلة.');
+                return false;
+            }
+            const key = String(AppData.activePosScreenTab ?? 'default');
+            const hadMap = Object.prototype.hasOwnProperty.call(AppData, 'posCartDiscounts');
+            const previous = AppData.posCartDiscounts;
+            const next = previous && typeof previous === 'object' && !Array.isArray(previous) ? {...previous} : {};
+            if (discount === 0) delete next[key]; else next[key] = discount;
+            AppData.posCartDiscounts = next;
+            let saved = false;
+            try { saved = typeof saveDB === 'function' && saveDB() === true; }
+            catch (error) { console.error('POS discount save failed:', error); }
+            if (!saved) {
+                if (hadMap) AppData.posCartDiscounts = previous;
+                else delete AppData.posCartDiscounts;
+                alert('تعذر حفظ التخفيض؛ أُعيدت الحالة السابقة.');
+                return false;
+            }
+            renderPosTable();
+            return true;
+        }
+        function anasAddFreeCartItem(name, price, quantity, unit) {
+            const cleanName = String(name ?? '').trim();
+            const priceCents = anasToCents(price);
+            const qtyUnits = anasToQtyUnits(quantity);
+            if (!cleanName || cleanName.length > 180 || !Number.isSafeInteger(priceCents) || priceCents < 0 ||
+                !Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) {
+                alert('بيانات المنتج الحر غير صالحة؛ تحقق من الاسم والسعر والكمية.');
+                return false;
+            }
+            const before = snapshotPosCart();
+            const id = 'FREE-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+            posCart.push({
+                id, name: cleanName, price: anasCentsToCurrency(priceCents),
+                qty: anasQtyFromUnits(qtyUnits), unit: String(unit || 'قطعة').trim() || 'قطعة',
+                isFreeProduct: true, nonInventory: true
+            });
+            return savePosCartChange(() => { restorePosCart(before); });
         }
 
         function renderHasibPaymentSummary() {
@@ -4926,16 +4998,22 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                     !Number.isSafeInteger(lineCents)) {
                     alert('تعذر تأكيد الفاتورة: كمية أو سعر الصنف يتجاوز المجال الحسابي الآمن.'); return;
                 }
-                const aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits;
-                if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > Number.MAX_SAFE_INTEGER ||
-                    !Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
+                if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
                     alert('تعذر تأكيد الفاتورة: مجموع الكمية أو قيمة الفاتورة يتجاوز المجال الحسابي الآمن.'); return;
                 }
-                requiredUnits.set(id, aggregateUnits);
+                if (!(item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)) {
+                    const aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits;
+                    if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > Number.MAX_SAFE_INTEGER) {
+                        alert('تعذر تأكيد الفاتورة: مجموع كمية الصنف يتجاوز المجال الحسابي الآمن.'); return;
+                    }
+                    requiredUnits.set(id, aggregateUnits);
+                }
                 subtotalCents += lineCents;
             }
-            // This sales flow has no discount input; keep the discount explicit and in integer centimes.
-            const discountCents = 0;
+            const discountCents = anasGetPosCartDiscountCents();
+            if (!Number.isSafeInteger(discountCents) || discountCents < 0 || discountCents >= subtotalCents) {
+                alert('تعذر تأكيد الفاتورة: التخفيض غير صالح أو يتجاوز إجمالي السلة.'); return;
+            }
             const totalCents = subtotalCents - discountCents;
             const total = anasCentsToCurrency(totalCents);
             if (!Number.isSafeInteger(totalCents) || totalCents <= 0 || !Number.isFinite(total)) {
@@ -5083,6 +5161,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const rawCaisseBalance = AppData.caisseBalance;
             const oldCart = cart.map(it => ({...it}));
+            const hadCartDiscounts = Object.prototype.hasOwnProperty.call(AppData, 'posCartDiscounts');
+            const oldCartDiscounts = AppData.posCartDiscounts;
             const hadInvoicesArray = Array.isArray(AppData.invoices);
             const oldInvoices = hadInvoicesArray ? AppData.invoices : [];
             const invoicesBefore = oldInvoices.slice();
@@ -5101,8 +5181,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const normalizedItems = cart.map(it => {
                 const qtyUnits = anasToQtyUnits(it.qty);
                 const priceCents = anasToCents(it.price);
+                const lineCents = anasLineTotalCents(qtyUnits, priceCents);
+                if (!Number.isSafeInteger(lineCents)) throw new Error('قيمة بند الفاتورة خارج المجال الحسابي الآمن.');
                 return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents),
-                    total:anasCentsToCurrency(Math.round(qtyUnits * priceCents / ANAS_QTY_SCALE))};
+                    total:anasCentsToCurrency(lineCents)};
             });
             const invObj = {
                 id: invoiceId, date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
@@ -5114,7 +5196,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
                 paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
-                invoiceLedgerVersion: discountCents === 0 ? 2 : 1,
+                invoiceLedgerVersion: discountCents === 0 && !normalizedItems.some(item => item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) ? 2 : 1,
                 oldDebt, newDebt
             };
 
@@ -5154,6 +5236,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             else delete AppData.clientMovements;
             if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore;
             else delete AppData.settlementAllocations;
+            if (hadCartDiscounts) AppData.posCartDiscounts = oldCartDiscounts;
+            else delete AppData.posCartDiscounts;
             posCart = oldCart;
             try {
                 if (typeof updateCashUI === 'function') updateCashUI();
@@ -5274,8 +5358,14 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
-                // Empty the cart before persistence so a repeated click cannot post the same sale twice.
+                // Empty the cart and clear only this tab's discount before persistence so a repeated click cannot repost it.
                 posCart = [];
+                const discountTab = String(AppData.activePosScreenTab ?? 'default');
+                if (AppData.posCartDiscounts && typeof AppData.posCartDiscounts === 'object' && !Array.isArray(AppData.posCartDiscounts)) {
+                    const nextDiscounts = {...AppData.posCartDiscounts};
+                    delete nextDiscounts[discountTab];
+                    AppData.posCartDiscounts = nextDiscounts;
+                }
                 const durableSave = typeof saveDBDurably === 'function' ? saveDBDurably() : saveDB();
                 if (durableSave && typeof durableSave.then === 'function') {
                     return durableSave.then(() => { finalizeSale(); return true; })
