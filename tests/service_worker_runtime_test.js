@@ -15,6 +15,7 @@ let failPrecachePath = './vendor/tesseract/lang/fra.traineddata.gz';
 let networkOk = true;
 let networkBody = 'network-latest';
 let skipWaitingCalled = false;
+let skipWaitingCalls = 0;
 let messageSkipWaitingCalled = false;
 let claimCalled = false;
 
@@ -55,7 +56,7 @@ const self = {
   location: { href: baseUrl, origin: 'https://example.test' },
   clients: { async claim() { claimCalled = true; } },
   addEventListener(name, handler) { listeners[name] = handler; },
-  async skipWaiting() { skipWaitingCalled = true; }
+  async skipWaiting() { skipWaitingCalled = true; skipWaitingCalls++; }
 };
 const context = {
   self, caches, URL, Promise,
@@ -87,7 +88,7 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   store.set('other-app-cache', new Map());
   await dispatchLifecycle('install');
   listeners.message({ data: { type: 'SKIP_WAITING' } });
-  assert.equal(skipWaitingCalled, true, 'SKIP_WAITING message must activate the waiting worker');
+  assert.equal(skipWaitingCalls, 2, 'SKIP_WAITING message must invoke skipWaiting after install');
   assert.equal(skipWaitingCalled, true, 'install should activate the updated worker promptly');
   const installCache = await caches.open(activeCacheName);
   assert.ok(await installCache.match(new URL('./vendor/tesseract/tesseract.min.js', baseUrl).href),

@@ -159,7 +159,7 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Firebase responsive CSS must be a single live style element inside the deployed ERP document head');
   }
   stagedHtml = stagedHtml.replace('</head>', '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n</head>');
-  stagedHtml = stagedHtml.replace('</body>', '  <script src="./ai-excel-import-ui.js" defer></script>\n</body>');
+  stagedHtml = stagedHtml.replace('</body>', '  <script src="./ai-excel-import-ui.js" defer></script>\\n  <script src="./safe-update-ui.js" defer></script>\\n</body>');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
@@ -180,7 +180,7 @@ export async function buildStagingHosting(options = {}) {
   }
   // The canonical source shell is stamped r28 for the r28 worker generation.
   const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r28 | Env: Staging';
-  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \\| SW: r26 \\|stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \\| SW: r28 \\| Env: Staging/g) || []).length !== 1) {
+  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \\| SW: r28 \\| Env: Staging/g) || []).length !== 1) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
   stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r28 | Env: Staging');

@@ -24,6 +24,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /Build SHA: abcdef1 \| SW: r28 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
+    assert.match(erp, /safe-update-ui\\.js/, 'staging shell must load the safe update controller');
+    assert.match(erp, /safeUpdateAppUI/, 'settings must expose the safe update action');
     assert.match(erp, /<link rel="stylesheet" href="\.\/anas-erp-ui-safe-enhancements\.css">/, 'staging ERP must load the neutral eye-comfort palette stylesheet');
     assert.match(erp, /anas-import-review-cards/);
     assert.match(erp, /anas-sheet-picker-ui/);
