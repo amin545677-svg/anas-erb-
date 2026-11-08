@@ -141,6 +141,18 @@ export async function buildStagingHosting(options = {}) {
   if (!stagedHtml.includes('</head>') || !stagedHtml.includes('</body>')) {
     throw new Error('Could not locate ERP document boundaries for the AI import experience');
   }
+  // Keep Firebase's responsive layout in the live document head. A CSS block
+  // embedded in an HTML string is inert and must never be shipped as a substitute.
+  const firebaseLayoutStyle = '<style id="anas-firebase-mobile-layout-v3">';
+  const firebaseLayoutStart = stagedHtml.indexOf(firebaseLayoutStyle);
+  const liveHeadStart = stagedHtml.indexOf('<head');
+  const liveHeadEnd = stagedHtml.indexOf('</head>');
+  if (firebaseLayoutStart < 0 || firebaseLayoutStart < liveHeadStart ||
+      firebaseLayoutStart > liveHeadEnd ||
+      (stagedHtml.match(/<style id="anas-firebase-mobile-layout-v3">/g) || []).length !== 1 ||
+      stagedHtml.includes('&lt;style id="anas-firebase-mobile-layout-v3">')) {
+    throw new Error('Firebase responsive CSS must be a single live style element inside the deployed ERP document head');
+  }
   stagedHtml = stagedHtml.replace('</head>', '  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n</head>');
   stagedHtml = stagedHtml.replace('</body>', '  <script src="./ai-excel-import-ui.js" defer></script>\n</body>');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
