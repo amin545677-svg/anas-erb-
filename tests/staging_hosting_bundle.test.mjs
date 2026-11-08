@@ -22,6 +22,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
+    assert.match(erp, /anas-import-review-cards/);
+    assert.match(erp, /anas-sheet-picker-ui/);
+    assert.match(erp, /مراجعة البيانات المستخرجة/);
+    assert.match(erp, /مطابقة كل البنود تلقائياً/);
     assert.match(posFloatingCart, /anasPosFloatingCart/);
     assert.match(posFloatingCart, /setPosQty/);
     assert.match(posFloatingCss, /\.anas-pos-floating-cart/);
