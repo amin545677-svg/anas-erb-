@@ -32,7 +32,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
-    assert.match(serviceWorker, /anas-erp-v54-25-r26/, 'built PWA must install the r25 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r26/, 'built PWA must install the r26 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
