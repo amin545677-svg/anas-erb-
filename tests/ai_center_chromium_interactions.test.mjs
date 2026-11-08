@@ -246,7 +246,10 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     buffer: xlsxBuffer
   });
   await page.locator('#smartImportSheetPicker').waitFor({ state: 'visible' });
-  await page.locator('#smartImportSheetChoice').selectOption('0');
+  assert.match(await page.locator('#smartImportSheetPicker').innerText(), /2 sheet\(s\).*2 صف/);
+  assert.match(await page.locator('#smartImportSheetPicker').innerText(), /منتجات \(1\)/);
+  assert.equal(await page.locator('#smartImportSheetPicker [data-sheet-index]').count(), 2);
+  await page.locator('#smartImportSheetPicker [data-sheet-index="0"]').click();
   await page.locator('#smartImportSheetContinue').evaluate(button => button.click());
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportPreviewModal').innerText(), /Widget XLSX/);
