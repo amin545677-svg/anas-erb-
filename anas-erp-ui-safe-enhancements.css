@@ -386,3 +386,32 @@ input, select, textarea {
 .anas-inventory-product-meta{font-size:12px!important;color:#475569!important}
 .anas-inventory-card-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important;position:static!important;min-width:0!important}
 .anas-inventory-card-actions button{flex:0 1 auto!important;min-width:76px!important}
+
+/* r28: neutral, high-contrast PDF upload tiles and executive AI metrics. */
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"],
+.anas-ai-file-actions > label[data-anas-ai-action="excel"]{
+  background:#eceeeb!important;background-image:none!important;border:1px solid #c9ccc7!important;
+  color:#303943!important;box-shadow:none!important;
+}
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] span,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] span{
+  color:#35404a!important;-webkit-text-fill-color:#35404a!important;
+}
+#anasAiExecutiveMetrics,#anasAiMorningBrief,#anasAiProactiveInsights{
+  display:block;min-width:0;padding:10px;border:1px solid #d5d8d2;border-radius:10px;
+  background:#f2f3f0!important;color:#303943!important;line-height:1.75!important;
+  overflow-wrap:anywhere!important;
+}
+#anasAiExecutiveMetrics *,#anasAiMorningBrief *,#anasAiProactiveInsights *{
+  color:#303943!important;-webkit-text-fill-color:#303943!important;opacity:1!important;
+}
+#view-settings .field-group[style*="#eff6ff"],
+#view-settings .field-group[style*="#2563eb"]{
+  background:#f0f1ee!important;border-color:#c9ccc7!important;
+}
+#view-settings .field-group[style*="#eff6ff"] h3,
+#view-settings .field-group[style*="#2563eb"] h3{
+  color:#35404a!important;-webkit-text-fill-color:#35404a!important;
+}
