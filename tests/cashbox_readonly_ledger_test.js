@@ -59,3 +59,15 @@ test('expected closing cash includes cash only and excludes non-cash collection 
   ];
   assert.equal(expectedClosingCash('100.00', cashMovements, bankMovements), 11050);
 });
+
+test('cash ledger excludes legacy cheque and transfer entries even if they remain in cashMovements', () => {
+  const result = buildCashLedger([
+    { id:'CASH', type:'add', amount:12.5, paymentChannel:'cash', cashImpact:true },
+    { id:'OLD-TRANSFER', type:'add', amount:90, paymentChannel:'transfer', cashImpact:false },
+    { id:'OLD-CHEQUE', type:'add', amount:50, paymentChannel:'cheque', cashImpact:false }
+  ]);
+  assert.equal(result.total, 1);
+  assert.equal(result.incoming, 1250);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].reference, '—');
+});
