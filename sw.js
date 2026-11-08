@@ -1,7 +1,9 @@
-const CACHE = 'anas-erp-v54-25-r17';
+const CACHE = 'anas-erp-v54-25-r18';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
+  './ai-excel-import-ui.js',
+  './ai-excel-import-ui.css',
   './reverse-ledger/reverse-ledger.js',
   './reverse-ledger/reverse-ledger-modal.js',
   './reverse-ledger/settlement-allocation-modal.js',
