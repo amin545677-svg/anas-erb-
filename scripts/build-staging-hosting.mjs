@@ -153,7 +153,7 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('&lt;style id="anas-firebase-mobile-layout-v3">')) {
     throw new Error('Firebase responsive CSS must be a single live style element inside the deployed ERP document head');
   }
-  stagedHtml = stagedHtml.replace('</head>', '  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n</head>');
+  stagedHtml = stagedHtml.replace('</head>', '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n</head>');
   stagedHtml = stagedHtml.replace('</body>', '  <script src="./ai-excel-import-ui.js" defer></script>\n</body>');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
@@ -173,11 +173,11 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r25 | Env: Staging';
-  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r25 \| Env: Staging/g) || []).length !== 1) {
+  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging';
+  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r26 \| Env: Staging/g) || []).length !== 1) {
     throw new Error('Expected exactly one staging build stamp in the ERP shell');
   }
-  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r25 | Env: Staging');
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r26 | Env: Staging');
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.
