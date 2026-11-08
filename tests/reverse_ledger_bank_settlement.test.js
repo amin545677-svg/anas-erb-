@@ -42,3 +42,15 @@ test('bank transfer receipt can back a customer sales-invoice settlement allocat
   assert.equal(state.cashMovements.length, 0, 'non-cash receipt must not be inserted into cash movements');
   assert.equal(state.bankMovements.length, 1);
 });
+
+test('isFreeItem sale lines remain financial but are excluded from stock reversal', () => {
+  const invoice = {
+    items: [
+      { productId: 'P-FREE', qty: 2, price: 0, isFreeItem: true },
+      { productId: 'P-PAID', qty: 1, price: 10 }
+    ]
+  };
+  assert.deepEqual(ReverseLedger.originalInvoiceItems(invoice, 'sales_invoice'), [
+    { productId: 'P-PAID', qty: 1, price: 10 }
+  ]);
+});
