@@ -8,7 +8,7 @@ function fixture() {
       'الموردون': [{ id: 'S-1', name: 'مورد الاختبار', phone: '0550000001', balance: '0' }],
       'المنتجات': [{ id: 'P-1', barcode: '111000', name: 'منتج الاختبار', stock: '4', price1: '25.00', buyPrice: '10.00', unit: 'قطعة' }],
       'العملاء': [{ id: 'C-1', name: 'عميل الاختبار', phone: '0550000002', debt: '0', credit_limit: '1000' }],
-      'الفواتير': [{ id: 'INV-H-1', date: '2026-11-01', customerId: 'C-1', total: '50.00', paid: '20.00', remaining: '30.00' }]
+      'الفواتير': [{ id: 'INV-H-1', name: 'فاتورة INV-H-1', date: '2026-11-01', customerId: 'C-1', total: '50.00', paid: '20.00', remaining: '30.00' }]
     },
     targetBySheet: {
       'الموردون': 'suppliers', 'المنتجات': 'products',
