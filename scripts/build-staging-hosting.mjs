@@ -178,8 +178,8 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  // The canonical source shell is stamped r28 for the r28 worker generation.
-  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r28 | Env: Staging';
+  // The canonical source shell remains r26; this staging build emits the r28 worker generation.
+  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging';
   if (stagedHtml.split(stamp).length - 1 !== 1) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
