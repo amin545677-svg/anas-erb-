@@ -29,10 +29,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
-    const posFloatingCart = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
+    const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
-    assert.match(posFloatingCart, /anasPosFloatingCart/);
-    assert.match(posFloatingCart, /setPosQty/);
+    assert.match(floatingCartSource, /anasPosFloatingCart/);
+    assert.match(floatingCartSource, /setPosQty/);
     assert.match(posFloatingCss, /\.anas-pos-floating-cart/);
     assert.match(serviceWorker, /anas-pos-floating-cart\.js/);
     assert.match(serviceWorker, /anas-pos-floating-cart\.css/);
