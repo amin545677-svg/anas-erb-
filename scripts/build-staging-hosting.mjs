@@ -115,6 +115,17 @@ export async function buildStagingHosting(options = {}) {
 
   const erpIndexPath = path.join(outDir, 'erp', 'index.html');
   const erpHtml = await fs.readFile(erpIndexPath, 'utf8');
+  // Firebase responsive CSS must remain a live style element in the actual document head.
+  const responsiveStyle = '<style id="anas-firebase-mobile-layout-v3">';
+  const responsiveStyleCount = erpHtml.split(responsiveStyle).length - 1;
+  const responsiveStylePosition = erpHtml.indexOf(responsiveStyle);
+  const sourceHeadStart = erpHtml.indexOf('<head');
+  const sourceHeadEnd = erpHtml.indexOf('</head>');
+  if (responsiveStyleCount !== 1 || responsiveStylePosition <= sourceHeadStart ||
+      responsiveStylePosition >= sourceHeadEnd ||
+      erpHtml.includes('&lt;style id="anas-firebase-mobile-layout-v3">')) {
+    throw new Error('Firebase responsive CSS must exist exactly once as a live style element in the source ERP document head');
+  }
   const configPattern = /const firebaseConfig=\{[^;]*\};/g;
   const matches = erpHtml.match(configPattern) || [];
   if (matches.length !== 1 || !/projectId:"anas-erb"/.test(matches[0])) {
@@ -150,11 +161,11 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r24 | Env: Staging';
-  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r24 \| Env: Staging/g) || []).length !== 1) {
+  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r25 | Env: Staging';
+  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r25 \| Env: Staging/g) || []).length !== 1) {
     throw new Error('Expected exactly one staging build stamp in the ERP shell');
   }
-  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r24 | Env: Staging');
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r25 | Env: Staging');
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.
