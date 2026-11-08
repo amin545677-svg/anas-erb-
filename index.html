@@ -1758,6 +1758,28 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
 @media(max-width:520px){.anas-sheet-count-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.anas-sheet-picker-list{grid-template-columns:1fr}}
 </style>
 
+<style id="anas-pos-reference-ui-v1">
+  #anasPosProductViewToggle{display:flex;align-items:center;gap:7px;padding:8px 10px;background:var(--mp-card,#fff);border-bottom:1px solid var(--mp-border,#e2e8f0);color:var(--mp-text,#172033);font-size:12px;font-weight:800}
+  #anasPosProductViewToggle span{margin-inline-end:auto}
+  #anasPosProductViewToggle button{border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;padding:7px 12px;background:var(--mp-bg,#f8fafc);color:var(--mp-text,#334155);font-weight:800;min-height:36px}
+  #anasPosProductViewToggle button[aria-pressed="true"]{background:#dbeafe;border-color:#2563eb;color:#1d4ed8}
+  #quickProductsContainer.anas-pos-products-list{display:flex!important;flex-direction:column!important;gap:7px!important;padding:8px!important}
+  #quickProductsContainer.anas-pos-products-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,165px),1fr))!important;gap:8px!important;padding:8px!important}
+  #quickProductsContainer .anas-pos-product-card{width:100%;min-width:0;min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--mp-border,#dbe2ea);border-radius:12px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);text-align:start;box-shadow:0 2px 7px #0f172a0a;touch-action:manipulation}
+  #quickProductsContainer.anas-pos-products-grid .anas-pos-product-card{min-height:125px;align-items:stretch;flex-direction:column}
+  .anas-pos-product-info{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:4px}
+  .anas-pos-product-name{font-size:14px;line-height:1.35;font-weight:900;overflow-wrap:anywhere}
+  .anas-pos-product-barcode{font-size:10px;color:var(--mp-text-muted,#64748b);direction:ltr;unicode-bidi:plaintext}
+  .anas-pos-stock-badge{display:inline-flex;align-items:center;max-width:100%;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap}
+  .anas-pos-stock-badge.is-available{background:#dcfce7;color:#166534}.anas-pos-stock-badge.is-low{background:#fef3c7;color:#92400e}.anas-pos-stock-badge.is-out{background:#fee2e2;color:#b91c1c}
+  .anas-pos-product-price{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none;color:#15803d}
+  .anas-pos-product-price strong{font-size:15px;font-weight:950;white-space:nowrap}.anas-pos-product-price small{font-size:10px;color:#2563eb;font-weight:900}
+  #anasPosPriceTierModal h3{font-size:18px;font-weight:950;line-height:1.4}
+  #hasibModal .anas-quick-payment-actions button:nth-child(1){background:#dcfce7!important;border-color:#16a34a!important;color:#166534!important}
+  #hasibModal .anas-quick-payment-actions button:nth-child(2){background:#eff6ff!important;border-color:#60a5fa!important;color:#1d4ed8!important}
+  #hasibModal .anas-quick-payment-actions button:nth-child(3){background:#fee2e2!important;border-color:#dc2626!important;color:#b91c1c!important}
+  @media(max-width:480px){#quickProductsContainer.anas-pos-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}#quickProductsContainer .anas-pos-product-card{padding:9px;gap:8px}.anas-pos-product-name{font-size:13px}.anas-pos-product-price strong{font-size:13px}}
+</style>
 </head>
 <body>
 
@@ -1893,6 +1915,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 <button type="button" class="pill-select-btn" data-stock-filter="available" onclick="filterPosProductsByStock('available',this)">🟢 متوفر</button>
                 <button type="button" class="pill-select-btn" data-stock-filter="low" onclick="filterPosProductsByStock('low',this)">🟠 منخفض</button>
                 <button type="button" class="pill-select-btn" data-stock-filter="out" onclick="filterPosProductsByStock('out',this)">🔴 نافد</button>
+            </div>
+            <div id="anasPosProductViewToggle" class="anas-pos-view-toggle" role="group" aria-label="طريقة عرض المنتجات">
+                <span>عرض المنتجات</span>
+                <button type="button" id="anasPosListViewBtn" aria-pressed="true" onclick="setAnasPosProductView('list')">☷ قائمة</button>
+                <button type="button" id="anasPosGridViewBtn" aria-pressed="false" onclick="setAnasPosProductView('grid')">▦ شبكة</button>
             </div>
             <!-- شبكة أزرار السلع السريعة المباشرة -->
             <div id="posQuickProductsProgress" style="font-size:11px;color:var(--mp-text-muted);padding:2px 8px;" aria-live="polite">0</div>
@@ -3232,6 +3259,20 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
         }
 
         // All product chips filter the already-hydrated in-memory collection; no DB read per tap.
+        // POS catalogue presentation: list by default, optional grid; cart and ledger remain canonical.
+        function setAnasPosProductView(mode) {
+            if (!['list', 'grid'].includes(mode)) return;
+            window.__anasPosProductViewMode = mode;
+            try { localStorage.setItem('ANAS_POS_PRODUCT_VIEW_V1', mode); } catch (_) {}
+            const listButton = document.getElementById('anasPosListViewBtn');
+            const gridButton = document.getElementById('anasPosGridViewBtn');
+            if (listButton) listButton.setAttribute('aria-pressed', mode === 'list' ? 'true' : 'false');
+            if (gridButton) gridButton.setAttribute('aria-pressed', mode === 'grid' ? 'true' : 'false');
+            const container = document.getElementById('quickProductsContainer');
+            if (container) { container.classList.toggle('anas-pos-products-list', mode === 'list'); container.classList.toggle('anas-pos-products-grid', mode === 'grid'); }
+            renderQuickProducts();
+        }
+
         function renderQuickProducts() {
             const cont = document.getElementById('quickProductsContainer');
             if (!cont) return;
@@ -3239,43 +3280,53 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const core = window.ANASMicroPOSCore;
             const selectedCategory = currentPosCategoryFilter;
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
-            const withSaleStock = products.map(p => ({
-                ...p,
-                stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)),
-                is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite)
-            }));
-            const filtered = core
-                ? core.filterInventoryItems(withSaleStock, {
-                    category: selectedCategory === 'الكل' ? 'ALL' : selectedCategory,
-                    status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter
-                })
-                : withSaleStock;
+            const withSaleStock = products.map(p => ({ ...p, stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)), is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite) }));
+            const filtered = core ? core.filterInventoryItems(withSaleStock, { category: selectedCategory === 'الكل' ? 'ALL' : selectedCategory, status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter }) : withSaleStock;
+            let mode = window.__anasPosProductViewMode;
+            if (!['list', 'grid'].includes(mode)) { try { mode = localStorage.getItem('ANAS_POS_PRODUCT_VIEW_V1'); } catch (_) {} }
+            if (!['list', 'grid'].includes(mode)) mode = 'list';
+            window.__anasPosProductViewMode = mode;
+            cont.classList.toggle('anas-pos-products-list', mode === 'list');
+            cont.classList.toggle('anas-pos-products-grid', mode === 'grid');
+            const listButton = document.getElementById('anasPosListViewBtn');
+            const gridButton = document.getElementById('anasPosGridViewBtn');
+            if (listButton) listButton.setAttribute('aria-pressed', mode === 'list' ? 'true' : 'false');
+            if (gridButton) gridButton.setAttribute('aria-pressed', mode === 'grid' ? 'true' : 'false');
+            const money = value => Number(value).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DA';
+            const quantity = value => Number(value).toLocaleString('fr-DZ', { maximumFractionDigits: 3 });
             const renderCard = p => {
-                const pr = AppData.activePriceTier === 2 ? (p.price2 ?? p.price1) : (AppData.activePriceTier === 3 ? (p.price3 ?? p.price1) : p.price1);
-                const stock = Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0));
+                const tier = Number(AppData.activePriceTier) || 1;
+                const pr = tier === 2 ? (p.price2 ?? p.price1) : (tier === 3 ? (p.price3 ?? p.price1) : p.price1);
+                const rawStock = Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0));
+                const stock = Number.isFinite(rawStock) ? rawStock : 0;
                 const isOut = stock <= 0;
                 const isLow = !isOut && stock <= (Number(p.minAlert ?? p.min_limit) || 5);
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'quick-product-btn';
-                btn.style.borderLeft = isOut ? '4px solid #ef4444' : (isLow ? '4px solid #f59e0b' : '4px solid #16a34a');
-                const name = document.createElement('div');
-                name.textContent = String(p.name ?? '');
-                const detail = document.createElement('small');
-                detail.style.cssText = 'font-size:10px;color:' + (isOut ? '#ef4444' : '#64748b') + ';';
-                detail.textContent = String(stock) + ' ' + String(p.unit || '') + ' | ' + String(Number(pr) || 0) + ' د.ج';
-                btn.append(name, detail);
-                btn.title = String(p.name ?? '') + ' - ' + String(Number(pr) || 0) + ' د.ج';
-                btn.addEventListener('click', () => openPosPriceTierPicker(p.id));
-                return btn;
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'quick-product-btn anas-pos-product-card';
+                card.dataset.posProductView = mode;
+                card.dataset.productId = String(p.id ?? '');
+                card.style.borderInlineStart = isOut ? '4px solid #ef4444' : (isLow ? '4px solid #f59e0b' : '4px solid #16a34a');
+                card.setAttribute('aria-label', 'اختيار سعر ' + String(p.name || 'المنتج'));
+                const info = document.createElement('span'); info.className = 'anas-pos-product-info';
+                const name = document.createElement('strong'); name.className = 'anas-pos-product-name'; name.textContent = String(p.name ?? 'منتج بلا اسم');
+                const barcode = document.createElement('small'); barcode.className = 'anas-pos-product-barcode'; barcode.textContent = 'باركود: ' + String(p.barcode ?? p.sku ?? p.code ?? '—');
+                const stockBadge = document.createElement('span'); stockBadge.className = 'anas-pos-stock-badge ' + (isOut ? 'is-out' : (isLow ? 'is-low' : 'is-available'));
+                stockBadge.textContent = (isOut ? '⚠ ' : '') + quantity(stock) + ' ' + String(p.unit || 'قطعة');
+                info.append(name, barcode, stockBadge);
+                const priceBlock = document.createElement('span'); priceBlock.className = 'anas-pos-product-price';
+                const price = document.createElement('strong'); price.textContent = money(pr);
+                const action = document.createElement('small'); action.textContent = 'اختيار السعر ›';
+                priceBlock.append(price, action); card.append(info, priceBlock);
+                card.title = String(p.name ?? '') + ' — ' + money(pr);
+                card.addEventListener('click', () => openPosPriceTierPicker(p.id));
+                return card;
             };
             const deep = window.ANASMicroPOSDeepCore;
             if (deep?.ProgressiveListRenderer) {
                 if (!window.__anasPosProgressiveRenderer || window.__anasPosProgressiveRenderer.containerEl !== cont) {
                     window.__anasPosProgressiveRenderer?.destroy?.();
-                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(
-                        cont, document.getElementById('posQuickProductsProgress'), 20
-                    );
+                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(cont, document.getElementById('posQuickProductsProgress'), 20);
                 }
                 window.__anasPosProgressiveRenderer.setItems(filtered, renderCard);
             } else {
@@ -3807,7 +3858,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const product = (Array.isArray(AppData.products) ? AppData.products : []).find(p => p && String(p.id) === String(productId));
             if (!product) return;
             const tiers = [
-                { tier: 1, label: 'تجزئة / الدفعة', value: product.price1 },
+                { tier: 1, label: 'سعر التجزئة (الدفعة)', value: product.price1 },
                 { tier: 2, label: 'جملة', value: product.price2 },
                 { tier: 3, label: 'جملة الجملة', value: product.price3 }
             ].filter((item, index, list) => item.value !== undefined && item.value !== null && item.value !== '' &&
@@ -3825,7 +3876,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const panel = document.createElement('div');
             panel.style.cssText = 'width:min(420px,100%);background:var(--mp-card,#fff);color:var(--mp-text,#172033);border:1px solid var(--mp-border,#dbe2ea);border-radius:16px;padding:16px;box-shadow:0 18px 50px #0004';
             const heading = document.createElement('h3');
-            heading.textContent = 'اختر سعر البيع';
+            heading.textContent = 'سعر البيع — ' + String(product.name || 'المنتج') + ' (اختر نوع السعر)';
             const name = document.createElement('p');
             name.textContent = String(product.name || 'المنتج');
             panel.append(heading, name);
