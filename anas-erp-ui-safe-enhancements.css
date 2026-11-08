@@ -265,3 +265,114 @@ input, select, textarea {
   color:#303236 !important;
   background:#fff !important;
 }
+
+
+/* ANAS ERP visual repair r27 — scoped, readable cards; no global button recoloring. */
+:root {
+  --anas-bg-main:#f4f6f9;
+  --anas-card-bg:#ffffff;
+  --anas-card-border:#e2e8f0;
+  --anas-text-primary:#0f172a;
+  --anas-text-secondary:#475569;
+  --anas-accent-primary:#1e3a8a;
+  --anas-price-green:#15803d;
+}
+.product-card,.pos-product-card,.inventory-item-card,.stock-card,
+.pos-product,.product-item,.product-tile {
+  box-sizing:border-box;
+  background:#fff !important;
+  color:#0f172a !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:12px !important;
+  box-shadow:0 1px 3px rgba(15,23,42,.06) !important;
+  min-width:0;
+  min-height:92px;
+  height:auto;
+  padding:12px;
+  position:relative;
+}
+.pos-products-grid,#posProductsContainer,#productsGrid,
+#posQuickProductsContainer,#inventoryProductsContainer {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;
+  gap:10px;
+  padding:8px;
+  min-width:0;
+}
+.inventory-item-card,.stock-card {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:7px;
+  border-inline-start:4px solid #1e3a8a !important;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.inventory-item-card .product-name,.inventory-item-card .item-name,
+.stock-card .product-name,.stock-card .item-name {
+  display:block;
+  position:relative;
+  min-width:0;
+  color:#0f172a !important;
+  font-size:15px;
+  font-weight:700;
+  line-height:1.5;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.inventory-item-card .stock-info,.inventory-item-card .product-meta,
+.stock-card .stock-info,.stock-card .product-meta {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  color:#475569 !important;
+  font-size:12px;
+  line-height:1.5;
+}
+.inventory-item-card .product-price,.stock-card .product-price,
+.pos-product-card .product-price,.product-card .product-price {
+  color:#15803d !important;
+  font-weight:800;
+}
+.ai-stat-card,.kpi-card,.data-hub-card,#pdfImportCard,[data-card="pdf"],
+.pdf-import-card,.import-format-card[data-format="pdf"] {
+  box-sizing:border-box;
+  background:#1e293b !important;
+  color:#f8fafc !important;
+  border:1px solid #334155 !important;
+  border-radius:12px;
+}
+.ai-stat-card *, .kpi-card *, .data-hub-card *,
+#pdfImportCard *, [data-card="pdf"] *, .pdf-import-card *,
+.import-format-card[data-format="pdf"] * {
+  color:#f8fafc !important;
+  opacity:1;
+  visibility:visible;
+}
+.bottom-nav button,.bottom-navigation button,#bottomNav button,
+#bottom-navigation button,.nav-tab,.filter-chip,.filter-btn,.filter-button {
+  background:#fff !important;
+  background-image:none !important;
+  color:#334155 !important;
+  border:1px solid #cbd5e1 !important;
+  box-shadow:none !important;
+}
+.bottom-nav button.active,.bottom-navigation button.active,
+#bottomNav button.active,#bottom-navigation button.active,
+.nav-tab.active,.filter-chip.active,.filter-btn.active,.filter-button.active {
+  background:#1e3a8a !important;
+  color:#fff !important;
+  border-color:#1e3a8a !important;
+}
+@media(max-width:480px) {
+  .pos-products-grid,#posProductsContainer,#productsGrid,
+  #posQuickProductsContainer,#inventoryProductsContainer {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    padding:6px;
+  }
+}

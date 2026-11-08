@@ -48,3 +48,27 @@
 @media(max-width:760px){.anas-ai-import-types{grid-template-columns:repeat(3,minmax(0,1fr))}.anas-ai-import-type{min-height:72px}.anas-ai-import-benefits{grid-template-columns:repeat(2,minmax(0,1fr))}.anas-ai-import-benefits>div:nth-child(2){border-left:0}.anas-ai-import-benefits>div:nth-child(-n+2){border-bottom:1px solid var(--ai-line);padding-bottom:9px}.anas-ai-import-benefits>div:nth-child(n+3){padding-top:8px}.anas-ai-import-rules{grid-template-columns:1fr}.anas-ai-import-rules>div{border-left:0;border-bottom:1px solid #c5d5f0;padding:5px 0 8px}.anas-ai-import-rules>div:last-child{border-bottom:0;padding-bottom:0}}
 @media(max-width:420px){.anas-ai-import-head{gap:9px;padding:13px}.anas-ai-import-orb{width:43px;height:43px;flex-basis:43px}.anas-ai-import-head-check{display:none}.anas-ai-import-section-title{display:block}.anas-ai-import-section-title span{display:block;margin-top:4px}.anas-ai-import-drop{padding:20px 10px}.anas-ai-import-actions{gap:7px}.anas-ai-import-actions button{font-size:12px;padding:8px 5px}}
 @media(prefers-reduced-motion:reduce){.anas-ai-import-type{transition:none}}
+
+
+/* Eye-comfort override for the AI import panel: navy/white/neutral, not electric cyan. */
+.anas-ai-import-pro {
+  --ai-blue:#1e3a8a;
+  --ai-navy:#1e293b;
+  --ai-line:#e2e8f0;
+  --ai-muted:#64748b;
+  background:#f4f6f9;
+  border-color:#e2e8f0;
+  color:#0f172a;
+  box-shadow:0 8px 24px rgba(15,23,42,.06);
+}
+.anas-ai-import-head { background:linear-gradient(115deg,#1e293b,#334155) !important; }
+.anas-ai-import-head-check { color:#1e3a8a; }
+.anas-ai-import-type { border-color:#cbd5e1; color:#1e293b; }
+.anas-ai-import-type span { color:#1e3a8a; }
+.anas-ai-import-type.is-active { background:#1e3a8a !important; border-color:#1e3a8a !important; box-shadow:0 5px 14px rgba(30,58,138,.16); }
+.anas-ai-import-drop { border-color:#94a3b8; background:#fff; }
+.anas-ai-import-file-icon { background:#f8fafc; border-color:#cbd5e1; color:#1e3a8a; }
+.anas-ai-import-primary { background:#1e3a8a !important; box-shadow:0 4px 12px rgba(30,58,138,.16); }
+.anas-ai-import-actions button { border-color:#cbd5e1; color:#1e3a8a; }
+.anas-ai-import-rules { background:#f1f5f9; border-color:#e2e8f0; }
+.anas-ai-import-note { background:#fff; border-color:#e2e8f0; }

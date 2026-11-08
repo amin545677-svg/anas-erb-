@@ -21,7 +21,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r26 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r27 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /<link rel="stylesheet" href="\.\/anas-erp-ui-safe-enhancements\.css">/, 'staging ERP must load the neutral eye-comfort palette stylesheet');
@@ -32,7 +32,19 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
-    assert.match(serviceWorker, /anas-erp-v54-25-r26/, 'built PWA must install the r26 cache namespace');
+    const visualCss = await fs.readFile(path.join(outDir, 'erp/anas-erp-ui-safe-enhancements.css'), 'utf8');
+    const importCss = await fs.readFile(path.join(outDir, 'erp/ai-excel-import-ui.css'), 'utf8');
+    assert.match(visualCss, /--anas-accent-primary:#1e3a8a/, 'visual repair must use a calm navy accent');
+    assert.match(visualCss, /\.pos-products-grid[\s\S]*?grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
+      'mobile POS products must use a readable two-column grid');
+    assert.match(visualCss, /\.inventory-item-card[\s\S]*?flex-direction:column/,
+      'inventory cards must stack content without overlay positioning');
+    assert.match(visualCss, /#pdfImportCard[\s\S]*?background:#1e293b/,
+      'PDF import card must have a dark readable surface');
+    assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
+      'AI import header must use a calm navy palette');
+
+    assert.match(serviceWorker, /anas-erp-v54-25-r27/, 'built PWA must install the r26 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
