@@ -267,7 +267,7 @@ input, select, textarea {
 }
 
 
-/* ANAS ERP visual repair r27 — scoped, readable cards; no global button recoloring. */
+/* ANAS ERP visual repair r28 — scoped, readable cards; no global button recoloring. */
 :root {
   --anas-bg-main:#f4f6f9;
   --anas-card-bg:#ffffff;
@@ -376,3 +376,13 @@ input, select, textarea {
     padding:6px;
   }
 }
+
+/* r28 inventory cards: keep long Arabic names and metadata in normal flow. */
+.anas-inventory-product-card{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important;min-width:0!important;height:auto!important;overflow:visible!important;white-space:normal!important}
+.anas-inventory-card-main{display:flex!important;align-items:flex-start!important;gap:10px!important;min-width:0!important;width:100%!important}
+.anas-inventory-card-thumb{flex:0 0 44px!important}
+.anas-inventory-card-info{display:flex!important;flex:1 1 auto!important;flex-direction:column!important;align-items:flex-start!important;gap:5px!important;min-width:0!important;width:100%!important;white-space:normal!important}
+.anas-inventory-product-name,.anas-inventory-product-unit,.anas-inventory-product-meta,.anas-inventory-product-stock{position:static!important;display:block!important;float:none!important;transform:none!important;max-width:100%!important;min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;line-height:1.55!important}
+.anas-inventory-product-meta{font-size:12px!important;color:#475569!important}
+.anas-inventory-card-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important;position:static!important;min-width:0!important}
+.anas-inventory-card-actions button{flex:0 1 auto!important;min-width:76px!important}

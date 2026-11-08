@@ -1,4 +1,4 @@
-const CACHE = 'anas-erp-v54-25-r27';
+const CACHE = 'anas-erp-v54-25-r28';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
@@ -27,7 +27,9 @@ const CORE = [
   './sync/mutation_queue_orchestrator.mjs',
   './sync/mutation_reconciliation.mjs',
   './sync/mutation_keys.mjs',
-  './sync/v42_transactional_bridge.mjs'
+  './sync/v42_transactional_bridge.mjs',
+  './core/sovereign-kernel.mjs',
+  './safe-update-ui.js'
 ];
 // OCR is a large optional offline pack. Cache each asset independently: one missing file or
 // quota failure must not discard every successfully cached OCR runtime/language asset.
@@ -44,6 +46,10 @@ const OCR_ASSETS = [
 ];
 const CORE_URLS = new Set([...CORE, ...OCR_ASSETS].map(path => new URL(path, self.location.href).href));
 
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('install', event => {
   event.waitUntil(

@@ -33,7 +33,9 @@ const ERP_FILES = [
   'sync/mutation_queue_orchestrator.mjs',
   'sync/mutation_reconciliation.mjs',
   'sync/mutation_keys.mjs',
-  'sync/v42_transactional_bridge.mjs'
+  'sync/v42_transactional_bridge.mjs',
+  'core/sovereign-kernel.mjs',
+  'safe-update-ui.js'
 ];
 
 async function copyRelative(rootDir, outDir, relativePath) {
@@ -176,12 +178,12 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  // The canonical source shell remains stamped r26; this build emits the r27 worker generation.
-  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging';
-  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \\| SW: r26 \\| Env: Staging/g) || []).length !== 1) {
+  // The canonical source shell is stamped r28 for the r28 worker generation.
+  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r28 | Env: Staging';
+  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \\| SW: r26 \\|stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \\| SW: r28 \\| Env: Staging/g) || []).length !== 1) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
-  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r27 | Env: Staging');
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r28 | Env: Staging');
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.
@@ -217,6 +219,8 @@ export async function buildStagingHosting(options = {}) {
     'erp/anas-pos-floating-cart.js', 'erp/anas-pos-floating-cart.css',
     'erp/storage/android-resilient-storage.js',
     'erp/core/ai-operations-engine.js',
+    'erp/core/sovereign-kernel.mjs',
+    'erp/safe-update-ui.js',
     'erp/micro-pos-core.js', 'erp/pos/micro-pos-engine.mjs', 'erp/pos/micro-pos-deep-core.mjs', 'erp/pos/advanced-financial-engine.mjs',
     'erp/icons/icon.svg',
     'erp/vendor/firebase/firebase-compat.js',

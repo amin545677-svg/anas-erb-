@@ -2699,6 +2699,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     <p style="line-height:1.8;font-size:12px;color:var(--mp-text-muted);margin:0;">تُحفظ البيانات والإعدادات وفق آلية التخزين المفعّلة في التطبيق. احتفظ بنسخة احتياطية منتظمة من بياناتك.</p>
                 </div>
 
+                <button type="button" class="btn-full-submit" id="anasSafeUpdateButton" onclick="safeUpdateAppUI()">🔄 تحديث الواجهة مع حفظ البيانات</button>
+                <p id="anasSafeUpdateStatus" role="status" aria-live="polite" style="margin:8px 0 12px;color:var(--mp-text-muted);font-size:12px;line-height:1.6;">يحدّث ملفات التطبيق دون مسح بياناتك المحلية.</p>
                 <button class="btn-full-submit" onclick="saveAppSettings()">💾 حفظ الإعدادات</button>
             </div>
         </section>
@@ -3467,7 +3469,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const selectedCategory = currentPosCategoryFilter;
             const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             const withSaleStock = products.map(p => ({ ...p, stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)), is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite) }));
-            const filtered = core ? core.filterInventoryItems(withSaleStock, { category: selectedCategory === 'الكل' ? 'ALL' : selectedCategory, status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter }) : withSaleStock;
+            const filtered = (core ? core.filterInventoryItems(withSaleStock, { category: selectedCategory === 'الكل' ? 'ALL' : selectedCategory, status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter }) : withSaleStock).slice().sort((a,b) => String(a.name || a.title || '').localeCompare(String(b.name || b.title || ''), 'ar', { sensitivity: 'base', numeric: true }));
             let mode = window.__anasPosProductViewMode;
             if (!['list', 'grid'].includes(mode)) { try { mode = localStorage.getItem('ANAS_POS_PRODUCT_VIEW_V1'); } catch (_) {} }
             if (!['list', 'grid'].includes(mode)) mode = 'list';
@@ -8417,7 +8419,7 @@ function wtAuditTransfers(){
                 categories.forEach(value => categorySelect.add(new Option(value, value)));
                 categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : 'ALL';
             }
-            const visibleProducts = core ? core.filterInventoryItems(products, { query: search, status, category: selectedCategory }) : products;
+            const visibleProducts = (core ? core.filterInventoryItems(products, { query: search, status, category: selectedCategory }) : products).slice().sort((a,b) => String(a.name || a.title || '').localeCompare(String(b.name || b.title || ''), 'ar', { sensitivity: 'base', numeric: true }));
             const count = document.getElementById('inventoryUnifiedCount');
             if (count) count.textContent = 'النتائج: ' + visibleProducts.length + ' من ' + products.length + ' منتج';
             const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];

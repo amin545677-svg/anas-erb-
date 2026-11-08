@@ -72,3 +72,14 @@
 .anas-ai-import-actions button { border-color:#cbd5e1; color:#1e3a8a; }
 .anas-ai-import-rules { background:#f1f5f9; border-color:#e2e8f0; }
 .anas-ai-import-note { background:#fff; border-color:#e2e8f0; }
+
+/* r28 eye-comfort correction: remove saturated cyan/blue gradients from AI import cards. */
+.anas-ai-import-pro{--ai-blue:#525b66;--ai-navy:#26313d;--ai-line:#d7dbe0;--ai-muted:#5b6470;background:linear-gradient(145deg,#f7f7f5 0%,#eceeeb 52%,#f5f5f2 100%)!important;border-color:#d6d8d3!important;color:#30343a!important;box-shadow:0 8px 24px rgba(25,30,35,.06)!important}
+.anas-ai-import-head{background:linear-gradient(115deg,#303943,#515b65)!important}
+.anas-ai-import-head-check{color:#35404a!important}
+.anas-ai-import-benefits{border-color:#d7dbe0!important;background:#fff!important}
+.anas-ai-import-benefits b,.anas-ai-import-section-title h3{color:#303943!important}
+.anas-ai-import-section-title span,.anas-ai-import-benefits small{color:#59636e!important}
+.anas-ai-import-pro button,.anas-ai-import-pro [role=button]{background-color:#e7e8e5!important;background-image:none!important;border-color:#c9ccc7!important;color:#30343a!important;box-shadow:none!important}
+.anas-ai-import-pro button:focus-visible{outline-color:#737b84!important}
+.anas-ai-import-pro .anas-ai-dropzone,.anas-ai-import-pro .anas-ai-upload-card{border-color:#bfc5ca!important;background:#f8f9f7!important;color:#303943!important}

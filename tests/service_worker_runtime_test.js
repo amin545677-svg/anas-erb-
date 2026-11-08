@@ -15,6 +15,7 @@ let failPrecachePath = './vendor/tesseract/lang/fra.traineddata.gz';
 let networkOk = true;
 let networkBody = 'network-latest';
 let skipWaitingCalled = false;
+let messageSkipWaitingCalled = false;
 let claimCalled = false;
 
 function keyOf(input) {
@@ -85,6 +86,8 @@ async function request(url, { method = 'GET', mode = 'same-origin' } = {}) {
   store.set('anas-erp-v54-25-r1', new Map());
   store.set('other-app-cache', new Map());
   await dispatchLifecycle('install');
+  listeners.message({ data: { type: 'SKIP_WAITING' } });
+  assert.equal(skipWaitingCalled, true, 'SKIP_WAITING message must activate the waiting worker');
   assert.equal(skipWaitingCalled, true, 'install should activate the updated worker promptly');
   const installCache = await caches.open(activeCacheName);
   assert.ok(await installCache.match(new URL('./vendor/tesseract/tesseract.min.js', baseUrl).href),

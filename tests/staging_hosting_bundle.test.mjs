@@ -21,7 +21,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r27 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r28 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /<link rel="stylesheet" href="\.\/anas-erp-ui-safe-enhancements\.css">/, 'staging ERP must load the neutral eye-comfort palette stylesheet');
@@ -44,7 +44,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r27/, 'built PWA must install the r27 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r28/, 'built PWA must install the r27 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
@@ -63,7 +63,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(coreMatch, 'built service worker must declare a core asset list');
     const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
-    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs']) {
+    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js']) {
       assert.ok(coreAssets.includes(syncAsset), 'sync module must be precached for the ERP runtime: ' + syncAsset);
     }
     for (const asset of coreAssets) {
@@ -113,6 +113,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/sync/mutation_reconciliation.mjs',
       'erp/sync/mutation_keys.mjs',
       'erp/sync/v42_transactional_bridge.mjs',
+      'erp/core/sovereign-kernel.mjs',
+      'erp/safe-update-ui.js',
       'erp/icons/icon.svg',
       'erp/vendor/firebase/firebase-compat.js',
       'erp/vendor/tesseract/tesseract.min.js',
