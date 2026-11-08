@@ -176,7 +176,7 @@ async function verifyDurablePaymentGate(failCommit) {
     Date, Math, Number, String, Object, Array, Map, Set, BigInt
   };
   vm.createContext(context);
-  vm.runInContext(source + '\nthis.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+  vm.runInContext(source + String.fromCharCode(10) + 'this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
 
   assert.equal(saves, 1, 'POS must issue exactly one durable write');
   assert.equal(AppData.invoices.length, 1, 'the candidate invoice is prepared before awaiting the durable commit');
