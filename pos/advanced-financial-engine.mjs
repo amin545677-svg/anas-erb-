@@ -415,10 +415,8 @@ function normalizeMultiSheetImportRow(type, stagedRow, index, existingRows) {
  * Stages four entity collections before a single durable repository transaction.
  * Imported invoice headers are archived only: they do not post stock, cash, or debt.
  */
-export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet = {}, existingDB = {},
-  storage = globalThis.localStorage, repository } = {}) {
+export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet = {}, existingDB = {}, repository } = {}) {
   if (!sheetsDataMap || typeof sheetsDataMap !== 'object' || Array.isArray(sheetsDataMap)) throw new TypeError('IMPORT_SHEETS_REQUIRED');
-  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') throw new TypeError('IMPORT_STORAGE_REQUIRED');
   if (!repository || typeof repository.saveMultiSheetBatchSafe !== 'function') throw new TypeError('ATOMIC_MULTI_SHEET_REPOSITORY_REQUIRED');
   const staged = classifyAndStageWorkbookSheets(sheetsDataMap, existingDB, targetBySheet);
   const types = ['suppliers','products','customers','invoices'];
@@ -426,6 +424,7 @@ export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet
   if (staged.unclassified > 0) throw new Error('MULTI_SHEET_UNCLASSIFIED_ROWS:' + staged.unclassified);
   const batches = {}, stats = {};
   for (const type of types) {
+    if (staged[type].some(row => row.identityConflict)) throw new Error('IMPORT_IDENTITY_CONFLICT:' + type);
     const existingRows = Array.isArray(existingDB[type]) ? existingDB[type] : [];
     if (existingDB[type] !== undefined && !Array.isArray(existingDB[type])) throw new Error('EXISTING_DATA_NOT_ARRAY:' + type);
     const sourceRows = type === 'invoices' ? staged[type].filter(row => !row.isDuplicate) : staged[type];
@@ -443,17 +442,8 @@ export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet
     snapshot: fullSnapshot,
     collections: Object.fromEntries(types.map(type => [type, Array.isArray(existingDB[type]) ? existingDB[type] : []]))
   });
-  const mirrors = types.map(type => ({
-    key: 'anas_' + type, backupKey: 'anas_' + type + '_backup_pre_import',
-    previous: storage.getItem('anas_' + type), next: JSON.stringify(batches[type].rows)
-  }));
   try {
-    storage.setItem('anas_multi_sheet_backup_pre_import', backupPayload);
-    for (const mirror of mirrors) {
-      const previous = mirror.previous ?? JSON.stringify(Array.isArray(existingDB[mirror.key.slice(5)]) ? existingDB[mirror.key.slice(5)] : []);
-      storage.setItem(mirror.backupKey, previous);
-    }
-    for (const mirror of mirrors) storage.setItem(mirror.key, mirror.next);
+    // The repository must persist the backup snapshot first, then all four collections in one IndexedDB transaction.
     await repository.saveMultiSheetBatchSafe(batches, backupPayload);
     return Object.freeze({
       durable: true, sheetCount: staged.sheetCount, totalValidRows: staged.totalValidRows,
@@ -463,12 +453,6 @@ export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet
       totalSkipped: types.reduce((sum, type) => sum + stats[type].skipped + stats[type].duplicateSkipped, 0)
     });
   } catch (error) {
-    for (const mirror of mirrors) {
-      try {
-        if (mirror.previous === null && typeof storage.removeItem === 'function') storage.removeItem(mirror.key);
-        else storage.setItem(mirror.key, mirror.previous ?? '[]');
-      } catch (_) {}
-    }
     throw new Error('SAFE_MULTI_SHEET_IMPORT_ROLLED_BACK: ' + (error?.message || String(error)));
   }
 }
