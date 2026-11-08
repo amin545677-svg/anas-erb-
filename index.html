@@ -1738,6 +1738,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
 .anas-import-review-card[data-decision=match]{border-color:#60a5fa}
 .anas-import-review-card[data-decision=insert]{border-color:#4ade80}
 .anas-import-review-card[data-decision=ignore],.anas-import-review-card[data-decision=delete]{opacity:.72}
+#smartImportPreviewModal #smartImportConfirm{position:sticky;bottom:0;z-index:3;box-shadow:0 -8px 20px rgba(15,23,42,.10);min-height:50px;font-weight:900;border:2px solid #0f766e}
+#smartImportPreviewModal #smartImportValidation{padding:8px 10px;border-radius:9px;background:#fffbeb}
 @media(max-width:560px){.anas-import-review-cards{grid-template-columns:1fr;max-height:42vh}.anas-import-review-top{align-items:stretch}.anas-import-auto-match{width:100%}}
 </style>
 
@@ -11384,7 +11386,7 @@ function wtAuditTransfers(){
                         });
                     };
                     box.dataset.smartImportReviewReady='1';
-                    box.querySelector('#smartImportConfirm').textContent='تطبيق الكل بعد المراجعة';
+                    box.querySelector('#smartImportConfirm').textContent='✓ تطبيق الكل بعد المراجعة ('+importMatches.length+')';
                     validation.textContent='راجع قرارات المطابقة لكل بند، ثم اضغط «تطبيق الكل بعد المراجعة». لم تُحفظ أي بيانات بعد.';
                     return;
                 }
