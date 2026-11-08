@@ -10777,9 +10777,11 @@ function wtAuditTransfers(){
                     if (status) status.textContent = '⏳ الاستيراد الذكي ' + quotaState.used + ' من ' + quotaState.limit + ' لهذا اليوم…';
                 }
                 if(isPdfUpload){
-                    if(!/\.pdf$/i.test(String(file.name||''))&&!/application\/(?:x-)?pdf/i.test(String(file.type||'')))
-                        throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
                     if(file.size>10*1024*1024)throw new Error('يتجاوز ملف PDF الحد الأقصى المسموح به (10MB).');
+                    const pdfSignature=new Uint8Array(await file.slice(0,5).arrayBuffer());
+                    const hasPdfSignature=pdfSignature.length===5&&pdfSignature[0]===37&&pdfSignature[1]===80&&pdfSignature[2]===68&&pdfSignature[3]===70&&pdfSignature[4]===45;
+                    if(!/\.pdf$/i.test(String(file.name||''))&&!/application\/(?:x-)?pdf/i.test(String(file.type||''))&&!hasPdfSignature)
+                        throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
                     window.anasCurrentPdfFile=file;
                     const result=await processPDFInvoiceFile(file,window.AppData||{});
                     const box=document.getElementById('smartPdfExtractResults');
