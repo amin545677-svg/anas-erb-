@@ -49,6 +49,11 @@
     try {
       registration = await navigator.serviceWorker.getRegistration('./');
       if (!registration) registration = await navigator.serviceWorker.register('./sw.js');
+      controllerHandler = () => {
+        finish('تم تحديث الواجهة بنجاح. بياناتك المحلية محفوظة.', false);
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', controllerHandler, { once: true });
       await registration.update();
 
       const waiting = registration.waiting;
@@ -62,11 +67,6 @@
         if (!worker || settled) return;
         if (worker.state === 'installed') {
           const waitingWorker = registration.waiting || worker;
-          controllerHandler = () => {
-            finish('تم تحديث الواجهة بنجاح. بياناتك المحلية محفوظة.', false);
-            window.location.reload();
-          };
-          navigator.serviceWorker.addEventListener('controllerchange', controllerHandler, { once: true });
           waitingWorker.postMessage({ type: 'SKIP_WAITING' });
           return;
         }
