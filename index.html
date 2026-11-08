@@ -1741,6 +1741,21 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
 @media(max-width:560px){.anas-import-review-cards{grid-template-columns:1fr;max-height:42vh}.anas-import-review-top{align-items:stretch}.anas-import-auto-match{width:100%}}
 </style>
 
+<style id="anas-sheet-picker-ui">
+.anas-sheet-picker-panel{max-width:680px;margin:12px auto;background:#fff;color:#0f172a;border-radius:16px;padding:16px}
+.anas-sheet-picker-panel h3{margin:0 0 8px;color:#17366e}
+.anas-sheet-picker-panel p{font-size:13px;line-height:1.8;color:#475569}
+.anas-sheet-picker-panel label{display:block;font-weight:800;margin:12px 0 6px}
+.anas-sheet-picker-panel select{width:100%;min-height:46px;padding:10px;border:1px solid #cbd5e1;border-radius:10px}
+.anas-sheet-count-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:12px 0}
+.anas-sheet-count-tab{min-height:42px;border:1px solid #dbeafe;border-radius:10px;background:#eff6ff;color:#1e40af;font-weight:800;font-size:12px}
+.anas-sheet-picker-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}
+.anas-sheet-picker-list button{display:flex;flex-direction:column;gap:4px;text-align:right;padding:10px;border:1px solid #dbe5f2;border-radius:10px;background:#f8fafc;color:#172554}
+.anas-sheet-picker-list button span{font-size:11px;color:#64748b}
+.anas-sheet-picker-list button.is-selected{border:2px solid #2563eb;background:#eff6ff}
+@media(max-width:520px){.anas-sheet-count-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.anas-sheet-picker-list{grid-template-columns:1fr}}
+</style>
+
 </head>
 <body>
 
@@ -11099,10 +11114,35 @@ function wtAuditTransfers(){
         function showSmartImportSheetPicker(fileName,sheets,onChoose) {
             const old=document.getElementById('smartImportSheetPicker');if(old)old.remove();
             const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const classify=sheet=>{
+                const name=String(sheet.name||'').toLowerCase();
+                const headers=(sheet.rows[0]||[]).map(v=>String(v??'').toLowerCase()).join(' ');
+                const source=name+' '+headers;
+                if(/supplier|vendor|مورد/.test(source))return 'suppliers';
+                if(/customer|client|عميل|زبون/.test(source))return 'customers';
+                if(/product|item|stock|منتج|مخزون|صنف/.test(source))return 'products';
+                if(/invoice|facture|فاتورة/.test(source))return 'invoices';
+                return 'other';
+            };
+            const counts={suppliers:0,products:0,customers:0,invoices:0,other:0};
+            sheets.forEach(sheet=>{const type=classify(sheet);counts[type]+=Math.max(0,sheet.rows.length-1);});
+            const totalRows=sheets.reduce((sum,sheet)=>sum+Math.max(0,sheet.rows.length-1),0);
+            const tabs=[
+                ['suppliers','موردين'],['products','منتجات'],['customers','عملاء'],['invoices','فواتير']
+            ].map(([key,label])=>'<button type="button" data-sheet-category="'+key+'" class="anas-sheet-count-tab">'+label+' ('+counts[key]+')</button>').join('');
             const box=document.createElement('div');box.id='smartImportSheetPicker';
             box.style.cssText='position:fixed;inset:0;z-index:100002;background:#020617dd;overflow:auto;padding:12px;';
-            box.innerHTML='<div style="max-width:560px;margin:12px auto;background:#fff;color:#0f172a;border-radius:14px;padding:16px"><h3>📑 اختر ورقة البيانات</h3><p>يحتوي ملف Excel على أكثر من ورقة غير فارغة. اختر الورقة التي تحتوي على البيانات المراد استيرادها؛ لن تتغير البيانات قبل المعاينة والتأكيد.</p><label for="smartImportSheetChoice" style="display:block;font-weight:bold;margin:10px 0">ورقة العمل</label><select id="smartImportSheetChoice" style="width:100%;min-height:46px;padding:10px">'+sheets.map((sheet,index)=>'<option value="'+index+'">'+esc(sheet.name)+' — '+sheet.rows.length+' صف</option>').join('')+'</select><button id="smartImportSheetContinue" class="btn-full-submit" style="margin-top:12px;background:#0f766e">متابعة إلى المعاينة</button><button id="smartImportSheetCancel" class="btn-full-submit" style="margin-top:8px;background:#64748b">إلغاء</button></div>';
+            box.innerHTML='<div class="anas-sheet-picker-panel"><h3>📑 فحص ملف Excel متعدد الأوراق</h3><p>تم العثور على '+sheets.length+' sheet(s) — '+totalRows+' صف(وف) بيانات صالحة مبدئياً. اختر ورقة لمراجعتها؛ لا يتم حفظ أي بيانات من شاشة الفحص.</p><div class="anas-sheet-count-tabs" role="tablist" aria-label="ملخص أنواع الأوراق">'+tabs+'</div><label for="smartImportSheetChoice">ورقة العمل</label><select id="smartImportSheetChoice">'+sheets.map((sheet,index)=>'<option value="'+index+'">'+esc(sheet.name)+' — '+Math.max(0,sheet.rows.length-1)+' صف — '+esc(({suppliers:"موردون",products:"منتجات",customers:"عملاء",invoices:"فواتير",other:"غير مصنف"}[classify(sheet)]))+'</option>').join('')+'</select><div class="anas-sheet-picker-list">'+sheets.map((sheet,index)=>'<button type="button" data-sheet-index="'+index+'"><strong>'+esc(sheet.name)+'</strong><span>'+Math.max(0,sheet.rows.length-1)+' صف · '+esc(({suppliers:"موردون",products:"منتجات",customers:"عملاء",invoices:"فواتير",other:"غير مصنف"}[classify(sheet)]))+'</span></button>').join('')+'</div><button id="smartImportSheetContinue" class="btn-full-submit" style="margin-top:12px;background:#0f766e">متابعة إلى مراجعة الورقة المختارة</button><button id="smartImportSheetCancel" class="btn-full-submit" style="margin-top:8px;background:#64748b">إلغاء</button></div>';
             document.body.appendChild(box);
+            box.querySelectorAll('[data-sheet-index]').forEach(button=>button.addEventListener('click',()=>{
+                box.querySelector('#smartImportSheetChoice').value=button.dataset.sheetIndex;
+                box.querySelectorAll('[data-sheet-index]').forEach(item=>item.classList.toggle('is-selected',item===button));
+            }));
+            box.querySelectorAll('[data-sheet-category]').forEach(button=>button.addEventListener('click',()=>{
+                const key=button.dataset.sheetCategory;
+                const index=sheets.findIndex(sheet=>classify(sheet)===key);
+                if(index>=0){box.querySelector('#smartImportSheetChoice').value=String(index);box.querySelectorAll('[data-sheet-index]').forEach(item=>item.classList.toggle('is-selected',Number(item.dataset.sheetIndex)===index));}
+            }));
             box.querySelector('#smartImportSheetCancel').onclick=()=>box.remove();
             box.querySelector('#smartImportSheetContinue').onclick=()=>{
                 const selected=sheets[Number(box.querySelector('#smartImportSheetChoice').value)];
