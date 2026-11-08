@@ -11291,14 +11291,28 @@ function wtAuditTransfers(){
                 const reviewHost=box.querySelector('#smartImportReview');
                 const reviewLabel=row=>String(row.record&&row.record.name||row.record&&row.record.id||'سجل بلا اسم');
                 if(!box.dataset.smartImportReviewReady){
-                    reviewHost.innerHTML='<div style="border:1px solid var(--mp-border);border-radius:10px;padding:9px;background:var(--mp-card,#fff)"><div style="display:flex;gap:7px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong>مراجعة البيانات المستخرجة ('+staged.length+')</strong><button type="button" id="smartImportAutoMatch" class="btn-full-submit" style="width:auto;padding:7px 10px;background:#6d28d9">مطابقة كل البنود تلقائياً</button></div><p style="font-size:11px;color:var(--mp-text-muted)">راجع كل سجل. المطابقة بالاسم وحده تحتاج مراجعة يدوية؛ السجلات الملتبسة لا تُدمج تلقائياً.</p><div style="max-height:34vh;overflow:auto">'+importMatches.map((row,index)=>{
+                    reviewHost.innerHTML='<div class="anas-import-review-shell"><div class="anas-import-review-top"><div><strong>مراجعة البيانات المستخرجة</strong><small>عدد البنود: '+staged.length+' — لم يتم حفظ أي بيانات بعد</small></div><button type="button" id="smartImportAutoMatch" class="anas-import-auto-match">✨ مطابقة كل البنود تلقائياً ('+importMatches.length+')</button></div><p class="anas-import-review-hint">راجع كل بطاقة. المطابقة بالاسم وحده تحتاج تأكيداً يدوياً، والسجلات الملتبسة لا تُدمج تلقائياً.</p><div class="anas-import-review-cards">'+importMatches.map((row,index)=>{
                         const options=row.matches.length===1?'<option value="match" '+(row.status==='matched'?'selected':'')+'>مطابقة / تحديث</option><option value="insert">إضافة كسجل جديد</option><option value="ignore" '+(row.status!=='matched'?'selected':'')+'>تجاهل</option><option value="delete">حذف البند من الاستيراد</option>':'<option value="insert" '+(row.status==='new'?'selected':'')+'>إضافة كسجل جديد</option><option value="ignore" '+(row.status!=='new'?'selected':'')+'>تجاهل</option><option value="delete">حذف البند من الاستيراد</option>';
-                        return '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--mp-border);flex-wrap:wrap"><span style="min-width:130px;flex:1"><strong>'+esc(reviewLabel(row))+'</strong><small style="display:block;color:var(--mp-text-muted)">'+esc(row.status==='matched'?'مطابقة مؤكدة':row.status==='review'?'تطابق بالاسم — راجع':row.status==='ambiguous'?'أكثر من سجل محتمل':row.status==='new'?'سجل جديد':'سجل غير صالح')+'</small></span><select data-import-decision="'+index+'" aria-label="قرار '+esc(reviewLabel(row))+'" style="min-width:145px;padding:7px;border:1px solid var(--mp-border);border-radius:8px;background:var(--mp-card,#fff);color:var(--mp-text)">'+options+'</select></div>';
+                        const record=row.record||{};
+                        const detail=[record.id?'الكود: '+record.id:'',record.phone?'الهاتف: '+record.phone:'',record.stock!==undefined?'المخزون: '+record.stock:'',record.price1!==undefined?'سعر البيع: '+record.price1:''].filter(Boolean).join(' · ');
+                        const statusLabel=row.status==='matched'?'تطابق مؤكد':row.status==='review'?'تطابق محتمل — يحتاج مراجعة':row.status==='ambiguous'?'تطابقات متعددة':row.status==='new'?'سجل جديد':'سجل غير صالح';
+                        const action=row.matches.length===1?'<button type="button" data-import-card-action="match" data-import-index="'+index+'">مطابقة</button>':'<button type="button" data-import-card-action="insert" data-import-index="'+index+'">إضافة جديد</button>';
+                        return '<article class="anas-import-review-card"><div class="anas-import-review-card-head"><div><strong>'+esc(reviewLabel(row))+'</strong><small>'+esc(detail||'بيانات مستخرجة من الملف')+'</small></div><span class="anas-import-review-state" data-state="'+esc(row.status)+'">'+esc(statusLabel)+'</span></div><div class="anas-import-review-card-actions">'+action+'<button type="button" data-import-card-action="ignore" data-import-index="'+index+'">تجاهل 🚫</button><button type="button" data-import-card-action="delete" data-import-index="'+index+'">حذف 🗑️</button></div><select data-import-decision="'+index+'" aria-label="قرار '+esc(reviewLabel(row))+'" class="anas-import-decision-hidden">'+options+'</select></article>';
                     }).join('')+'</div></div>';
+                    reviewHost.querySelectorAll('[data-import-card-action]').forEach(button=>button.addEventListener('click',()=>{
+                        const select=reviewHost.querySelector('[data-import-decision="'+button.dataset.importIndex+'"]');
+                        if(!select)return;
+                        const action=button.dataset.importCardAction;
+                        if(action==='match'&&importMatches[Number(button.dataset.importIndex)].matches.length!==1){validation.textContent='لا يمكن اعتماد مطابقة غير فريدة.';return;}
+                        if(action==='insert'&&importMatches[Number(button.dataset.importIndex)].matches.length){validation.textContent='يوجد سجل مطابق؛ لا يمكن إنشاء نسخة مكررة.';return;}
+                        select.value=action;
+                        button.closest('.anas-import-review-card').dataset.decision=action;
+                    }));
                     box.querySelector('#smartImportAutoMatch').onclick=()=>{
                         reviewHost.querySelectorAll('[data-import-decision]').forEach(select=>{
                             const row=importMatches[Number(select.dataset.importDecision)];
                             select.value=row.status==='matched'?'match':row.status==='new'?'insert':'ignore';
+                            select.closest('.anas-import-review-card').dataset.decision=select.value;
                         });
                     };
                     box.dataset.smartImportReviewReady='1';
