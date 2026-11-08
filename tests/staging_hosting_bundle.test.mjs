@@ -44,13 +44,15 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(visualCss, /\.inventory-item-card[\s\S]*?flex-direction:column/,
       'inventory cards must stack content without overlay positioning');
     assert.match(visualCss, /#pdfImportCard[\s\S]*?background:#1e293b/,
-    assert.match(visualCss, /anas-ai-file-actions > label\\[data-anas-ai-action="pdf"\\]/, 'PDF upload tile must use the neutral readable surface');
-    assert.match(visualCss, /#anasAiExecutiveMetrics[\\s\\S]*?background:#f2f3f0/, 'AI executive metrics must have a high-contrast neutral surface');
       'PDF import card must have a dark readable surface');
+    assert.match(visualCss, /anas-ai-file-actions > label\[data-anas-ai-action="pdf"\]/,
+      'PDF upload tile must use the neutral readable surface');
+    assert.match(visualCss, /#anasAiExecutiveMetrics[\s\S]*?background:#f2f3f0/,
+      'AI executive metrics must have a high-contrast neutral surface');
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r28/, 'built PWA must install the r27 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r28/, 'built PWA must install the r28 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
