@@ -259,6 +259,14 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.locator('#smartImportConfirm').evaluate(button => button.click());
   await page.locator('#smartImportReview').getByText('Widget XLSX').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportReview').innerText(), /مطابقة كل البنود تلقائياً/);
+  assert.equal(await page.locator('#smartImportReview .anas-import-review-card').count(), 1,
+    'review must render a dedicated card for every staged record');
+  assert.equal(await page.locator('#smartImportReview .anas-import-review-card-actions button').count(), 3,
+    'each staged record must expose match/insert, ignore and delete actions');
+  await page.locator('#smartImportAutoMatch').click();
+  assert.equal(await page.locator('#smartImportReview [data-import-decision]').inputValue(), 'insert',
+    'automatic matching must choose a safe insert decision for a new record');
+
   await page.locator('#smartImportConfirm').evaluate(button => button.click());
   await page.waitForFunction(() => /اكتمل الاستيراد المحلي/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
