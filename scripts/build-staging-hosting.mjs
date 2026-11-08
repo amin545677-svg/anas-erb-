@@ -61,9 +61,21 @@ function assertInlineClassicScriptsParse(html) {
   if (scriptIndex === 0) throw new Error('Staging ERP shell contains no inline classic scripts to validate');
 }
 
+function insertBeforeDocumentHeadClose(html, markup) {
+  const headClose = html.indexOf('</head>');
+  const bodyOpen = html.indexOf('<body');
+  if (headClose < 0 || bodyOpen < 0 || headClose > bodyOpen) {
+    throw new Error('Could not locate the actual document head boundary');
+  }
+  return html.slice(0, headClose) + markup + html.slice(headClose);
+}
+
 function insertBeforeLastDocumentTag(html, closingTag, markup) {
   const index = html.lastIndexOf(closingTag);
-  if (index < 0) throw new Error('Could not find final document closing tag: ' + closingTag);
+  const bodyOpen = html.indexOf('<body');
+  if (index < 0 || (closingTag === '</body>' && (bodyOpen < 0 || index < bodyOpen))) {
+    throw new Error('Could not find the actual document closing tag: ' + closingTag);
+  }
   return html.slice(0, index) + markup + html.slice(index);
 }
 
@@ -187,7 +199,7 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('&lt;style id="anas-firebase-mobile-layout-v3">')) {
     throw new Error('Firebase responsive CSS must be a single live style element inside the deployed ERP document head');
   }
-  stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</head>',
+  stagedHtml = insertBeforeDocumentHeadClose(stagedHtml,
     '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n  ');
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
     '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  ');
