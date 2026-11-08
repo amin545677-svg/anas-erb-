@@ -286,7 +286,12 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
       saveDBDurably:()=>Promise.resolve({revision:22,mode:'INDEXEDDB'}),renderPosTable(){},renderCustomersDebts(){},
       updateCashUI(){},closeModal(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
     vm.createContext(context);
-    vm.runInContext(source + '\\nthis.__paymentPromise = confirmHasibPaymentDurable();',context,{timeout:1500});
+    try {
+      vm.runInContext(source + String.fromCharCode(10) + 'this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+    } catch (error) {
+      console.error('POS_NONCASH_VM_SOURCE_TAIL:', JSON.stringify(source.slice(-320)));
+      throw error;
+    }
     assert.equal(await context.__paymentPromise,true,paymentChannel + ' sale must commit');
     assert.equal(AppData.caisseBalance,100,paymentChannel + ' must not increase physical cash');
     assert.equal(AppData.cashMovements.length,0,paymentChannel + ' must not enter cash movement ledger');
