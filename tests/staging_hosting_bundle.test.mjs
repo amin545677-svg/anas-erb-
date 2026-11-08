@@ -19,7 +19,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       }
     });
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
-    const actualHeadClose = erp.lastIndexOf('</head>');
+    const actualHeadClose = erp.indexOf('</head>');
     const actualBodyClose = erp.lastIndexOf('</body>');
     const safeCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">');
     const importCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./ai-excel-import-ui.css">');
