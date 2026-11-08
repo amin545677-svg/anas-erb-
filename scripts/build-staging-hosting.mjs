@@ -40,12 +40,12 @@ const ERP_FILES = [
 ];
 
 function assertInlineClassicScriptsParse(html) {
-  const scriptPattern = /<script\\b([^>]*)>([\\s\\S]*?)<\\/script\\s*>/gi;
+  const scriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
   let scriptIndex = 0;
   for (const match of html.matchAll(scriptPattern)) {
     const attributes = match[1] || '';
-    if (/\\bsrc\\s*=/i.test(attributes)) continue;
-    const typeMatch = attributes.match(/\\btype\\s*=\\s*["']?([^"'\\s>]+)/i);
+    if (/\bsrc\s*=/i.test(attributes)) continue;
+    const typeMatch = attributes.match(/\btype\s*=\s*["']?([^"'\s>]+)/i);
     const type = (typeMatch?.[1] || '').toLowerCase();
     if (type && type !== 'text/javascript' && type !== 'application/javascript') continue;
     const source = match[2] || '';
