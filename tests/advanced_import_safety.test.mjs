@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calculateZakatSummary, classifyAndStageWorkbookSheets, convertProformaToActualInvoice, createProformaDraft,
-  executeSafeBulkImport, normalizeAlgeriaPhone, buildWhatsAppStatementUrl
+  executeSafeBulkImport, executeSafeMultiSheetImport, normalizeAlgeriaPhone, buildWhatsAppStatementUrl
 } from '../pos/advanced-financial-engine.mjs';
 
 function memoryStorage(seed = {}) {
@@ -274,4 +274,70 @@ test('product identity normalization preserves meaningful SKU punctuation', () =
   assert.equal(staged.products[0].isDuplicate, false,
     'hyphenated product identifiers must not collapse into space-separated identifiers');
   assert.deepEqual(staged.products[0].identityKeys, ['id:p 1', 'barcode:b 2']);
+});
+
+test('four-sheet workbook commits all collections through one atomic repository call; invoices remain archive-only', async () => {
+  const sheetsDataMap = {
+    Suppliers: [{ name: 'مورد النور', phone: '0660123456', balance: '100' }],
+    Products: [{ name: 'زيت', barcode: 'P-100', quantity: '2.5', price: '12.50', cost: '8.00' }],
+    Customers: [{ name: 'عميل', phone: '0550123456', credit_limit: '1000', debt: '0' }],
+    Invoices: [{ 'رقم الفاتورة': 'INV-ARCH-1', 'تاريخ الفاتورة': '2026-11-07',
+      'العميل': 'عميل', 'الإجمالي': '250', 'المدفوع': '100', 'المتبقي': '150' }]
+  };
+  const existingDB = { suppliers: [], products: [], customers: [], invoices: [] };
+  let calls = 0;
+  let committed;
+  let savedBackup = '';
+  const result = await executeSafeMultiSheetImport({
+    sheetsDataMap, existingDB,
+    repository: { async saveMultiSheetBatchSafe(batches, backupPayload) {
+      calls++;
+      committed = batches;
+      savedBackup = backupPayload;
+    } }
+  });
+  assert.equal(calls, 1, 'all four collections must be sent through one durable repository call');
+  assert.equal(result.durable, true);
+  assert.equal(result.sheetCount, 4);
+  assert.equal(result.totalAdded, 4);
+  assert.match(savedBackup, /ANAS_MULTI_SHEET_BACKUP_V1/);
+  assert.equal(committed.products.rows[0].stock, 2.5);
+  assert.equal(committed.customers.rows[0].debt, 0);
+  assert.equal(committed.suppliers.rows[0].balance, 100);
+  assert.equal(committed.invoices.rows[0].importedHistorical, true);
+  assert.equal(committed.invoices.rows[0].financiallyPosted, false);
+  assert.equal(committed.invoices.rows[0].invoiceLedgerVersion, 0);
+  assert.equal(committed.invoices.rows[0].items.length, 0);
+});
+
+test('multi-sheet commit failure is surfaced as a full rollback and never returns a partial success', async () => {
+  const sheetsDataMap = {
+    Suppliers: [{ name: 'مورد', phone: '0660123456' }],
+    Products: [{ name: 'منتج', barcode: 'P-200', quantity: '1', price: '10' }],
+    Customers: [{ name: 'عميل', phone: '0550123456' }],
+    Invoices: [{ 'رقم الفاتورة': 'INV-FAIL', 'تاريخ الفاتورة': '2026-11-07',
+      'العميل': 'عميل', 'الإجمالي': '10', 'المدفوع': '0', 'المتبقي': '10' }]
+  };
+  let calls = 0;
+  await assert.rejects(() => executeSafeMultiSheetImport({
+    sheetsDataMap, existingDB: { suppliers: [], products: [], customers: [], invoices: [] },
+    repository: { async saveMultiSheetBatchSafe() { calls++; throw new Error('IDB_COMMIT_FAILED'); } }
+  }), /SAFE_MULTI_SHEET_IMPORT_ROLLED_BACK/);
+  assert.equal(calls, 1);
+});
+
+test('multi-sheet invoice rows with inconsistent centime totals are rejected before repository commit', async () => {
+  const sheetsDataMap = {
+    Suppliers: [{ name: 'مورد', phone: '0660123456' }],
+    Products: [{ name: 'منتج', barcode: 'P-300', quantity: '1', price: '10' }],
+    Customers: [{ name: 'عميل', phone: '0550123456' }],
+    Invoices: [{ 'رقم الفاتورة': 'INV-BAD', 'تاريخ الفاتورة': '2026-11-07',
+      'العميل': 'عميل', 'الإجمالي': '250', 'المدفوع': '100', 'المتبقي': '140' }]
+  };
+  let calls = 0;
+  await assert.rejects(() => executeSafeMultiSheetImport({
+    sheetsDataMap, existingDB: { suppliers: [], products: [], customers: [], invoices: [] },
+    repository: { async saveMultiSheetBatchSafe() { calls++; } }
+  }), /IMPORT_INVOICE_FINANCIAL_MISMATCH/);
+  assert.equal(calls, 0);
 });
