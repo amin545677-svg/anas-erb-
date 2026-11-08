@@ -13,6 +13,8 @@ const ERP_FILES = [
   'anas-erp-ui-safe-enhancements.css',
   'ai-excel-import-ui.js',
   'ai-excel-import-ui.css',
+  'anas-pos-floating-cart.js',
+  'anas-pos-floating-cart.css',
   'arabic-query-engine.js',
   'cashbox-readonly-ledger.js',
   'customer-debt-protection.js',
@@ -179,6 +181,7 @@ export async function buildStagingHosting(options = {}) {
   for (const relativePath of [
     'index.html', 'config.js', 'reverse-ledger-gateway.js',
     'erp/index.html', 'erp/sw.js', 'erp/manifest.webmanifest',
+    'erp/anas-pos-floating-cart.js', 'erp/anas-pos-floating-cart.css',
     'erp/storage/android-resilient-storage.js',
     'erp/core/ai-operations-engine.js',
     'erp/micro-pos-core.js', 'erp/pos/micro-pos-engine.mjs', 'erp/pos/micro-pos-deep-core.mjs', 'erp/pos/advanced-financial-engine.mjs',
