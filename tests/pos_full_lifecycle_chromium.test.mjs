@@ -177,6 +177,18 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(cartProof.count, 1, 'real POS product interaction must add exactly one cart line');
     assert.equal(cartProof.id, PRODUCT_ID);
     assert.equal(cartProof.qty, 1);
+    // The actual index.html must mount the floating cart and keep it synchronized with the same POS cart.
+    await page.locator('#anasPosFloatingCart').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-cart-count]').textContent(), '1');
+    assert.match(await page.locator('#anasPosFloatingCart [data-mini-cart-total]').textContent(), /25/);
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').isVisible(), true);
+    await page.locator('#anasPosFloatingCart [aria-label^="زيادة"]').click();
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'floating cart quantity plus must call the existing validated POS quantity mutation');
+    await page.locator('#anasPosFloatingCart [aria-label^="إنقاص"]').click();
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1,
+      'floating cart quantity minus must restore the original quantity through the POS mutation');
+
 
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#posCheckoutBtn').click();
