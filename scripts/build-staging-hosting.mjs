@@ -150,7 +150,7 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r21 | Env: Staging';
+  const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r22 | Env: Staging';
   if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r21 \| Env: Staging/g) || []).length !== 1) {
     throw new Error('Expected exactly one staging build stamp in the ERP shell');
   }
