@@ -10914,9 +10914,12 @@ function wtAuditTransfers(){
         }
 
         async function processPDFInvoiceFile(file,existingDB={}){
-            if(!file||(!/\.pdf$/i.test(String(file.name||''))&&!/application\/(?:x-)?pdf/i.test(String(file.type||''))))
-                throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
+            if(!file)throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
             if(file.size>10*1024*1024)throw new Error('يتجاوز ملف PDF الحد الأقصى المسموح به (10MB).');
+            const signature=new Uint8Array(await file.slice(0,5).arrayBuffer());
+            const hasPdfSignature=signature.length===5&&signature[0]===37&&signature[1]===80&&signature[2]===68&&signature[3]===70&&signature[4]===45;
+            if(!/\.pdf$/i.test(String(file.name||''))&&!/application\/(?:x-)?pdf/i.test(String(file.type||''))&&!hasPdfSignature)
+                throw new Error('يرجى اختيار ملف بصيغة PDF صالحة.');
             const extracted=await anasExtractPdfText(file);
             let text=String(extracted.text||'').trim(),ocr=null;
             if(!text){
