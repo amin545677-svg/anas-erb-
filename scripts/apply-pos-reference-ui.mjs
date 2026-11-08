@@ -133,16 +133,16 @@ const style = '<style id="anas-pos-reference-ui-v1">\n' +
 '  @media(max-width:480px){#quickProductsContainer.anas-pos-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}#quickProductsContainer .anas-pos-product-card{padding:9px;gap:8px}.anas-pos-product-name{font-size:13px}.anas-pos-product-price strong{font-size:13px}}\n' +
 '</style>\n';
 const posFunctionOffset = html.indexOf('function setAnasPosProductView(mode)');
-const scriptBlocks = [...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi)];
+const scriptBlocks = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 const matchingScript = scriptBlocks.find(match => match.index <= posFunctionOffset && match.index + match[0].length > posFunctionOffset);
 if (!matchingScript) throw new Error('POS_INLINE_SCRIPT_BOUNDARY_NOT_FOUND');
 try {
   new vm.Script(matchingScript[2], { filename: 'index.html#pos-inline-script' });
 } catch (error) {
-  const lines = matchingScript[2].split('\\n');
-  const lineNumber = Number((error.stack || '').match(/index\\.html#pos-inline-script:(\\d+)/)?.[1] || 0);
-  const excerpt = lineNumber ? lines.slice(Math.max(0, lineNumber - 4), lineNumber + 3).join('\\n') : '';
-  throw new Error('POS_INLINE_SCRIPT_SYNTAX_ERROR: ' + error.message + '\\n' + excerpt + '\\n' + error.stack);
+  const lines = matchingScript[2].split('\n');
+  const lineNumber = Number((error.stack || '').match(/index\.html#pos-inline-script:(\d+)/)?.[1] || 0);
+  const excerpt = lineNumber ? lines.slice(Math.max(0, lineNumber - 4), lineNumber + 3).join('\n') : '';
+  throw new Error('POS_INLINE_SCRIPT_SYNTAX_ERROR: ' + error.message + '\n' + excerpt + '\n' + error.stack);
 }
 if (!html.includes('id="anas-pos-reference-ui-v1"')) {
   const headClose = html.indexOf('</head>');
