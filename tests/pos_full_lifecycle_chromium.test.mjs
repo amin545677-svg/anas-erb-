@@ -688,3 +688,69 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('free POS item is billed with discount and bank channel without changing inventory or cashbox', async () => {
+  const server = await startServer();
+  let browser;
+  const pageErrors = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data: initialData() });
+    const page = await context.newPage();
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+    page.on('dialog', async dialog => { await dialog.accept(); });
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() =>
+      window.ANASResilientStorage?.ready() === true &&
+      typeof AppData !== 'undefined' && Array.isArray(AppData.products),
+      null, { timeout: 15000 }
+    );
+    await page.evaluate(() => openView('pos'));
+    await page.evaluate(() => {
+      if (!anasAddFreeCartItem('خدمة توصيل', '10.00', '1', 'خدمة')) throw new Error('FREE_ITEM_ADD_FAILED');
+      if (!setPosCartDiscount('2.50')) throw new Error('DISCOUNT_SAVE_FAILED');
+      openHasibModal();
+    });
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#hasibTotalText').textContent(), '7.50 د.ج');
+    await page.locator('#hasibPaymentChannel').selectOption('card');
+    await page.locator('#hasibConfirmSaleBtn').click();
+    await page.waitForFunction(() => {
+      const snapshot = window.ANASResilientStorage?.getCommittedSnapshot?.();
+      return !!snapshot && Array.isArray(snapshot.invoices) && snapshot.invoices.length === 1;
+    }, null, { timeout: 15000 });
+    const result = await page.evaluate(() => {
+      const snapshot = window.ANASResilientStorage.getCommittedSnapshot();
+      const invoice = snapshot.invoices[0];
+      return {
+        invoice: { total: invoice.total, subtotal: invoice.subtotal, discount: invoice.discount,
+          channel: invoice.paymentChannel, item: invoice.items[0] },
+        stock: snapshot.products.find(row => row.id === 'STG-POS-LIFECYCLE-001').stock,
+        stockSales: (snapshot.stockMovements || []).filter(row => row.referenceType === 'sales_invoice').length,
+        cashSales: (snapshot.cashMovements || []).filter(row => row.referenceType === 'sales_invoice').length,
+        bankSales: (snapshot.bankMovements || []).filter(row => row.referenceType === 'sales_invoice').map(row => ({
+          amount: row.amount, paymentChannel: row.paymentChannel, cashImpact: row.cashImpact
+        })),
+        caisseBalance: snapshot.caisseBalance
+      };
+    });
+    assert.deepEqual(pageErrors, [], 'free-item checkout must not create uncaught browser errors');
+    assert.equal(result.invoice.subtotal, 10);
+    assert.equal(result.invoice.discount, 2.5);
+    assert.equal(result.invoice.total, 7.5);
+    assert.equal(result.invoice.channel, 'card');
+    assert.equal(result.invoice.item.isFreeItem, true);
+    assert.equal(result.stock, 10, 'free non-inventory line must not decrement product stock');
+    assert.equal(result.stockSales, 0, 'free non-inventory line must not create stock ledger entries');
+    assert.equal(result.cashSales, 0, 'card collection must not create cashbox receipts');
+    assert.deepEqual(result.bankSales, [{ amount: 7.5, paymentChannel: 'card', cashImpact: false }]);
+    assert.equal(result.caisseBalance, 100000, 'bank/card receipt must not change physical cashbox balance');
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
