@@ -12,7 +12,7 @@ jobs:
   integrate-and-test:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,22 +23,35 @@ jobs:
           node-version: "22"
       - name: Install application dependencies
         run: npm install --no-audit --no-fund
-      - name: Apply POS presentation directly to index.html
-        run: node scripts/apply-pos-reference-ui.mjs
       - name: Install Chromium runtime
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
           npx playwright install --with-deps chromium
-      - name: Run actual ERP POS lifecycle in Chromium
-        run: node --test tests/pos_full_lifecycle_chromium.test.mjs
-      - name: Validate HTML and financial safety
-        run: python tests/validate_erp_html.py
-      - name: Commit integrated index.html only after all tests pass
+      - name: Integrate, test and push with fast-forward race recovery
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          git diff --cached --check
-          if git diff --cached --quiet; then echo "No HTML changes"; exit 0; fi
-          git commit -m "feat(pos): integrate reference product cards into ERP [skip ci]"
-          git push origin HEAD:staging/unified-release-candidate
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "POS integration attempt \${attempt}/3"
+            git fetch origin staging/unified-release-candidate
+            git reset --hard FETCH_HEAD
+            node scripts/apply-pos-reference-ui.mjs
+            node --test tests/pos_full_lifecycle_chromium.test.mjs
+            python tests/validate_erp_html.py
+            git add index.html
+            git diff --cached --check
+            if git diff --cached --quiet; then
+              echo "POS reference UI is already present and all acceptance tests passed."
+              exit 0
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "feat(pos): integrate reference product cards into ERP [skip ci]"
+            if git push origin HEAD:staging/unified-release-candidate; then
+              echo "Integrated index.html pushed successfully."
+              exit 0
+            fi
+            echo "Remote branch moved during push; retrying from its latest head."
+          done
+          echo "Could not publish after three fast-forward retries."
+          exit 1
