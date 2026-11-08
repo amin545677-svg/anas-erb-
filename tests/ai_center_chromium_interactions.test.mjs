@@ -47,9 +47,10 @@ async function startStaticServer(rootDir) {
     '.svg': 'image/svg+xml'
   };
   const server = http.createServer(async (req, res) => {
+    let pathname = String(req.url || '/');
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
-      let pathname = decodeURIComponent(url.pathname);
+      pathname = decodeURIComponent(url.pathname);
       if (pathname === '/erp' || pathname === '/erp/') pathname = '/erp/index.html';
       const filePath = path.resolve(rootDir, '.' + pathname);
       if (!filePath.startsWith(path.resolve(rootDir) + path.sep)) {
@@ -97,7 +98,10 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
   });
   const page = await context.newPage();
-  page.on('pageerror', error => console.error('ANAS browser pageerror:', error && (error.stack || error.message) || String(error)));
+  page.on('pageerror', error => console.error('ANAS browser pageerror:', JSON.stringify({name:error?.name,message:error?.message,stack:error?.stack})));
+  page.on('console', message => {
+    if (message.type() === 'error') console.error('ANAS browser console error:', message.text(), JSON.stringify(message.location()));
+  });
   page.on('response', response => {
     if (response.status() >= 400) console.error('ANAS browser HTTP failure:', response.status(), response.url());
   });
