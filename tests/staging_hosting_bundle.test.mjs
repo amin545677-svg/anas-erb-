@@ -19,6 +19,22 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       }
     });
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
+    const actualHeadClose = erp.lastIndexOf('</head>');
+    const actualBodyClose = erp.lastIndexOf('</body>');
+    const safeCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">');
+    const importCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./ai-excel-import-ui.css">');
+    const importScript = erp.lastIndexOf('<script src="./ai-excel-import-ui.js" defer></script>');
+    const safeUpdateScript = erp.lastIndexOf('<script src="./safe-update-ui.js" defer></script>');
+    assert.ok(safeCssLink > erp.lastIndexOf('<head') && safeCssLink < actualHeadClose,
+      'safe visual stylesheet must be injected into the real document head, not a printable HTML string');
+    assert.ok(importCssLink > erp.lastIndexOf('<head') && importCssLink < actualHeadClose,
+      'AI import stylesheet must be injected into the real document head');
+    assert.ok(importScript > erp.lastIndexOf('<body') && importScript < actualBodyClose,
+      'AI import script must be injected before the real document body close');
+    assert.ok(safeUpdateScript > erp.lastIndexOf('<body') && safeUpdateScript < actualBodyClose,
+      'safe update script must be injected before the real document body close');
+    assert.match(erp, /root\\.innerHTML \\+ '<\\/body><\\/html>'/,
+      'printable HTML closing tags inside JavaScript strings must remain untouched');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
