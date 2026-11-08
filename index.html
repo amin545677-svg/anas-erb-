@@ -5270,7 +5270,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(subtotalCents + lineCents)) {
                     alert('تعذر تأكيد الفاتورة: مجموع الكمية أو قيمة الفاتورة يتجاوز المجال الحسابي الآمن.'); return;
                 }
-                if (!(item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)) {
+                if (!(item.isFreeItem === true || item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)) {
                     const aggregateUnits = (requiredUnits.get(id) || 0) + qtyUnits;
                     if (!Number.isSafeInteger(aggregateUnits) || aggregateUnits > Number.MAX_SAFE_INTEGER) {
                         alert('تعذر تأكيد الفاتورة: مجموع كمية الصنف يتجاوز المجال الحسابي الآمن.'); return;
@@ -5484,7 +5484,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
                 paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
                 paymentChannel,
-                invoiceLedgerVersion: discountCents === 0 && !normalizedItems.some(item => item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) ? 2 : 1,
+                invoiceLedgerVersion: discountCents === 0 && !normalizedItems.some(item => item.isFreeItem === true || item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) ? 2 : 1,
                 oldDebt, newDebt
             };
 
