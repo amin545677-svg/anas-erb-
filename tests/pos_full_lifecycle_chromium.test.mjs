@@ -124,6 +124,17 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
     // Use the rendered POS product button, not a fabricated selector or direct storage write.
     await page.evaluate(() => openView('pos'));
+
+    // The product catalogue must be a real index.html list by default, with an optional grid.
+    const productContainer = page.locator('#quickProductsContainer');
+    assert.equal(await productContainer.evaluate(el => el.classList.contains('anas-pos-products-list')), true,
+      'POS must default to the compact list view');
+    await page.locator('#anasPosGridViewBtn').click();
+    assert.equal(await productContainer.evaluate(el => el.classList.contains('anas-pos-products-grid')), true,
+      'grid toggle must change the actual rendered catalogue');
+    await page.locator('#anasPosListViewBtn').click();
+    assert.equal(await productContainer.evaluate(el => el.classList.contains('anas-pos-products-list')), true,
+      'list toggle must restore the default catalogue');
     const productButton = page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME });
     await productButton.waitFor({ state: 'visible', timeout: 10000 });
     const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
@@ -147,9 +158,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
       'products with three distinct configured tiers must expose three prices and cancel');
     const tierLabels = await page.locator('#anasPosPriceTierModal').textContent();
-    assert.match(tierLabels, /تجزئة \/ الدفعة/);
+    assert.match(tierLabels, /سعر التجزئة \(الدفعة\)/);
     assert.match(tierLabels, /جملة الجملة/);
-    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'تجزئة / الدفعة' }).click();
+    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
     await page.evaluate(() => {
       AppData.products[0].price2 = 25;
       AppData.products[0].price3 = 25;
@@ -170,6 +181,14 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#posCheckoutBtn').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    const paymentActionColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
+      nodes.map(node => getComputedStyle(node).backgroundColor));
+    assert.match(paymentActionColors[0], /220, 252, 231/,
+      'full-payment shortcut must be visually marked green');
+    assert.match(paymentActionColors[1], /239, 246, 255/,
+      'half-payment shortcut must remain the neutral blue middle action');
+    assert.match(paymentActionColors[2], /254, 226, 226/,
+      'full-debt shortcut must be visually marked red');
     await page.locator('#hasibModal button').filter({ hasText: /^دين كامل$/ }).click();
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00',
       'quick full-credit action must set zero paid and leave the full invoice due');
