@@ -20,6 +20,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     });
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
+    const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
+    assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
     assert.match(erp, /Build SHA: abcdef1 \| SW: r28 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
