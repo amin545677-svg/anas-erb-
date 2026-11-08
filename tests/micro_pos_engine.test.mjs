@@ -1,4 +1,3 @@
-import './pos_presentation_engine.test.mjs';
 import test from 'node:test';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
