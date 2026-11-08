@@ -198,3 +198,70 @@ body {
     font-size: 15px !important;
   }
 }
+
+
+/* Eye-comfort palette: neutralize the legacy cyan POS controls across the full UI. */
+:root {
+  --primary:#666a6e !important;
+  --primary-color:#666a6e !important;
+  --blue:#666a6e !important;
+  --sky:#666a6e !important;
+  --accent:#777b7f !important;
+  --brand:#666a6e !important;
+  --pos-primary:#666a6e !important;
+  --ui-primary:#666a6e !important;
+  --ui-surface:#f2f2ef;
+  --ui-border:#d3d3cd;
+  --ui-ink:#303236;
+}
+/* Primary interactive surfaces, including POS product/category tiles and bottom navigation. */
+button,
+[role="button"],
+.btn,
+.product-card,
+.product-item,
+.product-tile,
+.pos-product,
+.pos-product-card,
+.category-btn,
+.category-button,
+.filter-btn,
+.filter-button,
+.nav button,
+.bottom-nav button,
+.bottom-navigation button,
+#bottomNav button,
+#bottom-navigation button {
+  background-color:#e5e5e1 !important;
+  background-image:none !important;
+  border-color:#c9c9c3 !important;
+  color:#303236 !important;
+  box-shadow:0 2px 7px rgba(35,38,40,.08) !important;
+}
+/* Neutralize colored section headers and POS bars without changing their layout. */
+.sub-header-bar,
+.sales-header,
+.pos-header,
+#salesHeader,
+#posHeader,
+header.sales,
+header.pos {
+  background:#e7e7e3 !important;
+  background-image:none !important;
+  color:#303236 !important;
+  border-color:#d0d0ca !important;
+}
+/* Keep genuine semantic warning/success actions distinguishable. */
+button.danger, .btn.danger, button.btn-danger, .btn-danger,
+button[class*="danger"], [role="button"][class*="danger"] {
+  background:#f4dddd !important; color:#8f2929 !important; border-color:#e7bcbc !important;
+}
+button.success, .btn.success, button.btn-success, .btn-success,
+button[class*="success"], [role="button"][class*="success"] {
+  background:#dff2e5 !important; color:#176b3a !important; border-color:#a9d8b8 !important;
+}
+input, select, textarea {
+  border-color:#c9c9c3 !important;
+  color:#303236 !important;
+  background:#fff !important;
+}
