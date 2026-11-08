@@ -20,9 +20,18 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
+    assert.match(erp, /anas-pos-floating-cart\.js/);
+    assert.match(erp, /anas-pos-floating-cart\.css/);
+    assert.match(posFloatingCart, /anasPosFloatingCart/);
+    assert.match(posFloatingCart, /setPosQty/);
+    assert.match(posFloatingCss, /\.anas-pos-floating-cart/);
+    assert.match(serviceWorker, /anas-pos-floating-cart\.js/);
+    assert.match(serviceWorker, /anas-pos-floating-cart\.css/);
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
+    const posFloatingCart = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
+    const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     const sourceXlsx = await fs.readFile(path.join(rootDir, 'vendor/xlsx/xlsx.full.min.js'));
     const builtXlsx = await fs.readFile(path.join(outDir, 'erp/vendor/xlsx/xlsx.full.min.js'));
     assert.deepEqual(builtXlsx, sourceXlsx, 'deployed PWA must use the exact vetted offline SheetJS artifact');
