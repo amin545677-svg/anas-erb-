@@ -78,6 +78,10 @@ async function createBuiltSite() {
 }
 
 async function openAiImportView(page, url) {
+  page.on('pageerror', error => console.error('ANAS PDF browser pageerror:', error && (error.stack || error.message) || String(error)));
+  page.on('response', response => {
+    if (response.status() >= 400) console.error('ANAS PDF browser HTTP failure:', response.status(), response.url());
+  });
   await page.route('https://**/*', route => route.abort());
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.AppData && typeof openView === 'function', { timeout: 20000 });
