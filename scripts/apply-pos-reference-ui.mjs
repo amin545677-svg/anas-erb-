@@ -3,6 +3,13 @@ import vm from 'node:vm';
 const file = 'index.html';
 let html = fs.readFileSync(file, 'utf8');
 const before = Buffer.byteLength(html, 'utf8');
+if (html.includes('id="anas-pos-reference-ui-v1"') &&
+    html.includes('id="anasPosProductViewToggle"') &&
+    html.includes('function setAnasPosProductView(mode)') &&
+    html.includes("label: 'سعر التجزئة (الدفعة)'")) {
+  console.log('POS reference UI is already integrated in index.html.');
+  process.exit(0);
+}
 const startMarker = '        function renderQuickProducts() {';
 const endMarker = '        function anasCalculateExecutiveAnalytics';
 let start = html.indexOf(startMarker);
