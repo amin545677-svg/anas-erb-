@@ -45,3 +45,17 @@ test('renderer is read-only and uses textContent for untrusted ledger fields', (
   assert.match(source, /td\.textContent\s*=\s*String\(v\)/);
   assert.doesNotMatch(source, /AppData\.cashMovements\s*=|AppData\.cashMovements\.push\(|AppData\.cashMovements\.splice\(/);
 });
+
+test('expected closing cash includes cash only and excludes non-cash collection channels', () => {
+  const { expectedClosingCash } = require('../cashbox-readonly-ledger.js');
+  const cashMovements = [
+    { id:'CASH-1', type:'add', amount:'12.50', paymentChannel:'cash' },
+    { id:'NONCASH-IN-CASH', type:'add', amount:'90.00', paymentChannel:'transfer', cashImpact:false },
+    { id:'CASH-2', type:'subtract', amount:'2.00', paymentChannel:'cash' }
+  ];
+  const bankMovements = [
+    { id:'BANK-1', type:'add', amount:'50.00', paymentChannel:'cheque', cashImpact:false },
+    { id:'BANK-2', type:'add', amount:'20.00', paymentChannel:'card', cashImpact:false }
+  ];
+  assert.equal(expectedClosingCash('100.00', cashMovements, bankMovements), 11050);
+});

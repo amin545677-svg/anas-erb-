@@ -2863,6 +2863,14 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                         <option value="partial">💳 دفع جزء الآن والباقي دين</option>
                         <option value="credit">📝 تسجيل كامل المبلغ كدين</option>
                     </select>
+                    <label for="hasibPaymentChannel" style="display:block;margin-top:9px;font-weight:800">قناة التحصيل</label>
+                    <select id="hasibPaymentChannel" class="field-input">
+                        <option value="cash">💵 نقدي — يدخل الصندوق</option>
+                        <option value="cheque">🧾 شيك — تحصيل بنكي/آجل</option>
+                        <option value="transfer">🏦 تحويل — تحصيل بنكي</option>
+                        <option value="card">💳 بطاقة — تحصيل إلكتروني</option>
+                        <option value="other">📌 أخرى — تحصيل غير نقدي</option>
+                    </select>
                     <div class="anas-quick-payment-actions" role="group" aria-label="اختصارات الدفع السريع" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px">
                         <button type="button" onclick="setHasibPaymentMode('cash')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">كامل</button>
                         <button type="button" onclick="setHasibPaymentMode('partial')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">½ الآن</button>
@@ -4380,6 +4388,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             document.getElementById('hasibTotalText').innerText = total.toFixed(2) + ' د.ج';
             document.getElementById('hasibPaidAmount').value = total;
             document.getElementById('hasibPaymentMethod').value = 'cash';
+            const paymentChannel = document.getElementById('hasibPaymentChannel');
+            if (paymentChannel) paymentChannel.value = 'cash';
             const sel = document.getElementById('hasibCustomerSelect');
             sel.innerHTML = '<option value="">عميل نقدي عابر (Passager)</option>';
             AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${c.debt} د.ج)</option>`; });
@@ -5049,6 +5059,12 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const paidInput = document.getElementById('hasibPaidAmount');
             const cId = customerSelect ? String(customerSelect.value || '') : '';
             const paidCents = anasToCents(paidInput ? paidInput.value : total);
+            const paymentChannelInput = document.getElementById('hasibPaymentChannel');
+            const paymentChannel = paymentChannelInput ? String(paymentChannelInput.value || 'cash') : 'cash';
+            if (!['cash','cheque','transfer','card','other'].includes(paymentChannel)) {
+                alert('قناة التحصيل غير معروفة؛ لم يتم تسجيل أي حركة.');
+                return;
+            }
             if (!Number.isSafeInteger(paidCents) || paidCents < 0 || paidCents > totalCents) {
                 alert('تحقق من المبلغ المدفوع؛ يجب أن يكون بين صفر ومجموع الفاتورة.'); return;
             }
@@ -5064,7 +5080,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
                 alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.'); return;
             }
-            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون']]) {
+            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['bankMovements', 'حركات التحصيل البنكي/الآجل'], ['stockMovements', 'حركات المخزون']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData, field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(record => !record || typeof record !== 'object' || Array.isArray(record)))) {
                     alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
@@ -5078,6 +5094,16 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                     alert('تعذر تأكيد البيع: سجل حركات الصندوق يحتوي على معرّفات مكررة. أصلح السجل قبل المتابعة.'); return;
                 }
                 existingCashMovementIds.add(id);
+            }
+            const existingBankMovementIds = new Set();
+            for (const movement of (Array.isArray(AppData.bankMovements) ? AppData.bankMovements : [])) {
+                if (movement.id === undefined || movement.id === null || String(movement.id).trim() === '') continue;
+                const id = String(movement.id);
+                if (existingBankMovementIds.has(id)) {
+                    alert('سجل التحصيل البنكي يحتوي على معرّفات مكررة؛ أوقف البيع لحماية الدفتر.');
+                    return;
+                }
+                existingBankMovementIds.add(id);
             }
             const existingStockMovementIds = new Set();
             for (const movement of (Array.isArray(AppData.stockMovements) ? AppData.stockMovements : [])) {
@@ -5134,7 +5160,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 }
             }
             const currentCashCents = anasToCents(AppData.caisseBalance ?? 0);
-            const newCashCents = currentCashCents + paidCents;
+            const newCashCents = currentCashCents + (paymentChannel === 'cash' ? paidCents : 0);
             if (!Number.isSafeInteger(currentCashCents) || currentCashCents < 0 ||
                 !Number.isSafeInteger(newCashCents) || newCashCents > Number.MAX_SAFE_INTEGER) {
                 alert('تعذر تأكيد البيع: رصيد الصندوق الناتج يتجاوز المجال المالي الآمن.'); return;
@@ -5168,6 +5194,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             const invoicesBefore = oldInvoices.slice();
             const hadCashMovements = Object.prototype.hasOwnProperty.call(AppData, 'cashMovements');
             const cashMovementsBefore = hadCashMovements ? AppData.cashMovements.slice() : null;
+            const hadBankMovements = Object.prototype.hasOwnProperty.call(AppData, 'bankMovements');
+            const bankMovementsBefore = hadBankMovements ? AppData.bankMovements.slice() : null;
             const hadStockMovements = Object.prototype.hasOwnProperty.call(AppData, 'stockMovements');
             const stockMovementsBefore = hadStockMovements ? AppData.stockMovements.slice() : null;
             const hadDebtDate = Object.prototype.hasOwnProperty.call(cust, 'debtDate');
@@ -5196,6 +5224,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                 userName: (AppData.currentUser && AppData.currentUser.name) || 'غير محدد',
                 userRole: (AppData.currentUser && AppData.currentUser.role) || '',
                 paymentMethod: paidCents <= 0 ? 'credit' : (remainingCents > 0 ? 'partial' : 'cash'),
+                paymentChannel,
                 invoiceLedgerVersion: discountCents === 0 && !normalizedItems.some(item => item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true) ? 2 : 1,
                 oldDebt, newDebt
             };
@@ -5229,6 +5258,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             }
             if (hadCaisseBalance) AppData.caisseBalance = rawCaisseBalance; else delete AppData.caisseBalance;
             if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
+            if (hadBankMovements) AppData.bankMovements = bankMovementsBefore; else delete AppData.bankMovements;
             if (hadStockMovements) AppData.stockMovements = stockMovementsBefore; else delete AppData.stockMovements;
             AppData.invoices = invoicesBefore;
             if (!hadInvoicesArray) delete AppData.invoices;
@@ -5299,7 +5329,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                         p.warehouseStock[saleWarehouse] = anasQtyFromUnits(updatedUnits);
                     }
                 }
-                if (paidCents > 0) {
+                if (paidCents > 0 && paymentChannel === 'cash') {
                     AppData.caisseBalance = newCashBalance;
                     if (!Array.isArray(AppData.cashMovements)) AppData.cashMovements = [];
                     const cashMovementId = 'SALE-CASH-' + invObj.id;
@@ -5307,7 +5337,22 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
                     immediateCashMovementId = cashMovementId;
                     AppData.cashMovements.unshift({
                         id: cashMovementId, type: 'add', amount: anasCentsToCurrency(paidCents),
+                        paymentChannel: 'cash', cashImpact: true,
                         description: 'تحصيل نقدي من فاتورة البيع ' + invObj.id,
+                        referenceType: 'sales_invoice', referenceId: invObj.id,
+                        date: new Date().toISOString(),
+                        userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                        userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+                    });
+                } else if (paidCents > 0) {
+                    if (!Array.isArray(AppData.bankMovements)) AppData.bankMovements = [];
+                    const bankMovementId = 'SALE-BANK-' + invObj.id;
+                    if (existingBankMovementIds.has(bankMovementId)) throw new Error('معرّف حركة التحصيل البنكي موجود مسبقًا.');
+                    immediateCashMovementId = bankMovementId;
+                    AppData.bankMovements.unshift({
+                        id: bankMovementId, type: 'add', amount: anasCentsToCurrency(paidCents),
+                        paymentChannel, cashImpact: false,
+                        description: 'تحصيل ' + ({cheque:'شيك',transfer:'تحويل بنكي',card:'بطاقة',other:'قناة أخرى'}[paymentChannel] || paymentChannel) + ' من فاتورة البيع ' + invObj.id,
                         referenceType: 'sales_invoice', referenceId: invObj.id,
                         date: new Date().toISOString(),
                         userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,

@@ -67,3 +67,9 @@ test('rejects empty, oversized and non-positive allocations', () => {
     { invoiceId: 'INV-1', amountCentimes: 0 }
   ] }), /must be positive/);
 });
+
+test('settlement handler recognizes bank receipt sources separately from cash movements', () => {
+  const source = require('../functions/settlement-allocation-service.js').createSettlementAllocationHandler.toString();
+  assert.match(source, /bankRows/);
+  assert.match(source, /sourceMovementType === 'sales_invoice'/);
+});

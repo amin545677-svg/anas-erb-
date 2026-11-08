@@ -42,6 +42,29 @@ const originalUpdateCashUI=root.updateCashUI;
 if(typeof originalUpdateCashUI==='function')root.updateCashUI=function(){originalUpdateCashUI.apply(this,arguments);renderCashLedgerUI();};
 root.anasRenderCashLedger=renderCashLedgerUI;
 
+function expectedClosingCash(openingCash, cashMovements, bankMovements = []) {
+ if (!Array.isArray(cashMovements)) throw new TypeError('سجل الحركات النقدية غير صالح');
+ const toCents = value => {
+  const raw=String(value??'0').trim().replace(',','.');
+  const match=/^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/.exec(raw);
+  if(!match)throw new TypeError('قيمة نقدية غير صالحة');
+  return BigInt(match[1])*100n+BigInt((match[2]||'').padEnd(2,'0'));
+ };
+ let total=toCents(openingCash);
+ for(const movement of cashMovements){
+  if(!movement||typeof movement!=='object'||Array.isArray(movement))continue;
+  if(movement.cashImpact===false||(movement.paymentChannel&&movement.paymentChannel!=='cash'))continue;
+  if(movement.type!=='add'&&movement.type!=='subtract')continue;
+  const amount=toCents(movement.amount);
+  if(amount<=0n)throw new RangeError('حركة الصندوق يجب أن تكون أكبر من صفر');
+  total+=movement.type==='add'?amount:-amount;
+ }
+ // Bank, cheque, card and transfer movements are intentionally excluded from physical cash.
+ void bankMovements;
+ if(total<0n||total>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('رصيد الإقفال النقدي خارج المجال الآمن');
+ return Number(total);
+}
+root.expectedClosingCash=expectedClosingCash;
 root.anasBuildCashLedger=buildCashLedger;
-if(typeof module!=='undefined'&&module.exports)module.exports={buildCashLedger};
+if(typeof module!=='undefined'&&module.exports)module.exports={buildCashLedger,expectedClosingCash};
 })(typeof window!=='undefined'?window:globalThis);

@@ -81,7 +81,12 @@ function collectSources() {
   const found = [];
   if (state.partyType === 'customer') {
     if (db.cashMovements !== undefined && !Array.isArray(db.cashMovements)) throw new Error('دفتر حركات الصندوق غير صالح.');
-    for (const row of (Array.isArray(db.cashMovements) ? db.cashMovements : [])) {
+    if (db.bankMovements !== undefined && !Array.isArray(db.bankMovements)) throw new Error('دفتر التحصيل البنكي/الآجل غير صالح.');
+    const customerReceiptRows = [
+      ...(Array.isArray(db.cashMovements) ? db.cashMovements : []),
+      ...(Array.isArray(db.bankMovements) ? db.bankMovements : [])
+    ];
+    for (const row of customerReceiptRows) {
       if (!row || !['sales_invoice', 'customer_debt'].includes(row.referenceType)) continue;
       const id = rowId(row);
       if (id == null || String(id).trim() === '') continue;
@@ -130,7 +135,9 @@ function sourceLabel(source) {
   const name = source.sourceMovementType === 'customer_debt' ? 'قبض دين عميل' :
     source.sourceMovementType === 'supplier_payment' ? 'دفعة مورد' :
     source.sourceMovementType === 'sales_invoice' ? 'دفعة فاتورة مبيعات' : 'دفعة فاتورة مشتريات';
-  return name + ' — ' + source.sourceMovementId + ' — ' + money(source.amountCentimes);
+  const channel = source.row && source.row.paymentChannel && source.row.paymentChannel !== 'cash'
+    ? ' — ' + ({cheque:'شيك',transfer:'تحويل',card:'بطاقة',other:'أخرى'}[source.row.paymentChannel] || source.row.paymentChannel) : '';
+  return name + channel + ' — ' + source.sourceMovementId + ' — ' + money(source.amountCentimes);
 }
 function invoiceLabel(invoice) {
   const number = invoice.invoiceNumber ?? invoice.number ?? invoice.code ?? invoice.id;

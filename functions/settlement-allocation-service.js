@@ -84,7 +84,10 @@ function recordId(row) { return row && (row.id ?? row.movementId); }
 
 function sourceRows(state, request) {
   if (request.partyType === 'customer') {
-    const rows = Array.isArray(state.cashMovements) ? state.cashMovements : [];
+    const cashRows = Array.isArray(state.cashMovements) ? state.cashMovements : [];
+    const bankRows = request.sourceMovementType === 'sales_invoice' && Array.isArray(state.bankMovements)
+      ? state.bankMovements : [];
+    const rows = [...cashRows, ...bankRows];
     return rows.filter(row => row && String(recordId(row)) === request.sourceMovementId &&
       row.referenceType === request.sourceMovementType &&
       (request.sourceMovementType === 'customer_debt'
@@ -179,7 +182,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         catch (_) { fail('failed-precondition', 'Cloud snapshot payload is not valid JSON.'); }
         if (!state || typeof state !== 'object' || Array.isArray(state))
           fail('failed-precondition', 'Cloud snapshot payload is malformed.');
-        for (const name of ['invoices', 'purchases', 'customers', 'suppliers', 'settlementAllocations'])
+        for (const name of ['invoices', 'purchases', 'customers', 'suppliers', 'settlementAllocations', 'bankMovements'])
           if (state[name] !== undefined && !Array.isArray(state[name])) fail('failed-precondition', name + ' collection is malformed.');
         state.currentUser = { id: uid, name: authUser.displayName || uid };
         ReverseLedger.validateReverseLedgerParity(state);
