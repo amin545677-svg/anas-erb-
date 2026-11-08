@@ -4450,8 +4450,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * {
             return total;
         }
         function anasGetPosCartDiscountCents() {
-            const key = String(AppData.activePosScreenTab ?? 'default');
-            const map = AppData.posCartDiscounts;
+            const app = typeof AppData !== 'undefined' && AppData && typeof AppData === 'object' ? AppData : {};
+            const key = String(app.activePosScreenTab ?? 'default');
+            const map = app.posCartDiscounts;
             if (map === undefined) return 0;
             if (!map || typeof map !== 'object' || Array.isArray(map)) return NaN;
             const raw = map[key] ?? 0;
