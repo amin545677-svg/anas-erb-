@@ -127,8 +127,8 @@ export async function buildStagingHosting(options = {}) {
   if (!stagedHtml.includes('</head>') || !stagedHtml.includes('</body>')) {
     throw new Error('Could not locate ERP document boundaries for the AI import experience');
   }
-  stagedHtml = stagedHtml.replace('</head>', '  <link rel="stylesheet" href="./ai-excel-import-ui.css">\\n</head>');
-  stagedHtml = stagedHtml.replace('</body>', '  <script src="./ai-excel-import-ui.js" defer></script>\\n</body>');
+  stagedHtml = stagedHtml.replace('</head>', '  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n</head>');
+  stagedHtml = stagedHtml.replace('</body>', '  <script src="./ai-excel-import-ui.js" defer></script>\n</body>');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
