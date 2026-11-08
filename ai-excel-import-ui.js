@@ -133,6 +133,46 @@
         detail: { name: file.name, size: file.size, entityType: selectedType }
       }));
     }, true);
+    function applyEntityHintToPreview() {
+      if (selectedType === 'auto') return false;
+      const aliases = {
+        products: ['منتجات', 'المنتجات', 'products', 'product'],
+        customers: ['عملاء', 'العملاء', 'customers', 'customer'],
+        suppliers: ['موردون', 'الموردون', 'الموردين', 'suppliers', 'supplier'],
+        invoices: ['فواتير', 'الفواتير', 'invoices', 'invoice'],
+        inventory: ['مخزون', 'المخزون', 'inventory', 'stock']
+      };
+      const wanted = aliases[selectedType] || [];
+      const scopes = Array.from(document.querySelectorAll('[id*="smartImport"],[class*="smartImport"],[role="dialog"]'));
+      const selects = scopes.reduce(function (all, scope) {
+        return all.concat(Array.from(scope.querySelectorAll('select')));
+      }, []);
+      for (const select of selects) {
+        const option = Array.from(select.options || []).find(function (candidate) {
+          const text = String(candidate.textContent || '').trim().toLowerCase();
+          const value = String(candidate.value || '').trim().toLowerCase();
+          return wanted.some(function (alias) {
+            const key = alias.toLowerCase();
+            return text === key || value === key;
+          });
+        });
+        if (option) {
+          select.value = option.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+      }
+      return false;
+    }
+    if (typeof window.showSmartImportPreview === 'function' && !window.__ANAS_IMPORT_PREVIEW_HINT_HOOK__) {
+      const originalPreview = window.showSmartImportPreview;
+      window.showSmartImportPreview = function () {
+        const result = originalPreview.apply(this, arguments);
+        Promise.resolve().then(applyEntityHintToPreview);
+        return result;
+      };
+      window.__ANAS_IMPORT_PREVIEW_HINT_HOOK__ = true;
+    }
     publishType('auto');
     return true;
   }
