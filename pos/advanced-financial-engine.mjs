@@ -435,8 +435,12 @@ export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet
     batches[type] = Object.freeze({ rows: plan.rows, stats: plan.stats });
     stats[type] = Object.freeze({ ...plan.stats, duplicateSkipped: type === 'invoices' ? staged[type].length - sourceRows.length : 0 });
   }
+  // Preserve the complete application snapshot, not only the four imported collections.
+  // This lets the caller restore every dependent ledger/configuration collection if a durable write fails.
+  const fullSnapshot = JSON.parse(JSON.stringify(existingDB));
   const backupPayload = JSON.stringify({
     schema: 'ANAS_MULTI_SHEET_BACKUP_V1', createdAt: new Date().toISOString(),
+    snapshot: fullSnapshot,
     collections: Object.fromEntries(types.map(type => [type, Array.isArray(existingDB[type]) ? existingDB[type] : []]))
   });
   const mirrors = types.map(type => ({
