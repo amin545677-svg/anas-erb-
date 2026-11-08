@@ -226,7 +226,7 @@
         x.type === 'payment' && x.referenceType === 'supplier_payment' &&
         String(x.supplierId) === String(allocation.partyId) && String(x.referenceId) === id);
     } else if (allocation.partyType === 'customer' && allocation.sourceMovementType === 'sales_invoice') {
-      rows = (state.cashMovements || []).filter(x => String(recordId(x)) === id &&
+      rows = [...(state.cashMovements || []), ...(state.bankMovements || [])].filter(x => String(recordId(x)) === id &&
         x.referenceType === 'sales_invoice' && String(x.referenceId) === String(allocation.invoiceId));
     } else if (allocation.partyType === 'supplier' && allocation.sourceMovementType === 'purchase_invoice') {
       rows = (state.supplierMovements || []).filter(x => String(recordId(x)) === id &&
@@ -393,7 +393,8 @@
     return String(item.productId ?? item.id ?? item.product?.id ?? '');
   }
   function originalInvoiceItems(invoice, invoiceType) {
-    if (Array.isArray(invoice.items)) return invoice.items;
+    if (Array.isArray(invoice.items)) return invoice.items.filter(item =>
+      !(item && (item.isFreeProduct === true || item.freeProduct === true || item.nonInventory === true)));
     if (invoiceType === 'purchase_invoice' && invoice.productId != null) {
       return [{
         productId: invoice.productId,
