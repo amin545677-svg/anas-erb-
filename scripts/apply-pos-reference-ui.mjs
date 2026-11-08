@@ -5,8 +5,8 @@ let html = fs.readFileSync(file, 'utf8');
 const before = Buffer.byteLength(html, 'utf8');
 const startMarker = '        function renderQuickProducts() {';
 const endMarker = '        function anasCalculateExecutiveAnalytics';
-const start = html.indexOf(startMarker);
-const end = html.indexOf(endMarker, start);
+let start = html.indexOf(startMarker);
+let end = html.indexOf(endMarker, start);
 if (start < 0 || end < 0 || html.indexOf(startMarker, start + 1) >= 0) throw new Error('POS_RENDER_FUNCTION_ANCHOR_NOT_UNIQUE');
 
 if (!html.includes('id="anasPosProductViewToggle"')) {
@@ -19,6 +19,10 @@ if (!html.includes('id="anasPosProductViewToggle"')) {
     '            </div>\n' + anchor;
   html = html.replace(anchor, toolbar);
 }
+
+start = html.indexOf(startMarker);
+end = html.indexOf(endMarker, start);
+if (start < 0 || end < 0 || html.indexOf(startMarker, start + 1) >= 0) throw new Error('POS_RENDER_FUNCTION_ANCHOR_LOST_AFTER_MARKUP_EDIT');
 
 const replacement = [
 '        // POS catalogue presentation: list by default, optional grid; cart and ledger remain canonical.',
@@ -128,14 +132,17 @@ const style = '<style id="anas-pos-reference-ui-v1">\n' +
 '  #hasibModal .anas-quick-payment-actions button:nth-child(3){background:#fee2e2!important;border-color:#dc2626!important;color:#b91c1c!important}\n' +
 '  @media(max-width:480px){#quickProductsContainer.anas-pos-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}#quickProductsContainer .anas-pos-product-card{padding:9px;gap:8px}.anas-pos-product-name{font-size:13px}.anas-pos-product-price strong{font-size:13px}}\n' +
 '</style>\n';
-const scriptTagStart = html.lastIndexOf('<script', start);
-const scriptBodyStart = html.indexOf('>', scriptTagStart) + 1;
-const scriptTagEnd = html.indexOf('</script>', start);
-if (scriptTagStart < 0 || scriptBodyStart <= 0 || scriptTagEnd < 0) throw new Error('POS_INLINE_SCRIPT_BOUNDARY_NOT_FOUND');
+const posFunctionOffset = html.indexOf('function setAnasPosProductView(mode)');
+const scriptBlocks = [...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi)];
+const matchingScript = scriptBlocks.find(match => match.index <= posFunctionOffset && match.index + match[0].length > posFunctionOffset);
+if (!matchingScript) throw new Error('POS_INLINE_SCRIPT_BOUNDARY_NOT_FOUND');
 try {
-  new vm.Script(html.slice(scriptBodyStart, scriptTagEnd), { filename: 'index.html#pos-inline-script' });
+  new vm.Script(matchingScript[2], { filename: 'index.html#pos-inline-script' });
 } catch (error) {
-  throw new Error('POS_INLINE_SCRIPT_SYNTAX_ERROR: ' + error.message + '\\n' + error.stack);
+  const lines = matchingScript[2].split('\\n');
+  const lineNumber = Number((error.stack || '').match(/index\\.html#pos-inline-script:(\\d+)/)?.[1] || 0);
+  const excerpt = lineNumber ? lines.slice(Math.max(0, lineNumber - 4), lineNumber + 3).join('\\n') : '';
+  throw new Error('POS_INLINE_SCRIPT_SYNTAX_ERROR: ' + error.message + '\\n' + excerpt + '\\n' + error.stack);
 }
 if (!html.includes('id="anas-pos-reference-ui-v1"')) {
   const headClose = html.indexOf('</head>');
