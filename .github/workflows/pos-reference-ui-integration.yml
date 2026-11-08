@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/apply-pos-reference-ui.mjs"
       - ".github/workflows/pos-reference-ui-integration.yml"
+      - "tests/pos_full_lifecycle_chromium.test.mjs"
 permissions:
   contents: write
 jobs:
