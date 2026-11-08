@@ -54,3 +54,24 @@ test('multi-sheet import reports a rollback when the single durable repository t
     repository: { async saveMultiSheetBatchSafe() { throw new Error('simulated durable transaction failure'); } }
   }), /SAFE_MULTI_SHEET_IMPORT_ROLLED_BACK/);
 });
+
+test('partial multi-sheet workbooks atomically preserve collections whose sheets are absent', async () => {
+  const existingDB = {
+    suppliers: [{ id: 'S-KEEP', name: 'مورد قائم' }],
+    products: [], customers: [], invoices: [{ id: 'INV-KEEP', importedHistorical: true }]
+  };
+  let committed;
+  const result = await executeSafeMultiSheetImport({
+    sheetsDataMap: {
+      'المنتجات': [{ id: 'P-ONLY', barcode: 'P-ONLY', name: 'منتج', stock: '1', price1: '10' }],
+      'العملاء': [{ id: 'C-ONLY', name: 'عميل', phone: '0550000003', debt: '0' }]
+    },
+    targetBySheet: { 'المنتجات': 'products', 'العملاء': 'customers' },
+    existingDB,
+    repository: { async saveMultiSheetBatchSafe(batches) { committed = batches; } }
+  });
+  assert.equal(result.sheetCount, 2);
+  assert.equal(result.totalAdded, 2);
+  assert.equal(committed.suppliers.rows[0].id, 'S-KEEP');
+  assert.equal(committed.invoices.rows[0].id, 'INV-KEEP');
+});
