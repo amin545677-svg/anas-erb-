@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import vm from 'node:vm';
 const file = 'index.html';
 let html = fs.readFileSync(file, 'utf8');
 const before = Buffer.byteLength(html, 'utf8');
@@ -127,6 +128,15 @@ const style = '<style id="anas-pos-reference-ui-v1">\n' +
 '  #hasibModal .anas-quick-payment-actions button:nth-child(3){background:#fee2e2!important;border-color:#dc2626!important;color:#b91c1c!important}\n' +
 '  @media(max-width:480px){#quickProductsContainer.anas-pos-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}#quickProductsContainer .anas-pos-product-card{padding:9px;gap:8px}.anas-pos-product-name{font-size:13px}.anas-pos-product-price strong{font-size:13px}}\n' +
 '</style>\n';
+const scriptTagStart = html.lastIndexOf('<script', start);
+const scriptBodyStart = html.indexOf('>', scriptTagStart) + 1;
+const scriptTagEnd = html.indexOf('</script>', start);
+if (scriptTagStart < 0 || scriptBodyStart <= 0 || scriptTagEnd < 0) throw new Error('POS_INLINE_SCRIPT_BOUNDARY_NOT_FOUND');
+try {
+  new vm.Script(html.slice(scriptBodyStart, scriptTagEnd), { filename: 'index.html#pos-inline-script' });
+} catch (error) {
+  throw new Error('POS_INLINE_SCRIPT_SYNTAX_ERROR: ' + error.message + '\\n' + error.stack);
+}
 if (!html.includes('id="anas-pos-reference-ui-v1"')) {
   const headClose = html.indexOf('</head>');
   if (headClose < 0) throw new Error('HTML_HEAD_CLOSE_NOT_FOUND');
