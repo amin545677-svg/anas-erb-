@@ -151,10 +151,10 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
   const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r24 | Env: Staging';
-  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r21 \| Env: Staging/g) || []).length !== 1) {
+  if ((stagedHtml.match(/Build SHA: __ANAS_BUILD_SHA__ \| SW: r24 \| Env: Staging/g) || []).length !== 1) {
     throw new Error('Expected exactly one staging build stamp in the ERP shell');
   }
-  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r21 | Env: Staging');
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r24 | Env: Staging');
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
 
   // Preserve the dedicated reverse-ledger test console at the Hosting root.
