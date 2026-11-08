@@ -21,7 +21,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r21 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r22 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /anas-import-review-cards/);
@@ -31,7 +31,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const consoleConfig = await fs.readFile(path.join(outDir, 'config.js'), 'utf8');
     const consoleHtml = await fs.readFile(path.join(outDir, 'index.html'), 'utf8');
     const serviceWorker = await fs.readFile(path.join(outDir, 'erp/sw.js'), 'utf8');
-    assert.match(serviceWorker, /anas-erp-v54-25-r21/, 'built PWA must install the r20 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r22/, 'built PWA must install the r20 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
