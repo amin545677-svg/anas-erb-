@@ -4048,7 +4048,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const price = document.createElement('span');
                 price.textContent = Number(item.value).toLocaleString('fr-DZ') + ' د.ج';
                 choice.append(label, price);
-                choice.addEventListener('click', () => { overlay.remove(); addItemToPosCart(productId, item.tier); const searchInput = document.getElementById('posSearchField'); if (searchInput) { searchInput.focus({preventScroll:true}); handlePosSearch(searchInput.value); } });
+                choice.addEventListener('click', () => { overlay.remove(); addItemToPosCart(productId, item.tier); const searchInput = document.getElementById('posSearchField'); if (searchInput) searchInput.focus({preventScroll:true}); });
                 panel.appendChild(choice);
             });
             const cancel = document.createElement('button');
