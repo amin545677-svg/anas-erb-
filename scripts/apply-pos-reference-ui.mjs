@@ -49,7 +49,7 @@ const replacement = [
 '            cont.hidden = true;',
 "            ['posCategoryTabs', 'posStockFilterChips', 'anasPosProductViewToggle', 'posQuickProductsProgress', 'posQuickProductsEmpty'].forEach(id => { const node = document.getElementById(id); if (node) node.hidden = true; });",
 '        }',
-''].join('\\n');
+''].join('\n');
 
 html = html.slice(0, start) + replacement + html.slice(end);
 html = html.replace("heading.textContent = 'اختر سعر البيع';", "heading.textContent = 'سعر البيع — ' + String(product.name || 'المنتج') + ' (اختر نوع السعر)';");
@@ -94,12 +94,12 @@ if (!html.includes('id="anas-pos-reference-ui-v1"')) {
   if (headClose < 0) throw new Error('HTML_HEAD_CLOSE_NOT_FOUND');
   html = html.slice(0, headClose) + style + html.slice(headClose);
 }
-const searchFirstStyle = '<style id="anas-pos-search-first-v1">\\n' +
-'  #posCategoryTabs,#posStockFilterChips,#anasPosProductViewToggle,#posQuickProductsProgress,#quickProductsContainer,#posQuickProductsEmpty{display:none!important}\\n' +
-'  #posSearchField{min-height:48px;font-size:16px;touch-action:manipulation}\\n' +
-'  #posSearchResults{display:block;min-width:0}\\n' +
-'  #posSearchResults .pos-search-result{min-height:56px;touch-action:manipulation}\\n' +
-'</style>\\n';
+const searchFirstStyle = '<style id="anas-pos-search-first-v1">\n' +
+'  #posCategoryTabs,#posStockFilterChips,#anasPosProductViewToggle,#posQuickProductsProgress,#quickProductsContainer,#posQuickProductsEmpty{display:none!important}\n' +
+'  #posSearchField{min-height:48px;font-size:16px;touch-action:manipulation}\n' +
+'  #posSearchResults{display:block;min-width:0}\n' +
+'  #posSearchResults .pos-search-result{min-height:56px;touch-action:manipulation}\n' +
+'</style>\n';
 if (!html.includes('id="anas-pos-search-first-v1"')) {
   const headClose = html.indexOf('</head>');
   if (headClose < 0) throw new Error('POS_SEARCH_FIRST_HEAD_CLOSE_NOT_FOUND');
