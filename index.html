@@ -3476,6 +3476,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const products = sortProductsDeterministically(Array.isArray(AppData.products) ? AppData.products : []);
             const core = window.ANASMicroPOSCore;
             const search = document.getElementById('posSearchField')?.value || '';
+            const hasQuery = String(search).trim().length > 0;
             const status = currentPosStockFilter === 'favorite' ? 'featured'
                 : (currentPosStockFilter === 'all' ? 'ALL' : currentPosStockFilter);
             const category = selectedCategory === 'الكل' ? 'ALL' : selectedCategory;
@@ -3492,7 +3493,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                         ? !!(product.is_featured || product.featured || product.favorite || product.isFavorite)
                         : status === stockStatus);
                     const queryMatches = !search || [product.name, product.title, product.barcode, product.sku]
-                        .some(value => String(value || '').toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+                        .some(value => String(value || '').toLocaleLowerCase().includes(String(search).toLocaleLowerCase()));
                     return categoryMatches && statusMatches && queryMatches;
                 });
             const deep = window.ANASMicroPOSDeepCore;
@@ -3500,6 +3501,19 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const stockChips = document.getElementById('posStockFilterChips');
             const viewToggle = document.getElementById('anasPosProductViewToggle');
             const progress = document.getElementById('posQuickProductsProgress');
+            if (!hasQuery) {
+                [categoryTabs, stockChips, viewToggle, progress].forEach(element => {
+                    if (element) element.hidden = true;
+                });
+                const previousRenderer = window.__anasPosProgressiveRenderer;
+                previousRenderer?.destroy?.();
+                window.__anasPosProgressiveRenderer = null;
+                cont.replaceChildren();
+                cont.hidden = true;
+                const empty = document.getElementById('posQuickProductsEmpty');
+                if (empty) empty.hidden = true;
+                return;
+            }
             [categoryTabs, stockChips, viewToggle, progress].forEach(element => {
                 if (element) element.hidden = products.length === 0;
             });
@@ -3521,17 +3535,15 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                         ? engine.resolveProductPrice(product, tier)
                         : (tier === 2 ? (product.price2 ?? product.price1)
                             : tier === 3 ? (product.price3 ?? product.price1) : product.price1);
-                } catch (_) {
-                    // Legacy products can exist without a sale price; keep rendering safe and block checkout for that card.
-                    price = null;
-                }
-                const priceValid = price !== null && price !== undefined && price !== '' &&
+                } catch (_) { price = null; }
+                const validPrice = price !== null && price !== undefined && price !== '' &&
                     Number.isFinite(Number(price)) && Number(price) >= 0;
                 const stock = Number(product.stock ?? product.quantity) || 0;
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'quick-product-btn';
                 button.dataset.productId = String(product.id ?? '');
+                button.disabled = !validPrice;
                 button.style.borderInlineStart = stock <= 0 ? '4px solid #ef4444'
                     : stock <= (Number(product.minAlert ?? product.min_limit) || 5)
                         ? '4px solid #f59e0b' : '4px solid #16a34a';
@@ -3539,16 +3551,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 name.textContent = String(product.name ?? product.title ?? 'منتج بلا اسم');
                 const detail = document.createElement('small');
                 detail.textContent = String(stock) + ' ' + String(product.unit || '') +
-                    ' | ' + (priceValid ? Number(price).toLocaleString('fr-DZ') + ' د.ج' : 'سعر غير محدد');
+                    ' | ' + (validPrice ? String(Number(price)) + ' د.ج' : 'السعر غير مضبوط');
                 button.append(name, detail);
-                button.disabled = !priceValid || stock <= 0;
-                button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
-                button.title = priceValid
-                    ? String(product.name ?? '') + ' - ' + Number(price).toLocaleString('fr-DZ') + ' د.ج'
-                    : 'يجب تحديد سعر بيع صالح قبل إضافة هذا الصنف';
-                if (priceValid && stock > 0) {
-                    button.addEventListener('click', () => addItemToPosCart(product.id));
-                }
+                button.title = String(product.name ?? '') + (validPrice ? ' - ' + String(Number(price)) + ' د.ج' : ' - السعر غير مضبوط');
+                if (validPrice) button.addEventListener('click', () => addItemToPosCart(product.id));
                 return button;
             };
             const renderer = window.__anasPosProgressiveRenderer;
