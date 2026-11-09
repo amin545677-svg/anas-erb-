@@ -122,17 +122,25 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     );
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught browser errors');
 
-    // Search-first POS: no catalogue cards are rendered until the cashier searches.
+    // Keep the sorted catalogue visible; cart-only persistence must not replace its DOM.
     await page.evaluate(() => openView('pos'));
     const productContainer = page.locator('#quickProductsContainer');
-    assert.equal(await productContainer.isHidden(), true,
-      'the full product catalogue must stay hidden when the sales screen opens');
-    assert.equal(await productContainer.locator('button').count(), 0,
-      'no product cards may be rendered before a search');
+    await page.locator('#quickProductsContainer button').first().waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await productContainer.isHidden(), false,
+      'the product catalogue must remain visible when the sales screen opens');
+    assert.equal(await productContainer.locator('button').count(), 1,
+      'the seeded product must render exactly once in the catalogue');
     for (const selector of ['#posCategoryTabs', '#posStockFilterChips', '#anasPosProductViewToggle']) {
-      assert.equal(await page.locator(selector).isHidden(), true,
-        'catalogue browsing controls must not crowd the search-first sales screen');
+      assert.equal(await page.locator(selector).isHidden(), false,
+        'catalogue category, stock and view controls must remain available');
     }
+    const productCardBeforeAdd = await productContainer.locator('button').first().elementHandle();
+    await productContainer.evaluate(element => {
+      element.style.maxHeight = '1px';
+      element.style.overflowY = 'auto';
+      element.scrollTop = element.scrollHeight;
+    });
+    const catalogueScrollBeforeAdd = await productContainer.evaluate(element => element.scrollTop);
     const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
     assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
 
@@ -159,6 +167,10 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'selecting a product must preserve the cashier search text');
     assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
       'adding a product must not clear or rebuild the existing search result list');
+    assert.equal(await productCardBeforeAdd.evaluate(element => element.isConnected), true,
+      'cart persistence must preserve the existing catalogue card node');
+    assert.equal(await productContainer.evaluate(element => element.scrollTop), catalogueScrollBeforeAdd,
+      'adding a product must preserve the catalogue scroll position');
     await page.evaluate(() => {
       AppData.products[0].price2 = 25;
       AppData.products[0].price3 = 25;
