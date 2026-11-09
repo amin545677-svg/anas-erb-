@@ -124,27 +124,6 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
     // Keep the sorted catalogue visible; cart-only persistence must not replace its DOM.
     await page.evaluate(() => openView('pos'));
-    const gridDiagnostic = await page.evaluate(() => {
-      const container = document.getElementById('quickProductsContainer');
-      const empty = document.getElementById('posQuickProductsEmpty');
-      return {
-        productCount: Array.isArray(AppData.products) ? AppData.products.length : -1,
-        productIds: Array.isArray(AppData.products) ? AppData.products.map(item => String(item.id)) : [],
-        gridHidden: container?.hidden ?? null,
-        gridChildCount: container?.children.length ?? -1,
-        gridButtonCount: container?.querySelectorAll('button').length ?? -1,
-        firstChildTag: container?.firstElementChild?.tagName ?? null,
-        firstChildHtml: container?.firstElementChild?.outerHTML?.slice(0, 700) ?? null,
-        gridDisplay: container ? getComputedStyle(container).display : null,
-        viewClass: document.getElementById('view-pos')?.className ?? null,
-        viewDisplay: document.getElementById('view-pos') ? getComputedStyle(document.getElementById('view-pos')).display : null,
-        emptyHidden: empty?.hidden ?? null,
-        emptyText: empty?.textContent || '',
-        categoryTabsHidden: document.getElementById('posCategoryTabs')?.hidden ?? null,
-        stockChipsHidden: document.getElementById('posStockFilterChips')?.hidden ?? null
-      };
-    });
-    console.log('POS_GRID_DIAGNOSTIC ' + JSON.stringify(gridDiagnostic));
     const productContainer = page.locator('#quickProductsContainer');
     await page.locator('#quickProductsContainer button').first().waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await productContainer.isHidden(), false,
@@ -603,6 +582,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.deepEqual(partialProof, { paid: 12.5, remaining: 12.5, customerDebt: 12.5, cashRows: 1, cashAmount: 12.5 });
     await page.locator('#anasInvoiceFinishBtn').click();
     assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'the cashier must explicitly finish the partial-payment invoice before starting another sale');
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
       'cashier must explicitly finish the partial-payment receipt before starting the next sale');
 
     // Full credit must create customer debt without adding cash to the cashbox.
@@ -633,6 +615,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
         cashRows: cash.length, cashBalance: s.caisseBalance };
     });
     assert.deepEqual(creditProof, { paid: 0, remaining: 25, customerDebt: 37.5, cashRows: 0, cashBalance: 100012.5 });
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'the cashier must explicitly finish the credit invoice before starting another operation');
     await page.locator('#anasInvoiceFinishBtn').click();
     assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
       'cashier must explicitly finish the credit-sale receipt before leaving POS');
