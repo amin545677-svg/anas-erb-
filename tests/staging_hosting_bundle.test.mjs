@@ -194,6 +194,7 @@ test('includes App Check in the reverse-ledger console config only when a site k
 
 
 test('live staging verification binds hosted ERP to the exact deployment SHA and r30 cache namespace', async () => {
+  const rootDir = path.resolve('.');
   const workflow = await fs.readFile(
     path.join(rootDir, '.github/workflows/deploy-reverse-ledger-console-staging.yml'),
     'utf8'
