@@ -134,13 +134,6 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       assert.equal(await page.locator(selector).isHidden(), false,
         'catalogue category, stock and view controls must remain available');
     }
-    const productCardBeforeAdd = await productContainer.locator('button').first().elementHandle();
-    await productContainer.evaluate(element => {
-      element.style.maxHeight = '1px';
-      element.style.overflowY = 'auto';
-      element.scrollTop = element.scrollHeight;
-    });
-    const catalogueScrollBeforeAdd = await productContainer.evaluate(element => element.scrollTop);
     const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
     assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
 
@@ -155,6 +148,13 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await productResult.waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
       'name search must return only the matching product');
+    const productCardBeforeAdd = await productContainer.locator('button').first().elementHandle();
+    await productContainer.evaluate(element => {
+      element.style.maxHeight = '1px';
+      element.style.overflowY = 'auto';
+      element.scrollTop = element.scrollHeight;
+    });
+    const catalogueScrollBeforeAdd = await productContainer.evaluate(element => element.scrollTop);
     await productResult.click();
     await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
