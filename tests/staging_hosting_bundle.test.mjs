@@ -39,7 +39,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r29 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r30 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /safe-update-ui\.js/, 'staging shell must load the safe update controller');
@@ -68,7 +68,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r29/, 'built PWA must install the r28 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r30/, 'built PWA must install the r30 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
