@@ -3476,7 +3476,6 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const products = sortProductsDeterministically(Array.isArray(AppData.products) ? AppData.products : []);
             const core = window.ANASMicroPOSCore;
             const search = document.getElementById('posSearchField')?.value || '';
-            const hasQuery = String(search).trim().length > 0;
             const status = currentPosStockFilter === 'favorite' ? 'featured'
                 : (currentPosStockFilter === 'all' ? 'ALL' : currentPosStockFilter);
             const category = selectedCategory === 'الكل' ? 'ALL' : selectedCategory;
@@ -3501,19 +3500,6 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const stockChips = document.getElementById('posStockFilterChips');
             const viewToggle = document.getElementById('anasPosProductViewToggle');
             const progress = document.getElementById('posQuickProductsProgress');
-            if (!hasQuery) {
-                [categoryTabs, stockChips, viewToggle, progress].forEach(element => {
-                    if (element) element.hidden = true;
-                });
-                const previousRenderer = window.__anasPosProgressiveRenderer;
-                previousRenderer?.destroy?.();
-                window.__anasPosProgressiveRenderer = null;
-                cont.replaceChildren();
-                cont.hidden = true;
-                const empty = document.getElementById('posQuickProductsEmpty');
-                if (empty) empty.hidden = true;
-                return;
-            }
             [categoryTabs, stockChips, viewToggle, progress].forEach(element => {
                 if (element) element.hidden = products.length === 0;
             });
