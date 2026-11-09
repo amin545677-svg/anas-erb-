@@ -23,6 +23,7 @@ function startServer() {
       const mime = ext === '.html' ? 'text/html; charset=utf-8'
         : ext === '.css' ? 'text/css; charset=utf-8'
         : ext === '.js' ? 'text/javascript; charset=utf-8'
+        : ext === '.mjs' ? 'text/javascript; charset=utf-8'
         : 'application/octet-stream';
       res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-store' });
       res.end(bytes);
