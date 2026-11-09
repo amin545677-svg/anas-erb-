@@ -84,7 +84,7 @@ test('V42 shell loads the shared core and wires inventory, POS, CRM and sales hi
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /<script src="\.\/micro-pos-core\.js"><\/script>/);
   assert.match(html, /createInventoryEventBridge\(window\)/);
-  assert.match(html, /core\.filterInventoryItems\(withSaleStock/);
+  assert.match(html, /core\.filterInventoryItems\(products, \{ query: search, status, category: selectedCategory \}\)/, 'inventory must use the shared core with live search, status and category filters');
   assert.match(html, /inventoryUnifiedSearch/);
   assert.match(html, /core\.filterSalesInvoices\(allInvoices/);
   assert.match(html, /normalizeAlgeriaPhone\(rawPhone\)/);
