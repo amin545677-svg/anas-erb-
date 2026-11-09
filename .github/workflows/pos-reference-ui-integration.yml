@@ -4,6 +4,8 @@ on:
     branches: [staging/unified-release-candidate]
     paths:
       - "scripts/apply-pos-reference-ui.mjs"
+      - "arabic-query-engine.js"
+      - "tests/arabic-query-engine.test.mjs"
       - ".github/workflows/pos-reference-ui-integration.yml"
       - "tests/pos_full_lifecycle_chromium.test.mjs"
 permissions:
