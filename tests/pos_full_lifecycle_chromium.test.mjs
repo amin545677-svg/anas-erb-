@@ -172,6 +172,10 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'cart persistence must preserve the existing catalogue card node');
     assert.equal(await productContainer.evaluate(element => element.scrollTop), catalogueScrollBeforeAdd,
       'adding a product must preserve the catalogue scroll position');
+    await productContainer.evaluate(element => {
+      element.style.maxHeight = '';
+      element.style.overflowY = '';
+    });
     await page.evaluate(() => {
       AppData.products[0].price2 = 25;
       AppData.products[0].price3 = 25;
