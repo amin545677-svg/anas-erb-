@@ -13,15 +13,15 @@ import vm from 'node:vm';
 export function auditHtmlDom(source) {
   const errors = [];
   const ids = new Map();
-  const withoutComments = source.replace(/<!--[\\s\\S]*?-->/g, '');
+  const withoutComments = source.replace(/<!--[\s\S]*?-->/g, '');
   const markupOnly = withoutComments
-    .replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script\\s*>/gi, '')
-    .replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style\\s*>/gi, '');
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '');
 
-  for (const tagMatch of markupOnly.matchAll(/<([a-z][\\w:-]*)\\b[^>]*>/gi)) {
+  for (const tagMatch of markupOnly.matchAll(/<([a-z][\w:-]*)\b[^>]*>/gi)) {
     const tag = tagMatch[0];
     const offset = tagMatch.index ?? 0;
-    const idMatch = tag.match(/\\bid\\s*=\\s*(["'])(.*?)\\1/i);
+    const idMatch = tag.match(/\bid\s*=\s*(["'])(.*?)\1/i);
     if (!idMatch) continue;
     const id = idMatch[2].trim();
     if (!id) {
@@ -36,10 +36,10 @@ export function auditHtmlDom(source) {
     }
   }
 
-  for (const scriptMatch of withoutComments.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script\\s*>/gi)) {
+  for (const scriptMatch of withoutComments.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
     const attrs = scriptMatch[1] || '';
     const body = scriptMatch[2] || '';
-    if (/\\bsrc\\s*=/.test(attrs) || /\\btype\\s*=\\s*(["'])module\\1/i.test(attrs) || !body.trim()) continue;
+    if (/\bsrc\s*=/.test(attrs) || /\btype\s*=\s*(["'])module\1/i.test(attrs) || !body.trim()) continue;
     try {
       new vm.Script(body, { filename: 'index.html:inline-script' });
     } catch (error) {
