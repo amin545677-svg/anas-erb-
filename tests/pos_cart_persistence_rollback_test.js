@@ -203,7 +203,7 @@ async function verifyDurablePaymentGate(failCommit) {
     assert.equal(closes, 0, 'failed durable commit must not close the payment modal');
     assert.equal(context.hasibPaymentInFlight, false, 'failed transaction must release the in-flight guard');
   } else {
-    resolveCommit({ revision: 12, mode: 'INDEXEDDB' });
+    resolveCommit(true);
     assert.equal(await context.__paymentPromise, true);
     assert.equal(AppData.invoices.length, 1);
     assert.equal(product.stock, 4);
@@ -247,7 +247,7 @@ async function verifyFreeProductAndDiscountSale() {
     wtCurrentSaleWarehouse: () => 'المخزن الرئيسي',
     wtAvailableStock: () => 0,
     saveDB: () => true,
-    saveDBDurably: () => Promise.resolve({ revision: 21, mode: 'INDEXEDDB' }),
+    saveDBDurably: () => Promise.resolve(true),
     renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
     closeModal() {}, alert() {}, console,
     Date, Math, Number, String, Object, Array, Map, Set, BigInt
@@ -286,7 +286,7 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
     const context = { AppData, posCart:[{id:product.id,name:'Rice',qty:1,price:25,unit:'كيس'}],
       lastConfirmedInvoice:null,hasibPaymentInFlight:false,document:{getElementById:id=>elements[id]||null},
       wtTryEnsureData:()=>true,wtCurrentSaleWarehouse:()=>'المخزن الرئيسي',wtAvailableStock:p=>p.stock,
-      saveDB:()=>true,saveDBDurably:()=>Promise.resolve({revision:22,mode:'INDEXEDDB'}),renderPosTable(){},renderCustomersDebts(){},
+      saveDB:()=>true,saveDBDurably:()=>Promise.resolve(true),renderPosTable(){},renderCustomersDebts(){},
       updateCashUI(){},closeModal(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
     vm.createContext(context);
     try {
