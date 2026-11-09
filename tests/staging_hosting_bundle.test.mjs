@@ -25,6 +25,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const importCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./ai-excel-import-ui.css">');
     const importScript = erp.lastIndexOf('<script src="./ai-excel-import-ui.js" defer></script>');
     const safeUpdateScript = erp.lastIndexOf('<script src="./safe-update-ui.js" defer></script>');
+    const quickSaleBridgeScript = erp.lastIndexOf('<script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>');
     assert.ok(safeCssLink > erp.indexOf('<head') && safeCssLink < actualHeadClose,
       'safe visual stylesheet must be injected into the real document head, not a printable HTML string');
     assert.ok(importCssLink > erp.indexOf('<head') && importCssLink < actualHeadClose,
@@ -33,6 +34,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'AI import script must be injected before the real document body close');
     assert.ok(safeUpdateScript > erp.indexOf('<body') && safeUpdateScript < actualBodyClose,
       'safe update script must be injected before the real document body close');
+    assert.ok(quickSaleBridgeScript > erp.indexOf('<body') && quickSaleBridgeScript < actualBodyClose,
+      'quick-sale transaction bridge must load after the legacy inline POS handlers');
     assert.ok(erp.includes("root.innerHTML + '</body></html>'"),
       'printable HTML closing tags inside JavaScript strings must remain untouched');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
@@ -44,6 +47,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /anas-pos-search-first-v1/, 'the deployed ERP shell must carry the search-first POS presentation');
     assert.match(erp, /safe-update-ui\.js/, 'staging shell must load the safe update controller');
+    assert.match(erp, /pos-quick-sale-transaction-bridge\.js/, 'staging shell must load the durable quick-sale bridge');
     assert.match(erp, /safeUpdateAppUI/, 'settings must expose the safe update action');
     assert.match(erp, /<link rel="stylesheet" href="\.\/anas-erp-ui-safe-enhancements\.css">/, 'staging ERP must load the neutral eye-comfort palette stylesheet');
     assert.match(erp, /anas-import-review-cards/);
@@ -76,6 +80,12 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'AI import header must use a calm navy palette');
 
     assert.match(serviceWorker, /anas-erp-v54-25-r31/, 'built PWA must install the r31 cache namespace');
+    const quickSaleBridge = await fs.readFile(path.join(outDir, 'erp/core/pos-quick-sale-transaction-bridge.js'), 'utf8');
+    assert.match(quickSaleBridge, /addItemToPosCart/);
+    assert.match(quickSaleBridge, /changePosQty/);
+    assert.match(quickSaleBridge, /removePosCartItem/);
+    assert.match(quickSaleBridge, /clearPosCart/);
+    assert.doesNotMatch(quickSaleBridge, /posCart\.splice/);
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
@@ -95,7 +105,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(coreMatch, 'built service worker must declare a core asset list');
     const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
-    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js']) {
+    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js', './core/pos-quick-sale-transaction-bridge.js']) {
       assert.ok(coreAssets.includes(syncAsset), 'sync module must be precached for the ERP runtime: ' + syncAsset);
     }
     for (const asset of coreAssets) {
@@ -146,6 +156,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/sync/mutation_keys.mjs',
       'erp/sync/v42_transactional_bridge.mjs',
       'erp/core/sovereign-kernel.mjs',
+      'erp/core/pos-quick-sale-transaction-bridge.js',
       'erp/safe-update-ui.js',
       'erp/icons/icon.svg',
       'erp/vendor/firebase/firebase-compat.js',
