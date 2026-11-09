@@ -5610,6 +5610,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         }
 
         function showInvoicePostSaveActions(inv) {
+            if (typeof document === 'undefined' || !document || typeof document.createElement !== 'function' || !document.body) {
+                alert('تم تأكيد وحفظ الفاتورة رقم ' + String(inv && inv.id || '-') + '. واجهة إجراءات الطباعة والمشاركة غير متاحة في هذه البيئة.');
+                return false;
+            }
             closeInvoicePostSaveActions();
             const dialog = document.createElement('section');
             dialog.id = 'anasInvoicePostSaveDialog';
