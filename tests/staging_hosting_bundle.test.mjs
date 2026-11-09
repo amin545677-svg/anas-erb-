@@ -25,6 +25,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const importCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./ai-excel-import-ui.css">');
     const importScript = erp.lastIndexOf('<script src="./ai-excel-import-ui.js" defer></script>');
     const safeUpdateScript = erp.lastIndexOf('<script src="./safe-update-ui.js" defer></script>');
+    const preparedRecoveryScript = erp.lastIndexOf('<script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>');
     const quickSaleBridgeScript = erp.lastIndexOf('<script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>');
     assert.ok(safeCssLink > erp.indexOf('<head') && safeCssLink < actualHeadClose,
       'safe visual stylesheet must be injected into the real document head, not a printable HTML string');
@@ -79,7 +80,9 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r31/, 'built PWA must install the r31 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r32/, 'built PWA must install the r31 cache namespace');
+    const recoveryRuntime = await fs.readFile(path.join(outDir, 'erp/sync/v42-prepared-recovery-runtime.mjs'), 'utf8');
+    assert.match(recoveryRuntime, /recoverPreparedMutationsOnBoot/);
     const quickSaleBridge = await fs.readFile(path.join(outDir, 'erp/core/pos-quick-sale-transaction-bridge.js'), 'utf8');
     assert.match(quickSaleBridge, /addItemToPosCart/);
     assert.match(quickSaleBridge, /changePosQty/);
@@ -105,7 +108,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(coreMatch, 'built service worker must declare a core asset list');
     const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
-    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js', './core/pos-quick-sale-transaction-bridge.js']) {
+    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs', './sync/v42-prepared-recovery-runtime.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js', './core/pos-quick-sale-transaction-bridge.js']) {
       assert.ok(coreAssets.includes(syncAsset), 'sync module must be precached for the ERP runtime: ' + syncAsset);
     }
     for (const asset of coreAssets) {
