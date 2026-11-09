@@ -27,6 +27,7 @@ const ERP_FILES = [
   'reverse-ledger/settlement-allocation-modal.js',
   'storage/android-resilient-storage.js',
   'core/ai-operations-engine.js',
+  'core/pos-quick-sale-transaction-bridge.js',
   'micro-pos-core.js',
   'pos/micro-pos-engine.mjs',
   'pos/micro-pos-deep-core.mjs',
@@ -202,7 +203,7 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = insertBeforeDocumentHeadClose(stagedHtml,
     '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n  ');
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  ');
+    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
@@ -266,6 +267,7 @@ export async function buildStagingHosting(options = {}) {
     'erp/core/ai-operations-engine.js',
     'erp/core/sovereign-kernel.mjs',
     'erp/safe-update-ui.js',
+    'erp/core/pos-quick-sale-transaction-bridge.js',
     'erp/micro-pos-core.js', 'erp/pos/micro-pos-engine.mjs', 'erp/pos/micro-pos-deep-core.mjs', 'erp/pos/advanced-financial-engine.mjs',
     'erp/icons/icon.svg',
     'erp/vendor/firebase/firebase-compat.js',
