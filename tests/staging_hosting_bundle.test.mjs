@@ -46,7 +46,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /ANASFinancialIntegerEngine = Object\.freeze/);
     assert.match(erp, /typeof window\.saveDBDurably === 'function'/, 'bridge readiness must require the durable persistence API');
     assert.match(erp, /anasCompareProductNames/);
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r35 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r36 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /anas-pos-search-first-v1/, 'the deployed ERP shell must carry the search-first POS presentation');
@@ -83,7 +83,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r35/, 'built PWA must install the r35 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r36/, 'built PWA must install the r36 cache namespace');
     const recoveryRuntime = await fs.readFile(path.join(outDir, 'erp/sync/v42-prepared-recovery-runtime.mjs'), 'utf8');
     assert.match(recoveryRuntime, /recoverPreparedMutationsOnBoot/);
     const quickSaleBridge = await fs.readFile(path.join(outDir, 'erp/core/pos-quick-sale-transaction-bridge.js'), 'utf8');
@@ -212,7 +212,7 @@ test('includes App Check in the reverse-ledger console config only when a site k
 });
 
 
-test('live staging verification binds hosted ERP to the exact deployment SHA and r35 cache namespace', async () => {
+test('live staging verification binds hosted ERP to the exact deployment SHA and r36 cache namespace', async () => {
   const rootDir = path.resolve('.');
   const workflow = await fs.readFile(
     path.join(rootDir, '.github/workflows/deploy-reverse-ledger-console-staging.yml'),
@@ -223,11 +223,11 @@ test('live staging verification binds hosted ERP to the exact deployment SHA and
   assert.ok(workflow.includes('short_sha="${DEPLOY_SHA:0:7}"'),
     'live verification must derive the build stamp from the deployment SHA');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/" "exact deployed commit and r35 build stamp" "Build SHA: ${short_sha} | SW: r35 | Env: Staging"'
-  ), 'live ERP HTML must prove the exact deployed commit and r35 build stamp');
+    'fetch_expect "/erp/" "exact deployed commit and r36 build stamp" "Build SHA: ${short_sha} | SW: r36 | Env: Staging"'
+  ), 'live ERP HTML must prove the exact deployed commit and r36 build stamp');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/sw.js" "r35 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r35\';"'
-  ), 'live service worker must prove the expected r35 cache namespace');
+    'fetch_expect "/erp/sw.js" "r36 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r36\';"'
+  ), 'live service worker must prove the expected r36 cache namespace');
   assert.ok(workflow.includes(
     'fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"'
   ), 'live ERP must prove the V42 PREPARED recovery module is served');

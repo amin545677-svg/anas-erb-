@@ -6717,7 +6717,7 @@ function renderPurchasesTable() {
             el.classList.add('active');
         }
 
-        function submitCashOperation() {
+        async function submitCashOperation() {
             const amountInput = document.getElementById('cashAmountInput');
             const rawAmount = amountInput ? String(amountInput.value).trim() : '';
             const parsedAmount = Number(rawAmount.replace(',', '.'));
@@ -6755,30 +6755,62 @@ function renderPurchasesTable() {
             }
             if (!isAdd && previousBalanceCents < amountCents) { alert('رصيد الصندوق لا يكفي!'); return; }
             const hadMovements = Array.isArray(AppData.cashMovements);
-            const previousMovements = hadMovements ? AppData.cashMovements.slice() : null;
-            AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
-            if (!hadMovements) AppData.cashMovements = [];
-            AppData.cashMovements.push({
-                id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
-                type: isAdd ? 'add' : 'subtract',
-                amount: amt,
-                description: desc,
-                date: new Date().toISOString(),
-                userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
-                userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
-            });
+            const movementArray = hadMovements ? AppData.cashMovements : null;
+            const previousMovements = hadMovements ? movementArray.slice() : null;
+            const cashLocks = globalThis.__ANAS_CASH_OPERATION_LOCKS__ ||
+                (globalThis.__ANAS_CASH_OPERATION_LOCKS__ = new Set());
+            const cashLockKey = 'cashbox';
+            if (cashLocks.has(cashLockKey)) {
+                alert('هناك حركة نقدية أخرى قيد الحفظ؛ انتظر تأكيدها قبل إعادة المحاولة.');
+                return false;
+            }
+            cashLocks.add(cashLockKey);
             let cashSaved = false;
-            try { cashSaved = saveDB() === true; }
-            catch (err) { console.error('ANAS cash movement save failed', err); }
+            try {
+                AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
+                if (!hadMovements) AppData.cashMovements = [];
+                AppData.cashMovements.push({
+                    id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                    type: isAdd ? 'add' : 'subtract',
+                    amount: amt,
+                    description: desc,
+                    date: new Date().toISOString(),
+                    userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                    userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+                });
+                if (typeof saveDB !== 'function' || saveDB() !== true)
+                    throw new Error('تعذر التقاط حركة الصندوق أو تجهيزها للمزامنة.');
+                if (typeof saveDBDurably !== 'function')
+                    throw new Error('واجهة التخزين الدائم غير متاحة؛ لم يتم اعتماد الحركة.');
+                if (await saveDBDurably() !== true)
+                    throw new Error('لم يؤكد التخزين الدائم اعتماد حركة الصندوق.');
+                cashSaved = true;
+            } catch (err) {
+                console.error('ANAS cash movement save failed', err);
+            }
             if (!cashSaved) {
                 if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;
-                if (hadMovements) AppData.cashMovements = previousMovements; else delete AppData.cashMovements;
+                if (hadMovements) {
+                    movementArray.splice(0, movementArray.length, ...previousMovements);
+                    AppData.cashMovements = movementArray;
+                } else delete AppData.cashMovements;
+                let rollbackPersisted = false;
+                try {
+                    if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر تجهيز استرجاع حركة الصندوق.');
+                    if (typeof saveDBDurably !== 'function' || await saveDBDurably() !== true) throw new Error('تعذر تأكيد حفظ استرجاع حركة الصندوق.');
+                    rollbackPersisted = true;
+                } catch (rollbackError) { console.error('ANAS cash movement rollback persistence failed', rollbackError); }
+                cashLocks.delete(cashLockKey);
                 updateCashUI();
-                alert('تعذر حفظ حركة الصندوق؛ أُعيد الرصيد والحركة إلى حالتهما السابقة.');
-                return;
+                alert(rollbackPersisted
+                    ? 'تعذر اعتماد حركة الصندوق؛ أُعيد الرصيد والحركة وحُفظت الحالة السابقة.'
+                    : 'تعذر اعتماد حركة الصندوق؛ أُعيدت الحالة في الذاكرة لكن تعذر تأكيد حفظ الاسترجاع. لا تكرر العملية قبل إعادة التحميل والتحقق.');
+                return false;
             }
+            cashLocks.delete(cashLockKey);
             updateCashUI();
             alert('تم تنفيذ حركة الصندوق بنجاح ✅');
+            return true;
         }
 
         async function submitExpenseOperation() {
@@ -7632,11 +7664,18 @@ function renderPurchasesTable() {
                 cont.appendChild(card);
             });
         }
-        function paySupplierDebt(supplierId) {
+        async function paySupplierDebt(supplierId) {
             if (!Array.isArray(AppData.suppliers)) { alert('سجل الموردين غير صالح؛ لم يتم تسجيل أي تسديد.'); return; }
             const matches = AppData.suppliers.filter(s => s && typeof s === 'object' && !Array.isArray(s) && s.id != null && String(s.id) === String(supplierId));
             if (matches.length !== 1) { alert(matches.length ? 'معرّف المورد مكرر؛ أوقفنا التسديد.' : 'المورد غير موجود؛ لم يتم تسجيل أي تسديد.'); return; }
             const supplier = matches[0];
+            const paymentLocks = globalThis.__ANAS_SUPPLIER_PAYMENT_LOCKS__ ||
+                (globalThis.__ANAS_SUPPLIER_PAYMENT_LOCKS__ = new Set());
+            const paymentLockKey = String(supplier.id);
+            if (paymentLocks.has(paymentLockKey)) {
+                alert('عملية تسديد هذا المورد قيد الحفظ بالفعل؛ انتظر تأكيدها قبل إعادة المحاولة.');
+                return false;
+            }
             const balanceCents = anasPurchaseToCents(supplier.balance ?? 0);
             const cashCents = anasPurchaseToCents(AppData.caisseBalance ?? 0);
             if (!Number.isSafeInteger(balanceCents) || balanceCents <= 0 ||
@@ -7780,6 +7819,7 @@ function renderPurchasesTable() {
                     rows: Array.isArray(AppData[key]) ? AppData[key].slice() : null
                 };
             }
+            paymentLocks.add(paymentLockKey);
             try {
                 if (!Array.isArray(AppData.supplierMovements)) {
                     if (Object.prototype.hasOwnProperty.call(AppData,'supplierMovements')) throw new Error('دفتر الموردين تالف.');
@@ -7825,7 +7865,9 @@ function renderPurchasesTable() {
                     AppData.settlementAllocations.push(allocation);
                 }
                 globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند صرف المورد.');
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر التقاط سند صرف المورد للمزامنة.');
+                if (typeof saveDBDurably !== 'function') throw new Error('واجهة التخزين الدائم غير متاحة؛ لم يتم اعتماد التسديد.');
+                if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند صرف المورد.');
             } catch (error) {
                 if (hadBalance) supplier.balance = oldBalance; else delete supplier.balance;
                 if (hadCash) AppData.caisseBalance = oldCash; else delete AppData.caisseBalance;
@@ -7837,10 +7879,18 @@ function renderPurchasesTable() {
                         AppData[key] = snap.array;
                     } else AppData[key] = AppData[key];
                 }
+                let rollbackPersisted = false;
+                try {
+                    if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر تجهيز استرجاع سند المورد.');
+                    if (typeof saveDBDurably !== 'function' || await saveDBDurably() !== true) throw new Error('تعذر تأكيد حفظ استرجاع سند المورد.');
+                    rollbackPersisted = true;
+                } catch (rollbackError) { console.error('ANAS supplier payment rollback persistence failed', rollbackError); }
+                paymentLocks.delete(paymentLockKey);
                 try { if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
-                alert('لم يتم اعتماد التسديد: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الأرصدة والدفاتر إلى ما قبل العملية.');
-                return;
+                alert('لم يتم اعتماد التسديد: ' + (error?.message || 'فشل الحفظ') + (rollbackPersisted ? '. أُعيدت الأرصدة والدفاتر وحُفظت الحالة السابقة.' : '. أُعيدت الحالة في الذاكرة لكن تعذر تأكيد حفظ الاسترجاع؛ أعد التحميل وتحقق قبل التكرار.'));
+                return false;
             }
+            paymentLocks.delete(paymentLockKey);
             if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts();
             if (typeof updateCashUI === 'function') updateCashUI();
             alert('تم تسجيل سند صرف المورد وتخصيصه يدوياً لفواتير الشراء المحددة بنجاح.');
@@ -7911,7 +7961,7 @@ function renderPurchasesTable() {
             document.getElementById('addSupplierModal').classList.add('active'); 
         }
 
-        function saveNewSupplierMpos() {
+        async function saveNewSupplierMpos() {
             const name = document.getElementById('newSuppNameInput').value.trim();
             const phone = document.getElementById('newSuppPhoneInput').value.trim();
             const rc = document.getElementById('newSuppRCInput').value.trim();
@@ -7946,6 +7996,14 @@ function renderPurchasesTable() {
             catch (_) { alert('تعذر تجهيز التراجع؛ لم يتم تغيير البيانات.'); return; }
             let id = 'SUP-' + Date.now();
             while (supplierIds.has(id)) id = 'SUP-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
+            const supplierCreateLocks = globalThis.__ANAS_SUPPLIER_CREATE_LOCKS__ ||
+                (globalThis.__ANAS_SUPPLIER_CREATE_LOCKS__ = new Set());
+            const supplierCreateLockKey = String(name).trim().toLocaleLowerCase('ar-DZ');
+            if (supplierCreateLocks.has(supplierCreateLockKey)) {
+                alert('إضافة هذا المورد قيد الحفظ بالفعل؛ انتظر تأكيد العملية.');
+                return false;
+            }
+            supplierCreateLocks.add(supplierCreateLockKey);
             try {
                 AppData.supplierMovements = Array.isArray(AppData.supplierMovements) ? AppData.supplierMovements : [];
                 AppData.suppliers.push({id,name,phone,rc,nif,art,address,balance:anasPurchaseCentsToCurrency(debtCents)});
@@ -7958,27 +8016,30 @@ function renderPurchasesTable() {
                         referenceId:String(id),date:new Date().toISOString(),note:'رصيد افتتاحي معتمد عند إنشاء المورد'
                     });
                 }
-                const durableSave = typeof saveDBDurably === 'function' ? saveDBDurably() : saveDB();
-                if (durableSave && typeof durableSave.then === 'function') {
-                    durableSave.then(() => {
-                        closeModal('addSupplierModal');
-                        alert('تمت إضافة المورد وحفظ رصيده الافتتاحي في دفتر الموردين بنجاح.');
-                        renderSuppliersDebts();
-                    }).catch(err => {
-                        AppData = previous;
-                        alert('تعذر حفظ بيانات المورد: ' + (err?.message || 'فشل الحفظ') + '؛ أُعيدت البيانات السابقة.');
-                    });
-                    return;
-                }
-                if (durableSave !== true) throw new Error('تعذر حفظ البيانات الدائم');
+                if (typeof saveDB !== 'function' || saveDB() !== true)
+                    throw new Error('تعذر التقاط إنشاء المورد ورصيده الافتتاحي للمزامنة.');
+                if (typeof saveDBDurably !== 'function')
+                    throw new Error('واجهة التخزين الدائم غير متاحة؛ لم يتم اعتماد المورد.');
+                if (await saveDBDurably() !== true)
+                    throw new Error('لم يؤكد التخزين الدائم اعتماد المورد ورصيده الافتتاحي.');
             } catch (err) {
                 AppData = previous;
-                alert('تعذر حفظ بيانات المورد: ' + (err?.message || 'فشل الحفظ') + '؛ أُعيدت البيانات السابقة.');
-                return;
+                let rollbackPersisted = false;
+                try {
+                    if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر تجهيز استرجاع إنشاء المورد.');
+                    if (typeof saveDBDurably !== 'function' || await saveDBDurably() !== true) throw new Error('تعذر تأكيد حفظ استرجاع المورد.');
+                    rollbackPersisted = true;
+                } catch (rollbackError) { console.error('ANAS supplier creation rollback persistence failed', rollbackError); }
+                supplierCreateLocks.delete(supplierCreateLockKey);
+                alert('تعذر حفظ بيانات المورد: ' + (err?.message || 'فشل الحفظ') +
+                    (rollbackPersisted ? '؛ أُعيدت البيانات السابقة وحُفظت.' : '؛ أُعيدت البيانات في الذاكرة لكن تعذر تأكيد حفظ الاسترجاع.'));
+                return false;
             }
+            supplierCreateLocks.delete(supplierCreateLockKey);
             closeModal('addSupplierModal');
             alert('تمت إضافة المورد وحفظ رصيده الافتتاحي في دفتر الموردين بنجاح.');
             renderSuppliersDebts();
+            return true;
         }
         function printLatestLegalCustomerInvoice() {
             const invoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];

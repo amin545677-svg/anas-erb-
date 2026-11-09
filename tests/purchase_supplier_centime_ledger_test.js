@@ -13,11 +13,11 @@ const moneyHelperStart=html.indexOf('// Purchase-specific decimal parser');
 const moneyHelperEnd=html.indexOf('function savePurchaseItem()',moneyHelperStart);
 assert.ok(moneyHelperStart>=0&&moneyHelperEnd>moneyHelperStart,'purchase centime helpers must be isolatable');
 const moneyHelperSource=html.slice(moneyHelperStart,moneyHelperEnd);
-const paymentStart=html.indexOf('function paySupplierDebt(supplierId)');
+const paymentStart=html.indexOf('async function paySupplierDebt(supplierId)');
 const paymentEnd=html.indexOf('function openAddSupplierModal()',paymentStart);
 assert.ok(paymentStart>=0&&paymentEnd>paymentStart,'supplier payment function must be isolatable');
 const paymentSource=html.slice(paymentStart,paymentEnd);
-const supplierStart=html.indexOf('function saveNewSupplierMpos()');
+const supplierStart=html.indexOf('async function saveNewSupplierMpos()');
 const supplierEnd=html.indexOf('function printLatestLegalCustomerInvoice()',supplierStart);
 assert.ok(supplierStart>=0&&supplierEnd>supplierStart,'supplier creation function must be isolatable');
 const supplierSource=html.slice(supplierStart,supplierEnd);
@@ -40,29 +40,24 @@ function runPurchase({fields=elements(),products=[{id:'P-1',name:'Test product',
  vm.createContext(ctx);vm.runInContext(purchaseSource+'\nsavePurchaseItem();',ctx,{timeout:1500});
  return {AppData:ctx.AppData,alerts,saves};
 }
-function runPayment({balance=20,cash=100,amount='7.25',saveResult=true}={}) {
- const AppData={
-  suppliers:[{id:'S-1',name:'Supplier',balance}],
-  purchases:[{id:'PUR-1',supplierId:'S-1',total:20,paid:0,remaining:20,productId:'P-1',cost:10,qty:2}],
-  cashMovements:[],
-  supplierMovements:[{id:'SM-PUR-1',supplierId:'S-1',type:'purchase',amount:20,referenceType:'purchase_invoice',referenceId:'PUR-1'}],
-  settlementAllocations:[],caisseBalance:cash,currentUser:{id:'U-1',name:'Tester'}
- };
- const alerts=[];let saves=0;
- const supplierRef=AppData.suppliers[0],supplierMovementsRef=AppData.supplierMovements,cashMovementsRef=AppData.cashMovements,allocationsRef=AppData.settlementAllocations;
- const ctx={AppData,ANASReverseLedger,prompt:()=>JSON.stringify([{invoiceId:'PUR-1',amount}]),
-  saveDB:()=>{saves++;return saveResult;},alert:m=>alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
- vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
- return {AppData:ctx.AppData,alerts,saves,identity:{supplier:ctx.AppData.suppliers[0]===supplierRef,supplierMovements:ctx.AppData.supplierMovements===supplierMovementsRef,cashMovements:ctx.AppData.cashMovements===cashMovementsRef,allocations:ctx.AppData.settlementAllocations===allocationsRef}};
+async function runPayment({balance=20,cash=100,amount='7.25',saveResult=true,durableResult=true}={}) {
+  const AppData={suppliers:[{id:'S-1',name:'Supplier',balance}],purchases:[{id:'PUR-1',supplierId:'S-1',total:20,paid:0,remaining:20,productId:'P-1',cost:10,qty:2}],cashMovements:[],supplierMovements:[{id:'SM-PUR-1',supplierId:'S-1',type:'purchase',amount:20,referenceType:'purchase_invoice',referenceId:'PUR-1'}],settlementAllocations:[],caisseBalance:cash,currentUser:{id:'U-1',name:'Tester'}};
+  const alerts=[];let saves=0,durableSaves=0;
+  const supplierRef=AppData.suppliers[0],supplierMovementsRef=AppData.supplierMovements,cashMovementsRef=AppData.cashMovements,allocationsRef=AppData.settlementAllocations;
+  const ctx={AppData,ANASReverseLedger,prompt:()=>JSON.stringify([{invoiceId:'PUR-1',amount}]),saveDB:()=>{saves++;return saveResult;},saveDBDurably:()=>{durableSaves++;return durableResult?Promise.resolve(true):Promise.reject(new Error('simulated durable supplier payment failure'));},alert:m=>alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
+  vm.createContext(ctx);
+  await vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
+  return {AppData:ctx.AppData,alerts,saves,durableSaves,identity:{supplier:ctx.AppData.suppliers[0]===supplierRef,supplierMovements:ctx.AppData.supplierMovements===supplierMovementsRef,cashMovements:ctx.AppData.cashMovements===cashMovementsRef,allocations:ctx.AppData.settlementAllocations===allocationsRef}};
 }
-function runSupplierCreate({debt='12.345',saveResult=true}={}) {
- const fields=elements({debt});const AppData={suppliers:[],supplierMovements:[]};const alerts=[];let saves=0;
- const ctx={AppData,document:{getElementById:id=>fields[id]||null},saveDB:()=>{saves++;return saveResult;},
-  alert:m=>alerts.push(String(m)),closeModal(){},renderSuppliersDebts(){},Date,Math,console:{error(){}}};
- vm.createContext(ctx);vm.runInContext(purchaseSource+'\n'+supplierSource+'\nsaveNewSupplierMpos();',ctx,{timeout:1500});
- return {AppData:ctx.AppData,alerts,saves};
+async function runSupplierCreate({debt='12.345',saveResult=true,durableResult=true}={}) {
+  const fields=elements({debt});const AppData={suppliers:[],supplierMovements:[]};const alerts=[];let saves=0,durableSaves=0;
+  const ctx={AppData,document:{getElementById:id=>fields[id]||null},saveDB:()=>{saves++;return saveResult;},saveDBDurably:()=>{durableSaves++;return durableResult?Promise.resolve(true):Promise.reject(new Error('simulated durable supplier creation failure'));},alert:m=>alerts.push(String(m)),closeModal(){},renderSuppliersDebts(){},Date,Math,console:{error(){}}};
+  vm.createContext(ctx);
+  await vm.runInContext(purchaseSource+'\n'+supplierSource+'\nsaveNewSupplierMpos();',ctx,{timeout:1500});
+  return {AppData:ctx.AppData,alerts,saves,durableSaves};
 }
 
+(async () => {
 {
  const r=runPurchase(),p=r.AppData.purchases[0];
  assert.equal(r.saves,1);assert.equal(p.total,30.30);assert.equal(p.paid,10);assert.equal(p.remaining,20.30);
@@ -110,7 +105,7 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: existing stock with missing historical cost basis is rejected');
 }
 {
- const r=runPayment();assert.equal(r.saves,1);assert.equal(r.AppData.suppliers[0].balance,12.75);
+ const r=await runPayment();assert.equal(r.saves,1);assert.equal(r.durableSaves,1);assert.equal(r.AppData.suppliers[0].balance,12.75);
  assert.equal(r.AppData.caisseBalance,92.75);assert.equal(r.AppData.supplierMovements[0].type,'payment');
  assert.equal(r.AppData.supplierMovements[0].amount,7.25);assert.equal(r.AppData.cashMovements[0].type,'subtract');
  assert.equal(r.AppData.settlementAllocations[0].amountCentimes,725);
@@ -125,36 +120,36 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: duplicate supplier identities are rejected before purchase mutation');
 }
 {
- const r=runPayment({balance:20,cash:100,amount:'7.25'});
+ const r=await runPayment({balance:20,cash:100,amount:'7.25'});
  r.AppData.cashMovements.push({...r.AppData.cashMovements[0]});
  const duplicateContext={AppData:r.AppData,ANASReverseLedger,prompt:()=>JSON.stringify([{invoiceId:'PUR-1',amount:'1'}]),saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
  vm.createContext(duplicateContext);
- vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',duplicateContext,{timeout:1500});
+ await vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',duplicateContext,{timeout:1500});
  assert.equal(duplicateContext.AppData.suppliers[0].balance,12.75);
  assert.ok(r.alerts.some(x=>x.includes('معرّفات مكررة')));
  console.log('PASS: supplier payment refuses duplicate pre-existing ledger IDs');
 }
 {
- const r=runPayment({balance:19,cash:99,amount:'1.00'});
+ const r=await runPayment({balance:19,cash:99,amount:'1.00'});
  r.AppData.supplierMovements.push({id:'OLD-SP',supplierId:'S-1',type:'payment',amount:1,referenceType:'supplier_payment',referenceId:'OLD-SP'});
  r.AppData.cashMovements.push({id:'OLD-CM',type:'subtract',amount:1,referenceType:'supplier_payment',referenceId:'OLD-SP'});
  const ctx={AppData:r.AppData,ANASReverseLedger,prompt:()=>{throw new Error('must reject before prompting');},
   saveDB:()=>{throw new Error('must not save');},alert:m=>r.alerts.push(String(m)),console:{error(){}},renderSuppliersDebts(){},updateCashUI(){}};
- vm.createContext(ctx);vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
+ vm.createContext(ctx);await vm.runInContext(moneyHelperSource+'\n'+paymentSource+'\npaySupplierDebt("S-1");',ctx,{timeout:1500});
  assert.equal(ctx.AppData.suppliers[0].balance,18);
  assert.equal(ctx.AppData.supplierMovements.length,3);
  assert.ok(r.alerts.some(x=>x.includes('غير مخصص بالكامل')));
  console.log('PASS: prior unallocated supplier settlements block new invoice payments');
 }
 {
- const r=runPayment({balance:20,cash:5,amount:'7.25'});assert.equal(r.saves,0);
+ const r=await runPayment({balance:20,cash:5,amount:'7.25'});assert.equal(r.saves,0);
  assert.equal(r.AppData.suppliers[0].balance,20);assert.equal(r.AppData.caisseBalance,5);
  assert.equal(r.AppData.supplierMovements.length,1);assert.equal(r.AppData.cashMovements.length,0);
  assert.equal(r.AppData.settlementAllocations.length,0);
  console.log('PASS: supplier payment rejects insufficient cash without mutation');
 }
 {
- const r=runPayment({saveResult:false});assert.equal(r.AppData.suppliers[0].balance,20);
+ const r=await runPayment({saveResult:false});assert.equal(r.AppData.suppliers[0].balance,20);
  assert.equal(r.AppData.caisseBalance,100);assert.equal(r.AppData.supplierMovements.length,1);
  assert.equal(r.AppData.cashMovements.length,0);
  assert.deepEqual(r.identity,{supplier:true,supplierMovements:true,cashMovements:true,allocations:true},'rollback must preserve supplier and ledger array identities');
@@ -162,15 +157,33 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: failed supplier payment persistence restores both ledgers and preserves object identity');
 }
 {
- const r=runSupplierCreate();assert.equal(r.saves,1);assert.equal(r.AppData.suppliers[0].balance,12.35);
+ const r=await runPayment({durableResult:false});
+ assert.equal(r.AppData.suppliers[0].balance,20);
+ assert.equal(r.AppData.caisseBalance,100);
+ assert.equal(r.AppData.supplierMovements.length,1);
+ assert.equal(r.AppData.cashMovements.length,0);
+ assert.equal(r.AppData.settlementAllocations.length,0);
+ assert.equal(r.durableSaves,2,'failed payment and rollback each require a durable acknowledgement attempt');
+ assert.deepEqual(r.identity,{supplier:true,supplierMovements:true,cashMovements:true,allocations:true});
+ console.log('PASS: durable supplier-payment failure restores the original financial snapshot');
+}
+{
+ const r=await runSupplierCreate();assert.equal(r.saves,1);assert.equal(r.durableSaves,1);assert.equal(r.AppData.suppliers[0].balance,12.35);
  assert.equal(r.AppData.supplierMovements.length,1);assert.equal(r.AppData.supplierMovements[0].type,'opening_balance');
  assert.equal(r.AppData.supplierMovements[0].amount,12.35);
  console.log('PASS: supplier opening balance is recorded to centime precision');
 }
 {
- const r=runSupplierCreate({debt:'12.34',saveResult:false});assert.equal(r.AppData.suppliers.length,0);
+ const r=await runSupplierCreate({debt:'12.34',saveResult:false});assert.equal(r.AppData.suppliers.length,0);
  assert.equal(r.AppData.supplierMovements.length,0);
  console.log('PASS: failed supplier creation restores supplier and opening ledger');
+}
+{
+ const r=await runSupplierCreate({durableResult:false});
+ assert.equal(r.AppData.suppliers.length,0);
+ assert.equal(r.AppData.supplierMovements.length,0);
+ assert.equal(r.durableSaves,2,'supplier creation rollback must also be durably acknowledged');
+ console.log('PASS: durable supplier-creation failure restores the supplier and opening ledger');
 }
 {
  const ctx={};vm.createContext(ctx);
@@ -241,3 +254,4 @@ function runSupplierCreate({debt='12.345',saveResult=true}={}) {
  console.log('PASS: cloud and backup restore validate purchase settlement and preserve supplier ledger history');
 }
 console.log('Purchase and supplier centime ledger tests passed');
+})().catch(error => { console.error(error); process.exitCode = 1; });
