@@ -191,3 +191,21 @@ test('includes App Check in the reverse-ledger console config only when a site k
     await fs.rm(outDir, { recursive: true, force: true });
   }
 });
+
+
+test('live staging verification binds hosted ERP to the exact deployment SHA and r30 cache namespace', async () => {
+  const workflow = await fs.readFile(
+    path.join(rootDir, '.github/workflows/deploy-reverse-ledger-console-staging.yml'),
+    'utf8'
+  );
+  assert.ok(workflow.includes('DEPLOY_SHA: ${{ github.sha }}'),
+    'live verification must receive the exact GitHub deployment SHA');
+  assert.ok(workflow.includes('short_sha="${DEPLOY_SHA:0:7}"'),
+    'live verification must derive the build stamp from the deployment SHA');
+  assert.ok(workflow.includes(
+    'fetch_expect "/erp/" "exact deployed commit and r30 build stamp" "Build SHA: ${short_sha} | SW: r30 | Env: Staging"'
+  ), 'live ERP HTML must prove the exact deployed commit and r30 build stamp');
+  assert.ok(workflow.includes(
+    'fetch_expect "/erp/sw.js" "r30 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r30\';"'
+  ), 'live service worker must prove the expected r30 cache namespace');
+});
