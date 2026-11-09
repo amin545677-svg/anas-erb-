@@ -230,6 +230,12 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.waitForFunction(() => /ai-smoke|تم فتح الملف|صفوف/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ));
+  // CSV parsing also opens the review modal. Dismiss it before interacting
+  // with the import-type controls underneath the modal backdrop.
+  if (await page.locator('#smartImportPreviewModal').isVisible()) {
+    await page.locator('#smartImportCancel').evaluate(button => button.click());
+    await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
+  }
   await page.locator('[data-import-type="suppliers"]').click();
   await page.waitForFunction(() => document.querySelector('#smartImportTarget')?.value === 'suppliers',
     { timeout: 5000 });
