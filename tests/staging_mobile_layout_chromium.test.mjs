@@ -266,6 +266,12 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       const input = document.getElementById('smartAiExcelUpload');
       return !!view && view.classList.contains('active') && !!input && input.isConnected && !document.body.inert;
     }, { timeout: 10000 });
+    await page.waitForFunction(() => {
+      const engine = window.ANASAdvancedFinancialEngine;
+      return !!engine &&
+        typeof engine.classifyAndStageWorkbookSheets === 'function' &&
+        typeof engine.executeSafeMultiSheetImport === 'function';
+    }, { timeout: 15000 });
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[]]), 'Empty');
