@@ -217,6 +217,8 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // do not bypass the overlay with force-clicks.
   await page.locator('#smartImportCancel').evaluate(button => button.click());
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
+  assert.equal(await page.locator('#smartImportTarget').count(), 1,
+    'the stable import target must remain after preview dismissal');
 
   // Select the target while the smart-import panel is mounted. The legacy
   // target select is created inside the preview modal, so it must not be
@@ -257,7 +259,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.locator('#smartImportCancel').click();
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
 
-  // Real XLSX upload path: multiple non-empty sheets must be selectable before preview.
+  // Real XLSX upload path: verify the current atomic multi-sheet review UI.
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook,
     XLSX.utils.aoa_to_sheet([['name','stock','price'],['Widget XLSX',5,12]]), 'Products');
@@ -272,12 +274,28 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: xlsxBuffer
   });
-  await page.locator('#smartImportSheetPicker').waitFor({ state: 'visible' });
-  assert.match(await page.locator('#smartImportSheetPicker').innerText(), /2 sheet\(s\).*2 صف/);
-  assert.match(await page.locator('#smartImportSheetPicker').innerText(), /منتجات \(1\)/);
-  assert.equal(await page.locator('#smartImportSheetPicker [data-sheet-index]').count(), 2);
-  await page.locator('#smartImportSheetPicker [data-sheet-index="0"]').click();
-  await page.locator('#smartImportSheetContinue').evaluate(button => button.click());
+  await page.locator('#smartImportMultiSheetPreview').waitFor({ state: 'visible' });
+  const multiSheetText = await page.locator('#smartImportMultiSheetPreview').innerText();
+  assert.match(multiSheetText, /Products/);
+  assert.match(multiSheetText, /Notes/);
+  assert.equal(await page.locator('#smartImportMultiSheetPreview [data-multi-sheet-target]').count(), 2,
+    'every non-empty sheet must expose an explicit target selector');
+  await page.locator('#smartImportMultiCancel').click();
+  await page.locator('#smartImportMultiSheetPreview').waitFor({ state: 'detached' });
+
+  // Use a single-sheet workbook for the per-record review and backup proof.
+  const singleWorkbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(singleWorkbook,
+    XLSX.utils.aoa_to_sheet([['name','stock','price'],['Widget XLSX',5,12]]), 'Products');
+  const singleBuffer = XLSX.write(singleWorkbook, { type: 'buffer', bookType: 'xlsx' });
+  const singleChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
+  const singleChooser = await singleChooserPromise;
+  await singleChooser.setFiles({
+    name: 'single-sheet-smoke.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: singleBuffer
+  });
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportPreviewModal').innerText(), /Widget XLSX/);
 
@@ -285,7 +303,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // This proves the AI Center does more than parse and display a spreadsheet:
   // the row must enter AppData, be acknowledged by durable storage, and have a
   // verified pre-import snapshot before the modal reports success.
-  await page.locator('#smartImportTarget').selectOption('products');
+  await page.locator('#smartImportTargetSelect').selectOption('products');
   await page.locator('#smartImportConfirm').evaluate(button => button.click());
   await page.locator('#smartImportReview').getByText('Widget XLSX').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportReview').innerText(), /مطابقة كل البنود تلقائياً/);
@@ -348,6 +366,9 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // 4) Invoice OCR: clicking the action must open the actual OCR modal.
   await page.getByRole('button', { name: /مسح الفواتير بالذكاء الاصطناعي/ }).evaluate(button => button.click());
   await page.locator('#invoiceOcrModal').waitFor({ state: 'visible' });
+  const ocrFocusCss = await page.locator('style').evaluateAll(nodes => nodes.map(node => node.textContent || '').join('\n'));
+  assert.match(ocrFocusCss, /#invoiceOcrModal button:focus-visible[^}]*#1e3a8a/);
+  assert.doesNotMatch(ocrFocusCss, /#invoiceOcrModal button:focus-visible[^}]*#38bdf8/);
 
   // 5) Floating contextual assistant must not cover the ERP work surface.
   const assistantState = await page.evaluate(() => ({

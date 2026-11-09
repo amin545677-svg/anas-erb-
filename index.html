@@ -1329,7 +1329,7 @@ input:focus, select:focus, textarea:focus { border-color:#777a7e !important; box
 #invoiceOcrModal p{font-size:15px!important;line-height:1.9!important;color:#526176!important;margin:12px 0 18px!important}
 #invoiceOcrModal label{color:#18364b;line-height:1.7}
 #invoiceOcrModal button{min-height:48px;border-radius:13px!important;padding:11px 14px!important;font-size:15px!important;font-weight:800!important;white-space:normal;line-height:1.5;box-shadow:0 4px 12px #10253b12;touch-action:manipulation}
-#invoiceOcrModal button:focus-visible,#invoiceOcrModal select:focus-visible,#invoiceOcrModal textarea:focus-visible{outline:3px solid #38bdf8!important;outline-offset:2px}
+#invoiceOcrModal button:focus-visible,#invoiceOcrModal select:focus-visible,#invoiceOcrModal textarea:focus-visible{outline:3px solid #1e3a8a!important;outline-offset:2px}
 #invoiceOcrModal #invoiceOcrCamera+*,#invoiceOcrModal #invoiceOcrFile+*{max-width:100%}
 #invoiceOcrModal #invoiceOcrFileName{padding:10px 12px;background:#edf7fa;border:1px solid #c5e5e9;border-radius:12px;color:#075766!important;line-height:1.6}
 #invoiceOcrModal #invoiceOcrStatus{padding:11px 13px;background:#f1f5f9;border:1px solid #dbe4ee;border-radius:12px;line-height:1.7;overflow-wrap:anywhere}
@@ -2800,6 +2800,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 
         <!-- 14. مركز الإكسل والذكاء الاصطناعي الشامل (تحميل قوالب وتصدير واستيراد) -->
         <section id="view-ai-excel-hub" class="page-view">
+            <input type="hidden" id="smartImportTarget" value="auto" data-role="smart-import-target">
             <div class="sub-header-bar">
                 <button class="btn-arrow-back" onclick="anasGoBack()">‹</button>
                 <div class="sub-header-title">مركز الذكاء الاصطناعي | ANAS AI</div>
@@ -11678,8 +11679,19 @@ function wtAuditTransfers(){
 <button type="button" data-smart-import-target="customers" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">عملاء</button>
 <button type="button" data-smart-import-target="invoices" class="btn-full-submit" style="padding:8px;background:var(--mp-card,#fff);color:var(--mp-text);border:1px solid var(--mp-border)">فواتير</button>
 </div>
-<select id="smartImportTarget" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><label for="smartImportMode" style="display:block;margin:10px 0 4px;font-weight:700">طريقة الاستيراد</label><select id="smartImportMode" style="width:100%;padding:10px;margin:4px 0;background:var(--mp-card,#fff);color:var(--mp-text)"><option value="merge" selected>دمج آمن: إضافة وتحديث المطابق فقط</option><option value="replace">استبدال آمن: استبدال القائمة مع الاحتفاظ بسجلات المخزون والديون والفواتير المرتبطة</option></select><small style="display:block;color:var(--mp-text-muted);line-height:1.6">الاستبدال لا يحذف سجلاً مرتبطاً بحركة مالية أو مخزون أو فاتورة.</small><div id="smartImportReview" style="margin:8px 0"></div><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked disabled style="margin-top:4px"> تُنشأ لقطة احتياطية محلية تلقائياً قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
+<select id="smartImportTargetSelect" style="width:100%;padding:10px;margin:6px 0"><option value="">— اختر القسم الصحيح —</option><option value="products">المنتجات والمخزون</option><option value="customers">العملاء والديون</option><option value="suppliers">الموردون</option><option value="preview">المعاينة فقط دون استيراد</option></select><label for="smartImportMode" style="display:block;margin:10px 0 4px;font-weight:700">طريقة الاستيراد</label><select id="smartImportMode" style="width:100%;padding:10px;margin:4px 0;background:var(--mp-card,#fff);color:var(--mp-text)"><option value="merge" selected>دمج آمن: إضافة وتحديث المطابق فقط</option><option value="replace">استبدال آمن: استبدال القائمة مع الاحتفاظ بسجلات المخزون والديون والفواتير المرتبطة</option></select><small style="display:block;color:var(--mp-text-muted);line-height:1.6">الاستبدال لا يحذف سجلاً مرتبطاً بحركة مالية أو مخزون أو فاتورة.</small><div id="smartImportReview" style="margin:8px 0"></div><div id="smartImportValidation" role="status" style="font-size:13px;line-height:1.7;color:#92400e;margin:8px 0">لن يتم استيراد أي سجل قبل فحص الأعمدة والقيم. إذا اخترت قسمًا خاطئًا فسيُرفض الملف.</div><div id="smartImportBackupStatus" role="status" style="font-size:12px;line-height:1.7;color:#166534;margin:6px 0">ستُحفظ لقطة احتياطية محلية تلقائياً قبل اعتماد الاستيراد.</div><label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input id="smartImportBackupAck" type="checkbox" checked disabled style="margin-top:4px"> تُنشأ لقطة احتياطية محلية تلقائياً قبل الاستيراد</label><p style="font-size:12px;color:#92400e">يدعم الاستيراد الإضافة والتحديث (Upsert) بالكود أو الباركود أو اسم المنتج. تُرفض الصفوف غير الصالحة وتعارضات الهوية قبل الحفظ؛ لا تُستورد الفواتير من هذا المسار لتجنب إفساد الحسابات.</p><button id="smartImportConfirm" class="btn-full-submit" style="background:#0f766e">فحص الملف ثم تأكيد الاستيراد</button><button id="smartImportCancel" class="btn-full-submit" style="background:#64748b;margin-top:8px">إغلاق دون تغيير</button></div>`;
             document.body.appendChild(box);
+            const persistentImportTarget = document.getElementById('smartImportTarget');
+            const modalImportTarget = box.querySelector('#smartImportTargetSelect');
+            const syncPersistentImportTarget = value => {
+                if (!persistentImportTarget || !value) return;
+                persistentImportTarget.value = value;
+                persistentImportTarget.dispatchEvent(new Event('input', { bubbles: true }));
+                persistentImportTarget.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+            if (modalImportTarget) {
+                modalImportTarget.addEventListener('change', () => syncPersistentImportTarget(modalImportTarget.value));
+            }
             box.querySelector('#smartImportBackupAck').checked=true;
             box.querySelectorAll('[data-smart-import-target]').forEach(button=>{
                 button.addEventListener('click',()=>{
@@ -11688,7 +11700,8 @@ function wtAuditTransfers(){
                         box.querySelector('#smartImportValidation').textContent='⚠️ استيراد الفواتير يحتاج قالباً محاسبياً مستقلاً يربط قيود الصندوق والمخزون والديون. لم نفعّل استيراداً عاماً قد يغيّر الأرصدة خطأً.';
                         return;
                     }
-                    box.querySelector('#smartImportTarget').value=target;
+                    box.querySelector('#smartImportTargetSelect').value=target;
+                    syncPersistentImportTarget(target);
                     box.querySelectorAll('[data-smart-import-target]').forEach(x=>x.style.outline=x===button?'2px solid var(--mp-accent,#2563eb)':'none');
                 });
             });
@@ -11726,7 +11739,8 @@ function wtAuditTransfers(){
                 ].sort((a,b)=>b.score-a.score);
                 const best=candidates[0], second=candidates[1];
                 if(best.required && best.score>=5 && best.score>second.score){
-                    box.querySelector('#smartImportTarget').value=best.target;
+                    box.querySelector('#smartImportTargetSelect').value=best.target;
+                    syncPersistentImportTarget(best.target);
                     st.textContent='🧠 اقتراح محلي دون اتصال: '+best.label+'\\nمطابقة الأعمدة: '+Object.entries(mapping).map(([field,header])=>header+' ← '+field).join('، ')+'\\nراجع الاقتراح والحقول يدوياً قبل الاستيراد.';
                 }else{
                     st.textContent='🧠 التحليل المحلي لم يصل إلى تطابق موثوق. اختر القسم يدوياً. العناوين المقروءة: '+headers.join('، ');
@@ -11739,16 +11753,17 @@ function wtAuditTransfers(){
             // name/qty header; that suggestion must not silently override a manual choice.
             box.querySelector('#smartImportAiAnalyze').click();
             const explicitImportType = window.ANAS_AI_IMPORT_CONTEXT?.entityType;
-            const importTarget = box.querySelector('#smartImportTarget');
+            const importTarget = box.querySelector('#smartImportTargetSelect');
             if (explicitImportType && explicitImportType !== 'auto' &&
                 Array.from(importTarget?.options || []).some(option => option.value === explicitImportType)) {
                 importTarget.value = explicitImportType;
+                syncPersistentImportTarget(explicitImportType);
                 importTarget.dispatchEvent(new Event('input', { bubbles: true }));
                 importTarget.dispatchEvent(new Event('change', { bubbles: true }));
             }
             box.querySelector('#smartImportCancel').onclick=()=>box.remove();
             box.querySelector('#smartImportConfirm').onclick=async()=>{
-                const target=box.querySelector('#smartImportTarget').value;
+                const target=box.querySelector('#smartImportTargetSelect').value;
                 const validation=box.querySelector('#smartImportValidation');
                 if(target==='preview'){box.remove();return;}
                 if(!target){validation.textContent='❌ اختر القسم الصحيح أولاً.';return;}

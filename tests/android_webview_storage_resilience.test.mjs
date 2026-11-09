@@ -965,3 +965,76 @@ test('synchronous mirror removal refuses to orphan the authoritative IndexedDB E
     localMirrorPreserved: true, durableSnapshotPreserved: true, invoice: '12500' });
   await context.close();
 });
+
+test('safeUpdateAppUI refreshes the shell without changing IndexedDB or LocalStorage snapshots', async () => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    let updateCalls = 0;
+    const registration = { waiting: null, installing: null, update: async () => { updateCalls += 1; } };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistration: async () => registration,
+        register: async () => { throw new Error('register should not be needed in this test'); },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        get __updateCalls() { return updateCalls; }
+      }
+    });
+  });
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.setContent('<!doctype html><html><body><button id="anasSafeUpdateButton">Update</button><div id="anasSafeUpdateStatus"></div></body></html>');
+  const baseline = await page.evaluate(async () => {
+    const localPayload = JSON.stringify({ invoices: [{ id: 'SAFE-UPDATE-INV-1', totalCentimes: '5900000' }], stock: [{ id: 'SAFE-UPDATE-SKU-1', quantity: 7 }] });
+    localStorage.setItem('ANAS_ERP_SAFE_UPDATE_TEST', localPayload);
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('anas-safe-update-preservation-test', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('snapshots');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('snapshots', 'readwrite');
+      tx.objectStore('snapshots').put({ payload: localPayload, revision: 17 }, 'ERP');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+    return localPayload;
+  });
+  await page.addScriptTag({ path: path.join(ROOT, 'safe-update-ui.js') });
+  await page.evaluate(async () => { await window.safeUpdateAppUI(); });
+  const after = await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('anas-safe-update-preservation-test', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const record = await new Promise((resolve, reject) => {
+      const tx = db.transaction('snapshots', 'readonly');
+      const request = tx.objectStore('snapshots').get('ERP');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return {
+      localPayload: localStorage.getItem('ANAS_ERP_SAFE_UPDATE_TEST'),
+      indexedDbPayload: record?.payload,
+      revision: record?.revision,
+      status: document.getElementById('anasSafeUpdateStatus').textContent,
+      buttonEnabled: !document.getElementById('anasSafeUpdateButton').disabled,
+      updateCalls: navigator.serviceWorker.__updateCalls
+    };
+  });
+  assert.deepEqual(after, {
+    localPayload: baseline,
+    indexedDbPayload: baseline,
+    revision: 17,
+    status: 'الواجهة محدّثة بالفعل. لم تتغير بياناتك.',
+    buttonEnabled: true,
+    updateCalls: 1
+  });
+  await context.close();
+});

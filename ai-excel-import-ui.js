@@ -66,9 +66,16 @@
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
-      const targetSelect = document.getElementById('smartImportTarget');
+      const persistentTarget = document.getElementById('smartImportTarget');
+      if (persistentTarget) {
+        persistentTarget.value = type;
+        persistentTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        persistentTarget.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const targetSelect = document.getElementById('smartImportTargetSelect');
       if (type !== 'auto' && targetSelect && Array.from(targetSelect.options || []).some(function (option) { return option.value === type; })) {
         targetSelect.value = type;
+        targetSelect.dispatchEvent(new Event('input', { bubbles: true }));
         targetSelect.dispatchEvent(new Event('change', { bubbles: true }));
       }
       window.dispatchEvent(new CustomEvent('anas:import-target-selected', {
@@ -148,12 +155,19 @@
         inventory: ['مخزون', 'المخزون', 'inventory', 'stock']
       };
       const wanted = aliases[selectedType] || [];
-      const directTarget = document.getElementById('smartImportTarget');
+      const persistentTarget = document.getElementById('smartImportTarget');
+      const directTarget = document.getElementById('smartImportTargetSelect');
       if (directTarget && Array.from(directTarget.options || []).some(function (option) { return option.value === selectedType; })) {
         directTarget.value = selectedType;
+        directTarget.dispatchEvent(new Event('input', { bubbles: true }));
         directTarget.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
       }
+      if (persistentTarget) {
+        persistentTarget.value = selectedType;
+        persistentTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        persistentTarget.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (directTarget || persistentTarget) return true;
       const scopes = Array.from(document.querySelectorAll('[id*="smartImport"],[class*="smartImport"],[role="dialog"]'));
       const selects = scopes.reduce(function (all, scope) {
         return all.concat(Array.from(scope.querySelectorAll('select')));
