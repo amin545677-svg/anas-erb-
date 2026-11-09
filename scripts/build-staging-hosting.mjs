@@ -36,6 +36,7 @@ const ERP_FILES = [
   'sync/mutation_reconciliation.mjs',
   'sync/mutation_keys.mjs',
   'sync/v42_transactional_bridge.mjs',
+  'sync/v42-prepared-recovery-runtime.mjs',
   'core/sovereign-kernel.mjs',
   'safe-update-ui.js'
 ];
@@ -227,7 +228,7 @@ export async function buildStagingHosting(options = {}) {
   if (stagedHtml.split(stamp).length - 1 !== 1) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
-  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r31 | Env: Staging');
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r32 | Env: Staging');
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
