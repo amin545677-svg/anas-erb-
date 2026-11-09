@@ -42,6 +42,24 @@ export async function runV42PreparedRecovery(global = window) {
       throw new Error("ANAS_RESILIENT_STORAGE_NOT_READY");
     }
 
+    const persistedAppData = storage.getItem(MUTATION_KEYS.appData);
+    if (persistedAppData == null) {
+      const rawQueue = storage.getItem(MUTATION_KEYS.pending);
+      const queue = rawQueue == null || rawQueue === ""
+        ? []
+        : JSON.parse(typeof rawQueue === "string" ? rawQueue : JSON.stringify(rawQueue));
+      if (!Array.isArray(queue)) throw new Error("ANAS_PENDING_MUTATION_QUEUE_INVALID");
+      const remainingPrepared = queue.filter(item => item?.status === "PREPARED").length;
+      // Fresh installs and isolated UI tests may not have an AppData snapshot yet.
+      // Never report that as a boot failure or mutate a journal without its proof.
+      return Object.freeze({
+        status: remainingPrepared ? "deferred-missing-appdata" : "skipped-no-appdata",
+        recovered: 0,
+        aborted: 0,
+        remainingPrepared
+      });
+    }
+
     const adapter = makeRecoveryStorage(storage);
     const result = recoverPreparedMutationsOnBoot(adapter);
     if (result.remainingPrepared !== 0) {
