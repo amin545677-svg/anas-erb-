@@ -3,8 +3,7 @@ import vm from 'node:vm';
 const file = 'index.html';
 let html = fs.readFileSync(file, 'utf8');
 const before = Buffer.byteLength(html, 'utf8');
-if (html.includes('id="anas-pos-reference-ui-v1"') &&
-    html.includes('id="anasPosProductViewToggle"') &&
+if (html.includes('id="anas-pos-search-first-v1"') &&
     html.includes('function setAnasPosProductView(mode)') &&
     html.includes("label: 'سعر التجزئة (الدفعة)'")) {
   console.log('POS reference UI is already integrated in index.html.');
@@ -49,6 +48,10 @@ const replacement = [
 '        function renderQuickProducts() {',
 "            const cont = document.getElementById('quickProductsContainer');",
 '            if (!cont) return;',
+'            cont.replaceChildren(); cont.hidden = true;',
+"            ['posCategoryTabs', 'posStockFilterChips', 'anasPosProductViewToggle', 'posQuickProductsProgress'].forEach(id => { const node = document.getElementById(id); if (node) node.hidden = true; });",
+"            const empty = document.getElementById('posQuickProductsEmpty'); if (empty) empty.hidden = true;",
+'            return;',
 '            const products = Array.isArray(AppData.products) ? AppData.products : [];',
 '            const core = window.ANASMicroPOSCore;',
 '            const selectedCategory = currentPosCategoryFilter;',
@@ -156,9 +159,21 @@ if (!html.includes('id="anas-pos-reference-ui-v1"')) {
   if (headClose < 0) throw new Error('HTML_HEAD_CLOSE_NOT_FOUND');
   html = html.slice(0, headClose) + style + html.slice(headClose);
 }
+const searchFirstStyle = '<style id="anas-pos-search-first-v1">\\n' +
+'  #posCategoryTabs,#posStockFilterChips,#anasPosProductViewToggle,#posQuickProductsProgress,#quickProductsContainer,#posQuickProductsEmpty{display:none!important}\\n' +
+'  #posSearchField{min-height:48px;font-size:16px;touch-action:manipulation}\\n' +
+'  #posSearchResults{display:block;min-width:0}\\n' +
+'  #posSearchResults .pos-search-result{min-height:56px;touch-action:manipulation}\\n' +
+'</style>\\n';
+if (!html.includes('id="anas-pos-search-first-v1"')) {
+  const headClose = html.indexOf('</head>');
+  if (headClose < 0) throw new Error('POS_SEARCH_FIRST_HEAD_CLOSE_NOT_FOUND');
+  html = html.slice(0, headClose) + searchFirstStyle + html.slice(headClose);
+}
 if (html === fs.readFileSync(file, 'utf8')) throw new Error('POS_REFERENCE_PATCH_DID_NOT_CHANGE_HTML');
 if (!html.includes('function setAnasPosProductView(mode)') || !html.includes('id="anasPosProductViewToggle"') ||
-    !html.includes('id="anas-pos-reference-ui-v1"') || !html.includes('سعر البيع — ')) {
+    !html.includes('id="anas-pos-reference-ui-v1"') || !html.includes('id="anas-pos-search-first-v1"') ||
+    !html.includes('سعر البيع — ')) {
   throw new Error('POS_REFERENCE_PATCH_POSTCONDITION_FAILED');
 }
 fs.writeFileSync(file, html, 'utf8');
