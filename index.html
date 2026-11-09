@@ -3515,10 +3515,18 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const tier = [1, 2, 3].includes(Number(AppData.activePriceTier))
                     ? Number(AppData.activePriceTier) : 1;
                 const engine = window.ANASMicroPOSEngine;
-                const price = engine && typeof engine.resolveProductPrice === 'function'
-                    ? engine.resolveProductPrice(product, tier)
-                    : (tier === 2 ? (product.price2 ?? product.price1)
-                        : tier === 3 ? (product.price3 ?? product.price1) : product.price1);
+                let price = null;
+                try {
+                    price = engine && typeof engine.resolveProductPrice === 'function'
+                        ? engine.resolveProductPrice(product, tier)
+                        : (tier === 2 ? (product.price2 ?? product.price1)
+                            : tier === 3 ? (product.price3 ?? product.price1) : product.price1);
+                } catch (_) {
+                    // Legacy products can exist without a sale price; keep rendering safe and block checkout for that card.
+                    price = null;
+                }
+                const priceValid = price !== null && price !== undefined && price !== '' &&
+                    Number.isFinite(Number(price)) && Number(price) >= 0;
                 const stock = Number(product.stock ?? product.quantity) || 0;
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -3531,10 +3539,16 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 name.textContent = String(product.name ?? product.title ?? 'منتج بلا اسم');
                 const detail = document.createElement('small');
                 detail.textContent = String(stock) + ' ' + String(product.unit || '') +
-                    ' | ' + String(Number(price) || 0) + ' د.ج';
+                    ' | ' + (priceValid ? Number(price).toLocaleString('fr-DZ') + ' د.ج' : 'سعر غير محدد');
                 button.append(name, detail);
-                button.title = String(product.name ?? '') + ' - ' + String(Number(price) || 0) + ' د.ج';
-                button.addEventListener('click', () => addItemToPosCart(product.id));
+                button.disabled = !priceValid || stock <= 0;
+                button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
+                button.title = priceValid
+                    ? String(product.name ?? '') + ' - ' + Number(price).toLocaleString('fr-DZ') + ' د.ج'
+                    : 'يجب تحديد سعر بيع صالح قبل إضافة هذا الصنف';
+                if (priceValid && stock > 0) {
+                    button.addEventListener('click', () => addItemToPosCart(product.id));
+                }
                 return button;
             };
             const renderer = window.__anasPosProgressiveRenderer;
