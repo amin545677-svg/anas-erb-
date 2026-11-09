@@ -266,5 +266,7 @@ jobs:
           fetch_expect "/erp/sw.js" "r32 service-worker cache namespace" "const CACHE = 'anas-erp-v54-25-r32';"
           fetch_expect "/erp/sw.js" "ERP offline service worker" "android-resilient-storage.js"
           fetch_expect "/erp/storage/android-resilient-storage.js" "IndexedDB resilient storage module" "IndexedDB"
+          fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"
+          fetch_expect "/erp/arabic-query-engine.js" "Arabic POS search collation" "Intl.Collator"
           echo "PASS: full staging ERP/POS PWA, offline storage assets, reverse-ledger console and staging-only Firebase configuration are live."
 # 2026-11-05: retrigger isolated staging deployment after staging credential refresh.
