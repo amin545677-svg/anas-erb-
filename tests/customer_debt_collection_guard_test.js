@@ -314,7 +314,7 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
 }
 console.log('PASS: duplicate customer debt collection is blocked while durable persistence is in flight');
 
-assert.match(html, /typeof window\\.saveDBDurably === 'function'/,
+assert.match(html, /typeof window\.saveDBDurably === 'function'/,
   'global application bridge readiness must require durable persistence');
 console.log('PASS: global application bridge readiness requires durable persistence');
 })().catch(error => { console.error(error); process.exitCode = 1; });
