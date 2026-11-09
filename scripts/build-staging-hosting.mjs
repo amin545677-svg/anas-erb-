@@ -203,7 +203,7 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = insertBeforeDocumentHeadClose(stagedHtml,
     '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n  ');
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>\n  ');
+    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
