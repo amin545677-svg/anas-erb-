@@ -124,6 +124,21 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
     // Keep the sorted catalogue visible; cart-only persistence must not replace its DOM.
     await page.evaluate(() => openView('pos'));
+    const gridDiagnostic = await page.evaluate(() => {
+      const container = document.getElementById('quickProductsContainer');
+      const empty = document.getElementById('posQuickProductsEmpty');
+      return {
+        productCount: Array.isArray(AppData.products) ? AppData.products.length : -1,
+        productIds: Array.isArray(AppData.products) ? AppData.products.map(item => String(item.id)) : [],
+        gridHidden: container?.hidden ?? null,
+        gridChildCount: container?.children.length ?? -1,
+        emptyHidden: empty?.hidden ?? null,
+        emptyText: empty?.textContent || '',
+        categoryTabsHidden: document.getElementById('posCategoryTabs')?.hidden ?? null,
+        stockChipsHidden: document.getElementById('posStockFilterChips')?.hidden ?? null
+      };
+    });
+    console.log('POS_GRID_DIAGNOSTIC ' + JSON.stringify(gridDiagnostic));
     const productContainer = page.locator('#quickProductsContainer');
     await page.locator('#quickProductsContainer button').first().waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await productContainer.isHidden(), false,
