@@ -30,7 +30,7 @@ root.handlePosSearch=function(query){
  const products=Array.isArray(AppData&&AppData.products)?AppData.products:[];
  const matches=products.map((p,index)=>({p,index,score:anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
   .filter(x=>anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
-  .sort((a,b)=>b.score-a.score||productNameCollator.compare(String(a.p.name||''),String(b.p.name||''))||String(a.p.id??'').localeCompare(String(b.p.id??''),'en',{numeric:true})||a.index-b.index).slice(0,12);
+  .sort((a,b)=>productNameCollator.compare(String(a.p.name||''),String(b.p.name||''))||String(a.p.id??'').localeCompare(String(b.p.id??''),'en',{numeric:true})||a.index-b.index).slice(0,12);
  results.replaceChildren();
  if(!matches.length){const empty=document.createElement('div');empty.className='pos-search-empty';empty.textContent='لا توجد منتجات مطابقة';results.appendChild(empty);results.hidden=false;return;}
  matches.forEach(({p})=>{const button=document.createElement('button');button.type='button';button.className='pos-search-result';button.setAttribute('role','option');
