@@ -601,6 +601,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
         cashRows: cash.length, cashAmount: cash[0] && cash[0].amount };
     });
     assert.deepEqual(partialProof, { paid: 12.5, remaining: 12.5, customerDebt: 12.5, cashRows: 1, cashAmount: 12.5 });
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'cashier must explicitly finish the partial-payment receipt before starting the next sale');
 
     // Full credit must create customer debt without adding cash to the cashbox.
     await page.evaluate(() => openView('pos'));
@@ -630,6 +633,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
         cashRows: cash.length, cashBalance: s.caisseBalance };
     });
     assert.deepEqual(creditProof, { paid: 0, remaining: 25, customerDebt: 37.5, cashRows: 0, cashBalance: 100012.5 });
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'cashier must explicitly finish the credit-sale receipt before leaving POS');
 
     // Driver advance acceptance with an empty cashbox must persist without a cash deduction.
     const beforeExpenseSetupRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
