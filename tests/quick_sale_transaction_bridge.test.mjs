@@ -22,7 +22,7 @@ function createButton() {
 }
 
 function createHarness() {
-  const buttons = [createButton(), createButton(), createButton(), createButton()];
+  const buttons = [createButton(), createButton(), createButton()];
   const row = { querySelectorAll: selector => selector === 'button' ? buttons : [] };
   const box = { querySelectorAll: selector => selector === '.qs-cartrow' ? [row] : [] };
   const calls = [];
@@ -61,6 +61,6 @@ test('quick-sale cart removes legacy inline splice handlers and delegates row ac
   assert.ok(h.buttons.every(button => button.removed && button.onclick === null));
   h.buttons[0].click();
   h.buttons[1].click();
-  h.buttons[3].click();
+  h.buttons[2].click();
   assert.deepEqual(h.calls, [['qty', 0, -1], ['qty', 0, 1], ['remove', 0]]);
 });
