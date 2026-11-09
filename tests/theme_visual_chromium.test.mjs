@@ -95,6 +95,11 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
         brandText: getComputedStyle(brand).color,
         cardGradient: getComputedStyle(card).backgroundImage,
         navGradient: getComputedStyle(document.querySelector('.top-navbar')).backgroundImage,
+        navBackground: (() => {
+          const nav = document.querySelector('.top-navbar');
+          const color = getComputedStyle(nav).backgroundColor;
+          return color === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.body).backgroundColor : color;
+        })(),
         pressed: document.querySelector('#anasThemeQuickToggle').getAttribute('aria-pressed'),
         stored: localStorage.getItem('ANAS_ERP_THEME')
       };
@@ -102,9 +107,9 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
     assert.equal(visual.pressed, 'true');
     assert.equal(visual.stored, 'dark');
     assert.match(visual.cardGradient, /rgb\(27,\s*41,\s*64\)/i, 'dark dashboard card gradient must be active');
-    assert.match(visual.navGradient, /rgb\(7,\s*89,\s*133\)/i, 'ANAS sky-blue navigation gradient must be active');
+    assert.equal(visual.navGradient, 'none', 'navigation must use the calm solid theme surface, not a distracting cyan gradient');
     assert.ok(contrast(visual.cardText, 'rgb(27, 41, 64)') >= 4.5, 'dashboard title must meet WCAG AA against its rendered gradient stop');
-    assert.ok(contrast(visual.brandText, 'rgb(7, 89, 133)') >= 4.5, 'navigation brand must meet WCAG AA against its rendered gradient stop');
+    assert.ok(contrast(visual.brandText, visual.navBackground) >= 4.5, 'navigation brand must meet WCAG AA against its actual rendered surface');
 
     const arabicControl = await page.evaluate(() => {
       const fixture = document.createElement('div');

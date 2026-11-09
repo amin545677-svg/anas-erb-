@@ -10,7 +10,9 @@ const styleStart = source.lastIndexOf(marker);
 const styleEnd = source.indexOf("</style>", styleStart);
 assert.notEqual(styleStart, -1, "document-level Firebase responsive CSS must exist");
 assert.ok(styleEnd > styleStart, "responsive CSS style block must be complete");
-assert.ok(styleStart > source.lastIndexOf("</script>"), "responsive CSS must be outside inline JavaScript strings");
+const lastScriptOpen = source.lastIndexOf("<script", styleStart);
+const lastScriptClose = source.lastIndexOf("</script>", styleStart);
+assert.ok(lastScriptClose > lastScriptOpen, "responsive CSS must be outside inline JavaScript strings");
 assert.ok(styleStart < source.lastIndexOf("</body>"), "responsive CSS must be inside the live document");
 const css = source.slice(styleStart, styleEnd + "</style>".length);
 

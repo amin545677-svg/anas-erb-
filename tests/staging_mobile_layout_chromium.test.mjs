@@ -277,11 +277,24 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer: xlsxBuffer
     });
-    await page.locator('#smartImportSheetPicker').waitFor({ state: 'visible' });
-    assert.equal(await page.locator('#smartImportSheetChoice option').count(), 2,
-      'Excel import must expose every non-empty sheet when multiple sheets contain data');
-    await page.locator('#smartImportSheetChoice').selectOption({ label: 'Products — 6 صف' });
-    await page.locator('#smartImportSheetContinue').click();
+    await page.locator('#smartImportMultiSheetPreview').waitFor({ state: 'visible' });
+    const multiSheetText = await page.locator('#smartImportMultiSheetPreview').innerText();
+    assert.match(multiSheetText, /Products/);
+    assert.match(multiSheetText, /Notes/);
+    assert.equal(await page.locator('#smartImportMultiSheetPreview [data-multi-sheet-target]').count(), 2,
+      'every non-empty workbook sheet must expose an explicit target selector');
+    await page.locator('#smartImportMultiCancel').click();
+    await page.locator('#smartImportMultiSheetPreview').waitFor({ state: 'detached' });
+
+    // Review and commit a separate single-sheet workbook through the production flow.
+    const singleWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(singleWorkbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
+    const singleBuffer = XLSX.write(singleWorkbook, { type: 'buffer', bookType: 'xlsx' });
+    await page.locator('#smartAiExcelUpload').setInputFiles({
+      name: 'ANAS_ERP_5_products_single.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: singleBuffer
+    });
     await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#smartImportTarget').inputValue(), 'products',
       'product columns must auto-select products and inventory');
