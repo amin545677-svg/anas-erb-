@@ -74,7 +74,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r30/, 'built PWA must install the r30 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r31/, 'built PWA must install the r30 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
@@ -207,6 +207,6 @@ test('live staging verification binds hosted ERP to the exact deployment SHA and
     'fetch_expect "/erp/" "exact deployed commit and r30 build stamp" "Build SHA: ${short_sha} | SW: r30 | Env: Staging"'
   ), 'live ERP HTML must prove the exact deployed commit and r30 build stamp');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/sw.js" "r30 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r30\';"'
+    'fetch_expect "/erp/sw.js" "r30 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r31\';"'
   ), 'live service worker must prove the expected r30 cache namespace');
 });
