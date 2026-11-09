@@ -18,6 +18,7 @@ on:
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
       - ".github/workflows/staging-test-gate.yml"
+      - ".github/workflows/pos-reference-ui-integration.yml"
       - ".github/workflows/anas-erp-safety-checks.yml"
       - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
   push:
@@ -41,6 +42,7 @@ on:
       - "firebase/firestore.reverse-ledger.rules"
       - "cloudflare/worker_reverse_ledger.js"
       - ".github/workflows/staging-test-gate.yml"
+      - ".github/workflows/pos-reference-ui-integration.yml"
       - ".github/workflows/anas-erp-safety-checks.yml"
       - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
   workflow_dispatch:
