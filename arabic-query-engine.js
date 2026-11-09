@@ -22,6 +22,9 @@ function anasQueryScore(fields,query){
  const values=(Array.isArray(fields)?fields:[fields]).map(anasNormalizeQueryText);
  if(values.some(v=>v===q))return 100;if(values.some(v=>v.startsWith(q)))return 70;if(values.some(v=>v.includes(q)))return 50;return 10;
 }
+function anasCompareProductNames(left,right){
+ return productNameCollator.compare(anasNormalizeQueryText(left),anasNormalizeQueryText(right));
+}
 
 root.normalizePosSearch=anasNormalizeQueryText;
 root.handlePosSearch=function(query){
@@ -41,6 +44,6 @@ root.handlePosSearch=function(query){
  results.hidden=false;
 };
 
-root.anasNormalizeQueryText=anasNormalizeQueryText;root.anasQueryMatches=anasQueryMatches;root.anasQueryScore=anasQueryScore;
-if(typeof module!=='undefined'&&module.exports)module.exports={anasNormalizeQueryText,anasQueryMatches,anasQueryScore};
+root.anasNormalizeQueryText=anasNormalizeQueryText;root.anasQueryMatches=anasQueryMatches;root.anasQueryScore=anasQueryScore;root.anasCompareProductNames=anasCompareProductNames;
+if(typeof module!=='undefined'&&module.exports)module.exports={anasNormalizeQueryText,anasQueryMatches,anasQueryScore,anasCompareProductNames};
 })(typeof window!=='undefined'?window:globalThis);

@@ -3949,19 +3949,25 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 
         // Stable Arabic product ordering shared by POS search and inventory presentation.
         function sortProductsDeterministically(products) {
+            const collator = window.anasCompareProductNames
+                ? { compare: window.anasCompareProductNames }
+                : new Intl.Collator('ar-DZ', { sensitivity: 'base', numeric: true });
             return [...(Array.isArray(products) ? products : [])].sort((a, b) => {
                 const nameA = String(a?.name || a?.title || '').trim();
                 const nameB = String(b?.name || b?.title || '').trim();
-                const cmp = nameA.localeCompare(nameB, 'ar', { sensitivity: 'base', numeric: true });
+                const cmp = collator.compare(nameA, nameB);
                 if (cmp !== 0) return cmp;
-                return String(a?.id || '').localeCompare(String(b?.id || ''));
+                return String(a?.id ?? '').localeCompare(String(b?.id ?? ''), 'en', { numeric: true });
             });
         }
 
         // بحث البيع: يعرض اقتراحات واضحة ولا يضيف السلعة تلقائياً أثناء الكتابة.
         let posSearchActiveIndex = -1;
         function normalizePosSearch(value) {
-            return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ar').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').trim();
+            if (typeof window.anasNormalizeQueryText === 'function') return window.anasNormalizeQueryText(value);
+            return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ar')
+                .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+                .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
         }
         function handlePosSearch(query) {
             const input = document.getElementById('posSearchField');
@@ -8569,7 +8575,7 @@ function wtAuditTransfers(){
                 categories.forEach(value => categorySelect.add(new Option(value, value)));
                 categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : 'ALL';
             }
-            const visibleProducts = (core ? core.filterInventoryItems(products, { query: search, status, category: selectedCategory }) : products).slice().sort((a,b) => String(a.name || a.title || '').localeCompare(String(b.name || b.title || ''), 'ar', { sensitivity: 'base', numeric: true }));
+            const visibleProducts = sortProductsDeterministically(core ? core.filterInventoryItems(products, { query: search, status, category: selectedCategory }) : products);
             const count = document.getElementById('inventoryUnifiedCount');
             if (count) count.textContent = 'النتائج: ' + visibleProducts.length + ' من ' + products.length + ' منتج';
             const suppliers = Array.isArray(AppData.suppliers) ? AppData.suppliers : [];
@@ -12599,7 +12605,21 @@ function wtAuditTransfers(){
             if (typeof checkSystemAlerts === 'function') window.checkSystemAlerts = checkSystemAlerts;
             if (typeof updateDashboardStats === 'function') window.updateDashboardStats = updateDashboardStats;
             if (typeof renderQuickProducts === 'function') window.renderQuickProducts = renderQuickProducts;
-            window.__ANAS_APP_BRIDGE_READY__ = !!window.AppData && typeof window.openView === 'function';
+            // Stable public facade over the existing BigInt-backed integer-centime engine.
+            // Persisted invoice and ledger objects retain their established numeric shape.
+            window.ANASFinancialIntegerEngine = Object.freeze({
+                toCents: anasToCents, toQtyUnits: anasToQtyUnits,
+                centsToCurrency: anasCentsToCurrency, qtyFromUnits: anasQtyFromUnits,
+                lineTotalCents: anasLineTotalCents,
+                cartSubtotalCents: anasCartSubtotalCents, cartTotalCents: anasCartTotalCents
+            });
+            if (typeof confirmHasibPaymentDurable === 'function') window.confirmHasibPaymentDurable = confirmHasibPaymentDurable;
+            if (typeof collectCustDebt === 'function') window.collectCustDebt = collectCustDebt;
+            if (typeof saveDB === 'function') window.saveDB = saveDB;
+            if (typeof saveDBDurably === 'function') window.saveDBDurably = saveDBDurably;
+            window.__ANAS_APP_BRIDGE_READY__ = !!window.AppData && typeof window.openView === 'function' &&
+                !!window.ANASFinancialIntegerEngine && typeof window.confirmHasibPaymentDurable === 'function' &&
+                typeof window.saveDB === 'function';
         } catch (error) {
             console.error('ANAS global application bridge initialization failed:', error);
         }

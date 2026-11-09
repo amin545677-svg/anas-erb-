@@ -10,11 +10,12 @@ assert.match(html, /<script\b[^>]*src=["']\.\/?arabic-query-engine\.js["'][^>]*>
 assert.match(html, /<script\b[^>]*src=["']\.\/?customer-debt-protection\.js["'][^>]*><\/script>/i,
   'index.html must load the standalone customer debt protection module');
 
-const { anasNormalizeQueryText, anasQueryMatches, anasQueryScore } = require('../arabic-query-engine.js');
+const { anasNormalizeQueryText, anasQueryMatches, anasQueryScore, anasCompareProductNames } = require('../arabic-query-engine.js');
 const debt = require('../customer-debt-protection.js');
 
 test('normalizes Arabic alef variants, diacritics and tatweel', () => {
   assert.equal(anasNormalizeQueryText('إِبْرَاهِيمـ'), 'ابراهيم');
+  assert.equal(anasNormalizeQueryText('ٱلْمَدْرَسَة ١٢'), 'المدرسه 12');
 });
 test('normalizes ta marbuta and ya variants for Algerian POS search', () => {
   assert.equal(anasNormalizeQueryText('مدرسة هدى'), 'مدرسه هدي');
@@ -23,6 +24,8 @@ test('POS product results use Arabic collation and deterministic ID tie-breaking
   const source = readFileSync(new URL('../arabic-query-engine.js', import.meta.url), 'utf8');
   assert.ok(source.includes("new Intl.Collator('ar-DZ',{sensitivity:'base',numeric:true})"));
   assert.ok(source.includes('productNameCollator.compare'));
+  assert.ok(source.includes('function anasCompareProductNames'));
+  assert.equal(anasCompareProductNames('منتج 2', 'منتج 10') < 0, true);
   assert.ok(source.includes("localeCompare(String(b.p.id"));
 });
 
@@ -108,4 +111,14 @@ test('Arabic query engine is wired into customer debt, supplier debt, invoices, 
   assert.ok(html.includes('window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q)'));
   assert.ok(html.includes("window.anasQueryMatches([row.textContent || ''], q)"));
   assert.ok(html.includes("window.anasQueryMatches([node.textContent || ''], q)"));
+});
+
+test('legacy POS and inventory paths use the shared Arabic and financial facades', () => {
+  assert.match(html, /window\.anasNormalizeQueryText\(value\)/);
+  assert.match(html, /window\.anasCompareProductNames/);
+  assert.match(html, /const visibleProducts = sortProductsDeterministically\(/);
+  assert.match(html, /ANASFinancialIntegerEngine = Object\.freeze/);
+  assert.match(html, /window\.confirmHasibPaymentDurable = confirmHasibPaymentDurable/);
+  assert.match(html, /window\.saveDB = saveDB/);
+  assert.match(html, /window\.collectCustDebt = collectCustDebt/);
 });
