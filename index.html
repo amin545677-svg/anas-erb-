@@ -3869,6 +3869,17 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             });
         }
 
+        // Stable Arabic product ordering shared by POS search and inventory presentation.
+        function sortProductsDeterministically(products) {
+            return [...(Array.isArray(products) ? products : [])].sort((a, b) => {
+                const nameA = String(a?.name || a?.title || '').trim();
+                const nameB = String(b?.name || b?.title || '').trim();
+                const cmp = nameA.localeCompare(nameB, 'ar', { sensitivity: 'base', numeric: true });
+                if (cmp !== 0) return cmp;
+                return String(a?.id || '').localeCompare(String(b?.id || ''));
+            });
+        }
+
         // بحث البيع: يعرض اقتراحات واضحة ولا يضيف السلعة تلقائياً أثناء الكتابة.
         let posSearchActiveIndex = -1;
         function normalizePosSearch(value) {
@@ -3881,7 +3892,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const q = normalizePosSearch(query);
             posSearchActiveIndex = -1;
             if (!q) { results.hidden = true; results.innerHTML = ''; return; }
-            const products = Array.isArray(AppData?.products) ? AppData.products : [];
+            const products = sortProductsDeterministically(Array.isArray(AppData?.products) ? AppData.products : []);
             const matches = products.filter(p => {
                 const name = normalizePosSearch(p.name);
                 const barcode = anasNormalizeBarcode(p.barcode);
@@ -3947,9 +3958,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const input = document.getElementById('posSearchField');
             const results = document.getElementById('posSearchResults');
             if (!product) { if (results) results.hidden = true; return; }
+            // Keep the cashier's query and result list intact while the price picker is open.
+            // Cart-only rendering must never reset search text or product-result scroll position.
             openPosPriceTierPicker(product.id);
-            if (input) { input.value = ''; input.focus({preventScroll:true}); }
-            if (results) { results.hidden = true; results.innerHTML = ''; }
+            if (input) input.focus({preventScroll:true});
             posSearchActiveIndex = -1;
         }
         // إغلاق قائمة اقتراحات البيع عند التفاعل مع أي عنصر آخر، حتى لو كان زرًا داخل شاشة المبيعات.
@@ -4036,7 +4048,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const price = document.createElement('span');
                 price.textContent = Number(item.value).toLocaleString('fr-DZ') + ' د.ج';
                 choice.append(label, price);
-                choice.addEventListener('click', () => { overlay.remove(); addItemToPosCart(productId, item.tier); });
+                choice.addEventListener('click', () => { overlay.remove(); addItemToPosCart(productId, item.tier); const searchInput = document.getElementById('posSearchField'); if (searchInput) { searchInput.focus({preventScroll:true}); handlePosSearch(searchInput.value); } });
                 panel.appendChild(choice);
             });
             const cancel = document.createElement('button');
@@ -8366,7 +8378,7 @@ function wtAuditTransfers(){
                 const src = String(value || '');
                 return /^(https:\/\/|data:image\/(?:png|jpeg|jpg|gif|webp);base64,)/i.test(src) ? src : '';
             };
-            const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const products = sortProductsDeterministically(Array.isArray(AppData.products) ? AppData.products : []);
             const core = window.ANASMicroPOSCore;
             const search = document.getElementById('inventoryUnifiedSearch')?.value || '';
             const status = document.getElementById('inventoryUnifiedStatus')?.value || 'ALL';
