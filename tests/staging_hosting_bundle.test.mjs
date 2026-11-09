@@ -225,4 +225,10 @@ test('live staging verification binds hosted ERP to the exact deployment SHA and
   assert.ok(workflow.includes(
     'fetch_expect "/erp/sw.js" "r32 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r32\';"'
   ), 'live service worker must prove the expected r32 cache namespace');
+  assert.ok(workflow.includes(
+    'fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"'
+  ), 'live ERP must prove the V42 PREPARED recovery module is served');
+  assert.ok(workflow.includes(
+    'fetch_expect "/erp/arabic-query-engine.js" "Arabic POS search collation" "Intl.Collator"'
+  ), 'live ERP must prove the Arabic POS search engine is served');
 });
