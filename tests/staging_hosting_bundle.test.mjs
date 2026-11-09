@@ -39,9 +39,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r30 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: abcdef1 \| SW: r31 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
+    assert.match(erp, /anas-pos-search-first-v1/, 'the deployed ERP shell must carry the search-first POS presentation');
     assert.match(erp, /safe-update-ui\.js/, 'staging shell must load the safe update controller');
     assert.match(erp, /safeUpdateAppUI/, 'settings must expose the safe update action');
     assert.match(erp, /<link rel="stylesheet" href="\.\/anas-erp-ui-safe-enhancements\.css">/, 'staging ERP must load the neutral eye-comfort palette stylesheet');
@@ -74,10 +75,11 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r31/, 'built PWA must install the r30 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r31/, 'built PWA must install the r31 cache namespace');
     const floatingCartSource = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.js'), 'utf8');
     const posFloatingCss = await fs.readFile(path.join(outDir, 'erp/anas-pos-floating-cart.css'), 'utf8');
     assert.match(floatingCartSource, /anasPosFloatingCart/);
+    assert.match(posFloatingCss, /position:sticky!important/, 'the floating cart must stay in document flow and not cover tablet POS controls');
     assert.match(floatingCartSource, /setPosQty/);
     assert.match(posFloatingCss, /\.anas-pos-floating-cart/);
     assert.match(serviceWorker, /anas-pos-floating-cart\.js/);
@@ -193,7 +195,7 @@ test('includes App Check in the reverse-ledger console config only when a site k
 });
 
 
-test('live staging verification binds hosted ERP to the exact deployment SHA and r30 cache namespace', async () => {
+test('live staging verification binds hosted ERP to the exact deployment SHA and r31 cache namespace', async () => {
   const rootDir = path.resolve('.');
   const workflow = await fs.readFile(
     path.join(rootDir, '.github/workflows/deploy-reverse-ledger-console-staging.yml'),
@@ -204,9 +206,9 @@ test('live staging verification binds hosted ERP to the exact deployment SHA and
   assert.ok(workflow.includes('short_sha="${DEPLOY_SHA:0:7}"'),
     'live verification must derive the build stamp from the deployment SHA');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/" "exact deployed commit and r30 build stamp" "Build SHA: ${short_sha} | SW: r30 | Env: Staging"'
-  ), 'live ERP HTML must prove the exact deployed commit and r30 build stamp');
+    'fetch_expect "/erp/" "exact deployed commit and r31 build stamp" "Build SHA: ${short_sha} | SW: r31 | Env: Staging"'
+  ), 'live ERP HTML must prove the exact deployed commit and r31 build stamp');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/sw.js" "r30 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r31\';"'
-  ), 'live service worker must prove the expected r30 cache namespace');
+    'fetch_expect "/erp/sw.js" "r31 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r31\';"'
+  ), 'live service worker must prove the expected r31 cache namespace');
 });
