@@ -415,3 +415,47 @@ input, select, textarea {
 #view-settings .field-group[style*="#2563eb"] h3{
   color:#35404a!important;-webkit-text-fill-color:#35404a!important;
 }
+
+
+/* r29 eye-comfort refinement: high-contrast PDF entry and AI KPI surfaces. */
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] {
+  background:#1e293b !important;
+  background-image:none !important;
+  color:#f8fafc !important;
+  border:1px solid #334155 !important;
+  box-shadow:0 2px 8px rgba(15,23,42,.12) !important;
+}
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] *,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] span {
+  color:#f8fafc !important;
+  -webkit-text-fill-color:#f8fafc !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+#anasAiExecutiveMetrics,#anasAiMorningBrief,#anasAiProactiveInsights {
+  background:#1e293b !important;
+  color:#f8fafc !important;
+  border:1px solid #334155 !important;
+  opacity:1 !important;
+}
+#anasAiExecutiveMetrics *,#anasAiMorningBrief *,#anasAiProactiveInsights * {
+  color:#f8fafc !important;
+  -webkit-text-fill-color:#f8fafc !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+/* The optional product grid is always two readable columns on handheld screens. */
+#quickProductsContainer.anas-pos-products-grid {
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:8px !important;
+}
+#quickProductsContainer.anas-pos-products-grid > .quick-product-btn {
+  min-width:0 !important;
+  min-height:104px !important;
+  height:auto !important;
+  white-space:normal !important;
+  overflow-wrap:anywhere !important;
+  line-height:1.45 !important;
+}

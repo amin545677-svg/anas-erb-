@@ -218,6 +218,14 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.locator('#smartImportCancel').evaluate(button => button.click());
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
 
+  // Select the target while the smart-import panel is mounted. The legacy
+  // target select is created inside the preview modal, so it must not be
+  // queried after that modal is dismissed.
+  await page.locator('[data-anas-ai-import-ui] [data-import-type="suppliers"]').click();
+  await page.waitForFunction(() => window.ANAS_AI_IMPORT_CONTEXT?.entityType === 'suppliers');
+  assert.equal(await page.evaluate(() => window.ANAS_AI_IMPORT_CONTEXT?.entityType), 'suppliers',
+    'the import panel must retain the chosen supplier target before a file is opened');
+
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
@@ -230,28 +238,26 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   await page.waitForFunction(() => /ai-smoke|تم فتح الملف|صفوف/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ));
-  // CSV parsing also opens the review modal. Dismiss it before interacting
-  // with the import-type controls underneath the modal backdrop.
-  if (await page.locator('#smartImportPreviewModal').isVisible()) {
-    await page.locator('#smartImportCancel').evaluate(button => button.click());
-    await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
-  }
-  await page.locator('[data-import-type="suppliers"]').click();
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('#smartImportTarget').count(), 1,
+    'the legacy import target must exist exactly once while the preview modal is mounted');
   await page.waitForFunction(() => document.querySelector('#smartImportTarget')?.value === 'suppliers',
     { timeout: 5000 });
   assert.equal(await page.locator('#smartImportTarget').inputValue(), 'suppliers',
-    'the new type selector must synchronize with the existing import target control');
-  await page.locator('[data-import-type="auto"]').click();
+    'the selected supplier target must be applied to the newly created preview form');
 
   // Local header heuristic must still propose a category when cloud AI is unavailable.
-  await page.locator('#smartImportAiAnalyze').evaluate(button => button.click());
+  await page.locator('#smartImportAiAnalyze').click();
   await page.waitForFunction(() => {
     const status = document.querySelector('#smartImportAiStatus')?.textContent || '';
     return /اقتراح محلي/.test(status) && document.querySelector('#smartImportTarget')?.value === 'products';
   });
 
+  // Close the CSV preview before opening the next import flow.
+  await page.locator('#smartImportCancel').click();
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
+
   // Real XLSX upload path: multiple non-empty sheets must be selectable before preview.
-  await page.locator('#smartImportCancel').evaluate(button => button.click());
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook,
     XLSX.utils.aoa_to_sheet([['name','stock','price'],['Widget XLSX',5,12]]), 'Products');
@@ -331,6 +337,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     backupExists: true, backupTarget: 'products',
     backupRecordCount: 1, backupDidNotContainNewRow: true
   }, 'XLSX import must persist exactly once and retain a verified pre-import backup');
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'detached' });
 
   // 3) Generate a blank, safe template and assert the browser download.
   const downloadPromise = page.waitForEvent('download');
