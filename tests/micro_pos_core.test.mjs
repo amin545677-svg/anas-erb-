@@ -80,6 +80,29 @@ test('inventory bridge refreshes both views only after successful sync or durabl
   assert.deepEqual(target.refreshes, []);
 });
 
+test('cart-only persistence does not rebuild the POS catalogue; inventory writes still refresh both views', async () => {
+  const listeners = new Map();
+  const target = {
+    AppData: { products: [{ id: 'P1', name: 'Tea', stock: 10 }], posCart: [] },
+    refreshes: [],
+    renderInventoryList() { this.refreshes.push('inventory'); },
+    renderQuickProducts() { this.refreshes.push('pos'); },
+    addEventListener(name, fn) { listeners.set(name, fn); },
+    dispatchEvent(event) { const fn = listeners.get(event.type); if (fn) fn(event); },
+    CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init && init.detail; } },
+    saveDB() { this.AppData.posCart.push({ id: 'P1', qty: 1 }); return true; },
+    async saveDBDurably() { this.AppData.posCart.push({ id: 'P1', qty: 2 }); return true; }
+  };
+  assert.equal(Core.createInventoryEventBridge(target), true);
+  assert.equal(target.saveDB(), true);
+  assert.deepEqual(target.refreshes, [], 'cart persistence must not reset the POS product list');
+  assert.equal(await target.saveDBDurably(), true);
+  assert.deepEqual(target.refreshes, [], 'durable cart persistence must not reset the POS product list');
+  target.AppData.products[0].stock = 9;
+  assert.equal(target.saveDB(), true);
+  assert.deepEqual(target.refreshes, ['inventory', 'pos'], 'real inventory mutations must refresh both views');
+});
+
 test('V42 shell loads the shared core and wires inventory, POS, CRM and sales history', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /<script src="\.\/micro-pos-core\.js"><\/script>/);
