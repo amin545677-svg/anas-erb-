@@ -122,38 +122,32 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     );
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught browser errors');
 
-    // Use the rendered POS product button, not a fabricated selector or direct storage write.
+    // Search-first POS: no catalogue cards are rendered until the cashier searches.
     await page.evaluate(() => openView('pos'));
-
-    // The product catalogue must be a real index.html list by default, with an optional grid.
     const productContainer = page.locator('#quickProductsContainer');
-    assert.equal(await productContainer.evaluate(el => el.classList.contains('anas-pos-products-list')), true,
-      'POS must default to the compact list view');
-    await page.locator('#anasPosGridViewBtn').click();
-    assert.equal(await productContainer.evaluate(el => el.classList.contains('anas-pos-products-grid')), true,
-      'grid toggle must change the actual rendered catalogue');
-    await page.locator('#anasPosListViewBtn').click();
-    assert.equal(await productContainer.evaluate(el => el.classList.contains('anas-pos-products-list')), true,
-      'list toggle must restore the default catalogue');
-    const productButton = page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME });
-    await productButton.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await productContainer.isHidden(), true,
+      'the full product catalogue must stay hidden when the sales screen opens');
+    assert.equal(await productContainer.locator('button').count(), 0,
+      'no product cards may be rendered before a search');
+    for (const selector of ['#posCategoryTabs', '#posStockFilterChips', '#anasPosProductViewToggle']) {
+      assert.equal(await page.locator(selector).isHidden(), true,
+        'catalogue browsing controls must not crowd the search-first sales screen');
+    }
     const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
     assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
-    await page.waitForFunction(() => !!window.ANASMicroPOSEngine, null, { timeout: 10000 });
-    await page.evaluate(() => filterPosProductsByStock('out'));
-    assert.equal(await page.locator('#quickProductsContainer button').count(), 0,
-      'out-of-stock chip must filter the in-memory catalogue without a database reload');
-    await page.evaluate(() => filterPosProductsByStock('available'));
-    assert.equal(await page.locator('#quickProductsContainer button').count(), 1,
-      'available chip must immediately restore products with positive stock');
-    await page.evaluate(() => filterPosProductsByStock('low'));
-    assert.equal(await page.locator('#quickProductsContainer button').count(), 0,
-      'low-stock chip must exclude products above their minimum threshold');
-    await page.evaluate(() => filterPosProductsByStock('favorite'));
-    assert.equal(await page.locator('#quickProductsContainer button').count(), 1,
-      'favorite chip must use the product feature flag in memory');
-    await page.evaluate(() => filterPosProductsByStock('all'));
-    await productButton.click();
+
+    // Name search and barcode search both use the existing result list.
+    await page.locator('#posSearchField').fill('STGPOSLIFE001');
+    const barcodeResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await barcodeResult.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
+      'barcode search must return only the matching product');
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const productResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await productResult.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
+      'name search must return only the matching product');
+    await productResult.click();
     await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
       'products with three distinct configured tiers must expose three prices and cancel');

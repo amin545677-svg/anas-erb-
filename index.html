@@ -1957,6 +1957,12 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 }
 </style>
 
+<style id="anas-pos-search-first-v1">
+#posCategoryTabs[hidden],#posStockFilterChips[hidden],#anasPosProductViewToggle[hidden],#posQuickProductsProgress[hidden],#quickProductsContainer[hidden]{display:none!important}
+#view-pos .pos-search-wrap{min-width:0;flex:1 1 240px}
+#view-pos #posSearchField{min-height:48px;font-size:17px;font-weight:700;border-radius:12px}
+#view-pos .pos-search-results{max-height:48vh;overflow-y:auto;overscroll-behavior:contain}
+</style>
 </head>
 <body>
 
@@ -2079,28 +2085,28 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             </div>
 
             <!-- شريط التصنيفات المستوحى من Lumina POS -->
-            <div style="display:flex; gap:6px; overflow-x:auto; padding:6px 10px; background:#fff; border-bottom:1px solid #e2e8f0;" id="posCategoryTabs">
+            <div style="display:flex; gap:6px; overflow-x:auto; padding:6px 10px; background:#fff; border-bottom:1px solid #e2e8f0;" id="posCategoryTabs" hidden>
                 <button class="pill-select-btn active" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('الكل', this)">الكل</button>
                 <button class="pill-select-btn" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('شاي أخضر', this)">شاي أخضر</button>
                 <button class="pill-select-btn" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('كرتون جملة', this)">كرتون جملة</button>
                 <button class="pill-select-btn" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('شاي معلب', this)">شاي معلب</button>
                 <button class="pill-select-btn" style="padding:4px 12px; font-size:0.78rem; flex:none;" onclick="filterPosProductsByCategory('مواد غذائية', this)">مواد غذائية</button>
             </div>
-            <div id="posStockFilterChips" role="group" aria-label="فلترة المخزون السريعة" style="display:flex;gap:6px;overflow-x:auto;padding:7px 10px;background:var(--mp-card,#fff);border-bottom:1px solid var(--mp-border,#e2e8f0)">
+            <div id="posStockFilterChips" hidden role="group aria-label="فلترة المخزون السريعة" style="display:flex;gap:6px;overflow-x:auto;padding:7px 10px;background:var(--mp-card,#fff);border-bottom:1px solid var(--mp-border,#e2e8f0)">
                 <button type="button" class="pill-select-btn active" data-stock-filter="all" onclick="filterPosProductsByStock('all',this)">الكل</button>
                 <button type="button" class="pill-select-btn" data-stock-filter="favorite" onclick="filterPosProductsByStock('favorite',this)">⭐ المميزة</button>
                 <button type="button" class="pill-select-btn" data-stock-filter="available" onclick="filterPosProductsByStock('available',this)">🟢 متوفر</button>
                 <button type="button" class="pill-select-btn" data-stock-filter="low" onclick="filterPosProductsByStock('low',this)">🟠 منخفض</button>
                 <button type="button" class="pill-select-btn" data-stock-filter="out" onclick="filterPosProductsByStock('out',this)">🔴 نافد</button>
             </div>
-            <div id="anasPosProductViewToggle" class="anas-pos-view-toggle" role="group" aria-label="طريقة عرض المنتجات">
+            <div id="anasPosProductViewToggle" class="anas-pos-view-toggle" hidden role="group" aria-label="طريقة عرض المنتجات">
                 <span>عرض المنتجات</span>
                 <button type="button" id="anasPosListViewBtn" aria-pressed="true" onclick="setAnasPosProductView('list')">☷ قائمة</button>
                 <button type="button" id="anasPosGridViewBtn" aria-pressed="false" onclick="setAnasPosProductView('grid')">▦ شبكة</button>
             </div>
             <!-- شبكة أزرار السلع السريعة المباشرة -->
-            <div id="posQuickProductsProgress" style="font-size:11px;color:var(--mp-text-muted);padding:2px 8px;" aria-live="polite">0</div>
-            <div class="quick-products-grid" id="quickProductsContainer"></div>
+            <div id="posQuickProductsProgress" hidden style="font-size:11px;color:var(--mp-text-muted);padding:2px 8px;" aria-live="polite">0</div>
+            <div class="quick-products-grid" id="quickProductsContainer" hidden></div>
 
             <!-- جدول بنود الفاتورة الأصلي -->
             <div class="invoice-table-header">
@@ -3462,69 +3468,21 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             renderQuickProducts();
         }
 
+        // ANAS_POS_SEARCH_FIRST_V1: product discovery happens only through the existing search / barcode field.
         function renderQuickProducts() {
             const cont = document.getElementById('quickProductsContainer');
             if (!cont) return;
-            const products = Array.isArray(AppData.products) ? AppData.products : [];
-            const core = window.ANASMicroPOSCore;
-            const selectedCategory = currentPosCategoryFilter;
-            const warehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
-            const withSaleStock = products.map(p => ({ ...p, stock: Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0)), is_featured: !!(p.is_featured || p.featured || p.favorite || p.isFavorite) }));
-            const filtered = (core ? core.filterInventoryItems(withSaleStock, { category: selectedCategory === 'الكل' ? 'ALL' : selectedCategory, status: currentPosStockFilter === 'favorite' ? 'featured' : currentPosStockFilter }) : withSaleStock).slice().sort((a,b) => String(a.name || a.title || '').localeCompare(String(b.name || b.title || ''), 'ar', { sensitivity: 'base', numeric: true }));
-            let mode = window.__anasPosProductViewMode;
-            if (!['list', 'grid'].includes(mode)) { try { mode = localStorage.getItem('ANAS_POS_PRODUCT_VIEW_V1'); } catch (_) {} }
-            if (!['list', 'grid'].includes(mode)) mode = 'list';
-            window.__anasPosProductViewMode = mode;
-            cont.classList.toggle('anas-pos-products-list', mode === 'list');
-            cont.classList.toggle('anas-pos-products-grid', mode === 'grid');
-            const listButton = document.getElementById('anasPosListViewBtn');
-            const gridButton = document.getElementById('anasPosGridViewBtn');
-            if (listButton) listButton.setAttribute('aria-pressed', mode === 'list' ? 'true' : 'false');
-            if (gridButton) gridButton.setAttribute('aria-pressed', mode === 'grid' ? 'true' : 'false');
-            const money = value => Number(value).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DA';
-            const quantity = value => Number(value).toLocaleString('fr-DZ', { maximumFractionDigits: 3 });
-            const renderCard = p => {
-                const tier = Number(AppData.activePriceTier) || 1;
-                const pr = tier === 2 ? (p.price2 ?? p.price1) : (tier === 3 ? (p.price3 ?? p.price1) : p.price1);
-                const rawStock = Number(typeof wtAvailableStock === 'function' ? wtAvailableStock(p, warehouse) : (p.stock ?? p.quantity ?? 0));
-                const stock = Number.isFinite(rawStock) ? rawStock : 0;
-                const isOut = stock <= 0;
-                const isLow = !isOut && stock <= (Number(p.minAlert ?? p.min_limit) || 5);
-                const card = document.createElement('button');
-                card.type = 'button';
-                card.className = 'quick-product-btn anas-pos-product-card';
-                card.dataset.posProductView = mode;
-                card.dataset.productId = String(p.id ?? '');
-                card.style.borderInlineStart = isOut ? '4px solid #ef4444' : (isLow ? '4px solid #f59e0b' : '4px solid #16a34a');
-                card.setAttribute('aria-label', 'اختيار سعر ' + String(p.name || 'المنتج'));
-                const info = document.createElement('span'); info.className = 'anas-pos-product-info';
-                const name = document.createElement('strong'); name.className = 'anas-pos-product-name'; name.textContent = String(p.name ?? 'منتج بلا اسم');
-                const barcode = document.createElement('small'); barcode.className = 'anas-pos-product-barcode'; barcode.textContent = 'باركود: ' + String(p.barcode ?? p.sku ?? p.code ?? '—');
-                const stockBadge = document.createElement('span'); stockBadge.className = 'anas-pos-stock-badge ' + (isOut ? 'is-out' : (isLow ? 'is-low' : 'is-available'));
-                stockBadge.textContent = (isOut ? '⚠ ' : '') + quantity(stock) + ' ' + String(p.unit || 'قطعة');
-                info.append(name, barcode, stockBadge);
-                const priceBlock = document.createElement('span'); priceBlock.className = 'anas-pos-product-price';
-                const price = document.createElement('strong'); price.textContent = money(pr);
-                const action = document.createElement('small'); action.textContent = 'اختيار السعر ›';
-                priceBlock.append(price, action); card.append(info, priceBlock);
-                card.title = String(p.name ?? '') + ' — ' + money(pr);
-                card.addEventListener('click', () => openPosPriceTierPicker(p.id));
-                return card;
-            };
-            const deep = window.ANASMicroPOSDeepCore;
-            if (deep?.ProgressiveListRenderer) {
-                if (!window.__anasPosProgressiveRenderer || window.__anasPosProgressiveRenderer.containerEl !== cont) {
-                    window.__anasPosProgressiveRenderer?.destroy?.();
-                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(cont, document.getElementById('posQuickProductsProgress'), 20);
-                }
-                window.__anasPosProgressiveRenderer.setItems(filtered, renderCard);
-            } else {
-                cont.replaceChildren(...filtered.slice(0, 20).map(renderCard));
-                const progress = document.getElementById('posQuickProductsProgress');
-                if (progress) progress.textContent = filtered.length > 20 ? '+20' : String(filtered.length);
-            }
+            ['posCategoryTabs', 'posStockFilterChips', 'anasPosProductViewToggle', 'posQuickProductsProgress'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.hidden = true;
+            });
+            const renderer = window.__anasPosProgressiveRenderer;
+            if (renderer && typeof renderer.destroy === "function") renderer.destroy();
+            window.__anasPosProgressiveRenderer = null;
+            cont.replaceChildren();
+            cont.hidden = true;
             const empty = document.getElementById('posQuickProductsEmpty');
-            if (empty) empty.hidden = filtered.length > 0;
+            if (empty) empty.hidden = true;
         }
         function anasCalculateExecutiveAnalytics(invoices = [], expenses = [], customers = []) {
             const rows = Array.isArray(invoices) ? invoices : [];
@@ -3989,7 +3947,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const input = document.getElementById('posSearchField');
             const results = document.getElementById('posSearchResults');
             if (!product) { if (results) results.hidden = true; return; }
-            addItemToPosCart(product.id);
+            openPosPriceTierPicker(product.id);
             if (input) { input.value = ''; input.focus({preventScroll:true}); }
             if (results) { results.hidden = true; results.innerHTML = ''; }
             posSearchActiveIndex = -1;
@@ -4173,7 +4131,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const tb = document.getElementById('posItemsTableBody');
             tb.innerHTML = '';
             if(posCart.length === 0) {
-                tb.innerHTML = '<div class="pos-empty-hint"><div style="font-size:30px">🛒</div><strong>ابدأ عملية البيع</strong><br><span>ابحث عن المنتج أو اختره من البطاقات أعلاه، ثم أضفه إلى الفاتورة.</span></div>';
+                tb.innerHTML = '<div class="pos-empty-hint"><div style="font-size:30px">🛒</div><strong>ابدأ عملية البيع</strong><br><span>ابحث عن المنتج أو امسح الباركود لإضافته إلى الفاتورة.</span></div>';
                 document.getElementById('posTotalDisplay').innerText = '0.00 د.ج';
                 const checkout = document.getElementById('posCheckoutBtn');
                 if (checkout) { checkout.disabled = true; checkout.setAttribute('aria-disabled', 'true'); }
