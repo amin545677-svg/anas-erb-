@@ -11734,7 +11734,18 @@ function wtAuditTransfers(){
                 // Header matching is entirely local; no session, Firebase, or network request is required.
                 return;
             };
+            // Run the local header heuristic first, then restore the operator's explicit
+            // import-type choice. The heuristic may suggest "products" from a generic
+            // name/qty header; that suggestion must not silently override a manual choice.
             box.querySelector('#smartImportAiAnalyze').click();
+            const explicitImportType = window.ANAS_AI_IMPORT_CONTEXT?.entityType;
+            const importTarget = box.querySelector('#smartImportTarget');
+            if (explicitImportType && explicitImportType !== 'auto' &&
+                Array.from(importTarget?.options || []).some(option => option.value === explicitImportType)) {
+                importTarget.value = explicitImportType;
+                importTarget.dispatchEvent(new Event('input', { bubbles: true }));
+                importTarget.dispatchEvent(new Event('change', { bubbles: true }));
+            }
             box.querySelector('#smartImportCancel').onclick=()=>box.remove();
             box.querySelector('#smartImportConfirm').onclick=async()=>{
                 const target=box.querySelector('#smartImportTarget').value;
