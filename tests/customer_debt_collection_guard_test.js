@@ -126,7 +126,7 @@ console.log('PASS: customer debt collection rejects blank or whitespace-only cus
 }
 console.log('PASS: customer and supplier opening balances reject values beyond the safe financial range');
 
-function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidValue) {
+async function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidValue) {
   const start = html.indexOf('function ' + handlerName + '()');
   const end = html.indexOf('\n        function ', start + 10);
   assert.ok(start >= 0 && end > start, handlerName + ' must be isolatable');
@@ -146,26 +146,27 @@ function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidVal
     document: { getElementById: id => fields[id] || null },
     alert: message => alerts.push(String(message)),
     saveDB: () => { saves++; return true; },
+    saveDBDurably: async () => true,
     Number, String, Object, Array, Date, Math, JSON,
     console, closeModal() {}, renderCustomersDebts() {}, renderCustomerDirectory() {},
     renderSuppliersDebts() {}
   };
   vm.createContext(context);
-  vm.runInContext(handler + '\n' + handlerName + '();', context);
+  await vm.runInContext(handler + '\n' + handlerName + '();', context);
   assert.equal(saves, 0, handlerName + ' must not persist invalid opening balance ' + invalidValue);
   assert.equal(appData[collectionName].length, 1, handlerName + ' must not mutate records for invalid balance ' + invalidValue);
   assert.ok(alerts.some(message => message.includes('المجال المالي الآمن')), handlerName + ' must explain the safe financial range');
 }
 for (const invalidValue of ['9007199254740992', '1e309', '-1']) {
-  runOpeningBalanceGuard('saveNewCustomerMpos', 'newCustDebtInput', 'customers', invalidValue);
-  runOpeningBalanceGuard('saveNewSupplierMpos', 'newSuppDebtInput', 'suppliers', invalidValue);
+  await runOpeningBalanceGuard('saveNewCustomerMpos', 'newCustDebtInput', 'customers', invalidValue);
+  await runOpeningBalanceGuard('saveNewSupplierMpos', 'newSuppDebtInput', 'suppliers', invalidValue);
 }
 console.log('PASS: runtime customer and supplier handlers reject unsafe, infinite, and negative opening balances before persistence');
 
 {
   const customerStart = html.indexOf('function saveNewCustomerMpos()');
   const customerEnd = html.indexOf('function openCustomerDirectory()', customerStart);
-  const supplierStart = html.indexOf('function saveNewSupplierMpos()');
+  const supplierStart = html.indexOf('async function saveNewSupplierMpos()');
   const supplierEnd = html.indexOf('function printLatestLegalCustomerInvoice()', supplierStart);
   assert.ok(customerStart >= 0 && customerEnd > customerStart, 'customer save handler must be isolatable');
   assert.ok(supplierStart >= 0 && supplierEnd > supplierStart, 'supplier save handler must be isolatable');
