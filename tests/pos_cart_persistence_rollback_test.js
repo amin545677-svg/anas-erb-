@@ -110,18 +110,19 @@ console.log('PASS: durable POS save publishes the cart map only after storage AC
 
 {
   const appSource = fs.readFileSync('index.html', 'utf8');
-  const paymentStart = appSource.indexOf('function confirmHasibPaymentDurable()');
+  const paymentStart = appSource.indexOf('async function confirmHasibPaymentDurable()');
   const paymentEnd = appSource.indexOf('function printLastConfirmedInvoice', paymentStart);
   assert.ok(paymentStart >= 0 && paymentEnd > paymentStart,
     'POS payment UI must route through the durable transaction handler');
   const paymentSource = appSource.slice(paymentStart, paymentEnd);
-  const awaitedSave = paymentSource.indexOf('saveDBDurably()');
+  const captureSave = paymentSource.indexOf('saveDB()');
+  const awaitedSave = paymentSource.indexOf('await saveDBDurably()');
   const finalizeStart = paymentSource.indexOf('const finalizeSale = () => {');
+  const finalizeCall = paymentSource.indexOf('finalizeSale();', awaitedSave);
   const modalClose = paymentSource.indexOf("closeModal('hasibModal')", finalizeStart);
-  const ackContinuation = paymentSource.indexOf('return durableSave.then(() => { finalizeSale();', awaitedSave);
-  assert.ok(awaitedSave >= 0 && finalizeStart >= 0 && modalClose > finalizeStart &&
-    ackContinuation > awaitedSave,
-    'payment modal close must be reachable only through the durable acknowledgement continuation');
+  assert.ok(captureSave >= 0 && awaitedSave > captureSave && finalizeStart >= 0 &&
+    modalClose > finalizeStart && finalizeCall > awaitedSave,
+    'payment modal close must remain behind V42 capture and the awaited durable acknowledgement');
   assert.match(paymentSource, /hasibPaymentInFlight/,
     'payment flow must guard against duplicate submissions while persistence is pending');
   assert.match(appSource, /onclick="confirmHasibPaymentDurable\(\)"/,
@@ -144,7 +145,7 @@ async function verifyDurablePaymentGate(failCommit) {
   const html = fs.readFileSync('index.html', 'utf8');
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
-  const paymentStart = html.indexOf('function confirmHasibPaymentDurable()');
+  const paymentStart = html.indexOf('async function confirmHasibPaymentDurable()');
   const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart && paymentStart >= 0 && paymentEnd > paymentStart,
     'durable POS payment and integer arithmetic helpers must be isolatable');
@@ -170,6 +171,7 @@ async function verifyDurablePaymentGate(failCommit) {
     wtTryEnsureData: () => true,
     wtCurrentSaleWarehouse: () => 'المخزن الرئيسي',
     wtAvailableStock: p => p.stock,
+    saveDB: () => true,
     saveDBDurably: () => { saves++; return commit; },
     renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
     closeModal() { closes++; }, alert: message => alerts.push(String(message)), console,
@@ -221,7 +223,7 @@ async function verifyFreeProductAndDiscountSale() {
   const html = fs.readFileSync('index.html', 'utf8');
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
-  const paymentStart = html.indexOf('function confirmHasibPaymentDurable()');
+  const paymentStart = html.indexOf('async function confirmHasibPaymentDurable()');
   const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart && paymentStart >= 0 && paymentEnd > paymentStart);
   const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
@@ -244,6 +246,7 @@ async function verifyFreeProductAndDiscountSale() {
     wtTryEnsureData: () => true,
     wtCurrentSaleWarehouse: () => 'المخزن الرئيسي',
     wtAvailableStock: () => 0,
+    saveDB: () => true,
     saveDBDurably: () => Promise.resolve({ revision: 21, mode: 'INDEXEDDB' }),
     renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
     closeModal() {}, alert() {}, console,
@@ -272,7 +275,7 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
   const html = fs.readFileSync('index.html', 'utf8');
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
-  const paymentStart = html.indexOf('function confirmHasibPaymentDurable()');
+  const paymentStart = html.indexOf('async function confirmHasibPaymentDurable()');
   const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
   const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
   for (const paymentChannel of ['cheque','transfer','card','other']) {
@@ -283,7 +286,7 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
     const context = { AppData, posCart:[{id:product.id,name:'Rice',qty:1,price:25,unit:'كيس'}],
       lastConfirmedInvoice:null,hasibPaymentInFlight:false,document:{getElementById:id=>elements[id]||null},
       wtTryEnsureData:()=>true,wtCurrentSaleWarehouse:()=>'المخزن الرئيسي',wtAvailableStock:p=>p.stock,
-      saveDBDurably:()=>Promise.resolve({revision:22,mode:'INDEXEDDB'}),renderPosTable(){},renderCustomersDebts(){},
+      saveDB:()=>true,saveDBDurably:()=>Promise.resolve({revision:22,mode:'INDEXEDDB'}),renderPosTable(){},renderCustomersDebts(){},
       updateCashUI(){},closeModal(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
     vm.createContext(context);
     try {
