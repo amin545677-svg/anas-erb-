@@ -212,6 +212,12 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.equal((repeatedOcrText.match(/الصفحة 1 \(OCR\)/g)||[]).length,1,
     're-running OCR must replace the previous OCR segment instead of duplicating it');
 
+  // The PDF preview is intentionally modal and blocks clicks on the AI import
+  // type selector behind it. Close it before starting a new CSV import flow;
+  // do not bypass the overlay with force-clicks.
+  await page.locator('#smartImportCancel').evaluate(button => button.click());
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
+
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
