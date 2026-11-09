@@ -108,8 +108,8 @@ test('inventory and POS share live status/category filtering with 20-item progre
   assert.match(html, /function filterInventoryStatus\(/, 'inventory chips must update the same filter state as the select');
   assert.match(html, /new deep\.ProgressiveListRenderer\(\s*cont, document\.getElementById\('inventoryProgressiveBadge'\), 20\s*\)/,
     'inventory cards must render in bounded 20-item chunks');
-  assert.match(html, /function renderQuickProducts\(\)[\s\S]*?cont\.replaceChildren\(\)[\s\S]*?cont\.hidden = true/,
-    'search-first POS must keep the automatic product catalogue hidden without deleting inventory data');
+  assert.match(html, /function renderQuickProducts\(\)[\s\S]*?core\.filterInventoryItems\(products, \{ query: search, status, category: category \}\)[\s\S]*?new deep\.ProgressiveListRenderer\(\s*cont, progress, 20\s*\)/,
+    'POS catalogue must retain shared category/status/search filtering with bounded progressive rendering');
   assert.match(html, /id="anas-pos-search-first-v1"/,
     'search-first POS styling contract must be integrated into the ERP shell');
   assert.match(html, /core\.filterInventoryItems\(products, \{ query: search, status, category: selectedCategory \}\)/,
