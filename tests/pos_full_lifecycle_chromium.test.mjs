@@ -155,6 +155,10 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.match(tierLabels, /سعر التجزئة \(الدفعة\)/);
     assert.match(tierLabels, /جملة الجملة/);
     await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
+    assert.equal(await page.locator('#posSearchField').inputValue(), PRODUCT_NAME,
+      'selecting a product must preserve the cashier search text');
+    assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
+      'adding a product must not clear or rebuild the existing search result list');
     await page.evaluate(() => {
       AppData.products[0].price2 = 25;
       AppData.products[0].price3 = 25;
