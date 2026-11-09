@@ -204,7 +204,7 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = insertBeforeDocumentHeadClose(stagedHtml,
     '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n  ');
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  ');
+    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
@@ -223,7 +223,7 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  // The canonical source shell remains r26; this staging build emits the r31 worker generation.
+  // The canonical source shell remains r26; this staging build emits the r32 worker generation.
   const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging';
   if (stagedHtml.split(stamp).length - 1 !== 1) {
     throw new Error('Expected exactly one canonical source staging build stamp');
@@ -268,6 +268,7 @@ export async function buildStagingHosting(options = {}) {
     'erp/core/ai-operations-engine.js',
     'erp/core/sovereign-kernel.mjs',
     'erp/safe-update-ui.js',
+    'erp/sync/v42-prepared-recovery-runtime.mjs',
     'erp/core/pos-quick-sale-transaction-bridge.js',
     'erp/micro-pos-core.js', 'erp/pos/micro-pos-engine.mjs', 'erp/pos/micro-pos-deep-core.mjs', 'erp/pos/advanced-financial-engine.mjs',
     'erp/icons/icon.svg',
