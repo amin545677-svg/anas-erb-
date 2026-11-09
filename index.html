@@ -3470,20 +3470,92 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 
         // ANAS_POS_SEARCH_FIRST_V1: product discovery happens only through the existing search / barcode field.
         function renderQuickProducts() {
+            const selectedCategory = currentPosCategoryFilter || 'الكل';
             const cont = document.getElementById('quickProductsContainer');
             if (!cont) return;
-            ['posCategoryTabs', 'posStockFilterChips', 'anasPosProductViewToggle', 'posQuickProductsProgress'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) element.hidden = true;
+            const products = sortProductsDeterministically(Array.isArray(AppData.products) ? AppData.products : []);
+            const core = window.ANASMicroPOSCore;
+            const search = document.getElementById('posSearchField')?.value || '';
+            const status = currentPosStockFilter === 'favorite' ? 'featured'
+                : (currentPosStockFilter === 'all' ? 'ALL' : currentPosStockFilter);
+            const category = selectedCategory === 'الكل' ? 'ALL' : selectedCategory;
+            const visibleProducts = (core && typeof core.filterInventoryItems === 'function')
+                ? core.filterInventoryItems(products, { query: search, status, category: category })
+                : products.filter(product => {
+                    const productCategory = String(product.category ?? product.cat ?? 'عام');
+                    const stock = Number(product.stock ?? product.quantity);
+                    const minimum = Number(product.minAlert ?? product.min_limit ?? 5);
+                    const stockStatus = !Number.isFinite(stock) ? 'invalid'
+                        : stock <= 0 ? 'out' : stock <= (minimum > 0 ? minimum : 5) ? 'low' : 'available';
+                    const categoryMatches = category === 'ALL' || productCategory === category;
+                    const statusMatches = status === 'ALL' || (status === 'featured'
+                        ? !!(product.is_featured || product.featured || product.favorite || product.isFavorite)
+                        : status === stockStatus);
+                    const queryMatches = !search || [product.name, product.title, product.barcode, product.sku]
+                        .some(value => String(value || '').toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+                    return categoryMatches && statusMatches && queryMatches;
+                });
+            const deep = window.ANASMicroPOSDeepCore;
+            const categoryTabs = document.getElementById('posCategoryTabs');
+            const stockChips = document.getElementById('posStockFilterChips');
+            const viewToggle = document.getElementById('anasPosProductViewToggle');
+            const progress = document.getElementById('posQuickProductsProgress');
+            [categoryTabs, stockChips, viewToggle, progress].forEach(element => {
+                if (element) element.hidden = products.length === 0;
             });
-            const renderer = window.__anasPosProgressiveRenderer;
-            if (renderer && typeof renderer.destroy === "function") renderer.destroy();
-            window.__anasPosProgressiveRenderer = null;
-            cont.replaceChildren();
-            cont.hidden = true;
+            cont.hidden = visibleProducts.length === 0;
             const empty = document.getElementById('posQuickProductsEmpty');
-            if (empty) empty.hidden = true;
+            if (empty) {
+                empty.hidden = visibleProducts.length !== 0;
+                empty.textContent = products.length && !visibleProducts.length
+                    ? 'لا توجد منتجات تطابق عوامل التصفية الحالية.'
+                    : 'أضف منتجات إلى المخزون لبدء البيع.';
+            }
+            const renderCard = product => {
+                const tier = [1, 2, 3].includes(Number(AppData.activePriceTier))
+                    ? Number(AppData.activePriceTier) : 1;
+                const engine = window.ANASMicroPOSEngine;
+                const price = engine && typeof engine.resolveProductPrice === 'function'
+                    ? engine.resolveProductPrice(product, tier)
+                    : (tier === 2 ? (product.price2 ?? product.price1)
+                        : tier === 3 ? (product.price3 ?? product.price1) : product.price1);
+                const stock = Number(product.stock ?? product.quantity) || 0;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'quick-product-btn';
+                button.dataset.productId = String(product.id ?? '');
+                button.style.borderInlineStart = stock <= 0 ? '4px solid #ef4444'
+                    : stock <= (Number(product.minAlert ?? product.min_limit) || 5)
+                        ? '4px solid #f59e0b' : '4px solid #16a34a';
+                const name = document.createElement('span');
+                name.textContent = String(product.name ?? product.title ?? 'منتج بلا اسم');
+                const detail = document.createElement('small');
+                detail.textContent = String(stock) + ' ' + String(product.unit || '') +
+                    ' | ' + String(Number(price) || 0) + ' د.ج';
+                button.append(name, detail);
+                button.title = String(product.name ?? '') + ' - ' + String(Number(price) || 0) + ' د.ج';
+                button.addEventListener('click', () => addItemToPosCart(product.id));
+                return button;
+            };
+            const renderer = window.__anasPosProgressiveRenderer;
+            if (deep?.ProgressiveListRenderer) {
+                if (!renderer || renderer.containerEl !== cont) {
+                    renderer?.destroy?.();
+                    window.__anasPosProgressiveRenderer = new deep.ProgressiveListRenderer(
+                        cont, progress, 20
+                    );
+                }
+                window.__anasPosProgressiveRenderer.setItems(visibleProducts, renderCard);
+            } else {
+                cont.replaceChildren(...visibleProducts.slice(0, 20).map(renderCard));
+                if (progress) progress.textContent = String(Math.min(visibleProducts.length, 20)) +
+                    ' / ' + String(visibleProducts.length);
+            }
+            const mode = window.__anasPosProductViewMode || 'list';
+            cont.classList.toggle('anas-pos-products-list', mode === 'list');
+            cont.classList.toggle('anas-pos-products-grid', mode === 'grid');
         }
+
         function anasCalculateExecutiveAnalytics(invoices = [], expenses = [], customers = []) {
             const rows = Array.isArray(invoices) ? invoices : [];
             const expenseRows = Array.isArray(expenses) ? expenses : [];
@@ -3890,6 +3962,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const results = document.getElementById('posSearchResults');
             if (!input || !results) return;
             const q = normalizePosSearch(query);
+            if (typeof renderQuickProducts === 'function') renderQuickProducts();
             posSearchActiveIndex = -1;
             if (!q) { results.hidden = true; results.innerHTML = ''; return; }
             const products = sortProductsDeterministically(Array.isArray(AppData?.products) ? AppData.products : []);
@@ -14187,6 +14260,5 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
 
 
   <script src="./anas-pos-floating-cart.js" defer></script>
-  <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>
 </body>
 </html>
