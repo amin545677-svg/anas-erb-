@@ -544,9 +544,15 @@
         if (rawMeta) {
           const meta = JSON.parse(rawMeta);
           const localDigest = await checksum(local);
-          if (!Number.isSafeInteger(meta.revision) || meta.revision < 1 ||
+          if (!Number.isSafeInteger(meta.revision) || meta.revision < 0 ||
               meta.checksum !== localDigest) throw new Error('local snapshot checksum mismatch');
-          localRevision = meta.revision;
+          // Revision zero was emitted by an older fallback path before the
+          // first IndexedDB commit. Promote that verified legacy mirror to the
+          // first logical revision so a later IDB retry can recover it.
+          localRevision = Math.max(1, meta.revision);
+        } else {
+          // A valid pre-metadata localStorage snapshot is legacy revision 1.
+          localRevision = 1;
         }
         localValid = true;
       } catch (_) { localValid = false; }
