@@ -50,6 +50,36 @@ test("boot recovery discards an uncommitted PREPARED intent without mutating App
   }]);
 });
 
+test("fresh storage without AppData skips recovery without a startup error", async () => {
+  const values = new Map([[MUTATION_KEYS.pending, "[]"]]);
+  const global = { ANASResilientStorage: {
+    async hydrate() {},
+    ready() { return true; },
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem() { throw new Error("must not write without AppData"); },
+    removeSync() {}
+  } };
+  assert.deepEqual(await runV42PreparedRecovery(global), {
+    status: "skipped-no-appdata", recovered: 0, aborted: 0, remainingPrepared: 0
+  });
+});
+
+test("PREPARED recovery defers without AppData and preserves the journal", async () => {
+  const journal = JSON.stringify([{ opId: "pending-proof", status: "PREPARED" }]);
+  const values = new Map([[MUTATION_KEYS.pending, journal]]);
+  const global = { ANASResilientStorage: {
+    async hydrate() {},
+    ready() { return true; },
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem() { throw new Error("must not mutate journal without AppData"); },
+    removeSync() {}
+  } };
+  assert.deepEqual(await runV42PreparedRecovery(global), {
+    status: "deferred-missing-appdata", recovered: 0, aborted: 0, remainingPrepared: 1
+  });
+  assert.equal(values.get(MUTATION_KEYS.pending), journal);
+});
+
 test("boot recovery fails closed when resilient storage is unavailable", async () => {
   await assert.rejects(
     runV42PreparedRecovery({}),
