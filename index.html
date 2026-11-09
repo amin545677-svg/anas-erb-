@@ -7052,7 +7052,7 @@ function renderPurchasesTable() {
             }
             return false;
         }
-        function collectCustDebt(cId) {
+        async function collectCustDebt(cId) {
             if (cId === undefined || cId === null || String(cId).trim() === '') {
                 alert('تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.'); return;
             }
@@ -7061,6 +7061,13 @@ function renderPurchasesTable() {
                 : [];
             if (matches.length !== 1) { alert(matches.length ? 'معرّف العميل مكرر؛ أوقفنا القبض.' : 'تعذر العثور على حساب عميل واحد بمعرّف صالح؛ لم يتم تسجيل أي قبض.'); return; }
             const customer = matches[0];
+            const collectionLocks = globalThis.__ANAS_CUSTOMER_DEBT_COLLECTION_LOCKS__ ||
+                (globalThis.__ANAS_CUSTOMER_DEBT_COLLECTION_LOCKS__ = new Set());
+            const collectionLockKey = String(customer.id);
+            if (collectionLocks.has(collectionLockKey)) {
+                alert('عملية قبض هذا العميل قيد الحفظ بالفعل؛ انتظر تأكيدها قبل إعادة المحاولة.');
+                return;
+            }
             const previousDebtCents = anasToCents(customer.debt);
             const cashCents = anasToCents(AppData.caisseBalance ?? 0);
             if (!Number.isSafeInteger(previousDebtCents) || previousDebtCents <= 0 ||
@@ -7174,6 +7181,7 @@ function renderPurchasesTable() {
             let movementId = baseMovementId;
             let movementSuffix = 1;
             while (movementIds.has(movementId)) movementId = baseMovementId + '-' + (movementSuffix++);
+            collectionLocks.add(collectionLockKey);
             try {
                 if (!Array.isArray(AppData.clientMovements)) {
                     if (Object.prototype.hasOwnProperty.call(AppData, 'clientMovements')) throw new Error('دفتر حركات العملاء تالف.');
@@ -7223,8 +7231,10 @@ function renderPurchasesTable() {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ سند القبض.');
+                if (typeof saveDBDurably !== 'function') throw new Error('واجهة الحفظ الدائم غير متاحة؛ لم يتم اعتماد القبض.');
+                await saveDBDurably();
             } catch (error) {
+                collectionLocks.delete(collectionLockKey);
                 if (hadDebt) customer.debt = oldDebtValue; else delete customer.debt;
                 if (hadLedgerVersion) customer.ledgerVersion = oldLedgerVersion; else delete customer.ledgerVersion;
                 if (hadCashBalance) AppData.caisseBalance = oldCashBalance; else delete AppData.caisseBalance;
@@ -7235,6 +7245,7 @@ function renderPurchasesTable() {
                 alert('لم يتم اعتماد القبض: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الحالة والدفاتر إلى ما قبل العملية.');
                 return;
             }
+            collectionLocks.delete(collectionLockKey);
             if (typeof updateCashUI === 'function') updateCashUI();
             if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
             alert('تم تسجيل سند القبض وتوزيعه تلقائياً FIFO من أقدم فاتورة إلى أحدث فاتورة.');
@@ -12619,7 +12630,8 @@ function wtAuditTransfers(){
             if (typeof saveDBDurably === 'function') window.saveDBDurably = saveDBDurably;
             window.__ANAS_APP_BRIDGE_READY__ = !!window.AppData && typeof window.openView === 'function' &&
                 !!window.ANASFinancialIntegerEngine && typeof window.confirmHasibPaymentDurable === 'function' &&
-                typeof window.saveDB === 'function';
+                typeof window.saveDB === 'function' && typeof window.saveDBDurably === 'function' &&
+                typeof window.collectCustDebt === 'function';
         } catch (error) {
             console.error('ANAS global application bridge initialization failed:', error);
         }

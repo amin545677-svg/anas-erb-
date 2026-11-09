@@ -9,7 +9,7 @@ const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
 const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer-centime helpers must be present and isolatable');
 const helperSource = html.slice(helperStart, helperEnd);
-const start = html.indexOf('function collectCustDebt(cId) {');
+const start = html.indexOf('async function collectCustDebt(cId) {');
 const end = html.indexOf('function openGoogleMaps(loc)', start);
 assert.ok(start >= 0 && end > start, 'collectCustDebt function must be present and isolatable');
 const source = helperSource + html.slice(start, end);
@@ -19,9 +19,10 @@ class FixedDate extends Date {
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
 
-function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1', invoices = null } = {}) {
+async function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', saveResult = true, math = Math, customerId = 'C-1', invoices = null } = {}) {
   const alerts = [];
   let saves = 0;
+  let legacySaves = 0;
   const customer = { id: customerId, name: 'Test customer', debt };
   const invoice = { id: 'INV-1', customerId: customerId, total: debt, paid: 0, remaining: debt };
   const appData = {
@@ -35,7 +36,8 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
     ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
     alert: message => alerts.push(String(message)),
     prompt: () => (++promptCount === 1 ? amount : JSON.stringify([{ invoiceId: 'INV-1', amount }])) ,
-    saveDB: () => { saves++; return saveResult; },
+    saveDB: () => { legacySaves++; return true; },
+    saveDBDurably: () => { saves++; return saveResult ? Promise.resolve(true) : Promise.reject(new Error('simulated durable persistence failure')); },
     updateCashUI() {},
     renderCustomersDebts() {},
     console,
@@ -44,13 +46,14 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
     Number, String, Object, Array, Set
   };
   vm.createContext(context);
-  vm.runInContext(source + '\ncollectCustDebt(' + JSON.stringify(String(customerId)) + ');', context);
-  return { appData, customer, alerts, saves };
+  await vm.runInContext(source + '\ncollectCustDebt(' + JSON.stringify(String(customerId)) + ');', context);
+  return { appData, customer, alerts, saves, legacySaves };
 }
 
+(async () => {
 {
   const before = [{ id: 'CASH-1', amount: 10 }, { id: 'CASH-1', amount: 20 }];
-  const result = runCollection({ movements: before, amount: '25' });
+  const result = await runCollection({ movements: before, amount: '25' });
   assert.equal(result.saves, 0, 'duplicate ledger IDs must be rejected before persistence');
   assert.equal(result.customer.debt, 100, 'customer debt must remain unchanged');
   assert.equal(result.appData.caisseBalance, 0, 'cash balance must remain unchanged');
@@ -59,8 +62,9 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
 }
 
 {
-  const result = runCollection({ movements: [{ id: 'LEGACY-1', amount: 10 }], amount: '25' });
+  const result = await runCollection({ movements: [{ id: 'LEGACY-1', amount: 10 }], amount: '25' });
   assert.equal(result.saves, 1);
+  assert.equal(result.legacySaves, 0, 'financial collection must never use the non-acknowledged legacy saveDB path');
   assert.equal(result.customer.debt, 75);
   assert.equal(result.appData.caisseBalance, 25);
   assert.equal(result.appData.cashMovements.length, 2);
@@ -71,7 +75,7 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
   const deterministicMath = Object.create(Math);
   deterministicMath.random = () => 0.5;
   const baseId = 'DEBT-IN-' + fixedNow.toString(36).toUpperCase() + '-' + (0.5).toString(36).slice(2, 7).toUpperCase();
-  const result = runCollection({ movements: [{ id: baseId, amount: 1 }], amount: '25', math: deterministicMath });
+  const result = await runCollection({ movements: [{ id: baseId, amount: 1 }], amount: '25', math: deterministicMath });
   assert.equal(result.saves, 1);
   assert.equal(result.appData.cashMovements.length, 2);
   assert.equal(result.appData.cashMovements[0].id, baseId + '-1', 'new movement ID collision must be resolved with a suffix');
@@ -80,8 +84,11 @@ function runCollection({ movements = [], debt = 100, cash = 0, amount = '25', sa
 
 {
   const original = [{ id: 'CASH-1', amount: 10 }];
-  const result = runCollection({ movements: original, amount: '25', saveResult: false });
+  const result = await runCollection({ movements: original, amount: '25', saveResult: false });
   assert.equal(result.saves, 1);
+  assert.equal(result.legacySaves, 0, 'failed durable acknowledgement must not fall back to legacy saveDB');
+  assert.ok(result.alerts.some(message => message.includes('لم يتم اعتماد القبض')) || result.alerts.some(message => message.includes('لم يتم تسجيل')),
+    'failed durable acknowledgement must not report collection success');
   assert.equal(result.customer.debt, 100, 'failed persistence must restore customer debt');
   assert.equal(result.appData.caisseBalance, 0, 'failed persistence must restore cash balance');
   assert.deepEqual(result.appData.cashMovements.map(m => m.id), ['CASH-1'], 'failed persistence must restore the original ledger');
@@ -94,7 +101,7 @@ console.log('PASS: failed persistence rolls back customer debt, cash and ledger'
 
 {
   for (const customerId of ['', '   ']) {
-    const result = runCollection({ customerId, amount: '25' });
+    const result = await runCollection({ customerId, amount: '25' });
     assert.equal(result.saves, 0, 'customer without a stable ID must not be used for debt collection');
     assert.equal(result.customer.debt, 100, 'invalid-identity customer debt must remain unchanged');
     assert.equal(result.appData.caisseBalance, 0, 'invalid-identity collection must not alter cash');
@@ -175,14 +182,14 @@ console.log('PASS: customer and supplier saves fail closed on malformed records 
 
 
 {
-  const result = runCollection({debt:0.3,cash:100.1,amount:'0.1'});
+  const result = await runCollection({debt:0.3,cash:100.1,amount:'0.1'});
   assert.equal(result.saves,1);
   assert.equal(result.customer.debt,0.2,'debt reduction must be exact to the centime');
   assert.equal(result.appData.caisseBalance,100.2,'cash increase must be exact to the centime');
   assert.equal(result.appData.cashMovements[0].amount,0.1,'cash movement amount must match the collected centimes');
 }
 {
-  const result = runCollection({debt:0.3,cash:100.1,amount:'0.105'});
+  const result = await runCollection({debt:0.3,cash:100.1,amount:'0.105'});
   assert.equal(result.customer.debt,0.19,'half-cent amount must normalize once to 0.11 DZD');
   assert.equal(result.appData.caisseBalance,100.21);
   assert.equal(result.appData.cashMovements[0].amount,0.11);
@@ -195,7 +202,7 @@ console.log('PASS: debt collection and cash receipt use the same integer-centime
     { id: 'INV-MID', customerId: 'C-1', date: '2026-02-01T10:00:00Z', total: 50, paid: 10, remaining: 40 },
     { id: 'INV-NEW', customerId: 'C-1', date: '2026-03-01T10:00:00Z', total: 60, paid: 0, remaining: 60 }
   ];
-  const result = runCollection({ debt: 100, cash: 10, amount: '45', invoices });
+  const result = await runCollection({ debt: 100, cash: 10, amount: '45', invoices });
   assert.equal(result.saves, 1, 'FIFO receipt must commit exactly once');
   assert.equal(result.customer.debt, 55, 'customer debt must decrease by the exact receipt');
   assert.equal(result.appData.caisseBalance, 55, 'cashbox must receive the exact receipt');
@@ -255,7 +262,7 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
     { id: 'INV-FIFO-OLD', customerId: 'C-1', total: 5000, paid: 0, remaining: 5000, date: '2026-11-01' },
     { id: 'INV-FIFO-NEW', customerId: 'C-1', total: 8387.5, paid: 0, remaining: 8387.5, date: '2026-11-05' }
   ];
-  const result = runCollection({ invoices, debt: 13387.5, cash: 0, amount: '13387.50' });
+  const result = await runCollection({ invoices, debt: 13387.5, cash: 0, amount: '13387.50' });
   assert.equal(result.saves, 1);
   assert.equal(result.customer.debt, 0);
   assert.equal(result.appData.caisseBalance, 13387.5);
@@ -265,3 +272,49 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
   ]), 'full customer receipt must allocate oldest invoice first and settle both balances exactly');
   console.log('PASS: requested 13,387.50 DA customer receipt clears the partial debt using FIFO invoice allocation');
 }
+
+
+{
+  let releaseDurable;
+  let durableSaves = 0;
+  let promptCount = 0;
+  const alerts = [];
+  const durableGate = new Promise(resolve => { releaseDurable = resolve; });
+  const customer = { id: 'C-LOCK', name: 'Locked customer', debt: 100 };
+  const context = {
+    AppData: {
+      customers: [customer],
+      invoices: [{ id: 'INV-LOCK', customerId: 'C-LOCK', total: 100, paid: 0, remaining: 100 }],
+      caisseBalance: 0,
+      cashMovements: []
+    },
+    ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
+    alert: message => alerts.push(String(message)),
+    prompt: () => { promptCount++; return '25'; },
+    saveDB: () => { throw new Error('legacy saveDB must not be called'); },
+    saveDBDurably: () => { durableSaves++; return durableGate; },
+    updateCashUI() {},
+    renderCustomersDebts() {},
+    console,
+    Date: FixedDate,
+    Math,
+    Number, String, Object, Array, Set
+  };
+  vm.createContext(context);
+  const firstCommit = vm.runInContext(source + '\ncollectCustDebt("C-LOCK");', context);
+  assert.equal(durableSaves, 1, 'first collection must wait for one durable acknowledgement');
+  const duplicateCommit = vm.runInContext('collectCustDebt("C-LOCK");', context);
+  await duplicateCommit;
+  assert.equal(durableSaves, 1, 'duplicate click must not start a second durable write');
+  assert.equal(promptCount, 1, 'duplicate click must not open a second collection prompt');
+  assert.ok(alerts.some(message => message.includes('قيد الحفظ')), 'operator must be told the first collection is still committing');
+  releaseDurable(true);
+  await firstCommit;
+  assert.equal(customer.debt, 75, 'the acknowledged collection must commit once');
+}
+console.log('PASS: duplicate customer debt collection is blocked while durable persistence is in flight');
+
+assert.match(html, /typeof window\\.saveDBDurably === 'function'/,
+  'global application bridge readiness must require durable persistence');
+console.log('PASS: global application bridge readiness requires durable persistence');
+})().catch(error => { console.error(error); process.exitCode = 1; });
