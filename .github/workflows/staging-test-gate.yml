@@ -61,6 +61,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: P0 binary source hygiene — run before all test suites
         run: node scripts/verify-binary-source-hygiene.mjs
+      - name: Run read-only DOM integrity and inline-script syntax audit
+        run: node scripts/qa-dom-integrity.mjs index.html && node --test tests/qa_dom_integrity.test.mjs
       - name: Level 11 canonical, causal CAS, rebase quarantine and zero-sum proofs
         run: node --test tests/sovereign-kernel-level11.test.mjs
       - name: Syntax-check every repository script, POS engine and test module
