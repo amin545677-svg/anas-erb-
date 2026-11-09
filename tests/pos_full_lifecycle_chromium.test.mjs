@@ -443,12 +443,21 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'receipt action must invoke the existing thermal receipt print template');
     assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
       'printing must not dismiss the post-save actions');
+    await page.evaluate(() => {
+      const nativeOpen = window.open.bind(window);
+      window.__anasInvoiceShareOpenUrl = '';
+      window.open = function (url) {
+        window.__anasInvoiceShareOpenUrl = String(url || '');
+        return nativeOpen.apply(this, arguments);
+      };
+    });
     const whatsappPopupPromise = page.waitForEvent('popup');
     await page.locator('#anasInvoiceWhatsAppBtn').click();
     const whatsappPopup = await whatsappPopupPromise;
-    assert.match(whatsappPopup.url(), /^https:\/\/wa\.me\/\?text=/,
-      'WhatsApp action must open a correctly encoded wa.me share message');
-    assert.ok(decodeURIComponent(new URL(whatsappPopup.url()).searchParams.get('text')).includes('وصل بيع رقم:'),
+    const whatsappOpenUrl = await page.evaluate(() => window.__anasInvoiceShareOpenUrl);
+    assert.match(whatsappOpenUrl, /^https:\/\/wa\.me\/\?text=/,
+      'WhatsApp action must pass a correctly encoded wa.me share URL to window.open');
+    assert.ok(decodeURIComponent(new URL(whatsappOpenUrl).searchParams.get('text')).includes('وصل بيع رقم:'),
       'WhatsApp share text must include the invoice identity');
     await whatsappPopup.close();
     await page.evaluate(() => {
