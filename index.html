@@ -4037,9 +4037,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const input = document.getElementById('posSearchField');
             const results = document.getElementById('posSearchResults');
             if (!product) { if (results) results.hidden = true; return; }
-            // Keep the cashier's query and result list intact while the price picker is open.
-            // Cart-only rendering must never reset search text or product-result scroll position.
+            // Preserve the cashier's query while dismissing stale suggestions before
+            // the price picker or direct cart insertion takes focus.
+            // Cart-only rendering must never reset search text or catalogue scroll position.
             openPosPriceTierPicker(product.id);
+            closePosSearchResults(false);
             if (input) input.focus({preventScroll:true});
             posSearchActiveIndex = -1;
         }
