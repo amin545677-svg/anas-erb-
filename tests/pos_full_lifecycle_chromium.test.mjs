@@ -723,10 +723,14 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#posSearchResults .pos-search-result').first().click();
     const salesBarcodeProof = await page.evaluate(() => ({
       selected: posCart.some(row => String(row.id) === 'STG-POS-LIFECYCLE-001'),
-      resultHidden: document.getElementById('posSearchResults')?.hidden
+      resultHidden: document.getElementById('posSearchResults')?.hidden,
+      searchQuery: document.getElementById('posSearchField')?.value
     }));
     assert.equal(salesBarcodeProof.selected, true, 'sales POS barcode search must add the exact product to the cart');
-    assert.equal(salesBarcodeProof.resultHidden, true);
+    assert.equal(salesBarcodeProof.resultHidden, false,
+      'barcode selection must preserve the result list while the cashier continues the current search');
+    assert.equal(salesBarcodeProof.searchQuery, 'STGPOSLIFE001',
+      'barcode selection must preserve the cashier search text');
 
     await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي POS-20261107-001');
     // Exercise the quick-add handler directly; popup visibility is covered by the POS search unit assertions.
