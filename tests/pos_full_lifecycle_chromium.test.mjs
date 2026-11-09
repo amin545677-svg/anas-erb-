@@ -155,6 +155,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       element.scrollTop = element.scrollHeight;
     });
     const catalogueScrollBeforeAdd = await productContainer.evaluate(element => element.scrollTop);
+    assert.ok(catalogueScrollBeforeAdd > 0, 'the test must establish a non-zero catalogue scroll position');
     await productResult.click();
     await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
