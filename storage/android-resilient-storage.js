@@ -276,16 +276,47 @@
   }
   function openDB() {
     if (!global.indexedDB) return Promise.reject(new Error('IndexedDB unavailable'));
-    if (!dbPromise) dbPromise = new Promise((resolve, reject) => {
-      const request = global.indexedDB.open(DB_NAME, VERSION);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'key' });
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error || new Error('IndexedDB open failed'));
-      request.onblocked = () => reject(new Error('IndexedDB upgrade blocked'));
-    });
+    if (!dbPromise) {
+      let cachedPromise;
+      const opening = new Promise((resolve, reject) => {
+        const request = global.indexedDB.open(DB_NAME, VERSION);
+        let settled = false;
+        const fail = error => {
+          if (settled) return;
+          settled = true;
+          reject(error);
+        };
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          // A request can report "blocked" and later succeed after another tab
+          // closes its connection. Do not leak that late connection.
+          if (settled) {
+            try { db.close(); } catch (_) {}
+            return;
+          }
+          settled = true;
+          db.onversionchange = () => {
+            try { db.close(); } catch (_) {}
+            if (dbPromise === cachedPromise) dbPromise = null;
+          };
+          resolve(db);
+        };
+        request.onerror = () => fail(request.error || new Error('IndexedDB open failed'));
+        request.onblocked = () => fail(new Error('IndexedDB upgrade blocked'));
+      });
+      // A transient open failure must not poison this adapter for the lifetime
+      // of the page. The next hydrate/write may retry after WebView storage
+      // becomes available again.
+      cachedPromise = opening.catch(error => {
+        if (dbPromise === cachedPromise) dbPromise = null;
+        throw error;
+      });
+      dbPromise = cachedPromise;
+    }
     return dbPromise;
   }
   async function readIDB() {
@@ -455,6 +486,11 @@
       };
       try {
         await writeIDB(record, expectedCorruptRecord);
+        // Re-evaluate the active durability mode after a successful retry.
+        // A recovered IndexedDB connection plus a committed LocalStorage mirror
+        // means dual-write mode is healthy again; otherwise IndexedDB is primary.
+        mode = localPayloadPersisted ? 'DUAL' : 'INDEXEDDB_FALLBACK_ACTIVE';
+        try { global.localStorage.setItem(MODE_KEY, mode); } catch (_) {}
       } catch (error) {
         if (error && error.code === 'ANAS_STORAGE_REVISION_CONFLICT') {
           // A conflict is not a storage outage: LocalStorage must not be promoted
