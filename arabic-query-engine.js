@@ -3,9 +3,10 @@
 const slash=String.fromCharCode(92);
 const marks=new RegExp('['+String.fromCharCode(0x064B)+'-'+String.fromCharCode(0x065F)+String.fromCharCode(0x0670)+String.fromCharCode(0x0640)+']','g');
 const spaces=new RegExp(slash+'s+','g');
+const productNameCollator=new Intl.Collator('ar-DZ',{sensitivity:'base',numeric:true});
 function anasNormalizeQueryText(value){
  return String(value??'').normalize('NFKC').toLocaleLowerCase('ar').replace(marks,'')
- .replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي')
+ .replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي')
  .replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660))
  .replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0))
  .replace(spaces,' ').trim();
@@ -29,7 +30,7 @@ root.handlePosSearch=function(query){
  const products=Array.isArray(AppData&&AppData.products)?AppData.products:[];
  const matches=products.map((p,index)=>({p,index,score:anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
   .filter(x=>anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
-  .sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,12);
+  .sort((a,b)=>b.score-a.score||productNameCollator.compare(String(a.p.name||''),String(b.p.name||''))||String(a.p.id??'').localeCompare(String(b.p.id??''),'en',{numeric:true})||a.index-b.index).slice(0,12);
  results.replaceChildren();
  if(!matches.length){const empty=document.createElement('div');empty.className='pos-search-empty';empty.textContent='لا توجد منتجات مطابقة';results.appendChild(empty);results.hidden=false;return;}
  matches.forEach(({p})=>{const button=document.createElement('button');button.type='button';button.className='pos-search-result';button.setAttribute('role','option');
