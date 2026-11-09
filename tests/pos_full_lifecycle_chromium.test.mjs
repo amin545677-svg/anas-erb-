@@ -386,6 +386,22 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'a fully paid cash sale must not require a registered customer');
     const revisionBeforePayment = await page.evaluate(() => ANASResilientStorage.status().revision);
 
+    await page.evaluate(() => {
+      window.__anasDurableSaleOrder = [];
+      window.__anasOriginalSaveDBForDurableTest = window.saveDB;
+      window.__anasOriginalSaveDBDurablyForDurableTest = window.saveDBDurably;
+      window.saveDB = function (...args) {
+        window.__anasDurableSaleOrder.push('capture');
+        return window.__anasOriginalSaveDBForDurableTest.apply(this, args);
+      };
+      window.saveDBDurably = async function (...args) {
+        window.__anasDurableSaleOrder.push('durable-start');
+        const acknowledgement = await window.__anasOriginalSaveDBDurablyForDurableTest.apply(this, args);
+        window.__anasDurableSaleOrder.push('durable-ack');
+        return acknowledgement;
+      };
+    });
+
     // Confirm through the actual modal button; never call the payment function directly.
     await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
     await page.waitForFunction(({ beforeRevision, productId }) => {
@@ -403,6 +419,18 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
         !!document.getElementById('anasInvoicePostSaveDialog') &&
         cash.length === 1 && stock.length === 1;
     }, { beforeRevision: revisionBeforePayment, productId: PRODUCT_ID }, { timeout: 15000 });
+
+    const durableSaleOrder = await page.evaluate(() => {
+      const order = window.__anasDurableSaleOrder.slice();
+      window.saveDB = window.__anasOriginalSaveDBForDurableTest;
+      window.saveDBDurably = window.__anasOriginalSaveDBDurablyForDurableTest;
+      delete window.__anasDurableSaleOrder;
+      delete window.__anasOriginalSaveDBForDurableTest;
+      delete window.__anasOriginalSaveDBDurablyForDurableTest;
+      return order;
+    });
+    assert.deepEqual(durableSaleOrder, ['capture', 'durable-start', 'durable-ack'],
+      'sale must be captured by V42 before durable storage acknowledgement and finalization');
 
     const postSaveUi = await page.evaluate(() => ({
       title: document.querySelector('#anasInvoicePostSaveTitle')?.textContent,

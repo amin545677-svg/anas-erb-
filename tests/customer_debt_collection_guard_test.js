@@ -314,6 +314,18 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
 }
 console.log('PASS: duplicate customer debt collection is blocked while durable persistence is in flight');
 
+const durableSaleStart = html.indexOf("async function confirmHasibPaymentDurable()");
+const durableSaleEnd = html.indexOf("function buildInvoiceShareText", durableSaleStart);
+assert.ok(durableSaleStart >= 0 && durableSaleEnd > durableSaleStart,
+  'the live POS confirmation entrypoint must remain inspectable');
+const durableSaleSource = html.slice(durableSaleStart, durableSaleEnd);
+assert.ok(durableSaleSource.indexOf("saveDB()") >= 0 &&
+  durableSaleSource.indexOf("saveDB()") < durableSaleSource.indexOf("saveDBDurably()"),
+  'durable POS checkout must pass through V42 mutation capture before storage acknowledgement');
+assert.match(durableSaleSource, /await saveDBDurably\(\)/,
+  'POS checkout must await the durable persistence acknowledgement');
+console.log('PASS: durable POS checkout captures V42 mutation before durable commit');
+
 assert.match(html, /typeof window\.saveDBDurably === 'function'/,
   'global application bridge readiness must require durable persistence');
 console.log('PASS: global application bridge readiness requires durable persistence');

@@ -5220,7 +5220,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         }
 
         
-        function confirmHasibPaymentDurable() {
+        async function confirmHasibPaymentDurable() {
             if (typeof hasibPaymentInFlight !== 'undefined' && hasibPaymentInFlight) return;
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
@@ -5654,17 +5654,19 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     delete nextDiscounts[discountTab];
                     AppData.posCartDiscounts = nextDiscounts;
                 }
-                const durableSave = typeof saveDBDurably === 'function' ? saveDBDurably() : saveDB();
-                if (durableSave && typeof durableSave.then === 'function') {
-                    return durableSave.then(() => { finalizeSale(); return true; })
-                        .catch(error => { rollbackSale(error); return false; });
-                }
-                if (durableSave !== true) throw new Error('تعذر حفظ البيانات الدائم');
+                // The V42 capture hook must stage the sale mutation before the durable store acknowledges it.
+                if (typeof saveDB !== 'function' || saveDB() !== true)
+                    throw new Error('تعذر تجهيز الفاتورة أو التقاطها لطابور المزامنة.');
+                if (typeof saveDBDurably !== 'function')
+                    throw new Error('واجهة الحفظ الدائم غير متاحة؛ لم يتم اعتماد الفاتورة.');
+                if (await saveDBDurably() !== true)
+                    throw new Error('لم يؤكد التخزين الدائم اعتماد الفاتورة.');
             } catch (e) {
                 rollbackSale(e);
-                return;
+                return false;
             }
             finalizeSale();
+            return true;
         }
 
         function buildInvoiceShareText(inv) {

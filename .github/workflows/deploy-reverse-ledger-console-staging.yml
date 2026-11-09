@@ -262,8 +262,8 @@ jobs:
           fetch_expect "/config.js" "staging-only allowed origin" '"allowedOrigins":["https://anas-erp-staging-a25e1.web.app"]'
           fetch_expect "/erp/" "V42 ERP/POS shell" "Anas ERP v42"
           fetch_expect "/erp/" "ERP staging project config" '"projectId":"anas-erp-staging-a25e1"'
-          fetch_expect "/erp/" "exact deployed commit and r34 build stamp" "Build SHA: ${short_sha} | SW: r34 | Env: Staging"
-          fetch_expect "/erp/sw.js" "r34 service-worker cache namespace" "const CACHE = 'anas-erp-v54-25-r34';"
+          fetch_expect "/erp/" "exact deployed commit and r35 build stamp" "Build SHA: ${short_sha} | SW: r35 | Env: Staging"
+          fetch_expect "/erp/sw.js" "r35 service-worker cache namespace" "const CACHE = 'anas-erp-v54-25-r35';"
           fetch_expect "/erp/sw.js" "ERP offline service worker" "android-resilient-storage.js"
           fetch_expect "/erp/storage/android-resilient-storage.js" "IndexedDB resilient storage module" "IndexedDB"
           fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"
