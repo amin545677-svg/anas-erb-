@@ -7231,8 +7231,11 @@ function renderPurchasesTable() {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                // Preserve the V42 mutation-capture hook before waiting for the authoritative durable acknowledgement.
+                if (typeof saveDB !== 'function' || saveDB() !== true)
+                    throw new Error('تعذر تجهيز سند القبض أو التقاطه للمزامنة.');
                 if (typeof saveDBDurably !== 'function') throw new Error('واجهة الحفظ الدائم غير متاحة؛ لم يتم اعتماد القبض.');
-                await saveDBDurably();
+                if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند القبض.');
             } catch (error) {
                 collectionLocks.delete(collectionLockKey);
                 if (hadDebt) customer.debt = oldDebtValue; else delete customer.debt;

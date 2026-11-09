@@ -64,7 +64,7 @@ async function runCollection({ movements = [], debt = 100, cash = 0, amount = '2
 {
   const result = await runCollection({ movements: [{ id: 'LEGACY-1', amount: 10 }], amount: '25' });
   assert.equal(result.saves, 1);
-  assert.equal(result.legacySaves, 0, 'financial collection must never use the non-acknowledged legacy saveDB path');
+  assert.equal(result.legacySaves, 1, 'V42 saveDB hook must capture the mutation before the durable acknowledgement');
   assert.equal(result.customer.debt, 75);
   assert.equal(result.appData.caisseBalance, 25);
   assert.equal(result.appData.cashMovements.length, 2);
@@ -86,7 +86,7 @@ async function runCollection({ movements = [], debt = 100, cash = 0, amount = '2
   const original = [{ id: 'CASH-1', amount: 10 }];
   const result = await runCollection({ movements: original, amount: '25', saveResult: false });
   assert.equal(result.saves, 1);
-  assert.equal(result.legacySaves, 0, 'failed durable acknowledgement must not fall back to legacy saveDB');
+  assert.equal(result.legacySaves, 1, 'V42 capture hook runs once before a failed durable acknowledgement');
   assert.ok(result.alerts.some(message => message.includes('لم يتم اعتماد القبض')) || result.alerts.some(message => message.includes('لم يتم تسجيل')),
     'failed durable acknowledgement must not report collection success');
   assert.equal(result.customer.debt, 100, 'failed persistence must restore customer debt');
@@ -291,7 +291,7 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
     ANASReverseLedger: require('../reverse-ledger/reverse-ledger.js'),
     alert: message => alerts.push(String(message)),
     prompt: () => { promptCount++; return '25'; },
-    saveDB: () => { throw new Error('legacy saveDB must not be called'); },
+    saveDB: () => true,
     saveDBDurably: () => { durableSaves++; return durableGate; },
     updateCashUI() {},
     renderCustomersDebts() {},

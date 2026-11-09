@@ -11,7 +11,7 @@ const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledg
 function extractFunction(name, signature) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = v42Source.match(new RegExp(
-    "^        function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
+    "^        (?:async\\s+)?function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
     "m"
   ));
   assert.ok(match, `Could not extract V42 function: ${name}`);
@@ -62,7 +62,7 @@ function fixedDateContext() {
  * A false save result is followed by V42's own rollback and then queue abort.
  * This is a harness, not a production integration.
  */
-function runV42WithCapture({ kind, initial, paid, amount, failSave = false, failQueuePromotion = false }) {
+async function runV42WithCapture({ kind, initial, paid, amount, failSave = false, failQueuePromotion = false }) {
   const { FixedDate, fixedMath } = fixedDateContext();
   const local = storage({ [MUTATION_KEYS.appData]: initial });
   const initialSerialized = JSON.stringify(initial);
@@ -149,6 +149,7 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
     ));
     return true;
   };
+  context.saveDBDurably = async () => true;
 
   vm.createContext(context);
   const fn = kind === "sale"
@@ -158,8 +159,8 @@ function runV42WithCapture({ kind, initial, paid, amount, failSave = false, fail
 
   let threw = false;
   try {
-    if (kind === "sale") context.__run();
-    else context.__run("cust_1");
+    if (kind === "sale") await context.__run();
+    else await context.__run("cust_1");
   } catch (error) {
     threw = true;
     alerts.push(String(error.message));
@@ -204,7 +205,7 @@ async function syncAfterConflict(local, initialCloud) {
 
 test("V42 sale capture persists identity, survives 409 reconciliation, and drains queue after V2", async () => {
   const initial = fixture();
-  const run = runV42WithCapture({ kind: "sale", initial, paid: 400 });
+  const run = await runV42WithCapture({ kind: "sale", initial, paid: 400 });
   assert.equal(run.saveCalls, 1);
   assert.equal(run.pending().length, 1);
   assert.equal(run.pending()[0].status, "PENDING");
@@ -227,7 +228,7 @@ test("V42 sale capture persists identity, survives 409 reconciliation, and drain
 
 test("V42 debt collection capture preserves exact 500.50 DZD and survives 409 without duplicate movement", async () => {
   const initial = collectionFixture();
-  const run = runV42WithCapture({ kind: "collection", initial, amount: 500.5 });
+  const run = await runV42WithCapture({ kind: "collection", initial, amount: 500.5 });
   assert.equal(run.saveCalls, 1);
   assert.equal(run.pending().length, 1);
   assert.equal(run.pending()[0].status, "PENDING");
@@ -244,9 +245,9 @@ test("V42 debt collection capture preserves exact 500.50 DZD and survives 409 wi
   assert.equal(cloud.data.cashMovements[0].amount, 500.5);
 });
 
-test("V42 sale save failure rolls back stock, cash, debt and leaves no phantom pending mutation", () => {
+test("V42 sale save failure rolls back stock, cash, debt and leaves no phantom pending mutation", async () => {
   const initial = fixture();
-  const run = runV42WithCapture({ kind: "sale", initial, paid: 400, failSave: true });
+  const run = await runV42WithCapture({ kind: "sale", initial, paid: 400, failSave: true });
   assert.equal(run.saveCalls, 1);
   assert.equal(run.context.AppData.products[0].stock, 90);
   assert.equal(run.context.AppData.caisseBalance, 54000);
@@ -256,9 +257,9 @@ test("V42 sale save failure rolls back stock, cash, debt and leaves no phantom p
   assert.equal(run.local.getItem(MUTATION_KEYS.appData), JSON.stringify(initial));
 });
 
-test("V42 collection save failure rolls back customer debt and cash and leaves no phantom pending mutation", () => {
+test("V42 collection save failure rolls back customer debt and cash and leaves no phantom pending mutation", async () => {
   const initial = collectionFixture();
-  const run = runV42WithCapture({ kind: "collection", initial, amount: 500.5, failSave: true });
+  const run = await runV42WithCapture({ kind: "collection", initial, amount: 500.5, failSave: true });
   assert.equal(run.saveCalls, 1);
   assert.equal(run.context.AppData.customers[0].debt, 26000);
   assert.equal(run.context.AppData.caisseBalance, 54000);
@@ -267,9 +268,9 @@ test("V42 collection save failure rolls back customer debt and cash and leaves n
   assert.equal(run.local.getItem(MUTATION_KEYS.appData), JSON.stringify(initial));
 });
 
-test("queue promotion failure after durable save is detected and not silently treated as a successful transaction", () => {
+test("queue promotion failure after durable save is detected and not silently treated as a successful transaction", async () => {
   const initial = fixture();
-  const run = runV42WithCapture({ kind: "sale", initial, paid: 400, failQueuePromotion: true });
+  const run = await runV42WithCapture({ kind: "sale", initial, paid: 400, failQueuePromotion: true });
   assert.equal(run.threw, false, "V42 catches saveDB errors and reports rollback through its failure alert");
   assert.ok(run.alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")),
     "V42 must report the failed transaction after compensating rollback");

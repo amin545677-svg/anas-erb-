@@ -11,7 +11,7 @@ const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledg
 function extractFunction(name, signature = "") {
   const escaped = name;
   const match = source.match(new RegExp(
-    "^        function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
+    "^        (?:async\\s+)?function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
     "m"
   ));
   assert.ok(match, `Could not extract V42 function: ${name}`);
@@ -196,7 +196,8 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     saveDB: () => {
       storage.setItem(MUTATION_KEYS.appData, JSON.stringify(context.AppData));
       return true;
-    }
+    },
+    saveDBDurably: async () => true
   };
   vm.createContext(context);
   vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
@@ -254,7 +255,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   });
 
   installer.install();
-  context.runActualV42Collection("cust_1");
+  await context.runActualV42Collection("cust_1");
   const pending = storage.json(MUTATION_KEYS.pending);
   assert.equal(pending.length, 1);
   assert.equal(pending[0].status, "PENDING");

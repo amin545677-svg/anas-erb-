@@ -12,7 +12,7 @@ const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledg
 function extractFunction(name, signature) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = v42Source.match(new RegExp(
-    "^        function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
+    "^        (?:async\\s+)?function " + escaped + "\\(" + signature + "\\) \\{[\\s\\S]*?^        \\}",
     "m"
   ));
   assert.ok(match, `Could not extract V42 function: ${name}`);
@@ -30,7 +30,7 @@ function fixedDateContext() {
   return { FixedDate, fixedMath };
 }
 
-function runV42Collection(initial, amount) {
+async function runV42Collection(initial, amount) {
   const { FixedDate, fixedMath } = fixedDateContext();
   const alerts = [];
   const context = {
@@ -43,6 +43,7 @@ function runV42Collection(initial, amount) {
       : String(amount),
     alert: message => alerts.push(String(message)),
     saveDB: () => true,
+    saveDBDurably: async () => true,
     updateCashUI: () => {},
     renderCustomersDebts: () => {},
     console
@@ -50,7 +51,7 @@ function runV42Collection(initial, amount) {
   vm.createContext(context);
   const source = extractFunction("collectCustDebt", "cId");
   vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
-  context.__run("cust_1");
+  await context.__run("cust_1");
   return { snapshot: context.AppData, alerts };
 }
 
@@ -74,7 +75,7 @@ function stripSyncMetadata(value) {
   return copy;
 }
 
-test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-DZD fixture", () => {
+test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-DZD fixture", async () => {
   const initial = {
     caisseBalance: 54000,
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 26000 }],
@@ -82,7 +83,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
     cashMovements: [],
     currentUser: { id: "user_1", name: "مدير" }
   };
-  const original = runV42Collection(initial, 5000);
+  const original = await runV42Collection(initial, 5000);
   assert.deepEqual(original.alerts, ["تم تسجيل سند القبض وتوزيعه تلقائياً FIFO من أقدم فاتورة إلى أحدث فاتورة."]);
   assert.equal(original.snapshot.customers[0].debt, 21000);
   assert.equal(original.snapshot.caisseBalance, 59000);
@@ -108,7 +109,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
   );
 });
 
-test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", () => {
+test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", async () => {
   const initial = {
     caisseBalance: 1000,
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 2000 }],
@@ -116,7 +117,7 @@ test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", () => {
     cashMovements: [],
     currentUser: null
   };
-  const original = runV42Collection(initial, "500,50");
+  const original = await runV42Collection(initial, "500,50");
   assert.equal(original.snapshot.customers[0].debt, 1499.5);
   assert.equal(original.snapshot.caisseBalance, 1500.5);
 
