@@ -21,9 +21,9 @@ test('normalizes ta marbuta and ya variants for Algerian POS search', () => {
 });
 test('POS product results use Arabic collation and deterministic ID tie-breaking', () => {
   const source = readFileSync(new URL('../arabic-query-engine.js', import.meta.url), 'utf8');
-  assert.match(source, /new Intl\\.Collator\\('ar-DZ',\\{sensitivity:'base',numeric:true\\}\\)/);
-  assert.match(source, /productNameCollator\\.compare/);
-  assert.match(source, /localeCompare\\(String\\(b\\.p\\.id/);
+  assert.ok(source.includes("new Intl.Collator('ar-DZ',{sensitivity:'base',numeric:true})"));
+  assert.ok(source.includes('productNameCollator.compare'));
+  assert.ok(source.includes("localeCompare(String(b.p.id"));
 });
 
 test('normalizes Arabic-Indic and Persian digits to ASCII', () => {
