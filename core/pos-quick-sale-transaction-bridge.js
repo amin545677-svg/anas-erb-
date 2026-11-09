@@ -26,10 +26,10 @@
             refreshQuickSaleCart();
           });
         };
-        // The row's controls are: decrement, increment, and delete (fourth button).
+        // The row's controls are: decrement, increment, and delete (third button).
         bind(buttons[0], i => global.changePosQty(i, -1));
         bind(buttons[1], i => global.changePosQty(i, 1));
-        bind(buttons[3], i => global.removePosCartItem(i));
+        bind(buttons[2], i => global.removePosCartItem(i));
       });
       return result;
     };
