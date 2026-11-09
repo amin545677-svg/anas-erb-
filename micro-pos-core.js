@@ -130,29 +130,33 @@
       try { return JSON.stringify(target.AppData.products); }
       catch (_) { return undefined; }
     };
-    const inventoryChanged = (before, after) =>
-      before === null || after === null || before === undefined || after === undefined || before !== after;
+    // Keep the last committed catalogue fingerprint. Product mutations happen
+    // before saveDB(), so comparing only the state immediately around saveDB
+    // would miss the very inventory changes this bridge must publish.
+    let lastInventoryFingerprint = inventoryFingerprint();
+    const publishInventoryChange = source => {
+      const currentFingerprint = inventoryFingerprint();
+      const changed = lastInventoryFingerprint === null || currentFingerprint === null ||
+        lastInventoryFingerprint === undefined || currentFingerprint === undefined ||
+        currentFingerprint !== lastInventoryFingerprint;
+      if (!changed) return false;
+      lastInventoryFingerprint = currentFingerprint;
+      target.dispatchEvent(new target.CustomEvent('anas:inventory-changed', { detail: { source } }));
+      return true;
+    };
     const original = typeof target.saveDB === 'function' ? target.saveDB : null;
     if (original) {
       target.saveDB = function () {
-        const before = inventoryFingerprint();
         const result = original.apply(this, arguments);
-        const after = inventoryFingerprint();
-        if (result === true && inventoryChanged(before, after)) {
-          target.dispatchEvent(new target.CustomEvent('anas:inventory-changed', { detail: { source: 'saveDB' } }));
-        }
+        if (result === true) publishInventoryChange('saveDB');
         return result;
       };
     }
     const originalDurable = typeof target.saveDBDurably === 'function' ? target.saveDBDurably : null;
     if (originalDurable) {
       target.saveDBDurably = async function () {
-        const before = inventoryFingerprint();
         const result = await originalDurable.apply(this, arguments);
-        const after = inventoryFingerprint();
-        if (result === true && inventoryChanged(before, after)) {
-          target.dispatchEvent(new target.CustomEvent('anas:inventory-changed', { detail: { source: 'saveDBDurably' } }));
-        }
+        if (result === true) publishInventoryChange('saveDBDurably');
         return result;
       };
     }
