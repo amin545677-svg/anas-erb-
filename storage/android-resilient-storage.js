@@ -277,13 +277,19 @@
   function openDB() {
     if (!global.indexedDB) return Promise.reject(new Error('IndexedDB unavailable'));
     if (!dbPromise) {
-      let cachedPromise;
+      let cachedPromise = null;
+      const clearFailedOpen = () => {
+        if (cachedPromise && dbPromise === cachedPromise) dbPromise = null;
+      };
       const opening = new Promise((resolve, reject) => {
         const request = global.indexedDB.open(DB_NAME, VERSION);
         let settled = false;
         const fail = error => {
           if (settled) return;
           settled = true;
+          // Release the failed cached request immediately so the next hydrate()
+          // can retry after a transient Android WebView IndexedDB failure.
+          clearFailedOpen();
           reject(error);
         };
         request.onupgradeneeded = () => {
