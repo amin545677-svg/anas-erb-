@@ -11,6 +11,7 @@ const CORE = [
   './reverse-ledger/settlement-allocation-modal.js',
   './storage/android-resilient-storage.js',
   './core/ai-operations-engine.js',
+  './core/pos-quick-sale-transaction-bridge.js',
   './micro-pos-core.js',
   './pos/micro-pos-engine.mjs',
   './pos/micro-pos-deep-core.mjs',
