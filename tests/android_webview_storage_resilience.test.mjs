@@ -1038,3 +1038,76 @@ test('safeUpdateAppUI refreshes the shell without changing IndexedDB or LocalSto
   });
   await context.close();
 });
+
+
+test('Chromium retries IndexedDB after a transient open failure and restores dual-write durability', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const initial = S.encode({ invoices: [{ id: 'RETRY-IDB-OPEN-1', totalCentimes: 12500n }] });
+    localStorage.setItem(S.APP_KEY, initial);
+
+    const originalOpen = IDBFactory.prototype.open;
+    let failFirstOpen = true;
+    IDBFactory.prototype.open = function(...args) {
+      if (failFirstOpen) {
+        failFirstOpen = false;
+        const request = {
+          error: new DOMException('simulated transient IndexedDB open failure', 'UnknownError'),
+          onupgradeneeded: null,
+          onsuccess: null,
+          onblocked: null
+        };
+        Object.defineProperty(request, 'onerror', {
+          configurable: true,
+          set(handler) {
+            queueMicrotask(() => handler.call(request, { target: request }));
+          }
+        });
+        return request;
+      }
+      return originalOpen.apply(this, args);
+    };
+
+    try {
+      await S.hydrate(initial);
+      const firstMode = S.status().mode;
+      const second = await S.hydrate(null);
+      const record = await new Promise((resolve, reject) => {
+        const request = originalOpen.call(indexedDB, S.DB_NAME, 1);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction(S.STORE_NAME, 'readonly');
+          const get = tx.objectStore(S.STORE_NAME).get(S.APP_KEY);
+          get.onsuccess = () => { const value = get.result || null; db.close(); resolve(value); };
+          get.onerror = () => { db.close(); reject(get.error); };
+        };
+        request.onerror = () => reject(request.error);
+      });
+      return {
+        firstMode,
+        secondMode: second.mode,
+        ready: S.ready(),
+        recordExists: !!record,
+        revision: record?.revision ?? null,
+        payloadMatches: record?.payload === initial,
+        amount: record ? S.decode(record.payload).invoices[0].totalCentimes.toString() : null
+      };
+    } finally {
+      IDBFactory.prototype.open = originalOpen;
+    }
+  });
+  assert.deepEqual(result, {
+    firstMode: 'LOCALSTORAGE_FALLBACK_ACTIVE',
+    secondMode: 'DUAL',
+    ready: true,
+    recordExists: true,
+    revision: 1,
+    payloadMatches: true,
+    amount: '12500'
+  });
+  await context.close();
+});
