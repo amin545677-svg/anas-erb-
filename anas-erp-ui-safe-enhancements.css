@@ -378,7 +378,7 @@ input, select, textarea {
 }
 
 /* r28 inventory cards: keep long Arabic names and metadata in normal flow. */
-.anas-inventory-product-card{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important;min-width:0!important;height:auto!important;overflow:visible!important;white-space:normal!important}
+.anas-inventory-product-card{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:6px!important;min-width:0!important;height:auto!important;overflow:visible!important;white-space:normal!important}.anas-inventory-product-card *{position:static!important}
 .anas-inventory-card-main{display:flex!important;align-items:flex-start!important;gap:10px!important;min-width:0!important;width:100%!important}
 .anas-inventory-card-thumb{flex:0 0 44px!important}
 .anas-inventory-card-info{display:flex!important;flex:1 1 auto!important;flex-direction:column!important;align-items:flex-start!important;gap:5px!important;min-width:0!important;width:100%!important;white-space:normal!important}

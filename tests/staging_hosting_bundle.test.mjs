@@ -59,6 +59,12 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'mobile POS products must use a readable two-column grid');
     assert.match(visualCss, /\.inventory-item-card[\s\S]*?flex-direction:column/,
       'inventory cards must stack content without overlay positioning');
+    assert.match(visualCss, /\.anas-inventory-product-card\{[^}]*display:flex!important;[^}]*flex-direction:column!important;[^}]*gap:6px!important;[^}]*height:auto!important;/,
+      'mobile inventory product cards must use a six-pixel vertical flex gap and natural height');
+    assert.match(visualCss, /\.anas-inventory-product-card \\\*\{position:static!important\}/,
+      'all inventory card descendants must remain in normal document flow');
+    assert.doesNotMatch(erp, /#38bdf8|#29b6f6/i,
+      'the deployed ERP shell must not retain the eye-straining cyan palette');
     assert.match(visualCss, /#pdfImportCard[\s\S]*?background:#1e293b/,
       'PDF import card must have a dark readable surface');
     assert.match(visualCss, /anas-ai-file-actions > label\[data-anas-ai-action="pdf"\]/,
