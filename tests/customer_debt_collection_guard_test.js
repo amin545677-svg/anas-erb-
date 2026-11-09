@@ -377,67 +377,6 @@ async function runCashOperation({captureResults=[true],durableResults=[true]}={}
   console.log('PASS: duplicate cashbox submissions are serialized until durable acknowledgement');
 }
 
-const cashOperationStart = html.indexOf('async function submitCashOperation() {');
-const cashOperationEnd = html.indexOf('async function submitExpenseOperation()', cashOperationStart);
-assert.ok(cashOperationStart >= 0 && cashOperationEnd > cashOperationStart, 'cash operation must be isolatable');
-const cashOperationSource = helperSource + html.slice(cashOperationStart, cashOperationEnd);
-async function runCashOperation({captureResults=[true],durableResults=[true]}={}) {
-  const AppData={caisseBalance:100,cashMovements:[],currentUser:{id:'U-CASH',name:'Tester'}};
-  const fields={
-    cashAmountInput:{value:'25',focus(){}},
-    cashDescInput:{value:'test cash operation'},
-    optAddCash:{classList:{contains:()=>true}}
-  };
-  const alerts=[];let captureSaves=0,durableSaves=0;
-  const context={
-    AppData,
-    document:{getElementById:id=>fields[id]||null},
-    saveDB:()=>{captureSaves++;return captureResults.length?captureResults.shift():true;},
-    saveDBDurably:()=>{durableSaves++;const result=durableResults.length?durableResults.shift():true;return result?Promise.resolve(true):Promise.reject(new Error('simulated cash durable failure'));},
-    updateCashUI(){},alert:message=>alerts.push(String(message)),console,
-    Date:FixedDate,Math,Number,String,Object,Array,Set
-  };
-  vm.createContext(context);
-  await vm.runInContext(cashOperationSource+'\\nsubmitCashOperation();',context);
-  return {AppData,alerts,captureSaves,durableSaves};
-}
-{
-  const result = await runCashOperation();
-  assert.equal(result.AppData.caisseBalance,125);
-  assert.equal(result.AppData.cashMovements.length,1);
-  assert.equal(result.captureSaves,1);
-  assert.equal(result.durableSaves,1);
-  assert.ok(result.alerts.some(message=>message.includes('بنجاح')));
-  console.log('PASS: cashbox operation waits for durable acknowledgement after V42 capture');
-}
-{
-  const result = await runCashOperation({durableResults:[false,true]});
-  assert.equal(result.AppData.caisseBalance,100,'failed cash commit must restore the previous balance');
-  assert.equal(result.AppData.cashMovements.length,0,'failed cash commit must remove the movement');
-  assert.equal(result.captureSaves,2,'rollback snapshot must pass through the capture hook');
-  assert.equal(result.durableSaves,2,'rollback snapshot must receive its own durable acknowledgement');
-  assert.ok(result.alerts.some(message=>message.includes('حُفظت الحالة السابقة')));
-  console.log('PASS: failed cashbox commit durably persists the rollback snapshot');
-}
-{
-  let releaseDurable;
-  let durableSaves=0;
-  const durableGate=new Promise(resolve=>{releaseDurable=resolve;});
-  const AppData={caisseBalance:100,cashMovements:[],currentUser:{id:'U-CASH',name:'Tester'}};
-  const fields={cashAmountInput:{value:'25',focus(){}},cashDescInput:{value:'test'},optAddCash:{classList:{contains:()=>true}}};
-  const context={AppData,document:{getElementById:id=>fields[id]||null},saveDB:()=>true,
-    saveDBDurably:()=>{durableSaves++;return durableGate;},updateCashUI(){},alert:()=>{},console,
-    Date:FixedDate,Math,Number,String,Object,Array,Set};
-  vm.createContext(context);
-  const first=vm.runInContext(cashOperationSource+'\\nsubmitCashOperation();',context);
-  assert.equal(durableSaves,1);
-  await vm.runInContext('submitCashOperation();',context);
-  assert.equal(durableSaves,1,'duplicate click must not start another durable cash write');
-  assert.equal(AppData.cashMovements.length,1,'duplicate click must not create a second cash movement');
-  releaseDurable(true);
-  await first;
-  console.log('PASS: duplicate cashbox submissions are serialized until durable acknowledgement');
-}
 const durableSaleStart = html.indexOf("async function confirmHasibPaymentDurable()");
 const durableSaleEnd = html.indexOf("function buildInvoiceShareText", durableSaleStart);
 assert.ok(durableSaleStart >= 0 && durableSaleEnd > durableSaleStart,
