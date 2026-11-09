@@ -1,4 +1,4 @@
-const CACHE = 'anas-erp-v54-25-r31';
+const CACHE = 'anas-erp-v54-25-r32';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
@@ -29,6 +29,7 @@ const CORE = [
   './sync/mutation_reconciliation.mjs',
   './sync/mutation_keys.mjs',
   './sync/v42_transactional_bridge.mjs',
+  './sync/v42-prepared-recovery-runtime.mjs',
   './core/sovereign-kernel.mjs',
   './safe-update-ui.js'
 ];
