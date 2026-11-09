@@ -5440,7 +5440,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 posCart = [];
                 renderPosTable();
                 closeModal('hasibModal');
-                alert('تم تأكيد وحفظ الفاتورة رقم ' + invObj.id + ' دون طباعة. يمكنك طباعتها لاحقًا من سجل الفواتير.');
+                showInvoicePostSaveActions(invObj);
             };
             if (typeof hasibPaymentInFlight !== 'undefined') hasibPaymentInFlight = true;
             try {
@@ -5578,6 +5578,100 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 return;
             }
             finalizeSale();
+        }
+
+        function buildInvoiceShareText(inv) {
+            if (!inv || typeof inv !== 'object') return '';
+            const store = AppData && AppData.storeConfig ? AppData.storeConfig : {};
+            const lines = [
+                String(store.name || 'ANAS ERP'),
+                'وصل بيع رقم: ' + String(inv.id || '-'),
+                'التاريخ: ' + String(inv.date || '-'),
+                'العميل: ' + String(inv.customer || '-'),
+                '--------------------'
+            ];
+            (Array.isArray(inv.items) ? inv.items : []).forEach(item => {
+                const qty = String(item && item.qty != null ? item.qty : 0);
+                const name = String(item && item.name || 'منتج');
+                const total = item && item.total != null ? String(item.total) : String((Number(item && item.price) || 0) * (Number(item && item.qty) || 0));
+                lines.push(name + ' × ' + qty + ' = ' + total + ' د.ج');
+            });
+            lines.push('--------------------',
+                'الإجمالي: ' + String(inv.total ?? 0) + ' د.ج',
+                'المدفوع: ' + String(inv.paid ?? 0) + ' د.ج',
+                'المتبقي: ' + String(inv.remaining ?? 0) + ' د.ج',
+                String(store.footer || 'شكراً لثقتكم'));
+            return lines.join('\n');
+        }
+
+        function closeInvoicePostSaveActions() {
+            const dialog = document.getElementById('anasInvoicePostSaveDialog');
+            if (dialog) dialog.remove();
+        }
+
+        function showInvoicePostSaveActions(inv) {
+            closeInvoicePostSaveActions();
+            const dialog = document.createElement('section');
+            dialog.id = 'anasInvoicePostSaveDialog';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
+            dialog.setAttribute('aria-labelledby', 'anasInvoicePostSaveTitle');
+            dialog.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.62);';
+            const panel = document.createElement('div');
+            panel.style.cssText = 'width:min(100%,460px);max-height:90dvh;overflow:auto;background:var(--mp-card-bg,#fff);color:var(--mp-text-dark,#0f172a);border:1px solid var(--mp-border,#cbd5e1);border-radius:18px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.28);direction:rtl;';
+            const title = document.createElement('h2');
+            title.id = 'anasInvoicePostSaveTitle';
+            title.textContent = 'تم حفظ الفاتورة بنجاح';
+            title.style.cssText = 'font-size:20px;font-weight:900;margin:0 0 8px;';
+            const detail = document.createElement('p');
+            detail.textContent = 'رقم الفاتورة: ' + String(inv && inv.id || '-');
+            detail.style.cssText = 'margin:0 0 16px;color:var(--mp-text-muted,#64748b);font-weight:700;';
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+            const makeButton = (label, background, color, handler, id) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                if (id) button.id = id;
+                button.textContent = label;
+                button.style.cssText = 'min-height:48px;border:0;border-radius:11px;padding:10px 12px;background:' + background + ';color:' + color + ';font-weight:900;font-size:14px;cursor:pointer;touch-action:manipulation;';
+                button.addEventListener('click', handler);
+                return button;
+            };
+            const shareText = buildInvoiceShareText(inv);
+            actions.append(
+                makeButton('🖨️ طباعة الوصل', '#166534', '#fff', () => printLastConfirmedInvoice('thermal'), 'anasInvoicePrintBtn'),
+                makeButton('📄 طباعة A4', '#334155', '#fff', () => printLastConfirmedInvoice('legalA4'), 'anasInvoiceA4Btn'),
+                makeButton('🟢 WhatsApp', '#16a34a', '#fff', () => {
+                    const url = 'https://wa.me/?text=' + encodeURIComponent(shareText);
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }, 'anasInvoiceWhatsAppBtn'),
+                makeButton('💬 Messenger', '#2563eb', '#fff', async () => {
+                    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+                        try {
+                            await navigator.share({ title: 'وصل بيع ' + String(inv && inv.id || ''), text: shareText });
+                        } catch (error) {
+                            if (error && error.name !== 'AbortError') console.warn('Invoice share was not completed:', error);
+                        }
+                        return;
+                    }
+                    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                        try { await navigator.clipboard.writeText(shareText); alert('نُسخ نص الوصل. افتح Messenger والصقه في المحادثة.'); }
+                        catch (_) { alert('تعذر النسخ تلقائيًا. يمكنك نسخ بيانات الوصل من سجل الفواتير.'); }
+                    } else {
+                        alert('المشاركة المباشرة غير مدعومة في هذا المتصفح. يمكنك طباعة الوصل أو مشاركته من سجل الفواتير.');
+                    }
+                }, 'anasInvoiceMessengerBtn')
+            );
+            const hint = document.createElement('p');
+            hint.textContent = 'ستبقى هذه النافذة مفتوحة حتى تضغط «إنهاء». المشاركة عبر Messenger تفتح قائمة المشاركة في الهاتف لاختيار التطبيق والمستلم.';
+            hint.style.cssText = 'font-size:12px;line-height:1.6;color:var(--mp-text-muted,#64748b);margin:14px 0;';
+            const finish = makeButton('إنهاء', '#e2e8f0', '#0f172a', closeInvoicePostSaveActions, 'anasInvoiceFinishBtn');
+            finish.style.gridColumn = '1 / -1';
+            actions.append(finish);
+            panel.append(title, detail, actions, hint);
+            dialog.appendChild(panel);
+            document.body.appendChild(dialog);
+            finish.focus();
         }
 
         function printLastConfirmedInvoice(type) {

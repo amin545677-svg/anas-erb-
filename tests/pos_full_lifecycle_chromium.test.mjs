@@ -384,9 +384,54 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
         row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
       return storage.ready() && storage.status().revision > beforeRevision &&
         !document.getElementById('hasibModal')?.classList.contains('active') &&
+        !!document.getElementById('anasInvoicePostSaveDialog') &&
         cash.length === 1 && stock.length === 1;
     }, { beforeRevision: revisionBeforePayment, productId: PRODUCT_ID }, { timeout: 15000 });
 
+    const postSaveUi = await page.evaluate(() => ({
+      title: document.querySelector('#anasInvoicePostSaveTitle')?.textContent,
+      buttons: ['#anasInvoicePrintBtn','#anasInvoiceA4Btn','#anasInvoiceWhatsAppBtn','#anasInvoiceMessengerBtn','#anasInvoiceFinishBtn']
+        .map(selector => !!document.querySelector(selector)),
+      invoiceCount: AppData.invoices.length,
+      cartLines: posCart.length
+    }));
+    assert.equal(postSaveUi.title, 'تم حفظ الفاتورة بنجاح');
+    assert.deepEqual(postSaveUi.buttons, [true,true,true,true,true],
+      'successful checkout must expose print, A4, WhatsApp, Messenger and finish actions');
+    assert.equal(postSaveUi.invoiceCount, 1, 'post-save actions must not duplicate or remove the committed invoice');
+    assert.equal(postSaveUi.cartLines, 0, 'post-save actions must leave the cart cleared');
+    await page.waitForTimeout(1800);
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
+      'post-save invoice actions must not disappear on an automatic timer');
+    await page.evaluate(() => {
+      window.__invoicePrintCalls = 0;
+      window.print = () => { window.__invoicePrintCalls += 1; };
+    });
+    await page.locator('#anasInvoicePrintBtn').click();
+    assert.equal(await page.evaluate(() => window.__invoicePrintCalls), 1,
+      'receipt action must invoke the existing thermal receipt print template');
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
+      'printing must not dismiss the post-save actions');
+    const whatsappPopupPromise = page.waitForEvent('popup');
+    await page.locator('#anasInvoiceWhatsAppBtn').click();
+    const whatsappPopup = await whatsappPopupPromise;
+    assert.match(whatsappPopup.url(), /^https:\/\/wa\.me\/\?text=/,
+      'WhatsApp action must open a correctly encoded wa.me share message');
+    assert.ok(decodeURIComponent(new URL(whatsappPopup.url()).searchParams.get('text')).includes('وصل بيع رقم:'),
+      'WhatsApp share text must include the invoice identity');
+    await whatsappPopup.close();
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'share', { configurable: true, value: async payload => { window.__invoiceSharePayload = payload; } });
+    });
+    await page.locator('#anasInvoiceMessengerBtn').click();
+    const messengerPayload = await page.evaluate(() => window.__invoiceSharePayload);
+    assert.match(messengerPayload.text, /وصل بيع رقم:/,
+      'Messenger action must hand invoice details to the native share sheet');
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
+      'sharing must keep the post-save actions available until the cashier finishes');
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'the explicit finish action must dismiss the post-save dialog');
     const invoiceId = await page.evaluate((productId) => {
       const matches = AppData.invoices.filter(row =>
         row && Array.isArray(row.items) && row.items.some(item => String(item.id) === productId));
