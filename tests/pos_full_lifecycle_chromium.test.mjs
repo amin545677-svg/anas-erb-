@@ -633,6 +633,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#expAmountInput').fill('2000');
     await page.locator('#expPaymentMethod').selectOption('driver_advance');
     const beforeExpenseRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    const expenseSuccessDialogPromise = page.waitForEvent('dialog', { timeout: 15000 });
     await page.locator('#view-expenses button[onclick="submitExpenseOperation()"]').click();
     await page.waitForFunction(beforeRevision => {
       const storage = window.ANASResilientStorage;
@@ -650,7 +651,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.deepEqual(expenseProof, {
       amount: 2000, paymentMethod: 'driver_advance', settlementStatus: 'pending', cashBalance: 0
     });
-    assert.ok(dialogMessages.some(message => message.includes('تم تسجيل المصروف بنجاح')));
+    const expenseSuccessDialog = await expenseSuccessDialogPromise;
+    assert.ok(expenseSuccessDialog.message().includes('تم تسجيل المصروف بنجاح'));
     assert.ok(dialogMessages.every(message => !/يتطلب معرف فترة مفتوحة|طلب الترحيل الخادمي|بوابة ترحيل خادمية/.test(message)),
       'local return and expense flows must not require a server fiscal-period gate');
 
