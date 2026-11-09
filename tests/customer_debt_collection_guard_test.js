@@ -315,10 +315,10 @@ console.log('PASS: unit guards, offline XLSX templates and cost-snapshot net-pro
 console.log('PASS: duplicate customer debt collection is blocked while durable persistence is in flight');
 
 
-const cashStart = html.indexOf('async function submitCashOperation() {');
-const cashEnd = html.indexOf('async function submitExpenseOperation()', cashStart);
-assert.ok(cashStart >= 0 && cashEnd > cashStart, 'cash operation must be isolatable');
-const cashSource = helperSource + html.slice(cashStart, cashEnd);
+const cashOperationStart = html.indexOf('async function submitCashOperation() {');
+const cashOperationEnd = html.indexOf('async function submitExpenseOperation()', cashOperationStart);
+assert.ok(cashOperationStart >= 0 && cashOperationEnd > cashOperationStart, 'cash operation must be isolatable');
+const cashOperationSource = helperSource + html.slice(cashOperationStart, cashOperationEnd);
 async function runCashOperation({captureResults=[true],durableResults=[true]}={}) {
   const AppData={caisseBalance:100,cashMovements:[],currentUser:{id:'U-CASH',name:'Tester'}};
   const fields={
@@ -336,7 +336,7 @@ async function runCashOperation({captureResults=[true],durableResults=[true]}={}
     Date:FixedDate,Math,Number,String,Object,Array,Set
   };
   vm.createContext(context);
-  await vm.runInContext(cashSource+'\nsubmitCashOperation();',context);
+  await vm.runInContext(cashOperationSource+'\nsubmitCashOperation();',context);
   return {AppData,alerts,captureSaves,durableSaves};
 }
 {
@@ -367,7 +367,7 @@ async function runCashOperation({captureResults=[true],durableResults=[true]}={}
     saveDBDurably:()=>{durableSaves++;return durableGate;},updateCashUI(){},alert:()=>{},console,
     Date:FixedDate,Math,Number,String,Object,Array,Set};
   vm.createContext(context);
-  const first=vm.runInContext(cashSource+'\nsubmitCashOperation();',context);
+  const first=vm.runInContext(cashOperationSource+'\nsubmitCashOperation();',context);
   assert.equal(durableSaves,1);
   await vm.runInContext('submitCashOperation();',context);
   assert.equal(durableSaves,1,'duplicate click must not start another durable cash write');
@@ -377,10 +377,10 @@ async function runCashOperation({captureResults=[true],durableResults=[true]}={}
   console.log('PASS: duplicate cashbox submissions are serialized until durable acknowledgement');
 }
 
-const cashStart = html.indexOf('async function submitCashOperation() {');
-const cashEnd = html.indexOf('async function submitExpenseOperation()', cashStart);
-assert.ok(cashStart >= 0 && cashEnd > cashStart, 'cash operation must be isolatable');
-const cashSource = helperSource + html.slice(cashStart, cashEnd);
+const cashOperationStart = html.indexOf('async function submitCashOperation() {');
+const cashOperationEnd = html.indexOf('async function submitExpenseOperation()', cashOperationStart);
+assert.ok(cashOperationStart >= 0 && cashOperationEnd > cashOperationStart, 'cash operation must be isolatable');
+const cashOperationSource = helperSource + html.slice(cashOperationStart, cashOperationEnd);
 async function runCashOperation({captureResults=[true],durableResults=[true]}={}) {
   const AppData={caisseBalance:100,cashMovements:[],currentUser:{id:'U-CASH',name:'Tester'}};
   const fields={
@@ -398,7 +398,7 @@ async function runCashOperation({captureResults=[true],durableResults=[true]}={}
     Date:FixedDate,Math,Number,String,Object,Array,Set
   };
   vm.createContext(context);
-  await vm.runInContext(cashSource+'\\nsubmitCashOperation();',context);
+  await vm.runInContext(cashOperationSource+'\\nsubmitCashOperation();',context);
   return {AppData,alerts,captureSaves,durableSaves};
 }
 {
@@ -429,7 +429,7 @@ async function runCashOperation({captureResults=[true],durableResults=[true]}={}
     saveDBDurably:()=>{durableSaves++;return durableGate;},updateCashUI(){},alert:()=>{},console,
     Date:FixedDate,Math,Number,String,Object,Array,Set};
   vm.createContext(context);
-  const first=vm.runInContext(cashSource+'\\nsubmitCashOperation();',context);
+  const first=vm.runInContext(cashOperationSource+'\\nsubmitCashOperation();',context);
   assert.equal(durableSaves,1);
   await vm.runInContext('submitCashOperation();',context);
   assert.equal(durableSaves,1,'duplicate click must not start another durable cash write');
