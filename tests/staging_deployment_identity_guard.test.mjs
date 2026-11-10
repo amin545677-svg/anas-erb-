@@ -178,6 +178,10 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   const functionsWorkflow = await fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8');
   assert.match(functionsWorkflow, /confirm_staging_functions_deploy/);
   assert.match(functionsWorkflow, /DEPLOY_STAGING_FUNCTIONS/);
+  assert.match(functionsWorkflow, /staging-project-guard:/, 'Functions push deploy must have an isolated project guard');
+  assert.match(functionsWorkflow, /deploy-reverse-ledger-staging:[\s\S]*?needs:\s*staging-project-guard/, 'Functions deployment must depend on the staging guard');
+  assert.match(functionsWorkflow, /github\.event_name == 'push'/, 'trusted branch pushes must trigger Functions deployment');
+  assert.match(functionsWorkflow, /Wait for matching Staging Test Gate success/, 'Functions deploy must wait for the exact SHA Gate');
   assert.match(functionsWorkflow, /github\.event_name == 'workflow_dispatch'[\s\S]*?inputs\.confirm_staging_functions_deploy/);
   assert.doesNotMatch(functionsWorkflow, /if:\s*\$\{\{\s*false\s*\}\}/,
     'Functions deployment must be available through an explicit Staging-only manual release switch');
@@ -196,6 +200,15 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   );
   assert.match(workflow, /verify-live-staging-e2e\.mjs/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
+  const consoleWorkflow = await fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8');
+  assert.match(consoleWorkflow, /staging-project-guard:/);
+  assert.match(consoleWorkflow, /needs:\s*staging-project-guard/);
+  assert.match(consoleWorkflow, /exact deployed commit and r36 build stamp/);
+  assert.match(consoleWorkflow, /r36 service-worker cache namespace/);
+  assert.match(consoleWorkflow, /Wait for matching Firebase Functions deployment success/);
+  assert.match(consoleWorkflow, /Live Staging Acceptance Proof/);
+  assert.match(consoleWorkflow, /ANAS_STAGING_E2E_FIXTURE_JSON/);
+  assert.match(consoleWorkflow, /ANAS_STAGING_ACCEPTANCE_CERTIFICATE/);
 });
 
 test('Level 9 identity matrix: rejects empty Firebase project ID', () => {

@@ -62,6 +62,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  staging-project-guard:
+    if: ${{ github.ref == 'refs/heads/staging/unified-release-candidate' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact staging candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify staging-only Hosting bundle contract
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const cfg = JSON.parse(fs.readFileSync('firebase.staging.hosting.json', 'utf8'));
+          if (cfg.hosting?.site !== 'anas-erp-staging-a25e1' || cfg.hosting?.public !== 'staging-site') throw new Error('Hosting target is not isolated Staging');
+          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r36';")) throw new Error('Root Service Worker is not r36');
+          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r36 | Env: Staging")) throw new Error('ERP build stamp does not match r36 Service Worker');
+          if (!fs.readFileSync('index.html', 'utf8').includes('Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging')) throw new Error('Canonical source stamp placeholder changed unexpectedly');
+          NODE
+          node --check scripts/build-staging-hosting.mjs
+          node --test tests/staging_hosting_bundle.test.mjs tests/staging_deployment_identity_guard.test.mjs
+
   validate-staging-console-pr:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'staging/unified-release-candidate'
     runs-on: ubuntu-latest
@@ -82,8 +104,9 @@ jobs:
           node --check staging/reverse-ledger-gateway.js
           node --check reverse-ledger/reverse-ledger.js
 
-  # Deploy only after the Staging Test Gate has passed; manual dispatch is the release switch.
+  # Deploy trusted pushes after the isolated project guard and exact-SHA Staging Test Gate.
   deploy-staging-console:
+    needs: staging-project-guard
     if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/staging/unified-release-candidate' }}
     permissions:
       contents: read
@@ -228,6 +251,37 @@ jobs:
       - name: Deploy only the dedicated staging ERP and console
         run: npx --yes firebase-tools@14.22.0 deploy --only hosting --config firebase.staging.hosting.json --project anas-erp-staging-a25e1 --non-interactive
 
+      - name: Wait for matching Firebase Functions deployment success
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const root = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}`;
+          const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          for (let attempt = 1; attempt <= 100; attempt++) {
+            const runsResponse = await fetch(root + '/actions/workflows/deploy-reverse-ledger-functions-staging.yml/runs?branch=' + encodeURIComponent(process.env.GITHUB_REF_NAME) + '&event=push&per_page=100', { headers });
+            if (!runsResponse.ok) throw new Error('Unable to inspect Functions deployment runs: HTTP ' + runsResponse.status);
+            const runs = await runsResponse.json();
+            const run = (runs.workflow_runs || []).find(row => row.event === 'push' && row.head_sha === process.env.GITHUB_SHA);
+            if (run?.status === 'completed') {
+              const jobsResponse = await fetch(root + '/actions/runs/' + run.id + '/jobs?per_page=100', { headers });
+              if (!jobsResponse.ok) throw new Error('Unable to inspect Functions deployment jobs: HTTP ' + jobsResponse.status);
+              const jobs = await jobsResponse.json();
+              const deploy = (jobs.jobs || []).find(job => job.name === 'deploy-reverse-ledger-staging');
+              if (!deploy || deploy.conclusion !== 'success') throw new Error('Matching Functions deployment did not succeed: ' + (deploy?.conclusion || 'deploy job missing'));
+              console.log('PASS: Firebase Functions deployment succeeded for exact SHA ' + process.env.GITHUB_SHA + ' (Run ID ' + run.id + ').');
+              process.exit(0);
+            }
+            console.log('Waiting for exact-SHA Functions deployment; attempt ' + attempt + '/100.');
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          throw new Error('Timed out waiting for exact-SHA Firebase Functions deployment.');
+          NODE
+
       - name: Verify live staging ERP, offline assets, console and public config scope
         env:
           STAGING_ORIGIN: https://anas-erp-staging-a25e1.web.app
@@ -240,7 +294,7 @@ jobs:
             body="$(mktemp)"
             status="000"
             for attempt in $(seq 1 12); do
-              status="$(curl --location --silent --show-error --output "$body" --write-out '%{http_code}' "$STAGING_ORIGIN$path" 2>/dev/null || true)"
+              status="$(curl --location --silent --show-error --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' --output "$body" --write-out '%{http_code}' "$STAGING_ORIGIN$path?__verify_sha=${DEPLOY_SHA}" 2>/dev/null || true)"
               if [ "$status" = "200" ]; then
                 if grep -Fq "$pattern" "$body"; then
                   rm -f "$body"
@@ -269,4 +323,72 @@ jobs:
           fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"
           fetch_expect "/erp/arabic-query-engine.js" "Arabic POS search collation" "Intl.Collator"
           echo "PASS: full staging ERP/POS PWA, offline storage assets, reverse-ledger console and staging-only Firebase configuration are live."
+
+      - name: Live Staging Acceptance Proof — sale, fractional stock, debt, 409 and trusted backup/restore
+        env:
+          ANAS_STAGING_URL: https://anas-erp-staging-a25e1.web.app
+          ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
+          ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
+          ANAS_STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
+          ANAS_STAGING_E2E_FIXTURE_JSON: ${{ secrets.ANAS_STAGING_E2E_FIXTURE_JSON }}
+          ANAS_STAGING_E2E_FIXTURE: ${{ runner.temp }}/anas-staging-live-e2e-fixture.json
+          ANAS_STAGING_EVIDENCE_PATH: ${{ runner.temp }}/anas-staging-live-e2e-evidence.json
+          ANAS_STAGING_CERTIFICATE_PATH: ${{ runner.temp }}/anas-staging-acceptance-certificate.json
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for name in ANAS_STAGING_EMAIL ANAS_STAGING_PASSWORD ANAS_STAGING_E2E_FIXTURE_JSON; do
+            if [ -z "${!name:-}" ]; then echo "::error::Missing required staging Environment secret: $name"; exit 1; fi
+          done
+          printf '%s' "$ANAS_STAGING_E2E_FIXTURE_JSON" > "$ANAS_STAGING_E2E_FIXTURE"
+          chmod 600 "$ANAS_STAGING_E2E_FIXTURE"
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { validateFixture } from './scripts/verify-live-staging-e2e.mjs';
+          const raw = fs.readFileSync(process.env.ANAS_STAGING_E2E_FIXTURE, 'utf8');
+          const fixture = JSON.parse(raw);
+          if (fixture.projectId !== 'anas-erp-staging-a25e1' || /REPLACE_[A-Z0-9_]+/.test(raw)) throw new Error('Live E2E fixture must be complete and Staging-only');
+          const ids = fixture.operations.map(row => row?.request?.operationId);
+          if (new Set(ids).size !== ids.length || ids.some(id => typeof id !== 'string' || !/^REV-STAGE-[A-Za-z0-9._:-]{8,140}$/.test(id))) throw new Error('Live E2E operation IDs must be unique REV-STAGE identifiers');
+          validateFixture(fixture);
+          console.log('PASS: synthetic staging fixture validated; no production records or credentials are accepted.');
+          NODE
+          node --test tests/pos_full_lifecycle_chromium.test.mjs tests/micro_pos_core.test.mjs tests/customer_debt_collection_guard_test.js tests/multi_device_acceptance_protocol.test.mjs
+          node scripts/verify-live-staging-e2e.mjs
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const evidence = JSON.parse(fs.readFileSync(process.env.ANAS_STAGING_EVIDENCE_PATH, 'utf8'));
+          if (evidence.result !== 'PASS' || !evidence.backupRestore?.exactMatch || evidence.backupRestore.centimeDelta !== '0' || evidence.backupRestore.microUnitDelta !== '0') throw new Error('Live financial / trusted backup-restore evidence is incomplete.');
+          const certificate = {
+            result: 'PASS',
+            testedSha: process.env.DEPLOY_SHA,
+            projectId: 'anas-erp-staging-a25e1',
+            serviceWorker: 'anas-erp-v54-25-r36',
+            acceptance: {
+              saleLifecycle: 'PASS — isolated Chromium POS lifecycle regression',
+              fractionalQuantityAndExactUnits: 'PASS — Micro POS BigInt/micro-unit regression',
+              customerDebtCollection: 'PASS — durable debt collection guard regression',
+              twoDeviceConflict409: 'PASS — HTTP 409 CAS reconciliation regression',
+              liveTrustedFinancialOperations: evidence.operations,
+              liveIdempotency: evidence.idempotency,
+              liveBackupRestore: evidence.backupRestore
+            },
+            completedAt: new Date().toISOString()
+          };
+          fs.writeFileSync(process.env.ANAS_STAGING_CERTIFICATE_PATH, JSON.stringify(certificate, null, 2) + '\n', { mode: 0o600 });
+          console.log('ANAS_STAGING_ACCEPTANCE_CERTIFICATE ' + JSON.stringify(certificate));
+          NODE
+
+      - name: Upload exact-SHA Staging acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: anas-erp-r36-staging-acceptance-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/anas-staging-live-e2e-evidence.json
+            ${{ runner.temp }}/anas-staging-acceptance-certificate.json
+          if-no-files-found: ignore
+          retention-days: 14
 # 2026-11-05: retrigger isolated staging deployment after staging credential refresh.

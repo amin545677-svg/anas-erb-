@@ -44,6 +44,42 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  staging-project-guard:
+    if: ${{ github.ref == 'refs/heads/staging/unified-release-candidate' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact staging candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify isolated project, V42 source, r36 build and canonical Functions bundles
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/staging/unified-release-candidate"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const staging = JSON.parse(fs.readFileSync('firebase.staging.json', 'utf8'));
+          if (staging.projectId && staging.projectId !== 'anas-erp-staging-a25e1') throw new Error('Staging projectId mismatch');
+          if (staging.functions?.source !== 'functions') throw new Error('Staging Functions source mismatch');
+          if (staging.firestore?.rules !== 'firebase/firestore.staging.rules') throw new Error('Staging Firestore rules mismatch');
+          const production = fs.readFileSync('firebase.json', 'utf8');
+          if (production !== '{\n  "firestore": {\n    "rules": "firebase/firestore.rules"\n  }\n}\n') throw new Error('Production Firebase config changed; refusing Staging deploy');
+          if (!fs.readFileSync('index.html', 'utf8').includes('V42')) throw new Error('V42 shell identity missing');
+          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r36';")) throw new Error('Expected canonical r36 Service Worker');
+          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r36 | Env: Staging")) throw new Error('Staging build stamp and Service Worker generation disagree');
+          NODE
+          cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js
+          cmp reverse-ledger/authorization.js functions/lib/authorization.js
+          node scripts/check-staging-readiness.mjs
+          node --check scripts/assert-staging-deployment-identity.mjs
+          node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs
+
   validate-staging-candidate-pr:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'staging/unified-release-candidate'
     runs-on: ubuntu-latest
@@ -61,12 +97,14 @@ jobs:
           node --check tests/staging_deployment_identity_guard.test.mjs
           node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js tests/staging_grant_scope.test.cjs
 
-  # Manual-only release switch: enable after the Staging runtime service-account ActAs binding is verified.
-  # Push and PR runs remain credential-free/skipped; no automatic financial backend deployment occurs.
+  # Trusted pushes deploy automatically only after the isolated-project guard and exact-SHA Gate.
+  # Manual dispatch remains available behind the explicit DEPLOY_STAGING_FUNCTIONS confirmation.
   deploy-reverse-ledger-staging:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging/unified-release-candidate' && inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS'
+    needs: staging-project-guard
+    if: ${{ github.ref == 'refs/heads/staging/unified-release-candidate' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS')) }}
     permissions:
       contents: read
+      actions: read
       id-token: write
     environment: staging
     runs-on: ubuntu-latest
@@ -78,6 +116,33 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Wait for matching Staging Test Gate success
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          for (let attempt = 1; attempt <= 140; attempt++) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) throw new Error('Unable to inspect Staging Test Gate: HTTP ' + response.status);
+            const payload = await response.json();
+            const gate = (payload.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.event === 'push' && run.head_sha === process.env.GITHUB_SHA);
+            if (gate?.status === 'completed') {
+              if (gate.conclusion !== 'success') throw new Error('Exact-SHA Staging Test Gate conclusion: ' + gate.conclusion);
+              console.log('PASS: Staging Test Gate succeeded for exact SHA ' + process.env.GITHUB_SHA);
+              process.exit(0);
+            }
+            console.log('Waiting for exact-SHA Staging Test Gate; attempt ' + attempt + '/140.');
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          throw new Error('Timed out waiting for exact-SHA Staging Test Gate.');
+          NODE
 
       - name: Secret Presence Preflight (raw JSON or Base64 service-account, OIDC fallback)
         id: auth_preflight
