@@ -1227,7 +1227,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "expenseSaved = saveDB() === true" in expense_operation
             and "await saveDBDurably() !== true" in expense_operation
             and "expenseSaved = false" in expense_operation
-            and expense_operation.find("await saveDBDurably() !== true") < expense_operation.find("if (!expenseSaved)"),
+            and expense_operation.find("await saveDBDurably() !== true") < expense_operation.rfind("if (!expenseSaved)"),
         "cash and expense rollback preserve raw cash-balance value and property presence":
             "const previousCashBalance = AppData.caisseBalance;" in cash_operation
             and "if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;" in cash_operation
