@@ -992,9 +992,9 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s = Path("index.html").read_text(encoding="utf-8")
-          start = s.find("async function saveNewCustomerMpos()")
-          end = s.find("\n        function ", start + len("async function saveNewCustomerMpos()"))
-          assert start >= 0 and end > start, "Could not isolate async customer save function"
+          start = s.find("function saveNewCustomerMpos()")
+          end = s.find("\n        function ", start + len("function saveNewCustomerMpos()"))
+          assert start >= 0 and end > start, "Could not isolate customer save function"
           fn = s[start:end]
           js = r"""
           /*INSERT_CUSTOMER_SAVE_FUNCTION*/
