@@ -1092,11 +1092,9 @@ jobs:
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
-          start = s.find("function submitCashOperation()")
+          start = s.find("async function submitCashOperation()")
           mid = s.find("async function submitExpenseOperation()", start)
-          if mid < 0:
-            mid = s.find("function submitExpenseOperation()", start)
-          end = s.find("\n        function ", mid + 10)
+          end = s.find("\n        function ", mid + len("async function submitExpenseOperation()"))
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
           helper_fn = s[helper_start:helper_end]
