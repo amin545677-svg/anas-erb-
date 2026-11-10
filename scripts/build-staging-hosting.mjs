@@ -98,7 +98,7 @@ export async function buildStagingHosting(options = {}) {
   const rootDir = path.resolve(options.rootDir || ROOT);
   const outDir = path.resolve(options.outDir || path.join(rootDir, 'staging-site'));
   const env = options.env || process.env;
-  const buildSha = String(env.GITHUB_SHA || env.ANAS_BUILD_SHA || 'local').trim().slice(0, 7);
+  const buildSha = String(env.ANAS_BUILD_SHA || env.GITHUB_SHA || 'local').trim().slice(0, 7);
   const apiKey = requirePublicValue(env, 'FIREBASE_STAGING_WEB_API_KEY');
   const appId = requirePublicValue(env, 'FIREBASE_STAGING_WEB_APP_ID');
   const siteKey = typeof env.FIREBASE_STAGING_APP_CHECK_SITE_KEY === 'string'

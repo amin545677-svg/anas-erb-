@@ -230,6 +230,7 @@ jobs:
 
       - name: Build full ERP/POS PWA and isolated reverse-ledger console
         env:
+          ANAS_BUILD_SHA: ${{ github.sha }}
           FIREBASE_STAGING_WEB_APP_ID: ${{ secrets.FIREBASE_STAGING_WEB_APP_ID }}
           FIREBASE_STAGING_APP_CHECK_SITE_KEY: ${{ secrets.FIREBASE_STAGING_APP_CHECK_SITE_KEY }}
         run: node scripts/build-staging-hosting.mjs

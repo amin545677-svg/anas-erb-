@@ -15,7 +15,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       env: {
         FIREBASE_STAGING_WEB_API_KEY: 'STAGING_PUBLIC_API_KEY',
         FIREBASE_STAGING_WEB_APP_ID: '1:123456:web:staging',
-        GITHUB_SHA: 'abcdef1234567890'
+        GITHUB_SHA: 'abcdef1234567890',
+        ANAS_BUILD_SHA: '1234567890abcdef'
       }
     });
     const erp = await fs.readFile(path.join(outDir, 'erp/index.html'), 'utf8');
@@ -46,7 +47,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /ANASFinancialIntegerEngine = Object\.freeze/);
     assert.match(erp, /typeof window\.saveDBDurably === 'function'/, 'bridge readiness must require the durable persistence API');
     assert.match(erp, /anasCompareProductNames/);
-    assert.match(erp, /Build SHA: abcdef1 \| SW: r36 \| Env: Staging/, 'built ERP must expose the exact deployment SHA and cache version');
+    assert.match(erp, /Build SHA: 1234567 \| SW: r36 \| Env: Staging/, 'explicit ANAS_BUILD_SHA must override runner checkout metadata and match the deployment SHA');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /anas-pos-search-first-v1/, 'the deployed ERP shell must carry the search-first POS presentation');
