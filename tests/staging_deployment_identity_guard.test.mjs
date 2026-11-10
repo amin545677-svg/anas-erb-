@@ -207,7 +207,11 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   assert.match(consoleWorkflow, /r36 service-worker cache namespace/);
   assert.match(consoleWorkflow, /Wait for matching Firebase Functions deployment success/);
   assert.ok(consoleWorkflow.includes('ANAS_BUILD_SHA: ${{ github.sha }}'));
+  assert.ok(consoleWorkflow.includes('live-staging-acceptance:'));
+  assert.ok(consoleWorkflow.includes('needs: deploy-staging-console'));
+  assert.ok(consoleWorkflow.includes('ANAS_HOSTING_DEPLOY_VERIFIED=true'));
   assert.match(consoleWorkflow, /Live Staging Acceptance Proof/);
+  assert.ok(consoleWorkflow.indexOf('Verify live staging ERP, offline assets, console and public config scope') < consoleWorkflow.indexOf('live-staging-acceptance:'), 'HTTP verification must finish in Hosting job before live acceptance');
   assert.match(consoleWorkflow, /ANAS_STAGING_E2E_FIXTURE_JSON/);
   assert.match(consoleWorkflow, /ANAS_STAGING_ACCEPTANCE_CERTIFICATE/);
 });

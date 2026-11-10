@@ -297,7 +297,37 @@ jobs:
           fetch_expect "/erp/arabic-query-engine.js" "Arabic POS search collation" "Intl.Collator"
           echo "PASS: full staging ERP/POS PWA, offline storage assets, reverse-ledger console and staging-only Firebase configuration are live."
 
+  live-staging-acceptance:
+    needs: deploy-staging-console
+    if: ${{ always() && github.ref == 'refs/heads/staging/unified-release-candidate' }}
+    permissions:
+      contents: read
+      actions: read
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact staging candidate for live acceptance
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js 22 for live acceptance
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Require successful exact-SHA Hosting deploy and HTTP verification
+        if: always()
+        env:
+          HOSTING_RESULT: ${{ needs.deploy-staging-console.result }}
+        run: |
+          if [ "$HOSTING_RESULT" != "success" ]; then
+            echo "::error::Live acceptance blocked because exact-SHA Hosting deploy or Live HTTP Verification failed."
+            exit 1
+          fi
+          echo "ANAS_HOSTING_DEPLOY_VERIFIED=true" >> "$GITHUB_ENV"
+
       - name: Wait for matching Firebase Functions deployment success
+        if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_API_URL: ${{ github.api_url }}
@@ -344,6 +374,10 @@ jobs:
           DEPLOY_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          if [ "${ANAS_HOSTING_DEPLOY_VERIFIED:-}" != "true" ]; then
+            echo "::error::Live financial acceptance is blocked because exact-SHA Hosting deploy and HTTP verification did not succeed."
+            exit 1
+          fi
           if [ "${ANAS_FUNCTIONS_DEPLOY_VERIFIED:-}" != "true" ]; then
             echo "::error::Live financial acceptance is blocked because exact-SHA Firebase Functions deployment did not succeed."
             exit 1
