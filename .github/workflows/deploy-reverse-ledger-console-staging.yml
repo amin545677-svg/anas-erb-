@@ -81,6 +81,7 @@ jobs:
           if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r36 | Env: Staging")) throw new Error('ERP build stamp does not match r36 Service Worker');
           if (!fs.readFileSync('index.html', 'utf8').includes('Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging')) throw new Error('Canonical source stamp placeholder changed unexpectedly');
           NODE
+          npm install --no-audit --no-fund
           node --check scripts/build-staging-hosting.mjs
           node --test tests/staging_hosting_bundle.test.mjs tests/staging_deployment_identity_guard.test.mjs
 

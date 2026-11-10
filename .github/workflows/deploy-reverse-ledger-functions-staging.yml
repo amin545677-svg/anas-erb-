@@ -74,7 +74,7 @@ jobs:
           if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r36';")) throw new Error('Expected canonical r36 Service Worker');
           if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r36 | Env: Staging")) throw new Error('Staging build stamp and Service Worker generation disagree');
           NODE
-          cmp reverse-ledger/reverse-ledger.js functions/lib/reverse-ledger.js
+          node scripts/verify-reverse-ledger-core-parity.mjs
           cmp reverse-ledger/authorization.js functions/lib/authorization.js
           node scripts/check-staging-readiness.mjs
           node --check scripts/assert-staging-deployment-identity.mjs
