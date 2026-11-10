@@ -1219,9 +1219,15 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             "saveDB()!==true" in stocktake_draft
             and "const saved=typeof saveDB==='function'?saveDB():false;" in stocktake_approve
             and "if(saved!==true)throw" in stocktake_approve,
-        "cash movements and expenses require explicit saveDB true before success":
-            "cashSaved = saveDB() === true" in cash_operation
-            and "expenseSaved = saveDB() === true" in expense_operation,
+        "cash movements and expenses require V42 capture and explicit durable ACK before success":
+            "typeof saveDB !== 'function' || saveDB() !== true" in cash_operation
+            and "await saveDBDurably() !== true" in cash_operation
+            and "cashSaved = true" in cash_operation
+            and cash_operation.find("await saveDBDurably() !== true") < cash_operation.find("cashSaved = true")
+            and "expenseSaved = saveDB() === true" in expense_operation
+            and "await saveDBDurably() !== true" in expense_operation
+            and "expenseSaved = false" in expense_operation
+            and expense_operation.find("await saveDBDurably() !== true") < expense_operation.find("if (!expenseSaved)"),
         "cash and expense rollback preserve raw cash-balance value and property presence":
             "const previousCashBalance = AppData.caisseBalance;" in cash_operation
             and "if (hadCashBalance) AppData.caisseBalance = previousCashBalance; else delete AppData.caisseBalance;" in cash_operation

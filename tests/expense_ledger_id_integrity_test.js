@@ -17,7 +17,7 @@ class FixedDate extends Date {
   static now() { return fixedNow; }
   constructor(...args) { super(...(args.length ? args : [fixedNow])); }
 }
-async function runExpense({ expenses = [], math = Math, saveResult = true, amount = '10', cash = 100, confirmResult = true, openingInput = '0', paymentMethod = 'cash' } = {}) {
+async function runExpense({ expenses = [], math = Math, saveResult = true, durableResults = null, amount = '10', cash = 100, confirmResult = true, openingInput = '0', paymentMethod = 'cash' } = {}) {
   const alerts = [];
   let saves = 0;
   const fields = {
@@ -37,7 +37,7 @@ async function runExpense({ expenses = [], math = Math, saveResult = true, amoun
     saveDBDurably: async () => {
       saves++;
       if (!saveResult) throw new Error('simulated IndexedDB write failure');
-      return true;
+      return Array.isArray(durableResults) && durableResults.length ? durableResults.shift() : true;
     },
     updateCashUI() {},
     Date: FixedDate,
@@ -114,4 +114,14 @@ test('failed durable expense save restores the cashbox and both ledgers', async 
   assert.equal(result.appData.expenses.length, 0);
   assert.equal(result.saves, 2, 'one failed write plus one rollback attempt must be awaited');
   assert.ok(result.alerts.some(message => message.includes('التخزين الدائم')));
+});
+
+test('false durable ACK rejects the expense and persists the restored financial snapshot', async () => {
+  const result = await runExpense({ amount: '25', cash: 100, durableResults: [false, true] });
+  assert.equal(result.appData.caisseBalance, 100, 'false durable ACK must restore the original cashbox balance');
+  assert.equal(result.appData.expenses.length, 0, 'false durable ACK must not leave a successful expense');
+  assert.equal(result.saves, 2, 'the rejected expense and restored snapshot must each reach the durable boundary');
+  assert.ok(result.alerts.some(message => message.includes('التخزين الدائم')));
+  assert.equal(result.alerts.some(message => message.includes('تم تسجيل المصروف بنجاح')), false,
+    'a false durable acknowledgement must never display success');
 });

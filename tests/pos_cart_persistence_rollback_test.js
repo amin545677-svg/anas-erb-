@@ -132,12 +132,16 @@ console.log('PASS: durable POS save publishes the cart map only after storage AC
   assert.ok(helperStart >= 0 && helperEnd > helperStart &&
     appSource.slice(helperStart, helperEnd).includes('await storage.setSync(ANAS_DB_KEY, serialized)'),
     'durable save must await the storage engine write acknowledgement');
-  const supplierStart = appSource.indexOf('function saveNewSupplierMpos()');
+  const supplierMatch = /async function saveNewSupplierMpos\(\) \{/.exec(appSource);
+  const supplierStart = supplierMatch ? supplierMatch.index : -1;
   const supplierEnd = appSource.indexOf('function printLatestLegalCustomerInvoice', supplierStart);
-  assert.ok(supplierStart >= 0 && supplierEnd > supplierStart,
-    'supplier creation must expose a promise-aware durable-save flow');
-  assert.match(appSource.slice(supplierStart, supplierEnd), /durableSave\.then\(/,
-    'supplier creation must await durable persistence before closing its modal');
+  assert.ok(supplierMatch && supplierEnd > supplierStart,
+    'supplier creation must expose an async durable-save flow');
+  const supplierSource = appSource.slice(supplierStart, supplierEnd);
+  const durableAck = supplierSource.indexOf('await saveDBDurably() !== true');
+  const modalClose = supplierSource.indexOf("closeModal('addSupplierModal')");
+  assert.ok(durableAck >= 0 && modalClose > durableAck,
+    'supplier creation must await a true durable acknowledgement before closing its modal');
 }
 console.log('PASS: supplier and POS payment flows await durable storage before success UI');
 
