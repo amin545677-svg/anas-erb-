@@ -206,7 +206,7 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   assert.match(consoleWorkflow, /exact deployed commit and r36 build stamp/);
   assert.match(consoleWorkflow, /r36 service-worker cache namespace/);
   assert.match(consoleWorkflow, /Wait for matching Firebase Functions deployment success/);
-  assert.match(consoleWorkflow, /ANAS_BUILD_SHA: \\$\{\\{ github\\.sha \\}\\}/);
+  assert.ok(consoleWorkflow.includes('ANAS_BUILD_SHA: ${{ github.sha }}'));
   assert.match(consoleWorkflow, /Live Staging Acceptance Proof/);
   assert.match(consoleWorkflow, /ANAS_STAGING_E2E_FIXTURE_JSON/);
   assert.match(consoleWorkflow, /ANAS_STAGING_ACCEPTANCE_CERTIFICATE/);
