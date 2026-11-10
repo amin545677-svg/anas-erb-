@@ -141,7 +141,20 @@ async function main() {
         const result = await settlementHandler({
           auth: { uid: UID, token }, app: { appId: 'anas-dom-emulator-app' }, data
         });
-        if (result && result.operationId) operationIds.push(result.operationId);
+        if (result && result.operationId) {
+          const committedSnapshot = await userRef.collection('snapshots').doc('latest').get();
+          const committedState = JSON.parse(committedSnapshot.get('payload'));
+          const committedOperation = await db.collection('reverseLedgerOperations').doc(result.operationId).get();
+          console.log('SETTLEMENT_ALLOCATION_COMMIT_DIAGNOSTIC', JSON.stringify({
+            operationId: result.operationId,
+            operationStatus: committedOperation.get('status'),
+            snapshotAllocationCount: Array.isArray(committedState.settlementAllocations) ? committedState.settlementAllocations.length : null,
+            invoicePaid: committedState.invoices?.[0]?.paid,
+            invoiceAllocationIds: committedState.invoices?.[0]?.settlementAllocationOperationIds || [],
+            snapshotUpdatedAt: committedSnapshot.get('updatedAt')?.toDate?.().toISOString() || null
+          }));
+          operationIds.push(result.operationId);
+        }
         return result;
       } catch (error) {
         bridgeFailure = String(error && error.message || error);
@@ -193,6 +206,11 @@ async function main() {
     const allocationStatus = await page.locator('#alloc-status').textContent();
     assert.doesNotMatch(allocationStatus, /فشل|خطأ/, 'DOM must not show an allocation error');
     const allocationSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
+    console.log('SETTLEMENT_ALLOCATION_BROWSER_SNAPSHOT_DIAGNOSTIC', JSON.stringify({
+      allocationCount: allocationSnapshot.settlementAllocations?.length ?? null,
+      invoicePaid: allocationSnapshot.invoices?.[0]?.paid,
+      invoiceAllocationIds: allocationSnapshot.invoices?.[0]?.settlementAllocationOperationIds || []
+    }));
     assert.equal(allocationSnapshot.settlementAllocations.length, 1);
     assert.equal(allocationSnapshot.settlementAllocations[0].amountCentimes, 5000);
     assert.equal(allocationSnapshot.settlementAllocations[0].ledgerVersion, 2);
