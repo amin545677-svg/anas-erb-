@@ -1102,6 +1102,7 @@ jobs:
           expense_fn = s[mid:end]
           assert "renderExpenses()" not in expense_fn, "Expense save must not call an undefined renderer after committing data"
           js = r"""
+          (async () => {
           /*INSERT_CASH_FUNCTION*/
           /*INSERT_EXPENSE_FUNCTION*/
           const assert = require('node:assert/strict');
@@ -1117,68 +1118,68 @@ jobs:
           global.AppData = {caisseBalance:20,cashMovements:[],expenses:[]};
           let saves=0; global.saveDB=()=>{saves++;return true;};
           global.saveDBDurably=async()=>true;
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(AppData.caisseBalance,30,'valid cash-in increases balance');
           assert.equal(AppData.cashMovements.length,1,'valid cash-in records movement');
           assert.equal(saves,1);
           elements.cashAmountInput.value='10abc';
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(saves,1,'trailing non-numeric characters must not be accepted');
           assert.equal(AppData.caisseBalance,30);
 
           global.AppData={caisseBalance:'corrupt',cashMovements:[]};
           elements.cashAmountInput.value='5';
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(saves,1,'corrupt balance must block cash movement');
           assert.equal(AppData.caisseBalance,'corrupt');
 
           for (const invalidBalance of [true, [5]]) {
             global.AppData={caisseBalance:invalidBalance,cashMovements:[]};
             const movementsBefore=AppData.cashMovements.slice();
-            submitCashOperation();
+            await submitCashOperation();
             assert.equal(saves,1,'boolean/array cash balances must be rejected before persistence');
             assert.deepEqual(AppData.cashMovements,movementsBefore,'invalid cash balance must not alter ledger');
             assert.deepEqual(AppData.caisseBalance,invalidBalance,'invalid cash balance must remain untouched');
           }
 
           global.AppData={caisseBalance:20,cashMovements:{bad:true}};
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(saves,1,'malformed cash ledger must block mutation');
           assert.deepEqual(AppData.cashMovements,{bad:true});
 
           global.AppData={caisseBalance:20,expenses:[]};
           elements.expAmountInput.value='10';
-          submitExpenseOperation();
+          await submitExpenseOperation();
           assert.equal(AppData.caisseBalance,10,'valid expense decreases balance');
           assert.equal(AppData.expenses.length,1,'valid expense records an entry');
           assert.equal(saves,2);
 
           elements.expAmountInput.value='10oops';
-          submitExpenseOperation();
+          await submitExpenseOperation();
           assert.equal(saves,2,'malformed expense amount must not be accepted');
           assert.equal(AppData.caisseBalance,10);
 
           for (const invalidBalance of [true, [5]]) {
             global.AppData={caisseBalance:invalidBalance,expenses:[]};
-            submitExpenseOperation();
+            await submitExpenseOperation();
             assert.equal(saves,2,'boolean/array cash balances must block expense persistence');
             assert.deepEqual(AppData.expenses,[],'invalid balance must not append expense');
             assert.deepEqual(AppData.caisseBalance,invalidBalance,'invalid balance must remain untouched');
           }
 
           global.AppData={caisseBalance:20,expenses:{bad:true}};
-          submitExpenseOperation();
+          await submitExpenseOperation();
           assert.equal(saves,2,'malformed expense history must block mutation');
           assert.deepEqual(AppData.expenses,{bad:true});
 
           global.AppData={caisseBalance:Number.MAX_SAFE_INTEGER,cashMovements:[]};
           elements.cashAmountInput.value='1';
           const beforeUnsafeCash=saves;
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(saves,beforeUnsafeCash,'unsafe cash arithmetic must not be persisted');
           assert.equal(AppData.caisseBalance,Number.MAX_SAFE_INTEGER);
           global.AppData={caisseBalance:-5,cashMovements:[]};
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(saves,beforeUnsafeCash,'negative stored cash balance must block new movement');
           assert.equal(AppData.caisseBalance,-5);
 
@@ -1186,7 +1187,7 @@ jobs:
           global.AppData={caisseBalance:100.1,cashMovements:[]};
           elements.cashAmountInput.value='0.1';
           const beforeFractionalCash=saves;
-          submitCashOperation();
+          await submitCashOperation();
           assert.equal(saves,beforeFractionalCash+1);
           assert.equal(AppData.caisseBalance,100.2);
           assert.equal(AppData.cashMovements[0].amount,0.1);
@@ -1194,11 +1195,12 @@ jobs:
           global.AppData={caisseBalance:100.1,expenses:[]};
           elements.expAmountInput.value='0.1';
           const beforeFractionalExpense=saves;
-          submitExpenseOperation();
+          await submitExpenseOperation();
           assert.equal(saves,beforeFractionalExpense+1);
           assert.equal(AppData.caisseBalance,100);
           assert.equal(AppData.expenses[0].amt,0.1);
           console.log('Cash operation and expense integrity tests passed');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
           """
           js = js.replace("/*INSERT_CASH_FUNCTION*/", cash_fn).replace("/*INSERT_EXPENSE_FUNCTION*/", expense_fn)
           Path("/tmp/anas-cash-expense-test.js").write_text(js, encoding="utf-8")
