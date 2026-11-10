@@ -150,10 +150,10 @@ async function main() {
             operationStatus: committedOperation.get('status'),
             snapshotAllocationCount: Array.isArray(committedState.settlementAllocations) ? committedState.settlementAllocations.length : null,
             invoicePaid: committedState.invoices?.[0]?.paid,
-            invoiceAllocationIds: committedState.invoices?.[0]?.settlementAllocationOperationIds || [],
+            allocationInvoiceId: committedState.settlementAllocations?.[0]?.invoiceId ?? null,
+      allocationId: committedState.settlementAllocations?.[0]?.allocationId ?? null,
             snapshotUpdatedAt: committedSnapshot.get('updatedAt')?.toDate?.().toISOString() || null
           }));
-          operationIds.push(result.operationId);
         }
         return result;
       } catch (error) {
@@ -161,9 +161,7 @@ async function main() {
         throw error;
       }
     });
-    await page.exposeFunction('__anasBridgeState', () => ({
-      operationIds: [...operationIds], failure: bridgeFailure
-    }));
+    await page.exposeFunction('__anasBridgeState', () => ({ failure: bridgeFailure }));
     await page.exposeFunction('__anasReadCloudSnapshot', async () => {
       const snap = await userRef.collection('snapshots').doc('latest').get();
       assert.equal(snap.exists, true, 'Firestore snapshot must exist');
@@ -200,7 +198,8 @@ async function main() {
     await page.click('#alloc-submit');
     await page.waitForFunction(async () => {
       const state = await window.__anasBridgeState();
-      return state.operationIds.length === 1 || Boolean(state.failure);
+      const button = document.querySelector('#alloc-submit');
+      return Boolean(state.failure) || Boolean(button && !button.disabled && button.textContent.trim() === 'اعتماد التخصيص');
     }, { timeout: 30000 });
     assert.equal(bridgeFailure, null, 'settlement service rejected the DOM request: ' + bridgeFailure);
     const allocationStatus = await page.locator('#alloc-status').textContent();
@@ -208,14 +207,19 @@ async function main() {
     const allocationSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
     console.log('SETTLEMENT_ALLOCATION_BROWSER_SNAPSHOT_DIAGNOSTIC', JSON.stringify({
       allocationCount: allocationSnapshot.settlementAllocations?.length ?? null,
-      invoicePaid: allocationSnapshot.invoices?.[0]?.paid,
-      invoiceAllocationIds: allocationSnapshot.invoices?.[0]?.settlementAllocationOperationIds || []
+      allocationId: allocationSnapshot.settlementAllocations?.[0]?.allocationId ?? null,
+      allocationInvoiceId: allocationSnapshot.settlementAllocations?.[0]?.invoiceId ?? null,
+      invoicePaid: allocationSnapshot.invoices?.[0]?.paid
     }));
     assert.equal(allocationSnapshot.settlementAllocations.length, 1);
     assert.equal(allocationSnapshot.settlementAllocations[0].amountCentimes, 5000);
+    assert.equal(allocationSnapshot.settlementAllocations[0].invoiceId, 'INV-DOM-1');
+    assert.equal(allocationSnapshot.settlementAllocations[0].partyId, 'C-DOM-1');
     assert.equal(allocationSnapshot.settlementAllocations[0].ledgerVersion, 2);
-    assert.equal(operationIds.length, 1, 'only the settlement allocation may use the server bridge');
-    const allocationOperation = await db.collection('reverseLedgerOperations').doc(operationIds[0]).get();
+    const postedOperations = await db.collection('reverseLedgerOperations').where('ownerUid', '==', UID).get();
+    assert.equal(postedOperations.size, 1, 'only the settlement allocation may use the server bridge');
+    const allocationOperation = postedOperations.docs[0];
+    operationIds.push(allocationOperation.id);
     assert.equal(allocationOperation.get('status'), 'POSTED');
     assert.equal(allocationOperation.get('operationType'), 'SETTLEMENT_ALLOCATION');
 
@@ -254,7 +258,8 @@ async function main() {
     assert.equal(finalSnapshot.local.returns[0].status, 'POSTED');
     const postedReturn = finalSnapshot.local.returns[0];
     assert.equal(postedReturn.items[0].quantityMicroUnits, 1000000);
-    assert.equal(operationIds.length, 1, 'local return must not create a second server operation');
+    const operationsAfterLocalReturn = await db.collection('reverseLedgerOperations').where('ownerUid', '==', UID).get();
+    assert.equal(operationsAfterLocalReturn.size, 1, 'local return must not create a second server operation');
     const persistedState = finalSnapshot.persistedState;
     assert.equal(persistedState.returns.length, 1, 'local return must be durably stored in IndexedDB');
     assert.equal(persistedState.returns[0].status, 'POSTED');
