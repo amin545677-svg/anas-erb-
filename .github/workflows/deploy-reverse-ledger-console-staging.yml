@@ -305,6 +305,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
+          import fs from 'node:fs';
           const root = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}`;
           const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
           for (let attempt = 1; attempt <= 100; attempt++) {
@@ -319,7 +320,7 @@ jobs:
               const deploy = (jobs.jobs || []).find(job => job.name === 'deploy-reverse-ledger-staging');
               if (!deploy || deploy.conclusion !== 'success') throw new Error('Matching Functions deployment did not succeed: ' + (deploy?.conclusion || 'deploy job missing'));
               console.log('PASS: Firebase Functions deployment succeeded for exact SHA ' + process.env.GITHUB_SHA + ' (Run ID ' + run.id + ').');
-              process.stdout.write('ANAS_FUNCTIONS_DEPLOY_VERIFIED=true\n');
+              fs.appendFileSync(process.env.GITHUB_ENV, 'ANAS_FUNCTIONS_DEPLOY_VERIFIED=true\n');
               process.exit(0);
             }
             console.log('Waiting for exact-SHA Functions deployment; attempt ' + attempt + '/100.');
