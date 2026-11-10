@@ -127,10 +127,15 @@ console.log('PASS: customer debt collection rejects blank or whitespace-only cus
 console.log('PASS: customer and supplier opening balances reject values beyond the safe financial range');
 
 async function runOpeningBalanceGuard(handlerName, fieldId, collectionName, invalidValue) {
-  const start = html.indexOf('function ' + handlerName + '()');
-  const end = html.indexOf('\n        function ', start + 10);
-  assert.ok(start >= 0 && end > start, handlerName + ' must be isolatable');
+  const signature = new RegExp('(async\\s+)?function\\s+' + handlerName + '\\(\\)');
+  const match = signature.exec(html);
+  const start = match ? match.index : -1;
+  const end = html.indexOf('\n        function ', start + (match ? match[0].length : 0));
+  assert.ok(match && end > start, handlerName + ' must be isolatable');
   const handler = html.slice(start, end);
+  if (/\\bawait\\b/.test(handler)) {
+    assert.ok(/^async\\s+function\\s+/.test(match[0]), handlerName + ' uses await and must retain its async declaration during extraction');
+  }
   const fields = {};
   const ids = handlerName === 'saveNewCustomerMpos'
     ? ['newCustNameInput','newCustPhoneInput','newCustPhone2Input','newCustRCInput','newCustNIFInput','newCustNISInput','newCustArtInput','newCustAddressInput','newCustLocationInput','newCustDebtInput']
