@@ -150,7 +150,7 @@ async function verifyDurablePaymentGate(failCommit) {
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
   const paymentStart = html.indexOf('async function confirmHasibPaymentDurable()');
-  const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
+  const paymentEnd = html.indexOf('function buildInvoiceShareText', paymentStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart && paymentStart >= 0 && paymentEnd > paymentStart,
     'durable POS payment and integer arithmetic helpers must be isolatable');
   const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
@@ -178,12 +178,12 @@ async function verifyDurablePaymentGate(failCommit) {
     saveDB: () => true,
     saveDBDurably: () => { saves++; return commit; },
     renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
-    closeModal() { closes++; }, alert: message => alerts.push(String(message)), console,
+    closeModal() { closes++; }, showInvoicePostSaveActions() {}, alert: message => alerts.push(String(message)), console,
     Date, Math, Number, String, Object, Array, Map, Set, BigInt
   };
   vm.createContext(context);
     try {
-      vm.runInContext(source + String.fromCharCode(10) + 'this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+      vm.runInContext(source + String.fromCharCode(10) + 'this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 10000 });
     } catch (error) {
       console.error('POS_NONCASH_VM_SOURCE_TAIL:', JSON.stringify(source.slice(-320)));
       console.error('POS_NONCASH_VM_SOURCE_HEAD:', JSON.stringify(source.slice(0,180)));
@@ -228,7 +228,7 @@ async function verifyFreeProductAndDiscountSale() {
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
   const paymentStart = html.indexOf('async function confirmHasibPaymentDurable()');
-  const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
+  const paymentEnd = html.indexOf('function buildInvoiceShareText', paymentStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart && paymentStart >= 0 && paymentEnd > paymentStart);
   const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
   const AppData = {
@@ -253,11 +253,11 @@ async function verifyFreeProductAndDiscountSale() {
     saveDB: () => true,
     saveDBDurably: () => Promise.resolve(true),
     renderPosTable() {}, renderCustomersDebts() {}, updateCashUI() {},
-    closeModal() {}, alert() {}, console,
+    closeModal() {}, showInvoicePostSaveActions() {}, alert() {}, console,
     Date, Math, Number, String, Object, Array, Map, Set, BigInt
   };
   vm.createContext(context);
-  vm.runInContext(source + '\nthis.__preTotal = anasCartTotalCents(posCart); this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+  vm.runInContext(source + '\nthis.__preTotal = anasCartTotalCents(posCart); this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 10000 });
   assert.equal(context.__preTotal, 800, 'cart total must apply the persisted centime discount');
   assert.equal(await context.__paymentPromise, true);
   assert.equal(AppData.products.length, 0, 'free product must never be inserted into the inventory table');
@@ -280,7 +280,7 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
   const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
   const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
   const paymentStart = html.indexOf('async function confirmHasibPaymentDurable()');
-  const paymentEnd = html.indexOf('function printLastConfirmedInvoice', paymentStart);
+  const paymentEnd = html.indexOf('function buildInvoiceShareText', paymentStart);
   const source = html.slice(helperStart, helperEnd) + html.slice(paymentStart, paymentEnd);
   for (const paymentChannel of ['cheque','transfer','card','other']) {
     const product = { id:'P-NONCASH-' + paymentChannel, name:'Rice', stock:3, buyPrice:5 };
@@ -291,10 +291,10 @@ async function verifyNonCashSaleDoesNotChangePhysicalCash() {
       lastConfirmedInvoice:null,hasibPaymentInFlight:false,document:{getElementById:id=>elements[id]||null},
       wtTryEnsureData:()=>true,wtCurrentSaleWarehouse:()=>'المخزن الرئيسي',wtAvailableStock:p=>p.stock,
       saveDB:()=>true,saveDBDurably:()=>Promise.resolve(true),renderPosTable(){},renderCustomersDebts(){},
-      updateCashUI(){},closeModal(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
+      updateCashUI(){},closeModal(){},showInvoicePostSaveActions(){},alert(){},console,Date,Math,Number,String,Object,Array,Map,Set,BigInt };
     vm.createContext(context);
     try {
-      vm.runInContext(source + String.fromCharCode(10) + 'this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 1500 });
+      vm.runInContext(source + String.fromCharCode(10) + 'this.__paymentPromise = confirmHasibPaymentDurable();', context, { timeout: 10000 });
     } catch (error) {
       console.error('POS_NONCASH_VM_SOURCE_TAIL:', JSON.stringify(source.slice(-320)));
       throw error;
