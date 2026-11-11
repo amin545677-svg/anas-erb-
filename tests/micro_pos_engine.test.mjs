@@ -116,15 +116,20 @@ test('inventory and POS share live status/category filtering with 20-item progre
     'inventory and POS must use the canonical in-memory inventory filter');
 });
 
-test('dashboard exposes four work groups and the six persistent primary navigation tabs', () => {
+test('r38 dashboard exposes five primary destinations and preserves six persistent navigation tabs', () => {
   const html = readFileSync('index.html', 'utf8');
-  for (const id of ['anasDailyGroupTitle', 'anasStockGroupTitle', 'anasMoneyGroupTitle', 'anasSmartGroupTitle']) {
-    assert.match(html, new RegExp('id="' + id + '"'), 'dashboard group is missing: ' + id);
-  }
+  const dashboardStart = html.indexOf('<section id="view-dashboard"');
+  const dashboardEnd = html.indexOf('<section id="view-pos"', dashboardStart);
+  const dashboard = html.slice(dashboardStart, dashboardEnd);
+  assert.match(dashboard, /id="anasDailyGroupTitle"/, 'the primary dashboard group must remain present');
+  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 5,
+    'dashboard must expose exactly five primary navigation cards');
+  assert.doesNotMatch(dashboard, /anasStockGroupTitle|anasMoneyGroupTitle|anasSmartGroupTitle/,
+    'inventory, finance and AI shortcuts must not recreate secondary dashboard groups');
   assert.match(html, /id="anasQuickBottomNav"[\s\S]*?data-nav-view="dashboard"[\s\S]*?data-nav-view="pos"[\s\S]*?data-nav-view="inventory"[\s\S]*?data-nav-view="invoices-list"[\s\S]*?data-nav-view="customers"[\s\S]*?المزيد/,
     'six primary navigation destinations must remain present and ordered');
-  assert.match(html, /dashboardStockAlertBadge[\s\S]*?dashboardBadge\.hidden = stockAlertCount === 0/,
-    'dashboard stock alert count must be refreshed from the same alert calculation');
+  assert.match(html, /dashboardAlertBadge[\s\S]*?dashboardBadge\.hidden = alerts\.length === 0/,
+    'combined stock and overdue-debt alert count must be refreshed from the shared alert calculation');
 });
 
 test('customer directory renders initials and phone-gated Algerian call and WhatsApp statement actions', () => {
