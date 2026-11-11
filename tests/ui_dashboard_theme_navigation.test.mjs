@@ -55,6 +55,12 @@ test('r38 dashboard exposes the five requested primary destinations only', () =>
   assert.match(dashboard, /تنبيهات المخزون والديون/);
 });
 
+test('dashboard alert badge counts both low stock and overdue customer debts', () => {
+  assert.match(html, /id="dashboardAlertBadge"/);
+  assert.match(html, /dashboardBadge\.textContent = String\(alerts\.length\)/);
+  assert.match(html, /dashboardBadge\.hidden = alerts\.length === 0/);
+});
+
 test('purchases and supplier management stay in the drawer while trucks remain on dashboard', () => {
   const drawer = html.slice(html.indexOf('<div class="drawer-sidebar" id="drawerMenu">'), html.indexOf('<!-- نافذة معاينة الفاتورة'));
   assert.match(drawer, /اللوجستيات والنقل[\s\S]*?openView\('trucks'\)/);
