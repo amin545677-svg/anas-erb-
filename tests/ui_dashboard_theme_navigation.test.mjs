@@ -29,10 +29,8 @@ test('purchase invoices have a dedicated drawer destination and the scanner stay
 });
 
 test('invoice workspace provides a direct reports destination', () => {
-  const invoiceStart = html.indexOf('<section id="view-invoices-list"');
-  const invoices = html.slice(invoiceStart, html.indexOf('</section>', invoiceStart));
-  assert.match(invoices, /openView\('reports'\)/);
-  assert.match(invoices, /فتح التقارير والإحصائيات/);
+  assert.match(html, /<section id="view-invoices-list"[\\s\\S]*?openView\('reports'\)/);
+  assert.match(html, /فتح التقارير والإحصائيات/);
 });
 
 test('OCR opened from purchases defaults to purchase classification without auto-posting', () => {
