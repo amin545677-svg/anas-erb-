@@ -58,26 +58,27 @@ def main():
     parser.close()
     errors = []
 
-    # The AI hub entry is a semantic button; descendants must be phrasing elements,
-    # not divs, so the HTML remains conforming while retaining the existing card classes.
-    ai_hub_button_start = source.find(
-        """<button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي">"""
+    # r38 intentionally removes the duplicate AI shortcut from the dashboard.
+    # The AI hub remains reachable through the drawer as a semantic navigation row.
+    ai_hub_drawer_entry = (
+        'class="drawer-nav-row" onclick="closeDrawer(); openView(\'ai-excel-hub\');"'
+        in source
+        and "مركز الملفات الذكي | Excel · PDF" in source
     )
-    ai_hub_button_end = source.find("</button>", ai_hub_button_start) if ai_hub_button_start >= 0 else -1
-    ai_hub_button_markup = (
-        source[ai_hub_button_start:ai_hub_button_end + len("</button>")]
-        if ai_hub_button_start >= 0 and ai_hub_button_end > ai_hub_button_start
-        else ""
-    )
-    if (
-        not ai_hub_button_markup
-        or '<span class="card-icon-box" aria-hidden="true">🤖</span>' not in ai_hub_button_markup
-        or '<span class="card-title-text">مركز الذكاء الاصطناعي</span>' not in ai_hub_button_markup
-        or "<div" in ai_hub_button_markup
-    ):
-        errors.append("AI hub touch target must be a semantic button with valid phrasing-content children")
+    dashboard_start = source.find('<section id="view-dashboard" class="page-view active">')
+    dashboard_end = source.find('<!-- 3. شاشة المبيعات', dashboard_start)
+    dashboard_markup = source[dashboard_start:dashboard_end] if dashboard_start >= 0 and dashboard_end > dashboard_start else ""
+    dashboard_buttons = re.findall(r'<button\\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
+    if not ai_hub_drawer_entry:
+        errors.append("AI hub must remain reachable from the drawer after dashboard shortcut cleanup")
     else:
-        print("PASS: AI hub touch target uses semantic button markup with valid children")
+        print("PASS: AI hub remains reachable through the drawer navigation")
+    if len(dashboard_buttons) != 5:
+        errors.append("r38 dashboard must expose exactly five primary navigation cards")
+    elif "openQuickSale()" in dashboard_markup or "مركز الذكاء الاصطناعي" in dashboard_markup:
+        errors.append("r38 dashboard must not restore duplicate quick-sale or AI shortcuts")
+    else:
+        print("PASS: r38 dashboard exposes five primary cards without duplicate shortcuts")
     # Guard the mobile interaction/accessibility CSS used by the semantic dashboard button.
     touch_interaction_guards = [
         'button, [role="button"], .grid-card-item, .menu-action-card {',
