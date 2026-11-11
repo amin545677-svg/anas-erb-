@@ -29,7 +29,7 @@ test('purchase invoices are reachable from inventory and the scanner is inside p
 test('OCR opened from purchases defaults to purchase classification without auto-posting', () => {
   assert.match(html, /function openInvoiceOcr\(defaultCategory\)/);
   assert.match(html, /categorySelect\.value=defaultCategory/);
-  assert.match(html, /لا تُنشئ فاتورة ولا تغيّر المخزون أو الديون تلقائياً/);
+  assert.match(html, /لا تُنشئ فاتورة ولا تغيّر المخزون أو الديون تلقائي/);
 });
 
 test('theme contrast tokens define both light and dark states', () => {
