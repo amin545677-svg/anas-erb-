@@ -22,6 +22,7 @@ on:
       - ".github/workflows/anas-erp-safety-checks.yml"
       - ".github/workflows/deploy-reverse-ledger-console-staging.yml"
       - ".github/workflows/deploy-reverse-ledger-functions-staging.yml"
+      - ".github/workflows/deploy-staging-firestore-rules.yml"
       - ".github/workflows/verify-live-staging-e2e.yml"
   push:
     branches: [staging/firebase-snapshot-worker, staging/unified-release-candidate, 'feat/**', 'fix/**', 'feature/**']

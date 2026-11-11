@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Verify isolated project, V42 source, r36 build and canonical Functions bundles
+      - name: Verify isolated project, V42 source, r37 build and canonical Functions bundles
         env:
           GITHUB_REF: ${{ github.ref }}
         run: |
@@ -75,8 +75,8 @@ jobs:
           const production = fs.readFileSync('firebase.json', 'utf8');
           if (production !== '{\n  "firestore": {\n    "rules": "firebase/firestore.rules"\n  }\n}\n') throw new Error('Production Firebase config changed; refusing Staging deploy');
           if (!fs.readFileSync('index.html', 'utf8').includes('V42')) throw new Error('V42 shell identity missing');
-          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r36';")) throw new Error('Expected canonical r36 Service Worker');
-          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r36 | Env: Staging")) throw new Error('Staging build stamp and Service Worker generation disagree');
+          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r37';")) throw new Error('Expected canonical r37 Service Worker');
+          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r37 | Env: Staging")) throw new Error('Staging build stamp and Service Worker generation disagree');
           NODE
           node scripts/verify-reverse-ledger-core-parity.mjs
           cmp reverse-ledger/authorization.js functions/lib/authorization.js
