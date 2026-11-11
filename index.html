@@ -9496,20 +9496,22 @@ function wtAuditTransfers(){
 
         // ================= نظام التنبيهات ونقص المخزون =================
         function checkSystemAlerts() {
-            let alerts = [];
-            let stockAlertCount = 0;
-            // فحص نقص المخزون
-            AppData.products.forEach(p => {
-                if(p.stock <= (p.minAlert || 5)) {
-                    stockAlertCount++;
-                    alerts.push(`⚠️ نقص مخزون: سلعة [${p.name}] متبقي منها ${p.stock} ${p.unit||''} فقط (حد الطلب: ${p.minAlert||5})`);
+            const alerts = [];
+            const products = Array.isArray(AppData.products) ? AppData.products : [];
+            const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
+            // Keep badge rules identical to renderAlertsList: finite stock values and positive debts older than 30 days.
+            products.forEach(p => {
+                const stockValue = Number(p.stock);
+                const threshold = Number(p.minAlert) || 5;
+                if (Number.isFinite(stockValue) && stockValue <= threshold) {
+                    alerts.push(`⚠️ نقص مخزون: سلعة [${String(p.name || 'منتج بدون اسم')}] متبقي منها ${stockValue} ${String(p.unit || '')} فقط (حد الطلب: ${threshold})`);
                 }
             });
-            // فحص الديون المتأخرة (أكثر من 30 يوم)
-            AppData.customers.forEach(c => {
+            customers.forEach(c => {
                 const days = getDebtAgeDays(c.debtDate);
-                if(c.debt > 0 && days > 30) {
-                    alerts.push(`⏳ ديون متأخرة: العميل [${c.name}] متبقي عليه ${c.debt} د.ج منذ ${days} يوم.`);
+                const debt = Number(c.debt);
+                if (Number.isFinite(debt) && debt > 0 && days > 30) {
+                    alerts.push(`⏳ ديون متأخرة: العميل [${String(c.name || 'عميل بدون اسم')}] متبقي عليه ${debt} د.ج منذ ${Number(days) || 0} يوم.`);
                 }
             });
 
