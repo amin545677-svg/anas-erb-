@@ -28,6 +28,12 @@ test('purchase invoices have a dedicated drawer destination and the scanner stay
   assert.match(purchases, /ماسح فاتورة الشراء AI/);
 });
 
+test('invoice workspace provides a direct reports destination', () => {
+  const invoices = html.slice(html.indexOf('<section id="view-invoices-list"'), html.indexOf('<section id="view-cust-debts"'));
+  assert.match(invoices, /openView\('reports'\)/);
+  assert.match(invoices, /فتح التقارير والإحصائيات/);
+});
+
 test('OCR opened from purchases defaults to purchase classification without auto-posting', () => {
   assert.match(html, /function openInvoiceOcr\(defaultCategory\)/);
   assert.match(html, /categorySelect\.value=defaultCategory/);
