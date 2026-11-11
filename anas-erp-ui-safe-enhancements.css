@@ -756,3 +756,93 @@ button:focus-visible,[role="button"]:focus-visible {
   -webkit-text-fill-color:#526176!important;
   opacity:1!important;
 }
+
+
+/* ANAS ERP r38 — semantic button states, using the live theme contract. */
+:root {
+  --anas-btn-primary: #2563eb;
+  --anas-btn-primary-hover: #1d4ed8;
+  --anas-btn-secondary-bg: var(--anas-surface, #fff);
+  --anas-btn-secondary-text: var(--anas-text, #172033);
+  --anas-btn-secondary-border: var(--anas-border, #d9e2ef);
+}
+:root[data-anas-theme="dark"] {
+  --anas-btn-primary: #3b82f6;
+  --anas-btn-primary-hover: #60a5fa;
+  --anas-btn-secondary-bg: #1e293b;
+  --anas-btn-secondary-text: #f8fafc;
+  --anas-btn-secondary-border: #475569;
+}
+.btn-primary,
+button.btn-primary,
+input[type="submit"].btn-primary {
+  background: var(--anas-btn-primary);
+  color: #fff;
+  border: 1px solid transparent;
+  font-weight: 700;
+  transition: background-color .18s ease, box-shadow .18s ease, transform .12s ease;
+}
+.btn-secondary,
+button.btn-secondary {
+  background: var(--anas-btn-secondary-bg);
+  color: var(--anas-btn-secondary-text);
+  border: 1px solid var(--anas-btn-secondary-border);
+  font-weight: 600;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover,
+  button.btn-primary:hover,
+  input[type="submit"].btn-primary:hover {
+    background: var(--anas-btn-primary-hover);
+  }
+  .btn-secondary:hover,
+  button.btn-secondary:hover {
+    border-color: var(--anas-btn-primary);
+    background: color-mix(in srgb, var(--anas-btn-primary) 8%, var(--anas-btn-secondary-bg));
+  }
+  .grid-card-item:hover,
+  .menu-action-card:hover {
+    border-color: var(--anas-btn-primary, #2563eb);
+    box-shadow: 0 5px 16px rgba(15, 23, 42, .12);
+  }
+}
+.btn-primary:active,
+button.btn-primary:active,
+.btn-secondary:active,
+button.btn-secondary:active,
+.grid-card-item:active,
+.menu-action-card:active {
+  transform: translateY(1px);
+}
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}
+button:disabled,
+button[aria-disabled="true"],
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  box-shadow: none;
+  transform: none;
+}
+button[aria-busy="true"],
+button.is-loading,
+.btn-primary.is-loading,
+.btn-secondary.is-loading {
+  cursor: progress;
+  pointer-events: none;
+}
+:root[data-anas-theme="dark"] .btn-secondary,
+:root[data-anas-theme="dark"] button.btn-secondary {
+  color: var(--anas-btn-secondary-text);
+  background: var(--anas-btn-secondary-bg);
+  border-color: var(--anas-btn-secondary-border);
+}
