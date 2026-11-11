@@ -1996,33 +1996,13 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         <section id="view-dashboard" class="page-view active">
             <div class="anas-dashboard-groups">
               <section class="anas-dashboard-group" aria-labelledby="anasDailyGroupTitle">
-                <h3 id="anasDailyGroupTitle" class="anas-dashboard-group-title">العمل اليومي</h3>
+                <h3 id="anasDailyGroupTitle" class="anas-dashboard-group-title">الرئيسية</h3>
                 <div class="dashboard-grid-8">
-                  <button type="button" class="grid-card-item" onclick="openQuickSale()"><span class="card-icon-box">⚡</span><span class="card-title-text">بيع سريع</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('pos')"><span class="card-icon-box">🛒</span><span class="card-title-text">نقطة البيع</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('invoices-list')"><span class="card-icon-box">🧾</span><span class="card-title-text">المبيعات والفواتير</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('customers')"><span class="card-icon-box">👥</span><span class="card-title-text">الزبائن</span></button>
-                </div>
-              </section>
-              <section class="anas-dashboard-group" aria-labelledby="anasStockGroupTitle">
-                <h3 id="anasStockGroupTitle" class="anas-dashboard-group-title">المخزون</h3>
-                <div class="dashboard-grid-8">
-                  <button type="button" class="grid-card-item" onclick="openView('inventory')"><span class="card-icon-box">📦</span><span class="card-title-text">المخزون والمنتجات</span></button>
-                  <button type="button" class="grid-card-item" onclick="renderAlertsList();document.getElementById('alertModal').classList.add('active')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:999px;font-weight:900" hidden>0</span></button>
-                </div>
-              </section>
-              <section class="anas-dashboard-group" aria-labelledby="anasMoneyGroupTitle">
-                <h3 id="anasMoneyGroupTitle" class="anas-dashboard-group-title">المال والتقارير</h3>
-                <div class="dashboard-grid-8">
-                  <button type="button" class="grid-card-item" onclick="openView('reports')"><span class="card-icon-box">📊</span><span class="card-title-text">الإحصائيات والتقارير</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('expenses')"><span class="card-icon-box">💼</span><span class="card-title-text">مصاريف التشغيل</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('cash')"><span class="card-icon-box">🗄️</span><span class="card-title-text">الصندوق والمناوبة</span></button>
-                </div>
-              </section>
-              <section class="anas-dashboard-group" aria-labelledby="anasSmartGroupTitle">
-                <h3 id="anasSmartGroupTitle" class="anas-dashboard-group-title">الأدوات الذكية</h3>
-                <div class="dashboard-grid-8">
-                  <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي"><span class="card-icon-box" aria-hidden="true">🤖</span><span class="card-title-text">مركز الذكاء الاصطناعي</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('customers')"><span class="card-icon-box">👥</span><span class="card-title-text">العملاء والديون</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('invoices-list')"><span class="card-icon-box">🧾</span><span class="card-title-text">الفواتير والتقارير</span></button>
+                  <button type="button" class="grid-card-item" onclick="openNotificationModal()"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون والديون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:999px;font-weight:900" hidden>0</span></button>
+                  <button type="button" class="grid-card-item" onclick="openView('trucks')"><span class="card-icon-box">🚚</span><span class="card-title-text">حركة الشاحنات</span></button>
                 </div>
               </section>
             </div>
@@ -2373,10 +2353,6 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 </div>
                 <div class="menu-action-card" onclick="openInventoryListDirectly()">
                     <div class="card-lead"><span class="icon">🔍</span><span>عرض المنتجات</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="openView('purchases')">
-                    <div class="card-lead"><span class="icon">🧾</span><span>فواتير الشراء ودخول البضاعة</span></div>
                     <span>›</span>
                 </div>
                 <div class="menu-action-card" onclick="addNewProductCategory()">
