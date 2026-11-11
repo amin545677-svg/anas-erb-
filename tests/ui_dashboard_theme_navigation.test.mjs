@@ -29,7 +29,7 @@ test('purchase invoices have a dedicated drawer destination and the scanner stay
 });
 
 test('invoice workspace provides a direct reports destination', () => {
-  assert.match(html, /<section id="view-invoices-list"[\\s\\S]*?openView\('reports'\)/);
+  assert.match(html, /<section id="view-invoices-list"[\s\S]*?openView\('reports'\)/);
   assert.match(html, /فتح التقارير والإحصائيات/);
 });
 
