@@ -58,3 +58,10 @@ test('settings, sync and customer directory have one canonical navigation entry'
   assert.match(drawer, /openView\('sync'\)/);
   assert.equal((dashboard.match(/openView\('customers'\)/g) || []).length, 1);
 });
+
+test('invoice action buttons and AI import category controls have theme-safe contrast hooks', () => {
+  assert.match(css, /\.btn-pos-hasib,[\s\S]*?#smartImportPreviewModal \[data-smart-import-target\]/);
+  assert.match(css, /#anasQuickBottomNav button\.active/);
+  assert.match(css, /:root\[data-anas-theme="dark"\] \.anas-ai-file-actions > label\[data-anas-ai-action\]/);
+  assert.match(css, /#smartImportPreviewModal > div/);
+});

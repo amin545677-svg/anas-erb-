@@ -218,3 +218,13 @@ test('automatic appearance mode persists independently and follows later operati
   app.modeSelect.listeners.change();
   assert.equal(app.values.get('ANAS_ERP_THEME'), 'system');
 });
+
+test('theme contrast repair explicitly covers invoice actions, AI import tabs and quick navigation', () => {
+  const css = readFileSync(new URL('../anas-erp-ui-safe-enhancements.css', import.meta.url), 'utf8');
+  for (const selector of [
+    '.btn-pos-hasib',
+    '#anasQuickBottomNav button',
+    '#smartImportPreviewModal [data-smart-import-target]',
+    ':root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action]'
+  ]) assert.ok(css.includes(selector), 'missing theme contrast selector: ' + selector);
+});
