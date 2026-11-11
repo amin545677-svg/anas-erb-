@@ -78,6 +78,8 @@ jobs:
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check && node --check pos/micro-pos-engine.mjs && node --check anas-pos-floating-cart.js && node --check ai-excel-import-ui.js && node --check core/pos-quick-sale-transaction-bridge.js
       - name: Run ANAS ERP unified light/dark theme regression tests
         run: node --test tests/theme-system.test.mjs
+      - name: Verify dashboard action placement and theme contrast repairs
+        run: node --test tests/ui_dashboard_theme_navigation.test.mjs
       - name: Run Micro POS filtering, dual-pricing, credit and import-engine tests
         run: node --test tests/micro_pos_engine.test.mjs
       - name: Run Micro POS deep-core rendering, cart, import quota and device identity tests
