@@ -68,7 +68,7 @@ def main():
     dashboard_start = source.find('<section id="view-dashboard" class="page-view active">')
     dashboard_end = source.find('<!-- 3. شاشة المبيعات', dashboard_start)
     dashboard_markup = source[dashboard_start:dashboard_end] if dashboard_start >= 0 and dashboard_end > dashboard_start else ""
-    dashboard_buttons = re.findall(r'<button\\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
+    dashboard_buttons = re.findall(r'<button\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
     if not ai_hub_drawer_entry:
         errors.append("AI hub must remain reachable from the drawer after dashboard shortcut cleanup")
     else:
