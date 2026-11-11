@@ -2009,9 +2009,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 <h3 id="anasStockGroupTitle" class="anas-dashboard-group-title">المخزون والشراء</h3>
                 <div class="dashboard-grid-8">
                   <button type="button" class="grid-card-item" onclick="openView('inventory')"><span class="card-icon-box">📦</span><span class="card-title-text">المخزون</span></button>
-                  <button type="button" class="grid-card-item" onclick="openAddProductModal()"><span class="card-icon-box">➕</span><span class="card-title-text">إضافة منتج</span></button>
                   <button type="button" class="grid-card-item" onclick="renderAlertsList();document.getElementById('alertModal').classList.add('active')"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون</span><span id="dashboardStockAlertBadge" class="badge-active-tag" style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:999px;font-weight:900" hidden>0</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('purchases')"><span class="card-icon-box">🧾</span><span class="card-title-text">فواتير الشراء</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('suppliers')"><span class="card-icon-box">🤝</span><span class="card-title-text">الموردون</span></button>
                 </div>
               </section>
@@ -2027,7 +2025,6 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 <h3 id="anasSmartGroupTitle" class="anas-dashboard-group-title">الأدوات الذكية</h3>
                 <div class="dashboard-grid-8">
                   <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')" aria-label="فتح مركز الذكاء الاصطناعي"><span class="card-icon-box" aria-hidden="true">🤖</span><span class="card-title-text">مركز الذكاء الاصطناعي</span></button>
-                  <button type="button" class="grid-card-item" onclick="openInvoiceOcr()"><span class="card-icon-box">📷</span><span class="card-title-text">ممسح الفواتير AI</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')"><span class="card-icon-box">🤖</span><span class="card-title-text">الاستيراد الذكي AI</span></button>
                   <button type="button" class="grid-card-item" onclick="openView('ai-excel-hub')"><span class="card-icon-box">📊</span><span class="card-title-text">استيراد Excel</span></button>
                 </div>
@@ -2140,7 +2137,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 <button class="btn-header-action" onclick="clearAllPurchaseInvoices()" title="حذف كل فواتير المشتريات" style="color:#ef4444; font-size:1.1rem;">🗑️ مسح الكل</button>
             </div>
 
-            <div class="sales-toolbar">
+            <div class="sales-toolbar anas-purchase-toolbar">
+                <button type="button" class="btn-pos-hasib anas-purchase-ocr-button" onclick="openInvoiceOcr('purchases')" title="مسح فاتورة شراء بالذكاء الاصطناعي">📷 ماسح فاتورة الشراء AI</button>
                 <button class="btn-pos-hasib" style="background:#2563eb; border-color:#1d4ed8;" onclick="savePurchaseItem()">💾 حفظ</button>
                 <div style="width:140px;">
                     <select id="purSupplierSelect" class="field-input" style="padding:6px; font-size:0.8rem;"></select>
@@ -12862,7 +12860,7 @@ function wtAuditTransfers(){
 
 <script>
         // مسح الفاتورة من صورة: OCR للقراءة والمعاينة فقط، لا يرحّل المخزون أو الحسابات تلقائياً.
-        function openInvoiceOcr() {
+        function openInvoiceOcr(defaultCategory) {
             let modal=document.getElementById('invoiceOcrModal');
             if(!modal){
                 modal=document.createElement('div'); modal.id='invoiceOcrModal';
@@ -12906,6 +12904,10 @@ function wtAuditTransfers(){
                 picker.addEventListener('change',onChoose);if(cameraPicker)cameraPicker.addEventListener('change',onChoose);
             }
             modal.style.display='flex';
+            const categorySelect=modal.querySelector('#invoiceOcrCategory');
+            if(categorySelect && ['sales','purchases','expenses','supplier_statement','customer_statement','other'].includes(defaultCategory)){
+                categorySelect.value=defaultCategory;
+            }
         }
         function closeInvoiceOcr(){const m=document.getElementById('invoiceOcrModal');if(m)m.style.display='none';}
         let anasInvoiceOcrWorkerPromise=null;
