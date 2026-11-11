@@ -29,7 +29,8 @@ test('purchase invoices have a dedicated drawer destination and the scanner stay
 });
 
 test('invoice workspace provides a direct reports destination', () => {
-  const invoices = html.slice(html.indexOf('<section id="view-invoices-list"'), html.indexOf('<section id="view-cust-debts"'));
+  const invoiceStart = html.indexOf('<section id="view-invoices-list"');
+  const invoices = html.slice(invoiceStart, html.indexOf('</section>', invoiceStart));
   assert.match(invoices, /openView\('reports'\)/);
   assert.match(invoices, /فتح التقارير والإحصائيات/);
 });
