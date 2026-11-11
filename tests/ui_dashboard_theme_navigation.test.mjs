@@ -61,6 +61,18 @@ test('dashboard alert badge counts both low stock and overdue customer debts', (
   assert.match(html, /dashboardBadge\.hidden = alerts\.length === 0/);
 });
 
+test('dashboard alert badge ignores invalid stock and debt values', () => {
+  const checkStart = html.indexOf('function checkSystemAlerts()');
+  const renderStart = html.indexOf('function renderAlertsList()', checkStart);
+  const checker = html.slice(checkStart, renderStart);
+  assert.match(checker, /Array\.isArray\(AppData\.products\)/);
+  assert.match(checker, /Array\.isArray\(AppData\.customers\)/);
+  assert.match(checker, /Number\.isFinite\(stockValue\)/);
+  assert.match(checker, /Number\.isFinite\(debt\)/);
+  assert.match(checker, /dashboardBadge\.textContent = String\(alerts\.length\)/);
+  assert.match(checker, /dashboardBadge\.hidden = alerts\.length === 0/);
+});
+
 test('purchases and supplier management stay in the drawer while trucks remain on dashboard', () => {
   const drawer = html.slice(html.indexOf('<div class="drawer-sidebar" id="drawerMenu">'), html.indexOf('<!-- نافذة معاينة الفاتورة'));
   assert.match(drawer, /اللوجستيات والنقل[\s\S]*?openView\('trucks'\)/);
