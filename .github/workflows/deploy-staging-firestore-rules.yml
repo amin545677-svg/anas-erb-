@@ -55,7 +55,7 @@ jobs:
             const response = await fetch(endpoint, { headers });
             if (!response.ok) throw new Error('Cannot inspect exact-SHA Staging Test Gate: HTTP ' + response.status);
             const data = await response.json();
-            const gate = (data.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.head_sha === process.env.GITHUB_SHA && run.event === 'push');
+            const gate = (data.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.head_sha === process.env.GITHUB_SHA && ['push', 'pull_request'].includes(run.event));
             if (gate?.status === 'completed') {
               if (gate.conclusion !== 'success') throw new Error('Exact-SHA Staging Test Gate failed: ' + gate.conclusion);
               console.log('PASS: exact-SHA Staging Test Gate ' + gate.id);
