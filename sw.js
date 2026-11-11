@@ -1,5 +1,5 @@
 const APP_VERSION = 'r38';
-const CACHE = `anas-erp-v54-25-${APP_VERSION}`;
+const CACHE = 'anas-erp-v54-25-r38';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
