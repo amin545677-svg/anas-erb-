@@ -149,6 +149,8 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
         color: css.color,
         titleColor: title ? getComputedStyle(title).color : '',
         detailColor: detail ? getComputedStyle(detail).color : '',
+        background: css.backgroundColor,
+        titleBackground: title ? getComputedStyle(title).backgroundColor : '',
         width: el.getBoundingClientRect().width,
         height: el.getBoundingClientRect().height,
         visibility: css.visibility,
@@ -161,8 +163,12 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       'PDF upload tile must remain a usable mobile touch target');
     assert.equal(pdfTileVisual.visibility, 'visible');
     assert.equal(pdfTileVisual.opacity, '1');
-    assert.ok(contrast(pdfTileVisual.titleColor, 'rgb(245, 243, 255)') >= 4.5,
-      'PDF tile title must meet WCAG AA on its lavender surface');
+    assert.ok(contrast(pdfTileVisual.titleColor,
+      pdfTileVisual.titleBackground === 'rgba(0, 0, 0, 0)' ? pdfTileVisual.background : pdfTileVisual.titleBackground) >= 4.5,
+      'PDF tile title must meet WCAG AA on its actual rendered surface');
+    assert.ok(contrast(pdfTileVisual.detailColor,
+      pdfTileVisual.background) >= 4.5,
+      'PDF tile instructions must meet WCAG AA on the actual rendered surface');
     const pdfChooserPromise = page.waitForEvent('filechooser');
     await pdfUploadTile.click();
     const pdfChooser = await pdfChooserPromise;

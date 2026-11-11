@@ -676,3 +676,83 @@ button:focus-visible,[role="button"]:focus-visible {
   color:#e7fff0!important;
   -webkit-text-fill-color:#e7fff0!important;
 }
+
+
+/* r37.3 — explicit readable foregrounds for every AI import tile in both themes. */
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action],
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > button[data-anas-ai-action] {
+  background:#f1f3f6!important;
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  border-color:#cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action] *,
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > button[data-anas-ai-action] * {
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action],
+:root[data-anas-theme="dark"] .anas-ai-file-actions > button[data-anas-ai-action] {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action] *,
+:root[data-anas-theme="dark"] .anas-ai-file-actions > button[data-anas-ai-action] * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub .pills-group-row .pill-select-btn {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub .pills-group-row .pill-select-btn.active {
+  background:#244b78!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border-color:#5b8fc5!important;
+}
+:root:not([data-anas-theme="dark"]) #view-ai-excel-hub .pills-group-row .pill-select-btn {
+  background:#f1f3f6!important;
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  border-color:#cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) #view-ai-excel-hub .pills-group-row .pill-select-btn.active {
+  background:#1d4ed8!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+:root[data-anas-theme="dark"] .anas-inventory-product-meta,
+:root[data-anas-theme="dark"] .anas-inventory-product-unit,
+:root[data-anas-theme="dark"] .anas-inventory-product-stock {
+  color:#dbe7f5!important;
+  -webkit-text-fill-color:#dbe7f5!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-inventory-product-meta {
+  color:#475569!important;
+  -webkit-text-fill-color:#475569!important;
+}
+:root[data-anas-theme="dark"] .anas-inventory-product-meta strong {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] input::placeholder,
+:root[data-anas-theme="dark"] textarea::placeholder {
+  color:#bdc9dc!important;
+  -webkit-text-fill-color:#bdc9dc!important;
+  opacity:1!important;
+}
+:root:not([data-anas-theme="dark"]) input::placeholder,
+:root:not([data-anas-theme="dark"]) textarea::placeholder {
+  color:#526176!important;
+  -webkit-text-fill-color:#526176!important;
+  opacity:1!important;
+}

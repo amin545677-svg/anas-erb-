@@ -228,3 +228,14 @@ test('theme contrast repair explicitly covers invoice actions, AI import tabs an
     ':root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action]'
   ]) assert.ok(css.includes(selector), 'missing theme contrast selector: ' + selector);
 });
+
+test('AI upload tiles and category pills define readable foregrounds in both appearance modes', () => {
+  const css = readFileSync(new URL('../anas-erp-ui-safe-enhancements.css', import.meta.url), 'utf8');
+  for (const selector of [
+    ':root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action]',
+    ':root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action]',
+    ':root:not([data-anas-theme="dark"]) #view-ai-excel-hub .pills-group-row .pill-select-btn',
+    ':root[data-anas-theme="dark"] #view-ai-excel-hub .pills-group-row .pill-select-btn',
+    ':root[data-anas-theme="dark"] .anas-inventory-product-meta'
+  ]) assert.ok(css.includes(selector), 'missing theme-specific text visibility rule: ' + selector);
+});
