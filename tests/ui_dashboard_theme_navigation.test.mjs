@@ -19,9 +19,11 @@ test('product creation remains inside the inventory workspace', () => {
   assert.match(inventory, /اضافة منتج جديد/);
 });
 
-test('purchase invoices are reachable from inventory and the scanner is inside purchases', () => {
-  assert.match(inventory, /openView\('purchases'\)/);
-  assert.match(inventory, /فواتير الشراء ودخول البضاعة/);
+test('purchase invoices have a dedicated drawer destination and the scanner stays inside purchases', () => {
+  const drawer = html.slice(html.indexOf('<div class="drawer-sidebar" id="drawerMenu">'), html.indexOf('<!-- نافذة معاينة الفاتورة'));
+  assert.doesNotMatch(inventory, /openView\('purchases'\)/);
+  assert.doesNotMatch(inventory, /فواتير الشراء ودخول البضاعة/);
+  assert.match(drawer, /المشتريات والموردون[\s\S]*?openView\('purchases'\)/);
   assert.match(purchases, /openInvoiceOcr\('purchases'\)/);
   assert.match(purchases, /ماسح فاتورة الشراء AI/);
 });
@@ -39,17 +41,21 @@ test('theme contrast tokens define both light and dark states', () => {
   assert.match(css, /-webkit-text-fill-color:var\(--anas-ui-btn-text\)!important/);
 });
 
-test('dashboard keeps only daily operations, stock and one AI entry', () => {
-  assert.doesNotMatch(dashboard, /openView\('trucks'\)|openView\('suppliers'\)|openView\('settings'\)|openView\('sync'\)/);
-  assert.equal((dashboard.match(/openView\('ai-excel-hub'\)/g) || []).length, 1);
-  assert.doesNotMatch(dashboard, /ملفات العملاء|استيراد Excel|الاستيراد الذكي AI/);
+test('r38 dashboard exposes the five requested primary destinations only', () => {
+  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 5);
+  for (const action of ["openView('pos')", "openView('customers')", "openView('invoices-list')", "openNotificationModal()", "openView('trucks')"]) {
+    assert.ok(dashboard.includes(action), "dashboard is missing " + action);
+  }
+  assert.doesNotMatch(dashboard, /openView\('inventory'\)|openView\('purchases'\)|openView\('suppliers'\)|openView\('settings'\)|openView\('sync'\)|openView\('ai-excel-hub'\)|openQuickSale\(\)/);
+  assert.match(dashboard, /تنبيهات المخزون والديون/);
 });
 
-test('logistics and supplier management live in the drawer, not the dashboard', () => {
+test('purchases and supplier management stay in the drawer while trucks remain on dashboard', () => {
   const drawer = html.slice(html.indexOf('<div class="drawer-sidebar" id="drawerMenu">'), html.indexOf('<!-- نافذة معاينة الفاتورة'));
   assert.match(drawer, /اللوجستيات والنقل[\s\S]*?openView\('trucks'\)/);
   assert.match(drawer, /المشتريات والموردون[\s\S]*?openView\('purchases'\)[\s\S]*?openView\('suppliers'\)/);
-  assert.doesNotMatch(dashboard, /openView\('trucks'\)|openView\('suppliers'\)/);
+  assert.ok(dashboard.includes("openView('trucks')"));
+  assert.doesNotMatch(dashboard, /openView\('suppliers'\)/);
 });
 
 test('settings, sync and customer directory have one canonical navigation entry', () => {
