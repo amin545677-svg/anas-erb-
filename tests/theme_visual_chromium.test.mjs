@@ -42,7 +42,7 @@ function contrast(fg, bg) {
   return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
 }
 
-test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, persistence and cross-tab sync', async () => {
+test('real Chromium theme acceptance: five-card dashboard, settings, POS, WCAG contrast, persistence and cross-tab sync', async () => {
   const server = await serve();
   const baseURL = 'http://127.0.0.1:' + server.address().port + '/';
   let browser;
@@ -61,7 +61,7 @@ test('real Chromium theme acceptance: dashboard, settings, POS, WCAG contrast, p
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
     }));
     assert.equal(initial.theme, 'light');
-    assert.ok(initial.modules >= 10, 'real ERP dashboard modules must render');
+    assert.equal(initial.modules, 5, 'r38 dashboard must render exactly five primary destinations');
     assert.equal(initial.overflow, false, 'dashboard must not overflow at 390px');
     const lightDashboardContrast = await page.evaluate(() => {
       const card = document.querySelector('#view-dashboard .grid-card-item');
