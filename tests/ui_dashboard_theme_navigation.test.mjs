@@ -46,12 +46,12 @@ test('theme contrast tokens define both light and dark states', () => {
   assert.match(css, /-webkit-text-fill-color:var\(--anas-ui-btn-text\)!important/);
 });
 
-test('r38 dashboard exposes the five requested primary destinations only', () => {
-  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 5);
-  for (const action of ["openView('pos')", "openView('customers')", "openView('invoices-list')", "openNotificationModal()", "openView('trucks')"]) {
+test('r38 dashboard exposes six primary destinations including inventory', () => {
+  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 6);
+  for (const action of ["openView('pos')", "openView('customers')", "openView('invoices-list')", "openNotificationModal()", "openView('trucks')", "openView('inventory')"]) {
     assert.ok(dashboard.includes(action), "dashboard is missing " + action);
   }
-  assert.doesNotMatch(dashboard, /openView\('inventory'\)|openView\('purchases'\)|openView\('suppliers'\)|openView\('settings'\)|openView\('sync'\)|openView\('ai-excel-hub'\)|openQuickSale\(\)/);
+  assert.doesNotMatch(dashboard, /openView\('purchases'\)|openView\('suppliers'\)|openView\('settings'\)|openView\('sync'\)|openView\('ai-excel-hub'\)|openQuickSale\(\)/);
   assert.match(dashboard, /تنبيهات المخزون والديون/);
 });
 
