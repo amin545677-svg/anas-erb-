@@ -3,7 +3,7 @@
 function parseCurrencyCentimes(value){
  if(typeof value!=='number'&&typeof value!=='string')return null;
  const raw=String(value).trim();
- if(!/^\\d+(?:\\.\\d{1,2})?$/.test(raw))return null;
+ if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return null;
  const parts=raw.split('.');
  const whole=BigInt(parts[0]);
  const fraction=BigInt((parts[1]||'').padEnd(2,'0')||'0');
