@@ -14352,5 +14352,81 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
 
   <script src="./anas-pos-floating-cart.js" defer></script>
   <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>
+
+<style id="anas-product-picker-theme-contrast">
+  /* Product picker uses explicit semantic surfaces: never pair forced white text with a light card. */
+  #productPickerModal .picker-dialog-scroll {
+    background:var(--anas-surface,#ffffff)!important;
+    color:var(--anas-text,#172033)!important;
+    border:1px solid var(--anas-border,#d9e2ef)!important;
+  }
+  #productPickerModal .picker-dialog-scroll h3 {
+    color:var(--anas-text,#172033)!important;
+    -webkit-text-fill-color:var(--anas-text,#172033)!important;
+  }
+  #productPickerModal #productPickerSearch {
+    background:var(--anas-input,#ffffff)!important;
+    color:var(--anas-text,#172033)!important;
+    -webkit-text-fill-color:var(--anas-text,#172033)!important;
+    border:1px solid var(--anas-border,#d9e2ef)!important;
+  }
+  #productPickerModal #productPickerSearch::placeholder {
+    color:var(--anas-muted,#526176)!important;
+    -webkit-text-fill-color:var(--anas-muted,#526176)!important;
+    opacity:1!important;
+  }
+  #productPickerModal .menu-action-card {
+    background:var(--anas-surface-raised,#ffffff)!important;
+    color:var(--anas-text,#172033)!important;
+    -webkit-text-fill-color:var(--anas-text,#172033)!important;
+    border:1px solid var(--anas-border,#d9e2ef)!important;
+    box-shadow:0 2px 7px rgba(15,23,42,.06)!important;
+  }
+  #productPickerModal .menu-action-card,
+  #productPickerModal .menu-action-card * {
+    color:var(--anas-text,#172033)!important;
+    -webkit-text-fill-color:var(--anas-text,#172033)!important;
+    opacity:1!important;
+  }
+  #productPickerModal .menu-action-card small {
+    color:var(--anas-muted,#526176)!important;
+    -webkit-text-fill-color:var(--anas-muted,#526176)!important;
+  }
+  #productPickerModal .menu-action-card > span {
+    color:#166534!important;
+    -webkit-text-fill-color:#166534!important;
+    font-weight:800!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal .picker-dialog-scroll {
+    background:#111c2e!important;color:#f1f5f9!important;border-color:#334155!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal .picker-dialog-scroll h3,
+  :root[data-anas-theme="dark"] #productPickerModal .menu-action-card,
+  :root[data-anas-theme="dark"] #productPickerModal .menu-action-card * {
+    color:#f1f5f9!important;-webkit-text-fill-color:#f1f5f9!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal #productPickerSearch {
+    background:#0b1424!important;color:#f8fafc!important;
+    -webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal #productPickerSearch::placeholder,
+  :root[data-anas-theme="dark"] #productPickerModal .menu-action-card small {
+    color:#bdc9dc!important;-webkit-text-fill-color:#bdc9dc!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal .menu-action-card {
+    background:#1b2940!important;border-color:#475569!important;
+    box-shadow:0 2px 8px rgba(0,0,0,.24)!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal .menu-action-card > span {
+    color:#86efac!important;-webkit-text-fill-color:#86efac!important;
+  }
+  #productPickerModal .menu-action-card:focus-visible {
+    outline:3px solid #2563eb!important;outline-offset:2px!important;
+  }
+  :root[data-anas-theme="dark"] #productPickerModal .menu-action-card:focus-visible {
+    outline-color:#93c5fd!important;
+  }
+</style>
+
 </body>
 </html>
