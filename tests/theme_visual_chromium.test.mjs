@@ -137,6 +137,24 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
     }
     await page.locator('#anasArabicThemeFixture').evaluate(el => el.remove());
 
+
+    await page.evaluate(() => {
+      document.getElementById('productPickerSearch').value = 'THEME-PROBE';
+      window.openProductPickerModal();
+    });
+    const lightPicker = await page.locator('#productPickerModal .menu-action-card').evaluate(card => {
+      const css = node => ({ color:getComputedStyle(node).color, background:getComputedStyle(node).backgroundColor });
+      return { card:css(card), name:css(card.querySelector('strong')), meta:css(card.querySelector('small')), add:css(card.querySelector(':scope > span')),
+        panel:css(document.querySelector('#productPickerModal .picker-dialog-scroll')) };
+    });
+    for (const [label,pair] of Object.entries(lightPicker)) {
+      assert.ok(contrast(pair.color,pair.background) >= 4.5, 'light product picker ' + label + ' must meet WCAG AA: ' + JSON.stringify(pair));
+    }
+    await page.evaluate(() => {
+      window.closeModal('productPickerModal');
+      AppData.products = AppData.products.filter(item => item.id !== 'ANAS_THEME_CONTRAST_PROBE');
+    });
+
     await page.evaluate(() => window.openView('ai-excel-hub'));
     await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
     const pdfUploadTile = page.locator('#view-ai-excel-hub label[data-anas-ai-action="pdf"]');
@@ -268,6 +286,23 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
     assert.equal(pos.active, true);
     assert.ok(pos.count >= 5, 'POS interactive controls must remain available');
     assert.equal(pos.overflow, false, 'POS must not overflow horizontally on mobile');
+
+    await page.evaluate(() => {
+      const probe = { id:'ANAS_THEME_CONTRAST_PROBE', name:'اختبار وضوح المنتج', barcode:'THEME-PROBE', price1:1234, stock:4, unit:'كغ' };
+      AppData.products = [...AppData.products.filter(item => item.id !== probe.id), probe];
+      document.getElementById('productPickerSearch').value = 'THEME-PROBE';
+      window.openProductPickerModal();
+    });
+    const darkPicker = await page.locator('#productPickerModal .menu-action-card').evaluate(card => {
+      const css = node => ({ color:getComputedStyle(node).color, background:getComputedStyle(node).backgroundColor });
+      return { card:css(card), name:css(card.querySelector('strong')), meta:css(card.querySelector('small')), add:css(card.querySelector(':scope > span')),
+        panel:css(document.querySelector('#productPickerModal .picker-dialog-scroll')) };
+    });
+    for (const [label,pair] of Object.entries(darkPicker)) {
+      assert.ok(contrast(pair.color,pair.background) >= 4.5, 'dark product picker ' + label + ' must meet WCAG AA: ' + JSON.stringify(pair));
+    }
+    await page.evaluate(() => window.closeModal('productPickerModal'));
+
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.body && !document.body.inert, { timeout: 20000 });
