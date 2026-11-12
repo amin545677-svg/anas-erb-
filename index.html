@@ -4461,6 +4461,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const card = document.createElement('button');
                 card.type = 'button';
                 card.className = 'menu-action-card';
+                card.setAttribute('aria-label', 'إضافة ' + String(p.name ?? '') + ' إلى الفاتورة');
                 card.style.cssText = 'width:100%;margin-bottom:8px;text-align:inherit;cursor:pointer;';
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex;align-items:center;';
