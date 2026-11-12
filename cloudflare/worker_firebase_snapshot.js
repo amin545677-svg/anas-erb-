@@ -99,8 +99,11 @@ function validateSnapshotData(data) {
   if (!isRecord(data) || !Array.isArray(data.products) || !Array.isArray(data.customers)) {
     throw new Error("Snapshot does not match the ANAS ERP data structure");
   }
+  // Preserve every financial sub-ledger in the same atomic snapshot as its parent records.
+  // Missing legacy collections remain optional; present-but-invalid collections fail closed.
   const arrays = ["products", "customers", "suppliers", "invoices", "purchases", "expenses",
-    "cashMovements", "stockMovements", "warehouseTransfers", "truckTrips", "returns",
+    "cashMovements", "bankMovements", "supplierMovements", "clientMovements", "settlementAllocations",
+    "stockMovements", "warehouseTransfers", "truckTrips", "returns",
     "purchaseInvoices", "trucks", "users", "alerts"];
   for (const key of arrays) {
     if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
@@ -138,8 +141,24 @@ function validateSnapshotData(data) {
   uniqueIds("truckTrips");
   uniqueIds("users");
   uniqueIds("alerts");
+  // Financial ledgers use their canonical identity fields rather than array position.
+  const uniqueLedgerKey = (key, idField) => {
+    const seen = new Set();
+    for (const row of data[key] || []) {
+      const raw = row[idField];
+      if (raw == null || String(raw).trim() === "") {
+        throw new Error("Snapshot " + key + " record is missing " + idField);
+      }
+      const id = String(raw).trim();
+      if (seen.has(id)) throw new Error("Snapshot " + key + " contains duplicate " + idField + " values");
+      seen.add(id);
+    }
+  };
+  uniqueLedgerKey("clientMovements", "movementId");
+  uniqueLedgerKey("settlementAllocations", "allocationId");
   // Enforce uniqueness for ledger and operational collections too; legacy records without IDs remain tolerated.
-  for (const key of ["purchases", "expenses", "cashMovements", "stockMovements", "warehouseTransfers", "returns", "purchaseInvoices", "trucks"]) uniqueIds(key);
+  for (const key of ["purchases", "expenses", "cashMovements", "bankMovements", "supplierMovements",
+    "stockMovements", "warehouseTransfers", "returns", "purchaseInvoices", "trucks"]) uniqueIds(key);
 
   for (const product of data.products) {
     validateSnapshotNumber(product, "stock", "products.stock");
@@ -178,6 +197,14 @@ function validateSnapshotData(data) {
   }
   for (const movement of data.cashMovements || [])
     validateSnapshotNumber(movement, "amount", "cashMovements", { allowZero: false });
+  for (const movement of data.bankMovements || [])
+    validateSnapshotNumber(movement, "amount", "bankMovements", { allowZero: false });
+  for (const movement of data.supplierMovements || [])
+    validateSnapshotNumber(movement, "amount", "supplierMovements", { allowZero: false });
+  for (const movement of data.clientMovements || [])
+    validateSnapshotNumber(movement, "amountCentimes", "clientMovements", { allowZero: false });
+  for (const allocation of data.settlementAllocations || [])
+    validateSnapshotNumber(allocation, "amountCentimes", "settlementAllocations", { allowZero: false });
   for (const movement of data.stockMovements || []) {
     for (const field of ["qty", "quantity", "delta"])
       validateSnapshotNumber(movement, field, "stockMovements", { allowNegative: true });
