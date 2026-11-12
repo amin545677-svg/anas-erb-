@@ -14,6 +14,9 @@ on:
       - "cloudflare/worker_reverse_ledger.js"
       - "cloudflare/wrangler-reverse-ledger-staging.toml"
       - "tests/worker_reverse_ledger.test.mjs"
+      - "tests/theme-system.test.mjs"
+      - "tests/theme_visual_chromium.test.mjs"
+      - "anas-erp-ui-safe-enhancements.css"
       - "firebase/firestore.rules"
       - ".github/workflows/anas-erp-html-checks.yml"
   push:
@@ -44,6 +47,17 @@ jobs:
           node-version: "22"
       - name: Validate ANAS ERP HTML and inline JavaScript
         run: python tests/validate_erp_html.py
+
+      - name: Test theme controller and palette contracts
+        run: node --test tests/theme-system.test.mjs
+
+      - name: Install Playwright and headless Chromium for real theme contrast checks
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Verify light and dark product picker contrast in real Chromium
+        run: node --test tests/theme_visual_chromium.test.mjs
       - name: Test reverse-ledger schemas and allocation invariants
         run: node --test tests/reverse_ledger_primitives.test.js
       - name: Test reverse-ledger authorization policy gates
