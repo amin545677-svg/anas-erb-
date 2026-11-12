@@ -108,6 +108,67 @@ test("first snapshot upload uses an atomic create-only precondition", async () =
 });
 
 
+test("financial sub-ledgers are accepted and preserved in an atomic snapshot", async () => {
+  const oldFetch = globalThis.fetch;
+  let persistedPayload = "";
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    assert.equal(init.method, "PATCH");
+    persistedPayload = JSON.parse(init.body).fields.payload.stringValue;
+    return new Response(JSON.stringify({ updateTime: "2026-11-12T12:00:00.000000Z" }), { status: 200 });
+  };
+  const financialLedgers = {
+    products: [{ id: "p1", stock: 1 }],
+    customers: [{ id: "c1", debt: 0 }],
+    suppliers: [{ id: "s1", balance: 5 }],
+    bankMovements: [{ id: "B1", type: "add", amount: 10, referenceType: "sales_invoice", referenceId: "I1" }],
+    supplierMovements: [{ id: "S1", supplierId: "s1", type: "purchase", amount: 5, referenceType: "purchase_invoice", referenceId: "P1" }],
+    clientMovements: [{ movementId: "CM1", clientId: "c1", type: "receipt", amountCentimes: 1000, direction: "credit", referenceType: "customer_debt", referenceId: "c1", createdAt: "2026-11-12T12:00:00.000Z" }],
+    settlementAllocations: [{ allocationId: "A1", partyType: "customer", partyId: "c1", invoiceType: "sales_invoice", invoiceId: "I1", sourceMovementId: "CM1", sourceMovementType: "customer_debt", amountCentimes: 1000, createdAt: "2026-11-12T12:00:00.000Z" }]
+  };
+  try {
+    const response = await worker.fetch(request("/snapshot", {
+      method: "POST", body: { data: JSON.stringify(financialLedgers), revision: null }
+    }), env);
+    assert.equal(response.status, 200);
+    const saved = JSON.parse(persistedPayload);
+    for (const key of ["bankMovements", "supplierMovements", "clientMovements", "settlementAllocations"]) {
+      assert.deepEqual(saved[key], financialLedgers[key], key + " must survive snapshot serialization");
+    }
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("malformed and duplicate financial sub-ledgers fail closed before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid financial ledger must not reach Firestore");
+  };
+  try {
+    const base = { products: [{ id: "p1", stock: 1 }], customers: [] };
+    const invalidSnapshots = [
+      { ...base, bankMovements: [{ id: "B-DUP", amount: 1 }, { id: "B-DUP", amount: 2 }] },
+      { ...base, bankMovements: [{ id: "B-BAD", amount: -1 }] },
+      { ...base, supplierMovements: [{ id: "S-DUP", amount: 1 }, { id: "S-DUP", amount: 2 }] },
+      { ...base, supplierMovements: [{ id: "S-BAD", amount: "not-money" }] },
+      { ...base, clientMovements: [{ movementId: "CM-DUP", amountCentimes: 100 }, { movementId: "CM-DUP", amountCentimes: 200 }] },
+      { ...base, clientMovements: [{ movementId: "CM-BAD", amountCentimes: -1 }] },
+      { ...base, settlementAllocations: [{ allocationId: "A-DUP", amountCentimes: 100 }, { allocationId: "A-DUP", amountCentimes: 200 }] },
+      { ...base, settlementAllocations: [{ allocationId: "A-BAD", amountCentimes: 0 }] }
+    ];
+    for (const data of invalidSnapshots) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST", body: { data: JSON.stringify(data) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "invalid financial ledgers must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("malformed stock magnitudes are rejected before any Firestore write", async () => {
   const oldFetch = globalThis.fetch;
   let firestoreCalls = 0;
