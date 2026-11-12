@@ -139,6 +139,8 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
 
 
     await page.evaluate(() => {
+      const probe = { id:'ANAS_THEME_CONTRAST_PROBE', name:'اختبار وضوح المنتج', barcode:'THEME-PROBE', price1:1234, stock:4, unit:'كغ' };
+      AppData.products = [...AppData.products.filter(item => item.id !== probe.id), probe];
       document.getElementById('productPickerSearch').value = 'THEME-PROBE';
       window.openProductPickerModal();
     });
