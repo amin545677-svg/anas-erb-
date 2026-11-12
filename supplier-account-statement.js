@@ -1,5 +1,15 @@
 (function(root){
 'use strict';
+function parseCurrencyCentimes(value){
+ if(typeof value!=='number'&&typeof value!=='string')return null;
+ const raw=String(value).trim();
+ if(!/^\\d+(?:\\.\\d{1,2})?$/.test(raw))return null;
+ const parts=raw.split('.');
+ const whole=BigInt(parts[0]);
+ const fraction=BigInt((parts[1]||'').padEnd(2,'0')||'0');
+ const cents=whole*100n+fraction;
+ return cents<=BigInt(Number.MAX_SAFE_INTEGER)?Number(cents):null;
+}
 function buildSupplierStatement(supplierId,suppliers,movements){
  if(!Array.isArray(suppliers)||!Array.isArray(movements)) throw new TypeError('دفتر الموردين غير صالح');
  const matches=suppliers.filter(s=>s&&typeof s==='object'&&!Array.isArray(s)&&String(s.id??'')===String(supplierId));
@@ -10,8 +20,15 @@ function buildSupplierStatement(supplierId,suppliers,movements){
   if(!Number.isFinite(x))return 1;if(!Number.isFinite(y))return -1;return x-y;
  });
  const totals={opening_balance:0,purchase:0,payment:0},valid={opening_balance:true,purchase:true,payment:true};
- for(const row of rows){if(!Object.prototype.hasOwnProperty.call(totals,row.type))continue;const n=Number(row.amount);const cents=Math.round(n*100);if(!Number.isFinite(n)||n<0||!Number.isSafeInteger(cents)||!Number.isSafeInteger(totals[row.type]+cents))valid[row.type]=false;else totals[row.type]+=cents;}
- return {supplier:matches[0],rows,totals,valid};
+ const balanceCentimes=parseCurrencyCentimes(matches[0].balance??0);
+ valid.balance=balanceCentimes!==null;
+ for(const row of rows){
+  if(!Object.prototype.hasOwnProperty.call(totals,row.type))continue;
+  const cents=parseCurrencyCentimes(row.amount);
+  if(cents===null||!Number.isSafeInteger(totals[row.type]+cents))valid[row.type]=false;
+  else totals[row.type]+=cents;
+ }
+ return {supplier:matches[0],rows,totals,valid,balanceCentimes};
 }
 
 function showSupplierStatement(supplierId){
@@ -22,10 +39,10 @@ function showSupplierStatement(supplierId){
  const title=document.createElement('h2');title.textContent='كشف حساب المورد: '+String(result.supplier.name||'مورد بلا اسم');
  const close=document.createElement('button');close.type='button';close.textContent='إغلاق';close.onclick=()=>overlay.remove();panel.append(title,close);
  const money=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج':'غير صالح';
- const summary=document.createElement('p');summary.textContent='الرصيد الحالي: '+money(Math.round(Number(result.supplier.balance||0)*100))+' | الرصيد الافتتاحي: '+money(result.totals.opening_balance)+' | المشتريات: '+money(result.totals.purchase)+' | التسديدات: '+money(result.totals.payment);panel.appendChild(summary);
+ const summary=document.createElement('p');summary.textContent='الرصيد الحالي: '+money(result.balanceCentimes)+' | الرصيد الافتتاحي: '+money(result.totals.opening_balance)+' | المشتريات: '+money(result.totals.purchase)+' | التسديدات: '+money(result.totals.payment);panel.appendChild(summary);
  const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;margin-top:12px;';
  const headings=['التاريخ','نوع الحركة','المرجع','المبلغ','ملاحظات'];const trh=document.createElement('tr');headings.forEach(v=>{const th=document.createElement('th');th.textContent=v;trh.appendChild(th);});table.appendChild(trh);
- result.rows.forEach(m=>{const tr=document.createElement('tr');[m.date||'—',m.type||'غير مصنف',m.referenceId||'—',money(Math.round(Number(m.amount)*100)),m.note||'—'].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);td.style.cssText='padding:8px;border-top:1px solid #e2e8f0;';tr.appendChild(td);});table.appendChild(tr);});
+ result.rows.forEach(m=>{const tr=document.createElement('tr');[m.date||'—',m.type||'غير مصنف',m.referenceId||'—',money(parseCurrencyCentimes(m.amount)),m.note||'—'].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);td.style.cssText='padding:8px;border-top:1px solid #e2e8f0;';tr.appendChild(td);});table.appendChild(tr);});
  panel.appendChild(table);overlay.appendChild(panel);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});document.body.appendChild(overlay);close.focus();
 }
 const originalRenderSuppliersDebts=root.renderSuppliersDebts;
