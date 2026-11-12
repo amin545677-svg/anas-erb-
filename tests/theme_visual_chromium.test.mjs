@@ -143,7 +143,14 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
       window.openProductPickerModal();
     });
     const lightPicker = await page.locator('#productPickerModal .menu-action-card').evaluate(card => {
-      const css = node => ({ color:getComputedStyle(node).color, background:getComputedStyle(node).backgroundColor });
+      const backgroundOf = node => {
+        for (let current = node; current && current !== document.documentElement; current = current.parentElement) {
+          const value = getComputedStyle(current).backgroundColor;
+          if (value && value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)') return value;
+        }
+        return getComputedStyle(document.body).backgroundColor;
+      };
+      const css = node => ({ color:getComputedStyle(node).color, background:backgroundOf(node) });
       return { card:css(card), name:css(card.querySelector('strong')), meta:css(card.querySelector('small')), add:css(card.querySelector(':scope > span')),
         panel:css(document.querySelector('#productPickerModal .picker-dialog-scroll')) };
     });
@@ -294,7 +301,14 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
       window.openProductPickerModal();
     });
     const darkPicker = await page.locator('#productPickerModal .menu-action-card').evaluate(card => {
-      const css = node => ({ color:getComputedStyle(node).color, background:getComputedStyle(node).backgroundColor });
+      const backgroundOf = node => {
+        for (let current = node; current && current !== document.documentElement; current = current.parentElement) {
+          const value = getComputedStyle(current).backgroundColor;
+          if (value && value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)') return value;
+        }
+        return getComputedStyle(document.body).backgroundColor;
+      };
+      const css = node => ({ color:getComputedStyle(node).color, background:backgroundOf(node) });
       return { card:css(card), name:css(card.querySelector('strong')), meta:css(card.querySelector('small')), add:css(card.querySelector(':scope > span')),
         panel:css(document.querySelector('#productPickerModal .picker-dialog-scroll')) };
     });
