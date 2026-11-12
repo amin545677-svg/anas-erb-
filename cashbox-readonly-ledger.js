@@ -2,7 +2,7 @@
 'use strict';
 function parseCashCentimes(value){
  if((typeof value!=='number'&&typeof value!=='string')||String(value).trim()==='')return null;
- const match=/^(0|[1-9]\\d*)(?:\\.(\\d{1,2}))?$/.exec(String(value).trim());
+ const match=/^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/.exec(String(value).trim());
  if(!match)return null;
  const cents=BigInt(match[1])*100n+BigInt((match[2]||'').padEnd(2,'0')||'0');
  return cents<=BigInt(Number.MAX_SAFE_INTEGER)?Number(cents):null;
