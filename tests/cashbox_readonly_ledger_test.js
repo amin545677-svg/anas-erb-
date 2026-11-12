@@ -28,6 +28,22 @@ test('cash ledger returns centime totals and keeps malformed records visible', (
   assert.equal(result.rows.find(row => !row.valid).description, 'سجل غير صالح');
 });
 
+test('cash ledger uses exact centimes and rejects over-precision instead of rounding', () => {
+  const result = buildCashLedger([
+    { id:'A', type:'add', amount:'0.10' },
+    { id:'B', type:'add', amount:'0.20' },
+    { id:'C', type:'subtract', amount:'0.10' },
+    { id:'BAD-1', type:'add', amount:'1.005' },
+    { id:'BAD-2', type:'add', amount:'1e2' },
+    { id:'BAD-3', type:'add', amount:'0.001' }
+  ]);
+  assert.equal(result.incoming, 30);
+  assert.equal(result.outgoing, 10);
+  assert.equal(result.invalid, 3);
+  assert.equal(result.rows.length, 6);
+  assert.equal(result.rows.filter(row => !row.valid).length, 3);
+});
+
 test('cash ledger filters by type and case-insensitive search without changing source data', () => {
   const movements = [
     { id:'C1', type:'add', amount:10, description:'قبض عميل' },
