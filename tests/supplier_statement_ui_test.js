@@ -94,3 +94,29 @@ console.log('Supplier statement UI tests passed');
   assert.equal(result.totals.payment, 450);
   console.log('PASS: standalone supplier-account-statement.js exports exact centime totals');
 }
+
+{
+  const result = buildSupplierStatement('S1', [{ id: 'S1', name: 'مورد', balance: '0.30' }], [
+    { id: 'P1', supplierId: 'S1', type: 'purchase', amount: '0.10', date: '2026-01-01' },
+    { id: 'M1', supplierId: 'S1', type: 'payment', amount: 0.2, date: '2026-01-02' }
+  ]);
+  assert.equal(result.totals.purchase, 10, '0.10 must be parsed as exactly ten centimes');
+  assert.equal(result.totals.payment, 20, 'numeric 0.2 must be parsed as exactly twenty centimes');
+  assert.equal(result.balanceCentimes, 30, 'supplier balance must use the same exact centime parser');
+  assert.equal(result.valid.balance, true);
+  console.log('PASS: supplier statement uses exact centime parsing for strings, numbers and current balance');
+}
+
+{
+  const result = buildSupplierStatement('S1', [{ id: 'S1', name: 'مورد', balance: '0.001' }], [
+    { id: 'P1', supplierId: 'S1', type: 'purchase', amount: '1.005', date: '2026-01-01' },
+    { id: 'M1', supplierId: 'S1', type: 'payment', amount: '1e2', date: '2026-01-02' }
+  ]);
+  assert.equal(result.totals.purchase, 0, 'amounts with more than two decimal places must not be silently rounded');
+  assert.equal(result.totals.payment, 0, 'scientific notation must not be accepted as a currency entry');
+  assert.equal(result.valid.purchase, false);
+  assert.equal(result.valid.payment, false);
+  assert.equal(result.balanceCentimes, null, 'invalid supplier balance must not be rounded into a plausible amount');
+  assert.equal(result.valid.balance, false);
+  console.log('PASS: supplier statement rejects ambiguous, over-precision and scientific-notation currency values');
+}
