@@ -73,12 +73,12 @@ def main():
         errors.append("AI hub must remain reachable from the drawer after dashboard shortcut cleanup")
     else:
         print("PASS: AI hub remains reachable through the drawer navigation")
-    if len(dashboard_buttons) != 5:
-        errors.append("r38 dashboard must expose exactly five primary navigation cards")
+    if len(dashboard_buttons) != 6:
+        errors.append("r38 dashboard must expose six primary navigation cards including inventory")
     elif "openQuickSale()" in dashboard_markup or "مركز الذكاء الاصطناعي" in dashboard_markup:
         errors.append("r38 dashboard must not restore duplicate quick-sale or AI shortcuts")
     else:
-        print("PASS: r38 dashboard exposes five primary cards without duplicate shortcuts")
+        print("PASS: r38 dashboard exposes six primary cards including inventory without duplicate shortcuts")
     # Guard the mobile interaction/accessibility CSS used by the semantic dashboard button.
     touch_interaction_guards = [
         'button, [role="button"], .grid-card-item, .menu-action-card {',
