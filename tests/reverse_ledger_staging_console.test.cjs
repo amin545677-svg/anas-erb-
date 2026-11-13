@@ -62,7 +62,7 @@ test('staging console deployment waits for the exact successful Gate and require
   assert.match(deployWorkflow, /github\.event\.pull_request\.head\.ref == 'staging\/unified-release-candidate'/);
   assert.ok(deployWorkflow.includes("(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/staging/unified-release-candidate'"), 'deploy must be restricted to trusted staging branch events');
   assert.ok(deployWorkflow.includes('Wait for matching Staging Test Gate success'));
-  assert.ok(deployWorkflow.includes('anas-erp-reverse-ledger-console-staging-v2-'), 'release deployment must use the isolated concurrency lane');
+  assert.ok(deployWorkflow.includes('anas-erp-reverse-ledger-console-staging-v3-'), 'release deployment must use the isolated concurrency lane');
   assert.ok(deployWorkflow.indexOf('Wait for matching Staging Test Gate success') < deployWorkflow.indexOf('Secret Presence Preflight'),
     'Hosting must wait for the matching successful Gate before reading credentials or deploying');
   assert.ok(deployWorkflow.includes("run.name === 'Staging Test Gate'"));
