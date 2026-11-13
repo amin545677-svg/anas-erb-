@@ -61,14 +61,14 @@ def main():
     # r39 exposes eight primary business modules and keeps secondary tools outside the dashboard.
     # The AI hub remains reachable from the drawer as a semantic navigation row.
     ai_hub_drawer_entry = (
-        'class="drawer-nav-row" onclick="closeDrawer(); openView(\\'ai-excel-hub\\');"'
+        'class="drawer-nav-row" onclick="closeDrawer(); openView(\'ai-excel-hub\');"'
         in source
         and "مركز الملفات الذكي | Excel · PDF" in source
     )
     dashboard_start = source.find('<section id="view-dashboard" class="page-view active">')
     dashboard_end = source.find('<section id="view-more"', dashboard_start)
     dashboard_markup = source[dashboard_start:dashboard_end] if dashboard_start >= 0 and dashboard_end > dashboard_start else ""
-    dashboard_buttons = re.findall(r'<button\\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
+    dashboard_buttons = re.findall(r'<button\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
     required_modules = {
         "sales-pos": "openView('pos')",
         "mstore": "openView('inventory')",
@@ -99,7 +99,7 @@ def main():
         errors.append("r39 dashboard must keep secondary logistics and child actions outside primary navigation")
     else:
         print("PASS: r39 dashboard exposes all eight primary modules without secondary or child-action duplication")
-    if len(re.findall(r'<button\\b[^>]*class="anas-more-card"[^>]*>', more_markup)) != 8 or missing_secondary:
+    if len(re.findall(r'<button\b[^>]*class="anas-more-card"[^>]*>', more_markup)) != 8 or missing_secondary:
         errors.append("More workspace must expose eight secondary tools; missing: " +
                       ", ".join(missing_secondary or ["expected exactly eight secondary cards"]))
     else:
