@@ -8,7 +8,7 @@
     catch (_) { return []; }
   }
   function decimalScaled(value, digits) {
-    const match = /^([+-]?)(\\d+)(?:[.,](\\d*))?$/.exec(String(value == null ? '0' : value).trim());
+    const match = /^([+-]?)(\d+)(?:[.,](\d*))?$/.exec(String(value == null ? '0' : value).trim());
     if (!match) return null;
     const fraction = match[3] || '';
     const kept = fraction.slice(0, digits).padEnd(digits, '0');
