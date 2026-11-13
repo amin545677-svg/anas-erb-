@@ -160,11 +160,19 @@ test('staging deploys are serialized while PR validation is isolated from deploy
     new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
   );
   const functionsGroup = "group: anas-erp-reverse-ledger-functions-staging-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}";
-  const consoleGroup = "group: anas-erp-reverse-ledger-console-staging-v2-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}";
+  const consoleGroup = "group: anas-erp-reverse-ledger-console-staging-v3-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}";
   assert.ok(functionsWorkflow.includes(functionsGroup), 'Functions PR validation must use a PR-scoped concurrency group');
   assert.ok(consoleWorkflow.includes(consoleGroup), 'Hosting PR validation must use a PR-scoped concurrency group');
   assert.match(functionsWorkflow, /cancel-in-progress:\s*false/);
   assert.match(consoleWorkflow, /cancel-in-progress:\s*false/);
+  const functionsWaitStep = consoleWorkflow.match(/- name: Wait for matching Firebase Functions deployment success([\\s\\S]*?)(?=\\n      - name:)/)?.[1] || '';
+  const liveAcceptanceStep = consoleWorkflow.match(/- name: Live Staging Acceptance Proof — sale, fractional stock, debt, 409 and trusted backup\/restore([\\s\\S]*?)(?=\\n      - name:)/)?.[1] || '';
+  assert.ok(functionsWaitStep, 'live acceptance must include exact-SHA Functions deployment verification');
+  assert.ok(liveAcceptanceStep, 'live acceptance must include the financial acceptance proof');
+  assert.doesNotMatch(functionsWaitStep, /if:\\s*always\\(\\)/,
+    'do not wait for Functions after Hosting verification has already failed');
+  assert.doesNotMatch(liveAcceptanceStep, /if:\\s*always\\(\\)/,
+    'do not run live financial acceptance after a prerequisite failed');
   assert.doesNotMatch(functionsWorkflow, /group:\s*anas-erp-reverse-ledger-console-staging/);
   assert.doesNotMatch(consoleWorkflow, /group:\s*anas-erp-reverse-ledger-functions-staging/);
 });
