@@ -639,8 +639,13 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
     // Full credit must create customer debt without adding cash to the cashbox.
     await page.evaluate(() => openView('pos'));
-    await page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME }).click();
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const creditResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await creditResult.waitFor({ state: 'visible', timeout: 10000 });
+    await creditResult.click();
+    await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1, null, { timeout: 10000 });
     await page.locator('#posCheckoutBtn').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibPaymentMethod').selectOption('credit');
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
     assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0.00 د.ج');
