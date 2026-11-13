@@ -58,27 +58,52 @@ def main():
     parser.close()
     errors = []
 
-    # r38 intentionally removes the duplicate AI shortcut from the dashboard.
-    # The AI hub remains reachable through the drawer as a semantic navigation row.
+    # r39 exposes eight primary business modules and keeps secondary tools outside the dashboard.
+    # The AI hub remains reachable from the drawer as a semantic navigation row.
     ai_hub_drawer_entry = (
-        'class="drawer-nav-row" onclick="closeDrawer(); openView(\'ai-excel-hub\');"'
+        'class="drawer-nav-row" onclick="closeDrawer(); openView(\\'ai-excel-hub\\');"'
         in source
         and "مركز الملفات الذكي | Excel · PDF" in source
     )
     dashboard_start = source.find('<section id="view-dashboard" class="page-view active">')
-    dashboard_end = source.find('<!-- 3. شاشة المبيعات', dashboard_start)
+    dashboard_end = source.find('<section id="view-more"', dashboard_start)
     dashboard_markup = source[dashboard_start:dashboard_end] if dashboard_start >= 0 and dashboard_end > dashboard_start else ""
-    dashboard_buttons = re.findall(r'<button\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
+    dashboard_buttons = re.findall(r'<button\\b[^>]*class="grid-card-item"[^>]*>', dashboard_markup)
+    required_modules = {
+        "sales-pos": "openView('pos')",
+        "mstore": "openView('inventory')",
+        "cashbox": "openView('cash')",
+        "purchases": "openView('purchases')",
+        "suppliers": "openView('suppliers')",
+        "customers": "openView('customers')",
+        "inquiries": "openView('invoices-list')",
+        "reports": "openView('reports')",
+    }
+    missing_modules = [module for module, route in required_modules.items()
+                       if f'data-erp-module="{module}"' not in dashboard_markup or route not in dashboard_markup]
+    more_start = source.find('<section id="view-more"')
+    more_end = source.find('<!-- 3. شاشة المبيعات', more_start)
+    more_markup = source[more_start:more_end] if more_start >= 0 and more_end > more_start else ""
+    secondary_modules = ["expenses", "trucks", "warehouse-transfer", "warehouse-stock",
+                         "users", "settings", "sync", "ai-excel-hub"]
+    missing_secondary = [module for module in secondary_modules
+                         if f'data-secondary-module="{module}"' not in more_markup]
     if not ai_hub_drawer_entry:
-        errors.append("AI hub must remain reachable from the drawer after dashboard shortcut cleanup")
+        errors.append("AI hub must remain reachable from the drawer navigation")
     else:
         print("PASS: AI hub remains reachable through the drawer navigation")
-    if len(dashboard_buttons) != 6:
-        errors.append("r38 dashboard must expose six primary navigation cards including inventory")
-    elif "openQuickSale()" in dashboard_markup or "مركز الذكاء الاصطناعي" in dashboard_markup:
-        errors.append("r38 dashboard must not restore duplicate quick-sale or AI shortcuts")
+    if len(dashboard_buttons) != 8 or missing_modules:
+        errors.append("r39 dashboard must expose the eight canonical primary modules; missing: " +
+                      ", ".join(missing_modules or ["expected exactly eight cards"]))
+    elif "openQuickSale()" in dashboard_markup or "openView('trucks')" in dashboard_markup or "openInvoiceOcr(" in dashboard_markup:
+        errors.append("r39 dashboard must keep secondary logistics and child actions outside primary navigation")
     else:
-        print("PASS: r38 dashboard exposes six primary cards including inventory without duplicate shortcuts")
+        print("PASS: r39 dashboard exposes all eight primary modules without secondary or child-action duplication")
+    if len(re.findall(r'<button\\b[^>]*class="anas-more-card"[^>]*>', more_markup)) != 8 or missing_secondary:
+        errors.append("More workspace must expose eight secondary tools; missing: " +
+                      ", ".join(missing_secondary or ["expected exactly eight secondary cards"]))
+    else:
+        print("PASS: More workspace retains eight secondary operational tools")
     # Guard the mobile interaction/accessibility CSS used by the semantic dashboard button.
     touch_interaction_guards = [
         'button, [role="button"], .grid-card-item, .menu-action-card {',
