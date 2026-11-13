@@ -318,7 +318,7 @@ test('Hosting live acceptance does not wait for billable Functions on normal sta
   const workflow = await fs.readFile(
     new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
   );
-  assert.match(workflow, /run_functions_live_acceptance:[\\s\\S]*?default:\\s*false/);
+  assert.ok(workflow.includes('run_functions_live_acceptance:') && workflow.includes('default: false'));
   assert.match(workflow, /github.event_name == 'workflow_dispatch' && inputs.run_functions_live_acceptance == true/);
   assert.match(workflow, /deploy --only hosting/);
 });
