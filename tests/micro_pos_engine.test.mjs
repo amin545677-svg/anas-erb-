@@ -116,14 +116,18 @@ test('inventory and POS share live status/category filtering with 20-item progre
     'inventory and POS must use the canonical in-memory inventory filter');
 });
 
-test('r38 dashboard exposes six primary destinations including inventory and preserves six persistent navigation tabs', () => {
+test('r39 dashboard exposes eight primary destinations and preserves six persistent navigation tabs', () => {
   const html = readFileSync('index.html', 'utf8');
   const dashboardStart = html.indexOf('<section id="view-dashboard"');
-  const dashboardEnd = html.indexOf('<section id="view-pos"', dashboardStart);
+  const dashboardEnd = html.indexOf('<section id="view-more"', dashboardStart);
   const dashboard = html.slice(dashboardStart, dashboardEnd);
   assert.match(dashboard, /id="anasDailyGroupTitle"/, 'the primary dashboard group must remain present');
-  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 6,
-    'dashboard must expose six primary navigation cards including inventory');
+  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 8,
+    'dashboard must expose all eight primary operational modules');
+  for (const module of ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","reports"]) {
+    assert.match(dashboard, new RegExp('data-erp-module="' + module + '"'),
+      'dashboard must expose the ' + module + ' destination');
+  }
   assert.doesNotMatch(dashboard, /anasStockGroupTitle|anasMoneyGroupTitle|anasSmartGroupTitle/,
     'inventory, finance and AI shortcuts must not recreate secondary dashboard groups');
   assert.match(html, /id="anasQuickBottomNav"[\s\S]*?data-nav-view="dashboard"[\s\S]*?data-nav-view="pos"[\s\S]*?data-nav-view="inventory"[\s\S]*?data-nav-view="invoices-list"[\s\S]*?data-nav-view="customers"[\s\S]*?المزيد/,
