@@ -1996,18 +1996,25 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         <section id="view-dashboard" class="page-view active">
             <div class="anas-dashboard-groups">
               <section class="anas-dashboard-group" aria-labelledby="anasDailyGroupTitle">
-                <h3 id="anasDailyGroupTitle" class="anas-dashboard-group-title">الرئيسية</h3>
-                <div class="dashboard-grid-8">
-                  <button type="button" class="grid-card-item" onclick="openView('pos')"><span class="card-icon-box">🛒</span><span class="card-title-text">نقطة البيع</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('customers')"><span class="card-icon-box">👥</span><span class="card-title-text">العملاء والديون</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('invoices-list')"><span class="card-icon-box">🧾</span><span class="card-title-text">الفواتير والتقارير</span></button>
-                  <button type="button" class="grid-card-item" onclick="openNotificationModal()"><span class="card-icon-box">🔔</span><span class="card-title-text">تنبيهات المخزون والديون</span><span id="dashboardAlertBadge" class="badge-active-tag" style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:999px;font-weight:900" hidden>0</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('trucks')"><span class="card-icon-box">🚚</span><span class="card-title-text">حركة الشاحنات</span></button>
-                  <button type="button" class="grid-card-item" onclick="openView('inventory')"><span class="card-icon-box">📦</span><span class="card-title-text">المخزن</span></button>
+                <h3 id="anasDailyGroupTitle" class="anas-dashboard-group-title">الأقسام الرئيسية</h3>
+                <div class="dashboard-grid-8" aria-label="الأقسام التشغيلية الثمانية">
+                  <button type="button" class="grid-card-item" data-erp-module="sales-pos" onclick="openView('pos')" aria-label="المبيعات ونقطة البيع"><span class="card-icon-box" aria-hidden="true">🛒</span><span class="card-title-text">المبيعات (POS)</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="mstore" onclick="openView('inventory')" aria-label="المخزن Mstore"><span class="card-icon-box" aria-hidden="true">📦</span><span class="card-title-text">المخزن (Mstore)</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="cashbox" onclick="openView('cash')" aria-label="الصندوق"><span class="card-icon-box" aria-hidden="true">💰</span><span class="card-title-text">الصندوق</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="purchases" onclick="openView('purchases')" aria-label="المشتريات"><span class="card-icon-box" aria-hidden="true">🧾</span><span class="card-title-text">المشتريات</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="suppliers" onclick="openView('suppliers')" aria-label="الموردون"><span class="card-icon-box" aria-hidden="true">🏭</span><span class="card-title-text">الموردون</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="customers" onclick="openView('customers')" aria-label="العملاء"><span class="card-icon-box" aria-hidden="true">👥</span><span class="card-title-text">العملاء</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="inquiries" onclick="openView('invoices-list')" aria-label="الاستعلامات وسجل الفواتير"><span class="card-icon-box" aria-hidden="true">🔍</span><span class="card-title-text">الاستعلامات</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="reports" onclick="openView('reports')" aria-label="التقارير والإحصائيات"><span class="card-icon-box" aria-hidden="true">📊</span><span class="card-title-text">التقارير</span></button>
+                </div>
+                <div class="anas-dashboard-alerts-row">
+                  <button type="button" class="menu-action-card anas-dashboard-alerts-entry" onclick="openNotificationModal()" aria-label="فتح تنبيهات المخزون وديون العملاء">
+                    <span aria-hidden="true">🔔</span><span>تنبيهات المخزون والديون</span>
+                    <span id="dashboardAlertBadge" class="badge-active-tag" hidden>0</span>
+                  </button>
                 </div>
               </section>
             </div>
-
             <div class="system-footer-status">
                 <span class="badge-active-tag">مفعل</span>
                 <span>النظام التجاري الذكي Anas ERP (يعمل دون إنترنت على هذا الجهاز)</span>
@@ -2017,18 +2024,18 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         <section id="view-more" class="page-view">
             <div class="sub-header-bar anas-more-header">
                 <button class="btn-arrow-back" type="button" onclick="openView('dashboard')">‹</button>
-                <div class="sub-header-title">المزيد</div>
+                <div class="sub-header-title">المزيد من الأدوات</div>
                 <button class="btn-header-action" type="button" onclick="openDrawer()" aria-label="الإعدادات والأدوات المتقدمة">☰</button>
             </div>
-            <div class="anas-more-grid" aria-label="الأقسام الرئيسية">
-                <button type="button" class="anas-more-card" onclick="openView('purchases')"><span class="anas-more-icon" aria-hidden="true">🛒</span><span class="anas-more-label">المشتريات</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('pos')"><span class="anas-more-icon" aria-hidden="true">🛍️</span><span class="anas-more-label">المبيعات</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('suppliers')"><span class="anas-more-icon" aria-hidden="true">🤝</span><span class="anas-more-label">الموردين</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('customers')"><span class="anas-more-icon" aria-hidden="true">👤</span><span class="anas-more-label">العملاء</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('expenses')"><span class="anas-more-icon" aria-hidden="true">💼</span><span class="anas-more-label">المصروفات</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('cash')"><span class="anas-more-icon" aria-hidden="true">🔐</span><span class="anas-more-label">الصندوق</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('reports')"><span class="anas-more-icon" aria-hidden="true">📊</span><span class="anas-more-label">الاستعلامات</span></button>
-                <button type="button" class="anas-more-card" onclick="openView('inventory')"><span class="anas-more-icon" aria-hidden="true">📦</span><span class="anas-more-label">المخزون</span></button>
+            <div class="anas-more-grid" aria-label="الأدوات التشغيلية المساندة">
+                <button type="button" class="anas-more-card" data-secondary-module="expenses" onclick="openView('expenses')"><span class="anas-more-icon" aria-hidden="true">💼</span><span class="anas-more-label">المصروفات</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="trucks" onclick="openView('trucks')"><span class="anas-more-icon" aria-hidden="true">🚚</span><span class="anas-more-label">الشاحنات والنقل</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="warehouse-transfer" onclick="openView('warehouse-transfer')"><span class="anas-more-icon" aria-hidden="true">🔁</span><span class="anas-more-label">تحويلات المخزون</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="warehouse-stock" onclick="openView('warehouse-stock')"><span class="anas-more-icon" aria-hidden="true">🏬</span><span class="anas-more-label">أرصدة المستودعات</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="users" onclick="openView('users')"><span class="anas-more-icon" aria-hidden="true">👤</span><span class="anas-more-label">المستخدمون والصلاحيات</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="settings" onclick="openView('settings')"><span class="anas-more-icon" aria-hidden="true">⚙️</span><span class="anas-more-label">الإعدادات</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="sync" onclick="openView('sync')"><span class="anas-more-icon" aria-hidden="true">🔄</span><span class="anas-more-label">المزامنة والسحابة</span></button>
+                <button type="button" class="anas-more-card" data-secondary-module="ai-excel-hub" onclick="openView('ai-excel-hub')"><span class="anas-more-icon" aria-hidden="true">🤖</span><span class="anas-more-label">مركز الملفات الذكي</span></button>
             </div>
         </section>
 
@@ -2476,7 +2483,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         <section id="view-reports" class="page-view">
             <div class="sub-header-bar">
                 <button class="btn-arrow-back" onclick="openView('dashboard')">‹</button>
-                <div class="sub-header-title">الاستعلامات</div>
+                <div class="sub-header-title">التقارير والإحصائيات</div>
                 <button class="btn-header-action" onclick="printZReport()">🖨️</button>
             </div>
 
@@ -2862,7 +2869,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         <section id="view-invoices-list" class="page-view">
             <div class="sub-header-bar">
                 <button class="btn-arrow-back" onclick="openView('pos')">‹</button>
-                <div class="sub-header-title">سجل فواتير المبيعات</div>
+                <div class="sub-header-title">الاستعلامات وسجل فواتير المبيعات</div>
                 <div>📑</div>
             </div>
             <button type="button" class="btn-secondary" style="width:100%;min-height:44px;margin-top:8px;" onclick="openView('reports')">📊 فتح التقارير والإحصائيات</button>

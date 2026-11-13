@@ -79,8 +79,8 @@ jobs:
           import fs from 'node:fs';
           const cfg = JSON.parse(fs.readFileSync('firebase.staging.hosting.json', 'utf8'));
           if (cfg.hosting?.site !== 'anas-erp-staging-a25e1' || cfg.hosting?.public !== 'staging-site') throw new Error('Hosting target is not isolated Staging');
-          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r38';")) throw new Error('Root Service Worker is not r38');
-          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r38 | Env: Staging")) throw new Error('ERP build stamp does not match r38 Service Worker');
+          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r39';")) throw new Error('Root Service Worker is not r39');
+          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r39 | Env: Staging")) throw new Error('ERP build stamp does not match r39 Service Worker');
           if (!fs.readFileSync('index.html', 'utf8').includes('Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging')) throw new Error('Canonical source stamp placeholder changed unexpectedly');
           NODE
           npm install --no-audit --no-fund
@@ -289,8 +289,8 @@ jobs:
           fetch_expect "/config.js" "staging-only allowed origin" '"allowedOrigins":["https://anas-erp-staging-a25e1.web.app"]'
           fetch_expect "/erp/" "V42 ERP/POS shell" "Anas ERP v42"
           fetch_expect "/erp/" "ERP staging project config" '"projectId":"anas-erp-staging-a25e1"'
-          fetch_expect "/erp/" "exact deployed commit and r38 build stamp" "Build SHA: ${short_sha} | SW: r38 | Env: Staging"
-          fetch_expect "/erp/sw.js" "r38 service-worker cache namespace" "const CACHE = 'anas-erp-v54-25-r38';"
+          fetch_expect "/erp/" "exact deployed commit and r39 build stamp" "Build SHA: ${short_sha} | SW: r39 | Env: Staging"
+          fetch_expect "/erp/sw.js" "r39 service-worker cache namespace" "const CACHE = 'anas-erp-v54-25-r39';"
           fetch_expect "/erp/sw.js" "ERP offline service worker" "android-resilient-storage.js"
           fetch_expect "/erp/storage/android-resilient-storage.js" "IndexedDB resilient storage module" "IndexedDB"
           fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"
@@ -410,7 +410,7 @@ jobs:
             result: 'PASS',
             testedSha: process.env.DEPLOY_SHA,
             projectId: 'anas-erp-staging-a25e1',
-            serviceWorker: 'anas-erp-v54-25-r38',
+            serviceWorker: 'anas-erp-v54-25-r39',
             acceptance: {
               saleLifecycle: 'PASS — isolated Chromium POS lifecycle regression',
               fractionalQuantityAndExactUnits: 'PASS — Micro POS BigInt/micro-unit regression',
@@ -430,7 +430,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: anas-erp-r38-staging-acceptance-${{ github.sha }}
+          name: anas-erp-r39-staging-acceptance-${{ github.sha }}
           path: |
             ${{ runner.temp }}/anas-staging-live-e2e-evidence.json
             ${{ runner.temp }}/anas-staging-acceptance-certificate.json

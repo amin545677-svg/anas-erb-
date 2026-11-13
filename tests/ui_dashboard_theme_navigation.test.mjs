@@ -4,14 +4,14 @@ import fs from 'node:fs';
 
 const html = fs.readFileSync('index.html', 'utf8');
 const css = fs.readFileSync('anas-erp-ui-safe-enhancements.css', 'utf8');
-const dashboard = html.slice(html.indexOf('<section id="view-dashboard"'), html.indexOf('<section id="view-pos"'));
+const dashboard = html.slice(html.indexOf('<section id="view-dashboard"'), html.indexOf('<section id="view-more"'));
 const inventory = html.slice(html.indexOf('<section id="view-inventory"'), html.indexOf('<section id="view-warehouse-transfer"'));
 const purchases = html.slice(html.indexOf('<section id="view-purchases"'), html.indexOf('<section id="view-customers"'));
 
-test('dashboard does not expose inventory creation or purchase processing shortcuts', () => {
+test('dashboard exposes parent modules without exposing product creation or OCR child actions', () => {
   assert.doesNotMatch(dashboard, /openAddProductModal\(\)/);
-  assert.doesNotMatch(dashboard, /openView\('purchases'\)/);
   assert.doesNotMatch(dashboard, /openInvoiceOcr\(/);
+  assert.match(dashboard, /data-erp-module="purchases"[^>]*openView\('purchases'\)/);
 });
 
 test('product creation remains inside the inventory workspace', () => {
@@ -46,12 +46,15 @@ test('theme contrast tokens define both light and dark states', () => {
   assert.match(css, /-webkit-text-fill-color:var\(--anas-ui-btn-text\)!important/);
 });
 
-test('r38 dashboard exposes six primary destinations including inventory', () => {
-  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 6);
-  for (const action of ["openView('pos')", "openView('customers')", "openView('invoices-list')", "openNotificationModal()", "openView('trucks')", "openView('inventory')"]) {
+test('r39 dashboard exposes the eight canonical operational modules exactly once', () => {
+  assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 8);
+  const modules = ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","reports"];
+  for (const module of modules) assert.equal((dashboard.match(new RegExp('data-erp-module="' + module + '"',"g")) || []).length, 1,
+    "dashboard must expose exactly one " + module + " module");
+  for (const action of ["openView('pos')","openView('inventory')","openView('cash')","openView('purchases')","openView('suppliers')","openView('customers')","openView('invoices-list')","openView('reports')"]) {
     assert.ok(dashboard.includes(action), "dashboard is missing " + action);
   }
-  assert.doesNotMatch(dashboard, /openView\('purchases'\)|openView\('suppliers'\)|openView\('settings'\)|openView\('sync'\)|openView\('ai-excel-hub'\)|openQuickSale\(\)/);
+  assert.doesNotMatch(dashboard, /openView\('trucks'\)|openAddProductModal\(\)|openInvoiceOcr\(/);
   assert.match(dashboard, /تنبيهات المخزون والديون/);
 });
 
@@ -73,12 +76,15 @@ test('dashboard alert badge ignores invalid stock and debt values', () => {
   assert.match(checker, /dashboardBadge\.hidden = alerts\.length === 0/);
 });
 
-test('purchases and supplier management stay in the drawer while trucks remain on dashboard', () => {
+test('primary modules are on the dashboard while logistics stays in secondary tools', () => {
   const drawer = html.slice(html.indexOf('<div class="drawer-sidebar" id="drawerMenu">'), html.indexOf('<!-- نافذة معاينة الفاتورة'));
+  const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات'));
+  assert.ok(dashboard.includes("openView('purchases')"));
+  assert.ok(dashboard.includes("openView('suppliers')"));
+  assert.ok(dashboard.includes("openView('cash')"));
+  assert.doesNotMatch(dashboard, /openView\('trucks'\)/);
+  assert.match(more, /data-secondary-module="trucks"[^>]*openView\('trucks'\)/);
   assert.match(drawer, /اللوجستيات والنقل[\s\S]*?openView\('trucks'\)/);
-  assert.match(drawer, /المشتريات والموردون[\s\S]*?openView\('purchases'\)[\s\S]*?openView\('suppliers'\)/);
-  assert.ok(dashboard.includes("openView('trucks')"));
-  assert.doesNotMatch(dashboard, /openView\('suppliers'\)/);
 });
 
 test('settings, sync and customer directory have one canonical navigation entry', () => {
@@ -96,15 +102,19 @@ test('invoice action buttons and AI import category controls have theme-safe con
 });
 
 
-test('More workspace exposes all eight existing operational screens', () => {
-  const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات (POS)'));
+test('More workspace contains eight secondary tools without duplicating primary modules', () => {
+  const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات'));
   assert.equal((more.match(/class="anas-more-card"/g) || []).length, 8);
-  for (const action of ["openView('purchases')","openView('pos')","openView('suppliers')","openView('customers')","openView('expenses')","openView('cash')","openView('reports')","openView('inventory')"]) {
-    assert.ok(more.includes(action), "More workspace is missing " + action);
+  for (const action of ["expenses","trucks","warehouse-transfer","warehouse-stock","users","settings","sync","ai-excel-hub"]) {
+    assert.ok(more.includes('data-secondary-module="' + action + '"'), "More workspace is missing " + action);
+    assert.ok(more.includes("openView('" + action + "')"), "More workspace route is missing " + action);
+  }
+  for (const primary of ["pos","inventory","cash","purchases","suppliers","customers","invoices-list","reports"]) {
+    assert.doesNotMatch(more, new RegExp("openView\\('" + primary + "'\\)"), "Primary module duplicated in More: " + primary);
   }
   assert.ok(html.includes('data-nav-view="more"'));
   assert.ok(html.includes("onclick=\"openView('more')\""));
-  for (const view of ["purchases","pos","suppliers","customers","expenses","cash","reports","inventory"]) {
+  for (const view of ["expenses","trucks","warehouse-transfer","warehouse-stock","users","settings","sync","ai-excel-hub"]) {
     assert.ok(html.includes('id="view-' + view + '"'), "Missing destination view " + view);
   }
 });

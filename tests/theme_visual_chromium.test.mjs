@@ -42,7 +42,7 @@ function contrast(fg, bg) {
   return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
 }
 
-test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG contrast, persistence and cross-tab sync', async () => {
+test('real Chromium theme acceptance: eight-module dashboard, purchase OCR, settings, POS, WCAG contrast, persistence and cross-tab sync', async () => {
   const server = await serve();
   const baseURL = 'http://127.0.0.1:' + server.address().port + '/';
   let browser;
@@ -61,8 +61,45 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
     }));
     assert.equal(initial.theme, 'light');
-    assert.equal(initial.modules, 6, 'r38 dashboard must render six primary destinations including inventory');
+    assert.equal(initial.modules, 8, 'r39 dashboard must render all eight primary operational modules');
     assert.equal(initial.overflow, false, 'dashboard must not overflow at 390px');
+
+    const moduleRoutes = ['pos','inventory','cash','purchases','suppliers','customers','invoices-list','reports'];
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const grid = await page.locator('#view-dashboard .dashboard-grid-8').evaluate(el => ({
+        overflow: el.scrollWidth > el.clientWidth,
+        cards: [...el.querySelectorAll('.grid-card-item')].map(card => {
+          const title = card.querySelector('.card-title-text');
+          return { width: card.getBoundingClientRect().width, titleWidth: title.clientWidth,
+            titleScrollWidth: title.scrollWidth, titleHeight: title.clientHeight, titleScrollHeight: title.scrollHeight };
+        })
+      }));
+      assert.equal(grid.cards.length, 8, 'all eight primary modules must render at ' + width + 'px');
+      assert.equal(grid.overflow, false, 'primary module grid must not overflow at ' + width + 'px');
+      for (const card of grid.cards) {
+        assert.ok(card.width >= 100, 'primary module card must remain tappable at ' + width + 'px');
+        assert.ok(card.titleScrollWidth <= card.titleWidth + 1, 'module title must not be clipped at ' + width + 'px');
+        assert.ok(card.titleScrollHeight <= card.titleHeight + 2, 'module title must not be vertically clipped at ' + width + 'px');
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (let index = 0; index < moduleRoutes.length; index++) {
+      const route = moduleRoutes[index];
+      await page.locator('#view-dashboard .grid-card-item').nth(index).click();
+      await page.locator('#view-' + route).waitFor({ state: 'visible' });
+      assert.equal(await page.locator('#view-' + route).evaluate(el => el.classList.contains('active')), true,
+        'dashboard module must open its matching screen: ' + route);
+      await page.evaluate(() => window.openView('dashboard'));
+    }
+    await page.evaluate(() => { window.openView('purchases'); window.openInvoiceOcr('purchases'); });
+    await page.locator('#invoiceOcrModal').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#invoiceOcrCategory').inputValue(), 'purchases',
+      'purchase OCR must default to purchase classification');
+    assert.match(await page.locator('#invoiceOcrModal').innerText(),
+      /لا تُنشئ فاتورة ولا تغيّر المخزون أو الديون تلقائي/,
+      'OCR must remain review-only and must not auto-post inventory or supplier balances');
+    await page.evaluate(() => { window.closeInvoiceOcr(); window.openView('dashboard'); });
     const lightDashboardContrast = await page.evaluate(() => {
       const card = document.querySelector('#view-dashboard .grid-card-item');
       const title = card?.querySelector('.card-title-text');
@@ -86,6 +123,55 @@ test('real Chromium theme acceptance: six-card dashboard, settings, POS, WCAG co
 
     await page.locator('#anasThemeQuickToggle').click();
     await page.waitForFunction(() => document.documentElement.getAttribute('data-anas-theme') === 'dark');
+    await page.evaluate(() => { window.openView('purchases'); window.openInvoiceOcr('purchases'); });
+    await page.locator('#invoiceOcrModal').waitFor({ state: 'visible' });
+    const darkOcrVisual = await page.locator('#invoiceOcrModal > div').evaluate(panel => {
+      const label = panel.querySelector('label');
+      const field = panel.querySelector('#invoiceOcrCategory');
+      const panelCss = getComputedStyle(panel), labelCss = label ? getComputedStyle(label) : null;
+      const fieldCss = field ? getComputedStyle(field) : null;
+      return { background: panelCss.backgroundColor, text: panelCss.color,
+        labelColor: labelCss?.color, fieldBackground: fieldCss?.backgroundColor, fieldColor: fieldCss?.color };
+    });
+    assert.ok(darkOcrVisual.background && darkOcrVisual.background !== 'rgba(0, 0, 0, 0)',
+      'dark purchase OCR modal must have an explicit surface');
+    assert.ok(contrast(darkOcrVisual.text, darkOcrVisual.background) >= 4.5,
+      'dark purchase OCR modal text must meet WCAG AA');
+    assert.ok(contrast(darkOcrVisual.labelColor, darkOcrVisual.background) >= 4.5,
+      'dark purchase OCR labels must meet WCAG AA');
+    assert.ok(contrast(darkOcrVisual.fieldColor, darkOcrVisual.fieldBackground) >= 4.5,
+      'dark purchase OCR category field must meet WCAG AA');
+    await page.evaluate(() => { window.closeInvoiceOcr(); window.openView('dashboard'); });
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const darkGrid = await page.locator('#view-dashboard .dashboard-grid-8').evaluate(el => ({
+        overflow: el.scrollWidth > el.clientWidth,
+        cards: [...el.querySelectorAll('.grid-card-item')].map(card => {
+          const title = card.querySelector('.card-title-text');
+          return { width: card.getBoundingClientRect().width, color: getComputedStyle(title).color,
+            titleWidth: title.clientWidth, titleScrollWidth: title.scrollWidth,
+            titleHeight: title.clientHeight, titleScrollHeight: title.scrollHeight };
+        })
+      }));
+      assert.equal(darkGrid.cards.length, 8, 'dark dashboard must retain all eight modules at ' + width + 'px');
+      assert.equal(darkGrid.overflow, false, 'dark dashboard must not overflow at ' + width + 'px');
+      for (const card of darkGrid.cards) {
+        assert.ok(card.width >= 100, 'dark module card must remain tappable at ' + width + 'px');
+        assert.ok(card.titleScrollWidth <= card.titleWidth + 1, 'dark module title must not be clipped at ' + width + 'px');
+        assert.ok(card.titleScrollHeight <= card.titleHeight + 2, 'dark module title must not be vertically clipped at ' + width + 'px');
+        assert.ok(contrast(card.color, 'rgb(27, 41, 64)') >= 4.5,
+          'dark module title must meet WCAG AA at ' + width + 'px');
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const route of moduleRoutes) {
+      await page.evaluate(view => window.openView(view), route);
+      await page.locator('#view-' + route).waitFor({ state: 'visible' });
+      const overflow = await page.locator('#view-' + route).evaluate(() =>
+        document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      assert.equal(overflow, false, 'dark operational screen must not overflow horizontally: ' + route);
+    }
+    await page.evaluate(() => window.openView('dashboard'));
     const visual = await page.evaluate(() => {
       const card = document.querySelector('#view-dashboard .grid-card-item');
       const title = card.querySelector('.card-title-text');

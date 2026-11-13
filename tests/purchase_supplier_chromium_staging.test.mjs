@@ -72,7 +72,7 @@ function initialData() {
   };
 }
 
-test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity', async () => {
+test('ANAS ERP purchase, supplier settlement and exact Snapshot A to State B restore parity', async () => {
   const server = await startServer();
   let browser;
   const pageErrors = [];
@@ -447,7 +447,34 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     assert.match(stockDomAfterReload, /شاي اختبار Chromium/);
     assert.match(stockDomAfterReload, /3/);
 
-    // Exercise the real backup import control with a valid JSON backup.
+    // Create State B through the real expense form after Snapshot A has been exported and reloaded.
+    // The cash deduction and expense ledger must be durably committed before restoring Snapshot A.
+    await page.evaluate(() => openView('expenses'));
+    await page.locator('#expAccountInput').fill('اختبار استعادة Snapshot A');
+    await page.locator('#expDescInput').fill('حركة State B بعد النسخة الاحتياطية');
+    await page.locator('#expAmountInput').fill('1.25');
+    await page.locator('#expPaymentMethod').selectOption('cash');
+    await page.locator('#view-expenses button[onclick="submitExpenseOperation()"]').click();
+    await page.waitForFunction(() => {
+      const committed = ANASResilientStorage?.getCommittedSnapshot?.();
+      return Array.isArray(AppData.expenses) &&
+        AppData.expenses.some(row => row && row.desc === 'حركة State B بعد النسخة الاحتياطية') &&
+        committed && Array.isArray(committed.expenses) &&
+        committed.expenses.some(row => row && row.desc === 'حركة State B بعد النسخة الاحتياطية') &&
+        Math.round(Number(AppData.caisseBalance) * 100) === 9999835;
+    }, null, { timeout: 15000 });
+    const stateBProof = await page.evaluate(() => ({
+      cashCentimes: Math.round(Number(AppData.caisseBalance) * 100),
+      expenseCount: AppData.expenses.length,
+      cashMovementCount: AppData.cashMovements.length,
+      committedMatchesRuntime: JSON.stringify(ANASResilientStorage.getCommittedSnapshot()) === JSON.stringify(AppData)
+    }));
+    assert.equal(stateBProof.cashCentimes, 9999835, 'State B must change the cashbox by exactly 125 centimes');
+    assert.equal(stateBProof.expenseCount, beforeReload.expenses.length + 1, 'State B must add one expense');
+    assert.equal(stateBProof.cashMovementCount, beforeReload.cashMovements.length + 1, 'State B must add one cash movement');
+    assert.equal(stateBProof.committedMatchesRuntime, true, 'State B must be durably committed before restore');
+
+    // Exercise the real backup import control with Snapshot A after State B has changed cash and expense ledgers.
     await page.evaluate(() => openView('cash'));
     await page.locator('#restoreJsonFile').setInputFiles({
       name: 'anas-erp-chromium-staging-backup.json',
@@ -456,6 +483,8 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
     });
     await page.waitForFunction(() => document.getElementById('view-dashboard')?.classList.contains('active'), null, { timeout: 10000 });
     state = await page.evaluate(() => JSON.parse(JSON.stringify(AppData)));
+    assert.deepEqual(state, beforeReload,
+      'restoring Snapshot A after State B must reproduce the entire pre-mutation state exactly');
     assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999960n);
     assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500010n);
     assert.ok(state.purchases.some(row => row.id === purchase.id));
@@ -556,7 +585,7 @@ test('ANAS ERP real DOM purchase, supplier settlement, reload and restore parity
       supplier: { openingBalanceDZD: 15000.00, finalBalanceDZD: state.suppliers[0].balance, laterAllocationCentimes: state.settlementAllocations.filter(a => a.partyType === 'supplier' && a.sourceMovementType === 'supplier_payment').map(a => a.amountCentimes), originalInvoicesImmutable: state.purchases.every(p => (p.id === purchase.id && p.paid === 0.10 && p.remaining === 0.20) || (p.id === secondPurchase.id && p.paid === 0 && p.remaining === 0.20)), failedSaveRollback: 'PASS' },
       cash: { openingBalanceDZD: 100000.00, finalBalanceDZD: state.caisseBalance },
       ledgers: { purchases: state.purchases.length, cashMovements: state.cashMovements.length, stockMovements: state.stockMovements.length, supplierMovements: state.supplierMovements.length, deepRestoreEquality: 'PASS' },
-      reload: 'PASS', backupRestore: 'PASS', cloudValidator: 'PASS',
+      reload: 'PASS', backupRestore: 'PASS', snapshotAtoBRestore: 'PASS', cloudValidator: 'PASS',
       orphanInjection: 'REJECTED_WITHOUT_MUTATION',
       orphanReason: 'Purchase Ledger Parity: stock movement does not match purchase invoice'
     }));
