@@ -122,7 +122,8 @@ test('V42 exposes fixed six-action field navigation and offsets the POS checkout
   assert.ok(nav.includes('data-nav-view="inventory"'));
   assert.ok(nav.includes('data-nav-view="invoices-list"'));
   assert.ok(nav.includes('data-nav-view="customers"'));
-  assert.ok(nav.includes('onclick="openDrawer()"'));
+  assert.ok(nav.includes('data-nav-view="more"'));
+  assert.ok(nav.includes("onclick=\"openView('more')\""));
   assert.match(html, /quickNavView = viewName === 'cust-debts' \? 'customers' : viewName/);
   assert.match(html, /button\.classList\.toggle\('active', active\)/);
   assert.match(html, /#view-pos \.bottom-totals-bar\s*\{\s*bottom:calc\(66px \+ env\(safe-area-inset-bottom\)\)/);
