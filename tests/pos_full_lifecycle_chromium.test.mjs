@@ -580,9 +580,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       if (!product) throw new Error('Weighted POS fixture product is missing');
       product.unit = 'كغ';
       if (!saveDB()) throw new Error('Could not persist weighted POS fixture unit');
-      renderQuickProducts();
     }, PRODUCT_ID);
-    await page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME }).click();
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const weightedResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await weightedResult.waitFor({ state: 'visible', timeout: 10000 });
+    await weightedResult.click();
+    await page.locator('#hasibCartItems input[aria-label^="كمية"]').first().waitFor({ state: 'visible', timeout: 10000 });
     await commitNumberEditor(quantitySelector, '0.25');
     await commitNumberEditor(priceSelector, '100.00');
     await waitForDisplayedTotal(25);
