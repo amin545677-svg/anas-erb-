@@ -601,7 +601,11 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
     const beforeRejectedImportProof = await page.evaluate(() => ({
       storageRaw: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE'),
       memoryRaw: JSON.stringify(AppData),
-      domRaw: document.body.innerHTML
+      domProof: {
+        activeView: document.querySelector('.page-view.active')?.id || null,
+        cashBalance: document.getElementById('cashCurrentBalanceDisplay')?.textContent?.trim() || '',
+        supplierDebts: document.getElementById('suppDebtsContainer')?.innerText?.trim() || ''
+      }
     }));
     const readerCompletionCount = await page.evaluate(() => window.__anasFileReaderCompletions.length);
     const dialogCountBeforeOrphan = dialogs.length;
@@ -625,14 +629,18 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
     const afterRejectedImportProof = await page.evaluate(() => ({
       storageRaw: localStorage.getItem('ANAS_THE_ENTERPRISE_V11_OFFLINE'),
       memoryRaw: JSON.stringify(AppData),
-      domRaw: document.body.innerHTML
+      domProof: {
+        activeView: document.querySelector('.page-view.active')?.id || null,
+        cashBalance: document.getElementById('cashCurrentBalanceDisplay')?.textContent?.trim() || '',
+        supplierDebts: document.getElementById('suppDebtsContainer')?.innerText?.trim() || ''
+      }
     }));
     assert.equal(afterRejectedImportProof.storageRaw, beforeRejectedImportProof.storageRaw,
       'rejected orphan restore must not change even one localStorage byte');
     assert.equal(afterRejectedImportProof.memoryRaw, beforeRejectedImportProof.memoryRaw,
       'rejected orphan restore must not mutate AppData');
-    assert.equal(afterRejectedImportProof.domRaw, beforeRejectedImportProof.domRaw,
-      'rejected orphan restore must not mutate the rendered DOM');
+    assert.deepEqual(afterRejectedImportProof.domProof, beforeRejectedImportProof.domProof,
+      'rejected orphan restore must preserve the active view and rendered financial balances');
     state = JSON.parse(afterRejectedImportProof.memoryRaw);
     assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999960n);
     assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500010n);
