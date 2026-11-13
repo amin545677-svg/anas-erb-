@@ -618,17 +618,17 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       return ANASResilientStorage.status().revision > beforeRevision &&
         s.invoices.some(row => row && row.paymentMethod === 'partial' && row.paid === 12.5 && row.remaining === 12.5);
     }, partialRevision, { timeout: 15000 });
-    const partialProof = await page.evaluate(() => {
+    const partialProof = await page.evaluate((productId) => {
       const s = ANASResilientStorage.getCommittedSnapshot();
       const invoice = s.invoices.find(row => row && row.paymentMethod === 'partial');
-      const item = invoice.items.find(row => String(row.id) === String(PRODUCT_ID));
-      const product = s.products.find(row => String(row.id) === String(PRODUCT_ID));
+      const item = invoice.items.find(row => String(row.id) === String(productId));
+      const product = s.products.find(row => String(row.id) === String(productId));
       const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
       const cash = s.cashMovements.filter(row => row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
       return { paid: invoice.paid, remaining: invoice.remaining, customerDebt: customer.debt,
         soldQty: item.qty, soldUnit: item.unit, productStock: product.stock,
         cashRows: cash.length, cashAmount: cash[0] && cash[0].amount };
-    });
+    }, PRODUCT_ID);
     assert.deepEqual(partialProof, {
       paid: 12.5, remaining: 12.5, customerDebt: 12.5, soldQty: 0.25, soldUnit: 'كغ',
       productStock: 9.75, cashRows: 1, cashAmount: 12.5
