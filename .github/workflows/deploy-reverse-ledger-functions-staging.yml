@@ -39,6 +39,12 @@ on:
       - '.github/workflows/anas-erp-safety-checks.yml'
       - 'cashbox-readonly-ledger.js'
       - 'tests/**'
+      - 'erp/**'
+      - 'index.html'
+      - 'sw.js'
+      - 'anas-*.js'
+      - 'firebase/**'
+      - '.github/workflows/**'
 
 permissions:
   contents: read

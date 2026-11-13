@@ -18,6 +18,9 @@ on:
       - "staging/**"
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
+      - "firebase/**"
+      - "anas-*.js"
+      - ".github/workflows/**"
       - ".github/workflows/staging-test-gate.yml"
       - ".github/workflows/pos-reference-ui-integration.yml"
       - ".github/workflows/anas-erp-safety-checks.yml"
@@ -44,6 +47,9 @@ on:
       - "staging/**"
       - "firebase.staging.json"
       - "firebase/firestore.staging.rules"
+      - "firebase/**"
+      - "anas-*.js"
+      - ".github/workflows/**"
       - "firebase/firestore.reverse-ledger.rules"
       - "cloudflare/worker_reverse_ledger.js"
       - ".github/workflows/staging-test-gate.yml"
@@ -76,6 +82,8 @@ jobs:
         run: node scripts/qa-dom-integrity.mjs index.html && node --test tests/qa_dom_integrity.test.mjs
       - name: Level 11 canonical, causal CAS, rebase quarantine and zero-sum proofs
         run: node --test tests/sovereign-kernel-level11.test.mjs
+      - name: Verify single-source live durability and network status bar
+        run: node --test tests/anas_live_status.test.mjs
       - name: Syntax-check every repository script, POS engine and test module
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check && node --check pos/micro-pos-engine.mjs && node --check anas-pos-floating-cart.js && node --check ai-excel-import-ui.js && node --check core/pos-quick-sale-transaction-bridge.js
       - name: Run ANAS ERP unified light/dark theme regression tests

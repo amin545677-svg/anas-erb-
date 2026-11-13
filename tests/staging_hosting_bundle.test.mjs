@@ -25,7 +25,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const safeCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">');
     const importCssLink = erp.lastIndexOf('<link rel="stylesheet" href="./ai-excel-import-ui.css">');
     const importScript = erp.lastIndexOf('<script src="./ai-excel-import-ui.js" defer></script>');
-    const durabilityScript = erp.lastIndexOf('<script src="./anas-storage-status.js" defer></script>');
+    const liveStatusScript = erp.lastIndexOf('<script src="./anas-live-status.js" defer></script>');
     const safeUpdateScript = erp.lastIndexOf('<script src="./safe-update-ui.js" defer></script>');
     const preparedRecoveryScript = erp.lastIndexOf('<script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>');
     const quickSaleBridgeScript = erp.lastIndexOf('<script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>');
@@ -33,7 +33,9 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'safe visual stylesheet must be injected into the real document head, not a printable HTML string');
     assert.ok(importCssLink > erp.indexOf('<head') && importCssLink < actualHeadClose,
       'AI import stylesheet must be injected into the real document head');
-    assert.ok(durabilityScript > erp.indexOf('<body') && durabilityScript < actualBodyClose, 'durability status script must load in the ERP document');
+    assert.ok(liveStatusScript > erp.indexOf('<body') && liveStatusScript < actualBodyClose, 'the single live status controller must load in the ERP document');
+    assert.equal((erp.match(/anas-live-status\.js/g) || []).length, 1, 'the live status controller must load exactly once');
+    assert.doesNotMatch(erp, /anas-storage-status|anasDurabilityStatus/, 'the duplicate status bar must be absent from the built ERP');
     assert.ok(importScript > erp.indexOf('<body') && importScript < actualBodyClose,
       'AI import script must be injected before the real document body close');
     assert.ok(safeUpdateScript > erp.indexOf('<body') && safeUpdateScript < actualBodyClose,
@@ -105,15 +107,18 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(posFloatingCss, /min-height:44px/);
     assert.match(posFloatingCss, /position:fixed!important/);
     assert.match(visualCss, /font-variant-numeric:tabular-nums!important/);
-    const durabilitySource = await fs.readFile(path.join(outDir, 'erp/anas-storage-status.js'), 'utf8');
-    assert.match(durabilitySource, /getCommittedSnapshot/);
-    assert.match(durabilitySource, /canonicalizeJson/);
-    assert.match(durabilitySource, /AppData/);
-    assert.match(visualCss, /#anasDurabilityStatus/);
+    const liveStatusSource = await fs.readFile(path.join(outDir, 'erp/anas-live-status.js'), 'utf8');
+    assert.match(liveStatusSource, /getCommittedSnapshot/);
+    assert.match(liveStatusSource, /canonicalizeJson/);
+    assert.match(liveStatusSource, /saveDBDurably/);
+    assert.doesNotMatch(liveStatusSource, /setInterval/);
+    assert.doesNotMatch(visualCss, /#anasDurabilityStatus/);
+    assert.match(visualCss, /#anas-live-status-bar/);
     assert.match(posFloatingCss, /\.anas-pos-floating-cart/);
     assert.match(serviceWorker, /anas-pos-floating-cart\.js/);
     assert.match(serviceWorker, /anas-pos-floating-cart\.css/);
-    assert.match(serviceWorker, /anas-storage-status\.js/);
+    assert.match(serviceWorker, /anas-live-status\.js/);
+    assert.doesNotMatch(serviceWorker, /anas-storage-status/);
     const sourceXlsx = await fs.readFile(path.join(rootDir, 'vendor/xlsx/xlsx.full.min.js'));
     const builtXlsx = await fs.readFile(path.join(outDir, 'erp/vendor/xlsx/xlsx.full.min.js'));
     assert.deepEqual(builtXlsx, sourceXlsx, 'deployed PWA must use the exact vetted offline SheetJS artifact');
@@ -178,7 +183,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/core/sovereign-kernel.mjs',
       'erp/core/pos-quick-sale-transaction-bridge.js',
       'erp/safe-update-ui.js',
-      'erp/anas-storage-status.js',
+      'erp/anas-live-status.js',
       'erp/icons/icon.svg',
       'erp/vendor/firebase/firebase-compat.js',
       'erp/vendor/tesseract/tesseract.min.js',

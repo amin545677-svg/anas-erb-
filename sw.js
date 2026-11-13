@@ -8,7 +8,6 @@ const CORE = [
   './anas-pos-floating-cart.js',
   './anas-live-status.js',
   './anas-pos-floating-cart.css',
-  './anas-storage-status.js',
   './reverse-ledger/reverse-ledger.js',
   './reverse-ledger/reverse-ledger-modal.js',
   './reverse-ledger/settlement-allocation-modal.js',

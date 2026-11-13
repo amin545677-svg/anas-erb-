@@ -887,8 +887,10 @@ button.is-loading,
 :where(input[type="number"],.anas-weight-chip,.anas-pos-mini-qty span) {
  font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1;
 }
-#anasDurabilityStatus{display:flex;align-items:center;justify-content:center;gap:8px;min-height:30px;margin:4px 8px;padding:5px 10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:999px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;font-weight:800;line-height:1.4;direction:rtl;z-index:30}
-#anasDurabilityStatus:before{content:"";width:8px;height:8px;border-radius:50%;background:#d97706;flex:0 0 8px}
-#anasDurabilityStatus.is-saved:before{background:#15803d}
-#anasDurabilityStatus.is-dirty:before{background:#d97706}
-#anasDurabilityStatus.is-offline:before{background:#b45309}
+/* r40 — the existing live status bar is the sole owner of network and durable-save state. */
+#anas-live-status-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;min-height:32px;margin:4px 8px;padding:5px 10px;border:1px solid var(--anas-ui-btn-border,#cbd5e1);border-radius:999px;background:var(--anas-ui-panel,#fff);color:var(--anas-ui-panel-text,#172033);font-size:12px;font-weight:800;line-height:1.4;direction:rtl;z-index:30}
+#anas-live-status-bar [id^="anas-status-"]{color:inherit;-webkit-text-fill-color:currentColor}
+#anas-live-status-bar[data-network-state="offline"] #anas-status-network-badge{color:#b45309}
+#anas-live-status-bar[data-durability-state="committed"] #anas-status-durability-badge{color:#15803d}
+#anas-live-status-bar[data-durability-state="uncommitted"] #anas-status-durability-badge,#anas-live-status-bar[data-durability-state="saving"] #anas-status-durability-badge{color:#b45309}
+:root[data-anas-theme="dark"] #anas-live-status-bar{background:var(--anas-ui-panel,#182438);color:var(--anas-ui-panel-text,#f3f7ff);border-color:var(--anas-ui-btn-border,#526782)}

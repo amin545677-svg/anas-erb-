@@ -17,7 +17,6 @@ const ERP_FILES = [
   'anas-pos-floating-cart.js',
   'anas-live-status.js',
   'anas-pos-floating-cart.css',
-  'anas-storage-status.js',
   'arabic-query-engine.js',
   'cashbox-readonly-ledger.js',
   'customer-debt-protection.js',
@@ -206,7 +205,7 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = insertBeforeDocumentHeadClose(stagedHtml,
     '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n  ');
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./anas-storage-status.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  ');
+    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }

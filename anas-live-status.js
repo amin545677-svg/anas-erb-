@@ -1,1 +1,75 @@
-(function(g){'use strict';if(g.__ANAS_LIVE_DURABILITY_STATUS_R39__)return;g.__ANAS_LIVE_DURABILITY_STATUS_R39__=true;function bar(){return g.document&&g.document.getElementById('anas-live-status-bar');}function net(forced){const b=bar();if(!b)return;const on=typeof forced==='boolean'?forced:(!g.navigator||g.navigator.onLine!==false);b.dataset.networkState=on?'online':'offline';const n=g.document.getElementById('anas-status-network-badge');if(n)n.textContent=on?'● متصل':'● غير متصل';}function dur(s,t){const b=bar();if(!b)return;b.dataset.durabilityState=s;const n=g.document.getElementById('anas-status-durability-badge');if(n)n.textContent=t;}function syncLiveDurabilityStatusBar(){if(!bar())return false;const s=g.ANASResilientStorage,d=g.AppData;if(!s||typeof s.getCommittedSnapshot!=='function'||typeof s.canonicalizeJson!=='function'||!d||typeof d!=='object'){dur('uncommitted','⚠ غير محفوظ');return false;}try{const snap=s.getCommittedSnapshot(),same=!!snap&&s.canonicalizeJson(snap)===s.canonicalizeJson(d);dur(same?'committed':'uncommitted',same?'✓ محفوظ بأمان':'⚠ توجد تغييرات غير محفوظة');return same;}catch(_){dur('uncommitted','⚠ تعذر التحقق من الحفظ');return false;}}g.syncLiveDurabilityStatusBar=syncLiveDurabilityStatusBar;function hook(){if(typeof g.saveDBDurably!=='function'||g.saveDBDurably.__anasR39Wrapped)return false;const old=g.saveDBDurably,w=async function(){dur('saving','… جارٍ الحفظ');try{const r=await old.apply(this,arguments);if(r===true)syncLiveDurabilityStatusBar();else dur('uncommitted','⚠ لم يكتمل الحفظ');return r;}catch(e){dur('uncommitted','⚠ فشل الحفظ');throw e;}};w.__anasR39Wrapped=true;g.saveDBDurably=w;return true;}net();g.addEventListener('online',()=>net(true));g.addEventListener('offline',()=>net(false));g.addEventListener('anas:storage-hydrated',()=>{hook();syncLiveDurabilityStatusBar();});hook();syncLiveDurabilityStatusBar();})(window);
+(function (g) {
+  'use strict';
+  if (g.__ANAS_LIVE_DURABILITY_STATUS_R40__) return;
+  g.__ANAS_LIVE_DURABILITY_STATUS_R40__ = true;
+  function bar() { return g.document && g.document.getElementById('anas-live-status-bar'); }
+  function emit(type, detail) {
+    if (!g.document || typeof g.CustomEvent !== 'function') return;
+    try { g.document.dispatchEvent(new g.CustomEvent(type, { detail: detail || {} })); } catch (_) {}
+  }
+  function network(forced) {
+    const b = bar(); if (!b) return;
+    const online = typeof forced === 'boolean' ? forced : (!g.navigator || g.navigator.onLine !== false);
+    b.dataset.networkState = online ? 'online' : 'offline';
+    const badge = g.document.getElementById('anas-status-network-badge');
+    if (badge) badge.textContent = online ? '● متصل' : '● غير متصل';
+  }
+  function durability(state, label) {
+    const b = bar(); if (!b) return;
+    b.dataset.durabilityState = state;
+    const badge = g.document.getElementById('anas-status-durability-badge');
+    if (badge) badge.textContent = label;
+  }
+  function syncLiveDurabilityStatusBar() {
+    if (!bar()) return false;
+    const storage = g.ANASResilientStorage, data = g.AppData;
+    if (!storage || typeof storage.getCommittedSnapshot !== 'function' ||
+        typeof storage.canonicalizeJson !== 'function' || !data ||
+        (typeof storage.ready === 'function' && !storage.ready())) {
+      durability('uncommitted', '⚠ غير محفوظ'); return false;
+    }
+    try {
+      const committed = storage.getCommittedSnapshot();
+      const matches = !!committed &&
+        storage.canonicalizeJson(committed) === storage.canonicalizeJson(data);
+      durability(matches ? 'committed' : 'uncommitted',
+        matches ? '✓ محفوظ بأمان' : '⚠ توجد تغييرات غير محفوظة');
+      return matches;
+    } catch (_) {
+      durability('uncommitted', '⚠ تعذر التحقق من الحفظ'); return false;
+    }
+  }
+  g.syncLiveDurabilityStatusBar = syncLiveDurabilityStatusBar;
+  function hookDurableSave() {
+    if (typeof g.saveDBDurably !== 'function' || g.saveDBDurably.__anasR40Wrapped) return false;
+    const original = g.saveDBDurably;
+    const wrapped = async function () {
+      durability('saving', '… جارٍ الحفظ'); emit('anas:durability-saving');
+      try {
+        const result = await original.apply(this, arguments);
+        if (result === true) {
+          const committed = syncLiveDurabilityStatusBar();
+          emit(committed ? 'anas:durability-committed' : 'anas:durability-uncommitted');
+        } else {
+          durability('uncommitted', '⚠ لم يكتمل الحفظ'); emit('anas:durability-uncommitted');
+        }
+        return result;
+      } catch (error) {
+        durability('uncommitted', '⚠ فشل الحفظ');
+        emit('anas:durability-failed', { message: String(error && error.message || error) });
+        throw error;
+      }
+    };
+    wrapped.__anasR40Wrapped = true; g.saveDBDurably = wrapped; return true;
+  }
+  network();
+  g.addEventListener('online', function () { network(true); });
+  g.addEventListener('offline', function () { network(false); });
+  g.document.addEventListener('anas:storage-hydrated', function () {
+    hookDurableSave(); syncLiveDurabilityStatusBar();
+  });
+  g.document.addEventListener('anas:storage-committed', syncLiveDurabilityStatusBar);
+  g.document.addEventListener('anas:appdata-updated', syncLiveDurabilityStatusBar);
+  g.document.addEventListener('anas:pos-cart-updated', syncLiveDurabilityStatusBar);
+  hookDurableSave(); syncLiveDurabilityStatusBar();
+})(window);
