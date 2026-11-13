@@ -521,7 +521,8 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
     }));
     assert.equal(stateBProof.cashCentimes, 9999835, 'State B must change the cashbox by exactly 125 centimes');
     assert.equal(stateBProof.expenseCount, beforeReload.expenses.length + 1, 'State B must add one expense');
-    assert.equal(stateBProof.cashMovementCount, beforeReload.cashMovements.length + 1, 'State B must add one cash movement');
+    assert.equal(stateBProof.cashMovementCount, beforeReload.cashMovements.length,
+      'State B expense must stay in the expense ledger, not be misclassified as a receipt/payment cash movement');
     assert.equal(stateBProof.committedMatchesRuntime, true, 'State B must be durably committed before restore');
 
     // Exercise the real backup import control with Snapshot A after State B has changed cash and expense ledgers.
