@@ -21,3 +21,15 @@
   min-height:52px!important;z-index:99995!important;box-shadow:0 8px 26px rgba(15,23,42,.28)!important;
  }
 }
+
+/* r39: independent fixed mobile checkout */
+#anas-sticky-checkout-bar{position:fixed;z-index:100020;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px;box-sizing:border-box;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--mp-card,#fff);color:var(--mp-text,#172033);border-top:1px solid var(--mp-border,#cbd5e1);box-shadow:0 -8px 28px rgba(15,23,42,.18);direction:rtl}
+#anas-sticky-checkout-bar[hidden]{display:none!important}
+.anas-sticky-checkout-summary{display:flex;align-items:center;gap:12px;min-width:0;font-size:13px;font-weight:800}
+.anas-sticky-checkout-summary strong{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;white-space:nowrap}
+#anas-sticky-checkout-submit{min-width:128px;min-height:48px;padding:8px 14px;border:1px solid #15803d;border-radius:12px;background:#15803d;color:#fff;font-size:14px;font-weight:900;touch-action:manipulation}
+@media(min-width:769px){#anas-sticky-checkout-bar{display:none!important}}
+@media(max-width:768px){#anasPosFloatingCart .anas-pos-mini-lines{padding-bottom:84px!important}}
+
+/* Keep the legacy cart checkout action in-flow; the independent sticky bar owns the fixed mobile edge. */
+@media(max-width:768px){.anas-pos-floating-cart:not([hidden]) .anas-pos-mini-actions .anas-pos-mini-checkout{position:static!important;inset:auto!important;left:auto!important;right:auto!important;bottom:auto!important;width:auto!important;min-height:44px!important;z-index:auto!important;box-shadow:none!important}}

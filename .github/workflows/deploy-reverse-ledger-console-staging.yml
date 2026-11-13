@@ -9,6 +9,9 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'anas-pos-floating-cart.css'
+      - 'anas-pos-floating-cart.js'
+      - 'erp/**'
       - '*.js'
       - '*.css'
       - 'manifest.webmanifest'
@@ -40,6 +43,9 @@ on:
       - staging/unified-release-candidate
     paths:
       - 'index.html'
+      - 'anas-pos-floating-cart.css'
+      - 'anas-pos-floating-cart.js'
+      - 'erp/**'
       - '*.js'
       - '*.css'
       - 'manifest.webmanifest'

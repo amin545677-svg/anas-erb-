@@ -1963,6 +1963,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 #view-pos #posSearchField{min-height:48px;font-size:17px;font-weight:700;border-radius:12px}
 #view-pos .pos-search-results{max-height:48vh;overflow-y:auto;overscroll-behavior:contain}
 </style>
+<style id="anas-r39-financial-numerals">.erp-num,[data-type="currency"],[data-type="amount"],[data-type="balance"],[data-type="quantity"],[data-type="weight"],[data-testid="pos-cart-total"],[data-testid="pos-cart-count"],.anas-weight-chip,.pos-price,.pos-qty,.pos-line-total,.ledger-amount,.balance-badge,.cashbox-balance,.supplier-balance,.customer-balance,.mstore-stock-qty,table td:nth-child(n+2),input[type="number"]{font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1!important}</style>
+<style id="anas-r39-live-status-style">#anas-live-status-bar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:6px 10px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);border-bottom:1px solid var(--mp-border,#dbe3ed);font-size:11px;font-weight:800}#anas-live-status-bar [id^="anas-status-"]{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border-radius:999px;background:var(--mp-bg,#f1f5f9);color:var(--mp-text,#172033)}#anas-live-status-bar[data-network-state="offline"] #anas-status-network-badge{background:#fee2e2;color:#991b1b}#anas-live-status-bar[data-durability-state="saving"] #anas-status-durability-badge{background:#fef3c7;color:#92400e}#anas-live-status-bar[data-durability-state="uncommitted"] #anas-status-durability-badge{background:#fee2e2;color:#991b1b}#anas-live-status-bar[data-durability-state="committed"] #anas-status-durability-badge{background:#dcfce7;color:#166534}:root[data-anas-theme="dark"] #anas-live-status-bar{background:#111c2e;color:#f1f5f9;border-color:#334155}</style>
 </head>
 <body>
 
@@ -1988,6 +1990,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             </button>
         </div>
     </header>
+<div id="anas-live-status-bar" data-testid="live-durability-status-bar" data-network-state="online" data-durability-state="committed" data-build-version="r39" role="status" aria-live="polite"><span id="anas-status-network-badge">● متصل</span><span id="anas-status-durability-badge">✓ محفوظ بأمان</span><span id="anas-status-version-badge">r39</span></div>
+
 
     <!-- 2. الحاوية المركزية -->
     <main class="main-container">
@@ -14078,10 +14082,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
           if (result.payload === null && localSnapshot !== null) throw new Error('No valid local or IndexedDB snapshot; fail-closed startup.');
           if (result.payload !== null && result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
             AppData = result.data;
+            window.AppData = AppData;
             const tab = AppData.activePosScreenTab || 1;
             posCart = AppData.posScreensCarts && Array.isArray(AppData.posScreensCarts[tab]) ? AppData.posScreensCarts[tab] : [];
           }
           anasStorageHydrationComplete = true;
+          window.dispatchEvent(new Event('anas:storage-hydrated'));
           if (document.body) { document.body.inert = false; document.body.removeAttribute('aria-busy'); }
           try { updateUIState(); } catch (error) { console.error('ANAS post-hydration UI refresh:', error); }
           try { checkSystemAlerts(); } catch (error) { console.error('ANAS post-hydration alerts refresh:', error); }
@@ -14378,6 +14384,7 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
 
   <script src="./anas-pos-floating-cart.js" defer></script>
   <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>
+  <script src="./anas-live-status.js" defer></script>
 
 <style id="anas-product-picker-theme-contrast">
   /* Product picker uses explicit semantic surfaces: never pair forced white text with a light card. */

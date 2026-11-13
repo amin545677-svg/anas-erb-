@@ -6,6 +6,7 @@ const CORE = [
   './ai-excel-import-ui.js',
   './ai-excel-import-ui.css',
   './anas-pos-floating-cart.js',
+  './anas-live-status.js',
   './anas-pos-floating-cart.css',
   './anas-storage-status.js',
   './reverse-ledger/reverse-ledger.js',
