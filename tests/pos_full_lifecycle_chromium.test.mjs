@@ -585,8 +585,10 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     const weightedResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
     await weightedResult.waitFor({ state: 'visible', timeout: 10000 });
     await weightedResult.click();
-    await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
-    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
+    await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1 && posCart[0].unit === 'كغ',
+      null, { timeout: 10000 });
+    await page.locator('#posCheckoutBtn').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibCartItems input[aria-label^="كمية"]').first().waitFor({ state: 'visible', timeout: 10000 });
     await commitNumberEditor(quantitySelector, '0.25');
     await commitNumberEditor(priceSelector, '100.00');
@@ -595,8 +597,6 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'weighted POS sale must retain an exact 0.25 kg quantity');
     assert.equal(await page.evaluate(() => posCart[0].price), 100,
       'weighted POS sale must retain the per-kilogram price');
-    await page.locator('#posCheckoutBtn').click();
-    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibPaymentMethod').selectOption('partial');
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '12.50');
     assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25.00 د.ج');
