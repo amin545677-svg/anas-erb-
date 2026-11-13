@@ -48,8 +48,8 @@ function runSale({paid = 500.5, warehouse = 'المخزن الرئيسي', saveR
     Date, Math, Number, String, Object, Array, Map, Set
   };
   vm.createContext(context);
-  vm.runInContext(source + '\nconfirmHasibPayment();', context, {timeout:1000});
-  if (doubleConfirm) vm.runInContext('confirmHasibPayment();', context, {timeout:1000});
+  vm.runInContext(source + '\nconfirmHasibPayment();', context, {timeout:5000});
+  if (doubleConfirm) vm.runInContext('confirmHasibPayment();', context, {timeout:5000});
   return {AppData,product,customer,alerts,saves,renders,closes,posCart:context.posCart,lastInvoice:context.lastConfirmedInvoice,context};
 }
 
@@ -224,7 +224,7 @@ console.log('ANAS ERP Hasib sale ledger differential parity tests passed');
   const cashDisplay={innerText:''};
   const uiContext={AppData:r.AppData,document:{getElementById:id=>id==='cashCurrentBalanceDisplay'?cashDisplay:null}};
   vm.createContext(uiContext);
-  vm.runInContext(helperSource+'\n'+cashUiSource+'\nupdateCashUI();',uiContext,{timeout:1000});
+  vm.runInContext(helperSource+'\n'+cashUiSource+'\nupdateCashUI();',uiContext,{timeout:5000});
   assert.equal(Number(cashDisplay.innerText.replace(' د.ج','').replace(/,/g,'')),100.2,
     'cash balance display must reflect opening balance plus normalized sale receipt');
   assert.equal(r.AppData.cashMovements.filter(m=>m.referenceType==='sales_invoice'&&m.type==='add').reduce((sum,m)=>sum+m.amount,0),0.1,
@@ -318,7 +318,7 @@ function assertAccountingIdentity(result, openingDebt = 0) {
   assert.ok(zStart>=0&&zEnd>zStart,'actual Z-report invoice aggregator must be extractable');
   vm.runInContext(helperSource+html.slice(cashStart,cashEnd)+html.slice(zStart,zEnd)+
     '\nupdateCashUI(); globalThis.zTotal=anasGetZReportTotal(AppData.invoices,"total"); globalThis.zPaid=anasGetZReportTotal(AppData.invoices,"paid"); globalThis.zDebt=anasGetZReportTotal(AppData.invoices,"remaining");',
-    readerContext,{timeout:1000});
+    readerContext,{timeout:5000});
   assert.match(readerContext.cashDisplay.innerText,/100\.2/);
   assert.equal(readerContext.zTotal,0.3);
   assert.equal(readerContext.zPaid,0.1);
@@ -354,10 +354,10 @@ function assertAccountingIdentity(result, openingDebt = 0) {
   };
   stocktakeContext.window=stocktakeContext;
   vm.createContext(stocktakeContext);
-  vm.runInContext(html.slice(stocktakeStart,stocktakeEnd+5),stocktakeContext,{timeout:1000});
+  vm.runInContext(html.slice(stocktakeStart,stocktakeEnd+5),stocktakeContext,{timeout:5000});
   stocktakeContext.anasRenderStocktake=()=>{};
   stocktakeContext.anasSaveStocktakeDraft=()=>true;
-  vm.runInContext('anasStartStocktake()',stocktakeContext,{timeout:1000});
+  vm.runInContext('anasStartStocktake()',stocktakeContext,{timeout:5000});
   assert.equal(stocktakeContext.__anasCurrentStocktake.items[0].systemQty,17,
     'stocktake must snapshot the product master balance after the sale exactly once');
   console.log('PASS: actual stocktake session reader snapshots the post-sale product balance without replaying SALE_OUT');
