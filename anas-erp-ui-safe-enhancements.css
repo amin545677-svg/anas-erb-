@@ -846,3 +846,17 @@ button.is-loading,
   background: var(--anas-btn-secondary-bg);
   border-color: var(--anas-btn-secondary-border);
 }
+
+/* ANAS ERP — responsive More workspace, semantic light/dark contrast. */
+#view-more .anas-more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 10px 22px;align-items:stretch}
+#view-more .anas-more-card{min-width:0;min-height:166px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px 10px;border:1.5px solid var(--anas-border,#cbd5e1);border-radius:22px;background:var(--anas-surface,#fff);color:var(--anas-text,#172033);-webkit-text-fill-color:var(--anas-text,#172033);box-shadow:0 2px 8px rgba(15,23,42,.06);font:inherit;font-weight:700;cursor:pointer;text-align:center;transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .12s ease}
+#view-more .anas-more-icon{display:grid;place-items:center;width:76px;height:76px;border-radius:20px;background:color-mix(in srgb,var(--anas-text,#172033) 6%,var(--anas-surface,#fff));font-size:46px;line-height:1}
+#view-more .anas-more-label{display:block;max-width:100%;color:var(--anas-text,#172033);-webkit-text-fill-color:var(--anas-text,#172033);font-size:clamp(17px,4.5vw,23px);line-height:1.35;overflow-wrap:anywhere}
+#view-more .anas-more-card:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
+@media(max-width:360px){#view-more .anas-more-grid{gap:8px;padding-inline:7px}#view-more .anas-more-card{min-height:145px;border-radius:17px;padding:12px 6px}#view-more .anas-more-icon{width:64px;height:64px;font-size:39px}#view-more .anas-more-label{font-size:17px}}
+:root[data-anas-theme="dark"] #view-more .anas-more-card{background:#26364d;border-color:#526782;color:#f3f7ff;-webkit-text-fill-color:#f3f7ff;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+:root[data-anas-theme="dark"] #view-more .anas-more-icon{background:#1c2b40}
+:root[data-anas-theme="dark"] #view-more .anas-more-label{color:#f3f7ff;-webkit-text-fill-color:#f3f7ff}
+:root:not([data-anas-theme="dark"]) #view-more .anas-more-card{background:#fff;border-color:#d1d5db;color:#111827;-webkit-text-fill-color:#111827}
+:root:not([data-anas-theme="dark"]) #view-more .anas-more-label{color:#111827;-webkit-text-fill-color:#111827}
+@media(hover:hover) and (pointer:fine){#view-more .anas-more-card:hover{border-color:var(--anas-btn-primary,#2563eb);box-shadow:0 5px 16px rgba(15,23,42,.12)}}

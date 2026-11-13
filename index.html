@@ -2014,6 +2014,24 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             </div>
         </section>
 
+        <section id="view-more" class="page-view">
+            <div class="sub-header-bar anas-more-header">
+                <button class="btn-arrow-back" type="button" onclick="openView('dashboard')">‹</button>
+                <div class="sub-header-title">المزيد</div>
+                <button class="btn-header-action" type="button" onclick="openDrawer()" aria-label="الإعدادات والأدوات المتقدمة">☰</button>
+            </div>
+            <div class="anas-more-grid" aria-label="الأقسام الرئيسية">
+                <button type="button" class="anas-more-card" onclick="openView('purchases')"><span class="anas-more-icon" aria-hidden="true">🛒</span><span class="anas-more-label">المشتريات</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('pos')"><span class="anas-more-icon" aria-hidden="true">🛍️</span><span class="anas-more-label">المبيعات</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('suppliers')"><span class="anas-more-icon" aria-hidden="true">🤝</span><span class="anas-more-label">الموردين</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('customers')"><span class="anas-more-icon" aria-hidden="true">👤</span><span class="anas-more-label">العملاء</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('expenses')"><span class="anas-more-icon" aria-hidden="true">💼</span><span class="anas-more-label">المصروفات</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('cash')"><span class="anas-more-icon" aria-hidden="true">🔐</span><span class="anas-more-label">الصندوق</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('reports')"><span class="anas-more-icon" aria-hidden="true">📊</span><span class="anas-more-label">الاستعلامات</span></button>
+                <button type="button" class="anas-more-card" onclick="openView('inventory')"><span class="anas-more-icon" aria-hidden="true">📦</span><span class="anas-more-label">المخزون</span></button>
+            </div>
+        </section>
+
         <!-- 3. شاشة المبيعات (POS) المطابقة تماماً لـ MicroPOS -->
         <section id="view-pos" class="page-view">
             <div class="sub-header-bar">
@@ -14346,7 +14364,7 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
   <button type="button" data-nav-view="inventory" aria-label="المخزون" onclick="openView('inventory')"><span class="nav-icon" aria-hidden="true">📦</span><span class="nav-label">المخزون</span></button>
   <button type="button" data-nav-view="invoices-list" aria-label="المبيعات" onclick="openView('invoices-list')"><span class="nav-icon" aria-hidden="true">🧾</span><span class="nav-label">المبيعات</span></button>
   <button type="button" data-nav-view="customers" aria-label="الزبائن" onclick="openView('customers')"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">الزبائن</span></button>
-  <button type="button" aria-label="المزيد والإعدادات والذكاء الاصطناعي" onclick="openDrawer()"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">المزيد</span></button>
+  <button type="button" data-nav-view="more" aria-label="المزيد" onclick="openView('more')"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-label">المزيد</span></button>
 </nav>
 
 
