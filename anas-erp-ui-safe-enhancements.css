@@ -878,3 +878,17 @@ button.is-loading,
 :root:not([data-anas-theme="dark"]) #view-more .anas-more-card{background:#fff;border-color:#d1d5db;color:#111827;-webkit-text-fill-color:#111827}
 :root:not([data-anas-theme="dark"]) #view-more .anas-more-label{color:#111827;-webkit-text-fill-color:#111827}
 @media(hover:hover) and (pointer:fine){#view-more .anas-more-card:hover{border-color:var(--anas-btn-primary,#2563eb);box-shadow:0 5px 16px rgba(15,23,42,.12)}}
+
+:where(.erp-num,.amount,.money,.currency,.price,.total,.balance,.debt,.credit,.quantity,.qty,
+[data-type="currency"],[data-type="number"],[data-currency],[data-money],
+[id*="Balance"],[id*="balance"],[id*="Total"],[id*="total"],[id*="Debt"],[id*="debt"]) {
+ font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1;unicode-bidi:plaintext;
+}
+:where(input[type="number"],.anas-weight-chip,.anas-pos-mini-qty span) {
+ font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1;
+}
+#anasDurabilityStatus{display:flex;align-items:center;justify-content:center;gap:8px;min-height:30px;margin:4px 8px;padding:5px 10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:999px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;font-weight:800;line-height:1.4;direction:rtl;z-index:30}
+#anasDurabilityStatus:before{content:"";width:8px;height:8px;border-radius:50%;background:#d97706;flex:0 0 8px}
+#anasDurabilityStatus.is-saved:before{background:#15803d}
+#anasDurabilityStatus.is-dirty:before{background:#d97706}
+#anasDurabilityStatus.is-offline:before{background:#b45309}

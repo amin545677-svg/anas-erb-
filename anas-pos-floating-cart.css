@@ -12,3 +12,12 @@
 .erp-num,.anas-checkout-total,.anas-weight-chip,table td[data-type="currency"],table td[data-type="number"],.pos-price,.pos-qty,.ledger-amount,.balance-badge{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;direction:ltr;unicode-bidi:embed;white-space:nowrap}
 .anas-pos-mini-line{flex-wrap:wrap}
 .anas-pos-quick-weights{flex-basis:100%}
+
+@media(max-width:759px){
+ .anas-pos-floating-cart:not([hidden]){padding-bottom:calc(62px + env(safe-area-inset-bottom,0px))!important}
+ .anas-pos-floating-cart:not([hidden]) .anas-pos-mini-actions .anas-pos-mini-checkout{
+  position:fixed!important;inset-inline:12px!important;left:12px!important;right:12px!important;
+  bottom:max(8px,env(safe-area-inset-bottom,0px))!important;width:calc(100% - 24px)!important;
+  min-height:52px!important;z-index:99995!important;box-shadow:0 8px 26px rgba(15,23,42,.28)!important;
+ }
+}

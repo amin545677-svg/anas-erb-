@@ -7,9 +7,24 @@
     try { return typeof posCart !== 'undefined' && Array.isArray(posCart) ? posCart : []; }
     catch (_) { return []; }
   }
+  function decimalScaled(value, digits) {
+    const match = /^([+-]?)(\\d+)(?:[.,](\\d*))?$/.exec(String(value == null ? '0' : value).trim());
+    if (!match) return null;
+    const fraction = match[3] || '';
+    const kept = fraction.slice(0, digits).padEnd(digits, '0');
+    let scaled = BigInt(match[2]) * (10n ** BigInt(digits)) + BigInt(kept || '0');
+    if (fraction.length > digits && fraction.charCodeAt(digits) >= 53) scaled += 1n;
+    return match[1] === '-' ? -scaled : scaled;
+  }
+  function moneyFromCents(cents) {
+    if (typeof cents !== 'bigint') return '—';
+    const negative = cents < 0n, absolute = negative ? -cents : cents;
+    return (negative ? '−' : '') + (absolute / 100n).toLocaleString('fr-DZ') + ',' +
+      String(absolute % 100n).padStart(2, '0') + ' د.ج';
+  }
   function money(value) {
-    const amount = Number(value);
-    return Number.isFinite(amount) ? amount.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ج' : '—';
+    const cents = decimalScaled(value, 2);
+    return cents === null ? '—' : moneyFromCents(cents);
   }
   function stepFor(item) {
     const unit = String(item && item.unit || '').trim().toLocaleLowerCase();
@@ -27,12 +42,15 @@
     const totalNode = host.querySelector('[data-mini-cart-total]');
     const countNode = host.querySelector('[data-mini-cart-count]');
     list.replaceChildren();
-    let total = 0;
+    let totalCentsFallback = 0n;
     cart.forEach(function (item, index) {
-      const qty = Number(item && item.qty);
-      const price = Number(item && item.price);
-      const line = Number.isFinite(qty) && Number.isFinite(price) ? Math.round(qty * price * 100) / 100 : 0;
-      total += line;
+      const qtyMicros = decimalScaled(item && item.qty, 6);
+      const priceCents = decimalScaled(item && item.price, 2);
+      if (qtyMicros === null || priceCents === null) totalCentsFallback = null;
+      else if (totalCentsFallback !== null) {
+        const product = qtyMicros * priceCents;
+        totalCentsFallback += product >= 0n ? (product + 500000n) / 1000000n : (product - 500000n) / 1000000n;
+      }
       const row = document.createElement('div');
       row.className = 'anas-pos-mini-line';
       const info = document.createElement('div');
@@ -40,7 +58,7 @@
       const name = document.createElement('strong');
       name.textContent = String(item && item.name || 'منتج');
       const meta = document.createElement('small');
-      meta.textContent = money(price) + ' × ' + String(item && item.qty) + ' ' + String(item && item.unit || '');
+      meta.textContent = moneyFromCents(priceCents) + ' × ' + String(item && item.qty) + ' ' + String(item && item.unit || '');
       info.append(name, meta);
       const controls = document.createElement('div');
       controls.className = 'anas-pos-mini-qty';
@@ -69,10 +87,10 @@
         quick.className = 'anas-pos-quick-weights';
         quick.setAttribute('role', 'group');
         quick.setAttribute('aria-label', 'أوزان سريعة');
-        [0.25, 0.5, 1, 2, 5, 10].forEach(function (weight) {
+        ['0.25', '0.5', '1', '2', '5', '10'].forEach(function (weight) {
           const chip = document.createElement('button');
           chip.type = 'button';
-          chip.className = 'anas-weight-chip' + (Number(item.qty) === weight ? ' is-active' : '');
+          chip.className = 'anas-weight-chip' + (decimalScaled(item.qty, 2) === decimalScaled(weight, 2) ? ' is-active' : '');
           chip.textContent = String(weight);
           chip.dataset.action = 'set-quick-weight';
           chip.dataset.cartIndex = String(index);
@@ -84,8 +102,14 @@
       }
       list.appendChild(row);
     });
-    const netCents = typeof anasCartTotalCents === 'function' ? anasCartTotalCents(cart) : Math.round(total * 100);
-    totalNode.textContent = Number.isSafeInteger(netCents) ? money(netCents / 100) : '—';
+    let netCents = totalCentsFallback;
+    if (typeof anasCartTotalCents === 'function') {
+      const calculated = anasCartTotalCents(cart);
+      if (typeof calculated === 'bigint') netCents = calculated;
+      else if (Number.isSafeInteger(calculated)) netCents = BigInt(calculated);
+      else netCents = null;
+    }
+    totalNode.textContent = typeof netCents === 'bigint' ? moneyFromCents(netCents) : '—';
     countNode.textContent = String(cart.length);
   }
   function mount() {
@@ -112,11 +136,11 @@
       const weightChip = event.target.closest('[data-action="set-quick-weight"]');
       if (weightChip) {
         const index = Number(weightChip.dataset.cartIndex);
-        const weight = Number(weightChip.dataset.weight);
+        const weight = String(weightChip.dataset.weight || '');
         const cart = currentCart();
         if (Number.isInteger(index) && index >= 0 && index < cart.length &&
-            Number.isFinite(weight) && weight > 0 && typeof setPosQty === 'function') {
-          setPosQty(index, weight.toFixed(2));
+            decimalScaled(weight, 2) !== null && decimalScaled(weight, 2) > 0n && typeof setPosQty === 'function') {
+          setPosQty(index, weight);
           if (typeof window.renderPosTable === 'function') window.renderPosTable();
           render();
         }
