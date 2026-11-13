@@ -60,7 +60,7 @@ permissions:
 
 # PR validation uses its own group so it cannot cancel or replace a queued staging deployment.
 concurrency:
-  group: anas-erp-reverse-ledger-console-staging-v2-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
+  group: anas-erp-reverse-ledger-console-staging-v3-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
@@ -316,7 +316,6 @@ jobs:
         with:
           node-version: "22"
       - name: Require successful exact-SHA Hosting deploy and HTTP verification
-        if: always()
         env:
           HOSTING_RESULT: ${{ needs.deploy-staging-console.result }}
         run: |
@@ -327,7 +326,6 @@ jobs:
           echo "ANAS_HOSTING_DEPLOY_VERIFIED=true" >> "$GITHUB_ENV"
 
       - name: Wait for matching Firebase Functions deployment success
-        if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_API_URL: ${{ github.api_url }}
@@ -361,7 +359,6 @@ jobs:
           NODE
 
       - name: Live Staging Acceptance Proof — sale, fractional stock, debt, 409 and trusted backup/restore
-        if: always()
         env:
           ANAS_STAGING_URL: https://anas-erp-staging-a25e1.web.app
           ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
