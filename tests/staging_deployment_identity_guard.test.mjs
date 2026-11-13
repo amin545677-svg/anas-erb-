@@ -203,8 +203,8 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   const consoleWorkflow = await fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8');
   assert.match(consoleWorkflow, /staging-project-guard:/);
   assert.match(consoleWorkflow, /needs:\s*staging-project-guard/);
-  assert.match(consoleWorkflow, /exact deployed commit and r38 build stamp/);
-  assert.match(consoleWorkflow, /r38 service-worker cache namespace/);
+  assert.match(consoleWorkflow, /exact deployed commit and r39 build stamp/);
+  assert.match(consoleWorkflow, /r39 service-worker cache namespace/);
   assert.match(consoleWorkflow, /Wait for matching Firebase Functions deployment success/);
   assert.ok(consoleWorkflow.includes('ANAS_BUILD_SHA: ${{ github.sha }}'));
   assert.ok(consoleWorkflow.includes('live-staging-acceptance:'));
