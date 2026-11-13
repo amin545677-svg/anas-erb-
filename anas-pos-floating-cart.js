@@ -64,6 +64,24 @@
       });
       controls.append(minus, quantity, plus);
       row.append(info, controls);
+      if (['kg','kilogram','kilograms','كغ','كجم','كيلوغرام','كيلو'].includes(String(item && item.unit || '').trim().toLocaleLowerCase())) {
+        const quick = document.createElement('div');
+        quick.className = 'anas-pos-quick-weights';
+        quick.setAttribute('role', 'group');
+        quick.setAttribute('aria-label', 'أوزان سريعة');
+        [0.25, 0.5, 1, 2, 5, 10].forEach(function (weight) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'anas-weight-chip' + (Number(item.qty) === weight ? ' is-active' : '');
+          chip.textContent = String(weight);
+          chip.dataset.action = 'set-quick-weight';
+          chip.dataset.cartIndex = String(index);
+          chip.dataset.weight = String(weight);
+          chip.setAttribute('aria-label', 'تعيين الوزن ' + String(weight) + ' كيلوغرام');
+          quick.appendChild(chip);
+        });
+        row.appendChild(quick);
+      }
       list.appendChild(row);
     });
     const netCents = typeof anasCartTotalCents === 'function' ? anasCartTotalCents(cart) : Math.round(total * 100);
@@ -91,6 +109,19 @@
     ].join('');
     view.appendChild(host);
     host.addEventListener('click', function (event) {
+      const weightChip = event.target.closest('[data-action="set-quick-weight"]');
+      if (weightChip) {
+        const index = Number(weightChip.dataset.cartIndex);
+        const weight = Number(weightChip.dataset.weight);
+        const cart = currentCart();
+        if (Number.isInteger(index) && index >= 0 && index < cart.length &&
+            Number.isFinite(weight) && weight > 0 && typeof setPosQty === 'function') {
+          setPosQty(index, weight.toFixed(2));
+          if (typeof window.renderPosTable === 'function') window.renderPosTable();
+          render();
+        }
+        return;
+      }
       const button = event.target.closest('[data-mini-action]');
       if (!button) return;
       const action = button.dataset.miniAction;
