@@ -504,21 +504,32 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
     await page.locator('#expDescInput').fill('حركة State B بعد النسخة الاحتياطية');
     await page.locator('#expAmountInput').fill('1.25');
     await page.locator('#expPaymentMethod').selectOption('cash');
+    const stateARevision = await page.evaluate(() => {
+      const status = ANASResilientStorage?.status?.();
+      if (!status || !Number.isSafeInteger(status.revision)) throw new Error('durable storage revision is unavailable before State B');
+      window.__anasStateARevision = status.revision;
+      return status.revision;
+    });
     await page.locator('#view-expenses button[onclick="submitExpenseOperation()"]').click();
     await page.waitForFunction(() => {
       const committed = ANASResilientStorage?.getCommittedSnapshot?.();
+      const status = ANASResilientStorage?.status?.();
       return Array.isArray(AppData.expenses) &&
         AppData.expenses.some(row => row && row.desc === 'حركة State B بعد النسخة الاحتياطية') &&
         committed && Array.isArray(committed.expenses) &&
         committed.expenses.some(row => row && row.desc === 'حركة State B بعد النسخة الاحتياطية') &&
+        status && Number.isSafeInteger(status.revision) && status.revision > window.__anasStateARevision &&
         Math.round(Number(AppData.caisseBalance) * 100) === 9999835;
     }, null, { timeout: 15000 });
     const stateBProof = await page.evaluate(() => ({
       cashCentimes: Math.round(Number(AppData.caisseBalance) * 100),
       expenseCount: AppData.expenses.length,
       cashMovementCount: AppData.cashMovements.length,
-      committedMatchesRuntime: JSON.stringify(ANASResilientStorage.getCommittedSnapshot()) === JSON.stringify(AppData)
+      revision: ANASResilientStorage.status().revision,
+      committedMatchesRuntime: ANASResilientStorage.canonicalizeJson(ANASResilientStorage.getCommittedSnapshot()) ===
+        ANASResilientStorage.canonicalizeJson(AppData)
     }));
+    assert.ok(stateBProof.revision > stateARevision, 'State B must advance the durable storage revision beyond Snapshot A');
     assert.equal(stateBProof.cashCentimes, 9999835, 'State B must change the cashbox by exactly 125 centimes');
     assert.equal(stateBProof.expenseCount, beforeReload.expenses.length + 1, 'State B must add one expense');
     assert.equal(stateBProof.cashMovementCount, beforeReload.cashMovements.length,
