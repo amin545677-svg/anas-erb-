@@ -428,11 +428,13 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
       cash: decimalToScaledBigInt(beforeReload.caisseBalance, 2),
       supplier: decimalToScaledBigInt(beforeReload.suppliers[0].balance, 2),
       stockMicroUnits: decimalToScaledBigInt(beforeReload.products.find(p => p.id === 'STG-TEA-001').stock, 6),
+      truckStockMicroUnits: decimalToScaledBigInt(beforeReload.products.find(p => p.id === 'STG-TEA-001').warehouseStock['شاحنة اختبار 01'], 6),
       unitCostCentimes: decimalToScaledBigInt(beforeReload.products.find(p => p.id === 'STG-TEA-001').buyPrice, 2)
     };
     assert.equal(expectedCentimes.cash, 9999960n);
     assert.equal(expectedCentimes.supplier, 1500010n);
-    assert.equal(expectedCentimes.stockMicroUnits, 3000000n);
+    assert.equal(expectedCentimes.stockMicroUnits, 1750000n);
+    assert.equal(expectedCentimes.truckStockMicroUnits, 1250000n);
     assert.equal(expectedCentimes.unitCostCentimes, 10n);
     const ledgerArraysBeforeRestore = ledgerArrays(beforeReload);
 
@@ -476,7 +478,8 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
     assert.deepEqual(afterReloadProof.stored, beforeReload, 'localStorage must retain the exact persisted snapshot after reload');
     assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999960n);
     assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500010n);
-    assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').stock, 6), 3000000n);
+    assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').stock, 6), 1750000n);
+    assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').warehouseStock['شاحنة اختبار 01'], 6), 1250000n);
     assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').buyPrice, 2), 10n);
     assert.ok(state.purchases.some(row => row.id === purchase.id));
 
@@ -616,7 +619,8 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
     state = JSON.parse(afterRejectedImportProof.memoryRaw);
     assert.equal(decimalToScaledBigInt(state.caisseBalance, 2), 9999960n);
     assert.equal(decimalToScaledBigInt(state.suppliers[0].balance, 2), 1500010n);
-    assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').stock, 6), 3000000n);
+    assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').stock, 6), 1750000n);
+    assert.equal(decimalToScaledBigInt(state.products.find(p => p.id === 'STG-TEA-001').warehouseStock['شاحنة اختبار 01'], 6), 1250000n);
     assert.deepEqual(pageErrors, [], 'no uncaught browser exceptions are allowed during the workflow');
 
     console.log('CHROMIUM_LEDGER_REPORT ' + JSON.stringify({

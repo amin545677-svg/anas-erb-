@@ -24,7 +24,7 @@ function initialData() {
     products: [{
       id: PRODUCT_ID, name: PRODUCT_NAME, stock: 10, buyPrice: 10,
       lastPurchaseCost: 10, price1: 25, price2: 24, price3: 23, favorite: true,
-      barcode: 'STGPOSLIFE001', unit: 'كغ', supplierId: '', cat: 'عام'
+      barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
     }],
     customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0, credit_limit: 50 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
     invoices: [], cashMovements: [], stockMovements: [], expenses: [], users: [], alerts: [],
@@ -575,6 +575,13 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
     // Partial payment must collect only the entered amount and allocate the balance to the selected customer.
     await page.evaluate(() => openView('pos'));
+    await page.evaluate((productId) => {
+      const product = AppData.products.find(row => String(row.id) === String(productId));
+      if (!product) throw new Error('Weighted POS fixture product is missing');
+      product.unit = 'كغ';
+      if (!saveDB()) throw new Error('Could not persist weighted POS fixture unit');
+      renderQuickProducts();
+    }, PRODUCT_ID);
     await page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME }).click();
     await commitNumberEditor(quantitySelector, '0.25');
     await commitNumberEditor(priceSelector, '100.00');
