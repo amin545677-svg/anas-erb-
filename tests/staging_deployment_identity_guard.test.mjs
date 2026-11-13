@@ -165,10 +165,14 @@ test('staging deploys are serialized while PR validation is isolated from deploy
   assert.ok(consoleWorkflow.includes(consoleGroup), 'Hosting PR validation must use a PR-scoped concurrency group');
   assert.match(functionsWorkflow, /cancel-in-progress:\s*false/);
   assert.match(consoleWorkflow, /cancel-in-progress:\s*false/);
-  const functionsWaitStep = consoleWorkflow.match(/- name: Wait for matching Firebase Functions deployment success([\\s\\S]*?)(?=\\n      - name:)/)?.[1] || '';
-  const liveAcceptanceStep = consoleWorkflow.match(/- name: Live Staging Acceptance Proof — sale, fractional stock, debt, 409 and trusted backup\/restore([\\s\\S]*?)(?=\\n      - name:)/)?.[1] || '';
-  assert.ok(functionsWaitStep, 'live acceptance must include exact-SHA Functions deployment verification');
-  assert.ok(liveAcceptanceStep, 'live acceptance must include the financial acceptance proof');
+  const getConsoleStep = name => {
+    const start = consoleWorkflow.indexOf('- name: ' + name);
+    assert.ok(start >= 0, 'missing console workflow step: ' + name);
+    const next = consoleWorkflow.indexOf('\\n      - name:', start + 1);
+    return consoleWorkflow.slice(start, next >= 0 ? next : undefined);
+  };
+  const functionsWaitStep = getConsoleStep('Wait for matching Firebase Functions deployment success');
+  const liveAcceptanceStep = getConsoleStep('Live Staging Acceptance Proof — sale, fractional stock, debt, 409 and trusted backup/restore');
   assert.doesNotMatch(functionsWaitStep, /if:\\s*always\\(\\)/,
     'do not wait for Functions after Hosting verification has already failed');
   assert.doesNotMatch(liveAcceptanceStep, /if:\\s*always\\(\\)/,
