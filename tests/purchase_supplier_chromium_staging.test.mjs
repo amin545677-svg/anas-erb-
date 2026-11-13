@@ -470,8 +470,13 @@ test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot 
       if (raw === null) throw new Error('persisted ERP snapshot is missing after reload');
       const stored = ANASResilientStorage.decode(raw);
       const memory = JSON.parse(JSON.stringify(AppData));
-      if (JSON.stringify(stored) !== JSON.stringify(memory)) throw new Error('AppData/localStorage mismatch after reload');
-      return { raw, stored, memory };
+      const canonicalStored = ANASResilientStorage.canonicalizeJson(stored);
+      const canonicalMemory = ANASResilientStorage.canonicalizeJson(memory);
+      const committed = ANASResilientStorage.getCommittedSnapshot();
+      const canonicalCommitted = ANASResilientStorage.canonicalizeJson(committed);
+      if (canonicalStored !== canonicalMemory) throw new Error('AppData/localStorage structural mismatch after reload');
+      if (canonicalCommitted !== canonicalMemory) throw new Error('hydrated committed snapshot/AppData structural mismatch after reload');
+      return { raw, stored, memory, canonicalParity: true, committedParity: true };
     });
     state = afterReloadProof.memory;
     assert.deepEqual(state, beforeReload, 'reload must preserve the complete application state exactly');
