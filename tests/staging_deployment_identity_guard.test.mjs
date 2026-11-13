@@ -168,14 +168,14 @@ test('staging deploys are serialized while PR validation is isolated from deploy
   const getConsoleStep = name => {
     const start = consoleWorkflow.indexOf('- name: ' + name);
     assert.ok(start >= 0, 'missing console workflow step: ' + name);
-    const next = consoleWorkflow.indexOf('\\n      - name:', start + 1);
+    const next = consoleWorkflow.indexOf('- name:', start + 1);
     return consoleWorkflow.slice(start, next >= 0 ? next : undefined);
   };
   const functionsWaitStep = getConsoleStep('Wait for matching Firebase Functions deployment success');
   const liveAcceptanceStep = getConsoleStep('Live Staging Acceptance Proof — sale, fractional stock, debt, 409 and trusted backup/restore');
-  assert.doesNotMatch(functionsWaitStep, /if:\\s*always\\(\\)/,
+  assert.doesNotMatch(functionsWaitStep, /if:\s*always\(\)/,
     'do not wait for Functions after Hosting verification has already failed');
-  assert.doesNotMatch(liveAcceptanceStep, /if:\\s*always\\(\\)/,
+  assert.doesNotMatch(liveAcceptanceStep, /if:\s*always\(\)/,
     'do not run live financial acceptance after a prerequisite failed');
   assert.doesNotMatch(functionsWorkflow, /group:\s*anas-erp-reverse-ledger-console-staging/);
   assert.doesNotMatch(consoleWorkflow, /group:\s*anas-erp-reverse-ledger-functions-staging/);
