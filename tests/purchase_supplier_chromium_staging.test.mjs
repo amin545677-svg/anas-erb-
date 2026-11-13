@@ -72,7 +72,7 @@ function initialData() {
   };
 }
 
-test('ANAS ERP purchase, supplier settlement and exact Snapshot A to State B restore parity', async () => {
+test('ANAS ERP purchase, truck transfer, supplier settlement and exact Snapshot A to State B restore parity', async () => {
   const server = await startServer();
   let browser;
   const pageErrors = [];
@@ -274,6 +274,53 @@ test('ANAS ERP purchase, supplier settlement and exact Snapshot A to State B res
     assert.equal(secondPurchase.remaining, 0.20);
     assert.equal(state.suppliers[0].balance, 15000.40);
 
+    // Move 1.25 units from the main warehouse into a mobile truck warehouse through the real transfer form.
+    await page.evaluate(() => {
+      wtEnsureMobileWarehouse('شاحنة اختبار 01');
+      if (!saveDB()) throw new Error('Could not persist the mobile warehouse fixture');
+      openView('warehouse-transfer');
+      wtInitScreen();
+    });
+    await page.locator('#wtFrom').selectOption('المخزن الرئيسي');
+    await page.locator('#wtTo').selectOption('شاحنة اختبار 01');
+    await page.locator('#wtProduct').selectOption(String(purchase.productId));
+    await page.locator('#wtQty').fill('1.25');
+    await page.locator('#wtNote').fill('تحويل اختبار E2E من المخزن الرئيسي إلى الشاحنة');
+    await page.locator('#view-warehouse-transfer button').filter({ hasText: /اعتماد سند التحويل/ }).click();
+    await page.waitForFunction((productId) => {
+      const product = AppData.products.find(row => String(row.id) === String(productId));
+      const transfer = AppData.warehouseTransfers.find(row =>
+        row && row.note === 'تحويل اختبار E2E من المخزن الرئيسي إلى الشاحنة');
+      return !!product && product.stock === 1.75 &&
+        product.warehouseStock && product.warehouseStock['شاحنة اختبار 01'] === 1.25 &&
+        !!transfer && transfer.quantity === 1.25;
+    }, String(purchase.productId), { timeout: 10000 });
+    const transferProof = await page.evaluate((productId) => {
+      const product = AppData.products.find(row => String(row.id) === String(productId));
+      const transfer = AppData.warehouseTransfers.find(row =>
+        row && row.note === 'تحويل اختبار E2E من المخزن الرئيسي إلى الشاحنة');
+      const legs = AppData.stockMovements.filter(row =>
+        row && row.referenceType === 'warehouse_transfer' && String(row.referenceId) === String(transfer.id));
+      return {
+        mainStock: product.stock,
+        truckStock: product.warehouseStock['شاحنة اختبار 01'],
+        quantity: transfer.quantity,
+        legs: legs.map(row => [row.type, row.qty]).sort((a,b) => a[0].localeCompare(b[0])),
+        transferCount: AppData.warehouseTransfers.filter(row =>
+          row && row.note === 'تحويل اختبار E2E من المخزن الرئيسي إلى الشاحنة').length
+      };
+    }, String(purchase.productId));
+    assert.deepEqual(transferProof, {
+      mainStock: 1.75, truckStock: 1.25, quantity: 1.25,
+      legs: [['WAREHOUSE_TRANSFER_IN',1.25],['WAREHOUSE_TRANSFER_OUT',-1.25]],
+      transferCount: 1
+    }, 'one transfer must debit the main warehouse and credit the truck exactly once');
+    await page.evaluate(() => { openView('warehouse-stock'); wtInitStockScreen(); });
+    await page.locator('#wsWarehouse').selectOption('شاحنة اختبار 01');
+    await page.locator('#view-warehouse-stock button[onclick="wtAuditTransfers()"]').click();
+    await page.waitForFunction(() => document.getElementById('wsAudit')?.textContent.includes('لا توجد تعارضات'),
+      null, { timeout: 10000 });
+    await page.evaluate(() => openView('supp-debts'));
 
     // Reject an over-allocation without changing supplier, cash or any ledger bytes.
     await page.evaluate(() => openView('supp-debts'));
@@ -585,7 +632,7 @@ test('ANAS ERP purchase, supplier settlement and exact Snapshot A to State B res
       supplier: { openingBalanceDZD: 15000.00, finalBalanceDZD: state.suppliers[0].balance, laterAllocationCentimes: state.settlementAllocations.filter(a => a.partyType === 'supplier' && a.sourceMovementType === 'supplier_payment').map(a => a.amountCentimes), originalInvoicesImmutable: state.purchases.every(p => (p.id === purchase.id && p.paid === 0.10 && p.remaining === 0.20) || (p.id === secondPurchase.id && p.paid === 0 && p.remaining === 0.20)), failedSaveRollback: 'PASS' },
       cash: { openingBalanceDZD: 100000.00, finalBalanceDZD: state.caisseBalance },
       ledgers: { purchases: state.purchases.length, cashMovements: state.cashMovements.length, stockMovements: state.stockMovements.length, supplierMovements: state.supplierMovements.length, deepRestoreEquality: 'PASS' },
-      reload: 'PASS', backupRestore: 'PASS', snapshotAtoBRestore: 'PASS', cloudValidator: 'PASS',
+      reload: 'PASS', backupRestore: 'PASS', warehouseTransfer: 'PASS', snapshotAtoBRestore: 'PASS', cloudValidator: 'PASS',
       orphanInjection: 'REJECTED_WITHOUT_MUTATION',
       orphanReason: 'Purchase Ledger Parity: stock movement does not match purchase invoice'
     }));
