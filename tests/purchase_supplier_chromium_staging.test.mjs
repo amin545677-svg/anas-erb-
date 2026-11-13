@@ -65,7 +65,7 @@ function initialData() {
       id: 'STG-TEA-001', name: 'شاي اختبار Chromium', stock: 0, buyPrice: 0,
       lastPurchaseCost: 0, price1: 0, barcode: 'STGTEA001', unit: 'قطعة', supplierId: ''
     }],
-    customers: [], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
+    customers: [], clientMovements: [], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
     invoices: [], cashMovements: [], stockMovements: [], expenses: [], users: [], alerts: [],
     warehouseTransfers: [], warehouses: [], truckTrips: [], trucks: [], returns: [],
     stocktakeRecords: [], syncUrl: ''
