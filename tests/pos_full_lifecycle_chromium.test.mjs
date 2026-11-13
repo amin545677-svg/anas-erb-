@@ -24,7 +24,7 @@ function initialData() {
     products: [{
       id: PRODUCT_ID, name: PRODUCT_NAME, stock: 10, buyPrice: 10,
       lastPurchaseCost: 10, price1: 25, price2: 24, price3: 23, favorite: true,
-      barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
+      barcode: 'STGPOSLIFE001', unit: 'كغ', supplierId: '', cat: 'عام'
     }],
     customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0, credit_limit: 50 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
     invoices: [], cashMovements: [], stockMovements: [], expenses: [], users: [], alerts: [],
@@ -576,6 +576,13 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Partial payment must collect only the entered amount and allocate the balance to the selected customer.
     await page.evaluate(() => openView('pos'));
     await page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME }).click();
+    await commitNumberEditor(quantitySelector, '0.25');
+    await commitNumberEditor(priceSelector, '100.00');
+    await waitForDisplayedTotal(25);
+    assert.equal(await page.evaluate(() => posCart[0].qty), 0.25,
+      'weighted POS sale must retain an exact 0.25 kg quantity');
+    assert.equal(await page.evaluate(() => posCart[0].price), 100,
+      'weighted POS sale must retain the per-kilogram price');
     await page.locator('#posCheckoutBtn').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibPaymentMethod').selectOption('partial');
@@ -602,12 +609,18 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     const partialProof = await page.evaluate(() => {
       const s = ANASResilientStorage.getCommittedSnapshot();
       const invoice = s.invoices.find(row => row && row.paymentMethod === 'partial');
+      const item = invoice.items.find(row => String(row.id) === String(PRODUCT_ID));
+      const product = s.products.find(row => String(row.id) === String(PRODUCT_ID));
       const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
       const cash = s.cashMovements.filter(row => row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
       return { paid: invoice.paid, remaining: invoice.remaining, customerDebt: customer.debt,
+        soldQty: item.qty, soldUnit: item.unit, productStock: product.stock,
         cashRows: cash.length, cashAmount: cash[0] && cash[0].amount };
     });
-    assert.deepEqual(partialProof, { paid: 12.5, remaining: 12.5, customerDebt: 12.5, cashRows: 1, cashAmount: 12.5 });
+    assert.deepEqual(partialProof, {
+      paid: 12.5, remaining: 12.5, customerDebt: 12.5, soldQty: 0.25, soldUnit: 'كغ',
+      productStock: 9.75, cashRows: 1, cashAmount: 12.5
+    });
     await page.locator('#anasInvoiceFinishBtn').click();
     assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
       'cashier must explicitly finish the partial-payment receipt before starting the next sale');
