@@ -3,3 +3,12 @@
 .anas-pos-floating-cart{position:sticky!important;inset-inline:auto!important;right:auto!important;bottom:0!important;width:100%!important;max-width:100%!important;max-height:30dvh!important;margin:12px 0 0!important;z-index:20!important;box-sizing:border-box!important;}
 .anas-pos-mini-lines{max-height:12dvh!important;}
 @media(min-width:760px){.anas-pos-floating-cart{width:100%!important;max-width:100%!important;}}
+
+
+/* r39: accessible fractional-weight controls and stable financial numerals */
+.anas-pos-quick-weights{display:grid;grid-template-columns:repeat(6,minmax(44px,1fr));gap:6px;width:100%;margin:6px 0;direction:ltr}
+.anas-pos-quick-weights .anas-weight-chip{min-width:44px;min-height:44px;padding:6px;border:1px solid var(--mp-border,#cbd5e1);border-radius:10px;background:var(--mp-bg,#f8fafc);color:var(--mp-text,#172033);font:inherit;font-weight:800;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;direction:ltr;unicode-bidi:embed;touch-action:manipulation}
+.anas-pos-quick-weights .anas-weight-chip.is-active{background:var(--mp-primary,#1d4ed8);border-color:var(--mp-primary,#1d4ed8);color:#fff}
+.erp-num,.anas-checkout-total,.anas-weight-chip,table td[data-type="currency"],table td[data-type="number"],.pos-price,.pos-qty,.ledger-amount,.balance-badge{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;direction:ltr;unicode-bidi:embed;white-space:nowrap}
+.anas-pos-mini-line{flex-wrap:wrap}
+.anas-pos-quick-weights{flex-basis:100%}
