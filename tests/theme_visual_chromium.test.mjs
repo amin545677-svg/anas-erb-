@@ -135,6 +135,10 @@ test('real Chromium theme acceptance: eight-module dashboard, purchase OCR, sett
     });
     assert.ok(darkOcrVisual.background && darkOcrVisual.background !== 'rgba(0, 0, 0, 0)',
       'dark purchase OCR modal must have an explicit surface');
+    assert.equal(darkOcrVisual.background, 'rgb(24, 36, 56)',
+      'dark purchase OCR modal must use the existing unified dark surface');
+    assert.equal(darkOcrVisual.fieldBackground, 'rgb(16, 26, 43)',
+      'dark purchase OCR category field must use the dark input surface');
     assert.ok(contrast(darkOcrVisual.text, darkOcrVisual.background) >= 4.5,
       'dark purchase OCR modal text must meet WCAG AA');
     assert.ok(contrast(darkOcrVisual.labelColor, darkOcrVisual.background) >= 4.5,
