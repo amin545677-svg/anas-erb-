@@ -94,3 +94,24 @@ test('invoice action buttons and AI import category controls have theme-safe con
   assert.match(css, /:root\[data-anas-theme="dark"\] \.anas-ai-file-actions > label\[data-anas-ai-action\]/);
   assert.match(css, /#smartImportPreviewModal > div/);
 });
+
+
+test('More workspace exposes all eight existing operational screens', () => {
+  const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات (POS)'));
+  assert.equal((more.match(/class="anas-more-card"/g) || []).length, 8);
+  for (const action of ["openView('purchases')","openView('pos')","openView('suppliers')","openView('customers')","openView('expenses')","openView('cash')","openView('reports')","openView('inventory')"]) {
+    assert.ok(more.includes(action), "More workspace is missing " + action);
+  }
+  assert.ok(html.includes('data-nav-view="more"'));
+  assert.ok(html.includes("onclick=\"openView('more')\""));
+  for (const view of ["purchases","pos","suppliers","customers","expenses","cash","reports","inventory"]) {
+    assert.ok(html.includes('id="view-' + view + '"'), "Missing destination view " + view);
+  }
+});
+
+test('More workspace cards have explicit readable light and dark theme rules', () => {
+  assert.ok(css.includes('#view-more .anas-more-card'));
+  assert.ok(css.includes(':root[data-anas-theme="dark"] #view-more .anas-more-card'));
+  assert.ok(css.includes(':root:not([data-anas-theme="dark"]) #view-more .anas-more-card'));
+  assert.ok(css.includes('#view-more .anas-more-label'));
+});
