@@ -29,6 +29,12 @@ on:
       - '.github/workflows/anas-erp-safety-checks.yml'
       - 'tests/**'
   workflow_dispatch:
+    inputs:
+      run_functions_live_acceptance:
+        description: "Optional Functions-dependent live acceptance; keep disabled while the Spark project has no billing account."
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - staging/unified-release-candidate
@@ -299,7 +305,8 @@ jobs:
 
   live-staging-acceptance:
     needs: deploy-staging-console
-    if: ${{ always() && github.ref == 'refs/heads/staging/unified-release-candidate' }}
+    # Functions-dependent acceptance is opt-in only; normal staging pushes verify Hosting and Rules without waiting for billable Functions.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_functions_live_acceptance == true && github.ref == 'refs/heads/staging/unified-release-candidate' }}
     permissions:
       contents: read
       actions: read

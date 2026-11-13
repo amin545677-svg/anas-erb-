@@ -311,3 +311,14 @@ test('Hosting and Functions share the tested raw-JSON/Base64 staging credential 
   assert.match(hosting, /secrets\.FIREBASE_STAGING_WEB_API_KEY/);
   assert.match(hosting, /secrets\.FIREBASE_STAGING_WEB_APP_ID/);
 });
+
+
+test('Hosting live acceptance does not wait for billable Functions on normal staging pushes', async () => {
+  const fs = await import('node:fs/promises');
+  const workflow = await fs.readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8'
+  );
+  assert.match(workflow, /run_functions_live_acceptance:[\\s\\S]*?default:\\s*false/);
+  assert.match(workflow, /github.event_name == 'workflow_dispatch' && inputs.run_functions_live_acceptance == true/);
+  assert.match(workflow, /deploy --only hosting/);
+});
