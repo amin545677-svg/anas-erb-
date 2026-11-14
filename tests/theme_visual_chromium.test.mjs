@@ -529,7 +529,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
     });
     const pdf = await page.pdf({ format:'A4', printBackground:true, preferCSSPageSize:true });
     const pdfText = Buffer.from(pdf).toString('latin1');
-    const pageCount = pdfText.split('/Type /Page').length - 1;
+    const pageCount = (pdfText.match(/\/Type\s*\/Page\b/g) || []).length;
     assert.equal(pageCount, 1, 'a short A4 invoice must not generate a trailing blank page');
 
   } finally {
