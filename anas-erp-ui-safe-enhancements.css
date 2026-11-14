@@ -1377,3 +1377,13 @@ html:root[data-anas-theme] body select,
 html:root[data-anas-theme] body textarea {
   transition:none!important;
 }
+
+
+/* r40.8 — text hints inside dark picker dialogs must not retain legacy white chips.
+   Keep text on the dialog surface; do not alter input controls or light-theme styling. */
+html:root[data-anas-theme="dark"] body .picker-dialog-scroll :is(small, label, p) {
+  background-color:transparent!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
