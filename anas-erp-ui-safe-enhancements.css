@@ -929,8 +929,8 @@ button.is-loading,
 
 /* Plain controls and legacy action classes: preserve dedicated success/danger/checkout
    colors while preventing the old global pale-background/white-text collision. */
-:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
-:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
 :root[data-anas-theme] .menu-action-card,
 :root[data-anas-theme] .pill-select-btn,
 :root[data-anas-theme] .filter-chip,
@@ -973,7 +973,7 @@ button.is-loading,
   opacity:1!important;
   visibility:visible!important;
 }
-:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):hover,
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]):not([aria-current="page"]):hover,
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):hover {
   background-color:var(--anas-video-control-hover)!important;
 }
@@ -1253,8 +1253,8 @@ button.is-loading,
 
 /* r39.1 — close legacy cascade leaks without flattening semantic POS actions.
    The extra root/html/body specificity wins over later legacy button shorthand rules. */
-html:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
-html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) {
+html:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]):not([aria-current="page"]) {
   background:#26364d!important;
   background-color:#26364d!important;
   background-image:none!important;
