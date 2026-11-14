@@ -9293,7 +9293,7 @@ function wtAuditTransfers(){
 
 
             let resolvedReportAuditRows = null;
-            let resolvedReportSourceLabel = 'AppData';
+            let resolvedReportSourceLabel = '';
             const genericArray = key => Array.isArray(AppData && AppData[key]) ? AppData[key] : [];
             const genericDateKeys = ['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'];
             const genericInRange = rows => rows.filter(row=>reportItemInRange(row,genericDateKeys));
@@ -9310,6 +9310,7 @@ function wtAuditTransfers(){
                 const n=cents<0n?-cents:cents;
                 return (cents<0n?'−':'')+(n/100n).toLocaleString('fr-DZ')+','+(n%100n).toString().padStart(2,'0')+' د.ج';
             };
+            const genericCurrency = value => { if(value===null||value===undefined||value==='')return 'غير مسجل';const cents=anasPurchaseToCents(value);return Number.isSafeInteger(cents)?genericFmtCents(BigInt(cents)):'غير صالح'; };
             const genericGroupTotals = (records,keyOf,amountOf) => {
                 const groups=new Map();
                 records.forEach(row=>{
@@ -9354,8 +9355,7 @@ function wtAuditTransfers(){
                 ]);
                 const invoiceTable=(records,entity)=>records.map(i=>[
                     i.id||i.invoiceId||'—',genericDate(i),entity(i),
-                    genericFmtCents(genericMoneyCents(i)),i.paid==null?'غير مسجل':genericFmtCents(anasPurchaseToCents(i.paid)===0&&String(i.paid)!=='0'?null:BigInt(anasPurchaseToCents(i.paid))),
-                    i.remaining==null?'غير مسجل':genericFmtCents(anasPurchaseToCents(i.remaining)===0&&String(i.remaining)!=='0'?null:BigInt(anasPurchaseToCents(i.remaining)))
+                    genericFmtCents(genericMoneyCents(i)),genericCurrency(i.paid),genericCurrency(i.remaining)
                 ]);
                 const taxTotals=(records,keyOf)=>genericGroupTotals(records,keyOf,genericTaxCents);
                 switch(title){
@@ -9523,7 +9523,7 @@ function wtAuditTransfers(){
                         ];
                         emptyText='لا تتوفر بيانات مكتملة لحساب الوعاء.';
                         content.innerHTML='<p style="padding:9px;border:1px solid var(--mp-border,#cbd5e1);border-radius:8px;color:var(--mp-text,#172033)">تنبيه: هذا تقدير حسابي أولي ولا يثبت النصاب أو مرور الحول أو حكم الديون.</p>'+renderQueryTable(headers,rows,emptyText);
-                        resolvedReportAuditRows=sourceRows;resolvedReportSourceLabel=sourceLabel;return true;
+                        resolvedReportAuditRows=null;resolvedReportSourceLabel=sourceLabel;return true;
                     }
                     case 'تقرير بالإقرار الضريبي':
                     case 'تقرير بالإقرار الضريبي مع المرتجع': {
@@ -9537,7 +9537,7 @@ function wtAuditTransfers(){
                         headers=['البند','القيمة','عدد البنود غير المسجلة'];
                         rows=[['ضريبة المبيعات المسجلة',genericFmtCents(salesTax.total),salesTax.missing],...(withReturns?[['ضريبة المرتجعات المسجلة',genericFmtCents(returnsTax.total),returnsTax.missing],['صافي الضريبة بعد المرتجعات',genericFmtCents(net),salesTax.missing+returnsTax.missing]]:[])];
                         content.innerHTML='<p style="padding:9px;border:1px solid var(--mp-border,#cbd5e1);border-radius:8px;color:var(--mp-text,#172033)">تُحتسب القيم من حقول الضريبة الصريحة في سطور الفواتير فقط؛ لا يتم استنتاج ضريبة من سعر أو نسبة غير مؤكدة.</p>'+renderQueryTable(headers,rows,'لا توجد قيم ضريبية صريحة ضمن الفترة.');
-                        resolvedReportAuditRows=sourceRows;resolvedReportSourceLabel=sourceLabel;return true;
+                        resolvedReportAuditRows=null;resolvedReportSourceLabel=sourceLabel;return true;
                     }
                     case 'تقرير بالمصروفات':
                     case 'تقرير بالمصروفات لحساب':
@@ -9577,7 +9577,7 @@ function wtAuditTransfers(){
                     default:
                         return false;
                 }
-                resolvedReportAuditRows=sourceRows;
+                resolvedReportAuditRows=null;
                 resolvedReportSourceLabel=sourceLabel;
                 content.innerHTML=renderQueryTable(headers,rows,emptyText);
                 return true;
@@ -9773,21 +9773,55 @@ function wtAuditTransfers(){
                 content.innerHTML = `<p style="text-align:center;color:#b45309;font-weight:700;">هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق؛ لم يتم إنشاء نتائج تقديرية أو تسجيل أي عملية.</p>`;
             }
             const rangeMeta=getReportRange(), auditSourceMap={
-                'حركة المتجر':[reportInvoices,reportPurchases,genericArray('cashMovements'),genericArray('expenses')],
-                'حركة المتجر - رسم بياني':[reportInvoices,reportPurchases,genericArray('cashMovements'),genericArray('expenses')],
-                'تقرير فواتير الآجل':[reportInvoices],'تقرير الخصومات':[reportInvoices],'تقرير المبيعات':[reportInvoices],
+                'حركة المتجر':[genericArray('invoices'),genericArray('purchases'),genericArray('cashMovements'),genericArray('expenses')],
+                'حركة المتجر - رسم بياني':[genericArray('invoices'),genericArray('purchases'),genericArray('cashMovements'),genericArray('expenses')],
+                'تقرير فواتير الآجل':[genericArray('invoices')],'تقرير الخصومات':[genericArray('invoices')],'تقرير المبيعات':[genericArray('invoices')],
                 'تنبيه نقص المخزون':[genericArray('products')],'تقرير بحركة منتج':[genericArray('stockMovements'),genericArray('inventoryMovements'),genericArray('purchases'),genericArray('invoices'),genericArray('returns'),genericArray('warehouseTransfers'),genericArray('stockAdjustments')],
                 'حركة منتج':[genericArray('stockMovements'),genericArray('inventoryMovements'),genericArray('purchases'),genericArray('invoices'),genericArray('returns'),genericArray('warehouseTransfers'),genericArray('stockAdjustments')],
-                'جرد مخزني':[genericArray('products')],'تقرير المشتريات':[reportPurchases],'عرض فواتير المبيعات':[reportInvoices],
+                'جرد مخزني':[genericArray('products')],'تقرير المشتريات':[genericArray('purchases')],'عرض فواتير المبيعات':[genericArray('invoices')],
                 'كشف حساب عميل':[genericArray('clientMovements')],'تقرير مصادقة حساب العميل':[genericArray('clientMovements')],
                 'كشف حساب المورد':[genericArray('supplierMovements')],'كشف حساب مورد':[genericArray('supplierMovements')],
                 'تقرير بحركة الصندوق':[genericArray('cashMovements')],'تقرير بالمصروفات حسب الحساب':[genericArray('expenses')],
-                'تقرير المصروفات حسب الحساب':[genericArray('expenses')]
+                'تقرير المصروفات حسب الحساب':[genericArray('expenses')],
+                'تقرير بالفواتير المرتجع-مبيعات':[genericArray('returns')],'تقرير بالفواتير المرتجع لعميل':[genericArray('returns')],
+                'تقرير بفواتير المبيعات التي تم إلغاؤها':[genericArray('invoices')],
+                'تقرير بعروض الأسعار':[genericArray('quotes'),genericArray('quotations'),genericArray('salesQuotes')],
+                'إجمالي الضرائب حسب الصنف':[genericArray('invoices')],'إجمالي الضرائب حسب العميل':[genericArray('invoices')],
+                'تقرير بحركة الرصيد الافتتاحي والقيد للعميل':[genericArray('clientMovements')],
+                'تقرير بالفواتير للعميل':[genericArray('invoices')],'تقرير بالفواتير للعميل - إجمالي':[genericArray('invoices')],
+                'تقرير بسندات القبض لعميل':[genericArray('clientMovements')],'تقرير بسندات الصرف لعميل':[genericArray('clientMovements')],
+                'تقرير بحركة التسديد لعميل':[genericArray('settlementAllocations')],'تقرير إجمالي حسب الصنف لعميل':[genericArray('invoices')],
+                'تقرير بحركة سداد العملاء':[genericArray('clientMovements')],'تقرير بحركة سداد العملاء حسب طريقة الدفع':[genericArray('cashMovements')],
+                'تقرير بحركة الرصيد الافتتاحي والقيد للمورد':[genericArray('supplierMovements')],
+                'تقرير بفواتير المورد':[genericArray('purchases')],'تقرير بفواتير المورد - إجمالي':[genericArray('purchases')],
+                'تقرير بسندات الصرف لمورد':[genericArray('supplierMovements')],'تقرير بسندات القبض لمورد':[genericArray('supplierMovements')],
+                'تقرير بحركة التسديد لمورد':[genericArray('settlementAllocations')],'تقرير إجمالي حسب الصنف لمورد':[genericArray('purchases')],
+                'تقرير بحركة سداد الموردين':[genericArray('supplierMovements')],'تقرير بحركة سداد الموردين حسب طريقة الدفع':[genericArray('cashMovements')],
+                'تقرير رأس المال':[genericArray('cashMovements'),genericArray('bankMovements')],
+                'حساب الزكاة':[],
+                'تقرير بالإقرار الضريبي':[genericArray('invoices')],'تقرير بالإقرار الضريبي مع المرتجع':[genericArray('invoices'),genericArray('returns')],
+                'تقرير بالمصروفات':[genericArray('expenses')],'تقرير بالمصروفات لحساب':[genericArray('expenses')],
+                'جرد مخزني حسب التصنيف':[genericArray('products')],'جرد مخزني لصنف':[genericArray('products')],
+                'تقرير بالمنتجات حسب تاريخ الانتهاء':[genericArray('products')],
+                'تقرير بالمنتجات التالفة':[genericArray('damagedStock'),genericArray('stockAdjustments'),genericArray('stockMovements')]
             };
-            const reportSources=resolvedReportAuditRows!==null?[resolvedReportAuditRows]:(auditSourceMap[title]||[]);
+            const reportSources=auditSourceMap[title]||[];
+            const auditSourceLabels={
+                'حركة المتجر':'AppData.invoices + purchases + cashMovements + expenses',
+                'حركة المتجر - رسم بياني':'AppData.invoices + purchases + cashMovements + expenses',
+                'تقرير فواتير الآجل':'AppData.invoices','تقرير الخصومات':'AppData.invoices','تقرير المبيعات':'AppData.invoices',
+                'تنبيه نقص المخزون':'AppData.products','تقرير بحركة منتج':'AppData stock/invoice/return/transfer ledgers',
+                'حركة منتج':'AppData stock/invoice/return/transfer ledgers','جرد مخزني':'AppData.products',
+                'تقرير المشتريات':'AppData.purchases','عرض فواتير المبيعات':'AppData.invoices',
+                'كشف حساب عميل':'AppData.clientMovements','تقرير مصادقة حساب العميل':'AppData.clientMovements',
+                'كشف حساب المورد':'AppData.supplierMovements','كشف حساب مورد':'AppData.supplierMovements',
+                'تقرير بحركة الصندوق':'AppData.cashMovements','تقرير بالمصروفات حسب الحساب':'AppData.expenses',
+                'تقرير المصروفات حسب الحساب':'AppData.expenses'
+            };
+            const reportSourceLabel=resolvedReportSourceLabel||auditSourceLabels[title]||'AppData (مصدر محدد بالتقرير)';
             let auditMatched=0,auditExcluded=0;
             reportSources.forEach(rows=>(Array.isArray(rows)?rows:[]).forEach(row=>{const raw=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(k=>row?.[k]).find(v=>v!==undefined&&v!==null&&v!=='');const d=reportParseDate(raw);if(!d){auditExcluded++;return;}const day=reportLocalDateValue(d);if((!rangeMeta.from||day>=rangeMeta.from)&&(!rangeMeta.to||day<=rangeMeta.to))auditMatched++;}));
-            content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> ${esc(resolvedReportSourceLabel||((auditSourceMap[title]||[]).length?'AppData':'AppData (غير محدد)'))} · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
+            content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> ${esc(reportSourceLabel)} · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
             document.getElementById('customReportModal').classList.add('active');
             const searchBox = document.getElementById('anasReportSearch');
             if (searchBox) searchBox.value = '';

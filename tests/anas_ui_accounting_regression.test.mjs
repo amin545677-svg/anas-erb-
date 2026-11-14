@@ -89,7 +89,7 @@ test('all previously unlinked report routes have explicit AppData-backed handler
   ];
   for (const title of titles) assert.ok(html.includes("case '"+title+"'"),title);
   assert.match(html,/const renderGenericReport = title =>/);
-  assert.match(html,/resolvedReportAuditRows!==null\\?\\[resolvedReportAuditRows\\]/);
+  assert.ok(html.includes('const reportSources=auditSourceMap[title]||[];'));
   assert.match(html,/AppData\\.returns/);
   assert.match(html,/AppData\\.clientMovements/);
   assert.match(html,/AppData\\.supplierMovements/);
