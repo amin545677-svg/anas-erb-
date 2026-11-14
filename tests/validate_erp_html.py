@@ -58,7 +58,7 @@ def main():
     parser.close()
     errors = []
 
-    # r39 exposes eight primary business modules and keeps secondary tools outside the dashboard.
+    # r40 exposes eight primary business modules and keeps secondary tools outside the dashboard.
     # The AI hub remains reachable from the drawer as a semantic navigation row.
     ai_hub_drawer_entry = (
         'class="drawer-nav-row" onclick="closeDrawer(); openView(\'ai-excel-hub\');"'
@@ -77,7 +77,7 @@ def main():
         "suppliers": "openView('suppliers')",
         "customers": "openView('customers')",
         "inquiries": "openView('reports')",
-        "reports": "openView('reports')",
+        "expenses": "openView('expenses')",
     }
     missing_modules = [module for module, route in required_modules.items()
                        if f'data-erp-module="{module}"' not in dashboard_markup or route not in dashboard_markup]
@@ -91,7 +91,7 @@ def main():
     more_start = source.find('<section id="view-more"')
     more_end = source.find('<!-- 3. شاشة المبيعات', more_start)
     more_markup = source[more_start:more_end] if more_start >= 0 and more_end > more_start else ""
-    secondary_modules = ["expenses", "trucks", "warehouse-transfer", "warehouse-stock",
+    secondary_modules = ["trucks", "warehouse-transfer", "warehouse-stock",
                          "users", "settings", "sync", "ai-excel-hub"]
     missing_secondary = [module for module in secondary_modules
                          if f'data-secondary-module="{module}"' not in more_markup]
@@ -100,17 +100,17 @@ def main():
     else:
         print("PASS: AI hub remains reachable through the drawer navigation")
     if len(dashboard_buttons) != 8 or missing_modules:
-        errors.append("r39 dashboard must expose the eight canonical primary modules; missing: " +
+        errors.append("r40 dashboard must expose the eight canonical primary modules; missing: " +
                       ", ".join(missing_modules or ["expected exactly eight cards"]))
     elif "openQuickSale()" in dashboard_markup or "openView('trucks')" in dashboard_markup or "openInvoiceOcr(" in dashboard_markup:
-        errors.append("r39 dashboard must keep secondary logistics and child actions outside primary navigation")
+        errors.append("r40 dashboard must keep secondary logistics and child actions outside primary navigation")
     else:
         print("PASS: r39 dashboard exposes all eight primary modules without secondary or child-action duplication")
-    if len(re.findall(r'<button\b[^>]*class="anas-more-card"[^>]*>', more_markup)) != 8 or missing_secondary:
-        errors.append("More workspace must expose eight secondary tools; missing: " +
+    if len(re.findall(r'<button\b[^>]*class="anas-more-card"[^>]*>', more_markup)) != 7 or missing_secondary:
+        errors.append("More workspace must expose seven secondary tools; missing: " +
                       ", ".join(missing_secondary or ["expected exactly eight secondary cards"]))
     else:
-        print("PASS: More workspace retains eight secondary operational tools")
+        print("PASS: More workspace retains seven secondary operational tools")
     # Guard the mobile interaction/accessibility CSS used by the semantic dashboard button.
     touch_interaction_guards = [
         'button, [role="button"], .grid-card-item, .menu-action-card {',
