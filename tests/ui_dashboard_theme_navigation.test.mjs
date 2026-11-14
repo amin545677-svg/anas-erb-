@@ -46,7 +46,7 @@ test('theme contrast tokens define both light and dark states', () => {
   assert.match(css, /-webkit-text-fill-color:var\(--anas-ui-btn-text\)!important/);
 });
 
-test('r39 dashboard exposes the eight canonical operational modules exactly once', () => {
+test('r40 dashboard exposes the eight canonical operational modules exactly once', () => {
   assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 8);
   const modules = ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","expenses"];
   for (const module of modules) assert.equal((dashboard.match(new RegExp('data-erp-module="' + module + '"',"g")) || []).length, 1,
@@ -162,12 +162,15 @@ test('inquiries screen has explicit light/dark row and date-field contrast rules
 });
 
 test('dashboard replaces the duplicate reports shortcut with the canonical expenses workspace', () => {
-  assert.match(dashboard, /data-erp-module="expenses" onclick="openView\\('expenses'\\)" aria-label="المصاريف"/);
-  assert.match(dashboard, /<span class="card-title-text">المصاريف<\\/span>/);
-  assert.doesNotMatch(dashboard, /data-erp-module="reports"|class="card-title-text">التقارير<\\/span>/);
-  assert.equal((dashboard.match(/openView\\('expenses'\\)/g) || []).length, 1);
+  assert.ok(dashboard.includes('data-erp-module="expenses" onclick="openView(\'expenses\')" aria-label="المصاريف"'));
+  assert.ok(dashboard.includes('<span class="card-title-text">المصاريف</span>'));
+  assert.ok(!dashboard.includes('data-erp-module="reports"'));
+  assert.ok(!dashboard.includes('class="card-title-text">التقارير</span>'));
+  assert.equal(dashboard.split("openView('expenses')").length - 1, 1);
   const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات'));
-  assert.doesNotMatch(more, /data-secondary-module="expenses"|openView\\('expenses'\\)/);
-  const expenses = html.slice(html.indexOf('<section id="view-expenses"'), html.indexOf('</section>', html.indexOf('<section id="view-expenses"')));
-  assert.match(expenses, /<div class="sub-header-title">المصاريف<\\/div>/);
+  assert.ok(!more.includes('data-secondary-module="expenses"'));
+  assert.ok(!more.includes("openView('expenses')"));
+  const expensesStart = html.indexOf('<section id="view-expenses"');
+  const expenses = html.slice(expensesStart, html.indexOf('</section>', expensesStart));
+  assert.ok(expenses.includes('<div class="sub-header-title">المصاريف</div>'));
 });
