@@ -1516,6 +1516,7 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-grid > di
 }
 #view-reports .anas-query-options {
   flex:0 0 43%; min-width:0; display:flex; flex-direction:column;
+  background:#fff;
   justify-content:center; align-items:flex-start; gap:5px;
   padding:7px 5px; direction:ltr;
 }
