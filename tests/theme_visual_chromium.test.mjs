@@ -62,10 +62,10 @@ test('real Chromium theme acceptance: eight-module dashboard, purchase OCR, sett
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
     }));
     assert.equal(initial.theme, 'light');
-    assert.equal(initial.modules, 8, 'r39 dashboard must render all eight primary operational modules');
+    assert.equal(initial.modules, 8, 'r40 dashboard must render all eight primary operational modules');
     assert.equal(initial.overflow, false, 'dashboard must not overflow at 390px');
 
-    const moduleRoutes = ['pos','inventory','cash','purchases','suppliers','customers','reports','reports'];
+    const moduleRoutes = ['pos','inventory','cash','purchases','suppliers','customers','reports','expenses'];
     for (const width of [320, 360, 390]) {
       await page.setViewportSize({ width, height: 844 });
       const grid = await page.locator('#view-dashboard .dashboard-grid-8').evaluate(el => ({
