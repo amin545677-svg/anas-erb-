@@ -1730,3 +1730,40 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 
 :root[data-anas-theme="dark"]{--mp-table-head:#0f172a}
 :root[data-anas-theme="light"]{--mp-table-head:#f1f5f9}
+
+/* r42 — close dark-theme contrast gaps without flattening semantic payment colors. */
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-quick-actions button,
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section > button {
+  background-color:#1e293b!important;background-image:none!important;color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;border:1px solid #64748b!important;
+  box-shadow:0 2px 6px rgba(0,0,0,.24)!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-quick-actions button *,
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section > button * {
+  color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;
+}
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item) :is(button,.btn),
+:root[data-anas-theme="dark"] #view-settings :is(.settings-card,.card) :is(button,.btn),
+:root[data-anas-theme="dark"] #settingsModal :is(button,.btn) {
+  background-color:#1e293b!important;background-image:none!important;color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important;
+}
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item) :is(button,.btn) *,
+:root[data-anas-theme="dark"] #view-settings :is(.settings-card,.card) :is(button,.btn) *,
+:root[data-anas-theme="dark"] #settingsModal :is(button,.btn) * {
+  color:inherit!important;-webkit-text-fill-color:inherit!important;
+}
+/* Payment modes remain semantic: green full, blue partial, red debt. */
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(1),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="full"],
+:root[data-anas-theme="dark"] #hasibModal button[onclick*="full"] {
+  background-color:#dcfce7!important;color:#14532d!important;-webkit-text-fill-color:#14532d!important;border-color:#86efac!important;
+}
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(2),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="partial"] {
+  background-color:#dbeafe!important;color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;border-color:#93c5fd!important;
+}
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(3),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="debt"] {
+  background-color:#fee2e2!important;color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
+}

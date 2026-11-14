@@ -122,3 +122,31 @@ test('Hosting trigger includes app changes while Functions trigger excludes UI-o
   for (const pattern of ["'index.html'","'erp/**'","'sw.js'","'anas-*.js'","'anas-*.css'","'firebase/**'"]) assert.ok(!fnPush.includes(pattern),pattern);
   assert.ok(fs.existsSync(new URL('.github/workflows/deploy-staging-firestore-rules.yml',root)));
 });
+
+test('saved report date range uses a real calendar-date matcher', () => {
+  const start=html.indexOf('function reportParseDate(value)');
+  const end=html.indexOf('// بدء التشغيل',start);
+  assert.ok(start>=0&&end>start);
+  const rangeInit=html.slice(start,end);
+  assert.match(rangeInit,/\/\^\\d\{4\}-\\d\{2\}-\\d\{2}\$\//);
+  assert.doesNotMatch(rangeInit,/\/\^\\\\d\{4\}/);
+});
+
+test('product kardex safely excludes invalid dates before computing opening balance', () => {
+  assert.match(html,/const before=all\.filter\(m=>\{const d=reportParseDate\(m\.date\);return !!\(kardexFrom&&d&&reportLocalDateValue\(d\)<kardexFrom\);\}\)/);
+  assert.match(html,/sort\(\(a,b\)=>\{const da=reportParseDate\(a\.date\),db=reportParseDate\(b\.date\)/);
+});
+
+test('dark AI quick actions and invoice/settings actions have explicit dark surfaces and readable text', () => {
+  assert.match(safeCss,/#aiHubTabContent \.anas-ai-quick-actions button/);
+  assert.match(safeCss,/background-color:#1e293b!important;[\s\S]*?color:#f8fafc!important/);
+  assert.match(safeCss,/#view-invoices-list/);
+  assert.match(safeCss,/#settingsModal/);
+  assert.ok(contrastRatio('#f8fafc','#1e293b')>=4.5);
+  assert.ok(contrastRatio('#f8fafc','#0f172a')>=4.5);
+});
+
+test('sale return inventory restoration reduces reported net cost as well as net profit', () => {
+  assert.match(html,/totalCost=Math\.max\(0,totalCost-Number\(restoredCostCents\)\/100\)/);
+  assert.match(html,/lineProfit-=Number\(returnCents-restoredCostCents\)\/100/);
+});
