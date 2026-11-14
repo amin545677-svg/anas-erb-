@@ -1834,3 +1834,66 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
   color:#fff!important;-webkit-text-fill-color:#fff!important;
   border-color:#1d4ed8!important;
 }
+
+
+/* r43 — deterministic tax identifiers, indivisible mobile badges and AI KPI contrast. */
+#cfgStoreRC, #cfgStoreNIF, #cfgStoreNIS, #cfgStoreArt, #cfgStoreNIC,
+#newCustRCInput, #newCustNIFInput, #newCustNISInput, #newCustArtInput,
+#newSuppRCInput, #newSuppNIFInput, #newSuppNISInput, #newSuppArtInput,
+input[id*="NIF"], input[id*="NIS"], input[id*="RC"], input[id*="Art"], input[id*="NIC"] {
+  direction:ltr!important;unicode-bidi:plaintext!important;text-align:left!important;
+  font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1!important;
+  font-size:13px!important;padding-inline:8px!important;
+}
+.badge-active-tag, .drawer-nav-row .row-icon, .status-badge, .priority-badge,
+[data-priority], table td .badge, #anas-live-status-bar span {
+  white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;flex-shrink:0!important;
+}
+.drawer-nav-row .row-icon {
+  min-width:28px!important;display:inline-flex!important;align-items:center!important;
+  justify-content:center!important;font-size:11px!important;
+}
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent .anas-ai-hub-kpi-card,
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) {
+  background:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important;
+}
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent .anas-ai-hub-kpi-value,
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) :is(strong,b,.value,.number) {
+  color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;
+}
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent .anas-ai-hub-kpi-label,
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent .anas-ai-hub-kpi-detail,
+html:not([data-theme="dark"]) body:not(.dark-mode) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) :is(label,small,.label,.title) {
+  color:#334155!important;-webkit-text-fill-color:#334155!important;
+}
+html[data-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-card,
+[data-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-card,
+body.dark-mode #aiHubTabContent .anas-ai-hub-kpi-card,
+html[data-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card),
+[data-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card),
+body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+html[data-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-card *,
+[data-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-card *,
+body.dark-mode #aiHubTabContent .anas-ai-hub-kpi-card *,
+html[data-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) *,
+[data-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) *,
+body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
+  color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;
+}
+#customReportContent .anas-customer-reconciliation-report table {
+  width:100%;min-width:900px;border-collapse:collapse;text-align:center;
+  background:var(--mp-card-bg,#fff);color:var(--mp-text-dark,#0f172a);font-size:12px;
+}
+#customReportContent .anas-customer-reconciliation-report th,
+#customReportContent .anas-customer-reconciliation-report td {
+  padding:8px;border:1px solid var(--mp-border,#cbd5e1);vertical-align:middle;
+}
+#customReportContent .anas-customer-reconciliation-report th {
+  background:var(--mp-table-head,#f1f5f9);font-weight:900;white-space:nowrap;
+}
+#customReportContent .anas-report-source-note,
+#customReportContent .anas-report-integrity-note,
+#customReportContent .anas-report-integrity-warning {font-size:11px;line-height:1.7;margin:6px 0}
+#customReportContent .anas-report-integrity-warning {color:#b45309;font-weight:800}

@@ -185,7 +185,7 @@ jobs:
       - name: Install headless Chromium and system dependencies
         run: npx playwright install --with-deps chromium
       - name: Verify strict report dates and historical product kardex opening balances
-        run: node --test tests/report-stock-kardex-regression.test.mjs
+        run: node --test tests/report-stock-kardex-regression.test.mjs tests/customer-reconciliation-report-regression.test.mjs
       - name: Run r39 POS and durability acceptance in Chromium
         run: node --check tests/pos_r39_acceptance_chromium.test.mjs && node --test tests/pos_r39_acceptance_chromium.test.mjs
       - name: Run scoped dark-mode WCAG AA acceptance in Chromium
