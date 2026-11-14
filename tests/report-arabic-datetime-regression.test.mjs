@@ -33,3 +33,14 @@ test('report range prioritizes supported alternate date fields',()=>{
  const source=html.slice(start,end);
  for(const key of ["'date'","'invoiceDate'","'createdAt'","'timestamp'","'time'","'day'"])assert.ok(source.includes(key),key+' must be supported');
 });
+
+test('store movement buttons render the full modal with SVG, print and CSV actions',()=>{
+ const runtime=fs.readFileSync('anas-live-status.js','utf8');
+ for(const token of ['renderStoreMovementReport','customReportModal','anas-store-movement-kpis','data-store-print','data-store-csv','<svg viewBox'])assert.ok(runtime.includes(token),token+' must be wired');
+ assert.match(runtime,/title==='حركة المتجر'\|\|title==='حركة المتجر - رسم بياني'/);
+});
+test('customer ledger uses the shared ordered date resolver and inquiry tabs exist',()=>{
+ const runtime=fs.readFileSync('anas-live-status.js','utf8');
+ assert.ok(runtime.includes('const dateOf=row=>reportRecordDate(row)'));
+ for(const token of ['invoiceDate','createdAt','timestamp','time','day','anas-inquiry-filter-tabs'])assert.ok(runtime.includes(token),token+' must be supported');
+});

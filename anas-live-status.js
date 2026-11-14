@@ -348,9 +348,11 @@
     const val=(r,keys)=>{for(const k of keys){const n=Number(r&&r[k]);if(Number.isFinite(n))return n;}return 0;};
     const sales=arr('invoices').filter(r=>inside(r)&&!(r.cancelled||r.isCancelled||r.reversed||/cancel|void/i.test(String(r.status||''))));
     const purchases=arr('purchases').filter(inside),expenses=arr('expenses').filter(inside);
+    const postedReturns=arr('returns').filter(r=>inside(r)&&r&&r.status==='POSTED'&&r.originalInvoiceType==='sales_invoice');
+    const returnedTotal=postedReturns.reduce((s,r)=>s+val(r,['total','returnTotal','refundAmount','amount']),0);
     const cash=sales.reduce((s,r)=>s+val(r,['cashPaid','cash','paid','paidAmount']),0);
     const credit=sales.reduce((s,r)=>s+Math.max(0,val(r,['debt','remaining','remainingAmount','due'])),0);
-    const metrics=[['صافي المبيعات',sales.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)],['النقد',cash],['الآجل',credit],
+    const metrics=[['صافي المبيعات',sales.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)-returnedTotal],['النقد',cash],['الآجل',credit],
       ['المشتريات',purchases.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)],
       ['المصروفات',expenses.reduce((s,r)=>s+val(r,['amount','total','value']),0)],
       ['رصيد الصندوق',Number(data.cashBalance??data.cashboxBalance??data.cash??(cash-expenses.reduce((s,r)=>s+val(r,['amount','total','value']),0)))||0]];
