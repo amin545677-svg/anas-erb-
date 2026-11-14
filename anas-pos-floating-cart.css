@@ -33,3 +33,31 @@
 
 /* Keep the legacy cart checkout action in-flow; the independent sticky bar owns the fixed mobile edge. */
 @media(max-width:768px){.anas-pos-floating-cart:not([hidden]) .anas-pos-mini-actions .anas-pos-mini-checkout{position:static!important;inset:auto!important;left:auto!important;right:auto!important;bottom:auto!important;width:auto!important;min-height:44px!important;z-index:auto!important;box-shadow:none!important}}
+
+
+/* r40: one mobile cart/checkout surface; legacy sticky sibling is retired in JS. */
+#anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]) {
+  position:fixed!important;inset-inline:8px!important;left:8px!important;right:8px!important;
+  bottom:calc(66px + env(safe-area-inset-bottom,0px))!important;
+  width:auto!important;max-width:760px!important;max-height:min(38dvh,330px)!important;
+  margin-inline:auto!important;z-index:99990!important;overflow:auto!important;
+  padding:9px!important;background:var(--mp-card,#fff)!important;color:var(--mp-text,#172033)!important;
+}
+#anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]) .anas-pos-mini-lines{max-height:15dvh!important;padding:6px 0!important}
+#anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]) .anas-pos-mini-actions{grid-template-columns:repeat(4,minmax(0,1fr))}
+#anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]) .anas-pos-mini-actions .anas-pos-mini-checkout{
+  position:static!important;grid-column:1/-1!important;width:100%!important;min-height:48px!important;
+  background:#15803d!important;color:#fff!important;border:1px solid #166534!important;box-shadow:none!important;
+}
+#anas-sticky-checkout-bar{display:none!important}
+#view-pos{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+:root[data-anas-theme="dark"] #anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]){
+  background:#0f172a!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #anasPosFloatingCart .anas-pos-mini-head,
+:root[data-anas-theme="dark"] #anasPosFloatingCart .anas-pos-mini-line{border-color:#475569!important}
+:root[data-anas-theme="dark"] #anasPosFloatingCart .anas-pos-mini-info small{color:#cbd5e1!important}
+:root[data-anas-theme="dark"] #anasPosFloatingCart .anas-pos-mini-qty button,
+:root[data-anas-theme="dark"] #anasPosFloatingCart .anas-pos-mini-actions button:not(.anas-pos-mini-checkout),
+:root[data-anas-theme="dark"] #anasPosFloatingCart .anas-weight-chip{background:#1e293b!important;color:#f8fafc!important;border-color:#64748b!important}
+@media(min-width:769px){#anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]){bottom:18px!important;right:18px!important;left:auto!important;width:min(460px,calc(100vw - 36px))!important}}
