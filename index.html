@@ -13038,7 +13038,7 @@ function wtAuditTransfers(){
             const from=document.getElementById('reportDateFrom'),to=document.getElementById('reportDateTo');
             try {
                 const saved=JSON.parse(localStorage.getItem(ANAS_REPORT_RANGE_STORAGE_KEY)||'null');
-                if(saved && typeof saved.from==='string' && typeof saved.to==='string' && (!saved.from||reportParseDate(saved.from)) && (!saved.to||reportParseDate(saved.to)) && (!saved.from||!saved.to||saved.from<=saved.to)) {
+                if(saved && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.from||'') && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.to||'') && reportParseDate(saved.from) && reportParseDate(saved.to) && saved.from<=saved.to) {
                     if(from)from.value=saved.from;
                     if(to)to.value=saved.to;
                 }
