@@ -49,7 +49,7 @@ on:
 permissions:
   contents: read
 
-# Serialize Firebase Functions and Firestore-rules deployments to the isolated Staging project.
+# Serialize Functions deployments; Firestore Rules deploy independently via deploy-staging-firestore-rules.yml.
 # PR validation uses its own group so it cannot cancel or replace a queued staging deployment.
 concurrency:
   group: anas-erp-reverse-ledger-functions-staging-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
@@ -235,7 +235,7 @@ jobs:
       - name: Deploy staging Firestore rules and reverse-ledger callable only
         run: |
           npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
+            --only functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
             --project anas-erp-staging-a25e1 \
             --config firebase.staging.json \
             --non-interactive
