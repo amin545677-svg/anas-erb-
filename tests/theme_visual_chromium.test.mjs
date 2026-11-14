@@ -468,6 +468,9 @@ test('video-driven shared controls, product-search popups and AI import surfaces
     await page.route('https://**/*', route => route.abort());
     await page.goto(baseURL, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.body && !document.body.inert);
+    // The production staging build links this stylesheet through build-staging-hosting.mjs.
+    // The root source fixture does not; load the exact shipped stylesheet for visual assertions.
+    await page.addStyleTag({ path: path.join(ROOT, 'anas-erp-ui-safe-enhancements.css') });
     await page.evaluate(() => {
       const fixture = document.createElement('section');
       fixture.id = 'anas-video-theme-fixture';
