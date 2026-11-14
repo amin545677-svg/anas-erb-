@@ -125,7 +125,7 @@ test('Hosting trigger includes app changes while Functions trigger excludes UI-o
 
 test('saved report date range uses a real calendar-date matcher', () => {
   const start=html.indexOf('function reportParseDate(value)');
-  const end=html.indexOf('// بدء التشغيل',start);
+  const end=html.indexOf('function showReportDetails',start);
   assert.ok(start>=0&&end>start);
   const rangeInit=html.slice(start,end);
   assert.match(rangeInit,/\/\^\\d\{4\}-\\d\{2\}-\\d\{2}\$\//);
@@ -133,8 +133,8 @@ test('saved report date range uses a real calendar-date matcher', () => {
 });
 
 test('product kardex safely excludes invalid dates before computing opening balance', () => {
-  assert.match(html,/const before=all\.filter\(m=>\{const d=reportParseDate\(m\.date\);return !!\(kardexFrom&&d&&reportLocalDateValue\(d\)<kardexFrom\);\}\)/);
-  assert.match(html,/sort\(\(a,b\)=>\{const da=reportParseDate\(a\.date\),db=reportParseDate\(b\.date\)/);
+  assert.ok(html.includes("const before=all.filter(m=>{const d=reportParseDate(m.date);return !!(kardexFrom&&d&&reportLocalDateValue(d)<kardexFrom);});"));
+  assert.ok(html.includes("sort((a,b)=>{const da=reportParseDate(a.date),db=reportParseDate(b.date);"));
 });
 
 test('dark AI quick actions and invoice/settings actions have explicit dark surfaces and readable text', () => {
@@ -147,8 +147,8 @@ test('dark AI quick actions and invoice/settings actions have explicit dark surf
 });
 
 test('sale return inventory restoration reduces reported net cost as well as net profit', () => {
-  assert.match(html,/totalCost=Math\.max\(0,totalCost-Number\(restoredCostCents\)\/100\)/);
-  assert.match(html,/lineProfit-=Number\(returnCents-restoredCostCents\)\/100/);
+  assert.ok(html.includes("totalCost=Math.max(0,totalCost-Number(restoredCostCents)/100);"));
+  assert.ok(html.includes("lineProfit-=Number(returnCents-restoredCostCents)/100;"));
 });
 
 test('AI executive dashboard shares the same centime-exact BigInt inventory valuation engine', () => {
