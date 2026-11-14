@@ -1594,3 +1594,81 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
   -webkit-text-fill-color:#f8fafc!important;
   border-color:#64748b!important;
 }
+
+
+/* r40 — component-scoped dark surfaces; preserve semantic POS action colors. */
+:root[data-anas-theme="dark"] #view-ai-excel-hub,
+:root[data-anas-theme="dark"] #aiExcelImportModal,
+:root[data-anas-theme="dark"] #aiExcelImportScreen,
+:root[data-anas-theme="dark"] #anasAiExcelImportModal,
+:root[data-anas-theme="dark"] #aiHubTabContent,
+:root[data-anas-theme="dark"] #view-invoices-list,
+:root[data-anas-theme="dark"] #settingsModal,
+:root[data-anas-theme="dark"] #view-settings {
+  color:#f8fafc;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub :is(.card,.menu-action-card,.ai-import-card,.upload-area,.drop-zone,.dropzone,[class*="excel"],[class*="import"]),
+:root[data-anas-theme="dark"] :is(#aiExcelImportModal,#aiExcelImportScreen,#anasAiExcelImportModal) :is(.modal-content,.modal-body,.card,.upload-area,.drop-zone,.dropzone),
+:root[data-anas-theme="dark"] #aiHubTabContent :is(.card,.ai-action-card,.anas-ai-action-card),
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item),
+:root[data-anas-theme="dark"] :is(#settingsModal,#view-settings) :is(.card,.settings-card,.setting-item) {
+  background-color:#1e293b;
+  color:#f8fafc;
+  border-color:#475569;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub :is(button,[role="button"]),
+:root[data-anas-theme="dark"] #aiHubTabContent :is(button,[role="button"]),
+:root[data-anas-theme="dark"] #view-invoices-list :is(button,[role="button"]),
+:root[data-anas-theme="dark"] :is(#settingsModal,#view-settings) :is(button,[role="button"]) {
+  background-color:#1e293b;
+  color:#f8fafc;
+  border-color:#64748b;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub :is(button,[role="button"]):hover,
+:root[data-anas-theme="dark"] #aiHubTabContent :is(button,[role="button"]):hover,
+:root[data-anas-theme="dark"] #view-invoices-list :is(button,[role="button"]):hover,
+:root[data-anas-theme="dark"] :is(#settingsModal,#view-settings) :is(button,[role="button"]):hover {
+  background-color:#334155;
+  color:#fff;
+}
+/* Semantic POS payment buttons are explicit exceptions to generic theme rules. */
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(1),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="full"],
+:root[data-anas-theme="dark"] #hasibModal button[onclick*="full"] {background-color:#dcfce7;color:#14532d;border-color:#86efac;}
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(2),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="partial"] {background-color:#dbeafe;color:#1e40af;border-color:#93c5fd;}
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(3),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="debt"] {background-color:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+:root[data-anas-theme="dark"] #hasibModal #confirmSaleBtn,
+:root[data-anas-theme="dark"] #hasibModal #confirmPaymentBtn,
+:root[data-anas-theme="dark"] #hasibModal button[data-action="confirm-sale"] {background-color:#15803d;color:#fff;border-color:#166534;}
+/* Bottom navigation follows the active theme rather than legacy white defaults. */
+:root[data-anas-theme="dark"] :is(#anasQuickBottomNav,.anas-bottom-nav,.bottom-nav,.mobile-bottom-nav) {
+  background:#0f172a!important;color:#f8fafc!important;border-color:#1e293b!important;
+  box-shadow:0 -5px 20px rgba(0,0,0,.28);
+}
+:root[data-anas-theme="dark"] :is(#anasQuickBottomNav,.anas-bottom-nav,.bottom-nav,.mobile-bottom-nav) :is(a,button,.nav-item,span,small,i,svg) {
+  color:#f8fafc!important;fill:currentColor;
+}
+:root[data-anas-theme="dark"] :is(#anasQuickBottomNav,.anas-bottom-nav,.bottom-nav,.mobile-bottom-nav) :is(.active,[aria-current="page"]) {
+  background:#1e293b!important;color:#fff!important;
+}
+/* Day-mode KPI digits must remain legible when nested theme variables are unset. */
+:root[data-anas-theme="light"] #aiHubTabContent :is(.kpi-value,.stat-value,.metric-value,.ai-kpi-number,.dashboard-stat-value),
+:root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.kpi-value,.stat-value,.metric-value,.ai-kpi-number,.dashboard-stat-value) {
+  color:#0f172a!important;opacity:1!important;-webkit-text-fill-color:#0f172a;
+}
+/* Numeric registry identifiers: prevent RTL truncation of the final digits. */
+:is(input,textarea,[contenteditable="true"])[name*="NIF" i],
+:is(input,textarea,[contenteditable="true"])[name*="RC" i],
+:is(input,textarea,[contenteditable="true"])[name*="Art" i],
+:is(input,textarea,[contenteditable="true"])[name*="NIC" i],
+:is(input,textarea,[contenteditable="true"])[id*="NIF" i],
+:is(input,textarea,[contenteditable="true"])[id*="RC" i],
+:is(input,textarea,[contenteditable="true"])[id*="Art" i],
+:is(input,textarea,[contenteditable="true"])[id*="NIC" i] {
+  direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums;
+}
+:is(.badge,.status-badge,[class*="priority"],.tax-icon,[aria-label*="TAX" i]) {
+  white-space:nowrap;flex-shrink:0;
+}
