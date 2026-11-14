@@ -1130,3 +1130,57 @@ button.is-loading,
   color:#f3f7ff!important;
   -webkit-text-fill-color:#f3f7ff!important;
 }
+
+
+/* Video-driven print correction: let the legal invoice flow naturally across
+   A4 pages. The legacy fixed-height/unbreakable wrapper could spill onto a
+   second blank page or clip longer invoices. */
+:root[data-anas-theme] .picker-dialog-scroll {
+  background:var(--anas-video-panel-bg)!important;
+  color:var(--anas-video-panel-text)!important;
+  border-color:var(--anas-video-control-border)!important;
+}
+@page { size:A4 portrait; margin:8mm; }
+@media print {
+  html, body {
+    width:auto!important;height:auto!important;min-height:0!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    background:#fff!important;
+  }
+  body * { visibility:hidden!important; }
+  #receiptPrintArea.printable, #receiptPrintArea.printable *,
+  #legalInvoiceA4Area.printable, #legalInvoiceA4Area.printable * {
+    visibility:visible!important;
+  }
+  #legalInvoiceA4Area.printable {
+    position:static!important;display:block!important;
+    width:auto!important;max-width:none!important;
+    height:auto!important;max-height:none!important;min-height:0!important;
+    overflow:visible!important;margin:0!important;padding:0!important;
+    border:0!important;box-sizing:border-box!important;
+    page-break-after:auto!important;page-break-inside:auto!important;
+    break-after:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable > div {
+    width:auto!important;max-width:none!important;min-height:0!important;
+    height:auto!important;max-height:none!important;margin:0!important;
+    overflow:visible!important;box-sizing:border-box!important;
+    page-break-inside:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable * {
+    page-break-inside:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable table {
+    page-break-inside:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable thead { display:table-header-group!important; }
+  #legalInvoiceA4Area.printable tfoot { display:table-footer-group!important; }
+  #legalInvoiceA4Area.printable tr {
+    page-break-inside:avoid!important;break-inside:avoid!important;
+  }
+  #receiptPrintArea.printable, #legalInvoiceA4Area.printable,
+  #receiptPrintArea.printable *, #legalInvoiceA4Area.printable * {
+    color:#111!important;-webkit-text-fill-color:#111!important;
+    box-shadow:none!important;
+  }
+}
