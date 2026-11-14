@@ -1249,8 +1249,8 @@ button.is-loading,
 
 /* r39.1 — close legacy cascade leaks without flattening semantic POS actions.
    The extra root/html/body specificity wins over later legacy button shorthand rules. */
-:root[data-anas-theme="dark"] html body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
-:root[data-anas-theme="dark"] html body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) {
+html:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
+html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) {
   background:#26364d!important;
   background-color:#26364d!important;
   background-image:none!important;
