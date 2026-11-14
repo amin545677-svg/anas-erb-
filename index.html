@@ -9240,11 +9240,13 @@ function wtAuditTransfers(){
             cash: { showAdds:false, showDeductions:false, showCashScreen:false },
             stock: { showAvailable:false }
         };
+        try { const saved=JSON.parse(localStorage.getItem('ANAS_QUERY_OPTIONS')||'null'); if(saved&&typeof saved==='object') for(const g of Object.keys(ANAS_QUERY_OPTIONS)) for(const k of Object.keys(ANAS_QUERY_OPTIONS[g])) if(typeof saved[g]?.[k]==='boolean') ANAS_QUERY_OPTIONS[g][k]=saved[g][k]; } catch (_) {}
         window.ANAS_QUERY_OPTIONS = ANAS_QUERY_OPTIONS;
         function anasSetInquiryOption(group, key, checked) {
             if (!Object.prototype.hasOwnProperty.call(ANAS_QUERY_OPTIONS, group) ||
                 !Object.prototype.hasOwnProperty.call(ANAS_QUERY_OPTIONS[group], key)) return false;
             ANAS_QUERY_OPTIONS[group][key] = checked === true;
+            try { localStorage.setItem('ANAS_QUERY_OPTIONS',JSON.stringify(ANAS_QUERY_OPTIONS)); } catch (_) {}
             return true;
         }
 
@@ -12580,13 +12582,13 @@ function wtAuditTransfers(){
         }
         function reportParseDate(value) {
             if (!value) return null;
-            if (value instanceof Date && !isNaN(value)) return new Date(value.getFullYear(),value.getMonth(),value.getDate());
+            if (value instanceof Date) { if(Number.isNaN(value.getTime()))return null; return new Date(value.getFullYear(),value.getMonth(),value.getDate()); }
             const raw=String(value).trim();
-            let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-            if(m){const d=new Date(+m[1],+m[2]-1,+m[3]);return isNaN(d)?null:d;}
-            m=raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-            if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d)?null:d;}
-            const d=new Date(raw); return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+            let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);
+            if(m){const y=+m[1],mo=+m[2],day=+m[3],d=new Date(y,mo-1,day);return d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?d:null;}
+            m=raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+            if(m){const day=+m[1],mo=+m[2],y=+m[3],d=new Date(y,mo-1,day);return d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?d:null;}
+            const d=new Date(raw); return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
         }
         const ANAS_REPORT_RANGE_STORAGE_KEY = 'ANAS_REPORT_RANGE_V1';
         function anasPersistReportDateRange() {
@@ -12622,6 +12624,7 @@ function wtAuditTransfers(){
         function applyReportDateRange(){
             const {from,to}=getReportRange();
             const status=document.getElementById('reportDateRangeStatus');
+            if((from&&!reportParseDate(from))||(to&&!reportParseDate(to))){if(status)status.textContent='⚠️ تاريخ الفترة غير صالح تقويمياً.';return false;}
             if(from&&to&&from>to){if(status)status.textContent='⚠️ تاريخ البداية يجب أن يكون قبل تاريخ النهاية.';return false;}
             if(status)status.textContent=`الفترة المحددة: ${from||'دون بداية'} إلى ${to||'دون نهاية'} — المبيعات المطابقة: ${getReportInvoices().length}، المشتريات المطابقة: ${getReportPurchases().length}`;
             if(typeof renderAllStatistics==='function') renderAllStatistics();
