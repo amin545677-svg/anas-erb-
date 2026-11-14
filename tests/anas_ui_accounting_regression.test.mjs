@@ -125,7 +125,7 @@ test('Hosting trigger includes app changes while Functions trigger excludes UI-o
 
 test('saved report date range uses a real calendar-date matcher', () => {
   const start=html.indexOf('function reportParseDate(value)');
-  const end=html.indexOf('function showReportDetails',start);
+  const end=html.indexOf('// بدء التشغيل',start);
   assert.ok(start>=0&&end>start);
   const rangeInit=html.slice(start,end);
   assert.match(rangeInit,/\/\^\\d\{4\}-\\d\{2\}-\\d\{2}\$\//);

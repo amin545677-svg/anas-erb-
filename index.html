@@ -9120,6 +9120,7 @@ function wtAuditTransfers(){
             const returnCents=postedSaleReturns.reduce((n,r)=>n+BigInt(Number.isSafeInteger(r.totalCentimes)?r.totalCentimes:0),0n);
             const restoredCostCents=postedSaleReturns.reduce((n,r)=>n+(Array.isArray(r.items)?r.items.reduce((a,it)=>a+BigInt(Number.isSafeInteger(it.restoredInventoryCostCentimes)?it.restoredInventoryCostCentimes:0),0n):0n),0n);
             totalRevenue=Math.max(0,totalRevenue-Number(returnCents)/100);
+            totalCost=Math.max(0,totalCost-Number(restoredCostCents)/100);
             lineProfit-=Number(returnCents-restoredCostCents)/100;
             const netProfit = lineProfit;
             const range = typeof getReportRange==='function' ? getReportRange() : {from:'',to:''};
@@ -9639,8 +9640,8 @@ function wtAuditTransfers(){
                 (AppData.stockAdjustments||AppData.damagedStock||[]).filter(m=>reportItemInRange(m)).forEach(m=>addMove(m,m.type||'تالف/تسوية',m.direction==='in'?1:-1));
                 const productRows=[],{from:kardexFrom,to:kardexTo}=getReportRange();
                 products.forEach(p=>{
-                    const all=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-                    const before=all.filter(m=>kardexFrom&&reportLocalDateValue(reportParseDate(m.date))<kardexFrom);
+                    const all=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>{const da=reportParseDate(a.date),db=reportParseDate(b.date);return (da?.getTime()??0)-(db?.getTime()??0)||String(a.ref||'').localeCompare(String(b.ref||''));});
+                    const before=all.filter(m=>{const d=reportParseDate(m.date);return !!(kardexFrom&&d&&reportLocalDateValue(d)<kardexFrom);});
                     const current=all.filter(m=>{const d=reportParseDate(m.date),day=d?reportLocalDateValue(d):'';return d&&(!kardexFrom||day>=kardexFrom)&&(!kardexTo||day<=kardexTo);});
                     let balance=before.reduce((n,m)=>n+m.delta,0);
                     if(kardexFrom&&before.length)productRows.push([p.name||p.id,kardexFrom,'رصيد افتتاحي قبل الفترة','—','—',balance.toLocaleString('fr-DZ')]);
@@ -13037,7 +13038,7 @@ function wtAuditTransfers(){
             const from=document.getElementById('reportDateFrom'),to=document.getElementById('reportDateTo');
             try {
                 const saved=JSON.parse(localStorage.getItem(ANAS_REPORT_RANGE_STORAGE_KEY)||'null');
-                if(saved && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.from||'') && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.to||'') && saved.from<=saved.to) {
+                if(saved && /^\d{4}-\d{2}-\d{2}$/.test(saved.from||'') && /^\d{4}-\d{2}-\d{2}$/.test(saved.to||'') && saved.from<=saved.to) {
                     if(from)from.value=saved.from;
                     if(to)to.value=saved.to;
                 }
