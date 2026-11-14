@@ -1245,3 +1245,39 @@ button.is-loading,
   color:#f3f7ff!important;
   border-color:#526782!important;
 }
+
+
+/* r39.1 — close legacy cascade leaks without flattening semantic POS actions.
+   The extra root/html/body specificity wins over later legacy button shorthand rules. */
+:root[data-anas-theme="dark"] html body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
+:root[data-anas-theme="dark"] html body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) {
+  background:#26364d!important;
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+
+/* Payment shortcuts retain their individual financial meaning in both themes. */
+#hasibModal .anas-quick-payment-actions > button:nth-child(1) {
+  background:#dcfce7!important;
+  background-color:#dcfce7!important;
+  color:#166534!important;
+  -webkit-text-fill-color:#166534!important;
+  border-color:#86efac!important;
+}
+#hasibModal .anas-quick-payment-actions > button:nth-child(2) {
+  background:#eff6ff!important;
+  background-color:#eff6ff!important;
+  color:#1e40af!important;
+  -webkit-text-fill-color:#1e40af!important;
+  border-color:#bfdbfe!important;
+}
+#hasibModal .anas-quick-payment-actions > button:nth-child(3) {
+  background:#fee2e2!important;
+  background-color:#fee2e2!important;
+  color:#991b1b!important;
+  -webkit-text-fill-color:#991b1b!important;
+  border-color:#fca5a5!important;
+}
