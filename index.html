@@ -9007,7 +9007,9 @@ function wtAuditTransfers(){
         }
 
         function showProfitsReportModal() {
-            const invoices = (typeof getReportInvoices === 'function' ? getReportInvoices() : (Array.isArray(AppData.invoices) ? AppData.invoices : []));
+            const allProfitInvoices=(typeof getReportInvoices==='function'?getReportInvoices():(Array.isArray(AppData.invoices)?AppData.invoices:[]));
+            const cancelledProfitInvoices=allProfitInvoices.filter(inv=>inv&&(inv.cancelled===true||inv.isCancelled===true||['cancelled','CANCELLED','void','VOID'].includes(inv.status)||inv.reversed===true));
+            const invoices=allProfitInvoices.filter(inv=>!cancelledProfitInvoices.includes(inv));
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));
             const invalidPresentNumber = (record, keys) => { const key=keys.find(k=>Object.prototype.hasOwnProperty.call(record,k)&&record[k]!==undefined&&record[k]!==null); return key!==undefined&&invalidProfitNumber(record[key]); };
@@ -9019,7 +9021,7 @@ function wtAuditTransfers(){
                 return;
             }
             const byProduct = {}, byCategory = {}, byCustomer = {}, byUser = {};
-            let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0;
+            let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0, incompleteCostLines = 0;
             const moneyFmt = n => (Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
             const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const add = (obj, key, qty, revenue, cost, profit) => {
@@ -9034,9 +9036,11 @@ function wtAuditTransfers(){
                     const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
                     const price = Number(it.price ?? it.salePrice ?? it.sellingPrice ?? 0) || 0;
                     const prod = products.find(p => String(p.id) === String(it.id ?? it.productId ?? it.product_id));
-                    const costPrice = Number(it.buyPrice ?? it.costPrice ?? it.purchasePrice ?? (prod ? prod.buyPrice : 0)) || 0;
+                    const rawCost=it.buyPrice??it.costPrice??it.purchasePrice??(prod?prod.buyPrice:null);
+                    const costPrice=rawCost!==null&&rawCost!==undefined&&String(rawCost).trim()!==''&&Number.isFinite(Number(rawCost))&&Number(rawCost)>=0?Number(rawCost):null;
                     const revenue = Number(it.total ?? it.subtotal ?? (price * qty)) || (price * qty);
-                    const cost = costPrice * qty, profit = revenue - cost;
+                    const cost = costPrice===null?0:costPrice*qty, profit = costPrice===null?0:revenue-cost;
+                    if(costPrice===null)incompleteCostLines++;
                     const pname = it.name || (prod && prod.name) || 'منتج غير معروف';
                     const category = (prod && (prod.cat || prod.category)) || it.category || 'بدون تصنيف';
                     invRevenue += revenue; itemCount += qty; totalCost += cost; lineProfit += profit;
@@ -9063,8 +9067,7 @@ function wtAuditTransfers(){
                     const costPrice = Number(it.buyPrice ?? it.costPrice ?? it.purchasePrice ?? (prod ? prod.buyPrice : 0)) || 0;
                     const price = Number(it.price ?? it.salePrice ?? it.sellingPrice ?? 0) || 0;
                     const revenue = Number(it.total ?? it.subtotal ?? (price * qty)) || price * qty;
-                    customerQty += qty; itemRevenue += revenue; customerCost += costPrice * qty;
-                    customerProfit += revenue - costPrice * qty;
+                    customerQty += qty; itemRevenue += revenue; if(costPrice!==null){customerCost += costPrice * qty; customerProfit += revenue - costPrice * qty;}
                 });
                 if (!byCustomer[customerKey]) byCustomer[customerKey] = {name: customerName, qty:0, revenue:0, cost:0, profit:0, invoices:0};
                 byCustomer[customerKey].name = customerName;
@@ -9094,6 +9097,11 @@ function wtAuditTransfers(){
                 const userMode = type === 'user';
                 return `<div class="profit-table-wrap"><table class="profit-table"><thead><tr><th>${customerMode?'اسم العميل':userMode?'اسم المستخدم':'الاسم'}</th>${(customerMode||userMode)?'<th>عدد الفواتير</th>':''}${userMode?'<th>الصلاحية</th>':''}<th>الكمية</th><th>المبيعات</th><th>التكلفة</th><th>الربح</th><th>هامش الربح</th></tr></thead><tbody>${rows.map(([key,v])=>{const margin=v.revenue>0?(v.profit/v.revenue*100):0;const name=(customerMode||userMode)?v.name:key;return `<tr><td>${esc(name)}</td>${(customerMode||userMode)?`<td>${Number(v.invoices||0).toLocaleString('fr-DZ')}</td>`:''}${userMode?`<td>${esc(v.role||'—')}</td>`:''}<td>${Number(v.qty||0).toLocaleString('fr-DZ')}</td><td>${moneyFmt(v.revenue)}</td><td>${moneyFmt(v.cost)}</td><td class="${v.profit<0?'profit-negative':'profit-positive'}">${moneyFmt(v.profit)}</td><td class="${margin<0?'profit-negative':'profit-positive'}">${margin.toLocaleString('fr-DZ',{maximumFractionDigits:1})}%</td></tr>`}).join('')}</tbody></table></div>`;
             };
+            const postedSaleReturns=(Array.isArray(AppData.returns)?AppData.returns:[]).filter(r=>r&&r.status==='POSTED'&&r.returnType==='SALE_RETURN'&&r.originalInvoiceType==='sales_invoice'&&reportItemInRange(r,['createdAt','date','timestamp']));
+            const returnCents=postedSaleReturns.reduce((n,r)=>n+BigInt(Number.isSafeInteger(r.totalCentimes)?r.totalCentimes:0),0n);
+            const restoredCostCents=postedSaleReturns.reduce((n,r)=>n+(Array.isArray(r.items)?r.items.reduce((a,it)=>a+BigInt(Number.isSafeInteger(it.restoredInventoryCostCentimes)?it.restoredInventoryCostCentimes:0),0n):0n),0n);
+            totalRevenue=Math.max(0,totalRevenue-Number(returnCents)/100);
+            lineProfit-=Number(returnCents-restoredCostCents)/100;
             const netProfit = lineProfit;
             const range = typeof getReportRange==='function' ? getReportRange() : {from:'',to:''};
             document.getElementById('profitsReportBody').innerHTML = `
@@ -9211,6 +9219,7 @@ function wtAuditTransfers(){
 
 </style>
               <div class="profit-note">الفترة: ${esc(range.from||'كل الفترات')} — ${esc(range.to||'حتى اليوم')} | عدد الفواتير: ${invoices.length}</div>
+              <div class="profit-note" role="status">تنبيه محاسبي: ${incompleteCostLines} بنداً غير مكتمل التكلفة ولم يُحتسب ربحه. خُصم ${postedSaleReturns.length} مرتجع بيع مرحّل بقيمة ${(Number(returnCents)/100).toFixed(2)} د.ج، واستُبعد ${cancelledProfitInvoices.length} فاتورة ملغاة.</div>
               <div class="profit-summary">
                 <div class="profit-stat main"><span>💰 إجمالي الأرباح المحسوبة</span><strong>${moneyFmt(netProfit)}</strong></div>
                 <div class="profit-stat"><span>🛒 إجمالي المبيعات</span><strong>${moneyFmt(totalRevenue)}</strong></div>
@@ -9419,6 +9428,10 @@ function wtAuditTransfers(){
             } else {
                 content.innerHTML = `<p style="text-align:center;color:#b45309;font-weight:700;">هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق؛ لم يتم إنشاء نتائج تقديرية أو تسجيل أي عملية.</p>`;
             }
+            const rangeMeta=getReportRange(), reportSources=[AppData.invoices,AppData.purchases,AppData.clientMovements,AppData.cashMovements,AppData.expenses];
+            let auditMatched=0,auditExcluded=0;
+            reportSources.forEach(rows=>(Array.isArray(rows)?rows:[]).forEach(row=>{const raw=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(k=>row?.[k]).find(v=>v!==undefined&&v!==null&&v!=='');const d=reportParseDate(raw);if(!d){auditExcluded++;return;}const day=reportLocalDateValue(d);if((!rangeMeta.from||day>=rangeMeta.from)&&(!rangeMeta.to||day<=rangeMeta.to))auditMatched++;}));
+            content.insertAdjacentHTML('afterbegin',\`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> \${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> AppData · <strong>المطابقة:</strong> \${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> \${auditExcluded}</section>\`);
             document.getElementById('customReportModal').classList.add('active');
             const searchBox = document.getElementById('anasReportSearch');
             if (searchBox) searchBox.value = '';
