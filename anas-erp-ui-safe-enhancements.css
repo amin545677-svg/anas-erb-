@@ -2047,31 +2047,19 @@ body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
 }
 
 
-/* r46 — override legacy high-specificity semantic POS colors to honor the requested
-   single action palette. Financial meaning remains in labels and transaction logic. */
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(1),
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(2),
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(3),
-html:root[data-anas-theme] body #hasibModal button[data-payment-mode],
-html:root[data-anas-theme] body #hasibModal #confirmSaleBtn,
-html:root[data-anas-theme] body #hasibModal #confirmPaymentBtn,
-html:root[data-anas-theme] body #hasibModal button[data-action="confirm-sale"],
-html:root[data-anas-theme] body #anas-sticky-checkout-submit,
-html:root[data-anas-theme] body .anas-pos-mini-checkout {
+/* r47 — override the higher-specificity r40.5 semantic payment palette.
+   User-requested unified action color supersedes green/neutral/red visual coding. */
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3) {
   background:#1d4ed8!important;
   background-color:#1d4ed8!important;
   background-image:none!important;
-  color:#fff!important;
-  -webkit-text-fill-color:#fff!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
   border-color:#1d4ed8!important;
-}
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(1) *,
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(2) *,
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(3) *,
-html:root[data-anas-theme] body #hasibModal button[data-payment-mode] *,
-html:root[data-anas-theme] body #hasibModal #confirmSaleBtn *,
-html:root[data-anas-theme] body #hasibModal #confirmPaymentBtn *,
-html:root[data-anas-theme] body #hasibModal button[data-action="confirm-sale"] * {
-  color:#fff!important;
-  -webkit-text-fill-color:#fff!important;
+  transition:none!important;
 }
