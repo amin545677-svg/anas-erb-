@@ -170,3 +170,28 @@ test('smart uploads enforce 2MB spreadsheets, 10MB media and a 50-per-day quota 
   assert.match(upload, /quotaState\.allowed/);
   assert.match(html, /const maxBytes=10\*1024\*1024/);
 });
+
+test('AI Center is organized as one responsive workspace with four working areas', () => {
+  for (const tab of ['overview', 'assistant', 'documents', 'insights']) {
+    assert.match(html, new RegExp('data-ai-workspace-tab="' + tab + '"'));
+    assert.match(html, new RegExp('data-ai-workspace-panel="' + tab + '"'));
+  }
+  assert.match(html, /function anasAiShowWorkspaceTab\(tabKey, button\)/);
+  assert.match(html, /aria-pressed/);
+  assert.match(html, /anasAiShowWorkspaceTab\('assistant'\);anasSetAiPrompt/);
+  assert.match(html, /--mp-card/);
+  assert.match(html, /prefers-reduced-motion:reduce/);
+  for (const id of ['anasAiQuestion','anasAiAskBtn','anasAiShareContext','smartAiExcelUpload','smartAiPdfUpload','smartPdfExtractText','anasAiExecutiveMetrics','anasAiMorningBrief','anasAiProactiveInsights']) {
+    assert.ok(html.includes('id="' + id + '"'), 'Missing preserved AI Center integration point: ' + id);
+  }
+});
+
+test('AI Center workspace navigation changes panels without rebuilding or losing entered content', () => {
+  const start = html.indexOf('function anasAiShowWorkspaceTab(tabKey, button)');
+  const end = html.indexOf('function renderAiHub()', start);
+  assert.ok(start >= 0 && end > start, 'workspace navigation function must be independently testable');
+  const source = html.slice(start, end);
+  assert.match(source, /panel\.hidden = panel\.getAttribute\('data-ai-workspace-panel'\) !== tabKey/);
+  assert.match(source, /setAttribute\('aria-pressed'/);
+  assert.doesNotMatch(source, /innerHTML|replaceChildren|renderAiHub/);
+});

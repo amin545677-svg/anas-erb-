@@ -72,6 +72,67 @@
             user-select: text;
         }
 
+        
+        /* ANAS AI Center — unified workspace, theme-aware and mobile-first. */
+        #aiHubTabContent .anas-ai-shell { display:grid; gap:14px; color:var(--mp-text-dark,#172033); }
+        #aiHubTabContent .anas-ai-hero { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; padding:18px; border:1px solid var(--mp-border,#dbe3ee); border-radius:18px; background:linear-gradient(135deg,var(--mp-card,#fff),var(--mp-bg,#f5f7fb)); }
+        #aiHubTabContent .anas-ai-eyebrow { display:block; color:var(--mp-text-muted,#64748b); font-size:10px; font-weight:850; letter-spacing:.09em; }
+        #aiHubTabContent .anas-ai-hero h3 { margin:4px 0 6px; color:var(--mp-text-dark,#172033); font-size:clamp(20px,4vw,26px); font-weight:900; }
+        #aiHubTabContent .anas-ai-hero p,#aiHubTabContent .anas-ai-panel-card p,#aiHubTabContent .anas-ai-section-description { color:var(--mp-text-muted,#64748b); font-size:12px; line-height:1.75; margin:0; }
+        #aiHubTabContent .anas-ai-hero-status { min-width:0; }
+        #aiHubTabContent .anas-ai-workspace-nav { display:flex; gap:7px; padding:5px; overflow-x:auto; border:1px solid var(--mp-border,#dbe3ee); border-radius:13px; background:var(--mp-card,#fff); scrollbar-width:thin; }
+        #aiHubTabContent .anas-ai-workspace-nav button { flex:0 0 auto; min-height:40px; padding:8px 13px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--mp-text-muted,#64748b); font:inherit; font-size:12px; font-weight:800; white-space:nowrap; }
+        #aiHubTabContent .anas-ai-workspace-nav button.is-active { border-color:var(--mp-border,#dbe3ee); background:var(--mp-blue-light,#eff6ff); color:var(--mp-blue,#1d4ed8); }
+        #aiHubTabContent .anas-ai-workspace-panel[hidden],#aiHubTabContent [hidden] { display:none !important; }
+        #aiHubTabContent .anas-ai-workspace-panel { display:grid; gap:13px; min-width:0; }
+        #aiHubTabContent .anas-ai-section-heading,#aiHubTabContent .anas-ai-card-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
+        #aiHubTabContent .anas-ai-section-heading h4,#aiHubTabContent .anas-ai-card-heading h4 { margin:3px 0 0; color:var(--mp-text-dark,#172033); font-size:15px; font-weight:900; }
+        #aiHubTabContent .anas-ai-local-tag { display:inline-flex; align-items:center; padding:5px 9px; border:1px solid var(--mp-border,#dbe3ee); border-radius:999px; color:var(--mp-text-muted,#64748b); font-size:10px; font-weight:800; white-space:nowrap; }
+        #aiHubTabContent .anas-ai-action-grid,#aiHubTabContent .anas-ai-document-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+        #aiHubTabContent .anas-ai-action-card,#aiHubTabContent .anas-ai-document-card { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:5px; min-width:0; min-height:112px; padding:13px; border:1px solid var(--mp-border,#dbe3ee); border-radius:14px; background:var(--mp-card,#fff); color:var(--mp-text-dark,#172033); text-align:right; font:inherit; cursor:pointer; }
+        #aiHubTabContent .anas-ai-action-card>span,#aiHubTabContent .anas-ai-document-card>span { font-size:21px; }
+        #aiHubTabContent .anas-ai-action-card strong,#aiHubTabContent .anas-ai-document-card strong { font-size:13px; font-weight:900; }
+        #aiHubTabContent .anas-ai-action-card small,#aiHubTabContent .anas-ai-document-card small { color:var(--mp-text-muted,#64748b); font-size:11px; line-height:1.5; }
+        #aiHubTabContent .anas-ai-action-card:focus-visible,#aiHubTabContent .anas-ai-document-card:focus-visible,#aiHubTabContent .anas-ai-workspace-nav button:focus-visible { outline:3px solid var(--mp-blue,#2563eb); outline-offset:2px; }
+        #aiHubTabContent .anas-ai-two-column { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+        #aiHubTabContent .anas-ai-panel-card,#aiHubTabContent .anas-ai-chat-card { min-width:0; padding:14px; border:1px solid var(--mp-border,#dbe3ee); border-radius:15px; background:var(--mp-card,#fff); color:var(--mp-text-dark,#172033); }
+        #aiHubTabContent .anas-ai-panel-card { display:grid; align-content:start; gap:9px; }
+        #aiHubTabContent .anas-ai-card-heading>span { font-size:20px; }
+        #aiHubTabContent .anas-ai-primary-button,#aiHubTabContent .anas-ai-secondary-button { width:100%; min-height:44px; padding:10px 13px; border:1px solid var(--mp-blue,#2563eb); border-radius:10px; background:var(--mp-blue,#2563eb); color:#fff; font:inherit; font-size:12px; font-weight:850; cursor:pointer; }
+        #aiHubTabContent .anas-ai-secondary-button { border-color:var(--mp-border,#dbe3ee); background:var(--mp-bg,#f3f6fb); color:var(--mp-text-dark,#172033); }
+        #aiHubTabContent .anas-ai-text-button { min-height:38px; padding:7px 10px; border:1px solid var(--mp-border,#dbe3ee); border-radius:9px; background:var(--mp-card,#fff); color:var(--mp-blue,#2563eb); font:inherit; font-size:11px; font-weight:800; }
+        #aiHubTabContent .anas-ai-chat-card { display:grid; gap:10px; }
+        #aiHubTabContent #anasAiChatLog { max-height:min(42dvh,360px); min-height:90px; overflow:auto; padding:10px; border:1px solid var(--mp-border,#dbe3ee); border-radius:10px; background:var(--mp-bg,#f8fafc); overflow-wrap:anywhere; }
+        #aiHubTabContent .anas-ai-empty-state { color:var(--mp-text-muted,#64748b); font-size:12px; line-height:1.7; }
+        #aiHubTabContent #anasAiQuestion,#aiHubTabContent #smartPdfExtractText { width:100%; min-width:0; max-width:100%; padding:11px; border:1px solid var(--mp-border,#cbd5e1); border-radius:10px; background:var(--mp-input-bg,#fff); color:var(--mp-text-dark,#172033); font:inherit; }
+        #aiHubTabContent .anas-ai-chat-options { display:grid; grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr); gap:10px; }
+        #aiHubTabContent .anas-ai-chat-options label { display:grid; gap:5px; min-width:0; color:var(--mp-text-dark,#172033); font-size:11px; font-weight:800; }
+        #aiHubTabContent #anasAiAnswerStyle { width:100%; min-width:0; padding:9px; border:1px solid var(--mp-border,#dbe3ee); border-radius:9px; background:var(--mp-input-bg,#fff); color:var(--mp-text-dark,#172033); }
+        #aiHubTabContent .anas-ai-consent { display:flex !important; grid-template-columns:auto 1fr; align-items:flex-start; gap:8px !important; padding:9px; border:1px solid var(--mp-border,#dbe3ee); border-radius:10px; }
+        #aiHubTabContent .anas-ai-consent input { width:17px; height:17px; margin:2px 0 0; flex:0 0 auto; }
+        #aiHubTabContent .anas-ai-consent span { display:grid; gap:3px; }
+        #aiHubTabContent .anas-ai-consent small,#aiHubTabContent .anas-ai-disclaimer { color:var(--mp-text-muted,#64748b); font-size:10px; line-height:1.6; }
+        #aiHubTabContent .anas-ai-disclaimer { display:block; }
+        #aiHubTabContent .anas-ai-command-card { margin-top:0; }
+        #aiHubTabContent #anasAiNaturalDraft,#aiHubTabContent #anasAiExecutiveMetrics,#aiHubTabContent #anasAiMorningBrief,#aiHubTabContent #anasAiProactiveInsights,#aiHubTabContent #anasLocalAuditResults,#aiHubTabContent #smartAiExcelStatus { color:var(--mp-text-dark,#172033); font-size:12px; line-height:1.75; overflow-wrap:anywhere; }
+        #aiHubTabContent #smartAiExcelUpload,#aiHubTabContent #smartAiPdfUpload { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+        #aiHubTabContent #anasAiDataProtectionPanel,#aiHubTabContent #smartPdfExtractResults { padding:12px; border:1px solid var(--mp-border,#dbe3ee); border-radius:12px; background:var(--mp-bg,#f8fafc); color:var(--mp-text-dark,#172033); }
+        #aiHubTabContent .anas-ai-document-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin-top:9px; }
+        #aiHubTabContent .anas-ai-document-actions button { min-height:42px; padding:8px; border:1px solid var(--mp-border,#dbe3ee); border-radius:9px; background:var(--mp-card,#fff); color:var(--mp-text-dark,#172033); font:inherit; font-size:11px; }
+        #aiHubTabContent .anas-ai-export-row { margin-top:3px; }
+        #aiHubTabContent button,#aiHubTabContent label { touch-action:manipulation; }
+        @media(max-width:520px) {
+          #aiHubTabContent .anas-ai-two-column { grid-template-columns:minmax(0,1fr); }
+          #aiHubTabContent .anas-ai-chat-options { grid-template-columns:minmax(0,1fr); }
+          #aiHubTabContent .anas-ai-hero { padding:14px; }
+          #aiHubTabContent .anas-ai-action-card,#aiHubTabContent .anas-ai-document-card { min-height:104px; padding:11px; }
+        }
+        @media(max-width:359px) {
+          #aiHubTabContent .anas-ai-action-grid,#aiHubTabContent .anas-ai-document-grid { grid-template-columns:minmax(0,1fr); }
+          #aiHubTabContent .anas-ai-workspace-nav button { padding-inline:10px; }
+        }
+        @media(prefers-reduced-motion:reduce) { #aiHubTabContent * { scroll-behavior:auto !important; transition:none !important; } }
+
         /* AI hub mobile ergonomics: collapse grids, keep touch targets comfortable, and contain scrolling. */
         @media (max-width: 768px) {
             #aiHubTabContent {
@@ -11097,119 +11158,157 @@ function anasGetAiHubKpiMetrics(tabKey) {
             renderAiHub();
         }
 
+        function anasAiShowWorkspaceTab(tabKey, button) {
+            const root = document.getElementById('aiHubTabContent');
+            if (!root) return false;
+            const allowed = new Set(['overview', 'assistant', 'documents', 'insights']);
+            if (!allowed.has(tabKey)) return false;
+            root.querySelectorAll('[data-ai-workspace-panel]').forEach(panel => {
+                panel.hidden = panel.getAttribute('data-ai-workspace-panel') !== tabKey;
+            });
+            root.querySelectorAll('[data-ai-workspace-tab]').forEach(tab => {
+                const active = tab.getAttribute('data-ai-workspace-tab') === tabKey;
+                tab.classList.toggle('is-active', active);
+                tab.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            if (button && button.getAttribute('data-ai-workspace-tab') !== tabKey) {
+                const matching = root.querySelector('[data-ai-workspace-tab="' + tabKey + '"]');
+                if (matching) matching.focus({ preventScroll: true });
+            }
+            return true;
+        }
+
         function renderAiHub() {
             anasRefreshAiHubStatus();
             const cont = document.getElementById('aiHubTabContent');
+            if (!cont) return;
             cont.innerHTML = `
-                <div class="card anas-ai-card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:28px">🧠</span><div><h3 style="margin:0;font-weight:900">Anas AI — المساعد التجاري</h3><small style="color:var(--mp-text-muted)">تحليل محلي فوري + مساعد متصل عند إعداد الخادم</small></div></div>
-                    <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">الفحص المحلي لا يرسل البيانات إلى الإنترنت. المساعد المتصل لا يعمل إلا بعد إعداد رابط الخادم.</p>
-                    <div id="anasAiHubKpis" class="anas-ai-hub-kpis" aria-label="مؤشرات تبويب الذكاء الاصطناعي"></div>
-                    <button type="button" class="btn-full-submit" style="background:#0f766e;width:100%;margin:6px 0" onclick="anasRunLocalBusinessAudit()">🔎 فحص ذكي شامل للبيانات الآن</button>
-                    <div id="anasLocalAuditResults" role="status" aria-live="polite" style="margin:8px 0;line-height:1.65;font-size:13px"></div>
-                    <section class="anas-ai-section" aria-label="اختصارات الذكاء الاصطناعي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
-                      <strong style="display:block;margin-bottom:8px;font-size:13px">⚡ مهام سريعة — اختر المهمة ثم أرسلها</strong>
-                      <div class="anas-ai-grid anas-ai-quick-actions" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px">
-                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#2563eb" onclick="anasSetAiPrompt('حلّل مبيعات اليوم من البيانات المتاحة فقط، واذكر الفترة ومصدر الأرقام وأي بيانات ناقصة.')">📈 تحليل مبيعات اليوم</button>
-                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#7c3aed" onclick="anasSetAiPrompt('لخّص الديون المستحقة، وحدد الأولويات دون اختراع بيانات أو اقتراح إجراءات تلقائية.')">💳 تلخيص الديون</button>
-                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#b45309" onclick="anasSetAiPrompt('راجع مؤشرات المخزون المتاحة واقترح تنبيهات عملية، وميّز بين النقص المؤكد والبيانات غير المتاحة.')">📦 تنبيهات المخزون</button>
-                        <button type="button" class="btn-full-submit" style="font-size:12px;padding:9px;background:#0f766e" onclick="anasSetAiPrompt('راجع جودة البيانات التجارية وحدد التناقضات والمخاطر التي تستحق مراجعة بشرية.')">🛡️ تدقيق البيانات</button>
-                      </div>
-                    </section>
-                    <section class="anas-ai-section" aria-label="لوحة المؤشرات التنفيذية المحلية" style="margin:10px 0;padding:12px;border:1px solid var(--mp-border);border-radius:12px">
-                      <strong style="display:block;font-size:13px;margin-bottom:5px">📊 لوحة الذكاء التشغيلي — بيانات حقيقية من سجلاتك</strong>
-                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 8px">تحليل محلي للمنتجات والمخزون وديون العملاء وفواتير آخر 30 يومًا. لا تُرسل البيانات إلى الإنترنت ولا تُعدّل السجلات.</p>
-                      <div id="anasAiExecutiveMetrics" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ حساب المؤشرات…</div>
-                      <button type="button" class="btn-full-submit" style="background:#0f766e;width:100%;margin-top:9px" onclick="anasRefreshAiExecutiveDashboard()">🔄 تحديث المؤشرات الآن</button>
-                    </section>
-                    <section class="anas-ai-section" aria-label="الملخص الصباحي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
-                      <strong style="display:block;font-size:13px;margin-bottom:5px">🌅 ملخص بداية اليوم</strong>
-                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">ملخص محلي فوري من السجلات المتاحة، دون إرسال بيانات أو افتراض أن أرقام اليوم السابق مكتملة.</p>
-                      <div id="anasAiMorningBrief" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ تجهيز الملخص…</div>
-                    </section>
-                    <section class="anas-ai-section" aria-label="اقتراحات محلية استباقية" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
-                      <strong style="display:block;font-size:13px;margin-bottom:5px">💡 تنبيهات ذكية محلية</strong>
-                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">تُحسب على هذا الجهاز من السجلات الحالية فقط؛ لا تُرسل البيانات إلى الخادم ولا تُعدّل السجلات.</p>
-                      <div id="anasAiProactiveInsights" role="status" aria-live="polite" style="font-size:12px;line-height:1.7">جارٍ فحص المؤشرات المحلية…</div>
-                    </section>
-                    <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">تُرسل بيانات ملخصة عن نشاطك إلى خادم الذكاء الاصطناعي فقط بعد تفعيل موافقة مشاركة السياق والضغط على إرسال. لا ترسل معلومات سرية لا تحتاجها في السؤال.</p>
-                    <div id="anasAiChatLog" role="log" aria-live="polite" style="max-height:300px;overflow:auto;border:1px solid var(--mp-border);border-radius:12px;padding:10px;margin:10px 0;min-height:70px;background:rgba(148,163,184,.07)"><div style="color:var(--mp-text-muted);font-size:13px">جرّب: ما عدد العملاء والمنتجات؟ أو كيف أراجع الديون والمخزون؟</div></div>
-                    <section class="anas-ai-section" aria-label="تحويل الأمر إلى مسودة" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
-                      <strong style="display:block;font-size:13px;margin-bottom:5px">🧾 أمر نصي → مسودة للمراجعة</strong>
-                      <p style="font-size:11px;line-height:1.6;color:var(--mp-text-muted);margin:0 0 7px">اكتب أمرًا مثل «بيع 3 علب شاي للعميل أحمد بسعر 250». سنستخرج ما يمكن محليًا لعرضه للمراجعة فقط؛ لا تُنشأ فاتورة ولا يتغير المخزون أو الحساب.</p>
-                      <button type="button" class="btn-full-submit anas-ai-draft-action" style="width:100%;background:#334155;font-size:12px;padding:9px" onclick="anasPrepareNaturalLanguageDraft()">استخراج مسودة من الأمر المكتوب</button>
-                      <div id="anasAiNaturalDraft" role="status" aria-live="polite" style="font-size:12px;line-height:1.7;margin-top:7px"></div>
-                    </section>
-                    <textarea id="anasAiQuestion" rows="3" placeholder="اكتب سؤالك التجاري هنا…" style="width:100%;box-sizing:border-box;border:1px solid var(--mp-border);border-radius:10px;padding:11px;font:inherit;resize:vertical;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
-                    <div class="anas-ai-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px">
-                      <label style="font-size:12px;font-weight:800">نمط الإجابة
-                        <select id="anasAiAnswerStyle" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)">
-                          <option value="concise">مختصرة</option><option value="detailed">مفصلة</option><option value="bullets">نقاط واضحة</option><option value="table">جدول عند ملاءمته</option>
-                        </select>
-                      </label>
-                      <div style="font-size:12px;line-height:1.5;color:var(--mp-text-muted);padding:7px">🔒 السؤال وحده يُرسل افتراضيًا. بيانات النشاط لا تُرسل إلا بعد تفعيل الموافقة أدناه.</div>
-                    </div>
-                    <label style="display:flex;align-items:flex-start;gap:9px;margin-top:10px;padding:10px;border:1px solid var(--mp-border);border-radius:10px;font-size:12px;line-height:1.6">
-                      <input id="anasAiShareContext" type="checkbox" style="margin-top:3px;flex:0 0 auto">
-                      <span><strong>أوافق على إرسال ملخص بيانات النشاط مع سؤالي</strong><br>يتضمن مجاميع وأعدادًا تشغيلية فقط، دون أسماء العملاء أو المنتجات أو أرصدة الأفراد. سيُرسل عبر HTTPS إلى بوابة الذكاء الاصطناعي لمعالجة الطلب. اتركه غير محدد للتحليل العام فقط.</span>
-                    </label>
-                    <div id="anasAiOfflineFallback" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:9px;border-radius:9px;background:rgba(217,119,6,.10);font-size:12px;line-height:1.6"></div>
-                    <button id="anasAiAskBtn" type="button" class="btn-full-submit" style="background:#6d28d9;margin-top:8px;width:100%" data-anas-ai-action="ask">✨ اسأل Anas AI</button>
-                    <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">الإجابات تحليلية وليست بديلًا عن مراجعة الحسابات؛ لا يُعدّل المساعد سجلاتك. الفحص المحلي لا يرسل البيانات إلى الخادم.</small>
-                </div>
-                <div style="background:#ffffff; border:1px solid var(--mp-border); border-radius:12px; padding:16px; margin-bottom:14px;">
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <span style="font-size:1.35rem;">🤖</span>
-                        <h3 style="font-size:1rem; color:var(--mp-navy); font-weight:900;">إدارة بيانات [${activeAiTab}]</h3>
-                    </div>
-                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:14px; line-height:1.6;">
-                        مساحة موحّدة لملفات العمل: Excel وCSV وPDF. افحص الملف أولًا، راجع المعاينة، ثم اختر الإجراء المناسب. لا تُستورد أي بيانات إلى سجلات النظام تلقائيًا.
-                    </p>
-                    <div class="anas-ai-file-actions" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px">
-                        <label for="smartAiExcelUpload" data-anas-ai-action="excel" aria-label="فتح ملف Excel أو CSV" style="display:block;text-align:center;cursor:pointer;touch-action:manipulation;padding:12px 10px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a;font:inherit;min-height:76px"><b>📊 Excel / CSV</b><span style="display:block;font-size:12px;margin-top:4px">قراءة ومعاينة وتدقيق الأعمدة</span></label>
-                        <label for="smartAiPdfUpload" data-anas-ai-action="pdf" aria-label="فتح ملف PDF" style="display:block;text-align:center;cursor:pointer;touch-action:manipulation;padding:12px 10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff;color:#5b21b6;font:inherit;min-height:76px"><b>📄 PDF</b><span style="display:block;font-size:12px;margin-top:4px">استخراج النص وتنزيله للمراجعة</span></label>
-                        <button type="button" data-anas-ai-action="security" aria-label="عرض حالة حماية البيانات" aria-expanded="false" style="text-align:center;cursor:pointer;touch-action:manipulation;padding:12px 10px;border:1px solid #a7f3d0;border-radius:10px;background:#ecfdf5;color:#065f46;font:inherit;min-height:76px"><b>🔒 حماية البيانات</b><span style="display:block;font-size:12px;margin-top:4px">عرض حالة التخزين والمعالجة المحلية</span></button>
-                    </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn-full-submit" style="background:#7c3aed; margin:0; flex:1;" data-anas-ai-action="generate">✨ توليد بيانات جاهزة</button>
-                        <button class="btn-full-submit" style="background:#0284c7; margin:0; flex:1;" data-anas-ai-action="import">📂 استيراد Excel/CSV بأمان</button>
-                    </div>
-                    <button type="button" class="btn-full-submit" style="background:#9333ea; margin-top:10px; width:100%;" data-anas-ai-action="ocr">📷 مسح الفواتير بالذكاء الاصطناعي</button>
-                    <input type="file" id="smartAiExcelUpload" accept=".xlsx,.xls,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;" >
-                    <input type="file" id="smartAiPdfUpload" accept=".pdf,application/pdf" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;" >
-                    <div id="smartAiExcelStatus" role="status" aria-live="polite" style="margin-top:10px;font-size:.88rem;line-height:1.7;color:#334155"></div>
-                    <section id="anasAiDataProtectionPanel" hidden aria-live="polite" style="margin-top:10px;padding:12px;border:1px solid #a7f3d0;border-radius:10px;background:#f0fdf4;color:#14532d;line-height:1.7">
-                      <strong>حالة حماية البيانات على هذا الجهاز</strong>
-                      <div id="anasAiDataProtectionDetails" style="font-size:12px;margin-top:6px"></div>
-                      <button type="button" id="anasAiDataProtectionRefresh" style="margin-top:8px;padding:8px 12px;border:1px solid #86efac;border-radius:8px;background:#fff;color:#14532d;cursor:pointer">إعادة فحص الحالة</button>
-                    </section>
-                    <div id="smartPdfExtractResults" style="display:none;margin-top:12px;border:1px solid #c4b5fd;border-radius:12px;padding:12px;background:var(--mp-card,#fff)">
-                        <div id="smartPdfExtractMeta" style="font-size:13px;font-weight:800;margin-bottom:8px"></div>
-                        <textarea id="smartPdfExtractText" rows="8" readonly aria-label="النص المستخرج من ملف PDF" style="width:100%;box-sizing:border-box;font:inherit;padding:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-input-bg,#fff);color:var(--mp-text,#111827)"></textarea>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-                            <button type="button" class="btn-full-submit" style="background:#475569;flex:1;margin:0" onclick="anasDownloadPdfText()">⬇️ تنزيل النص المستخرج</button>
-                            <button type="button" id="smartPdfReviewButton" class="btn-full-submit" style="background:#0284c7;flex:1;margin:0" onclick="anasOpenPdfImportReview()">🔎 مراجعة البيانات المستخرجة</button>
-                            <button type="button" id="smartPdfOcrButton" class="btn-full-submit" style="background:#0f766e;flex:1;margin:0" onclick="anasOcrScannedPdfPages()">📷 OCR للصفحات المصوّرة</button>
-                            <button type="button" class="btn-full-submit" style="background:#6d28d9;flex:1;margin:0" onclick="anasAskAiAboutPdf()">✨ تحليل النص بالذكاء الاصطناعي</button>
+                <div class="anas-ai-shell">
+                    <header class="anas-ai-hero">
+                        <div class="anas-ai-hero-copy">
+                            <span class="anas-ai-eyebrow">ANAS ERP · INTELLIGENCE</span>
+                            <h3>مركز الذكاء الاصطناعي</h3>
+                            <p>مساعد موحّد لفهم بيانات المؤسسة وتحليلها، مع بقاء القرار والتنفيذ تحت سيطرتك.</p>
                         </div>
-                        <small style="display:block;margin-top:8px;color:var(--mp-text-muted)">استخراج النص وOCR يعملان محلياً على الجهاز. استخدم «OCR للصفحات المصوّرة» إذا كان المستند صوراً أو كان النص المستخرج فارغاً. لن يُرسل النص إلى الخادم إلا عند طلب التحليل بالذكاء الاصطناعي.</small>
-                    </div>
-                </div>
+                        <div class="anas-ai-hero-status" id="anasAiHubKpis" aria-label="مؤشرات مركز الذكاء الاصطناعي"></div>
+                    </header>
 
-                <div class="action-menu-list">
-                    <div class="menu-action-card" onclick="exportExcel('${activeAiTab}')">
-                        <div class="card-lead"><span class="icon">📊</span><span>تحميل ملف إكسل منسق وجاهز لهذا القسم (.csv)</span></div>
-                        <span style="color:#0284c7; font-weight:800;">تنزيل ⬇️</span>
-                    </div>
+                    <nav class="anas-ai-workspace-nav" aria-label="أقسام مركز الذكاء الاصطناعي">
+                        <button type="button" class="is-active" data-ai-workspace-tab="overview" aria-pressed="true" onclick="anasAiShowWorkspaceTab('overview',this)">نظرة عامة</button>
+                        <button type="button" data-ai-workspace-tab="assistant" aria-pressed="false" onclick="anasAiShowWorkspaceTab('assistant',this)">المساعد الذكي</button>
+                        <button type="button" data-ai-workspace-tab="documents" aria-pressed="false" onclick="anasAiShowWorkspaceTab('documents',this)">الملفات والمستندات</button>
+                        <button type="button" data-ai-workspace-tab="insights" aria-pressed="false" onclick="anasAiShowWorkspaceTab('insights',this)">التحليلات والتنبيهات</button>
+                    </nav>
+
+                    <section class="anas-ai-workspace-panel" data-ai-workspace-panel="overview" aria-label="نظرة عامة">
+                        <div class="anas-ai-section-heading">
+                            <div><span class="anas-ai-eyebrow">START HERE</span><h4>ماذا تريد أن تنجز اليوم؟</h4></div>
+                            <span class="anas-ai-local-tag">تحليل محلي آمن</span>
+                        </div>
+                        <div class="anas-ai-action-grid">
+                            <button type="button" class="anas-ai-action-card" onclick="anasAiShowWorkspaceTab('assistant');anasSetAiPrompt('حلّل مبيعات اليوم من البيانات المتاحة فقط، واذكر الفترة ومصدر الأرقام وأي بيانات ناقصة.')"><span>📈</span><strong>تحليل المبيعات</strong><small>الأداء والإيرادات والفترات</small></button>
+                            <button type="button" class="anas-ai-action-card" onclick="anasAiShowWorkspaceTab('assistant');anasSetAiPrompt('لخّص الديون المستحقة، وحدد الأولويات دون اختراع بيانات أو اقتراح إجراءات تلقائية.')"><span>💳</span><strong>الديون والتحصيل</strong><small>الذمم والأولويات</small></button>
+                            <button type="button" class="anas-ai-action-card" onclick="anasAiShowWorkspaceTab('assistant');anasSetAiPrompt('راجع مؤشرات المخزون المتاحة واقترح تنبيهات عملية، وميّز بين النقص المؤكد والبيانات غير المتاحة.')"><span>📦</span><strong>حالة المخزون</strong><small>النواقص والمواد الراكدة</small></button>
+                            <button type="button" class="anas-ai-action-card" onclick="anasAiShowWorkspaceTab('assistant');anasSetAiPrompt('راجع جودة البيانات التجارية وحدد التناقضات والمخاطر التي تستحق مراجعة بشرية.')"><span>🛡️</span><strong>تدقيق البيانات</strong><small>التناقضات وجودة السجلات</small></button>
+                        </div>
+                        <div class="anas-ai-two-column">
+                            <article class="anas-ai-panel-card">
+                                <div class="anas-ai-card-heading"><div><span class="anas-ai-eyebrow">LOCAL AUDIT</span><h4>الفحص الذكي للمؤسسة</h4></div><span>🔎</span></div>
+                                <p>افحص المؤشرات المحلية واكتشف نقاط الانتباه دون إرسال بيانات إلى أي خدمة خارجية.</p>
+                                <button type="button" class="anas-ai-primary-button" onclick="anasRunLocalBusinessAudit()">تشغيل الفحص الشامل</button>
+                                <div id="anasLocalAuditResults" role="status" aria-live="polite"></div>
+                            </article>
+                            <article class="anas-ai-panel-card">
+                                <div class="anas-ai-card-heading"><div><span class="anas-ai-eyebrow">DATA PRIVACY</span><h4>الخصوصية والتحكم</h4></div><span>🔐</span></div>
+                                <p>السؤال وحده يُرسل افتراضياً. مشاركة ملخص النشاط تتطلب موافقة صريحة قبل الإرسال.</p>
+                                <button type="button" class="anas-ai-secondary-button" data-anas-ai-action="security" aria-label="عرض حالة حماية البيانات" aria-expanded="false">عرض حالة حماية البيانات</button>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="anas-ai-workspace-panel" data-ai-workspace-panel="assistant" aria-label="المساعد الذكي" hidden>
+                        <div class="anas-ai-section-heading">
+                            <div><span class="anas-ai-eyebrow">CONVERSATIONAL AI</span><h4>Anas AI — المساعد التجاري</h4></div>
+                            <button type="button" class="anas-ai-text-button" onclick="openView('settings')">إعداد الاتصال</button>
+                        </div>
+                        <div class="anas-ai-chat-card">
+                            <div id="anasAiChatLog" role="log" aria-live="polite"><div class="anas-ai-empty-state">ابدأ بسؤال عن المبيعات أو المخزون أو المشتريات أو الحسابات.</div></div>
+                            <textarea id="anasAiQuestion" rows="3" placeholder="اكتب سؤالك التجاري هنا…" aria-label="سؤالك إلى Anas AI"></textarea>
+                            <div class="anas-ai-chat-options">
+                                <label>نمط الإجابة
+                                    <select id="anasAiAnswerStyle">
+                                        <option value="concise">مختصرة</option><option value="detailed">مفصلة</option><option value="bullets">نقاط واضحة</option><option value="table">جدول عند ملاءمته</option>
+                                    </select>
+                                </label>
+                                <label class="anas-ai-consent">
+                                    <input id="anasAiShareContext" type="checkbox">
+                                    <span><strong>أوافق على مشاركة ملخص بيانات النشاط</strong><small>أعداد ومجاميع تشغيلية فقط، دون أسماء العملاء أو المنتجات أو أرصدة الأفراد.</small></span>
+                                </label>
+                            </div>
+                            <div id="anasAiOfflineFallback" role="status" aria-live="polite" hidden></div>
+                            <button id="anasAiAskBtn" type="button" class="anas-ai-primary-button" data-anas-ai-action="ask">إرسال السؤال إلى Anas AI</button>
+                            <small class="anas-ai-disclaimer">الإجابات تحليلية. لا ينفّذ المساعد تعديلات مالية أو تشغيلية تلقائياً؛ راجع النتائج قبل اتخاذ القرار.</small>
+                        </div>
+                        <article class="anas-ai-panel-card anas-ai-command-card">
+                            <div class="anas-ai-card-heading"><div><span class="anas-ai-eyebrow">NATURAL LANGUAGE</span><h4>تحويل الأمر إلى مسودة</h4></div><span>🧾</span></div>
+                            <p>استخرج تفاصيل الأمر التجاري إلى مسودة قابلة للمراجعة فقط. لن تُنشأ فاتورة ولن يتغير المخزون.</p>
+                            <button type="button" class="anas-ai-secondary-button" onclick="anasPrepareNaturalLanguageDraft()">استخراج المسودة</button>
+                            <div id="anasAiNaturalDraft" role="status" aria-live="polite"></div>
+                        </article>
+                    </section>
+
+                    <section class="anas-ai-workspace-panel" data-ai-workspace-panel="documents" aria-label="الملفات والمستندات" hidden>
+                        <div class="anas-ai-section-heading"><div><span class="anas-ai-eyebrow">DOCUMENT INTELLIGENCE</span><h4>قراءة الملفات ومراجعتها</h4></div><span class="anas-ai-local-tag">المعالجة محلياً أولاً</span></div>
+                        <p class="anas-ai-section-description">اختر ملفاً، افحص محتواه، راجع النتائج، ثم قرر بنفسك إن كنت تريد استيراده. لا يتم تعديل سجلات ERP تلقائياً.</p>
+                        <div class="anas-ai-document-grid">
+                            <label for="smartAiExcelUpload" class="anas-ai-document-card" data-anas-ai-action="excel"><span>📊</span><strong>Excel / CSV</strong><small>قراءة ومعاينة وتدقيق الأعمدة</small></label>
+                            <label for="smartAiPdfUpload" class="anas-ai-document-card" data-anas-ai-action="pdf"><span>📄</span><strong>PDF</strong><small>استخراج النص ومراجعته</small></label>
+                            <button type="button" class="anas-ai-document-card" data-anas-ai-action="generate"><span>✨</span><strong>توليد قوالب</strong><small>قوالب المنتجات والعملاء والموردين</small></button>
+                            <button type="button" class="anas-ai-document-card" data-anas-ai-action="import"><span>📥</span><strong>استيراد آمن</strong><small>معاينة ومطابقة قبل الاعتماد</small></button>
+                        </div>
+                        <button type="button" class="anas-ai-secondary-button" data-anas-ai-action="ocr">📷 مسح الفواتير وقراءة الصفحات المصوّرة</button>
+                        <input type="file" id="smartAiExcelUpload" accept=".xlsx,.xls,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
+                        <input type="file" id="smartAiPdfUpload" accept=".pdf,application/pdf">
+                        <div id="smartAiExcelStatus" role="status" aria-live="polite"></div>
+                        <section id="anasAiDataProtectionPanel" hidden aria-live="polite">
+                            <strong>حالة حماية البيانات على هذا الجهاز</strong>
+                            <div id="anasAiDataProtectionDetails"></div>
+                            <button type="button" id="anasAiDataProtectionRefresh">إعادة فحص الحالة</button>
+                        </section>
+                        <section id="smartPdfExtractResults" hidden>
+                            <div id="smartPdfExtractMeta"></div>
+                            <textarea id="smartPdfExtractText" rows="8" readonly aria-label="النص المستخرج من ملف PDF"></textarea>
+                            <div class="anas-ai-document-actions">
+                                <button type="button" onclick="anasDownloadPdfText()">تنزيل النص المستخرج</button>
+                                <button type="button" id="smartPdfReviewButton" onclick="anasOpenPdfImportReview()">مراجعة البيانات المستخرجة</button>
+                                <button type="button" id="smartPdfOcrButton" onclick="anasOcrScannedPdfPages()">OCR للصفحات المصوّرة</button>
+                                <button type="button" onclick="anasAskAiAboutPdf()">تحليل النص بالذكاء الاصطناعي</button>
+                            </div>
+                            <small>يُستخرج النص محلياً. لا يُرسل إلى الخادم إلا عند طلب التحليل.</small>
+                        </section>
+                        <div class="anas-ai-export-row"><button type="button" class="anas-ai-secondary-button" onclick="exportExcel('${activeAiTab}')">تنزيل ملف CSV للقسم الحالي</button></div>
+                    </section>
+
+                    <section class="anas-ai-workspace-panel" data-ai-workspace-panel="insights" aria-label="التحليلات والتنبيهات" hidden>
+                        <div class="anas-ai-section-heading"><div><span class="anas-ai-eyebrow">BUSINESS INTELLIGENCE</span><h4>لوحة التحليلات والتنبيهات</h4></div><button type="button" class="anas-ai-text-button" onclick="anasRefreshAiExecutiveDashboard();anasRefreshAiMorningBrief();anasRefreshAiProactiveInsights()">تحديث الكل</button></div>
+                        <article class="anas-ai-panel-card">
+                            <div class="anas-ai-card-heading"><div><h4>المؤشرات التنفيذية</h4><p>المنتجات والمخزون والديون وفواتير آخر 30 يوماً.</p></div><span>📊</span></div>
+                            <div id="anasAiExecutiveMetrics" role="status" aria-live="polite">جارٍ حساب المؤشرات…</div>
+                            <button type="button" class="anas-ai-secondary-button" onclick="anasRefreshAiExecutiveDashboard()">تحديث المؤشرات</button>
+                        </article>
+                        <div class="anas-ai-two-column">
+                            <article class="anas-ai-panel-card"><div class="anas-ai-card-heading"><h4>🌅 الملخص الصباحي</h4></div><div id="anasAiMorningBrief" role="status" aria-live="polite">جارٍ تجهيز الملخص…</div></article>
+                            <article class="anas-ai-panel-card"><div class="anas-ai-card-heading"><h4>💡 التنبيهات الاستباقية</h4></div><div id="anasAiProactiveInsights" role="status" aria-live="polite">جارٍ فحص المؤشرات المحلية…</div></article>
+                        </div>
+                    </section>
                 </div>
             `;
             anasRenderAiHubKpis();
-            // Keep the focused field visible when the mobile virtual keyboard opens.
-            cont.querySelectorAll('#anasAiQuestion, #anasAiNaturalDraft input, #anasAiNaturalDraft select').forEach(field => {
+            cont.querySelectorAll('#anasAiQuestion').forEach(field => {
                 field.addEventListener('focus', () => {
                     setTimeout(() => {
                         try { field.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'}); } catch (_) {}
-                    }, 250);
+                    }, 200);
                 });
             });
             anasRefreshAiProactiveInsights();
