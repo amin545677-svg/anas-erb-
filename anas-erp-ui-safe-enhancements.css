@@ -1387,3 +1387,93 @@ html:root[data-anas-theme="dark"] body .picker-dialog-scroll :is(small, label, p
   color:#f3f7ff!important;
   -webkit-text-fill-color:#f3f7ff!important;
 }
+
+
+/* Video-matched ANAS ERP inquiries screen: compact date strip, red group labels,
+   independent white report rows and explicit light/dark surfaces. */
+#view-reports .anas-query-screen { padding:8px 10px 20px; }
+#view-reports .anas-query-datebar {
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) 24px;
+  align-items:center; gap:6px; padding:8px 7px; margin:8px 0 2px;
+  border:1px solid var(--mp-border); border-radius:8px;
+  background:#f8fafc; color:#334155; font-size:11px; font-weight:800;
+}
+#view-reports .anas-query-datebar .field-input {
+  width:100%; min-width:0; height:36px; margin:0; padding:5px 4px;
+  border:1px solid #d1d5db; border-radius:4px; background:#e5e7eb;
+  color:#1f2937; font-size:11px; font-weight:700; text-align:center;
+}
+#view-reports .anas-query-date-to { text-align:center; white-space:nowrap; }
+#view-reports .anas-query-calendar { font-size:18px; text-align:center; }
+#view-reports .anas-query-date-status {
+  min-height:15px; margin:2px 2px 5px; color:var(--mp-text-muted);
+  font-size:10px; line-height:1.5; overflow-wrap:anywhere;
+}
+#view-reports .anas-query-list { display:flex; flex-direction:column; gap:3px; }
+#view-reports .anas-query-group { display:flex; flex-direction:column; gap:4px; }
+#view-reports .anas-query-group-heading {
+  margin:7px 0 1px; padding:5px 7px; min-height:28px;
+  display:flex; align-items:center; background:#f3f4f6;
+  border-bottom:1px solid #e5e7eb; color:#ef4444;
+  font-size:13px; line-height:1.4; font-weight:900;
+}
+#view-reports .anas-query-row {
+  appearance:none; -webkit-appearance:none; width:100%; min-height:48px;
+  display:flex; flex-direction:row; align-items:center; justify-content:space-between;
+  gap:10px; margin:0; padding:8px 10px;
+  border:1px solid #e5e7eb; border-radius:2px; background:#fff;
+  color:#334155; text-align:center; font-family:inherit;
+  font-size:12px; font-weight:700; line-height:1.55;
+  cursor:pointer; touch-action:manipulation;
+}
+#view-reports .anas-query-row-label { flex:1 1 auto; min-width:0; text-align:center; overflow-wrap:anywhere; }
+#view-reports .anas-query-arrow {
+  flex:0 0 22px; width:22px; color:#315c7a; font-size:25px;
+  line-height:1; font-weight:400; text-align:center;
+}
+#view-reports .anas-query-row:focus-visible {
+  outline:3px solid #60a5fa; outline-offset:2px; position:relative; z-index:1;
+}
+#view-reports .anas-query-row:active { transform:translateY(1px); }
+#view-reports .anas-query-stats { margin-top:12px; border:1px solid var(--mp-border); border-radius:8px; background:var(--mp-card-bg,#fff); }
+#view-reports .anas-query-stats > summary { padding:12px; color:var(--mp-navy); font-size:13px; font-weight:900; cursor:pointer; }
+#view-reports .anas-query-stats-panel { margin:0; border:0; border-top:1px solid var(--mp-border); border-radius:0 0 8px 8px; }
+#view-reports .anas-query-stats-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+#view-reports .anas-query-stats-heading h3 { margin:0; font-size:14px; color:var(--mp-navy); }
+#view-reports .anas-query-stats-heading button { width:42px; height:42px; min-width:42px; font-size:22px; }
+#view-reports .anas-query-stats-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+#view-reports .anas-query-stats-notes { margin-top:8px; color:var(--mp-text-muted); font-size:11px; }
+:root[data-anas-theme="dark"] #view-reports .anas-query-datebar,
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-group-heading {
+  background:#182438!important; color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-datebar .field-input {
+  background:#101a2b!important; color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-row {
+  background:#182438!important; background-color:#182438!important;
+  background-image:none!important; color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-row * {
+  color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-arrow { color:#93c5fd!important; -webkit-text-fill-color:#93c5fd!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats {
+  background:#182438!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats > summary { color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-panel,
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-grid > div {
+  background:#101a2b!important; color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-grid > div * {
+  color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important;
+}
+@media (max-width:360px) {
+  #view-reports .anas-query-screen { padding-inline:6px; }
+  #view-reports .anas-query-datebar { grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) 20px; gap:4px; padding-inline:4px; font-size:10px; }
+  #view-reports .anas-query-datebar .field-input { font-size:10px; padding-inline:2px; }
+  #view-reports .anas-query-row { min-height:46px; padding:7px 6px; font-size:11px; }
+}

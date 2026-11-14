@@ -51,7 +51,7 @@ test('r39 dashboard exposes the eight canonical operational modules exactly once
   const modules = ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","reports"];
   for (const module of modules) assert.equal((dashboard.match(new RegExp('data-erp-module="' + module + '"',"g")) || []).length, 1,
     "dashboard must expose exactly one " + module + " module");
-  for (const action of ["openView('pos')","openView('inventory')","openView('cash')","openView('purchases')","openView('suppliers')","openView('customers')","openView('invoices-list')","openView('reports')"]) {
+  for (const action of ["openView('pos')","openView('inventory')","openView('cash')","openView('purchases')","openView('suppliers')","openView('customers')","openView('reports')"]) {
     assert.ok(dashboard.includes(action), "dashboard is missing " + action);
   }
   assert.doesNotMatch(dashboard, /openView\('trucks'\)|openAddProductModal\(\)|openInvoiceOcr\(/);
@@ -124,4 +124,37 @@ test('More workspace cards have explicit readable light and dark theme rules', (
   assert.ok(css.includes(':root[data-anas-theme="dark"] #view-more .anas-more-card'));
   assert.ok(css.includes(':root:not([data-anas-theme="dark"]) #view-more .anas-more-card'));
   assert.ok(css.includes('#view-more .anas-more-label'));
+});
+
+
+test('inquiries dashboard card opens the video-matched reports screen while invoice history stays separate', () => {
+  const reports = html.slice(html.indexOf('<section id="view-reports"'), html.indexOf('<!-- 11. شاشة الإعدادات'));
+  assert.match(dashboard, /data-erp-module="inquiries" onclick="openView\('reports'\)"/);
+  assert.match(reports, /<div class="sub-header-title">الاستعلامات<\/div>/);
+  assert.match(reports, /class="anas-query-datebar"/);
+  assert.match(reports, /id="reportDateFrom"/);
+  assert.match(reports, /id="reportDateTo"/);
+  for (const heading of ['العملاء','المبيعات وحساب الأرباح','المشتريات','الموردون','المصروفات','المخازن وجرد المخزون','الصندوق والمصروفات']) {
+    assert.ok(reports.includes('>' + heading + '</h3>'), 'missing inquiries group: ' + heading);
+  }
+  assert.match(reports, /class="anas-query-row"[^>]*onclick="openView\('invoices-list'\)"/);
+  assert.ok(reports.indexOf('class="anas-query-list"') < reports.indexOf('class="anas-query-stats"'));
+  assert.equal((html.match(/id="reportDateFrom"/g) || []).length, 1);
+  assert.equal((html.match(/id="reportDateTo"/g) || []).length, 1);
+  assert.match(html, /<section id="view-invoices-list"/);
+});
+
+test('inquiries report rows are real keyboard-operable buttons and retain existing report handlers', () => {
+  const reports = html.slice(html.indexOf('<section id="view-reports"'), html.indexOf('<!-- 11. شاشة الإعدادات'));
+  assert.ok((reports.match(/<button type="button" class="anas-query-row"/g) || []).length >= 20);
+  for (const action of ["showReportDetails('تقرير المبيعات')","showProfitsReportModal()","showReportDetails('تقرير المشتريات')","showReportDetails('جرد مخزني')","showReportDetails('تقرير المصروفات حسب الحساب')","printZReport()","openLuminaAnalyticsModal()"]) {
+    assert.ok(reports.includes(action), 'missing report action: ' + action);
+  }
+});
+
+test('inquiries screen has explicit light/dark row and date-field contrast rules', () => {
+  assert.match(css, /#view-reports \.anas-query-row/);
+  assert.match(css, /html:root\[data-anas-theme="dark"\] body #view-reports \.anas-query-row/);
+  assert.match(css, /#view-reports \.anas-query-datebar/);
+  assert.match(css, /anas-query-row:focus-visible/);
 });

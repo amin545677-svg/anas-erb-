@@ -2008,7 +2008,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                   <button type="button" class="grid-card-item" data-erp-module="purchases" onclick="openView('purchases')" aria-label="المشتريات"><span class="card-icon-box" aria-hidden="true">🧾</span><span class="card-title-text">المشتريات</span></button>
                   <button type="button" class="grid-card-item" data-erp-module="suppliers" onclick="openView('suppliers')" aria-label="الموردون"><span class="card-icon-box" aria-hidden="true">🏭</span><span class="card-title-text">الموردون</span></button>
                   <button type="button" class="grid-card-item" data-erp-module="customers" onclick="openView('customers')" aria-label="العملاء"><span class="card-icon-box" aria-hidden="true">👥</span><span class="card-title-text">العملاء</span></button>
-                  <button type="button" class="grid-card-item" data-erp-module="inquiries" onclick="openView('invoices-list')" aria-label="الاستعلامات وسجل الفواتير"><span class="card-icon-box" aria-hidden="true">🔍</span><span class="card-title-text">الاستعلامات</span></button>
+                  <button type="button" class="grid-card-item" data-erp-module="inquiries" onclick="openView('reports')" aria-label="الاستعلامات وسجل الفواتير"><span class="card-icon-box" aria-hidden="true">🔍</span><span class="card-title-text">الاستعلامات</span></button>
                   <button type="button" class="grid-card-item" data-erp-module="reports" onclick="openView('reports')" aria-label="التقارير والإحصائيات"><span class="card-icon-box" aria-hidden="true">📊</span><span class="card-title-text">التقارير</span></button>
                 </div>
                 <div class="anas-dashboard-alerts-row">
@@ -2486,109 +2486,79 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         <!-- 10. شاشة الاستعلامات والتقارير الشاملة (المطابقة حرفياً للفيديو) -->
         <section id="view-reports" class="page-view">
             <div class="sub-header-bar">
-                <button class="btn-arrow-back" onclick="openView('dashboard')">‹</button>
-                <div class="sub-header-title">التقارير والإحصائيات</div>
-                <button class="btn-header-action" onclick="printZReport()">🖨️</button>
+                <button class="btn-arrow-back" onclick="openView('dashboard')" aria-label="العودة إلى الرئيسية">‹</button>
+                <div class="sub-header-title">الاستعلامات</div>
+                <button class="btn-header-action" type="button" onclick="printZReport()" aria-label="طباعة تقرير إغلاق اليومية">🖨️</button>
             </div>
-
-            <div style="background:#ffffff; border:1px solid var(--mp-border); border-radius:8px; padding:10px 12px; margin-top:8px;">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
-                    <div class="field-group" style="margin:0"><label for="reportDateFrom">من تاريخ</label><input id="reportDateFrom" type="date" class="field-input" onchange="applyReportDateRange()"></div>
-                    <div class="field-group" style="margin:0"><label for="reportDateTo">إلى تاريخ</label><input id="reportDateTo" type="date" class="field-input" onchange="applyReportDateRange()"></div>
+            <div class="anas-query-screen">
+                <div class="anas-query-datebar" dir="rtl" aria-label="تحديد فترة الاستعلام">
+                    <span class="anas-query-period-label">للفترة من</span>
+                    <input id="reportDateFrom" type="date" class="field-input" aria-label="من تاريخ" onchange="applyReportDateRange()">
+                    <span class="anas-query-date-to">إلى</span>
+                    <input id="reportDateTo" type="date" class="field-input" aria-label="إلى تاريخ" onchange="applyReportDateRange()">
+                    <span class="anas-query-calendar" aria-hidden="true">🗓️</span>
                 </div>
-                <div style="display:flex;gap:8px;margin-top:8px;">
-                    <button class="btn-full-submit" style="margin-top:0" onclick="applyReportDateRange()">تطبيق الفترة</button>
-                    <button class="btn-full-submit" style="margin-top:0;background:#64748b" onclick="resetReportDateRange()">اليوم</button>
-                    <button class="btn-multi-tab" onclick="printZReport()" title="طباعة التقرير">🖨️</button>
+                <div id="reportDateRangeStatus" class="anas-query-date-status" role="status" aria-live="polite"></div>
+                <div class="anas-query-list" id="anasQueriesList">
+                    <section class="anas-query-group" aria-labelledby="anasQueryCustomersHeading">
+                        <h3 class="anas-query-group-heading" id="anasQueryCustomersHeading">العملاء</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('cust-debts')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">ذمم العملاء</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('كشف حساب عميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">كشف حساب عميل</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQuerySalesHeading">
+                        <h3 class="anas-query-group-heading" id="anasQuerySalesHeading">المبيعات وحساب الأرباح</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمبيعات</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showProfitsReportModal()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير الأرباح (إجمالي / حسب المنتج / حسب العميل)</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('عرض فواتير المبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض فواتير المبيعات</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('invoices-list')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل فواتير المبيعات</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير الخصومات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالخصومات</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير فواتير الآجل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير فواتير الآجل</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQueryPurchasesHeading">
+                        <h3 class="anas-query-group-heading" id="anasQueryPurchasesHeading">المشتريات</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المشتريات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمشتريات وفواتير الموردين</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('purchases')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل المشتريات</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQuerySuppliersHeading">
+                        <h3 class="anas-query-group-heading" id="anasQuerySuppliersHeading">الموردون</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('supp-debts')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">ذمم الموردين</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('suppliers')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">قائمة الموردين</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQueryExpensesHeading">
+                        <h3 class="anas-query-group-heading" id="anasQueryExpensesHeading">المصروفات</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المصروفات حسب الحساب')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمصروفات حسب الحساب</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('expenses')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل المصروفات</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQueryWarehouseHeading">
+                        <h3 class="anas-query-group-heading" id="anasQueryWarehouseHeading">المخازن وجرد المخزون</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('جرد مخزني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">جرد مخزني كامل</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة منتج')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة منتج</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تنبيه نقص المخزون')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمنتجات التي اقتربت من النفاد</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('warehouse-stock')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">أرصدة المخازن</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQueryCashHeading">
+                        <h3 class="anas-query-group-heading" id="anasQueryCashHeading">الصندوق والمصروفات</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="printZReport()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير إغلاق اليومية (Z-Report)</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('cash')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">الصندوق وحركاته</span></button>
+                    </section>
+                    <section class="anas-query-group" aria-labelledby="anasQueryStoreHeading">
+                        <h3 class="anas-query-group-heading" id="anasQueryStoreHeading">المتجر والتحليلات</h3>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر - رسم بياني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر - رسم بياني</span></button>
+                        <button type="button" class="anas-query-row" data-report-entry onclick="openLuminaAnalyticsModal()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">الإحصائيات المالية الشاملة والتدفق النقدي</span></button>
+                    </section>
                 </div>
-                <div id="reportDateRangeStatus" style="font-size:12px;margin-top:6px;color:var(--mp-text-muted)"></div>
-            </div>
-
-            <!-- إحصائيات شاملة داخل الاستعلامات -->
-            <div class="panel-card-form" style="margin-top:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                    <h3 style="font-size:1rem;color:var(--mp-navy);">📊 الإحصائيات الشاملة</h3>
-                    <button type="button" class="btn-multi-tab" onclick="anasRefreshAllStatistics(this)" title="تحديث الإحصائيات" aria-label="تحديث الإحصائيات" style="width:46px;height:46px;min-width:46px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#1e3a5f;font-size:25px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;z-index:2;touch-action:manipulation;">↻</button>
-                </div>
-                <div id="allStatisticsGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;"></div>
-                <div id="allStatisticsNotes" style="font-size:11px;color:var(--mp-text-muted);margin-top:8px;"></div>
-            </div>
-
-            <div class="action-menu-list" style="margin-top:10px;">
-                <div class="drawer-cat-heading" style="color:#0284c7; font-weight:900;">لوحة القيادة والتحليلات المالية (Lumina Analytics)</div>
-                <div class="menu-action-card" onclick="openLuminaAnalyticsModal()">
-                    <div class="card-lead"><span class="icon">📊</span><span>الإحصائيات المالية الشاملة والتدفق النقدي (Cash In / Out)</span></div>
-                    <span style="color:#0284c7; font-weight:800;">فتح ❯</span>
-                </div>
-                <div class="drawer-cat-heading" style="color:#ef4444; font-weight:900;">المتجر</div>
-                <div class="menu-action-card" onclick="showReportDetails('حركة المتجر')">
-                    <div class="card-lead"><span class="icon">📈</span><span>عرض حركة المتجر</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('حركة المتجر - رسم بياني')">
-                    <div class="card-lead"><span class="icon">📊</span><span>عرض حركة المتجر - رسم بياني</span></div>
-                    <span>›</span>
-                </div>
-
-                <div class="drawer-cat-heading" style="color:#ef4444; font-weight:900;">المبيعات وحساب الأرباح</div>
-                <div class="menu-action-card" onclick="showReportDetails('تقرير المبيعات')">
-                    <div class="card-lead"><span class="icon">🛒</span><span>تقرير بالمبيعات</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showProfitsReportModal()">
-                    <div class="card-lead"><span class="icon">💰</span><span>تقرير الارباح (اجمالي / حسب المنتج / حسب العميل)</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('عرض فواتير المبيعات')">
-                    <div class="card-lead"><span class="icon">📑</span><span>عرض فواتير المبيعات</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('تقرير المشتريات')">
-                    <div class="card-lead"><span class="icon">🧾</span><span>تقرير المشتريات وفواتير الموردين</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('تقرير الخصومات')">
-                    <div class="card-lead"><span class="icon">🏷️</span><span>تقرير بالخصومات</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('تقرير فواتير الآجل')">
-                    <div class="card-lead"><span class="icon">⏳</span><span>تقرير بالفواتير الآجل</span></div>
-                    <span>›</span>
-                </div>
-
-                <div class="drawer-cat-heading" style="color:#ef4444; font-weight:900;">العملاء</div>
-                <div class="menu-action-card" onclick="openView('cust-debts')">
-                    <div class="card-lead"><span class="icon">👤</span><span>ذمم العملاء (المبالغ والكريدي وتنبيه المدة)</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('كشف حساب عميل')">
-                    <div class="card-lead"><span class="icon">📋</span><span>كشف حساب عميل</span></div>
-                    <span>›</span>
-                </div>
-
-                <div class="drawer-cat-heading" style="color:#ef4444; font-weight:900;">المخازن وجرد المخزون</div>
-                <div class="menu-action-card" onclick="showReportDetails('جرد مخزني')">
-                    <div class="card-lead"><span class="icon">📦</span><span>جرد مخزني كامل</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('حركة منتج')">
-                    <div class="card-lead"><span class="icon">🔄</span><span>تقرير بحركة منتج</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('تنبيه نقص المخزون')">
-                    <div class="card-lead"><span class="icon">⚠️</span><span>تقرير بالمنتجات التي اقتربت من النفاد</span></div>
-                    <span>›</span>
-                </div>
-
-                <div class="drawer-cat-heading" style="color:#ef4444; font-weight:900;">الصندوق والمصروفات</div>
-                <div class="menu-action-card" onclick="printZReport()">
-                    <div class="card-lead"><span class="icon">📋</span><span>تقرير إغلاق اليومية (Z-Report)</span></div>
-                    <span>›</span>
-                </div>
-                <div class="menu-action-card" onclick="showReportDetails('تقرير المصروفات حسب الحساب')">
-                    <div class="card-lead"><span class="icon">💼</span><span>تقرير بالمصروفات حسب الحساب</span></div>
-                    <span>›</span>
-                </div>
+                <details class="anas-query-stats">
+                    <summary>📊 الإحصائيات الشاملة</summary>
+                    <div class="panel-card-form anas-query-stats-panel">
+                        <div class="anas-query-stats-heading">
+                            <h3>الإحصائيات الشاملة</h3>
+                            <button type="button" class="btn-multi-tab" onclick="anasRefreshAllStatistics(this)" title="تحديث الإحصائيات" aria-label="تحديث الإحصائيات">↻</button>
+                        </div>
+                        <div id="allStatisticsGrid" class="anas-query-stats-grid"></div>
+                        <div id="allStatisticsNotes" class="anas-query-stats-notes"></div>
+                    </div>
+                </details>
             </div>
         </section>
 
