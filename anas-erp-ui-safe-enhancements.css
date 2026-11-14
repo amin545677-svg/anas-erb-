@@ -1757,3 +1757,27 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 :root[data-anas-theme="dark"] #anasQuickBottomNav button.active{background:#1e293b!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#334155!important}
 :root[data-anas-theme="dark"] #anasQuickBottomNav button.active *{color:inherit!important;-webkit-text-fill-color:inherit!important}
 
+
+/* r42.2 — isolate A4/thermal print surfaces from the hidden application layout. */
+@media print {
+  body > *:not(#receiptPrintArea.printable):not(#legalInvoiceA4Area.printable) {
+    display:none!important;
+  }
+  #legalInvoiceA4Area.printable {
+    position:absolute!important;left:0!important;top:0!important;
+    width:100%!important;max-width:100%!important;
+    height:auto!important;min-height:0!important;max-height:none!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    border:0!important;box-sizing:border-box!important;
+    page-break-after:auto!important;page-break-inside:auto!important;
+    break-after:auto!important;break-inside:auto!important;
+  }
+  #receiptPrintArea.printable {
+    position:absolute!important;left:0!important;top:0!important;
+    width:100%!important;max-width:100%!important;
+    height:auto!important;min-height:0!important;max-height:none!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    page-break-after:auto!important;page-break-inside:auto!important;
+    break-after:auto!important;break-inside:auto!important;
+  }
+}
