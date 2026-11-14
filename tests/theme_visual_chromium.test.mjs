@@ -485,6 +485,25 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         </div></div>
         <div id="legalInvoiceA4Area"><p id="print-text">فاتورة البيع</p></div>`;
       document.body.appendChild(fixture);
+      const settings=document.getElementById('view-settings');
+      const settingsGroup=document.createElement('div');
+      settingsGroup.className='field-group';
+      settingsGroup.setAttribute('style','background:#eff6ff;border:1px solid #cbd5e1;padding:8px');
+      settingsGroup.innerHTML='<h3 id="theme-settings-title">حفظ الإعدادات</h3><button id="theme-settings-button" type="button">حفظ الإعدادات</button>';
+      settings.appendChild(settingsGroup);
+      const aiHost=document.getElementById('aiHubTabContent');
+      const aiActions=document.createElement('div');
+      aiActions.className='anas-ai-quick-actions';
+      aiActions.innerHTML='<button id="theme-ai-action" type="button">مراجعة المخزون</button>';
+      aiHost.appendChild(aiActions);
+      const invoiceHost=document.getElementById('view-invoices-list');
+      const invoiceButton=document.createElement('button');
+      invoiceButton.id='theme-invoice-action';invoiceButton.type='button';invoiceButton.textContent='عرض قبل الطباعة';
+      invoiceHost.appendChild(invoiceButton);
+      const bottomNav=document.getElementById('anasQuickBottomNav');
+      const bottomButton=document.createElement('button');
+      bottomButton.id='theme-bottom-action';bottomButton.className='active';bottomButton.type='button';bottomButton.textContent='المبيعات';
+      bottomNav.appendChild(bottomButton);
     });
     // Exercise the actual product picker modal (including its real dialog surface),
     // rather than a detached .picker-dialog-scroll fragment with no modal ancestor.
@@ -568,6 +587,35 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       for (const item of paymentColors) {
         assert.ok(contrast(item.color, item.background) >= 4.5,
           'POS payment action colors must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
+      }
+      const targetVisuals=await page.evaluate(()=>{
+        const backgroundOf=node=>{
+          for(let current=node;current&&current!==document.documentElement;current=current.parentElement){
+            const value=getComputedStyle(current).backgroundColor;
+            if(value&&value!=='transparent'&&value!=='rgba(0, 0, 0, 0)')return value;
+          }
+          return getComputedStyle(document.body).backgroundColor;
+        };
+        const pair=id=>{const node=document.getElementById(id),css=getComputedStyle(node);return{color:css.color,background:backgroundOf(node)};};
+        const nav=document.getElementById('anasQuickBottomNav');
+        return {
+          aiQuickAction:pair('theme-ai-action'),
+          settingsGroup:pair('theme-settings-title'),
+          settingsAction:pair('theme-settings-button'),
+          invoiceAction:pair('theme-invoice-action'),
+          bottomNavAction:pair('theme-bottom-action'),
+          bottomNavSurface:getComputedStyle(nav).backgroundColor
+        };
+      });
+      for(const [name,item] of Object.entries(targetVisuals)){
+        if(name==='bottomNavSurface')continue;
+        assert.ok(contrast(item.color,item.background)>=4.5,
+          name+' must meet WCAG AA in '+theme+': '+JSON.stringify(item));
+      }
+      if(theme==='dark'){
+        assert.equal(targetVisuals.settingsGroup.background,'rgb(30, 41, 59)','settings field group must use the dark surface');
+        assert.equal(targetVisuals.bottomNavSurface,'rgb(15, 23, 42)','bottom navigation surface must use #0f172a');
+        assert.equal(targetVisuals.bottomNavAction.background,'rgb(30, 41, 59)','active bottom navigation action must use #1e293b');
       }
     }
     await page.emulateMedia({ media: 'print' });

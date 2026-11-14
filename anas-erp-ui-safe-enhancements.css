@@ -407,13 +407,17 @@ input, select, textarea {
 #anasAiExecutiveMetrics *,#anasAiMorningBrief *,#anasAiProactiveInsights *{
   color:#303943!important;-webkit-text-fill-color:#303943!important;opacity:1!important;
 }
-#view-settings .field-group[style*="#eff6ff"],
-#view-settings .field-group[style*="#2563eb"]{
-  background:#f0f1ee!important;border-color:#c9ccc7!important;
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#eff6ff"],
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#2563eb"]{
+  background:#1e293b!important;border-color:#475569!important;color:#f8fafc!important;
 }
-#view-settings .field-group[style*="#eff6ff"] h3,
-#view-settings .field-group[style*="#2563eb"] h3{
-  color:#35404a!important;-webkit-text-fill-color:#35404a!important;
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#eff6ff"] :is(h3,h4,p,label,span,strong,small),
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#2563eb"] :is(h3,h4,p,label,span,strong,small){
+  color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;
+}
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#eff6ff"] :is(button,.btn),
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#2563eb"] :is(button,.btn){
+  background:#334155!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important;
 }
 
 
