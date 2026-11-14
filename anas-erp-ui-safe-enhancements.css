@@ -1521,7 +1521,7 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-grid > di
 }
 #view-reports .anas-query-toggle {
   display:flex; flex-direction:row; align-items:center; gap:6px;
-  width:100%; color:#94a3b8; font-size:10px; line-height:1.3;
+  width:100%; color:#475569; font-size:10px; line-height:1.3;
   font-weight:600; text-align:left; direction:ltr; cursor:pointer;
 }
 #view-reports .anas-query-toggle input {

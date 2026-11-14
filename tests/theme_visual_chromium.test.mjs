@@ -663,12 +663,14 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
         const date=document.getElementById('reportDateFrom');
         const arrow=row?.querySelector('.anas-query-arrow');
         return {row:pair(row.querySelector('.anas-query-row-label')),rowSurface:getComputedStyle(row).backgroundColor,
-          heading:pair(heading),date:pair(date),arrow:{color:getComputedStyle(arrow).color,background:getComputedStyle(row).backgroundColor}};
+          heading:pair(heading),date:pair(date),arrow:{color:getComputedStyle(arrow).color,background:getComputedStyle(row).backgroundColor},
+          toggle:{color:getComputedStyle(document.querySelector('#view-reports .anas-query-toggle span')).color,background:getComputedStyle(document.querySelector('#view-reports .anas-query-options')).backgroundColor}};
       });
       assert.ok(contrast(visual.row.color,visual.rowSurface)>=4.5,'report row text must meet WCAG AA in '+themeName);
       assert.ok(contrast(visual.heading.color,visual.heading.background)>=4.5,'group heading must meet WCAG AA in '+themeName);
       assert.ok(contrast(visual.date.color,visual.date.background)>=4.5,'date field must meet WCAG AA in '+themeName);
       assert.ok(contrast(visual.arrow.color,visual.arrow.background)>=4.5,'navigation arrow must meet WCAG AA in '+themeName);
+      assert.ok(contrast(visual.toggle.color,visual.toggle.background)>=4.5,'report option labels must meet WCAG AA in '+themeName);
     }
 
     await page.evaluate(()=>document.documentElement.setAttribute('data-anas-theme','light'));
