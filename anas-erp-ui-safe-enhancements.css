@@ -1336,3 +1336,35 @@ html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-
   color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;
   border-color:#fca5a5!important;
 }
+
+
+/* r40.3 — deterministic specificity guard for the observed legacy button cascade.
+   Duplicate ID selectors are intentional: legacy !important rules accumulate many
+   :not() class selectors and otherwise override semantic/theme controls. */
+html:root[data-anas-theme="dark"] body
+#anas-video-theme-fixture#anas-video-theme-fixture
+#plain-action#plain-action {
+  background:#26364d!important;
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+
+/* Preserve payment meaning regardless of the active theme or generic button rules. */
+html:root body #hasibModal#hasibModal .anas-quick-payment-actions button:nth-of-type(1) {
+  background:#dcfce7!important;background-color:#dcfce7!important;
+  background-image:none!important;color:#166534!important;
+  -webkit-text-fill-color:#166534!important;border-color:#86efac!important;
+}
+html:root body #hasibModal#hasibModal .anas-quick-payment-actions button:nth-of-type(2) {
+  background:#eff6ff!important;background-color:#eff6ff!important;
+  background-image:none!important;color:#1e40af!important;
+  -webkit-text-fill-color:#1e40af!important;border-color:#bfdbfe!important;
+}
+html:root body #hasibModal#hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
+  background:#fee2e2!important;background-color:#fee2e2!important;
+  background-image:none!important;color:#991b1b!important;
+  -webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
+}
