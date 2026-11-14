@@ -225,7 +225,9 @@ test('all action buttons share one accessible blue palette in both themes', () =
     '--anas-unified-button-bg:#1d4ed8',
     '--anas-unified-button-hover:#1e40af',
     '--anas-unified-button-text:#ffffff',
-    'button:not(.grid-card-item)',\n    '.btn-pos-hasib',\n    ':root[data-anas-theme] body :is('
+    'button:not(.grid-card-item)',
+    '.btn-pos-hasib',
+    ':root[data-anas-theme] body :is(',
     ':root[data-anas-theme="dark"] body .sub-header-bar',
     ':root:not([data-anas-theme="dark"]) body .sub-header-bar'
   ]) assert.ok(css.includes(token), 'missing unified button/theme heading rule: ' + token);
