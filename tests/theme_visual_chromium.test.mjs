@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import vm from 'node:vm';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
 
@@ -766,4 +767,30 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
     if(browser) await browser.close();
     await new Promise(resolve=>server.close(resolve));
   }
+});
+
+
+test('r40 source-level regression: strict calendar, ledger math, POS single bar and semantic colors', () => {
+  const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+  const cart=fs.readFileSync(path.join(ROOT,'anas-pos-floating-cart.js'),'utf8');
+  const cartCss=fs.readFileSync(path.join(ROOT,'anas-pos-floating-cart.css'),'utf8');
+  const themeCss=fs.readFileSync(path.join(ROOT,'anas-erp-ui-safe-enhancements.css'),'utf8');
+  const parser=html.match(/function reportParseDate\(value\) \{[\s\S]*?\n        \}/);
+  assert.ok(parser,'strict report date parser must exist');
+  const parse=vm.runInNewContext('('+parser[0]+')');
+  assert.equal(parse('2026-02-31'),null,'impossible calendar date must be rejected');
+  assert.equal(parse('2026-02-28') instanceof Date,true);
+  assert.match(html,/الرصيد التراكمي/,'customer statement must show a running balance');
+  assert.match(html,/BigInt\(m\.amountCentimes\)/,'customer ledger uses integer centimes');
+  assert.match(html,/renderQueryTable\(\['الحساب','عدد الحركات','الإجمالي'/,'expenses must be grouped by account');
+  assert.match(html,/postedSaleReturns/,'posted sales returns must reduce profit');
+  assert.match(html,/incompleteCostLines/,'missing cost lines must be disclosed');
+  assert.match(html,/رسم بياني لحركة المتجر/,'store movement report must render an SVG chart');
+  assert.match(cart,/computeLineTotalCentimesBigInt/,'cart totals must use BigInt centime arithmetic');
+  assert.match(cart,/QUICK_WEIGHT_MILLIS_MAP/,'fractional quick weights must be represented as integer milligrams');
+  assert.match(cart,/anas-pos-unified-checkout/,'cart must use the single unified checkout surface');
+  assert.doesNotMatch(cart,/createElement\('aside'\);sticky/,'legacy independent sticky checkout must not be mounted');
+  assert.match(cartCss,/#anas-sticky-checkout-bar\{display:none!important\}/,'legacy sticky bar is hidden');
+  assert.match(themeCss,/:root\[data-anas-theme="dark"\] #hasibModal/,'dark mode must retain semantic payment colors');
+  assert.match(themeCss,/#anasQuickBottomNav/,'bottom navigation must have an explicit dark surface');
 });
