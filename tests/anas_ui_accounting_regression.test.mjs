@@ -150,3 +150,15 @@ test('sale return inventory restoration reduces reported net cost as well as net
   assert.match(html,/totalCost=Math\.max\(0,totalCost-Number\(restoredCostCents\)\/100\)/);
   assert.match(html,/lineProfit-=Number\(returnCents-restoredCostCents\)\/100/);
 });
+
+test('AI executive dashboard shares the same centime-exact BigInt inventory valuation engine', () => {
+  const start=html.indexOf('function anasRenderAiExecutiveDashboard()');
+  const end=html.indexOf('\\n        function ',start+1);
+  assert.ok(start>=0&&end>start);
+  const dashboard=html.slice(start,end);
+  assert.match(dashboard,/const stockCostAggregate=anasInventoryCostAggregateCents\(products\)/);
+  assert.match(dashboard,/const inventoryValue=stockCostAggregate\.totalCentimes\/100/);
+  assert.match(dashboard,/stockCostAggregate\.invalidRecords/);
+  assert.doesNotMatch(dashboard,/inventoryValue\s*\+=\s*row\.stock\s*\*\s*row\.cost/);
+  assert.match(dashboard,/قيمة المخزون بسعر الشراء/);
+});

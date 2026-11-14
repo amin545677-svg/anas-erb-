@@ -9120,7 +9120,6 @@ function wtAuditTransfers(){
             const returnCents=postedSaleReturns.reduce((n,r)=>n+BigInt(Number.isSafeInteger(r.totalCentimes)?r.totalCentimes:0),0n);
             const restoredCostCents=postedSaleReturns.reduce((n,r)=>n+(Array.isArray(r.items)?r.items.reduce((a,it)=>a+BigInt(Number.isSafeInteger(it.restoredInventoryCostCentimes)?it.restoredInventoryCostCentimes:0),0n):0n),0n);
             totalRevenue=Math.max(0,totalRevenue-Number(returnCents)/100);
-            totalCost=Math.max(0,totalCost-Number(restoredCostCents)/100);
             lineProfit-=Number(returnCents-restoredCostCents)/100;
             const netProfit = lineProfit;
             const range = typeof getReportRange==='function' ? getReportRange() : {from:'',to:''};
@@ -9640,8 +9639,8 @@ function wtAuditTransfers(){
                 (AppData.stockAdjustments||AppData.damagedStock||[]).filter(m=>reportItemInRange(m)).forEach(m=>addMove(m,m.type||'تالف/تسوية',m.direction==='in'?1:-1));
                 const productRows=[],{from:kardexFrom,to:kardexTo}=getReportRange();
                 products.forEach(p=>{
-                    const all=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>{const da=reportParseDate(a.date),db=reportParseDate(b.date);return (da?.getTime()??0)-(db?.getTime()??0)||String(a.ref||'').localeCompare(String(b.ref||''));});
-                    const before=all.filter(m=>{const d=reportParseDate(m.date);return !!(kardexFrom&&d&&reportLocalDateValue(d)<kardexFrom);});
+                    const all=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+                    const before=all.filter(m=>kardexFrom&&reportLocalDateValue(reportParseDate(m.date))<kardexFrom);
                     const current=all.filter(m=>{const d=reportParseDate(m.date),day=d?reportLocalDateValue(d):'';return d&&(!kardexFrom||day>=kardexFrom)&&(!kardexTo||day<=kardexTo);});
                     let balance=before.reduce((n,m)=>n+m.delta,0);
                     if(kardexFrom&&before.length)productRows.push([p.name||p.id,kardexFrom,'رصيد افتتاحي قبل الفترة','—','—',balance.toLocaleString('fr-DZ')]);
@@ -11532,14 +11531,15 @@ function wtAuditTransfers(){
             const stockRows=products.map(product=>({
                 product,
                 stock:strictNumber(product&&product.stock),
-                minimum:strictNumber(product&&(product.minStock??product.min_stock??product.reorderLevel)),
-                cost:strictNumber(product&&(product.buyPrice??product.buy_price??product.cost))
+                minimum:strictNumber(product&&(product.minStock??product.min_stock??product.reorderLevel))
             }));
+            const stockCostAggregate=anasInventoryCostAggregateCents(products);
+            const inventoryValue=stockCostAggregate.totalCentimes/100;
+            const valuedProducts=stockCostAggregate.validRecords;
             const lowStock=stockRows.filter(row=>row.stock!==null&&row.minimum!==null&&row.stock<=row.minimum);
             const zeroStock=stockRows.filter(row=>row.stock!==null&&row.stock<=0);
             const missingStock=stockRows.filter(row=>row.stock===null);
-            let inventoryValue=0,valuedProducts=0;
-            stockRows.forEach(row=>{if(row.stock!==null&&row.cost!==null&&row.stock>=0&&row.cost>=0){inventoryValue+=row.stock*row.cost;valuedProducts++;}});
+
             let debtTotal=0,debtors=0,invalidDebts=0;
             customers.forEach(customer=>{
                 const debt=strictNumber(customer&&customer.debt);
@@ -11569,7 +11569,7 @@ function wtAuditTransfers(){
                 ['المنتجات المسجلة',fmt(products.length)],
                 ['أصناف عند حد الطلب أو دونه',fmt(lowStock.length)],
                 ['أصناف بلا مخزون موجب',fmt(zeroStock.length)],
-                ['قيمة المخزون المقدّرة',fmt(inventoryValue)+' دج'],
+                ['قيمة المخزون بسعر الشراء',fmt(inventoryValue)+' دج'],
                 ['ديون العملاء المسجلة',fmt(debtTotal)+' دج'],
                 ['فواتير آخر 30 يوماً',fmt(datedInvoices)],
                 ['إجمالي الفواتير المؤرخة',fmt(sales30)+' دج'],
@@ -11586,7 +11586,7 @@ function wtAuditTransfers(){
             if(lowStock.length)notes.push('⚠️ '+lowStock.length+' صنفاً بلغ حد إعادة الطلب أو تجاوزه؛ راجع الكميات والطلبيات قبل الشراء.');
             if(zeroStock.length)notes.push('🔴 '+zeroStock.length+' صنفاً لديه مخزون صفري أو سالب مسجل.');
             if(missingStock.length)notes.push('ℹ️ '+missingStock.length+' صنفاً لا يملك قيمة مخزون رقمية؛ لم يُعامل كصفر.');
-            if(valuedProducts<products.length)notes.push('ℹ️ قيمة المخزون محسوبة لـ '+valuedProducts+' من '+products.length+' صنفاً فقط لتوفر الكمية وتكلفة الشراء.');
+            if(stockCostAggregate.invalidRecords)notes.push('ℹ️ قيمة المخزون بسعر الشراء جزئية: '+valuedProducts+' سجلًا صالحًا و'+stockCostAggregate.invalidRecords+' سجلًا يحتاج إلى استكمال كمية/تكلفة الشراء.');
             if(debtors.length)notes.push('💳 توجد أرصدة مدينة موجبة لدى '+debtors.length+' عميل؛ هذه ليست أعمار ديون ولا إثباتاً لتاريخ الاستحقاق.');
             if(undatedInvoices)notes.push('ℹ️ '+undatedInvoices+' فاتورة بلا تاريخ قابل للتحقق؛ لم تدخل في حساب آخر 30 يوماً.');
             if(invalidInvoiceTotals)notes.push('⚠️ تعذر قراءة إجمالي '+invalidInvoiceTotals+' فاتورة ضمن الفترة.');
@@ -13037,7 +13037,7 @@ function wtAuditTransfers(){
             const from=document.getElementById('reportDateFrom'),to=document.getElementById('reportDateTo');
             try {
                 const saved=JSON.parse(localStorage.getItem(ANAS_REPORT_RANGE_STORAGE_KEY)||'null');
-                if(saved && /^\d{4}-\d{2}-\d{2}$/.test(saved.from||'') && /^\d{4}-\d{2}-\d{2}$/.test(saved.to||'') && saved.from<=saved.to) {
+                if(saved && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.from||'') && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.to||'') && saved.from<=saved.to) {
                     if(from)from.value=saved.from;
                     if(to)to.value=saved.to;
                 }
