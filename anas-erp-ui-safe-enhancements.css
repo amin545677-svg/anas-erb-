@@ -1813,3 +1813,24 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 :is(.badge,.status-badge,.badge-active-tag,[class*="priority"],.anas-ai-priority,.tax-icon,[aria-label*="TAX" i],.drawer-nav-row .row-icon){
   white-space:nowrap!important;flex-shrink:0!important;
 }
+
+
+/* Light-theme WCAG AA closure for the real AI import surface and its controls. */
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro{
+  background-color:#fff!important;background-image:none!important;
+  color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;
+  border-color:#cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro *{
+  color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro :is(button,.anas-ai-import-type){
+  background-color:#eff6ff!important;background-image:none!important;
+  color:#1e3a8a!important;-webkit-text-fill-color:#1e3a8a!important;
+  border-color:#bfdbfe!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-primary{
+  background-color:#1d4ed8!important;background-image:none!important;
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  border-color:#1d4ed8!important;
+}
