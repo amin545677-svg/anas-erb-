@@ -1899,8 +1899,7 @@ body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
 #customReportContent .anas-report-integrity-warning {color:#b45309;font-weight:800}
 
 
-/* r44 — one consistent action-button palette in both themes, with WCAG AA text.
-   Inputs used as switches/checkboxes/radios are intentionally not button controls. */
+/* r45 — final shared action-button palette. Dashboard cards keep their designed gradients. */
 :root[data-anas-theme="light"],
 :root[data-anas-theme="dark"] {
   --anas-unified-button-bg:#1d4ed8;
@@ -1908,16 +1907,30 @@ body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
   --anas-unified-button-text:#ffffff;
   --anas-unified-button-border:#1d4ed8;
 }
+/* Actual controls only: preserve dashboard/product card surfaces and their gradients. */
 :root[data-anas-theme] body :is(
-  button,
+  button:not(.grid-card-item),
   input[type="button"],
   input[type="submit"],
   input[type="reset"],
   [role="button"],
   .btn,
   .pill-select-btn,
+  .filter-chip,
+  .filter-btn,
+  .filter-button,
+  .nav-tab,
+  .category-btn,
+  .category-button,
+  .quick-product-btn,
+  .btn-pos-hasib,
+  .btn-scanner-icon,
+  .btn-multi-tab,
+  .btn-arrow-back,
+  .btn-header-action,
   .anas-ai-import-type,
-  .anas-ai-import-primary
+  .anas-ai-import-primary,
+  #smartImportPreviewModal [data-smart-import-target]
 ) {
   background-color:var(--anas-unified-button-bg)!important;
   background-image:none!important;
@@ -1926,52 +1939,91 @@ body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
   border-color:var(--anas-unified-button-border)!important;
 }
 :root[data-anas-theme] body :is(
-  button,
+  button:not(.grid-card-item),
   input[type="button"],
   input[type="submit"],
   input[type="reset"],
   [role="button"],
   .btn,
   .pill-select-btn,
+  .filter-chip,
+  .filter-btn,
+  .filter-button,
+  .nav-tab,
+  .category-btn,
+  .category-button,
+  .quick-product-btn,
+  .btn-pos-hasib,
+  .btn-scanner-icon,
+  .btn-multi-tab,
+  .btn-arrow-back,
+  .btn-header-action,
   .anas-ai-import-type,
-  .anas-ai-import-primary
-) :is(span,strong,b,i,small,svg) {
+  .anas-ai-import-primary,
+  #smartImportPreviewModal [data-smart-import-target]
+) :is(span,strong,b,i,small,svg,path) {
   color:inherit!important;
   -webkit-text-fill-color:inherit!important;
   fill:currentColor!important;
 }
 :root[data-anas-theme] body :is(
-  button,
+  button:not(.grid-card-item),
   input[type="button"],
   input[type="submit"],
   input[type="reset"],
   [role="button"],
   .btn,
   .pill-select-btn,
+  .filter-chip,
+  .filter-btn,
+  .filter-button,
+  .nav-tab,
+  .category-btn,
+  .category-button,
+  .quick-product-btn,
+  .btn-pos-hasib,
+  .btn-scanner-icon,
+  .btn-multi-tab,
+  .btn-arrow-back,
+  .btn-header-action,
   .anas-ai-import-type,
-  .anas-ai-import-primary
-):is(:hover,:focus-visible) {
+  .anas-ai-import-primary,
+  #smartImportPreviewModal [data-smart-import-target]
+):is(:hover,:focus-visible,:active,[aria-pressed="true"],[aria-selected="true"],.active) {
   background-color:var(--anas-unified-button-hover)!important;
   background-image:none!important;
-  color:#fff!important;
-  -webkit-text-fill-color:#fff!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
 }
 :root[data-anas-theme] body :is(
-  button,
+  button:not(.grid-card-item),
   input[type="button"],
   input[type="submit"],
   input[type="reset"],
   [role="button"],
   .btn,
   .pill-select-btn,
+  .filter-chip,
+  .filter-btn,
+  .filter-button,
+  .nav-tab,
+  .category-btn,
+  .category-button,
+  .quick-product-btn,
+  .btn-pos-hasib,
+  .btn-scanner-icon,
+  .btn-multi-tab,
+  .btn-arrow-back,
+  .btn-header-action,
   .anas-ai-import-type,
-  .anas-ai-import-primary
+  .anas-ai-import-primary,
+  #smartImportPreviewModal [data-smart-import-target]
 ):disabled {
   opacity:.55;
   cursor:not-allowed;
 }
 
-/* Main section bars use theme-aware surfaces; headings remain readable in both modes. */
+/* Main section bars: theme-aware backgrounds and readable headings. */
 :root:not([data-anas-theme="dark"]) body .sub-header-bar,
 :root:not([data-anas-theme="dark"]) body .sub-header-title {
   background-color:#eff6ff!important;

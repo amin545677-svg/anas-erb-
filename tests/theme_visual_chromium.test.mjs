@@ -608,7 +608,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         assert.equal(item.color, 'rgb(255, 255, 255)',
           'all POS payment actions use the same white label color in ' + theme);
       }
-      const buttonPalette = await page.locator('#anas-video-theme-fixture button').evaluateAll(nodes =>
+      const buttonPalette = await page.locator('#anas-video-theme-fixture button:not(.grid-card-item)').evaluateAll(nodes =>
         nodes.map(node => ({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
       for (const item of buttonPalette) {
         assert.equal(item.background, 'rgb(29, 78, 216)', 'every action button must use the shared blue in ' + theme);
