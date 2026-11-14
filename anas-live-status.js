@@ -1,7 +1,7 @@
 (function (g) {
   'use strict';
-  if (g.__ANAS_LIVE_DURABILITY_STATUS_R40__) return;
-  g.__ANAS_LIVE_DURABILITY_STATUS_R40__ = true;
+  if (g.__ANAS_LIVE_DURABILITY_STATUS_R46__) return;
+  g.__ANAS_LIVE_DURABILITY_STATUS_R46__ = true;
   function bar() { return g.document && g.document.getElementById('anas-live-status-bar'); }
   function emit(type, detail) {
     if (!g.document || typeof g.CustomEvent !== 'function') return;
@@ -315,5 +315,94 @@
     wrappedShowReportDetails.__anasCustomerReconciliationWrapped=true;
     g.showReportDetails=wrappedShowReportDetails;
   }
+
+
+  // r46: normalized report date extraction and store movement report modal.
+  function normalizeReportDateValue(value) {
+    if(value==null||value==='')return null;
+    if(value instanceof Date)return Number.isNaN(value.getTime())?null:value;
+    if(typeof value==='number'&&Number.isFinite(value)){const d=new Date(value);return Number.isNaN(d.getTime())?null:d;}
+    const raw=String(value).trim().replace(/[٠-٩]/g,ch=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))).replace(/[۰-۹]/g,ch=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)));
+    if(/^\d{12,}$/.test(raw)){const d=new Date(Number(raw));return Number.isNaN(d.getTime())?null:d;}
+    const part=raw.replace(/[,،].*$/,'').replace(/[T\s].*$/,'').trim();
+    let m=/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(part),y,mo,day;
+    if(m){y=+m[1];mo=+m[2];day=+m[3];}else{m=/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(part);if(!m)return null;day=+m[1];mo=+m[2];y=+m[3];}
+    const d=new Date(y,mo-1,day);return y>=1000&&d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?d:null;
+  }
+  function reportRecordDate(row){
+    if(!row||typeof row!=='object')return null;
+    for(const k of ['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date'])if(row[k]!==undefined&&row[k]!==null&&row[k]!=='')return row[k];
+    const m=/(?:^|\D)(20\d{2})[-_/]?(\d{2})[-_/]?(\d{2})(?:\D|$)/.exec(String(row.id||row.invoiceId||''));
+    return m?m[1]+'-'+m[2]+'-'+m[3]:null;
+  }
+  g.anasNormalizeReportDateValue=normalizeReportDateValue;g.anasGetReportRecordDate=reportRecordDate;
+  if(typeof g.reportParseDate==='function'&&!g.reportParseDate.__anasR46){
+    const parser=value=>{const d=normalizeReportDateValue(value);return d?new Date(d.getFullYear(),d.getMonth(),d.getDate()):null;};
+    parser.__anasR46=true;g.reportParseDate=parser;
+  }
+  function renderStoreMovementReport(chartMode){
+    if(typeof g.applyReportDateRange==='function'&&!g.applyReportDateRange())return false;
+    const data=g.AppData||{},range=typeof g.getReportRange==='function'?g.getReportRange():{from:'',to:''};
+    const arr=k=>Array.isArray(data[k])?data[k]:[];
+    const inside=row=>{const d=normalizeReportDateValue(reportRecordDate(row));if(!d)return !range.from&&!range.to;const day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return(!range.from||day>=range.from)&&(!range.to||day<=range.to);};
+    const val=(r,keys)=>{for(const k of keys){const n=Number(r&&r[k]);if(Number.isFinite(n))return n;}return 0;};
+    const sales=arr('invoices').filter(r=>inside(r)&&!(r.cancelled||r.isCancelled||r.reversed||/cancel|void/i.test(String(r.status||''))));
+    const purchases=arr('purchases').filter(inside),expenses=arr('expenses').filter(inside);
+    const cash=sales.reduce((s,r)=>s+val(r,['cashPaid','cash','paid','paidAmount']),0);
+    const credit=sales.reduce((s,r)=>s+Math.max(0,val(r,['debt','remaining','remainingAmount','due'])),0);
+    const metrics=[['صافي المبيعات',sales.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)],['النقد',cash],['الآجل',credit],
+      ['المشتريات',purchases.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)],
+      ['المصروفات',expenses.reduce((s,r)=>s+val(r,['amount','total','value']),0)],
+      ['رصيد الصندوق',Number(data.cashBalance??data.cashboxBalance??data.cash??(cash-expenses.reduce((s,r)=>s+val(r,['amount','total','value']),0)))||0]];
+    const fmt=n=>(Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج';
+    const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const title=g.document.getElementById('customReportTitle'),content=g.document.getElementById('customReportContent'),modal=g.document.getElementById('customReportModal');
+    if(!title||!content||!modal)return false;
+    const max=Math.max(1,...metrics.map(m=>Math.abs(m[1])));
+    const chart=chartMode?'<svg viewBox="0 0 640 220" role="img" aria-label="مخطط حركة المتجر" style="width:100%;height:auto"><line x1="18" y1="178" x2="622" y2="178" stroke="#94a3b8"/>'+metrics.map((m,i)=>{const h=Math.max(3,Math.abs(m[1])/max*132),x=32+i*99;return '<rect x="'+x+'" y="'+(176-h)+'" width="54" height="'+h+'" rx="5" fill="#1d4ed8"/><text x="'+(x+27)+'" y="202" text-anchor="middle" font-size="10" fill="currentColor">'+esc(m[0])+'</text>';}).join('')+'</svg>':'';
+    const invoices=sales.map(r=>[r.id||r.invoiceId||'',reportRecordDate(r)||'',val(r,['total','grandTotal','amount']),val(r,['paid','paidAmount','cashPaid']),Math.max(0,val(r,['debt','remaining','remainingAmount','due']))]);
+    const table='<div style="overflow:auto"><table style="width:100%;min-width:520px;border-collapse:collapse"><thead><tr>'+['رقم الفاتورة','التاريخ','الإجمالي','المدفوع','المتبقي'].map(x=>'<th style="padding:8px;background:#e2e8f0;color:#0f172a">'+x+'</th>').join('')+'</tr></thead><tbody>'+invoices.map(row=>'<tr>'+row.map(x=>'<td style="padding:7px;border-bottom:1px solid #cbd5e1">'+esc(x)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+    title.textContent=chartMode?'حركة المتجر - رسم بياني':'حركة المتجر';
+    content.innerHTML='<div class="anas-store-movement-report"><div class="anas-store-movement-kpis">'+metrics.map(m=>'<div class="anas-store-kpi"><span>'+m[0]+'</span><strong>'+fmt(m[1])+'</strong></div>').join('')+'</div>'+chart+table+'<div class="anas-store-report-actions"><button type="button" data-store-print>طباعة التقرير</button><button type="button" data-store-csv>تصدير CSV</button></div></div>';
+    modal.classList.add('active');
+    content.querySelector('[data-store-print]').addEventListener('click',()=>{const w=g.open('','_blank');if(!w)return;w.document.write('<!doctype html><html dir="rtl"><meta charset="utf-8"><body>'+content.innerHTML+'</body></html>');w.document.close();w.print();});
+    content.querySelector('[data-store-csv]').addEventListener('click',()=>{const csv=[['رقم الفاتورة','التاريخ','الإجمالي','المدفوع','المتبقي'],...invoices].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));const a=g.document.createElement('a');a.href=url;a.download='store-movement-report.csv';a.click();URL.revokeObjectURL(url);});
+    return true;
+  }
+  const baseShowReport=g.showReportDetails;
+  if(typeof baseShowReport==='function'&&!baseShowReport.__anasStoreMovementR46){
+    const wrapped=function(title){if(title==='حركة المتجر'||title==='حركة المتجر - رسم بياني')return renderStoreMovementReport(title.includes('رسم بياني'));return baseShowReport.apply(this,arguments);};
+    wrapped.__anasStoreMovementR46=true;g.showReportDetails=wrapped;
+  }
+  function installInquiryTabs(){
+    const list=g.document.getElementById('anasQueriesList');if(!list||list.dataset.anasTabsReady)return;
+    const groups=Array.from(list.querySelectorAll(':scope > .anas-query-group'));if(!groups.length)return;
+    const tabs=[['all','الكل'],['store','المتجر'],['sales','المبيعات'],['customers','العملاء'],['purchases','المشتريات'],['suppliers','الموردون'],['cash','الصندوق'],['expenses','المصروفات'],['warehouse','المخازن']];
+    const bar=g.document.createElement('div');bar.className='anas-inquiry-filter-tabs';bar.setAttribute('role','tablist');bar.setAttribute('aria-label','تصفية أقسام الاستعلامات');
+    tabs.forEach(([key,label],i)=>{const b=g.document.createElement('button');b.type='button';b.textContent=label;b.dataset.filter=key;b.setAttribute('role','tab');b.setAttribute('aria-selected',i===0?'true':'false');if(i===0)b.classList.add('active');b.addEventListener('click',()=>{bar.querySelectorAll('button').forEach(x=>{const active=x===b;x.classList.toggle('active',active);x.setAttribute('aria-selected',active?'true':'false');});groups.forEach(group=>{const h=group.querySelector('.anas-query-group-heading')?.textContent.trim()||'';const wanted={store:'المتجر',sales:'المبيعات',customers:'العملاء',purchases:'المشتريات',suppliers:'الموردين',cash:'الصندوق',expenses:'المصروفات',warehouse:'المخازن'}[key];group.hidden=key!=='all'&&h!==wanted;});});bar.appendChild(b);});
+    list.parentNode.insertBefore(bar,list);list.dataset.anasTabsReady='1';
+  }
+  function compactCustomerActions(){
+    const view=g.document.getElementById('view-customers');if(!view)return;
+    const cards=Array.from(view.querySelectorAll('.action-menu-list .menu-action-card'));
+    cards.forEach(card=>{const t=card.textContent.replace(/\s+/g,' ').trim();if(/ذمم العملاء\s*[-—].*تقرير|العملاء المتبقي لهم أرصدة|فحص ارصدة العملاء|فحص أرصدة العملاء/i.test(t))card.hidden=true;});
+    const directory=cards.find(card=>/عرض وإدارة العملاء/.test(card.textContent));
+    if(directory&&!directory.dataset.anasSmoothBound){directory.addEventListener('click',()=>g.setTimeout(()=>g.document.querySelector('#customerDirectoryList')?.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'}),90));directory.dataset.anasSmoothBound='1';}
+  }
+  function normalizeInvoiceCurrency(){
+    const root=g.document.getElementById('invoicesList')||g.document.getElementById('view-invoices-list');if(!root)return;
+    root.querySelectorAll('*').forEach(el=>{if(!el.children.length&&/\bDA\b/.test(el.textContent||''))el.textContent=el.textContent.replace(/\bDA\b/g,'د.ج');});
+  }
+  function applyR46DomRepairs(){
+    installInquiryTabs();compactCustomerActions();normalizeInvoiceCurrency();
+    const badge=g.document.getElementById('anas-status-version-badge'),bar=g.document.getElementById('anas-live-status-bar');
+    if(badge&&bar){badge.textContent='r40';bar.dataset.buildVersion='r40';}
+    const trucks=g.document.getElementById('view-trucks');
+    if(trucks)trucks.querySelectorAll('button').forEach(b=>{const t=b.textContent.trim();if(t==='إضافة'||t==='حفظ الرحلة')b.classList.add('anas-truck-primary-action');});
+    const purchases=g.document.getElementById('view-purchases');
+    if(purchases)purchases.querySelectorAll('button').forEach(b=>{if(b.textContent.trim()==='مسح الكل')b.classList.add('anas-purchase-clear-action');});
+  }
+  if(g.document.readyState==='loading')g.document.addEventListener('DOMContentLoaded',applyR46DomRepairs,{once:true});else applyR46DomRepairs();
+  if(typeof g.MutationObserver==='function'){const observer=new g.MutationObserver(()=>applyR46DomRepairs());observer.observe(g.document.documentElement,{childList:true,subtree:true});}
 
 })(window);

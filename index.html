@@ -9361,7 +9361,7 @@ function wtAuditTransfers(){
             let resolvedReportAuditRows = null;
             let resolvedReportSourceLabel = '';
             const genericArray = key => Array.isArray(AppData && AppData[key]) ? AppData[key] : [];
-            const genericDateKeys = ['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'];
+            const genericDateKeys = ['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','dateCreated','created'];
             const genericInRange = rows => rows.filter(row=>reportItemInRange(row,genericDateKeys));
             const genericDate = row => row?.date||row?.createdAt||row?.created_at||row?.timestamp||row?.invoiceDate||row?.invoice_date||'—';
             const genericMoneyCents = row => {
@@ -13211,14 +13211,34 @@ function anasGetAiHubKpiMetrics(tabKey) {
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         }
         function reportParseDate(value) {
-            if (!value) return null;
-            if (value instanceof Date) { if(Number.isNaN(value.getTime()))return null; return new Date(value.getFullYear(),value.getMonth(),value.getDate()); }
-            const raw=String(value).trim();
-            let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);
-            if(m){const y=+m[1],mo=+m[2],day=+m[3],d=new Date(y,mo-1,day);return d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?d:null;}
-            m=raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-            if(m){const day=+m[1],mo=+m[2],y=+m[3],d=new Date(y,mo-1,day);return d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?d:null;}
-            const d=new Date(raw); return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+            if (value === null || value === undefined || value === '') return null;
+            if (value instanceof Date) {
+                if (Number.isNaN(value.getTime())) return null;
+                return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+            }
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                const epoch = new Date(value);
+                return Number.isNaN(epoch.getTime()) ? null : new Date(epoch.getFullYear(), epoch.getMonth(), epoch.getDate());
+            }
+            const normalized = String(value).trim()
+                .replace(/[٠-٩]/g, ch => String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch)))
+                .replace(/[۰-۹]/g, ch => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)));
+            if (/^\d{12,}$/.test(normalized)) {
+                const epoch = new Date(Number(normalized));
+                return Number.isNaN(epoch.getTime()) ? null : new Date(epoch.getFullYear(), epoch.getMonth(), epoch.getDate());
+            }
+            const datePart = normalized.replace(/[,،].*$/, '').replace(/[T\s].*$/, '').trim();
+            let m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(datePart);
+            let year, month, day;
+            if (m) { year=+m[1]; month=+m[2]; day=+m[3]; }
+            else {
+                m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(datePart);
+                if (!m) return null;
+                day=+m[1]; month=+m[2]; year=+m[3];
+            }
+            if (year < 1000 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+            const d = new Date(year, month-1, day);
+            return d.getFullYear()===year && d.getMonth()===month-1 && d.getDate()===day ? d : null;
         }
         const ANAS_REPORT_RANGE_STORAGE_KEY = 'ANAS_REPORT_RANGE_V1';
         function anasPersistReportDateRange() {
@@ -13239,12 +13259,17 @@ function anasGetAiHubKpiMetrics(tabKey) {
             const fromEl=document.getElementById('reportDateFrom'), toEl=document.getElementById('reportDateTo');
             return {from:fromEl?.value||'',to:toEl?.value||''};
         }
-        function reportItemInRange(item, dateKeys=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created']) {
+        function reportItemInRange(item, dateKeys=['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','dateCreated','created']) {
             const {from,to}=getReportRange();
             if(!from&&!to)return true;
-            let raw=null; for(const k of dateKeys){if(item && item[k]){raw=item[k];break;}}
+            const keys=['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','dateCreated','created',...(Array.isArray(dateKeys)?dateKeys:[])];
+            let raw=null;
+            for(const k of keys){if(item && item[k]!==null && item[k]!==undefined && item[k]!==''){raw=item[k];break;}}
+            if(raw===null && item && (item.id||item.invoiceId)){
+                const idDate=String(item.id||item.invoiceId).match(/(?:^|\D)(20\d{2})[-_/]?(\d{2})[-_/]?(\d{2})(?:\D|$)/);
+                if(idDate)raw=idDate[1]+'-'+idDate[2]+'-'+idDate[3];
+            }
             const d=reportParseDate(raw);
-            // عند اختيار فترة، لا نخلط السجلات غير المؤرخة مع مجموع الفترة؛ تُستبعد مؤقتاً ويُعرض تنبيه واضح.
             if(!d)return false;
             const day=reportLocalDateValue(d);
             return (!from||day>=from)&&(!to||day<=to);

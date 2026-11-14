@@ -2063,3 +2063,26 @@ html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-ite
   border-color:#1d4ed8!important;
   transition:none!important;
 }
+
+/* r46 — targeted mobile light-mode contrast and report organization. */
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-head,
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-head :is(.anas-ai-import-head-copy,.anas-ai-import-head-copy *,h2,h3,.anas-ai-import-kicker){color:#fff!important;-webkit-text-fill-color:#fff!important}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-head p{color:#e2e8f0!important;-webkit-text-fill-color:#e2e8f0!important}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-type{background:#f8fafc!important;color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;border-color:#cbd5e1!important}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-type.is-active,
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-type[aria-pressed="true"]{background:#1d4ed8!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#1d4ed8!important}
+:root:not([data-anas-theme="dark"]) #view-trucks .anas-truck-primary-action{background:#1d4ed8!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#1d4ed8!important}
+:root:not([data-anas-theme="dark"]) #view-purchases .anas-purchase-clear-action{background:#1d4ed8!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#1d4ed8!important}
+:root:not([data-anas-theme="dark"]) #view-purchases :is(th,thead){background:#e2e8f0!important;color:#0f172a!important;-webkit-text-fill-color:#0f172a!important}
+:root:not([data-anas-theme="dark"]) #view-inventory .sub-header-bar,
+:root:not([data-anas-theme="dark"]) #view-inventory .sub-header-title,
+:root:not([data-anas-theme="dark"]) #view-stock .sub-header-bar,
+:root:not([data-anas-theme="dark"]) #view-stock .sub-header-title{background:#e2e8f0!important;color:#0f172a!important;-webkit-text-fill-color:#0f172a!important}
+.anas-inquiry-filter-tabs{display:flex;gap:7px;overflow-x:auto;padding:8px 2px;margin:0 0 8px;scrollbar-width:thin}
+.anas-inquiry-filter-tabs button{flex:0 0 auto;min-height:38px;padding:7px 12px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc!important;color:#0f172a!important;font-weight:800;white-space:nowrap}
+.anas-inquiry-filter-tabs button.active{background:#1d4ed8!important;color:#fff!important;border-color:#1d4ed8!important}
+.anas-store-movement-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 12px}
+.anas-store-kpi{display:flex;flex-direction:column;gap:5px;padding:11px;border:1px solid var(--mp-border,#cbd5e1);border-radius:11px;background:var(--mp-card-bg,#fff);color:var(--mp-text-dark,#0f172a)}
+.anas-store-kpi span{font-size:11px;font-weight:800}.anas-store-kpi strong{font-size:15px;font-weight:900;overflow-wrap:anywhere}
+.anas-store-report-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+@media(min-width:700px){.anas-store-movement-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
