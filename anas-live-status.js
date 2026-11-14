@@ -133,12 +133,12 @@
       const id=String(movement.clientId),type=String(movement.type||'');
       if(!['opening_balance','invoice_debit','receipt','return_credit','adjustment'].includes(type))continue;
       if(type==='invoice_debit'){
-        const linkedInvoice=invoiceById.get(String(movement.referenceId||''));
+        const linkedInvoice=invoiceById.get(String(movement.referenceId||movement.invoiceId||movement.refId||''));
         if(linkedInvoice&&cancelled(linkedInvoice))continue;
-        if(movement.referenceId!=null)invoiceDebitIds.add(String(movement.referenceId));
+        const debitRef=movement.referenceId??movement.invoiceId??movement.refId;if(debitRef!=null)invoiceDebitIds.add(String(debitRef));
       }
       if(type==='return_credit'){
-        const posted=returnById.get(String(movement.referenceId||''));if(!posted)continue;
+        const posted=returnById.get(String(movement.referenceId||movement.refId||''));if(!posted)continue;
         const linkedInvoice=invoiceById.get(String(posted.originalInvoiceId||''));
         if(!linkedInvoice||cancelled(linkedInvoice)||invoiceClientId(linkedInvoice)!==id)continue;
         const linkedIds=Array.isArray(posted.financialMovementIds)?posted.financialMovementIds.map(String):[];
@@ -151,24 +151,71 @@
       if(from&&day&&day<from){target.opening+=amount;continue;}
       if(inRange(movement)){if(amount>0n)target.debit+=amount;else if(amount<0n)target.credit+=-amount;}
     }
-    // Legacy invoice fallback is applied only when the canonical debit movement is absent.
+    // Legacy invoice fallback: reconstruct only the original receivable, never the mutable
+    // remaining balance. Subsequent credits stay in clientMovements at their real dates.
+    const allocationInvoiceId=allocation=>String((allocation&&
+      (allocation.invoiceId??allocation.refId??allocation.referenceId??allocation.invoice_id))??'');
+    const allocationAmount=allocation=>{
+      if(!allocation||typeof allocation!=='object')return null;
+      if(allocation.amountCentimes!=null)return centsField(allocation.amountCentimes);
+      if(allocation.amount_cents!=null)return centsField(allocation.amount_cents);
+      if(allocation.amountCents!=null)return centsField(allocation.amountCents);
+      return moneyCents(allocation.amount);
+    };
+    const linkedCreditsForInvoice=(invoice,clientId)=>{
+      const ref=invoiceId(invoice),seen=new Set();let sum=0n;
+      for(const movement of movements){
+        if(!movement||String(movement.clientId??'')!==clientId)continue;
+        const signed=signedAmount(movement);if(signed===null||signed>=0n)continue;
+        const type=String(movement.type||'');
+        if(!['receipt','return_credit','adjustment'].includes(type))continue;
+        if(type==='return_credit'){
+          const posted=returnById.get(String(movement.referenceId||movement.refId||''));
+          if(!posted||String(posted.originalInvoiceId||'')!==ref)continue;
+          const linkedIds=Array.isArray(posted.financialMovementIds)?posted.financialMovementIds.map(String):[];
+          const movementId=String(movement.movementId||movement.id||'');
+          if(!movementId||!linkedIds.includes(movementId))continue;
+        }
+        const movementKey=String(movement.movementId||movement.id||'');
+        if(movementKey&&seen.has(movementKey))continue;
+        const allocations=Array.isArray(movement.allocations)?movement.allocations:null;
+        let linked=0n;
+        if(allocations&&allocations.length){
+          for(const allocation of allocations){
+            if(allocationInvoiceId(allocation)!==ref)continue;
+            const allocated=allocationAmount(allocation);
+            if(allocated!==null&&allocated>0n)linked+=allocated;
+          }
+        }else{
+          const direct=[movement.invoiceId,movement.invoice_id,movement.refId,movement.referenceId]
+            .some(value=>value!=null&&String(value)===ref);
+          if(direct)linked=-signed;
+        }
+        if(linked>0n){sum+=linked;if(movementKey)seen.add(movementKey);}
+      }
+      return sum;
+    };
     for(const invoice of invoices){
       if(!invoice||cancelled(invoice))continue;
       const id=invoiceClientId(invoice),ref=invoiceId(invoice);
       if(!id||!ref||invoiceDebitIds.has(ref))continue;
-      const total=invoice.totalCentimes!=null?centsField(invoice.totalCentimes):
+      const invoiceTotalCents=invoice.totalCentimes!=null?centsField(invoice.totalCentimes):
         invoice.total_cents!=null?centsField(invoice.total_cents):moneyCents(invoice.total);
-      const paid=invoice.paidCentimes!=null?centsField(invoice.paidCentimes):
+      const invoicePaidCents=invoice.paidCentimes!=null?centsField(invoice.paidCentimes):
         invoice.paid_cents!=null?centsField(invoice.paid_cents):moneyCents(invoice.paid??0);
-      const rawRemaining=invoice.remainingCentimes??invoice.remaining_cents??invoice.remaining;
-      const remaining=rawRemaining!=null&&rawRemaining!==''?
-        (invoice.remainingCentimes!=null||invoice.remaining_cents!=null?centsField(rawRemaining):moneyCents(rawRemaining)):
-        total!==null&&paid!==null?total-paid:null;
-      if(remaining===null||remaining<=0n)continue;
+      if(invoiceTotalCents===null||invoiceTotalCents<=0n)continue;
+      const paid=invoicePaidCents!==null&&invoicePaidCents>0n?invoicePaidCents:0n;
+      const linkedMovementCreditsCents=linkedCreditsForInvoice(invoice,id);
+      const untrackedInitialPaidCents=paid>linkedMovementCreditsCents?
+        paid-linkedMovementCreditsCents:0n;
+      const initialPaidCents=untrackedInitialPaidCents>invoiceTotalCents?
+        invoiceTotalCents:untrackedInitialPaidCents;
+      const originalReceivableCents=invoiceTotalCents-initialPaidCents;
+      if(originalReceivableCents<=0n)continue;
       const target=ensure(id),day=dayOf(invoice);
       if(!day&&(from||to)){target.missingDate++;continue;}
-      if(from&&day&&day<from){target.opening+=remaining;continue;}
-      if(inRange(invoice))target.debit+=remaining;
+      if(from&&day&&day<from){target.opening+=originalReceivableCents;continue;}
+      if(inRange(invoice))target.debit+=originalReceivableCents;
     }
     const format=cents=>{
       const abs=cents<0n?-cents:cents;
