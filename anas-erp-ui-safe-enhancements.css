@@ -1672,3 +1672,33 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 :is(.badge,.status-badge,[class*="priority"],.tax-icon,[aria-label*="TAX" i]) {
   white-space:nowrap;flex-shrink:0;
 }
+
+
+/* r40 follow-up: actual AI import component selectors and KPI descendants. */
+:root[data-anas-theme="dark"] .anas-ai-import-pro,
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(.anas-ai-import-head,.anas-ai-import-benefits,.anas-ai-import-section-title,.anas-ai-import-types,.anas-ai-import-drop,.anas-ai-import-actions,.anas-ai-import-rules,.anas-ai-import-note,.anas-ai-dropzone,.anas-ai-upload-card) {
+  background-color:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(button,.anas-ai-import-type,.anas-ai-import-primary,.anas-ai-dropzone,.anas-ai-upload-card) {
+  background-color:#334155!important;color:#f8fafc!important;border-color:#64748b!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(.anas-ai-import-kicker,.anas-ai-import-head-copy,.anas-ai-import-section-title,.anas-ai-import-note,.anas-ai-import-status,.anas-ai-import-benefits *) {color:#e2e8f0!important}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-type.is-active,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-primary {background:#1d4ed8!important;color:#fff!important;border-color:#3b82f6!important}
+:root[data-anas-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card,.anas-ai-action-card) {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card,.anas-ai-action-card) * {color:inherit}
+:root[data-anas-theme="light"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) :is(strong,b,span,.value,.number) {
+  color:#0f172a!important;opacity:1!important;-webkit-text-fill-color:#0f172a;
+}
+:is(input,textarea)[placeholder*="NIF" i],
+:is(input,textarea)[placeholder*="RC" i],
+:is(input,textarea)[placeholder*="Art" i],
+:is(input,textarea)[placeholder*="NIC" i] {
+  direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums;
+}
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item) :is(button,.btn) {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#64748b!important;
+}
+:is(.status-badge,.badge,.priority-badge,[class*="priority"],.tax-icon,[aria-label*="TAX" i]) {white-space:nowrap;flex-shrink:0}
