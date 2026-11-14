@@ -153,7 +153,7 @@ test('sale return inventory restoration reduces reported net cost as well as net
 
 test('AI executive dashboard shares the same centime-exact BigInt inventory valuation engine', () => {
   const start=html.indexOf('function anasRenderAiExecutiveDashboard()');
-  const end=html.indexOf('\\n        function ',start+1);
+  const end=html.indexOf('\n        function ',start+1);
   assert.ok(start>=0&&end>start);
   const dashboard=html.slice(start,end);
   assert.match(dashboard,/const stockCostAggregate=anasInventoryCostAggregateCents\(products\)/);
