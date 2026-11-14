@@ -132,9 +132,11 @@ test('inquiries dashboard card opens the video-matched reports screen while invo
   assert.match(dashboard, /data-erp-module="inquiries" onclick="openView\('reports'\)"/);
   assert.match(reports, /<div class="sub-header-title">الاستعلامات<\/div>/);
   assert.match(reports, /class="anas-query-datebar"/);
+  assert.match(reports, /id="anasSaveReportDateRange"/);
+  assert.equal((reports.match(/class="anas-query-toggle"/g) || []).length, 8);
   assert.match(reports, /id="reportDateFrom"/);
   assert.match(reports, /id="reportDateTo"/);
-  for (const heading of ['العملاء','المبيعات وحساب الأرباح','المشتريات','الموردون','المصروفات','المخازن وجرد المخزون','الصندوق والمصروفات']) {
+  for (const heading of ['المتجر','المبيعات','العملاء','المشتريات','الموردين','الصندوق','المصروفات','المخازن']) {
     assert.ok(reports.includes('>' + heading + '</h3>'), 'missing inquiries group: ' + heading);
   }
   assert.match(reports, /class="anas-query-row"[^>]*onclick="openView\('invoices-list'\)"/);
@@ -146,7 +148,7 @@ test('inquiries dashboard card opens the video-matched reports screen while invo
 
 test('inquiries report rows are real keyboard-operable buttons and retain existing report handlers', () => {
   const reports = html.slice(html.indexOf('<section id="view-reports"'), html.indexOf('<!-- 11. شاشة الإعدادات'));
-  assert.ok((reports.match(/<button type="button" class="anas-query-row"/g) || []).length >= 20);
+  assert.equal((reports.match(/class="anas-query-row"/g) || []).length, 50);
   for (const action of ["showReportDetails('تقرير المبيعات')","showProfitsReportModal()","showReportDetails('تقرير المشتريات')","showReportDetails('جرد مخزني')","showReportDetails('تقرير المصروفات حسب الحساب')","printZReport()","openLuminaAnalyticsModal()"]) {
     assert.ok(reports.includes(action), 'missing report action: ' + action);
   }

@@ -2485,10 +2485,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 
         <!-- 10. شاشة الاستعلامات والتقارير الشاملة (المطابقة حرفياً للفيديو) -->
         <section id="view-reports" class="page-view">
-            <div class="sub-header-bar">
-                <button class="btn-arrow-back" onclick="openView('dashboard')" aria-label="العودة إلى الرئيسية">‹</button>
+            <div class="sub-header-bar anas-query-header">
+                <button type="button" class="btn-arrow-back" onclick="openView('dashboard')" aria-label="العودة إلى الرئيسية">‹</button>
                 <div class="sub-header-title">الاستعلامات</div>
-                <button class="btn-header-action" type="button" onclick="printZReport()" aria-label="طباعة تقرير إغلاق اليومية">🖨️</button>
+                <span class="anas-query-report-icon" aria-hidden="true">📊</span>
             </div>
             <div class="anas-query-screen">
                 <div class="anas-query-datebar" dir="rtl" aria-label="تحديد فترة الاستعلام">
@@ -2496,58 +2496,17 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     <input id="reportDateFrom" type="date" class="field-input" aria-label="من تاريخ" onchange="applyReportDateRange()">
                     <span class="anas-query-date-to">إلى</span>
                     <input id="reportDateTo" type="date" class="field-input" aria-label="إلى تاريخ" onchange="applyReportDateRange()">
-                    <span class="anas-query-calendar" aria-hidden="true">🗓️</span>
+                    <button type="button" id="anasSaveReportDateRange" class="anas-query-save-range" onclick="anasSaveReportDateRange()" aria-label="حفظ فترة الاستعلام" title="حفظ الفترة">💾</button>
                 </div>
                 <div id="reportDateRangeStatus" class="anas-query-date-status" role="status" aria-live="polite"></div>
-                <div class="anas-query-list" id="anasQueriesList">
-                    <section class="anas-query-group" aria-labelledby="anasQueryCustomersHeading">
-                        <h3 class="anas-query-group-heading" id="anasQueryCustomersHeading">العملاء</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('cust-debts')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">ذمم العملاء</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('كشف حساب عميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">كشف حساب عميل</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQuerySalesHeading">
-                        <h3 class="anas-query-group-heading" id="anasQuerySalesHeading">المبيعات وحساب الأرباح</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمبيعات</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showProfitsReportModal()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير الأرباح (إجمالي / حسب المنتج / حسب العميل)</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('عرض فواتير المبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض فواتير المبيعات</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('invoices-list')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل فواتير المبيعات</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير الخصومات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالخصومات</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير فواتير الآجل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير فواتير الآجل</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQueryPurchasesHeading">
-                        <h3 class="anas-query-group-heading" id="anasQueryPurchasesHeading">المشتريات</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المشتريات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمشتريات وفواتير الموردين</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('purchases')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل المشتريات</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQuerySuppliersHeading">
-                        <h3 class="anas-query-group-heading" id="anasQuerySuppliersHeading">الموردون</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('supp-debts')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">ذمم الموردين</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('suppliers')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">قائمة الموردين</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQueryExpensesHeading">
-                        <h3 class="anas-query-group-heading" id="anasQueryExpensesHeading">المصروفات</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المصروفات حسب الحساب')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمصروفات حسب الحساب</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('expenses')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل المصروفات</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQueryWarehouseHeading">
-                        <h3 class="anas-query-group-heading" id="anasQueryWarehouseHeading">المخازن وجرد المخزون</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('جرد مخزني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">جرد مخزني كامل</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة منتج')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة منتج</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تنبيه نقص المخزون')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمنتجات التي اقتربت من النفاد</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('warehouse-stock')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">أرصدة المخازن</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQueryCashHeading">
-                        <h3 class="anas-query-group-heading" id="anasQueryCashHeading">الصندوق والمصروفات</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="printZReport()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير إغلاق اليومية (Z-Report)</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openView('cash')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">الصندوق وحركاته</span></button>
-                    </section>
-                    <section class="anas-query-group" aria-labelledby="anasQueryStoreHeading">
-                        <h3 class="anas-query-group-heading" id="anasQueryStoreHeading">المتجر والتحليلات</h3>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر - رسم بياني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر - رسم بياني</span></button>
-                        <button type="button" class="anas-query-row" data-report-entry onclick="openLuminaAnalyticsModal()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">الإحصائيات المالية الشاملة والتدفق النقدي</span></button>
-                    </section>
-                </div>
+                <div class="anas-query-list" id="anasQueriesList"><section class="anas-query-group" aria-labelledby="anasQueryStoreHeading"><h3 class="anas-query-group-heading" id="anasQueryStoreHeading">المتجر</h3><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر - رسم بياني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر - رسم بياني</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQuerySalesHeading"><h3 class="anas-query-group-heading" id="anasQuerySalesHeading">المبيعات</h3><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمبيعات</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showProfitsReportModal()"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقارير الأرباح</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('عرض فواتير المبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض فواتير المبيعات</span></button><button type="button" class="anas-query-row" data-report-entry onclick="openView('invoices-list')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">سجل فواتير المبيعات</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير الخصومات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالخصومات</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير فواتير الآجل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالفواتير الآجل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالفواتير المرتجع-مبيعات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالفواتير المرتجع-مبيعات</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بفواتير المبيعات التي تم إلغاؤها')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بفواتير المبيعات التي تم إلغاؤها</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بعروض الأسعار')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بعروض الأسعار</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('إجمالي الضرائب حسب الصنف')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">إجمالي الضرائب حسب الصنف</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('إجمالي الضرائب حسب العميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">إجمالي الضرائب حسب العميل</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQueryCustomersHeading"><h3 class="anas-query-group-heading" id="anasQueryCustomersHeading">العملاء</h3><button type="button" class="anas-query-row" data-report-entry onclick="openView('cust-debts')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">ذمم العملاء</span></button><div class="anas-query-option-row"><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('كشف حساب عميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">كشف حساب عميل</span></button><div class="anas-query-options"><label class="anas-query-toggle" for="anasCustomerDetailed"><input id="anasCustomerDetailed" type="checkbox" onchange="anasSetInquiryOption('customer','detailed',this.checked)"><span>كشف تفصيلي</span></label><label class="anas-query-toggle" for="anasCustomerHideBalance"><input id="anasCustomerHideBalance" type="checkbox" onchange="anasSetInquiryOption('customer','hideBalance',this.checked)"><span>إخفاء عمود الرصيد</span></label><label class="anas-query-toggle" for="anasCustomerHideOpening"><input id="anasCustomerHideOpening" type="checkbox" onchange="anasSetInquiryOption('customer','hideOpening',this.checked)"><span>إخفاء رصيد ما قبل الفترة</span></label><label class="anas-query-toggle" for="anasCustomerShowCash"><input id="anasCustomerShowCash" type="checkbox" onchange="anasSetInquiryOption('customer','showCashInvoices',this.checked)"><span>إظهار الفواتير النقد</span></label></div></div><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير مصادقة حساب العميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير مصادقة حساب العميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة الرصيد الافتتاحي والقيد للعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة الرصيد الافتتاحي والقيد للعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالفواتير للعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالفواتير للعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالفواتير للعميل - إجمالي')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالفواتير للعميل - إجمالي</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالفواتير المرتجع لعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالفواتير المرتجع لعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بسندات القبض لعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بسندات القبض لعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بسندات الصرف لعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بسندات الصرف لعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة التسديد لعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة التسديد لعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير إجمالي حسب الصنف لعميل')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير إجمالي حسب الصنف لعميل</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة سداد العملاء')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة سداد العملاء</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة سداد العملاء حسب طريقة الدفع')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة سداد العملاء حسب طريقة الدفع</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQueryPurchasesHeading"><h3 class="anas-query-group-heading" id="anasQueryPurchasesHeading">المشتريات</h3><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير المشتريات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمشتريات</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQuerySuppliersHeading"><h3 class="anas-query-group-heading" id="anasQuerySuppliersHeading">الموردين</h3><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة الرصيد الافتتاحي والقيد للمورد')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة الرصيد الافتتاحي والقيد للمورد</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بفواتير المورد')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بفواتير المورد</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بفواتير المورد - إجمالي')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بفواتير المورد - إجمالي</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بسندات الصرف لمورد')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بسندات الصرف لمورد</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بسندات القبض لمورد')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بسندات القبض لمورد</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة التسديد لمورد')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة التسديد لمورد</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير إجمالي حسب الصنف لمورد')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير إجمالي حسب الصنف لمورد</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة سداد الموردين')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة سداد الموردين</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة سداد الموردين حسب طريقة الدفع')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة سداد الموردين حسب طريقة الدفع</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQueryCashHeading"><h3 class="anas-query-group-heading" id="anasQueryCashHeading">الصندوق</h3><div class="anas-query-option-row"><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة الصندوق')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة الصندوق</span></button><div class="anas-query-options"><label class="anas-query-toggle" for="anasCashShowAdds"><input id="anasCashShowAdds" type="checkbox" onchange="anasSetInquiryOption('cash','showAdds',this.checked)"><span>إظهار حركات الإضافة</span></label><label class="anas-query-toggle" for="anasCashShowDeductions"><input id="anasCashShowDeductions" type="checkbox" onchange="anasSetInquiryOption('cash','showDeductions',this.checked)"><span>إظهار حركات الخصم</span></label><label class="anas-query-toggle" for="anasCashShowScreen"><input id="anasCashShowScreen" type="checkbox" onchange="anasSetInquiryOption('cash','showCashScreen',this.checked)"><span>إظهار حركات شاشة الصندوق</span></label></div></div><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير رأس المال')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير رأس المال</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حساب الزكاة')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">حساب الزكاة</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالإقرار الضريبي')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالإقرار الضريبي</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالإقرار الضريبي مع المرتجع')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالإقرار الضريبي مع المرتجع</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQueryExpensesHeading"><h3 class="anas-query-group-heading" id="anasQueryExpensesHeading">المصروفات</h3><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالمصروفات')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمصروفات</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالمصروفات حسب الحساب')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمصروفات حسب الحساب</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالمصروفات لحساب')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمصروفات لحساب</span></button></section>
+<section class="anas-query-group" aria-labelledby="anasQueryWarehouseHeading"><h3 class="anas-query-group-heading" id="anasQueryWarehouseHeading">المخازن</h3><div class="anas-query-option-row"><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('جرد مخزني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">جرد مخزني</span></button><div class="anas-query-options"><label class="anas-query-toggle" for="anasWarehouseShowAvailable"><input id="anasWarehouseShowAvailable" type="checkbox" onchange="anasSetInquiryOption('stock','showAvailable',this.checked)"><span>إظهار الكميات المتوفرة</span></label></div></div><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('جرد مخزني حسب التصنيف')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">جرد مخزني حسب التصنيف</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('جرد مخزني لصنف')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">جرد مخزني لصنف</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالمنتجات حسب تاريخ الانتهاء')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمنتجات حسب تاريخ الانتهاء</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بحركة منتج')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بحركة منتج</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('تقرير بالمنتجات التالفة')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">تقرير بالمنتجات التالفة</span></button></section></div>
                 <details class="anas-query-stats">
                     <summary>📊 الإحصائيات الشاملة</summary>
                     <div class="panel-card-form anas-query-stats-panel">
@@ -9275,6 +9234,19 @@ function wtAuditTransfers(){
             document.getElementById('profitsModal').classList.add('active');
         }
 
+        const ANAS_QUERY_OPTIONS = {
+            customer: { detailed:false, hideBalance:false, hideOpening:false, showCashInvoices:false },
+            cash: { showAdds:false, showDeductions:false, showCashScreen:false },
+            stock: { showAvailable:false }
+        };
+        window.ANAS_QUERY_OPTIONS = ANAS_QUERY_OPTIONS;
+        function anasSetInquiryOption(group, key, checked) {
+            if (!Object.prototype.hasOwnProperty.call(ANAS_QUERY_OPTIONS, group) ||
+                !Object.prototype.hasOwnProperty.call(ANAS_QUERY_OPTIONS[group], key)) return false;
+            ANAS_QUERY_OPTIONS[group][key] = checked === true;
+            return true;
+        }
+
         function showReportDetails(title) {
             if(!applyReportDateRange()) return;
             const esc = value => anasEscapeHTML(String(value ?? ''));
@@ -9284,6 +9256,10 @@ function wtAuditTransfers(){
             const reportPurchases=typeof getReportPurchases==='function' ? getReportPurchases() : (Array.isArray(AppData.purchases)?AppData.purchases:[]);
             document.getElementById('customReportTitle').innerText = title;
             const content = document.getElementById('customReportContent');
+            const renderQueryTable = (headers, rows, emptyText) => rows.length
+                ? `<div style="max-height:360px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;">${headers.map(h=>`<th style="padding:7px;border-bottom:1px solid #cbd5e1;">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr style="border-bottom:1px solid #e2e8f0;">${row.map(cell=>`<td style="padding:7px;">${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+                : `<p style="text-align:center;color:#94a3b8;">${esc(emptyText)}</p>`;
+
             if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني') {
                 const totalSalesValid = reportInvoices.every(b => reportNumber(b.total) !== null);
                 const totalPurchasesCents = anasPurchaseAggregateCents(reportPurchases);
@@ -9336,7 +9312,8 @@ function wtAuditTransfers(){
                         </table>
                     </div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد منتجات مسجلة.</p>';
             } else if(title === 'جرد مخزني') {
-                const products = Array.isArray(AppData.products) ? AppData.products : [];
+                const allProducts = Array.isArray(AppData.products) ? AppData.products : [];
+                const products = ANAS_QUERY_OPTIONS.stock.showAvailable ? allProducts.filter(p => Number(p.stock) > 0) : allProducts;
                 const nval = v => Number.isFinite(Number(v)) ? Number(v) : 0;
                 const money = v => nval(v).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2});
                 const totalQty = products.reduce((n,p)=>n+nval(p.stock),0);
@@ -9381,16 +9358,67 @@ function wtAuditTransfers(){
                 content.innerHTML = `<div style="padding:10px;background:#eff6ff;border-radius:8px;margin-bottom:10px;">عدد فواتير الشراء: <strong>${purchases.length}</strong> · الإجمالي: <strong>${purchaseTotalsValid?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'غير صالح — توجد قيم ناقصة أو تالفة'} د.ج</strong></div>` + (purchases.length ? `<div style="max-height:300px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${purchases.map(p=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(p.id??'—')}</td><td>${esc(p.date||p.createdAt||p.invoiceDate||'—')}</td><td>${esc(p.supplier||p.supplierName||'—')}</td><td>${purchaseMoneyDisplay(p.total)}</td><td>${Object.prototype.hasOwnProperty.call(p,'paid')?purchaseMoneyDisplay(p.paid):'غير مسجل'}</td><td>${Object.prototype.hasOwnProperty.call(p,'remaining')?purchaseMoneyDisplay(p.remaining):'غير مسجل'}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد مشتريات ضمن الفترة المحددة.</p>');
             } else if(title === 'عرض فواتير المبيعات') {
                 content.innerHTML = reportInvoices.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr></thead><tbody>${reportInvoices.map(i=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(i.id??'—')}</td><td>${esc(i.date||i.createdAt||i.invoiceDate||'—')}</td><td>${esc(i.customer||'عميل نقدي')}</td><td>${i.total !== null && i.total !== undefined && i.total !== '' && Number.isFinite(Number(i.total)) ? Number(i.total) : 'غير صالح'}</td><td>${reportDisplay(i.paid)}</td><td>${reportDisplay(i.remaining)}</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد فواتير ضمن الفترة المحددة.</p>';
-            } else if(title === 'كشف حساب عميل') {
+            } else if(title === 'كشف حساب عميل' || title === 'تقرير مصادقة حساب العميل') {
                 const customers = Array.isArray(AppData.customers) ? AppData.customers : [];
-                content.innerHTML = customers.length ? `<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;"><th>العميل</th><th>الهاتف</th><th>الرصيد/الدين</th></tr></thead><tbody>${customers.map(c=>`<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(c.name||'—')}</td><td>${esc(c.phone||'—')}</td><td>${reportDisplay(c.debt)} د.ج</td></tr>`).join('')}</tbody></table></div>` : '<p style="text-align:center;color:#94a3b8;">لا يوجد عملاء مسجلون.</p>';
+                const opts = title === 'تقرير مصادقة حساب العميل'
+                    ? { detailed:false, hideBalance:false, hideOpening:false, showCashInvoices:false }
+                    : ANAS_QUERY_OPTIONS.customer;
+                const movements = Array.isArray(AppData.clientMovements) ? AppData.clientMovements : [];
+                const selectedMovements = movements.filter(m => reportItemInRange(m, ['createdAt','date','timestamp']) &&
+                    (!opts.hideOpening || (m.type !== 'opening_balance' && m.referenceType !== 'opening_balance')));
+                const detailed = opts.detailed || opts.showCashInvoices;
+                let rows = [];
+                let headers = [];
+                if (detailed) {
+                    headers = ['العميل','نوع الحركة','المرجع','التاريخ','المبلغ'];
+                    if (!opts.hideBalance) headers.push('الرصيد الحالي');
+                    rows = selectedMovements.map(m => {
+                        const customer = customers.find(c => String(c.id) === String(m.clientId));
+                        const cents = reportNumber(m.amountCentimes);
+                        const amount = cents !== null && Number.isSafeInteger(cents) ? anasCentsToCurrency(cents) : reportDisplay(m.amount);
+                        const typeLabel = ({opening_balance:'رصيد افتتاحي',invoice_debit:'فاتورة آجلة',receipt:'سند قبض'})[m.type] || m.type || 'حركة';
+                        const row = [customer?.name || m.clientName || '—',typeLabel,m.referenceId || '—',m.createdAt || m.date || '—',amount];
+                        if (!opts.hideBalance) row.push(reportDisplay(customer?.debt));
+                        return row;
+                    });
+                    if (opts.showCashInvoices) {
+                        const cashInvoices = reportInvoices.filter(i => {
+                            const total=reportNumber(i.total), paid=reportNumber(i.paid), remaining=reportNumber(i.remaining);
+                            return (remaining !== null && remaining <= 0) || (total !== null && paid !== null && paid >= total);
+                        });
+                        cashInvoices.forEach(i => {
+                            const row=[i.customer || 'عميل نقدي','فاتورة نقدية',i.id || '—',i.date || i.createdAt || '—',reportDisplay(i.total)];
+                            if (!opts.hideBalance) row.push(reportDisplay(customers.find(c=>String(c.name)===String(i.customer))?.debt));
+                            rows.push(row);
+                        });
+                    }
+                } else {
+                    headers = ['العميل','الهاتف'];
+                    if (!opts.hideBalance) headers.push('الرصيد/الدين');
+                    rows = customers.map(c => {
+                        const row=[c.name || '—',c.phone || '—'];
+                        if (!opts.hideBalance) row.push(reportDisplay(c.debt) + ' د.ج');
+                        return row;
+                    });
+                }
+                content.innerHTML = renderQueryTable(headers, rows, detailed ? 'لا توجد حركات مطابقة للفترة والخيارات المحددة.' : 'لا يوجد عملاء مسجلون.');
+            } else if(title === 'تقرير بحركة الصندوق') {
+                const opts=ANAS_QUERY_OPTIONS.cash;
+                const allMovements=Array.isArray(AppData.cashMovements)?AppData.cashMovements:[];
+                const useTypeFilter=opts.showAdds||opts.showDeductions;
+                const movements=allMovements.filter(m=>reportItemInRange(m) &&
+                    (!useTypeFilter || (m.type==='add'&&opts.showAdds) || (m.type==='subtract'&&opts.showDeductions)) &&
+                    (opts.showCashScreen || !!(m.referenceType || m.referenceId)));
+                const rows=movements.map(m=>[m.date||m.createdAt||'—',m.type==='add'?'إضافة':m.type==='subtract'?'خصم':m.type||'—',m.description||m.note||'—',reportDisplay(m.amount)+' د.ج',m.referenceType||'حركة شاشة الصندوق']);
+                content.innerHTML=renderQueryTable(['التاريخ','نوع الحركة','البيان','المبلغ','المصدر'],rows,'لا توجد حركات صندوق مطابقة للفترة والخيارات المحددة.');
+            
             } else if(title === 'تقرير بالمصروفات حسب الحساب' || title === 'تقرير المصروفات حسب الحساب') {
                 content.innerHTML = (AppData.expenses && AppData.expenses.filter(e=>reportItemInRange(e)).length > 0) ? `
                     <div style="max-height:220px; overflow-y:auto;">
                         ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${reportDisplay(e.amt)} د.ج</strong></div>`).join('')}
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مصروفات مسجلة.</p>';
             } else {
-                content.innerHTML = `<p style="text-align:center; color:#16a34a; font-weight:bold;">العمليات مسجلة ومحفوظة بنجاح.</p>`;
+                content.innerHTML = `<p style="text-align:center;color:#b45309;font-weight:700;">هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق؛ لم يتم إنشاء نتائج تقديرية أو تسجيل أي عملية.</p>`;
             }
             document.getElementById('customReportModal').classList.add('active');
             const searchBox = document.getElementById('anasReportSearch');
@@ -12559,6 +12587,21 @@ function wtAuditTransfers(){
             if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d)?null:d;}
             const d=new Date(raw); return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
         }
+        const ANAS_REPORT_RANGE_STORAGE_KEY = 'ANAS_REPORT_RANGE_V1';
+        function anasSaveReportDateRange() {
+            if (!applyReportDateRange()) return false;
+            const range=getReportRange();
+            try {
+                localStorage.setItem(ANAS_REPORT_RANGE_STORAGE_KEY, JSON.stringify(range));
+                const status=document.getElementById('reportDateRangeStatus');
+                if(status) status.textContent += ' — تم حفظ الفترة على هذا الجهاز.';
+                return true;
+            } catch (error) {
+                const status=document.getElementById('reportDateRangeStatus');
+                if(status) status.textContent += ' — تعذر حفظ الفترة محلياً.';
+                return false;
+            }
+        }
         function getReportRange() {
             const fromEl=document.getElementById('reportDateFrom'), toEl=document.getElementById('reportDateTo');
             return {from:fromEl?.value||'',to:toEl?.value||''};
@@ -12592,6 +12635,13 @@ function wtAuditTransfers(){
         (function initReportDates(){
             const today=reportLocalDateValue(new Date());
             const from=document.getElementById('reportDateFrom'),to=document.getElementById('reportDateTo');
+            try {
+                const saved=JSON.parse(localStorage.getItem(ANAS_REPORT_RANGE_STORAGE_KEY)||'null');
+                if(saved && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.from||'') && /^\\d{4}-\\d{2}-\\d{2}$/.test(saved.to||'') && saved.from<=saved.to) {
+                    if(from)from.value=saved.from;
+                    if(to)to.value=saved.to;
+                }
+            } catch (_) {}
             if(from&&!from.value)from.value=today;if(to&&!to.value)to.value=today;
             applyReportDateRange();
         })();

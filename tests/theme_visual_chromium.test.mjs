@@ -616,14 +616,19 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
       rows:[...document.querySelectorAll('#view-reports .anas-query-row')].length,
       buttons:[...document.querySelectorAll('#view-reports .anas-query-row')].every(node => node.tagName==='BUTTON' && node.type==='button'),
       groups:[...document.querySelectorAll('#view-reports .anas-query-group-heading')].map(node => node.textContent.trim()),
+      toggles:[...document.querySelectorAll('#view-reports .anas-query-toggle input')].length,
+      saveButton:!!document.getElementById('anasSaveReportDateRange'),
       from:document.getElementById('reportDateFrom')?.value,
       to:document.getElementById('reportDateTo')?.value,
       statsCollapsed:document.querySelector('#view-reports .anas-query-stats')?.open===false
     }));
     assert.equal(structure.active,true);
     assert.equal(structure.title,'الاستعلامات');
-    assert.equal(structure.rows,23,'all grouped report destinations must render');
+    assert.equal(structure.rows,50,'all grouped report destinations must render');
     assert.equal(structure.buttons,true,'each report row must be a real keyboard-operable button');
+    assert.equal(structure.toggles,8,'all report option switches must be present');
+    assert.equal(structure.saveButton,true,'date range save action must be present');
+    assert.deepEqual(structure.groups,['المتجر','المبيعات','العملاء','المشتريات','الموردين','الصندوق','المصروفات','المخازن']);
     assert.ok(structure.groups.includes('العملاء') && structure.groups.includes('الموردون') &&
       structure.groups.includes('المصروفات') && structure.groups.includes('المخازن وجرد المخزون'));
     assert.ok(structure.from && structure.to,'both date controls must initialize');
@@ -667,6 +672,73 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
     }
 
     await page.evaluate(()=>document.documentElement.setAttribute('data-anas-theme','light'));
+    await page.locator('#reportDateFrom').fill('2026-11-01');
+    await page.locator('#reportDateTo').fill('2026-11-14');
+    await page.locator('#anasSaveReportDateRange').click();
+    const savedRange=await page.evaluate(()=>JSON.parse(localStorage.getItem('ANAS_REPORT_RANGE_V1')||'null'));
+    assert.deepEqual(savedRange,{from:'2026-11-01',to:'2026-11-14'});
+
+    await page.locator('#anasCustomerDetailed').check();
+    await page.locator('#anasCustomerHideBalance').check();
+    await page.locator('#anasCustomerHideOpening').check();
+    await page.locator('#anasCustomerShowCash').check();
+    await page.locator('#anasCashShowAdds').check();
+    await page.locator('#anasCashShowScreen').check();
+    await page.locator('#anasWarehouseShowAvailable').check();
+    const optionsState=await page.evaluate(()=>({
+      customer:window.ANAS_QUERY_OPTIONS.customer,
+      cash:window.ANAS_QUERY_OPTIONS.cash,
+      stock:window.ANAS_QUERY_OPTIONS.stock
+    }));
+    assert.equal(optionsState.customer.detailed,true);
+    assert.equal(optionsState.customer.hideBalance,true);
+    assert.equal(optionsState.customer.hideOpening,true);
+    assert.equal(optionsState.customer.showCashInvoices,true);
+    assert.equal(optionsState.cash.showAdds,true);
+    assert.equal(optionsState.cash.showCashScreen,true);
+    assert.equal(optionsState.stock.showAvailable,true);
+
+    await page.evaluate(() => {
+      window.AppData.customers=[{id:'C-TEST',name:'عميل اختبار',phone:'0550000000',debt:50}];
+      window.AppData.clientMovements=[
+        {id:'OPEN-TEST',clientId:'C-TEST',type:'opening_balance',direction:'debit',amountCentimes:10000,referenceType:'opening_balance',referenceId:'C-TEST',createdAt:'2026-11-02T10:00:00.000Z'},
+        {id:'INV-TEST-MOV',clientId:'C-TEST',type:'invoice_debit',direction:'debit',amountCentimes:5000,referenceType:'sales_invoice',referenceId:'INV-TEST',createdAt:'2026-11-03T10:00:00.000Z'}
+      ];
+      window.AppData.invoices=[{id:'INV-CASH',customer:'عميل اختبار',total:100,paid:100,remaining:0,date:'2026-11-04'}];
+      window.AppData.cashMovements=[
+        {id:'CASH-MANUAL',type:'add',amount:50,description:'حركة يدوية',date:'2026-11-05T10:00:00.000Z'},
+        {id:'CASH-SALE',type:'add',amount:100,description:'تحصيل فاتورة',referenceType:'sales_invoice',referenceId:'INV-CASH',date:'2026-11-06T10:00:00.000Z'},
+        {id:'CASH-OUT',type:'subtract',amount:20,description:'حركة خصم',referenceType:'purchase_invoice',referenceId:'PUR-1',date:'2026-11-07T10:00:00.000Z'}
+      ];
+      window.AppData.products=[
+        {id:'P-AVAILABLE',name:'منتج متوفر',stock:5,buyPrice:10,sellPrice:15,unit:'قطعة'},
+        {id:'P-EMPTY',name:'منتج نافد',stock:0,buyPrice:10,sellPrice:15,unit:'قطعة'}
+      ];
+    });
+    await page.locator('#view-reports .anas-query-row').filter({hasText:'كشف حساب عميل'}).click();
+    await page.locator('#customReportModal').waitFor({state:'visible'});
+    const customerReport=await page.evaluate(()=>({
+      headers:[...document.querySelectorAll('#customReportContent thead th')].map(x=>x.textContent.trim()),
+      rows:[...document.querySelectorAll('#customReportContent tbody tr')].map(x=>x.textContent)
+    }));
+    assert.equal(customerReport.rows.length,2,'opening balance must be hidden while the invoice movement and cash invoice remain');
+    assert.equal(customerReport.headers.includes('الرصيد الحالي'),false,'hide-balance option must remove the balance column');
+    assert.ok(customerReport.rows.some(x=>x.includes('فاتورة نقدية')));
+    await page.evaluate(()=>window.closeModal('customReportModal'));
+
+    await page.locator('#view-reports .anas-query-row').filter({hasText:'تقرير بحركة الصندوق'}).click();
+    await page.locator('#customReportModal').waitFor({state:'visible'});
+    const cashReport=await page.locator('#customReportContent').innerText();
+    assert.ok(cashReport.includes('حركة يدوية') && cashReport.includes('تحصيل فاتورة'));
+    assert.equal(cashReport.includes('حركة خصم'),false,'add-only option must exclude deductions');
+    await page.evaluate(()=>window.closeModal('customReportModal'));
+
+    await page.locator('#view-reports .anas-query-row').filter({hasText:'جرد مخزني'}).click();
+    await page.locator('#customReportModal').waitFor({state:'visible'});
+    const stockReport=await page.locator('#customReportContent').innerText();
+    assert.ok(stockReport.includes('منتج متوفر'));
+    assert.equal(stockReport.includes('منتج نافد'),false,'available-quantities option must filter zero-stock items');
+    await page.evaluate(()=>window.closeModal('customReportModal'));
     await page.locator('#reportDateFrom').fill('2026-11-01');
     await page.locator('#reportDateTo').fill('2026-11-14');
     assert.match(await page.locator('#reportDateRangeStatus').textContent(),/الفترة المحددة/);
