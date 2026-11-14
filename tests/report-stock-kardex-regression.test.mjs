@@ -14,8 +14,8 @@ test('reportParseDate rejects impossible calendar dates and accepts valid leap d
   const parseDate = vm.runInNewContext('(() => {' + source + '; return reportParseDate; })()');
   assert.equal(parseDate('2026-02-31'), null);
   assert.equal(parseDate('2026-04-31'), null);
-  assert.ok(parseDate('2024-02-29') instanceof Date);
-  assert.ok(parseDate('2026-11-14') instanceof Date);
+  assert.ok(parseDate('2024-02-29') && Number.isFinite(parseDate('2024-02-29').getTime()));
+  assert.ok(parseDate('2026-11-14') && Number.isFinite(parseDate('2026-11-14').getTime()));
 });
 
 test('product kardex gathers complete history before splitting opening and period movements', () => {
