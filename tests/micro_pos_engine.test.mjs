@@ -116,7 +116,7 @@ test('inventory and POS share live status/category filtering with 20-item progre
     'inventory and POS must use the canonical in-memory inventory filter');
 });
 
-test('r39 dashboard exposes eight primary destinations and preserves six persistent navigation tabs', () => {
+test('r40 dashboard exposes eight primary destinations and preserves six persistent navigation tabs', () => {
   const html = readFileSync('index.html', 'utf8');
   const dashboardStart = html.indexOf('<section id="view-dashboard"');
   const dashboardEnd = html.indexOf('<section id="view-more"', dashboardStart);
@@ -124,7 +124,7 @@ test('r39 dashboard exposes eight primary destinations and preserves six persist
   assert.match(dashboard, /id="anasDailyGroupTitle"/, 'the primary dashboard group must remain present');
   assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 8,
     'dashboard must expose all eight primary operational modules');
-  for (const module of ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","reports"]) {
+  for (const module of ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","expenses"]) {
     assert.match(dashboard, new RegExp('data-erp-module="' + module + '"'),
       'dashboard must expose the ' + module + ' destination');
   }
