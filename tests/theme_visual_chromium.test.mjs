@@ -733,7 +733,7 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
     assert.equal(cashReport.includes('حركة خصم'),false,'add-only option must exclude deductions');
     await page.evaluate(()=>window.closeModal('customReportModal'));
 
-    await page.locator('#view-reports .anas-query-row').filter({hasText:'جرد مخزني'}).click();
+    await page.getByRole('button',{name:'جرد مخزني',exact:true}).click();
     await page.locator('#customReportModal').waitFor({state:'visible'});
     const stockReport=await page.locator('#customReportContent').innerText();
     assert.ok(stockReport.includes('منتج متوفر'));
