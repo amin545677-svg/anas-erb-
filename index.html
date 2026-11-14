@@ -9415,6 +9415,22 @@ function wtAuditTransfers(){
                     });
                 }
                 content.innerHTML = renderQueryTable(headers, rows, detailed ? 'لا توجد حركات مطابقة للفترة والخيارات المحددة.' : 'لا يوجد عملاء مسجلون.');
+            } else if(title === 'كشف حساب المورد' || title === 'كشف حساب مورد') {
+                const suppliers=Array.isArray(AppData.suppliers)?AppData.suppliers:[], movements=Array.isArray(AppData.supplierMovements)?AppData.supplierMovements:[];
+                const {from,to}=getReportRange();
+                const centsOf=m=>{const raw=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return 0n;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
+                const fmt=c=>{const a=c<0n?-c:c;return(c<0n?'−':'')+(a/100n)+','+(a%100n).toString().padStart(2,'0')+' د.ج';};
+                const rows=[];
+                [...new Set(movements.map(m=>String(m.supplierId??'')))].forEach(id=>{
+                    const supplier=suppliers.find(x=>String(x.id)===id), all=movements.filter(m=>String(m.supplierId??'')===id);
+                    const dated=all.map(m=>({m,d:reportParseDate(m.date||m.createdAt||m.timestamp)}));
+                    const before=dated.filter(x=>x.d&&from&&reportLocalDateValue(x.d)<from);
+                    const current=dated.filter(x=>x.d&&(!from||reportLocalDateValue(x.d)>=from)&&(!to||reportLocalDateValue(x.d)<=to)).sort((a,b)=>a.d-b.d);
+                    let balance=before.reduce((n,x)=>n+(x.m.type==='payment'?-centsOf(x.m):centsOf(x.m)),0n);
+                    if(from&&before.length)rows.push([supplier?.name||'—','رصيد افتتاحي','—',from,fmt(balance),fmt(balance)]);
+                    current.forEach(({m})=>{const delta=m.type==='payment'?-centsOf(m):centsOf(m);balance+=delta;rows.push([supplier?.name||'—',m.type==='purchase'?'فاتورة شراء':m.type==='payment'?'تسديد':'رصيد/تسوية',m.referenceId||m.id||'—',m.date||m.createdAt||'—',fmt(centsOf(m)),fmt(balance)]);});
+                });
+                content.innerHTML=renderQueryTable(['المورد','نوع الحركة','المرجع','التاريخ','المبلغ','الرصيد التراكمي'],rows,'لا توجد حركات موردين مؤرخة ضمن الفترة المحددة.');
             } else if(title === 'تقرير بحركة الصندوق') {
                 const opts=ANAS_QUERY_OPTIONS.cash;
                 const allMovements=Array.isArray(AppData.cashMovements)?AppData.cashMovements:[];
