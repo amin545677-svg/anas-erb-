@@ -2496,7 +2496,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     <input id="reportDateFrom" type="date" class="field-input" aria-label="من تاريخ" onchange="applyReportDateRange()">
                     <span class="anas-query-date-to">إلى</span>
                     <input id="reportDateTo" type="date" class="field-input" aria-label="إلى تاريخ" onchange="applyReportDateRange()">
-                    <button type="button" id="anasSaveReportDateRange" class="anas-query-save-range" onclick="anasSaveReportDateRange()" aria-label="حفظ فترة الاستعلام" title="حفظ الفترة">💾</button>
+                    <button type="button" id="anasSaveReportDateRange" class="anas-query-save-range" onclick="anasPersistReportDateRange()" aria-label="حفظ فترة الاستعلام" title="حفظ الفترة">💾</button>
                 </div>
                 <div id="reportDateRangeStatus" class="anas-query-date-status" role="status" aria-live="polite"></div>
                 <div class="anas-query-list" id="anasQueriesList"><section class="anas-query-group" aria-labelledby="anasQueryStoreHeading"><h3 class="anas-query-group-heading" id="anasQueryStoreHeading">المتجر</h3><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر</span></button><button type="button" class="anas-query-row" data-report-entry onclick="showReportDetails('حركة المتجر - رسم بياني')"><span class="anas-query-arrow" aria-hidden="true">‹</span><span class="anas-query-row-label">عرض حركة المتجر - رسم بياني</span></button></section>
@@ -12588,7 +12588,7 @@ function wtAuditTransfers(){
             const d=new Date(raw); return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
         }
         const ANAS_REPORT_RANGE_STORAGE_KEY = 'ANAS_REPORT_RANGE_V1';
-        function anasSaveReportDateRange() {
+        function anasPersistReportDateRange() {
             if (!applyReportDateRange()) return false;
             const range=getReportRange();
             try {
