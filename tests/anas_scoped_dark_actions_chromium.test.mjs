@@ -11,7 +11,7 @@ function contrast(foreground, background) {
     value /= 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   };
-  const rgb = value => value.match(/[\\d.]+/g).slice(0, 3).map(Number);
+  const rgb = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
   const lum = value => {
     const [r, g, b] = rgb(value).map(channel);
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
