@@ -9317,14 +9317,18 @@ function wtAuditTransfers(){
                         </table>
                     </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مبيعات مسجلة بعد.</p>';
             } else if(title === 'تقرير بحركة منتج' || title === 'حركة منتج') {
-                const products = Array.isArray(AppData.products) ? AppData.products : [];
-                content.innerHTML = products.length ? `
-                    <div style="max-height:260px;overflow:auto;">
-                        <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;">
-                            <thead><tr style="background:#f1f5f9;"><th>المنتج</th><th>الرصيد</th><th>الوحدة</th><th>سعر الشراء</th><th>قيمة الرصيد</th></tr></thead>
-                            <tbody>${products.map(p=>{const stock=Number(p.stock)||0, cost=Number(p.buyPrice)||0;return `<tr style="border-bottom:1px solid #e2e8f0;"><td>${esc(p.name||'—')}</td><td>${stock}</td><td>${esc(p.unit||'—')}</td><td>${cost.toFixed(2)}</td><td>${(stock*cost).toFixed(2)} د.ج</td></tr>`;}).join('')}</tbody>
-                        </table>
-                    </div>` : '<p style="text-align:center;color:#94a3b8;">لا توجد منتجات مسجلة.</p>';
+                const products=Array.isArray(AppData.products)?AppData.products:[];
+                const movements=[];
+                const addMove=(row,kind,sign,qtyKey='qty')=>{if(!row||typeof row!=='object')return;const pid=row.productId??row.product_id??row.itemId??row.idProduct??row.product?.id??row.id;if(pid==null)return;const d=reportParseDate(row.date||row.createdAt||row.timestamp);if(!d||!reportItemInRange(row))return;const raw=row[qtyKey]??row.quantity??row.qty??row.quantityMicroUnits;if(raw==null)return;let qty=Number(raw);if(!Number.isFinite(qty)&&Number.isSafeInteger(raw))qty=Number(raw)/1000000;if(!Number.isFinite(qty))return;movements.push({pid:String(pid),date:row.date||row.createdAt||'',kind,delta:qty*sign,ref:row.invoiceId||row.referenceId||row.id||'—'});};
+                (AppData.stockMovements||[]).forEach(m=>addMove(m,m.type||m.movementType||'حركة مخزون',m.direction==='out'||m.type==='out'||m.type==='damage'?-1:1));
+                (AppData.inventoryMovements||[]).forEach(m=>addMove(m,m.type||'حركة مخزون',m.direction==='out'||m.direction==='debit'?-1:1));
+                (AppData.purchases||[]).filter(p=>reportItemInRange(p)).forEach(p=>(p.items||p.products||[]).forEach(it=>addMove({...it,date:p.date||p.createdAt,invoiceId:p.id,productId:it.productId??it.id},'فاتورة شراء',1)));
+                (AppData.invoices||[]).filter(p=>reportItemInRange(p)&&!(p.cancelled||p.isCancelled||p.status==='cancelled'||p.status==='CANCELLED')).forEach(p=>(p.items||[]).forEach(it=>addMove({...it,date:p.date||p.createdAt,invoiceId:p.id,productId:it.productId??it.id},'مبيعات POS',-1)));
+                (AppData.returns||[]).filter(r=>r.status==='POSTED'&&reportItemInRange(r,['createdAt','date','timestamp'])).forEach(r=>(r.items||[]).forEach(it=>addMove({...it,date:r.createdAt,referenceId:r.returnId,productId:it.productId},r.returnType==='SALE_RETURN'?'مرتجع مبيعات':'مرتجع مشتريات',r.returnType==='SALE_RETURN'?1:-1,'quantityMicroUnits')));
+                (AppData.warehouseTransfers||[]).filter(t=>reportItemInRange(t)).forEach(t=>(t.items||[]).forEach(it=>addMove({...it,date:t.date||t.createdAt,referenceId:t.id,productId:it.productId},t.direction==='out'?'تحويل صادر':'تحويل وارد',t.direction==='out'?-1:1)));
+                const productRows=[];
+                products.forEach(p=>{const list=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));let balance=0;list.forEach(m=>{balance+=m.delta;productRows.push([p.name||p.id,m.date,m.kind,m.ref,m.delta.toLocaleString('fr-DZ'),balance.toLocaleString('fr-DZ')]);});});
+                content.innerHTML=renderQueryTable(['المنتج','التاريخ','نوع الحركة','المرجع','داخل/خارج','الرصيد التراكمي'],productRows,'لا توجد حركات مخزنية مؤرخة مطابقة للفترة. لا تُعرض أرصدة أو أسعار تقديرية كحركات فعلية.');
             } else if(title === 'جرد مخزني') {
                 const allProducts = Array.isArray(AppData.products) ? AppData.products : [];
                 const products = ANAS_QUERY_OPTIONS.stock.showAvailable ? allProducts.filter(p => Number(p.stock) > 0) : allProducts;
