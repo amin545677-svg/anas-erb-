@@ -481,6 +481,11 @@ test('video-driven shared controls, product-search popups and AI import surfaces
           <div class="anas-ai-import-benefits"><b id="ai-import-label">استيراد البيانات</b></div>
           <div class="anas-ai-import-drop"><p>اختر الملف</p></div>
         </section>
+        <div id="hasibModal"><div class="anas-quick-payment-actions">
+          <button id="payment-full" type="button">الدفع الكامل</button>
+          <button id="payment-partial" type="button">الدفع الجزئي</button>
+          <button id="payment-debt" type="button">الدين</button>
+        </div></div>
         <div id="legalInvoiceA4Area"><p id="print-text">فاتورة البيع</p></div>`;
       document.body.appendChild(fixture);
     });
@@ -524,6 +529,15 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         assert.ok(item.background !== 'rgba(0, 0, 0, 0)', name + ' must have a defined surface in ' + theme);
         assert.ok(contrast(item.color, item.background) >= 4.5,
           name + ' foreground/background must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
+      }
+      const paymentColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
+        nodes.map(node => ({ background:getComputedStyle(node).backgroundColor, color:getComputedStyle(node).color })));
+      assert.deepEqual(paymentColors.map(item => item.background),
+        ['rgb(220, 252, 231)', 'rgb(239, 246, 255)', 'rgb(254, 226, 226)'],
+        'full payment stays green, partial payment blue and debt red in ' + theme);
+      for (const item of paymentColors) {
+        assert.ok(contrast(item.color, item.background) >= 4.5,
+          'POS payment action colors must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
       }
     }
     await page.emulateMedia({ media: 'print' });
