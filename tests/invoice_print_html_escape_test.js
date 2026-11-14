@@ -7,6 +7,10 @@ const helperStart = source.indexOf('function anasEscapeHTML(value) {');
 const helperEnd = source.indexOf('const initialDB =', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'HTML escape helper must exist');
 const escapeHelper = source.slice(helperStart, helperEnd);
+const moneyHelperStart = source.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const moneyHelperEnd = source.indexOf('function updatePaymentMethodFromAmount()', moneyHelperStart);
+assert.ok(moneyHelperStart >= 0 && moneyHelperEnd > moneyHelperStart, 'integer-centime helpers must exist');
+const moneyHelpers = source.slice(moneyHelperStart, moneyHelperEnd);
 
 function extractFunction(name, nextName) {
   const start = source.indexOf('function ' + name + '(');
@@ -36,7 +40,7 @@ function makeContext() {
     Number, String, Object, Array
   };
   vm.createContext(context);
-  vm.runInContext(escapeHelper, context);
+  vm.runInContext(escapeHelper + '\n' + moneyHelpers, context);
   return { context, elements };
 }
 

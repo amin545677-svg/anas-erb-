@@ -1,78 +1,266 @@
 name: Deploy Reverse Ledger Firebase Functions (Staging)
+# Scoped push-trigger probe: 2026-10-31 live Staging preflight.
+# PR #262 verification: deploy both trusted financial callables to isolated Staging only.
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_staging_functions_deploy:
+        description: "Deploy trusted financial callables and Firestore rules to the isolated Staging project only."
+        required: true
+        type: choice
+        default: "NO"
+        options:
+          - "NO"
+          - "DEPLOY_STAGING_FUNCTIONS"
+  pull_request:
+    paths:
+      - 'functions/**'
+      - 'scripts/**'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.json'
+      - 'firebase/firestore.staging.rules'
+      - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
+      - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
+      - '.github/workflows/anas-erp-safety-checks.yml'
+      - 'cashbox-readonly-ledger.js'
+      - 'tests/**'
+  push:
+    branches:
+      - staging/unified-release-candidate
+    paths:
+      - 'functions/**'
+      - 'reverse-ledger/**'
+      - 'firebase.staging.json'
+      - 'cashbox-readonly-ledger.js'
+      - 'scripts/check-staging-readiness.mjs'
+      - 'scripts/verify-reverse-ledger-core-parity.mjs'
+      - 'scripts/assert-staging-deployment-identity.mjs'
+      - 'scripts/prepare-staging-service-account.mjs'
+      - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
+      - '.github/workflows/anas-erp-safety-checks.yml'
 
 permissions:
   contents: read
 
+# Serialize Functions deployments; Firestore Rules deploy independently via deploy-staging-firestore-rules.yml.
+# PR validation uses its own group so it cannot cancel or replace a queued staging deployment.
 concurrency:
-  group: anas-erp-reverse-ledger-functions-staging
+  group: anas-erp-reverse-ledger-functions-staging-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
+  staging-project-guard:
+    if: ${{ github.ref == 'refs/heads/staging/unified-release-candidate' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact staging candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify isolated project, V42 source, r39 build and canonical Functions bundles
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/staging/unified-release-candidate"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const staging = JSON.parse(fs.readFileSync('firebase.staging.json', 'utf8'));
+          if (staging.projectId && staging.projectId !== 'anas-erp-staging-a25e1') throw new Error('Staging projectId mismatch');
+          if (staging.functions?.source !== 'functions') throw new Error('Staging Functions source mismatch');
+          if (staging.firestore?.rules !== 'firebase/firestore.staging.rules') throw new Error('Staging Firestore rules mismatch');
+          const production = fs.readFileSync('firebase.json', 'utf8');
+          if (production !== '{\n  "firestore": {\n    "rules": "firebase/firestore.rules"\n  }\n}\n') throw new Error('Production Firebase config changed; refusing Staging deploy');
+          if (!fs.readFileSync('index.html', 'utf8').includes('V42')) throw new Error('V42 shell identity missing');
+          if (!fs.readFileSync('sw.js', 'utf8').includes("const CACHE = 'anas-erp-v54-25-r39';")) throw new Error('Expected canonical r39 Service Worker');
+          if (!fs.readFileSync('scripts/build-staging-hosting.mjs', 'utf8').includes(" | SW: r39 | Env: Staging")) throw new Error('Staging build stamp and Service Worker generation disagree');
+          NODE
+          node scripts/verify-reverse-ledger-core-parity.mjs
+          cmp reverse-ledger/authorization.js functions/lib/authorization.js
+          node scripts/check-staging-readiness.mjs
+          node --check scripts/assert-staging-deployment-identity.mjs
+          node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs
+
+  validate-staging-candidate-pr:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'staging/unified-release-candidate'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate source without deployment credentials
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate staging callable readiness and server-side tests
+        run: |
+          node scripts/check-staging-readiness.mjs
+          node --check scripts/assert-staging-deployment-identity.mjs
+          node --check tests/staging_deployment_identity_guard.test.mjs
+          node --test tests/staging_deployment_identity_guard.test.mjs tests/staging_service_account_preflight.test.mjs tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js tests/staging_grant_scope.test.cjs
+
+  # Trusted pushes deploy automatically only after the isolated-project guard and exact-SHA Gate.
+  # Manual dispatch remains available behind the explicit DEPLOY_STAGING_FUNCTIONS confirmation.
   deploy-reverse-ledger-staging:
+    needs: staging-project-guard
+    if: ${{ github.ref == 'refs/heads/staging/unified-release-candidate' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_functions_deploy == 'DEPLOY_STAGING_FUNCTIONS')) }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     environment: staging
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR #251 source (immutable SHA)
+      - name: Checkout isolated branch
         uses: actions/checkout@v4
-        with:
-          ref: f1d0f5c4f446563959999452240972cbbbe74e1d
-          persist-credentials: false
 
-      - name: Verify exact source and isolated deployment configuration
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Wait for matching Staging Test Gate success
         env:
-          EXPECTED_SOURCE_SHA: f1d0f5c4f446563959999452240972cbbbe74e1d
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+          node --input-type=module <<'NODE'
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          for (let attempt = 1; attempt <= 140; attempt++) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) throw new Error('Unable to inspect Staging Test Gate: HTTP ' + response.status);
+            const payload = await response.json();
+            const gate = (payload.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.event === 'push' && run.head_sha === process.env.GITHUB_SHA);
+            if (gate?.status === 'completed') {
+              if (gate.conclusion !== 'success') throw new Error('Exact-SHA Staging Test Gate conclusion: ' + gate.conclusion);
+              console.log('PASS: Staging Test Gate succeeded for exact SHA ' + process.env.GITHUB_SHA);
+              process.exit(0);
+            }
+            console.log('Waiting for exact-SHA Staging Test Gate; attempt ' + attempt + '/140.');
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          throw new Error('Timed out waiting for exact-SHA Staging Test Gate.');
+          NODE
+
+      - name: Secret Presence Preflight (raw JSON or Base64 service-account, OIDC fallback)
+        id: auth_preflight
+        env:
+          
+          DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 }}
+          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+        run: |
+          node scripts/prepare-staging-service-account.mjs
+      - name: Run fail-closed staging callable readiness preflight
+        run: node scripts/check-staging-readiness.mjs
+
+      - name: Verify staging-only configuration and canonical bundled sources
+        run: |
           python - <<'PY'
           import json
           from pathlib import Path
           config = json.loads(Path("firebase.staging.json").read_text(encoding="utf-8"))
           assert config.get("functions", {}).get("source") == "functions"
           assert config.get("firestore", {}).get("rules") == "firebase/firestore.staging.rules"
-          production = Path("firebase.json").read_text(encoding="utf-8")
-          if production != '{\n  "firestore": {\n    "rules": "firebase/firestore.rules"\n  }\n}\n':
+          if Path("firebase.json").read_text(encoding="utf-8") != '{\n  "firestore": {\n    "rules": "firebase/firestore.rules"\n  }\n}\n':
               raise SystemExit("Production firebase.json changed; refusing staging deployment.")
-          if "V42" not in Path("index.html").read_text(encoding="utf-8"):
+          if Path("index.html").read_text(encoding="utf-8").find("V42") < 0:
               raise SystemExit("V42 identity marker not found; refusing staging deployment.")
-          if Path("functions/lib/reverse-ledger.js").read_bytes() != Path("reverse-ledger/reverse-ledger.js").read_bytes():
-              raise SystemExit("Bundled reverse-ledger engine is stale.")
           if Path("functions/lib/authorization.js").read_bytes() != Path("reverse-ledger/authorization.js").read_bytes():
               raise SystemExit("Bundled authorization policy is stale.")
-          print("PASS: pinned PR #251 source, staging config, production config guard, V42 marker, canonical bundles.")
+          print("Staging-only config, V42 identity, and canonical authorization source checks passed.")
           PY
+          node scripts/verify-reverse-ledger-core-parity.mjs
           node --check functions/index.js
           node --check functions/reverse-ledger-adapter.js
           node --check functions/reverse-ledger-service.js
           node --check functions/reverse-ledger-backup-service.js
+          node --check functions/settlement-allocation-service.js
 
-      - name: Run adapter and authorization tests
-        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js
+      - name: Run reverse-ledger adapter and authorization tests
+        run: node --test tests/reverse_ledger_authorization.test.js tests/reverse_ledger_server_adapter.test.js tests/reverse_ledger_primitives.test.js tests/settlement_allocation_server.test.js
 
-      - name: Require dedicated staging service account
+      - name: Authenticate to Firebase Staging with service-account JSON
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.STAGING_SERVICE_ACCOUNT_JSON }}
+          create_credentials_file: true
+
+      - name: Authenticate to Firebase Staging with GitHub OIDC fallback
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'oidc' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Install Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enforce staging deployment identity before any deploy action
         env:
-          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: anas-erp-staging-a25e1
+          GCLOUD_PROJECT: anas-erp-staging-a25e1
+          GOOGLE_CLOUD_PROJECT: anas-erp-staging-a25e1
+          ANAS_STAGING_WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
-          test -n "$FIREBASE_STAGING_SERVICE_ACCOUNT" || {
-            echo "::error::Missing FIREBASE_STAGING_SERVICE_ACCOUNT in GitHub Environment: staging."
+          configured_project="$(gcloud config get-value project 2>/dev/null || true)"
+          if [ -n "$configured_project" ] && [ "$configured_project" != "(unset)" ] && [ "$configured_project" != "$GCLOUD_PROJECT" ]; then
+            echo "Refusing deployment: pre-existing gcloud project differs from isolated staging."
             exit 1
-          }
-          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
-          node -e "const x=require(process.argv[1]); if(x.project_id!=='anas-erp-staging-a25e1'||!x.client_email||!x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-staging-service-account.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-staging-service-account.json" >> "$GITHUB_ENV"
+          fi
+          gcloud config set project "$GCLOUD_PROJECT" --quiet
+          node scripts/assert-staging-deployment-identity.mjs
 
       - name: Install Firebase Functions dependencies
         run: npm install --prefix functions --omit=dev --no-audit --no-fund
 
-      - name: Deploy only reverse-ledger callables and staging Firestore rules
+      - name: Deploy staging Firestore rules and reverse-ledger callable only
         run: |
-          set -euo pipefail
           npx --yes firebase-tools@14 deploy \
-            --only firestore:rules,functions:executeReverseLedger,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
+            --only functions:executeReverseLedger,functions:executeSettlementAllocation,functions:createTrustedReverseLedgerBackup,functions:restoreTrustedReverseLedgerBackup \
             --project anas-erp-staging-a25e1 \
             --config firebase.staging.json \
             --non-interactive
+
+      - name: Bootstrap isolated Staging finance test account (optional Admin SDK credential)
+        env:
+          ANAS_STAGING_EMAIL: ${{ secrets.ANAS_STAGING_EMAIL }}
+          ANAS_STAGING_PASSWORD: ${{ secrets.ANAS_STAGING_PASSWORD }}
+          ANAS_STAGING_UID: ${{ vars.ANAS_STAGING_UID || secrets.ANAS_STAGING_UID || secrets.STAGING_TEST_UID }}
+          ANAS_STAGING_TENANT_ID: ${{ vars.ANAS_STAGING_TENANT_ID }}
+          ANAS_STAGING_STORE_IDS_JSON: ${{ vars.ANAS_STAGING_STORE_IDS_JSON }}
+          BOOTSTRAP_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT }}
+          GCLOUD_PROJECT: anas-erp-staging-a25e1
+        run: |
+          set -euo pipefail
+          if [ -z "$ANAS_STAGING_EMAIL" ] || [ -z "$ANAS_STAGING_PASSWORD" ] || [ -z "$BOOTSTRAP_SERVICE_ACCOUNT_JSON" ] || [ -z "$ANAS_STAGING_TENANT_ID" ] || [ -z "$ANAS_STAGING_STORE_IDS_JSON" ]; then
+            echo "::warning::Optional account bootstrap skipped. It requires ANAS_STAGING_EMAIL, ANAS_STAGING_PASSWORD, ANAS_STAGING_TENANT_ID, ANAS_STAGING_STORE_IDS_JSON and the separate FIREBASE_STAGING_BOOTSTRAP_SERVICE_ACCOUNT secret. Configure FIREBASE_STAGING_SERVICE_ACCOUNT or the OIDC fallback for deployment authentication."
+            exit 0
+          fi
+          credential_file="$RUNNER_TEMP/firebase-staging-bootstrap-service-account.json"
+          trap 'rm -f "$credential_file"' EXIT
+          printf '%s' "$BOOTSTRAP_SERVICE_ACCOUNT_JSON" > "$credential_file"
+          chmod 600 "$credential_file"
+          node - "$credential_file" <<'NODE'
+          const fs = require('node:fs');
+          const x = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (x.type !== 'service_account' || x.project_id !== 'anas-erp-staging-a25e1' || !x.client_email || !x.private_key) {
+            console.error('Bootstrap credential must be a valid service account for the isolated Staging project.');
+            process.exit(1);
+          }
+          NODE
+          export GOOGLE_APPLICATION_CREDENTIALS="$credential_file"
+          node scripts/bootstrap-staging-account.mjs
+# 2026-11-05: retrigger isolated staging deployment after staging credential refresh.

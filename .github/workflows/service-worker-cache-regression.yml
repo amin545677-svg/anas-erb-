@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "sw.js"
+      - "index.html"
+      - "reverse-ledger/**"
       - "tests/test_service_worker_cache.py"
       - "tests/service_worker_runtime_test.js"
       - ".github/workflows/service-worker-cache-regression.yml"

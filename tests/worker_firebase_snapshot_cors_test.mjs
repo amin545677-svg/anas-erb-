@@ -6,8 +6,8 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
-const allowedOrigin = "https://amin545677-svg.github.io";
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erp-staging-a25e1", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
+const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const attackerOrigin = "https://attacker.example";
 
 test("health endpoint rejects an untrusted origin without reflecting it in CORS headers", async () => {
@@ -17,7 +17,7 @@ test("health endpoint rejects an untrusted origin without reflecting it in CORS 
   }), env);
   assert.equal(response.status, 403);
   assert.notEqual(response.headers.get("Access-Control-Allow-Origin"), attackerOrigin);
-  assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
   assert.match((await response.json()).error, /origin is not allowed/i);
 });
 
@@ -43,4 +43,37 @@ test("health endpoint permits the configured app origin", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
   assert.equal((await response.json()).ok, true);
+});
+
+test("health endpoint permits the isolated Firebase Hosting alternate origin", async () => {
+  const alternateOrigin = "https://anas-erp-staging-a25e1.firebaseapp.com";
+  const response = await worker.fetch(new Request("https://worker.test/health", {
+    method: "GET", headers: { Origin: alternateOrigin }
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), alternateOrigin);
+});
+
+test("staging CORS test fixture is bound to the isolated Firebase staging project", async () => {
+  const config = await readFile(resolve("cloudflare/wrangler-staging.toml"), "utf8");
+  assert.match(config, /name = "anas-erp-firebase-snapshot-staging"/);
+  assert.match(config, /FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"/);
+  assert.match(config, /https:\/\/anas-erp-staging-a25e1\.web\.app/);
+  assert.doesNotMatch(config, /FIREBASE_PROJECT_ID = "anas-erb"/);
+  assert.equal(env.FIREBASE_PROJECT_ID, "anas-erp-staging-a25e1");
+});
+
+test("preflight permits the exact Staging ERP origin and requested auth headers", async () => {
+  const response = await worker.fetch(new Request("https://worker.test/snapshot", {
+    method: "OPTIONS",
+    headers: {
+      Origin: allowedOrigin,
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "authorization,content-type"
+    }
+  }), env);
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
+  assert.match(response.headers.get("Access-Control-Allow-Methods"), /POST/);
+  assert.match(response.headers.get("Access-Control-Allow-Headers"), /Authorization/i);
 });

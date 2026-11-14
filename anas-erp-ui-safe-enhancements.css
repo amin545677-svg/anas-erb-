@@ -1,5 +1,5 @@
 /* ANAS ERP — additive, classic RTL interface enhancements.
-   Load after existing styles. No application data, accounting, storage, or navigation logic changes. */
+   Load AFTER existing styles. Does not modify application data or navigation logic. */
 :root { --ui-focus:#f59e0b; --ui-touch:44px; }
 html { -webkit-text-size-adjust:100%; }
 body { overflow-wrap:anywhere; }
@@ -25,4 +25,1812 @@ table { border-collapse:collapse; }
 }
 @media (prefers-reduced-motion:reduce) {
   *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}
+
+/* AI Center mobile usability: prevent the sticky global header and section bar
+   from occupying the same top edge; reserve space for the contextual helper. */
+.sub-header-bar {
+  position: relative !important;
+  top: auto !important;
+  z-index: 2 !important;
+}
+#view-ai-excel-hub {
+  scroll-margin-top: 12px;
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+}
+#aiHubTabContent #anasAiAskBtn,
+#aiHubTabContent .anas-ai-draft-action,
+#aiHubTabContent button {
+  position: relative;
+  z-index: 1;
+  touch-action: manipulation;
+  scroll-margin-top: 16px;
+}
+#anasContextAiFab {
+  right: max(10px, env(safe-area-inset-right));
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 80 !important;
+  max-width: calc(100vw - 24px);
+}
+#anasContextAiPanel {
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 81 !important;
+  max-height: min(72dvh, 620px);
+}
+#view-ai-excel-hub #smartAiExcelUpload {
+  pointer-events: none;
+}
+#view-ai-excel-hub button,
+#view-ai-excel-hub [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+@media (max-width: 600px) {
+  #view-ai-excel-hub .sub-header-bar {
+    min-height: 52px;
+    padding-inline: 10px;
+  }
+  #view-ai-excel-hub .sub-header-title {
+    min-width: 0;
+    text-align: center;
+    font-size: clamp(.95rem, 3.8vw, 1.15rem);
+    overflow-wrap: anywhere;
+  }
+  #anasContextAiFab { padding: 9px 12px; font-size: 13px; }
+}
+
+
+/* Store movement report toolbar: keep action labels horizontal and readable on phones. */
+#anasReportToolbar {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+#anasReportToolbar #anasReportSearch {
+  flex: 1 1 100% !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+#anasReportToolbar button {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+
+/* Staging mobile hardening: readable RTL action buttons and non-obstructive helper. */
+.anas-firebase-auth-card,
+.anas-firebase-auth-card * {
+  box-sizing: border-box;
+}
+.anas-firebase-auth-card {
+  direction: rtl;
+  text-align: right;
+  min-width: 0;
+  overflow: visible;
+}
+.anas-firebase-auth-actions,
+.anas-firebase-cloud-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: stretch;
+  gap: 10px !important;
+  width: 100%;
+  min-width: 0;
+  direction: rtl;
+}
+.anas-firebase-auth-actions > button,
+.anas-firebase-cloud-actions > button,
+.anas-firebase-auth-card button.btn-full-submit,
+.anas-firebase-auth-card button.pill-select-btn {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  min-height: 50px;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 11px 10px !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  direction: rtl !important;
+  text-align: center !important;
+  line-height: 1.5 !important;
+  font-size: clamp(13px, 3.4vw, 16px) !important;
+}
+.anas-firebase-auth-card input,
+.anas-firebase-auth-card select,
+.anas-firebase-auth-card textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  direction: rtl;
+  box-sizing: border-box;
+}
+.main-container {
+  padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)) !important;
+}
+body {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+#anasContextAiFab {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 80 !important;
+  max-width: min(220px, calc(100vw - 24px));
+  white-space: normal !important;
+  overflow-wrap: normal;
+  writing-mode: horizontal-tb;
+  line-height: 1.35;
+}
+#anasContextAiPanel {
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: min(72dvh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 81 !important;
+}
+@media (max-width: 480px) {
+  .anas-firebase-auth-actions,
+  .anas-firebase-cloud-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+  .anas-firebase-auth-actions > button,
+  .anas-firebase-cloud-actions > button,
+  .anas-firebase-auth-card button.btn-full-submit,
+  .anas-firebase-auth-card button.pill-select-btn {
+    min-height: 52px;
+    padding: 12px 14px !important;
+    font-size: 15px !important;
+  }
+}
+
+
+/* Eye-comfort palette: neutralize the legacy cyan POS controls across the full UI. */
+:root {
+  --primary:#666a6e !important;
+  --primary-color:#666a6e !important;
+  --blue:#666a6e !important;
+  --sky:#666a6e !important;
+  --accent:#777b7f !important;
+  --brand:#666a6e !important;
+  --pos-primary:#666a6e !important;
+  --ui-primary:#666a6e !important;
+  --ui-surface:#f2f2ef;
+  --ui-border:#d3d3cd;
+  --ui-ink:#303236;
+}
+/* Primary interactive surfaces, including POS product/category tiles and bottom navigation. */
+button,
+[role="button"],
+.btn,
+.product-card,
+.product-item,
+.product-tile,
+.pos-product,
+.pos-product-card,
+.category-btn,
+.category-button,
+.filter-btn,
+.filter-button,
+.nav button,
+.bottom-nav button,
+.bottom-navigation button,
+#bottomNav button,
+#bottom-navigation button {
+  background-color:#e5e5e1 !important;
+  background-image:none !important;
+  border-color:#c9c9c3 !important;
+  color:#303236 !important;
+  box-shadow:0 2px 7px rgba(35,38,40,.08) !important;
+}
+/* Neutralize colored section headers and POS bars without changing their layout. */
+.sub-header-bar,
+.sales-header,
+.pos-header,
+#salesHeader,
+#posHeader,
+header.sales,
+header.pos {
+  background:#e7e7e3 !important;
+  background-image:none !important;
+  color:#303236 !important;
+  border-color:#d0d0ca !important;
+}
+/* Keep genuine semantic warning/success actions distinguishable. */
+button.danger, .btn.danger, button.btn-danger, .btn-danger,
+button[class*="danger"], [role="button"][class*="danger"] {
+  background:#f4dddd !important; color:#8f2929 !important; border-color:#e7bcbc !important;
+}
+button.success, .btn.success, button.btn-success, .btn-success,
+button[class*="success"], [role="button"][class*="success"] {
+  background:#dff2e5 !important; color:#176b3a !important; border-color:#a9d8b8 !important;
+}
+input, select, textarea {
+  border-color:#c9c9c3 !important;
+  color:#303236 !important;
+  background:#fff !important;
+}
+
+
+/* ANAS ERP visual repair r28 — scoped, readable cards; no global button recoloring. */
+:root {
+  --anas-bg-main:#f4f6f9;
+  --anas-card-bg:#ffffff;
+  --anas-card-border:#e2e8f0;
+  --anas-text-primary:#0f172a;
+  --anas-text-secondary:#475569;
+  --anas-accent-primary:#1e3a8a;
+  --anas-price-green:#15803d;
+}
+.product-card,.pos-product-card,.inventory-item-card,.stock-card,
+.pos-product,.product-item,.product-tile {
+  box-sizing:border-box;
+  background:#fff !important;
+  color:#0f172a !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:12px !important;
+  box-shadow:0 1px 3px rgba(15,23,42,.06) !important;
+  min-width:0;
+  min-height:92px;
+  height:auto;
+  padding:12px;
+  position:relative;
+}
+.pos-products-grid,#posProductsContainer,#productsGrid,
+#posQuickProductsContainer,#inventoryProductsContainer {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;
+  gap:10px;
+  padding:8px;
+  min-width:0;
+}
+.inventory-item-card,.stock-card {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:7px;
+  border-inline-start:4px solid #1e3a8a !important;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.inventory-item-card .product-name,.inventory-item-card .item-name,
+.stock-card .product-name,.stock-card .item-name {
+  display:block;
+  position:relative;
+  min-width:0;
+  color:#0f172a !important;
+  font-size:15px;
+  font-weight:700;
+  line-height:1.5;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.inventory-item-card .stock-info,.inventory-item-card .product-meta,
+.stock-card .stock-info,.stock-card .product-meta {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  color:#475569 !important;
+  font-size:12px;
+  line-height:1.5;
+}
+.inventory-item-card .product-price,.stock-card .product-price,
+.pos-product-card .product-price,.product-card .product-price {
+  color:#15803d !important;
+  font-weight:800;
+}
+.ai-stat-card,.kpi-card,.data-hub-card,#pdfImportCard,[data-card="pdf"],
+.pdf-import-card,.import-format-card[data-format="pdf"] {
+  box-sizing:border-box;
+  background:#1e293b !important;
+  color:#f8fafc !important;
+  border:1px solid #334155 !important;
+  border-radius:12px;
+}
+.ai-stat-card *, .kpi-card *, .data-hub-card *,
+#pdfImportCard *, [data-card="pdf"] *, .pdf-import-card *,
+.import-format-card[data-format="pdf"] * {
+  color:#f8fafc !important;
+  opacity:1;
+  visibility:visible;
+}
+.bottom-nav button,.bottom-navigation button,#bottomNav button,
+#bottom-navigation button,.nav-tab,.filter-chip,.filter-btn,.filter-button {
+  background:#fff !important;
+  background-image:none !important;
+  color:#334155 !important;
+  border:1px solid #cbd5e1 !important;
+  box-shadow:none !important;
+}
+.bottom-nav button.active,.bottom-navigation button.active,
+#bottomNav button.active,#bottom-navigation button.active,
+.nav-tab.active,.filter-chip.active,.filter-btn.active,.filter-button.active {
+  background:#1e3a8a !important;
+  color:#fff !important;
+  border-color:#1e3a8a !important;
+}
+@media(max-width:480px) {
+  .pos-products-grid,#posProductsContainer,#productsGrid,
+  #posQuickProductsContainer,#inventoryProductsContainer {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    padding:6px;
+  }
+}
+
+/* r28 inventory cards: keep long Arabic names and metadata in normal flow. */
+.anas-inventory-product-card{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:6px!important;min-width:0!important;height:auto!important;overflow:visible!important;white-space:normal!important}.anas-inventory-product-card *{position:static!important}
+.anas-inventory-card-main{display:flex!important;align-items:flex-start!important;gap:10px!important;min-width:0!important;width:100%!important}
+.anas-inventory-card-thumb{flex:0 0 44px!important}
+.anas-inventory-card-info{display:flex!important;flex:1 1 auto!important;flex-direction:column!important;align-items:flex-start!important;gap:5px!important;min-width:0!important;width:100%!important;white-space:normal!important}
+.anas-inventory-product-name,.anas-inventory-product-unit,.anas-inventory-product-meta,.anas-inventory-product-stock{position:static!important;display:block!important;float:none!important;transform:none!important;max-width:100%!important;min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;line-height:1.55!important}
+.anas-inventory-product-meta{font-size:12px!important;color:#475569!important}
+.anas-inventory-card-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important;position:static!important;min-width:0!important}
+.anas-inventory-card-actions button{flex:0 1 auto!important;min-width:76px!important}
+
+/* r28: neutral, high-contrast PDF upload tiles and executive AI metrics. */
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"],
+.anas-ai-file-actions > label[data-anas-ai-action="excel"]{
+  background:#eceeeb!important;background-image:none!important;border:1px solid #c9ccc7!important;
+  color:#303943!important;box-shadow:none!important;
+}
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] span,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="excel"] span{
+  color:#35404a!important;-webkit-text-fill-color:#35404a!important;
+}
+#anasAiExecutiveMetrics,#anasAiMorningBrief,#anasAiProactiveInsights{
+  display:block;min-width:0;padding:10px;border:1px solid #d5d8d2;border-radius:10px;
+  background:#f2f3f0!important;color:#303943!important;line-height:1.75!important;
+  overflow-wrap:anywhere!important;
+}
+#anasAiExecutiveMetrics *,#anasAiMorningBrief *,#anasAiProactiveInsights *{
+  color:#303943!important;-webkit-text-fill-color:#303943!important;opacity:1!important;
+}
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#eff6ff"],
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#2563eb"]{
+  background:#1e293b!important;border-color:#475569!important;color:#f8fafc!important;
+}
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#eff6ff"] :is(h3,h4,p,label,span,strong,small),
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#2563eb"] :is(h3,h4,p,label,span,strong,small){
+  color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;
+}
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#eff6ff"] :is(button,.btn),
+:root[data-anas-theme="dark"] #view-settings .field-group[style*="#2563eb"] :is(button,.btn){
+  background:#334155!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important;
+}
+
+
+/* r29 eye-comfort refinement: high-contrast PDF entry and AI KPI surfaces. */
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] {
+  background:#1e293b !important;
+  background-image:none !important;
+  color:#f8fafc !important;
+  border:1px solid #334155 !important;
+  box-shadow:0 2px 8px rgba(15,23,42,.12) !important;
+}
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] *,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] b,
+.anas-ai-file-actions > label[data-anas-ai-action="pdf"] span {
+  color:#f8fafc !important;
+  -webkit-text-fill-color:#f8fafc !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+#anasAiExecutiveMetrics,#anasAiMorningBrief,#anasAiProactiveInsights {
+  background:#1e293b !important;
+  color:#f8fafc !important;
+  border:1px solid #334155 !important;
+  opacity:1 !important;
+}
+#anasAiExecutiveMetrics *,#anasAiMorningBrief *,#anasAiProactiveInsights * {
+  color:#f8fafc !important;
+  -webkit-text-fill-color:#f8fafc !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+/* The optional product grid is always two readable columns on handheld screens. */
+#quickProductsContainer.anas-pos-products-grid {
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:8px !important;
+}
+#quickProductsContainer.anas-pos-products-grid > .quick-product-btn {
+  min-width:0 !important;
+  min-height:104px !important;
+  height:auto !important;
+  white-space:normal !important;
+  overflow-wrap:anywhere !important;
+  line-height:1.45 !important;
+}
+
+
+/* r37.1 — accessible theme contrast and correctly scoped purchase actions. */
+:root {
+  --anas-ui-btn-bg:#f1f3f6;
+  --anas-ui-btn-text:#172033;
+  --anas-ui-btn-border:#cbd5e1;
+  --anas-ui-btn-hover:#e2e8f0;
+  --anas-ui-panel:#ffffff;
+  --anas-ui-panel-text:#172033;
+}
+:root[data-anas-theme="dark"] {
+  --anas-ui-btn-bg:#26364d;
+  --anas-ui-btn-text:#f3f7ff;
+  --anas-ui-btn-border:#526782;
+  --anas-ui-btn-hover:#344965;
+  --anas-ui-panel:#182438;
+  --anas-ui-panel-text:#f3f7ff;
+}
+.grid-card-item,.menu-action-card,.btn-arrow-back,.btn-header-action,
+.btn-theme-quick,.pill-select-btn,.filter-chip,.filter-btn,.filter-button,
+.nav-tab,.bottom-nav button,.bottom-navigation button,#bottomNav button,
+#bottom-navigation button,.anas-purchase-ocr-button {
+  color:var(--anas-ui-btn-text)!important;
+  -webkit-text-fill-color:var(--anas-ui-btn-text)!important;
+  border-color:var(--anas-ui-btn-border)!important;
+}
+.grid-card-item,.menu-action-card,.pill-select-btn,.filter-chip,.filter-btn,
+.filter-button,.nav-tab,.bottom-nav button,.bottom-navigation button,
+#bottomNav button,#bottom-navigation button,.anas-purchase-ocr-button {
+  background:var(--anas-ui-btn-bg)!important;
+  background-image:none!important;
+}
+.grid-card-item *, .menu-action-card *, .pill-select-btn *,
+.filter-chip *, .filter-btn *, .filter-button *, .nav-tab *,
+.bottom-nav button *, .bottom-navigation button *,#bottomNav button *,
+#bottom-navigation button * {
+  color:inherit!important;
+  -webkit-text-fill-color:inherit!important;
+  opacity:1!important;
+}
+.grid-card-item:focus-visible,.menu-action-card:focus-visible,
+button:focus-visible,[role="button"]:focus-visible {
+  outline:3px solid #e6a23c!important;
+  outline-offset:2px!important;
+}
+:root[data-anas-theme="dark"] .grid-card-item,
+:root[data-anas-theme="dark"] .menu-action-card,
+:root[data-anas-theme="dark"] .pill-select-btn,
+:root[data-anas-theme="dark"] .filter-chip,
+:root[data-anas-theme="dark"] .filter-btn,
+:root[data-anas-theme="dark"] .filter-button,
+:root[data-anas-theme="dark"] .nav-tab,
+:root[data-anas-theme="dark"] .bottom-nav button,
+:root[data-anas-theme="dark"] .bottom-navigation button,
+:root[data-anas-theme="dark"] #bottomNav button,
+:root[data-anas-theme="dark"] #bottom-navigation button {
+  background:var(--anas-ui-btn-bg)!important;
+  color:var(--anas-ui-btn-text)!important;
+  -webkit-text-fill-color:var(--anas-ui-btn-text)!important;
+  border-color:var(--anas-ui-btn-border)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.22)!important;
+}
+:root[data-anas-theme="dark"] .grid-card-item *,
+:root[data-anas-theme="dark"] .menu-action-card *,
+:root[data-anas-theme="dark"] .pill-select-btn *,
+:root[data-anas-theme="dark"] .bottom-nav button *,
+:root[data-anas-theme="dark"] .bottom-navigation button * {
+  color:var(--anas-ui-btn-text)!important;
+  -webkit-text-fill-color:var(--anas-ui-btn-text)!important;
+}
+:root[data-anas-theme="dark"] .grid-card-item.active,
+:root[data-anas-theme="dark"] .pill-select-btn.active,
+:root[data-anas-theme="dark"] .nav-tab.active {
+  background:#244b78!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border-color:#5b8fc5!important;
+}
+:root[data-anas-theme="dark"] .grid-card-item.active *,
+:root[data-anas-theme="dark"] .pill-select-btn.active *,
+:root[data-anas-theme="dark"] .nav-tab.active * {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+}
+#view-dashboard .anas-dashboard-groups { gap:14px; }
+#view-dashboard .anas-dashboard-group-title { margin-bottom:8px; }
+#view-dashboard .dashboard-grid-8 { grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+#view-dashboard .grid-card-item { min-width:0; min-height:86px; height:auto; padding:10px 8px; }
+#view-dashboard .grid-card-item .card-title-text { white-space:normal; overflow-wrap:anywhere; line-height:1.45; }
+
+#view-dashboard .anas-dashboard-alerts-row { margin-top:10px; }
+#view-dashboard .anas-dashboard-alerts-entry {
+  display:flex!important;align-items:center;justify-content:center;gap:9px;
+  width:100%;min-width:0;min-height:48px;height:auto;margin:0;padding:10px 14px;
+  box-sizing:border-box;border:1px solid var(--anas-ui-btn-border,#cbd5e1);
+  border-radius:14px;background:var(--anas-ui-btn-bg,#f1f3f6);
+  color:var(--anas-ui-btn-text,#172033);-webkit-text-fill-color:var(--anas-ui-btn-text,#172033);
+  font:inherit;font-weight:800;text-align:center;white-space:normal;overflow-wrap:anywhere;
+}
+#view-dashboard .anas-dashboard-alerts-entry * { color:inherit;-webkit-text-fill-color:inherit; }
+:root[data-anas-theme="dark"] #view-dashboard .anas-dashboard-alerts-entry {
+  background:#26364d;border-color:#526782;color:#f3f7ff;-webkit-text-fill-color:#f3f7ff;
+}
+@media(max-width:600px) {
+  #view-dashboard .dashboard-grid-8 { grid-template-columns:repeat(2,minmax(0,1fr));gap:9px; }
+}
+
+.anas-purchase-toolbar { align-items:stretch; }
+.anas-purchase-ocr-button { min-height:44px; white-space:normal!important; line-height:1.4; flex:0 1 auto; }
+#invoiceOcrModal > div { box-sizing:border-box; }
+#invoiceOcrModal button,#invoiceOcrModal select,#invoiceOcrModal textarea { min-height:44px; max-width:100%; }
+:root[data-anas-theme="dark"] #invoiceOcrModal > div {
+  background:#182438!important;color:#f3f7ff!important;border:1px solid #526782;
+}
+:root[data-anas-theme="dark"] #invoiceOcrModal > div p,
+:root[data-anas-theme="dark"] #invoiceOcrModal > div label,
+:root[data-anas-theme="dark"] #invoiceOcrModal > div small,
+:root[data-anas-theme="dark"] #invoiceOcrModal > div div {
+  color:#e5edf8;
+}
+:root[data-anas-theme="dark"] #invoiceOcrModal input,
+:root[data-anas-theme="dark"] #invoiceOcrModal select,
+:root[data-anas-theme="dark"] #invoiceOcrModal textarea {
+  background:#101a2b!important;color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;border-color:#526782!important;
+}
+@media(max-width:480px) {
+  #view-dashboard .dashboard-grid-8 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #view-purchases .anas-purchase-toolbar { display:grid;grid-template-columns:1fr 1fr; }
+  #view-purchases .anas-purchase-toolbar .search-field-box { grid-column:1/-1; }
+  #view-purchases .anas-purchase-ocr-button { grid-column:1/-1; }
+}
+
+
+/* r37.2 — last-mile contrast repair for invoice actions, AI import selectors and mobile navigation. */
+:root:not([data-anas-theme="dark"]) {
+  --anas-ui-control-bg:#f1f3f6;
+  --anas-ui-control-text:#172033;
+  --anas-ui-control-border:#cbd5e1;
+}
+:root[data-anas-theme="dark"] {
+  --anas-ui-control-bg:#26364d;
+  --anas-ui-control-text:#f3f7ff;
+  --anas-ui-control-border:#526782;
+}
+.btn-pos-hasib,
+.btn-scanner-icon,
+.btn-multi-tab,
+.btn-arrow-back,
+.btn-header-action,
+#anasQuickBottomNav button,
+#smartImportPreviewModal [data-smart-import-target] {
+  background:var(--anas-ui-control-bg)!important;
+  background-image:none!important;
+  color:var(--anas-ui-control-text)!important;
+  -webkit-text-fill-color:var(--anas-ui-control-text)!important;
+  border-color:var(--anas-ui-control-border)!important;
+}
+.btn-pos-hasib *,
+.btn-scanner-icon *,
+.btn-multi-tab *,
+.btn-arrow-back *,
+.btn-header-action *,
+#anasQuickBottomNav button * {
+  color:inherit!important;
+  -webkit-text-fill-color:inherit!important;
+  opacity:1!important;
+}
+#anasQuickBottomNav button.active,
+#smartImportPreviewModal [data-smart-import-target][aria-pressed="true"] {
+  background:#1d4ed8!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border-color:#60a5fa!important;
+}
+#anasQuickBottomNav button.active * {
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+#smartImportPreviewModal [data-smart-import-target] {
+  min-height:44px;
+  border:1px solid var(--anas-ui-control-border)!important;
+  border-radius:9px;
+  font-weight:800;
+}
+#smartImportPreviewModal > div {
+  color:var(--anas-ui-control-text);
+}
+:root[data-anas-theme="dark"] #smartImportPreviewModal > div {
+  background:#182438!important;
+  color:#f3f7ff!important;
+  border:1px solid #526782;
+}
+:root[data-anas-theme="dark"] #smartImportPreviewModal p,
+:root[data-anas-theme="dark"] #smartImportPreviewModal label,
+:root[data-anas-theme="dark"] #smartImportPreviewModal small,
+:root[data-anas-theme="dark"] #smartImportPreviewModal strong {
+  color:#e5edf8!important;
+  -webkit-text-fill-color:#e5edf8!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action],
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > button[data-anas-ai-action] {
+  background:#f1f3f6!important;
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  border:1px solid #cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action] *,
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > button[data-anas-ai-action] * {
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  opacity:1!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action],
+:root[data-anas-theme="dark"] .anas-ai-file-actions > button[data-anas-ai-action] {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border:1px solid #526782!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action] *,
+:root[data-anas-theme="dark"] .anas-ai-file-actions > button[data-anas-ai-action] * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  opacity:1!important;
+}
+:root[data-anas-theme="dark"] #anasAiDataProtectionPanel {
+  background:#173326!important;
+  border-color:#286348!important;
+  color:#e7fff0!important;
+}
+:root[data-anas-theme="dark"] #anasAiDataProtectionPanel * {
+  color:#e7fff0!important;
+  -webkit-text-fill-color:#e7fff0!important;
+}
+
+
+/* r37.3 — explicit readable foregrounds for every AI import tile in both themes. */
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action],
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > button[data-anas-ai-action] {
+  background:#f1f3f6!important;
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  border-color:#cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > label[data-anas-ai-action] *,
+:root:not([data-anas-theme="dark"]) .anas-ai-file-actions > button[data-anas-ai-action] * {
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action],
+:root[data-anas-theme="dark"] .anas-ai-file-actions > button[data-anas-ai-action] {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-file-actions > label[data-anas-ai-action] *,
+:root[data-anas-theme="dark"] .anas-ai-file-actions > button[data-anas-ai-action] * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub .pills-group-row .pill-select-btn {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub .pills-group-row .pill-select-btn.active {
+  background:#244b78!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border-color:#5b8fc5!important;
+}
+:root:not([data-anas-theme="dark"]) #view-ai-excel-hub .pills-group-row .pill-select-btn {
+  background:#f1f3f6!important;
+  color:#172033!important;
+  -webkit-text-fill-color:#172033!important;
+  border-color:#cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) #view-ai-excel-hub .pills-group-row .pill-select-btn.active {
+  background:#1d4ed8!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+:root[data-anas-theme="dark"] .anas-inventory-product-meta,
+:root[data-anas-theme="dark"] .anas-inventory-product-unit,
+:root[data-anas-theme="dark"] .anas-inventory-product-stock {
+  color:#dbe7f5!important;
+  -webkit-text-fill-color:#dbe7f5!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-inventory-product-meta {
+  color:#475569!important;
+  -webkit-text-fill-color:#475569!important;
+}
+:root[data-anas-theme="dark"] .anas-inventory-product-meta strong {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] input::placeholder,
+:root[data-anas-theme="dark"] textarea::placeholder {
+  color:#bdc9dc!important;
+  -webkit-text-fill-color:#bdc9dc!important;
+  opacity:1!important;
+}
+:root:not([data-anas-theme="dark"]) input::placeholder,
+:root:not([data-anas-theme="dark"]) textarea::placeholder {
+  color:#526176!important;
+  -webkit-text-fill-color:#526176!important;
+  opacity:1!important;
+}
+
+
+/* ANAS ERP r38 — semantic button states, using the live theme contract. */
+:root {
+  --anas-btn-primary: #2563eb;
+  --anas-btn-primary-hover: #1d4ed8;
+  --anas-btn-secondary-bg: var(--anas-surface, #fff);
+  --anas-btn-secondary-text: var(--anas-text, #172033);
+  --anas-btn-secondary-border: var(--anas-border, #d9e2ef);
+}
+:root[data-anas-theme="dark"] {
+  --anas-btn-primary: #3b82f6;
+  --anas-btn-primary-hover: #60a5fa;
+  --anas-btn-secondary-bg: #1e293b;
+  --anas-btn-secondary-text: #f8fafc;
+  --anas-btn-secondary-border: #475569;
+}
+.btn-primary,
+button.btn-primary,
+input[type="submit"].btn-primary {
+  background: var(--anas-btn-primary);
+  color: #fff;
+  border: 1px solid transparent;
+  font-weight: 700;
+  transition: background-color .18s ease, box-shadow .18s ease, transform .12s ease;
+}
+.btn-secondary,
+button.btn-secondary {
+  background: var(--anas-btn-secondary-bg);
+  color: var(--anas-btn-secondary-text);
+  border: 1px solid var(--anas-btn-secondary-border);
+  font-weight: 600;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover,
+  button.btn-primary:hover,
+  input[type="submit"].btn-primary:hover {
+    background: var(--anas-btn-primary-hover);
+  }
+  .btn-secondary:hover,
+  button.btn-secondary:hover {
+    border-color: var(--anas-btn-primary);
+    background: color-mix(in srgb, var(--anas-btn-primary) 8%, var(--anas-btn-secondary-bg));
+  }
+  .grid-card-item:hover,
+  .menu-action-card:hover {
+    border-color: var(--anas-btn-primary, #2563eb);
+    box-shadow: 0 5px 16px rgba(15, 23, 42, .12);
+  }
+}
+.btn-primary:active,
+button.btn-primary:active,
+.btn-secondary:active,
+button.btn-secondary:active,
+.grid-card-item:active,
+.menu-action-card:active {
+  transform: translateY(1px);
+}
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}
+button:disabled,
+button[aria-disabled="true"],
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  box-shadow: none;
+  transform: none;
+}
+button[aria-busy="true"],
+button.is-loading,
+.btn-primary.is-loading,
+.btn-secondary.is-loading {
+  cursor: progress;
+  pointer-events: none;
+}
+:root[data-anas-theme="dark"] .btn-secondary,
+:root[data-anas-theme="dark"] button.btn-secondary {
+  color: var(--anas-btn-secondary-text);
+  background: var(--anas-btn-secondary-bg);
+  border-color: var(--anas-btn-secondary-border);
+}
+
+/* ANAS ERP — responsive More workspace, semantic light/dark contrast. */
+#view-more .anas-more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 10px 22px;align-items:stretch}
+#view-more .anas-more-card{min-width:0;min-height:166px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px 10px;border:1.5px solid var(--anas-border,#cbd5e1);border-radius:22px;background:var(--anas-surface,#fff);color:var(--anas-text,#172033);-webkit-text-fill-color:var(--anas-text,#172033);box-shadow:0 2px 8px rgba(15,23,42,.06);font:inherit;font-weight:700;cursor:pointer;text-align:center;transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .12s ease}
+#view-more .anas-more-icon{display:grid;place-items:center;width:76px;height:76px;border-radius:20px;background:color-mix(in srgb,var(--anas-text,#172033) 6%,var(--anas-surface,#fff));font-size:46px;line-height:1}
+#view-more .anas-more-label{display:block;max-width:100%;color:var(--anas-text,#172033);-webkit-text-fill-color:var(--anas-text,#172033);font-size:clamp(17px,4.5vw,23px);line-height:1.35;overflow-wrap:anywhere}
+#view-more .anas-more-card:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
+@media(max-width:360px){#view-more .anas-more-grid{gap:8px;padding-inline:7px}#view-more .anas-more-card{min-height:145px;border-radius:17px;padding:12px 6px}#view-more .anas-more-icon{width:64px;height:64px;font-size:39px}#view-more .anas-more-label{font-size:17px}}
+:root[data-anas-theme="dark"] #view-more .anas-more-card{background:#26364d;border-color:#526782;color:#f3f7ff;-webkit-text-fill-color:#f3f7ff;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+:root[data-anas-theme="dark"] #view-more .anas-more-icon{background:#1c2b40}
+:root[data-anas-theme="dark"] #view-more .anas-more-label{color:#f3f7ff;-webkit-text-fill-color:#f3f7ff}
+:root:not([data-anas-theme="dark"]) #view-more .anas-more-card{background:#fff;border-color:#d1d5db;color:#111827;-webkit-text-fill-color:#111827}
+:root:not([data-anas-theme="dark"]) #view-more .anas-more-label{color:#111827;-webkit-text-fill-color:#111827}
+@media(hover:hover) and (pointer:fine){#view-more .anas-more-card:hover{border-color:var(--anas-btn-primary,#2563eb);box-shadow:0 5px 16px rgba(15,23,42,.12)}}
+
+:where(.erp-num,.amount,.money,.currency,.price,.total,.balance,.debt,.credit,.quantity,.qty,
+[data-type="currency"],[data-type="number"],[data-currency],[data-money],
+[id*="Balance"],[id*="balance"],[id*="Total"],[id*="total"],[id*="Debt"],[id*="debt"]) {
+ font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1;unicode-bidi:plaintext;
+}
+:where(input[type="number"],.anas-weight-chip,.anas-pos-mini-qty span) {
+ font-variant-numeric:tabular-nums!important;font-feature-settings:"tnum" 1;
+}
+/* r40 — the existing live status bar is the sole owner of network and durable-save state. */
+#anas-live-status-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;min-height:32px;margin:4px 8px;padding:5px 10px;border:1px solid var(--anas-ui-btn-border,#cbd5e1);border-radius:999px;background:var(--anas-ui-panel,#fff);color:var(--anas-ui-panel-text,#172033);font-size:12px;font-weight:800;line-height:1.4;direction:rtl;z-index:30}
+#anas-live-status-bar [id^="anas-status-"]{color:inherit;-webkit-text-fill-color:currentColor}
+#anas-live-status-bar[data-network-state="offline"] #anas-status-network-badge{color:#b45309}
+#anas-live-status-bar[data-durability-state="committed"] #anas-status-durability-badge{color:#15803d}
+#anas-live-status-bar[data-durability-state="uncommitted"] #anas-status-durability-badge,#anas-live-status-bar[data-durability-state="saving"] #anas-status-durability-badge{color:#b45309}
+:root[data-anas-theme="dark"] #anas-live-status-bar{background:var(--anas-ui-panel,#182438);color:var(--anas-ui-panel-text,#f3f7ff);border-color:var(--anas-ui-btn-border,#526782)}
+
+
+/* r40 video-driven repair: one theme-aware contract for controls and surfaces.
+   This block intentionally comes last so legacy !important palette rules cannot
+   leave pale controls with pale text when the dark theme is active. */
+:root {
+  --anas-video-control-bg:#f1f3f6;
+  --anas-video-control-text:#172033;
+  --anas-video-control-border:#cbd5e1;
+  --anas-video-control-hover:#e2e8f0;
+  --anas-video-panel-bg:#ffffff;
+  --anas-video-panel-text:#172033;
+  --anas-video-field-bg:#ffffff;
+  --anas-video-field-text:#172033;
+  --anas-video-field-border:#cbd5e1;
+}
+:root[data-anas-theme="dark"] {
+  color-scheme:dark;
+  --anas-video-control-bg:#26364d;
+  --anas-video-control-text:#f3f7ff;
+  --anas-video-control-border:#526782;
+  --anas-video-control-hover:#344965;
+  --anas-video-panel-bg:#182438;
+  --anas-video-panel-text:#f3f7ff;
+  --anas-video-field-bg:#101a2b;
+  --anas-video-field-text:#f3f7ff;
+  --anas-video-field-border:#526782;
+}
+
+/* Plain controls and legacy action classes: preserve dedicated success/danger/checkout
+   colors while preventing the old global pale-background/white-text collision. */
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+:root[data-anas-theme] .menu-action-card,
+:root[data-anas-theme] .pill-select-btn,
+:root[data-anas-theme] .filter-chip,
+:root[data-anas-theme] .filter-btn,
+:root[data-anas-theme] .filter-button,
+:root[data-anas-theme] .nav-tab,
+:root[data-anas-theme] .product-card,
+:root[data-anas-theme] .product-item,
+:root[data-anas-theme] .product-tile,
+:root[data-anas-theme] .pos-product,
+:root[data-anas-theme] .pos-product-card,
+:root[data-anas-theme] .category-btn,
+:root[data-anas-theme] .category-button,
+:root[data-anas-theme] .quick-product-btn {
+  background-color:var(--anas-video-control-bg)!important;
+  background-image:none!important;
+  color:var(--anas-video-control-text)!important;
+  -webkit-text-fill-color:var(--anas-video-control-text)!important;
+  border-color:var(--anas-video-control-border)!important;
+  box-shadow:0 2px 8px rgba(15,23,42,.12)!important;
+}
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type) *,
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) *,
+:root[data-anas-theme] .menu-action-card *,
+:root[data-anas-theme] .pill-select-btn *,
+:root[data-anas-theme] .filter-chip *,
+:root[data-anas-theme] .filter-btn *,
+:root[data-anas-theme] .filter-button *,
+:root[data-anas-theme] .nav-tab *,
+:root[data-anas-theme] .product-card *,
+:root[data-anas-theme] .product-item *,
+:root[data-anas-theme] .product-tile *,
+:root[data-anas-theme] .pos-product *,
+:root[data-anas-theme] .pos-product-card *,
+:root[data-anas-theme] .category-btn *,
+:root[data-anas-theme] .category-button *,
+:root[data-anas-theme] .quick-product-btn * {
+  color:inherit!important;
+  -webkit-text-fill-color:inherit!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]):not([aria-current="page"]):hover,
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):hover {
+  background-color:var(--anas-video-control-hover)!important;
+}
+:root[data-anas-theme] button[aria-pressed="true"],
+:root[data-anas-theme] button[aria-selected="true"],
+:root[data-anas-theme] .menu-action-card.active,
+:root[data-anas-theme] .pill-select-btn.active,
+:root[data-anas-theme] .filter-chip.active,
+:root[data-anas-theme] .filter-btn.active,
+:root[data-anas-theme] .filter-button.active,
+:root[data-anas-theme] .nav-tab.active,
+:root[data-anas-theme] .quick-product-btn.active {
+  background:#244b78!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border-color:#5b8fc5!important;
+}
+:root[data-anas-theme] button[aria-pressed="true"] *,
+:root[data-anas-theme] button[aria-selected="true"] *,
+:root[data-anas-theme] .grid-card-item.active *,
+:root[data-anas-theme] .menu-action-card.active *,
+:root[data-anas-theme] .pill-select-btn.active *,
+:root[data-anas-theme] .filter-chip.active *,
+:root[data-anas-theme] .filter-btn.active *,
+:root[data-anas-theme] .filter-button.active *,
+:root[data-anas-theme] .nav-tab.active *,
+:root[data-anas-theme] .quick-product-btn.active * {
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+
+/* Form fields are independent of buttons and must not retain forced white fills. */
+:root[data-anas-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+:root[data-anas-theme] select,
+:root[data-anas-theme] textarea {
+  background:var(--anas-video-field-bg)!important;
+  color:var(--anas-video-field-text)!important;
+  -webkit-text-fill-color:var(--anas-video-field-text)!important;
+  border-color:var(--anas-video-field-border)!important;
+  caret-color:var(--anas-video-field-text);
+}
+:root[data-anas-theme] input::placeholder,
+:root[data-anas-theme] textarea::placeholder {
+  color:var(--anas-ui-text-muted,#94a3b8)!important;
+  -webkit-text-fill-color:var(--anas-ui-text-muted,#94a3b8)!important;
+  opacity:1!important;
+}
+:root[data-anas-theme="dark"] input[type="checkbox"],
+:root[data-anas-theme="dark"] input[type="radio"] { accent-color:#93c5fd; }
+
+/* Shared popup, picker and modal surfaces used by product search and checkout flows. */
+:root[data-anas-theme="dark"] .modal-content,
+:root[data-anas-theme="dark"] .modal-dialog,
+:root[data-anas-theme="dark"] .picker-dialog-scroll,
+:root[data-anas-theme="dark"] .dropdown-menu,
+:root[data-anas-theme="dark"] .autocomplete-items,
+:root[data-anas-theme="dark"] .suggestion-list,
+:root[data-anas-theme="dark"] .search-results,
+:root[data-anas-theme="dark"] [role="dialog"] > div {
+  background-color:var(--anas-video-panel-bg)!important;
+  color:var(--anas-video-panel-text)!important;
+  border-color:var(--anas-video-control-border)!important;
+}
+:root[data-anas-theme="dark"] .modal-content *,
+:root[data-anas-theme="dark"] .modal-dialog *,
+:root[data-anas-theme="dark"] .picker-dialog-scroll *,
+:root[data-anas-theme="dark"] .dropdown-menu *,
+:root[data-anas-theme="dark"] .autocomplete-items *,
+:root[data-anas-theme="dark"] .suggestion-list *,
+:root[data-anas-theme="dark"] .search-results *,
+:root[data-anas-theme="dark"] [role="dialog"] > div * {
+  border-color:var(--anas-video-control-border);
+}
+:root[data-anas-theme="dark"] .modal-content p,
+:root[data-anas-theme="dark"] .modal-content label,
+:root[data-anas-theme="dark"] .modal-content small,
+:root[data-anas-theme="dark"] .modal-content strong,
+:root[data-anas-theme="dark"] .modal-dialog p,
+:root[data-anas-theme="dark"] .modal-dialog label,
+:root[data-anas-theme="dark"] .modal-dialog small,
+:root[data-anas-theme="dark"] .modal-dialog strong,
+:root[data-anas-theme="dark"] .picker-dialog-scroll p,
+:root[data-anas-theme="dark"] .picker-dialog-scroll label,
+:root[data-anas-theme="dark"] .picker-dialog-scroll small,
+:root[data-anas-theme="dark"] .picker-dialog-scroll strong {
+  color:var(--anas-video-panel-text)!important;
+  -webkit-text-fill-color:var(--anas-video-panel-text)!important;
+}
+
+/* The AI import panel has a deliberately light visual identity in light mode;
+   provide a complete dark surface instead of mixing white cards and pale text. */
+:root[data-anas-theme="dark"] .anas-ai-import-pro {
+  background:#182438!important;
+  border-color:#526782!important;
+  color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-benefits,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-drop,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-rules {
+  background:#101a2b!important;
+  border-color:#526782!important;
+  color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-benefits *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-drop *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-rules * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-type,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-actions button {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-type.is-active {
+  background:#244b78!important;
+  border-color:#7aa7d8!important;
+}
+
+/* Keep invoice output independent of application theme: printed pages stay white,
+   black-on-white and free from screen-only controls. */
+@media print {
+  #receiptPrintArea, #legalInvoiceA4Area,
+  #receiptPrintArea *, #legalInvoiceA4Area * {
+    color:#111!important;
+    -webkit-text-fill-color:#111!important;
+    background:#fff!important;
+    box-shadow:none!important;
+  }
+  #receiptPrintArea, #legalInvoiceA4Area {
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    margin:0!important;
+    padding:0!important;
+  }
+  #receiptPrintArea .no-print, #legalInvoiceA4Area .no-print { display:none!important; }
+}
+
+
+/* Complete the dark AI-import panel: section headings and file glyphs must not
+   inherit the legacy light-mode charcoal foreground. */
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-section-title h3,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-section-title span {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-file-icon {
+  background:#26364d!important;
+  border-color:#526782!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+
+
+/* Video-driven print correction: let the legal invoice flow naturally across
+   A4 pages. The legacy fixed-height/unbreakable wrapper could spill onto a
+   second blank page or clip longer invoices. */
+:root[data-anas-theme] .picker-dialog-scroll {
+  background:var(--anas-video-panel-bg)!important;
+  color:var(--anas-video-panel-text)!important;
+  border-color:var(--anas-video-control-border)!important;
+}
+@page { size:A4 portrait; margin:8mm; }
+@media print {
+  html, body {
+    width:auto!important;height:auto!important;min-height:0!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    background:#fff!important;
+  }
+  body * { visibility:hidden!important; }
+  #receiptPrintArea.printable, #receiptPrintArea.printable *,
+  #legalInvoiceA4Area.printable, #legalInvoiceA4Area.printable * {
+    visibility:visible!important;
+  }
+  #legalInvoiceA4Area.printable {
+    position:static!important;display:block!important;
+    width:auto!important;max-width:none!important;
+    height:auto!important;max-height:none!important;min-height:0!important;
+    overflow:visible!important;margin:0!important;padding:0!important;
+    border:0!important;box-sizing:border-box!important;
+    page-break-after:auto!important;page-break-inside:auto!important;
+    break-after:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable > div {
+    width:auto!important;max-width:none!important;min-height:0!important;
+    height:auto!important;max-height:none!important;margin:0!important;
+    overflow:visible!important;box-sizing:border-box!important;
+    page-break-inside:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable * {
+    page-break-inside:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable table {
+    page-break-inside:auto!important;break-inside:auto!important;
+  }
+  #legalInvoiceA4Area.printable thead { display:table-header-group!important; }
+  #legalInvoiceA4Area.printable tfoot { display:table-footer-group!important; }
+  #legalInvoiceA4Area.printable tr {
+    page-break-inside:avoid!important;break-inside:avoid!important;
+  }
+  #receiptPrintArea.printable, #legalInvoiceA4Area.printable,
+  #receiptPrintArea.printable *, #legalInvoiceA4Area.printable * {
+    color:#111!important;-webkit-text-fill-color:#111!important;
+    box-shadow:none!important;
+  }
+}
+
+
+/* Explicit dark-mode values are kept literal here so legacy inline/button palette
+   declarations cannot resolve to the light token on older WebView cascades. */
+:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] .menu-action-card:not(.active),
+:root[data-anas-theme="dark"] .pill-select-btn:not(.active),
+:root[data-anas-theme="dark"] .filter-chip:not(.active),
+:root[data-anas-theme="dark"] .filter-btn:not(.active),
+:root[data-anas-theme="dark"] .filter-button:not(.active),
+:root[data-anas-theme="dark"] .nav-tab:not(.active),
+:root[data-anas-theme="dark"] .product-card,
+:root[data-anas-theme="dark"] .product-item,
+:root[data-anas-theme="dark"] .product-tile,
+:root[data-anas-theme="dark"] .pos-product,
+:root[data-anas-theme="dark"] .pos-product-card,
+:root[data-anas-theme="dark"] .category-btn:not(.active),
+:root[data-anas-theme="dark"] .category-button:not(.active),
+:root[data-anas-theme="dark"] .quick-product-btn:not(.active) {
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]) *,
+:root[data-anas-theme="dark"] .menu-action-card:not(.active) *,
+:root[data-anas-theme="dark"] .pill-select-btn:not(.active) *,
+:root[data-anas-theme="dark"] .filter-chip:not(.active) *,
+:root[data-anas-theme="dark"] .filter-btn:not(.active) *,
+:root[data-anas-theme="dark"] .filter-button:not(.active) *,
+:root[data-anas-theme="dark"] .nav-tab:not(.active) *,
+:root[data-anas-theme="dark"] .product-card *,
+:root[data-anas-theme="dark"] .product-item *,
+:root[data-anas-theme="dark"] .product-tile *,
+:root[data-anas-theme="dark"] .pos-product *,
+:root[data-anas-theme="dark"] .pos-product-card *,
+:root[data-anas-theme="dark"] .category-btn:not(.active) *,
+:root[data-anas-theme="dark"] .category-button:not(.active) *,
+:root[data-anas-theme="dark"] .quick-product-btn:not(.active) * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+:root[data-anas-theme="dark"] select,
+:root[data-anas-theme="dark"] textarea {
+  background:#101a2b!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] .modal-content,
+:root[data-anas-theme="dark"] .modal-dialog,
+:root[data-anas-theme="dark"] .picker-dialog-scroll,
+:root[data-anas-theme="dark"] .dropdown-menu,
+:root[data-anas-theme="dark"] .autocomplete-items,
+:root[data-anas-theme="dark"] .suggestion-list,
+:root[data-anas-theme="dark"] .search-results,
+:root[data-anas-theme="dark"] [role="dialog"] > div {
+  background-color:#182438!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+
+
+/* r39.1 — close legacy cascade leaks without flattening semantic POS actions.
+   The extra root/html/body specificity wins over later legacy button shorthand rules. */
+html:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]):not([aria-current="page"]) {
+  background:#26364d!important;
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+
+/* Payment shortcuts retain their individual financial meaning in both themes. */
+#hasibModal .anas-quick-payment-actions > button:nth-child(1) {
+  background:#dcfce7!important;
+  background-color:#dcfce7!important;
+  color:#166534!important;
+  -webkit-text-fill-color:#166534!important;
+  border-color:#86efac!important;
+}
+#hasibModal .anas-quick-payment-actions > button:nth-child(2) {
+  background:#eff6ff!important;
+  background-color:#eff6ff!important;
+  color:#1e40af!important;
+  -webkit-text-fill-color:#1e40af!important;
+  border-color:#bfdbfe!important;
+}
+#hasibModal .anas-quick-payment-actions > button:nth-child(3) {
+  background:#fee2e2!important;
+  background-color:#fee2e2!important;
+  color:#991b1b!important;
+  -webkit-text-fill-color:#991b1b!important;
+  border-color:#fca5a5!important;
+}
+
+
+/* r39.2 — final cascade guard: keep ordinary dark controls dark even when
+   later legacy component rules use button-level background shorthands. */
+:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]) {
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+
+/* Payment action ordering is based on button type, not all sibling nodes. */
+#hasibModal .anas-quick-payment-actions button:nth-of-type(1) {
+  background:#dcfce7!important;background-color:#dcfce7!important;
+  color:#166534!important;-webkit-text-fill-color:#166534!important;
+  border-color:#86efac!important;
+}
+#hasibModal .anas-quick-payment-actions button:nth-of-type(2) {
+  background:#eff6ff!important;background-color:#eff6ff!important;
+  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;
+  border-color:#bfdbfe!important;
+}
+#hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
+  background:#fee2e2!important;background-color:#fee2e2!important;
+  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;
+  border-color:#fca5a5!important;
+}
+
+
+
+/* r40.4 — theme colors must be deterministic at the moment the theme changes.
+   CSS transitions temporarily interpolate the old light surface with the new dark
+   foreground, which is both visually unsafe and fails real rendered contrast checks.
+   Keep color/surface transitions off theme-managed controls; retain other motion. */
+:root[data-anas-theme] body button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
+:root[data-anas-theme] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
+:root[data-anas-theme] body .menu-action-card,
+:root[data-anas-theme] body .pill-select-btn,
+:root[data-anas-theme] body .filter-chip,
+:root[data-anas-theme] body .filter-btn,
+:root[data-anas-theme] body .filter-button,
+:root[data-anas-theme] body .nav-tab,
+:root[data-anas-theme] body .product-card,
+:root[data-anas-theme] body .product-item,
+:root[data-anas-theme] body .product-tile,
+:root[data-anas-theme] body .pos-product,
+:root[data-anas-theme] body .pos-product-card,
+:root[data-anas-theme] body .category-btn,
+:root[data-anas-theme] body .category-button,
+:root[data-anas-theme] body .quick-product-btn {
+  transition:none!important;
+}
+
+/* Preserve semantic payment colors above generic theme button selectors. */
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1) {
+  background:#dcfce7!important;background-color:#dcfce7!important;background-image:none!important;
+  color:#166534!important;-webkit-text-fill-color:#166534!important;border-color:#86efac!important;
+  transition:none!important;
+}
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2) {
+  background:#eff6ff!important;background-color:#eff6ff!important;background-image:none!important;
+  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;border-color:#bfdbfe!important;
+  transition:none!important;
+}
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3) {
+  background:#fee2e2!important;background-color:#fee2e2!important;background-image:none!important;
+  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
+  transition:none!important;
+}
+
+
+/* r40.5 — final dark-theme form-field cascade guard. */
+html:root[data-anas-theme="dark"] body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+html:root[data-anas-theme="dark"] body select,
+html:root[data-anas-theme="dark"] body textarea {
+  background-color:#101a2b!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+  caret-color:#f3f7ff!important;
+}
+
+
+/* r40.7 — theme changes must not interpolate form-field surfaces.
+   A stale light frame against dark foreground fails real Chromium contrast checks. */
+html:root[data-anas-theme] body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+html:root[data-anas-theme] body select,
+html:root[data-anas-theme] body textarea {
+  transition:none!important;
+}
+
+
+/* r40.8 — text hints inside dark picker dialogs must not retain legacy white chips.
+   Keep text on the dialog surface; do not alter input controls or light-theme styling. */
+html:root[data-anas-theme="dark"] body .picker-dialog-scroll :is(small, label, p) {
+  background-color:transparent!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+
+
+/* Video-matched ANAS ERP inquiries screen: compact date strip, red group labels,
+   independent white report rows and explicit light/dark surfaces. */
+#view-reports .anas-query-screen { padding:8px 10px 20px; }
+#view-reports .anas-query-datebar {
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) 24px;
+  align-items:center; gap:6px; padding:8px 7px; margin:8px 0 2px;
+  border:1px solid var(--mp-border); border-radius:8px;
+  background:#f8fafc; color:#334155; font-size:11px; font-weight:800;
+}
+#view-reports .anas-query-datebar .field-input {
+  width:100%; min-width:0; height:36px; margin:0; padding:5px 4px;
+  border:1px solid #d1d5db; border-radius:4px; background:#e5e7eb;
+  color:#1f2937; font-size:11px; font-weight:700; text-align:center;
+}
+#view-reports .anas-query-date-to { text-align:center; white-space:nowrap; }
+#view-reports .anas-query-calendar { font-size:18px; text-align:center; }
+#view-reports .anas-query-date-status {
+  min-height:15px; margin:2px 2px 5px; color:var(--mp-text-muted);
+  font-size:10px; line-height:1.5; overflow-wrap:anywhere;
+}
+#view-reports .anas-query-list { display:flex; flex-direction:column; gap:3px; }
+#view-reports .anas-query-group { display:flex; flex-direction:column; gap:4px; }
+#view-reports .anas-query-group-heading {
+  margin:7px 0 1px; padding:5px 7px; min-height:28px;
+  display:flex; align-items:center; background:#f3f4f6;
+  border-bottom:1px solid #e5e7eb; color:#b91c1c;
+  font-size:13px; line-height:1.4; font-weight:900;
+}
+#view-reports .anas-query-row {
+  appearance:none; -webkit-appearance:none; width:100%; min-height:48px;
+  display:flex; flex-direction:row; align-items:center; justify-content:space-between;
+  gap:10px; margin:0; padding:8px 10px;
+  border:1px solid #e5e7eb; border-radius:2px; background:#fff;
+  color:#334155; text-align:center; font-family:inherit;
+  font-size:12px; font-weight:700; line-height:1.55;
+  cursor:pointer; touch-action:manipulation;
+}
+#view-reports .anas-query-row-label { flex:1 1 auto; min-width:0; text-align:center; overflow-wrap:anywhere; }
+#view-reports .anas-query-arrow {
+  flex:0 0 22px; width:22px; color:#315c7a; font-size:25px;
+  line-height:1; font-weight:400; text-align:center;
+}
+#view-reports .anas-query-row:focus-visible {
+  outline:3px solid #60a5fa; outline-offset:2px; position:relative; z-index:1;
+}
+#view-reports .anas-query-row:active { transform:translateY(1px); }
+#view-reports .anas-query-stats { margin-top:12px; border:1px solid var(--mp-border); border-radius:8px; background:var(--mp-card-bg,#fff); }
+#view-reports .anas-query-stats > summary { padding:12px; color:var(--mp-navy); font-size:13px; font-weight:900; cursor:pointer; }
+#view-reports .anas-query-stats-panel { margin:0; border:0; border-top:1px solid var(--mp-border); border-radius:0 0 8px 8px; }
+#view-reports .anas-query-stats-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+#view-reports .anas-query-stats-heading h3 { margin:0; font-size:14px; color:var(--mp-navy); }
+#view-reports .anas-query-stats-heading button { width:42px; height:42px; min-width:42px; font-size:22px; }
+#view-reports .anas-query-stats-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+#view-reports .anas-query-stats-notes { margin-top:8px; color:var(--mp-text-muted); font-size:11px; }
+:root[data-anas-theme="dark"] #view-reports .anas-query-datebar,
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-group-heading {
+  background:#182438!important; color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-datebar .field-input {
+  background:#101a2b!important; color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-row {
+  background:#182438!important; background-color:#182438!important;
+  background-image:none!important; color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-row * {
+  color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-arrow { color:#93c5fd!important; -webkit-text-fill-color:#93c5fd!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats {
+  background:#182438!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats > summary { color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-panel,
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-grid > div {
+  background:#101a2b!important; color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-stats-grid > div * {
+  color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important;
+}
+@media (max-width:360px) {
+  #view-reports .anas-query-screen { padding-inline:6px; }
+  #view-reports .anas-query-datebar { grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) 20px; gap:4px; padding-inline:4px; font-size:10px; }
+  #view-reports .anas-query-datebar .field-input { font-size:10px; padding-inline:2px; }
+  #view-reports .anas-query-row { min-height:46px; padding:7px 6px; font-size:11px; }
+}
+
+
+/* Reference-video alignment: centered inquiries header, saved date range,
+   grouped long-form report catalog and working option switches. */
+#view-reports .anas-query-header {
+  display:grid; grid-template-columns:42px minmax(0,1fr) 42px;
+  align-items:center; gap:6px; min-height:58px;
+}
+#view-reports .anas-query-header .sub-header-title { text-align:center; justify-self:center; }
+#view-reports .anas-query-report-icon { font-size:34px; line-height:1; text-align:center; }
+#view-reports .anas-query-screen {
+  height:calc(100vh - 170px); height:calc(100dvh - 170px);
+  min-height:280px; overflow-y:auto; overflow-x:hidden;
+  overscroll-behavior:contain; scrollbar-width:thin;
+}
+#view-reports .anas-query-datebar {
+  position:sticky; top:0; z-index:5;
+  grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) 32px;
+  background:#fff; border:0; border-radius:0;
+  padding:10px 6px; margin:0 0 6px;
+  box-shadow:0 2px 5px rgba(15,23,42,.06);
+}
+#view-reports .anas-query-save-range {
+  width:30px; height:34px; min-width:30px; padding:0;
+  display:grid; place-items:center; border:0; border-radius:5px;
+  background:transparent; color:#2563eb; font-size:21px; cursor:pointer;
+}
+#view-reports .anas-query-save-range:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+#view-reports .anas-query-option-row {
+  display:flex; flex-direction:row; align-items:stretch; gap:4px;
+  width:100%; min-height:48px; border:1px solid #e5e7eb;
+  background:#fff; border-radius:2px; overflow:hidden;
+}
+#view-reports .anas-query-option-row > .anas-query-row {
+  flex:1 1 58%; width:auto; min-width:0; border:0; border-radius:0;
+  background:transparent; box-shadow:none;
+}
+#view-reports .anas-query-options {
+  flex:0 0 43%; min-width:0; display:flex; flex-direction:column;
+  background:#fff;
+  justify-content:center; align-items:flex-start; gap:5px;
+  padding:7px 5px; direction:ltr;
+}
+#view-reports .anas-query-toggle {
+  display:flex; flex-direction:row; align-items:center; gap:6px;
+  width:100%; color:#475569; font-size:10px; line-height:1.3;
+  font-weight:600; text-align:left; direction:ltr; cursor:pointer;
+}
+#view-reports .anas-query-toggle input {
+  appearance:none; -webkit-appearance:none; flex:0 0 34px;
+  width:34px; height:18px; margin:0; border:0; border-radius:999px;
+  background:#c5c9ce; position:relative; cursor:pointer; transition:background .15s ease;
+}
+#view-reports .anas-query-toggle input::before {
+  content:""; position:absolute; left:-1px; top:-2px;
+  width:22px; height:22px; border-radius:50%; background:#f8fafc;
+  box-shadow:0 1px 3px rgba(0,0,0,.22); transition:transform .15s ease;
+}
+#view-reports .anas-query-toggle input:checked { background:#2563eb; }
+#view-reports .anas-query-toggle input:checked::before { transform:translateX(14px); }
+#view-reports .anas-query-toggle input:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+#view-reports .anas-query-group-heading { color:#b91c1c; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-datebar {
+  background:#101a2b!important; color:#f3f7ff!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-save-range { color:#93c5fd!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-option-row {
+  background:#182438!important; border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-option-row > .anas-query-row {
+  background:#182438!important; color:#f3f7ff!important; -webkit-text-fill-color:#f3f7ff!important;
+}
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-options { background:#182438!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle { color:#cbd5e1!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input { background:#526174!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input:checked { background:#2563eb!important; }
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-group-heading { color:#f3f7ff!important; }
+@media (max-width:360px) {
+  #view-reports .anas-query-screen { height:calc(100vh - 160px); height:calc(100dvh - 160px); }
+  #view-reports .anas-query-datebar { grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) 28px; gap:3px; padding-inline:3px; }
+  #view-reports .anas-query-datebar .field-input { font-size:10px; padding-inline:1px; }
+  #view-reports .anas-query-option-row { gap:2px; }
+  #view-reports .anas-query-option-row > .anas-query-row { flex-basis:52%; padding-inline:4px; font-size:10px; }
+  #view-reports .anas-query-options { flex-basis:48%; padding-inline:3px; }
+  #view-reports .anas-query-toggle { gap:4px; font-size:9px; }
+}
+
+
+/* Dark-mode product picker contrast: outrank inherited modal/theme variables. */
+html:root[data-anas-theme="dark"] body #productPickerModal .picker-dialog-scroll,
+html:root[data-theme="dark"] body #productPickerModal .picker-dialog-scroll {
+  background:#111c2e!important;
+  color:#f1f5f9!important;
+  -webkit-text-fill-color:#f1f5f9!important;
+  border-color:#475569!important;
+}
+html:root[data-anas-theme="dark"] body #productPickerModal .picker-dialog-scroll h3,
+html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card,
+html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card *,
+html:root[data-theme="dark"] body #productPickerModal .picker-dialog-scroll h3,
+html:root[data-theme="dark"] body #productPickerModal .menu-action-card,
+html:root[data-theme="dark"] body #productPickerModal .menu-action-card * {
+  color:#f1f5f9!important;
+  -webkit-text-fill-color:#f1f5f9!important;
+}
+html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card,
+html:root[data-theme="dark"] body #productPickerModal .menu-action-card {
+  background:#1b2940!important;
+  border-color:#64748b!important;
+}
+html:root[data-anas-theme="dark"] body #productPickerModal #productPickerSearch,
+html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
+  background:#0b1424!important;
+  color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;
+  border-color:#64748b!important;
+}
+
+
+/* r40 — component-scoped dark surfaces; preserve semantic POS action colors. */
+:root[data-anas-theme="dark"] #view-ai-excel-hub,
+:root[data-anas-theme="dark"] #aiExcelImportModal,
+:root[data-anas-theme="dark"] #aiExcelImportScreen,
+:root[data-anas-theme="dark"] #anasAiExcelImportModal,
+:root[data-anas-theme="dark"] #aiHubTabContent,
+:root[data-anas-theme="dark"] #view-invoices-list,
+:root[data-anas-theme="dark"] #settingsModal,
+:root[data-anas-theme="dark"] #view-settings {
+  color:#f8fafc;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub :is(.card,.menu-action-card,.ai-import-card,.upload-area,.drop-zone,.dropzone,[class*="excel"],[class*="import"]),
+:root[data-anas-theme="dark"] :is(#aiExcelImportModal,#aiExcelImportScreen,#anasAiExcelImportModal) :is(.modal-content,.modal-body,.card,.upload-area,.drop-zone,.dropzone),
+:root[data-anas-theme="dark"] #aiHubTabContent :is(.card,.ai-action-card,.anas-ai-action-card),
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item),
+:root[data-anas-theme="dark"] :is(#settingsModal,#view-settings) :is(.card,.settings-card,.setting-item) {
+  background-color:#1e293b;
+  color:#f8fafc;
+  border-color:#475569;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub :is(button,[role="button"]),
+:root[data-anas-theme="dark"] #aiHubTabContent :is(button,[role="button"]),
+:root[data-anas-theme="dark"] #view-invoices-list :is(button,[role="button"]),
+:root[data-anas-theme="dark"] :is(#settingsModal,#view-settings) :is(button,[role="button"]) {
+  background-color:#1e293b;
+  color:#f8fafc;
+  border-color:#64748b;
+}
+:root[data-anas-theme="dark"] #view-ai-excel-hub :is(button,[role="button"]):hover,
+:root[data-anas-theme="dark"] #aiHubTabContent :is(button,[role="button"]):hover,
+:root[data-anas-theme="dark"] #view-invoices-list :is(button,[role="button"]):hover,
+:root[data-anas-theme="dark"] :is(#settingsModal,#view-settings) :is(button,[role="button"]):hover {
+  background-color:#334155;
+  color:#fff;
+}
+/* Semantic POS payment buttons are explicit exceptions to generic theme rules. */
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(1),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="full"],
+:root[data-anas-theme="dark"] #hasibModal button[onclick*="full"] {background-color:#dcfce7;color:#14532d;border-color:#86efac;}
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(2),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="partial"] {background-color:#dbeafe;color:#1e40af;border-color:#93c5fd;}
+:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(3),
+:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="debt"] {background-color:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+:root[data-anas-theme="dark"] #hasibModal #confirmSaleBtn,
+:root[data-anas-theme="dark"] #hasibModal #confirmPaymentBtn,
+:root[data-anas-theme="dark"] #hasibModal button[data-action="confirm-sale"] {background-color:#15803d;color:#fff;border-color:#166534;}
+/* Bottom navigation follows the active theme rather than legacy white defaults. */
+:root[data-anas-theme="dark"] :is(#anasQuickBottomNav,.anas-bottom-nav,.bottom-nav,.mobile-bottom-nav) {
+  background:#0f172a!important;color:#f8fafc!important;border-color:#1e293b!important;
+  box-shadow:0 -5px 20px rgba(0,0,0,.28);
+}
+:root[data-anas-theme="dark"] :is(#anasQuickBottomNav,.anas-bottom-nav,.bottom-nav,.mobile-bottom-nav) :is(a,button,.nav-item,span,small,i,svg) {
+  color:#f8fafc!important;fill:currentColor;
+}
+:root[data-anas-theme="dark"] :is(#anasQuickBottomNav,.anas-bottom-nav,.bottom-nav,.mobile-bottom-nav) :is(.active,[aria-current="page"]) {
+  background:#1e293b!important;color:#fff!important;
+}
+/* Day-mode KPI digits must remain legible when nested theme variables are unset. */
+:root[data-anas-theme="light"] #aiHubTabContent :is(.kpi-value,.stat-value,.metric-value,.ai-kpi-number,.dashboard-stat-value),
+:root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.kpi-value,.stat-value,.metric-value,.ai-kpi-number,.dashboard-stat-value) {
+  color:#0f172a!important;opacity:1!important;-webkit-text-fill-color:#0f172a;
+}
+/* Numeric registry identifiers: prevent RTL truncation of the final digits. */
+:is(input,textarea,[contenteditable="true"])[name*="NIF" i],
+:is(input,textarea,[contenteditable="true"])[name*="RC" i],
+:is(input,textarea,[contenteditable="true"])[name*="Art" i],
+:is(input,textarea,[contenteditable="true"])[name*="NIC" i],
+:is(input,textarea,[contenteditable="true"])[id*="NIF" i],
+:is(input,textarea,[contenteditable="true"])[id*="RC" i],
+:is(input,textarea,[contenteditable="true"])[id*="Art" i],
+:is(input,textarea,[contenteditable="true"])[id*="NIC" i] {
+  direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums;
+}
+:is(.badge,.status-badge,[class*="priority"],.tax-icon,[aria-label*="TAX" i]) {
+  white-space:nowrap;flex-shrink:0;
+}
+
+
+/* r40 follow-up: actual AI import component selectors and KPI descendants. */
+:root[data-anas-theme="dark"] .anas-ai-import-pro,
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(.anas-ai-import-head,.anas-ai-import-benefits,.anas-ai-import-section-title,.anas-ai-import-types,.anas-ai-import-drop,.anas-ai-import-actions,.anas-ai-import-rules,.anas-ai-import-note,.anas-ai-dropzone,.anas-ai-upload-card) {
+  background-color:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(button,.anas-ai-import-type,.anas-ai-import-primary,.anas-ai-dropzone,.anas-ai-upload-card) {
+  background-color:#334155!important;color:#f8fafc!important;border-color:#64748b!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(.anas-ai-import-kicker,.anas-ai-import-head-copy,.anas-ai-import-section-title,.anas-ai-import-note,.anas-ai-import-status,.anas-ai-import-benefits *) {color:#e2e8f0!important}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-type.is-active,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-primary {background:#1d4ed8!important;color:#fff!important;border-color:#3b82f6!important}
+:root[data-anas-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card,.anas-ai-action-card) {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card,.anas-ai-action-card) * {color:inherit}
+:root[data-anas-theme="light"] #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) :is(strong,b,span,.value,.number) {
+  color:#0f172a!important;opacity:1!important;-webkit-text-fill-color:#0f172a;
+}
+:is(input,textarea)[placeholder*="NIF" i],
+:is(input,textarea)[placeholder*="RC" i],
+:is(input,textarea)[placeholder*="Art" i],
+:is(input,textarea)[placeholder*="NIC" i] {
+  direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums;
+}
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item) :is(button,.btn) {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#64748b!important;
+}
+:is(.status-badge,.badge,.priority-badge,[class*="priority"],.tax-icon,[aria-label*="TAX" i]) {white-space:nowrap;flex-shrink:0}
+
+
+/* Chromium WCAG regression closure: product picker modal contrast in dark theme. */
+:root[data-anas-theme="dark"] #productPickerModal .picker-dialog-scroll {
+  background:#0f172a!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card strong,
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card .product-name {color:#f8fafc!important}
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card small,
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card .product-meta {color:#cbd5e1!important}
+
+/* r41: scoped dark-mode contrast for settings and AI quick actions. */
+:root[data-anas-theme="dark"] #view-settings .settings-card :is(button,.btn,input[type="button"],input[type="submit"]){background-color:#1e293b!important;background-image:none!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important}
+:root[data-anas-theme="dark"] #view-settings .settings-card :is(button,.btn) *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-quick-actions button,:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section>button{color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;text-shadow:0 1px 1px #0008}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section{background:#0f172a!important;color:#f8fafc!important;border-color:#334155!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section :is(strong,h3,h4,p,small,label,span){color:#e2e8f0!important;-webkit-text-fill-color:#e2e8f0!important}
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(.anas-ai-import-type,.anas-ai-import-actions button,.anas-ai-import-primary){color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important}
+
+:root[data-anas-theme="dark"]{--mp-table-head:#0f172a}
+:root[data-anas-theme="light"]{--mp-table-head:#f1f5f9}
+
+/* r42 — close dark-theme contrast gaps without flattening semantic payment colors. */
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-quick-actions button,
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section > button {
+  background-color:#1e293b!important;background-image:none!important;color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;border:1px solid #64748b!important;
+  box-shadow:0 2px 6px rgba(0,0,0,.24)!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-quick-actions button *,
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section > button * {
+  color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;
+}
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item) :is(button,.btn),
+:root[data-anas-theme="dark"] #view-settings :is(.settings-card,.card) :is(button,.btn),
+:root[data-anas-theme="dark"] #settingsModal :is(button,.btn) {
+  background-color:#1e293b!important;background-image:none!important;color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important;
+}
+:root[data-anas-theme="dark"] #view-invoices-list :is(.invoice-card,.card,.invoice-item) :is(button,.btn) *,
+:root[data-anas-theme="dark"] #view-settings :is(.settings-card,.card) :is(button,.btn) *,
+:root[data-anas-theme="dark"] #settingsModal :is(button,.btn) * {
+  color:inherit!important;-webkit-text-fill-color:inherit!important;
+}
+/* r41.3: enforce the agreed night-mode active navigation surface over generic button tokens. */
+:root[data-anas-theme="dark"] #anasQuickBottomNav button.active{background:#1e293b!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#334155!important}
+:root[data-anas-theme="dark"] #anasQuickBottomNav button.active *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+
+
+/* r42.2 — isolate A4/thermal print surfaces from the hidden application layout. */
+@media print {
+  body > *:not(#receiptPrintArea.printable):not(#legalInvoiceA4Area.printable) {
+    display:none!important;
+  }
+  #legalInvoiceA4Area.printable {
+    position:absolute!important;left:0!important;top:0!important;
+    width:100%!important;max-width:100%!important;
+    height:auto!important;min-height:0!important;max-height:none!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    border:0!important;box-sizing:border-box!important;
+    page-break-after:auto!important;page-break-inside:auto!important;
+    break-after:auto!important;break-inside:auto!important;
+  }
+  #receiptPrintArea.printable {
+    position:absolute!important;left:0!important;top:0!important;
+    width:100%!important;max-width:100%!important;
+    height:auto!important;min-height:0!important;max-height:none!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    page-break-after:auto!important;page-break-inside:auto!important;
+    break-after:auto!important;break-inside:auto!important;
+  }
+}
+
+/* r42.3 — define the dark panel tokens consumed by product-picker selectors. */
+:root[data-anas-theme="dark"] {
+  --anas-video-panel-bg:#0f172a;
+  --anas-video-panel-text:#f8fafc;
+}
+
+
+/* ANAS AI Center KPI cards: four values per tab, with a shared centime valuation. */
+#aiHubTabContent .anas-ai-hub-kpis{margin:10px 0 14px;min-width:0}
+#aiHubTabContent .anas-ai-hub-kpis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#aiHubTabContent .anas-ai-hub-kpi-card{display:flex;min-width:0;min-height:82px;flex-direction:column;justify-content:space-between;gap:6px;padding:10px;border:1px solid #dbe3ec;border-radius:11px;background:#fff!important;color:#0f172a!important;box-shadow:0 2px 7px rgba(15,23,42,.05)}
+#aiHubTabContent .anas-ai-hub-kpi-label{display:block;color:#475569!important;font-size:11px;font-weight:800;line-height:1.45;overflow-wrap:anywhere}
+#aiHubTabContent .anas-ai-hub-kpi-value{display:block;color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;font-size:15px;font-weight:900;line-height:1.35;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#aiHubTabContent .anas-ai-hub-kpi-detail{display:block;color:#64748b!important;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-card{background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-label{color:#cbd5e1!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-value{color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-detail{color:#cbd5e1!important}
+/* Override legacy dark KPI surfaces in light mode; dark text must never sit on a dark card. */
+:root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card){background:#fff!important;color:#0f172a!important;border-color:#dbe3ec!important}
+:root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) *{color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;opacity:1!important}
+/* Algerian NIS is the actual field id; retain NIC as an accepted legacy alias. */
+:is(input,textarea,[contenteditable="true"])[name*="NIS" i],
+:is(input,textarea,[contenteditable="true"])[id*="NIS" i],
+:is(input,textarea)[placeholder*="NIS" i]{
+  direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums!important;
+}
+/* Keep narrow status, priority and icon cells indivisible on phone widths. */
+:is(.badge,.status-badge,.badge-active-tag,[class*="priority"],.anas-ai-priority,.tax-icon,[aria-label*="TAX" i],.drawer-nav-row .row-icon){
+  white-space:nowrap!important;flex-shrink:0!important;
+}
+
+
+/* Light-theme WCAG AA closure for the real AI import surface and its controls. */
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro{
+  background-color:#fff!important;background-image:none!important;
+  color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;
+  border-color:#cbd5e1!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro *{
+  color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro :is(button,.anas-ai-import-type){
+  background-color:#eff6ff!important;background-image:none!important;
+  color:#1e3a8a!important;-webkit-text-fill-color:#1e3a8a!important;
+  border-color:#bfdbfe!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-primary{
+  background-color:#1d4ed8!important;background-image:none!important;
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  border-color:#1d4ed8!important;
 }

@@ -4,21 +4,20 @@
  * Uses Firebase Auth ID tokens and Firestore Security Rules; no service-account private key.
  */
 const MAX_BODY_BYTES = 700 * 1024;
-const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "https://amin545677-svg.github.io")
+const allowedOrigins = (env) => (env.ALLOWED_ORIGINS || "")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 function json(data, status, origin) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": origin || "https://amin545677-svg.github.io",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
-      "Vary": "Origin"
-    }
-  });
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
+    "Vary": "Origin"
+  };
+  // Never attach an unrelated production origin to a rejected cross-origin response.
+  if (origin) headers["Access-Control-Allow-Origin"] = origin;
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function responseOrigin(request, env) {
@@ -100,8 +99,11 @@ function validateSnapshotData(data) {
   if (!isRecord(data) || !Array.isArray(data.products) || !Array.isArray(data.customers)) {
     throw new Error("Snapshot does not match the ANAS ERP data structure");
   }
+  // Preserve every financial sub-ledger in the same atomic snapshot as its parent records.
+  // Missing legacy collections remain optional; present-but-invalid collections fail closed.
   const arrays = ["products", "customers", "suppliers", "invoices", "purchases", "expenses",
-    "cashMovements", "stockMovements", "warehouseTransfers", "truckTrips", "returns",
+    "cashMovements", "bankMovements", "supplierMovements", "clientMovements", "settlementAllocations",
+    "stockMovements", "warehouseTransfers", "truckTrips", "returns",
     "purchaseInvoices", "trucks", "users", "alerts"];
   for (const key of arrays) {
     if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
@@ -139,8 +141,24 @@ function validateSnapshotData(data) {
   uniqueIds("truckTrips");
   uniqueIds("users");
   uniqueIds("alerts");
+  // Financial ledgers use their canonical identity fields rather than array position.
+  const uniqueLedgerKey = (key, idField) => {
+    const seen = new Set();
+    for (const row of data[key] || []) {
+      const raw = row[idField];
+      if (raw == null || String(raw).trim() === "") {
+        throw new Error("Snapshot " + key + " record is missing " + idField);
+      }
+      const id = String(raw).trim();
+      if (seen.has(id)) throw new Error("Snapshot " + key + " contains duplicate " + idField + " values");
+      seen.add(id);
+    }
+  };
+  uniqueLedgerKey("clientMovements", "movementId");
+  uniqueLedgerKey("settlementAllocations", "allocationId");
   // Enforce uniqueness for ledger and operational collections too; legacy records without IDs remain tolerated.
-  for (const key of ["purchases", "expenses", "cashMovements", "stockMovements", "warehouseTransfers", "returns", "purchaseInvoices", "trucks"]) uniqueIds(key);
+  for (const key of ["purchases", "expenses", "cashMovements", "bankMovements", "supplierMovements",
+    "stockMovements", "warehouseTransfers", "returns", "purchaseInvoices", "trucks"]) uniqueIds(key);
 
   for (const product of data.products) {
     validateSnapshotNumber(product, "stock", "products.stock");
@@ -179,11 +197,27 @@ function validateSnapshotData(data) {
   }
   for (const movement of data.cashMovements || [])
     validateSnapshotNumber(movement, "amount", "cashMovements", { allowZero: false });
+  for (const movement of data.bankMovements || [])
+    validateSnapshotNumber(movement, "amount", "bankMovements", { allowZero: false });
+  for (const movement of data.supplierMovements || [])
+    validateSnapshotNumber(movement, "amount", "supplierMovements", { allowZero: false });
+  for (const movement of data.clientMovements || [])
+    validateSnapshotNumber(movement, "amountCentimes", "clientMovements", { allowZero: false });
+  for (const allocation of data.settlementAllocations || [])
+    validateSnapshotNumber(allocation, "amountCentimes", "settlementAllocations", { allowZero: false });
   for (const movement of data.stockMovements || []) {
     for (const field of ["qty", "quantity", "delta"])
       validateSnapshotNumber(movement, field, "stockMovements", { allowNegative: true });
     for (const field of ["previousStock", "newStock", "stockBefore", "stockAfter"])
       validateSnapshotNumber(movement, field, "stockMovements");
+    for (const field of ["originalSaleQuantityMicroUnits", "restoredInventoryCostCentimes", "inventoryBookValueCentimes"]) {
+      if (Object.prototype.hasOwnProperty.call(movement, field) && movement[field] !== null)
+        validateSnapshotNumber(movement, field, "stockMovements", { allowZero: field !== "originalSaleQuantityMicroUnits" });
+    }
+    if (Object.prototype.hasOwnProperty.call(movement, "originalSaleCostCentimes") && movement.originalSaleCostCentimes !== null)
+      validateSnapshotNumber(movement, "originalSaleCostCentimes", "stockMovements");
+    if (Object.prototype.hasOwnProperty.call(movement, "valuationVarianceCentimes"))
+      validateSnapshotNumber(movement, "valuationVarianceCentimes", "stockMovements", { allowNegative: true });
   }
   for (const transfer of data.warehouseTransfers || []) {
     if (!Object.prototype.hasOwnProperty.call(transfer, "quantity"))
@@ -240,7 +274,7 @@ async function handleSnapshot(request, env, origin) {
     return json({ ok: true, exists: true, data: payload, parts: 1, revision: doc.updateTime || null }, 200, origin);
   }
 
-  if (request.method === "POST") {
+  if (request.method === "POST" || request.method === "PUT") {
     const text = await readLimitedRequestBody(request, MAX_BODY_BYTES);
     if (text === null) {
       return json({ error: "Snapshot exceeds 700 KiB limit" }, 413, origin);
@@ -299,19 +333,26 @@ export default {
       if (!origin) return new Response(null, { status: 403 });
       return new Response(null, { status: 204, headers: {
         "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
         "Access-Control-Allow-Headers": "Authorization,Content-Type,Accept",
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin"
       }});
     }
     const url = new URL(request.url);
-    if (!origin) return json({ error: "Origin is not allowed" }, 403, "https://amin545677-svg.github.io");
+    if (!origin) return json({ error: "Origin is not allowed" }, 403, "");
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ ok: true, service: "anas-erp-firebase-snapshot", configured: !!(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID) }, 200, origin);
+      const projectId = env.FIREBASE_PROJECT_ID || null;
+      const isStaging = projectId === "anas-erp-staging-a25e1";
+      return json({
+        ok: true,
+        service: isStaging ? "anas-erp-firebase-snapshot-staging" : "anas-erp-firebase-snapshot",
+        projectId,
+        configured: Boolean(env.FIREBASE_API_KEY && projectId)
+      }, 200, origin);
     }
     if (url.pathname === "/snapshot") {
-      if (request.method !== "GET" && request.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
+      if (request.method !== "GET" && request.method !== "POST" && request.method !== "PUT") return json({ error: "Method not allowed" }, 405, origin);
       try { return await handleSnapshot(request, env, origin); }
       catch (e) { return json({ error: "Worker internal error", details: String(e.message || e).slice(0, 300) }, 500, origin); }
     }

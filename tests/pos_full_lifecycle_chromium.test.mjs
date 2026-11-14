@@ -23,10 +23,10 @@ function initialData() {
     caisseBalance: 100000,
     products: [{
       id: PRODUCT_ID, name: PRODUCT_NAME, stock: 10, buyPrice: 10,
-      lastPurchaseCost: 10, price1: 25, price2: 25, price3: 25,
+      lastPurchaseCost: 10, price1: 25, price2: 24, price3: 23, favorite: true,
       barcode: 'STGPOSLIFE001', unit: 'قطعة', supplierId: '', cat: 'عام'
     }],
-    customers: [], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
+    customers: [{ id: 'STG-CUSTOMER-001', name: 'زبون اختبار الدفع', phone: '0000000000', debt: 0, credit_limit: 50 }], suppliers: [], supplierMovements: [], purchases: [], purchaseInvoices: [],
     invoices: [], cashMovements: [], stockMovements: [], expenses: [], users: [], alerts: [],
     warehouseTransfers: [], warehouses: [], truckTrips: [], trucks: [], returns: [],
     stocktakeRecords: [], syncUrl: ''
@@ -46,7 +46,7 @@ function startServer() {
       if (error) { res.writeHead(404).end('Not found'); return; }
       const ext = path.extname(target);
       const mime = ext === '.html' ? 'text/html; charset=utf-8'
-        : ext === '.js' ? 'text/javascript; charset=utf-8'
+        : ext === '.js' || ext === '.mjs' ? 'text/javascript; charset=utf-8'
         : ext === '.css' ? 'text/css; charset=utf-8'
         : ext === '.json' || ext === '.webmanifest' ? 'application/json; charset=utf-8'
         : 'application/octet-stream';
@@ -108,7 +108,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     }, { key: DB_KEY, data: initialData() });
 
     const page = await context.newPage();
-    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
     const dialogMessages = [];
     page.on('dialog', async dialog => { dialogMessages.push(dialog.message()); await dialog.accept(); });
 
@@ -122,11 +122,66 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     );
     assert.deepEqual(pageErrors, [], 'application must boot without uncaught browser errors');
 
-    // Use the rendered POS product button, not a fabricated selector or direct storage write.
+    // Keep the sorted catalogue visible; cart-only persistence must not replace its DOM.
     await page.evaluate(() => openView('pos'));
-    const productButton = page.locator('#quickProductsContainer button').filter({ hasText: PRODUCT_NAME });
-    await productButton.waitFor({ state: 'visible', timeout: 10000 });
-    await productButton.click();
+    const productContainer = page.locator('#quickProductsContainer');
+    await page.locator('#quickProductsContainer button').first().waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await productContainer.isHidden(), false,
+      'the product catalogue must remain visible when the sales screen opens');
+    assert.equal(await productContainer.locator('button').count(), 1,
+      'the seeded product must render exactly once in the catalogue');
+    for (const selector of ['#posCategoryTabs', '#posStockFilterChips', '#anasPosProductViewToggle']) {
+      assert.equal(await page.locator(selector).isHidden(), false,
+        'catalogue category, stock and view controls must remain available');
+    }
+    const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
+    assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
+
+    // Name search and barcode search both use the existing result list.
+    await page.locator('#posSearchField').fill('STGPOSLIFE001');
+    const barcodeResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await barcodeResult.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
+      'barcode search must return only the matching product');
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const productResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await productResult.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
+      'name search must return only the matching product');
+    const productCardBeforeAdd = await productContainer.locator('button').first().elementHandle();
+    await productContainer.evaluate(element => {
+      element.style.maxHeight = '1px';
+      element.style.overflowY = 'auto';
+      element.scrollTop = element.scrollHeight;
+    });
+    const catalogueScrollBeforeAdd = await productContainer.evaluate(element => element.scrollTop);
+    assert.ok(catalogueScrollBeforeAdd > 0, 'the test must establish a non-zero catalogue scroll position');
+    await productResult.click();
+    await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
+      'products with three distinct configured tiers must expose three prices and cancel');
+    const tierLabels = await page.locator('#anasPosPriceTierModal').textContent();
+    assert.match(tierLabels, /سعر التجزئة \(الدفعة\)/);
+    assert.match(tierLabels, /جملة الجملة/);
+    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
+    assert.equal(await page.locator('#posSearchField').inputValue(), PRODUCT_NAME,
+      'selecting a product must preserve the cashier search text');
+    // The result popover may close after selection; the search query itself must remain intact.
+    assert.equal(await productCardBeforeAdd.evaluate(element => element.isConnected), true,
+      'cart persistence must preserve the existing catalogue card node');
+    assert.equal(await productContainer.evaluate(element => element.scrollTop), catalogueScrollBeforeAdd,
+      'adding a product must preserve the catalogue scroll position');
+    await productContainer.evaluate(element => {
+      element.style.maxHeight = '';
+      element.style.overflowY = '';
+    });
+    await page.evaluate(() => {
+      AppData.products[0].price2 = 25;
+      AppData.products[0].price3 = 25;
+      if (saveDB() !== true) throw new Error('Could not restore legacy price-tier fixture');
+    });
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').isEnabled(), true,
+      'the single guided checkout action must enable after a valid product is added');
 
     const cartProof = await page.evaluate(() => ({
       count: Array.isArray(posCart) ? posCart.length : -1,
@@ -136,12 +191,216 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(cartProof.count, 1, 'real POS product interaction must add exactly one cart line');
     assert.equal(cartProof.id, PRODUCT_ID);
     assert.equal(cartProof.qty, 1);
+    // The actual index.html must mount the floating cart and keep it synchronized with the same POS cart.
+    await page.locator('#anasPosFloatingCart').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-cart-count]').textContent(), '1');
+    assert.match(await page.locator('#anasPosFloatingCart [data-mini-cart-total]').textContent(), /25/);
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').isVisible(), true);
+    await page.locator('#anasPosFloatingCart [aria-label^="زيادة"]').click();
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'floating cart quantity plus must call the existing validated POS quantity mutation');
+    await page.locator('#anasPosFloatingCart [aria-label^="إنقاص"]').click();
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1,
+      'floating cart quantity minus must restore the original quantity through the POS mutation');
+
 
     // Open the original Hasib modal through its actual toolbar control.
-    await page.locator('#view-pos .sales-toolbar button[onclick="openHasibModal()"]').click();
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    const paymentActionColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
+      nodes.map(node => getComputedStyle(node).backgroundColor));
+    assert.match(paymentActionColors[0], /220, 252, 231/,
+      'full-payment shortcut must be visually marked green');
+    assert.match(paymentActionColors[1], /239, 246, 255/,
+      'half-payment shortcut must remain the neutral blue middle action');
+    assert.match(paymentActionColors[2], /254, 226, 226/,
+      'full-debt shortcut must be visually marked red');
+    await page.locator('#hasibModal button').filter({ hasText: /^دين كامل$/ }).click();
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00',
+      'quick full-credit action must set zero paid and leave the full invoice due');
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'credit');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    await page.evaluate(() => {
+      AppData.customers[0].credit_limit = 20;
+      if (saveDB() !== true) throw new Error('Could not persist credit-limit test fixture');
+    });
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    assert.equal(await page.evaluate(() => AppData.invoices.length), 0,
+      'credit-limit overflow must reject the sale before creating an invoice');
+    assert.equal(await page.evaluate(() => AppData.products[0].stock), 10,
+      'credit-limit overflow must reject before mutating stock');
+    assert.equal(await page.evaluate(() => AppData.customers[0].debt), 0,
+      'credit-limit overflow must reject before mutating customer debt');
+    assert.ok(dialogMessages.some(message => message.includes('يتجاوز حد الائتمان')),
+      'credit-limit rejection must explain the configured customer ceiling');
+    await page.evaluate(() => {
+      AppData.customers[0].credit_limit = 50;
+      if (saveDB() !== true) throw new Error('Could not restore credit-limit test fixture');
+    });
+    await page.locator('#hasibCustomerSelect').selectOption('');
+    await page.locator('#hasibModal button').filter({ hasText: /^½ الآن$/ }).click();
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
+    assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 12.5) < 0.01,
+      'quick half-payment action must calculate half the current invoice in centimes');
+    await page.locator('#hasibModal button').filter({ hasText: /^كامل$/ }).click();
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
+    assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 25) < 0.01,
+      'quick full-payment action must settle the exact invoice total');
+    await page.locator('#hasibCartItems button').filter({ hasText: 'حذف' }).click();
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
+      'removing the final cart line must disable checkout immediately');
+    assert.equal(await page.locator('#hasibTotalText').textContent(), 'أضف منتجاً للمتابعة');
+    await page.locator('#hasibCartEditor button').filter({ hasText: 'إضافة منتجات' }).click();
+    await page.locator('#productPickerModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#productPickerSearch').fill('POS-NO-MATCH-TEST');
+    assert.equal(await page.locator('#productPickerList button').count(), 0,
+      'product picker search must filter out non-matching products');
+    assert.match(await page.locator('#productPickerList').textContent(), /لا توجد منتجات مطابقة/);
+    await page.locator('#productPickerSearch').fill(PRODUCT_NAME);
+    await page.locator('#productPickerList button').filter({ hasText: PRODUCT_NAME }).click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
+      'adding a valid product from the picker must restore checkout');
+    await page.evaluate(() => addItemToPosCart('STG-POS-LIFECYCLE-001'));
+    assert.equal(await page.evaluate(() => posCart.length), 1,
+      'adding the same product twice must merge into one cart line');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'adding the same product twice must increment the existing quantity');
+    // Cart edits can increase the invoice total while the paid amount remains unchanged.
+    // Set the intended full-cash payment explicitly so this stock-guard assertion is
+    // independent of the registered-customer requirement for partial/credit sales.
+    await page.locator('#hasibPaidAmount').fill('50.00');
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash',
+      'the stock-overrun case must exercise a fully paid cash sale');
+    assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '',
+      'a fully paid cash sale must not require a registered customer');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
+      'full-cash payment must remain confirmable without a registered customer');
+    await page.evaluate(() => {
+      const original = AppData.products[0];
+      AppData.products.push({ ...original });
+      addItemToPosCart(original.id);
+      AppData.products.pop();
+    });
+    assert.equal(await page.evaluate(() => posCart.length), 1,
+      'duplicate product IDs in the catalog must block ambiguous cart additions');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'ambiguous product ID must not mutate the cart');
+    await page.evaluate(() => {
+      AppData.products[0].stock = 0;
+      AppData.allowNegativeStock = true;
+      if (saveDB() !== true) throw new Error('Could not persist zero-stock policy fixture');
+      addItemToPosCart('STG-POS-LIFECYCLE-001');
+      setPosQty(0, 3);
+    });
+    assert.equal(await page.evaluate(() => posCart[0].qty), 2,
+      'POS must block stock overrun even if a legacy allowNegativeStock flag is true because warehouse balances reject negatives');
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    assert.equal(await page.evaluate(() => AppData.invoices.length), 0,
+      'durable sale commit must reject a stock overrun even when the legacy negative-stock flag is enabled');
+    assert.ok(dialogMessages.some(message => message.includes('المخزون غير كافٍ')),
+      'durable stock guard must explain why the sale was rejected');
+    await page.evaluate(() => {
+      AppData.products[0].stock = 10;
+      AppData.allowNegativeStock = false;
+      if (saveDB() !== true) throw new Error('Could not restore stock fixture');
+      renderPosTable();
+    });
+    const commitNumberEditor = async (selector, value) => {
+      const editor = page.locator(selector).first(); // target the first cart row when duplicate-row guards are under test
+      await editor.fill(value);
+      await editor.press('Tab'); // commit the native change event used by the editor
+    };
+    // fr-DZ may render decimal commas while other Chromium locales render dots.
+    // Compare the numeric amount, not a locale-specific currency label.
+    const waitForDisplayedTotal = expected => page.waitForFunction(value => {
+      const text = document.getElementById('hasibTotalText')?.textContent || '';
+      const match = text.match(/[0-9]+(?:[.,][0-9]+)?/);
+      return !!match && Math.abs(Number(match[0].replace(',', '.')) - value) < 1e-9;
+    }, expected);
+    const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
+    const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
+    await commitNumberEditor(quantitySelector, '1.5');
+    await waitForDisplayedTotal(37.5);
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5);
+    await commitNumberEditor(quantitySelector, '0');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
+      'zero quantity must be rejected and the last valid fractional quantity restored');
+    await commitNumberEditor(quantitySelector, '11');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
+      'quantity above available stock must be rejected without changing the last valid quantity');
+    await page.evaluate(() => {
+      posCart.push({ ...posCart[0], qty: 9 });
+      renderPosTable();
+    });
+    await commitNumberEditor(quantitySelector, '2');
+    assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
+      'quantity editing must include legacy duplicate rows for the same product and preserve the last valid quantity');
+    await page.evaluate(() => { posCart.splice(1, 1); renderPosTable(); });
+    await commitNumberEditor(priceSelector, '30.00');
+    await waitForDisplayedTotal(45); // 1.5 units × 30.00 DZD
+    assert.equal(await page.evaluate(() => posCart[0].price), 30);
+    await commitNumberEditor(priceSelector, '-1');
+    assert.equal(await page.evaluate(() => posCart[0].price), 30,
+      'negative unit price must be rejected and restored');
+    await commitNumberEditor(priceSelector, '30.005');
+    assert.equal(await page.evaluate(() => posCart[0].price), 30,
+      'prices with more than two decimal places must be rejected, not silently rounded');
+    await commitNumberEditor(priceSelector, '25.00');
+    await waitForDisplayedTotal(37.5); // 1.5 units × 25.00 DZD
+    assert.equal(await page.evaluate(() => posCart[0].price), 25);
+    await commitNumberEditor(priceSelector, '0.10');
+    await commitNumberEditor(quantitySelector, '0.15');
+    await waitForDisplayedTotal(0.02);
+    assert.equal(await page.locator('#posTotalDisplay').textContent(), '0.02 د.ج',
+      'main POS and checkout totals must use identical centime rounding');
+    await commitNumberEditor(quantitySelector, '1');
+    await commitNumberEditor(priceSelector, '25.00');
+    await waitForDisplayedTotal(25);
+    await page.evaluate(() => {
+      window.__posOriginalSaveDBForTest = window.saveDB;
+      window.saveDB = () => false;
+    });
+    await commitNumberEditor(priceSelector, '26.00');
+    assert.equal(await page.evaluate(() => posCart[0].price), 25,
+      'failed persistence must roll back the edited unit price');
+    assert.equal(await page.evaluate(() => AppData.posScreensCarts[AppData.activePosScreenTab][0].price), 25,
+      'failed persistence must restore the active persisted cart mirror');
+    await page.locator('#hasibCartItems button').filter({ hasText: 'حذف' }).click();
+    assert.equal(await page.evaluate(() => posCart.length), 1,
+      'failed persistence must roll back a cart-line removal');
+    assert.equal(await page.evaluate(() => AppData.posScreensCarts[AppData.activePosScreenTab].length), 1,
+      'failed removal must restore the active cart mirror as well');
+    await page.evaluate(() => {
+      window.saveDB = window.__posOriginalSaveDBForTest;
+      delete window.__posOriginalSaveDBForTest;
+    });
+    // The cart total was reduced from 50 to 25 during editor validation.
+    // Reconcile the paid amount before the real commit; the durable path rejects overpayment.
+    await page.locator('#hasibPaidAmount').fill('25.00');
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '25.00',
+      'the cash amount must equal the final invoice total before committing');
+    assert.equal(await page.locator('#hasibCustomerSelect').inputValue(), '');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true,
+      'a fully paid cash sale must not require a registered customer');
     const revisionBeforePayment = await page.evaluate(() => ANASResilientStorage.status().revision);
+
+    await page.evaluate(() => {
+      window.__anasDurableSaleOrder = [];
+      window.__anasOriginalSaveDBForDurableTest = window.saveDB;
+      window.__anasOriginalSaveDBDurablyForDurableTest = window.saveDBDurably;
+      window.saveDB = function (...args) {
+        window.__anasDurableSaleOrder.push('capture');
+        return window.__anasOriginalSaveDBForDurableTest.apply(this, args);
+      };
+      window.saveDBDurably = async function (...args) {
+        window.__anasDurableSaleOrder.push('durable-start');
+        const acknowledgement = await window.__anasOriginalSaveDBDurablyForDurableTest.apply(this, args);
+        window.__anasDurableSaleOrder.push('durable-ack');
+        return acknowledgement;
+      };
+    });
 
     // Confirm through the actual modal button; never call the payment function directly.
     await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
@@ -157,9 +416,75 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
         row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
       return storage.ready() && storage.status().revision > beforeRevision &&
         !document.getElementById('hasibModal')?.classList.contains('active') &&
+        !!document.getElementById('anasInvoicePostSaveDialog') &&
         cash.length === 1 && stock.length === 1;
     }, { beforeRevision: revisionBeforePayment, productId: PRODUCT_ID }, { timeout: 15000 });
 
+    const durableSaleOrder = await page.evaluate(() => {
+      const order = window.__anasDurableSaleOrder.slice();
+      window.saveDB = window.__anasOriginalSaveDBForDurableTest;
+      window.saveDBDurably = window.__anasOriginalSaveDBDurablyForDurableTest;
+      delete window.__anasDurableSaleOrder;
+      delete window.__anasOriginalSaveDBForDurableTest;
+      delete window.__anasOriginalSaveDBDurablyForDurableTest;
+      return order;
+    });
+    assert.deepEqual(durableSaleOrder, ['capture', 'durable-start', 'durable-ack'],
+      'sale must be captured by V42 before durable storage acknowledgement and finalization');
+
+    const postSaveUi = await page.evaluate(() => ({
+      title: document.querySelector('#anasInvoicePostSaveTitle')?.textContent,
+      buttons: ['#anasInvoicePrintBtn','#anasInvoiceA4Btn','#anasInvoiceWhatsAppBtn','#anasInvoiceMessengerBtn','#anasInvoiceFinishBtn']
+        .map(selector => !!document.querySelector(selector)),
+      invoiceCount: AppData.invoices.length,
+      cartLines: posCart.length
+    }));
+    assert.equal(postSaveUi.title, 'تم حفظ الفاتورة بنجاح');
+    assert.deepEqual(postSaveUi.buttons, [true,true,true,true,true],
+      'successful checkout must expose print, A4, WhatsApp, Messenger and finish actions');
+    assert.equal(postSaveUi.invoiceCount, 1, 'post-save actions must not duplicate or remove the committed invoice');
+    assert.equal(postSaveUi.cartLines, 0, 'post-save actions must leave the cart cleared');
+    await page.waitForTimeout(1800);
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
+      'post-save invoice actions must not disappear on an automatic timer');
+    await page.evaluate(() => {
+      window.__invoicePrintCalls = 0;
+      window.print = () => { window.__invoicePrintCalls += 1; };
+    });
+    await page.locator('#anasInvoicePrintBtn').click();
+    assert.equal(await page.evaluate(() => window.__invoicePrintCalls), 1,
+      'receipt action must invoke the existing thermal receipt print template');
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
+      'printing must not dismiss the post-save actions');
+    await page.evaluate(() => {
+      const nativeOpen = window.open.bind(window);
+      window.__anasInvoiceShareOpenUrl = '';
+      window.open = function (url) {
+        window.__anasInvoiceShareOpenUrl = String(url || '');
+        return nativeOpen.apply(this, arguments);
+      };
+    });
+    const whatsappPopupPromise = page.waitForEvent('popup');
+    await page.locator('#anasInvoiceWhatsAppBtn').click();
+    const whatsappPopup = await whatsappPopupPromise;
+    const whatsappOpenUrl = await page.evaluate(() => window.__anasInvoiceShareOpenUrl);
+    assert.match(whatsappOpenUrl, /^https:\/\/wa\.me\/\?text=/,
+      'WhatsApp action must pass a correctly encoded wa.me share URL to window.open');
+    assert.ok(decodeURIComponent(new URL(whatsappOpenUrl).searchParams.get('text')).includes('وصل بيع رقم:'),
+      'WhatsApp share text must include the invoice identity');
+    await whatsappPopup.close();
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'share', { configurable: true, value: async payload => { window.__invoiceSharePayload = payload; } });
+    });
+    await page.locator('#anasInvoiceMessengerBtn').click();
+    const messengerPayload = await page.evaluate(() => window.__invoiceSharePayload);
+    assert.match(messengerPayload.text, /وصل بيع رقم:/,
+      'Messenger action must hand invoice details to the native share sheet');
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').isVisible(), true,
+      'sharing must keep the post-save actions available until the cashier finishes');
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'the explicit finish action must dismiss the post-save dialog');
     const invoiceId = await page.evaluate((productId) => {
       const matches = AppData.invoices.filter(row =>
         row && Array.isArray(row.items) && row.items.some(item => String(item.id) === productId));
@@ -248,6 +573,107 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(localReturnProof.caisseBalance, 100000, 'cash refund must reverse the original receipt');
     assert.ok(localReturnProof.saleReturnMovements >= 1, 'local return must write a linked reverse stock movement');
 
+    // Partial payment must collect only the entered amount and allocate the balance to the selected customer.
+    await page.evaluate(() => openView('pos'));
+    await page.evaluate((productId) => {
+      const product = AppData.products.find(row => String(row.id) === String(productId));
+      if (!product) throw new Error('Weighted POS fixture product is missing');
+      product.unit = 'كغ';
+      if (!saveDB()) throw new Error('Could not persist weighted POS fixture unit');
+    }, PRODUCT_ID);
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const weightedResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await weightedResult.waitFor({ state: 'visible', timeout: 10000 });
+    await weightedResult.click();
+    await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1 && posCart[0].unit === 'كغ',
+      null, { timeout: 10000 });
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#hasibCartItems input[aria-label^="كمية"]').first().waitFor({ state: 'visible', timeout: 10000 });
+    await commitNumberEditor(quantitySelector, '0.25');
+    await commitNumberEditor(priceSelector, '100.00');
+    await waitForDisplayedTotal(25);
+    assert.equal(await page.evaluate(() => posCart[0].qty), 0.25,
+      'weighted POS sale must retain an exact 0.25 kg quantity');
+    assert.equal(await page.evaluate(() => posCart[0].price), 100,
+      'weighted POS sale must retain the per-kilogram price');
+    await page.locator('#hasibPaymentMethod').selectOption('partial');
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '12.50');
+    assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25.00 د.ج');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '12.50 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '12.50 د.ج');
+    await page.locator('#hasibPaidAmount').fill('7.50');
+    assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '7.50 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '17.50 د.ج');
+    await page.locator('#hasibPaidAmount').fill('12.50');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
+      'partial payment must require a registered customer before confirmation');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true);
+    const partialRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        s.invoices.some(row => row && row.paymentMethod === 'partial' && row.paid === 12.5 && row.remaining === 12.5);
+    }, partialRevision, { timeout: 15000 });
+    const partialProof = await page.evaluate((productId) => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = s.invoices.find(row => row && row.paymentMethod === 'partial');
+      const item = invoice.items.find(row => String(row.id) === String(productId));
+      const product = s.products.find(row => String(row.id) === String(productId));
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      const cash = s.cashMovements.filter(row => row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      return { paid: invoice.paid, remaining: invoice.remaining, customerDebt: customer.debt,
+        soldQty: item.qty, soldUnit: item.unit, productStock: product.stock,
+        cashRows: cash.length, cashAmount: cash[0] && cash[0].amount };
+    }, PRODUCT_ID);
+    assert.deepEqual(partialProof, {
+      paid: 12.5, remaining: 12.5, customerDebt: 12.5, soldQty: 0.25, soldUnit: 'كغ',
+      productStock: 9.75, cashRows: 1, cashAmount: 12.5
+    });
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'cashier must explicitly finish the partial-payment receipt before starting the next sale');
+
+    // Full credit must create customer debt without adding cash to the cashbox.
+    await page.evaluate(() => openView('pos'));
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const creditResult = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await creditResult.waitFor({ state: 'visible', timeout: 10000 });
+    await creditResult.click();
+    await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1, null, { timeout: 10000 });
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#hasibPaymentMethod').selectOption('credit');
+    assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0.00 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '25.00 د.ج');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
+      'full credit must require a registered customer before confirmation');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true);
+    const creditRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        s.invoices.some(row => row && row.paymentMethod === 'credit' && row.paid === 0 && row.remaining === 25);
+    }, creditRevision, { timeout: 15000 });
+    const creditProof = await page.evaluate(() => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = s.invoices.find(row => row && row.paymentMethod === 'credit');
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      const cash = s.cashMovements.filter(row => row && row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      return { paid: invoice.paid, remaining: invoice.remaining, customerDebt: customer.debt,
+        cashRows: cash.length, cashBalance: s.caisseBalance };
+    });
+    assert.deepEqual(creditProof, { paid: 0, remaining: 25, customerDebt: 37.5, cashRows: 0, cashBalance: 100012.5 });
+    await page.locator('#anasInvoiceFinishBtn').click();
+    assert.equal(await page.locator('#anasInvoicePostSaveDialog').count(), 0,
+      'cashier must explicitly finish the credit-sale receipt before leaving POS');
+
     // Driver advance acceptance with an empty cashbox must persist without a cash deduction.
     const beforeExpenseSetupRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
     await page.evaluate(() => {
@@ -265,6 +691,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#expAmountInput').fill('2000');
     await page.locator('#expPaymentMethod').selectOption('driver_advance');
     const beforeExpenseRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    const expenseSuccessDialogPromise = page.waitForEvent('dialog', { timeout: 15000 });
     await page.locator('#view-expenses button[onclick="submitExpenseOperation()"]').click();
     await page.waitForFunction(beforeRevision => {
       const storage = window.ANASResilientStorage;
@@ -282,7 +709,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.deepEqual(expenseProof, {
       amount: 2000, paymentMethod: 'driver_advance', settlementStatus: 'pending', cashBalance: 0
     });
-    assert.ok(dialogMessages.some(message => message.includes('تم تسجيل المصروف بنجاح')));
+    const expenseSuccessDialog = await expenseSuccessDialogPromise;
+    assert.ok(expenseSuccessDialog.message().includes('تم تسجيل المصروف بنجاح'));
     assert.ok(dialogMessages.every(message => !/يتطلب معرف فترة مفتوحة|طلب الترحيل الخادمي|بوابة ترحيل خادمية/.test(message)),
       'local return and expense flows must not require a server fiscal-period gate');
 
@@ -293,9 +721,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       cartLines: Array.isArray(posCart) ? posCart.length : -1,
       modalOpen: document.getElementById('hasibModal')?.classList.contains('active') === true
     }));
-    assert.equal(runtimeParity.invoices, 1, 'reload must not duplicate invoice');
-    assert.equal(runtimeParity.cashMovements, 1, 'reload must not duplicate cash movement');
-    assert.equal(runtimeParity.stockMovements, 1, 'reload must not duplicate stock movement');
+    assert.equal(runtimeParity.invoices, 3, 'cash, partial and credit invoices must each persist exactly once');
+    assert.equal(runtimeParity.cashMovements, 2, 'cash and partial sales must each persist one receipt; credit must persist none');
+    assert.equal(runtimeParity.stockMovements, 3, 'each committed sale must persist one stock movement');
     assert.equal(runtimeParity.cartLines, 0, 'committed cart must remain cleared after reload');
     assert.equal(runtimeParity.modalOpen, false, 'payment modal must remain closed after reload');
 
@@ -353,10 +781,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#posSearchResults .pos-search-result').first().click();
     const salesBarcodeProof = await page.evaluate(() => ({
       selected: posCart.some(row => String(row.id) === 'STG-POS-LIFECYCLE-001'),
-      resultHidden: document.getElementById('posSearchResults')?.hidden
+      searchQuery: document.getElementById('posSearchField')?.value
     }));
     assert.equal(salesBarcodeProof.selected, true, 'sales POS barcode search must add the exact product to the cart');
-    assert.equal(salesBarcodeProof.resultHidden, true);
+    assert.equal(salesBarcodeProof.searchQuery, 'STGPOSLIFE001',
+      'barcode selection must preserve the cashier search text');
 
     await page.locator('#posSearchField').fill('صنف مبيعات سريع تجريبي POS-20261107-001');
     // Exercise the quick-add handler directly; popup visibility is covered by the POS search unit assertions.
@@ -389,6 +818,72 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       reloadHydration: 'PASS', noDuplicatePosting: 'PASS', purchaseBarcodeSearch: 'PASS', purchaseQuickAdd: 'PASS', salesBarcodeSearch: 'PASS', salesQuickAdd: 'PASS', invoiceId,
       revisionBeforePayment, revisionAfterPayment: afterReload.revision, storageMode: afterReload.mode
     }));
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+
+test('free POS item is billed with discount and bank channel without changing inventory or cashbox', async () => {
+  const server = await startServer();
+  let browser;
+  const pageErrors = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data: initialData() });
+    const page = await context.newPage();
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+    page.on('dialog', async dialog => { await dialog.accept(); });
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() =>
+      window.ANASResilientStorage?.ready() === true &&
+      typeof AppData !== 'undefined' && Array.isArray(AppData.products),
+      null, { timeout: 15000 }
+    );
+    await page.evaluate(() => openView('pos'));
+    await page.evaluate(() => {
+      if (!anasAddFreeCartItem('خدمة توصيل', '10.00', '1', 'خدمة')) throw new Error('FREE_ITEM_ADD_FAILED');
+      if (!setPosCartDiscount('2.50')) throw new Error('DISCOUNT_SAVE_FAILED');
+      openHasibModal();
+    });
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#hasibTotalText').textContent(), '7.50 د.ج');
+    await page.locator('#hasibPaymentChannel').selectOption('card');
+    await page.locator('#hasibConfirmSaleBtn').click();
+    await page.waitForFunction(() => {
+      const snapshot = window.ANASResilientStorage?.getCommittedSnapshot?.();
+      return !!snapshot && Array.isArray(snapshot.invoices) && snapshot.invoices.length === 1;
+    }, null, { timeout: 15000 });
+    const result = await page.evaluate(() => {
+      const snapshot = window.ANASResilientStorage.getCommittedSnapshot();
+      const invoice = snapshot.invoices[0];
+      return {
+        invoice: { total: invoice.total, subtotal: invoice.subtotal, discount: invoice.discount,
+          channel: invoice.paymentChannel, item: invoice.items[0] },
+        stock: snapshot.products.find(row => row.id === 'STG-POS-LIFECYCLE-001').stock,
+        stockSales: (snapshot.stockMovements || []).filter(row => row.referenceType === 'sales_invoice').length,
+        cashSales: (snapshot.cashMovements || []).filter(row => row.referenceType === 'sales_invoice').length,
+        bankSales: (snapshot.bankMovements || []).filter(row => row.referenceType === 'sales_invoice').map(row => ({
+          amount: row.amount, paymentChannel: row.paymentChannel, cashImpact: row.cashImpact
+        })),
+        caisseBalance: snapshot.caisseBalance
+      };
+    });
+    assert.deepEqual(pageErrors, [], 'free-item checkout must not create uncaught browser errors');
+    assert.equal(result.invoice.subtotal, 10);
+    assert.equal(result.invoice.discount, 2.5);
+    assert.equal(result.invoice.total, 7.5);
+    assert.equal(result.invoice.channel, 'card');
+    assert.equal(result.invoice.item.isFreeItem, true);
+    assert.equal(result.stock, 10, 'free non-inventory line must not decrement product stock');
+    assert.equal(result.stockSales, 0, 'free non-inventory line must not create stock ledger entries');
+    assert.equal(result.cashSales, 0, 'card collection must not create cashbox receipts');
+    assert.deepEqual(result.bankSales, [{ amount: 7.5, paymentChannel: 'card', cashImpact: false }]);
+    assert.equal(result.caisseBalance, 100000, 'bank/card receipt must not change physical cashbox balance');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));

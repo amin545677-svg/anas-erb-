@@ -1,0 +1,31 @@
+name: ANAS ERP User RBAC Policy Tests
+
+on:
+  pull_request:
+    paths:
+      - "security/user-rbac-policy.mjs"
+      - "tests/user-rbac-policy.test.mjs"
+      - ".github/workflows/user-rbac-policy-tests.yml"
+  push:
+    branches:
+      - "feat/user-rbac-policy-v1"
+    paths:
+      - "security/user-rbac-policy.mjs"
+      - "tests/user-rbac-policy.test.mjs"
+      - ".github/workflows/user-rbac-policy-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  user-rbac-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run fail-closed authorization policy tests
+        run: node --test tests/user-rbac-policy.test.mjs

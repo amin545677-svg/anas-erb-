@@ -2,7 +2,7 @@ name: AI Worker Unit Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging/unified-release-candidate]
     paths:
       - 'cloudflare/worker_openai_ai.js'
       - 'tests/worker_openai_ai.test.mjs'

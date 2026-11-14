@@ -1,0 +1,103 @@
+name: Deploy Staging Firestore Security Rules (Spark Compatible)
+
+on:
+  push:
+    branches:
+      - staging/unified-release-candidate
+    paths:
+      - 'firebase/firestore.staging.rules'
+      - 'firebase.staging.json'
+      - 'tests/**'
+      - 'scripts/verify-live-staging-firestore-rules.mjs'
+      - '.github/workflows/deploy-staging-firestore-rules.yml'
+      - '.github/workflows/staging-test-gate.yml'
+      - 'erp/**'
+      - 'index.html'
+      - 'sw.js'
+      - 'anas-*.js'
+      - 'firebase/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: anas-erp-staging-firestore-rules
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-verify-staging-rules:
+    if: github.ref == 'refs/heads/staging/unified-release-candidate'
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - name: Checkout exact staging candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require successful Staging Test Gate for exact SHA
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json' };
+          for (let i = 1; i <= 120; i++) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) throw new Error('Cannot inspect exact-SHA Staging Test Gate: HTTP ' + response.status);
+            const data = await response.json();
+            const gate = (data.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.head_sha === process.env.GITHUB_SHA && ['push', 'pull_request'].includes(run.event));
+            if (gate?.status === 'completed') {
+              if (gate.conclusion !== 'success') throw new Error('Exact-SHA Staging Test Gate failed: ' + gate.conclusion);
+              console.log('PASS: exact-SHA Staging Test Gate ' + gate.id);
+              process.exit(0);
+            }
+            await new Promise(resolve => setTimeout(resolve, 10000));
+          }
+          throw new Error('Timed out waiting for exact-SHA Staging Test Gate');
+          NODE
+      - name: Prepare existing Staging deployment identity
+        id: auth_preflight
+        env:
+          DEPLOY_SERVICE_ACCOUNT_INPUT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT || secrets.FIREBASE_STAGING_SERVICE_ACCOUNT_V2 }}
+          WIF_PROVIDER: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          DEPLOYER_SERVICE_ACCOUNT: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+        run: node scripts/prepare-staging-service-account.mjs
+      - name: Authenticate with existing Staging service-account JSON
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'json' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.STAGING_SERVICE_ACCOUNT_JSON }}
+          create_credentials_file: true
+      - name: Authenticate with existing Staging OIDC identity
+        if: ${{ steps.auth_preflight.outputs.auth_mode == 'oidc' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.ANAS_STAGING_WIF_PROVIDER }}
+          service_account: ${{ vars.ANAS_STAGING_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+      - name: Verify target project and deploy rules only
+        env:
+          GCLOUD_PROJECT: anas-erp-staging-a25e1
+          GOOGLE_CLOUD_PROJECT: anas-erp-staging-a25e1
+        run: |
+          set -euo pipefail
+          node -e "const c=require('./firebase.staging.json'); if(c.projectId && c.projectId!=='anas-erp-staging-a25e1') process.exit(1); if(c.firestore?.rules!=='firebase/firestore.staging.rules') process.exit(1)"
+          npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --config firebase.staging.json --project anas-erp-staging-a25e1 --non-interactive
+      - name: Verify live unauthenticated direct-write rejection
+        run: node scripts/verify-live-staging-firestore-rules.mjs
