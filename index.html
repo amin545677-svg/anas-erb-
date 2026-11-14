@@ -9320,7 +9320,7 @@ function wtAuditTransfers(){
             } else if(title === 'تقرير بحركة منتج' || title === 'حركة منتج') {
                 const products=Array.isArray(AppData.products)?AppData.products:[];
                 const movements=[];
-                const addMove=(row,kind,sign,qtyKey='qty')=>{if(!row||typeof row!=='object')return;const pid=row.productId??row.product_id??row.itemId??row.idProduct??row.product?.id??row.id;if(pid==null)return;const d=reportParseDate(row.date||row.createdAt||row.timestamp);if(!d||!reportItemInRange(row))return;const raw=row[qtyKey]??row.quantity??row.qty??row.quantityMicroUnits;if(raw==null)return;let qty=Number(raw);if(qtyKey==='quantityMicroUnits')qty=qty/1000000;if(!Number.isFinite(qty))return;movements.push({pid:String(pid),date:row.date||row.createdAt||'',kind,delta:qty*sign,ref:row.invoiceId||row.referenceId||row.id||'—'});};
+                const addMove=(row,kind,sign,qtyKey='qty')=>{if(!row||typeof row!=='object')return;const pid=row.productId??row.product_id??row.itemId??row.idProduct??row.product?.id??row.id;if(pid==null)return;const d=reportParseDate(row.date||row.createdAt||row.timestamp);if(!d)return;const raw=row[qtyKey]??row.quantity??row.qty??row.quantityMicroUnits;if(raw==null)return;let qty=Number(raw);if(qtyKey==='quantityMicroUnits')qty=qty/1000000;if(!Number.isFinite(qty))return;movements.push({pid:String(pid),date:row.date||row.createdAt||'',kind,delta:qty*sign,ref:row.invoiceId||row.referenceId||row.id||'—'});};
                 (AppData.stockMovements||[]).forEach(m=>addMove(m,m.type||m.movementType||'حركة مخزون',m.direction==='out'||m.type==='out'||m.type==='damage'?-1:1));
                 (AppData.inventoryMovements||[]).forEach(m=>addMove(m,m.type||'حركة مخزون',m.direction==='out'||m.direction==='debit'?-1:1));
                 (AppData.purchases||[]).filter(p=>reportItemInRange(p)).forEach(p=>(p.items||p.products||[]).forEach(it=>addMove({...it,date:p.date||p.createdAt,invoiceId:p.id,productId:it.productId??it.id},'فاتورة شراء',1)));
@@ -9328,8 +9328,15 @@ function wtAuditTransfers(){
                 (AppData.returns||[]).filter(r=>r.status==='POSTED'&&reportItemInRange(r,['createdAt','date','timestamp'])).forEach(r=>(r.items||[]).forEach(it=>addMove({...it,date:r.createdAt,referenceId:r.returnId,productId:it.productId},r.returnType==='SALE_RETURN'?'مرتجع مبيعات':'مرتجع مشتريات',r.returnType==='SALE_RETURN'?1:-1,'quantityMicroUnits')));
                 (AppData.warehouseTransfers||AppData.transfers||[]).filter(t=>reportItemInRange(t)).forEach(t=>(t.items||[]).forEach(it=>addMove({...it,date:t.date||t.createdAt,referenceId:t.id,productId:it.productId},t.direction==='out'?'تحويل صادر':'تحويل وارد',t.direction==='out'?-1:1)));
                 (AppData.stockAdjustments||AppData.damagedStock||[]).filter(m=>reportItemInRange(m)).forEach(m=>addMove(m,m.type||'تالف/تسوية',m.direction==='in'?1:-1));
-                const productRows=[];
-                products.forEach(p=>{const list=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));let balance=0;list.forEach(m=>{balance+=m.delta;productRows.push([p.name||p.id,m.date,m.kind,m.ref,m.delta.toLocaleString('fr-DZ'),balance.toLocaleString('fr-DZ')]);});});
+                const productRows=[],{from:kardexFrom,to:kardexTo}=getReportRange();
+                products.forEach(p=>{
+                    const all=movements.filter(m=>m.pid===String(p.id)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+                    const before=all.filter(m=>kardexFrom&&reportLocalDateValue(reportParseDate(m.date))<kardexFrom);
+                    const current=all.filter(m=>{const d=reportParseDate(m.date),day=d?reportLocalDateValue(d):'';return d&&(!kardexFrom||day>=kardexFrom)&&(!kardexTo||day<=kardexTo);});
+                    let balance=before.reduce((n,m)=>n+m.delta,0);
+                    if(kardexFrom&&before.length)productRows.push([p.name||p.id,kardexFrom,'رصيد افتتاحي قبل الفترة','—','—',balance.toLocaleString('fr-DZ')]);
+                    current.forEach(m=>{balance+=m.delta;productRows.push([p.name||p.id,m.date,m.kind,m.ref,m.delta.toLocaleString('fr-DZ'),balance.toLocaleString('fr-DZ')]);});
+                });
                 content.innerHTML=renderQueryTable(['المنتج','التاريخ','نوع الحركة','المرجع','داخل/خارج','الرصيد التراكمي'],productRows,'لا توجد حركات مخزنية مؤرخة مطابقة للفترة. لا تُعرض أرصدة أو أسعار تقديرية كحركات فعلية.');
             } else if(title === 'جرد مخزني') {
                 const allProducts = Array.isArray(AppData.products) ? AppData.products : [];
@@ -9451,7 +9458,7 @@ function wtAuditTransfers(){
             } else {
                 content.innerHTML = `<p style="text-align:center;color:#b45309;font-weight:700;">هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق؛ لم يتم إنشاء نتائج تقديرية أو تسجيل أي عملية.</p>`;
             }
-            const rangeMeta=getReportRange(), reportSources=[AppData.invoices,AppData.purchases,AppData.clientMovements,AppData.cashMovements,AppData.expenses];
+            const rangeMeta=getReportRange(), reportSources=[AppData.invoices,AppData.purchases,AppData.clientMovements,AppData.supplierMovements,AppData.cashMovements,AppData.expenses,AppData.returns];
             let auditMatched=0,auditExcluded=0;
             reportSources.forEach(rows=>(Array.isArray(rows)?rows:[]).forEach(row=>{const raw=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(k=>row?.[k]).find(v=>v!==undefined&&v!==null&&v!=='');const d=reportParseDate(raw);if(!d){auditExcluded++;return;}const day=reportLocalDateValue(d);if((!rangeMeta.from||day>=rangeMeta.from)&&(!rangeMeta.to||day<=rangeMeta.to))auditMatched++;}));
             content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> AppData · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
