@@ -75,6 +75,26 @@ test('profit report explicitly excludes incomplete-cost sales from confirmed pro
   assert.doesNotMatch(html,/فسيُحسب الربح على أساس تكلفة صفر/);
 });
 
+
+test('all previously unlinked report routes have explicit AppData-backed handlers', () => {
+  const titles = [
+    'تقرير بالفواتير المرتجع-مبيعات','تقرير بفواتير المبيعات التي تم إلغاؤها','تقرير بعروض الأسعار','إجمالي الضرائب حسب الصنف','إجمالي الضرائب حسب العميل',
+    'تقرير بحركة الرصيد الافتتاحي والقيد للعميل','تقرير بالفواتير للعميل','تقرير بالفواتير للعميل - إجمالي','تقرير بالفواتير المرتجع لعميل',
+    'تقرير بسندات القبض لعميل','تقرير بسندات الصرف لعميل','تقرير بحركة التسديد لعميل','تقرير إجمالي حسب الصنف لعميل',
+    'تقرير بحركة سداد العملاء','تقرير بحركة سداد العملاء حسب طريقة الدفع','تقرير بحركة الرصيد الافتتاحي والقيد للمورد',
+    'تقرير بفواتير المورد','تقرير بفواتير المورد - إجمالي','تقرير بسندات الصرف لمورد','تقرير بسندات القبض لمورد',
+    'تقرير بحركة التسديد لمورد','تقرير إجمالي حسب الصنف لمورد','تقرير بحركة سداد الموردين','تقرير بحركة سداد الموردين حسب طريقة الدفع',
+    'تقرير رأس المال','حساب الزكاة','تقرير بالإقرار الضريبي','تقرير بالإقرار الضريبي مع المرتجع','تقرير بالمصروفات','تقرير بالمصروفات لحساب',
+    'جرد مخزني حسب التصنيف','جرد مخزني لصنف','تقرير بالمنتجات حسب تاريخ الانتهاء','تقرير بالمنتجات التالفة'
+  ];
+  for (const title of titles) assert.ok(html.includes("case '"+title+"'"),title);
+  assert.match(html,/const renderGenericReport = title =>/);
+  assert.match(html,/resolvedReportAuditRows!==null\\?\\[resolvedReportAuditRows\\]/);
+  assert.match(html,/AppData\\.returns/);
+  assert.match(html,/AppData\\.clientMovements/);
+  assert.match(html,/AppData\\.supplierMovements/);
+});
+
 test('expense grouping and product movement remain backed by AppData and BigInt', () => {
   assert.match(html,/const expenses=\(Array\.isArray\(AppData\.expenses\)\?AppData\.expenses:\[\]\)\.filter\(e=>reportItemInRange\(e\)\), groups=new Map\(\)/);
   assert.match(html,/const productRows=\[\],\{from:kardexFrom,to:kardexTo\}=getReportRange\(\)/);

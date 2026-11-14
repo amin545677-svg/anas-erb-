@@ -9291,6 +9291,298 @@ function wtAuditTransfers(){
                 ? `<div style="max-height:360px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;">${headers.map(h=>`<th style="padding:7px;border-bottom:1px solid #cbd5e1;">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr style="border-bottom:1px solid #e2e8f0;">${row.map(cell=>`<td style="padding:7px;">${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
                 : `<p style="text-align:center;color:#94a3b8;">${esc(emptyText)}</p>`;
 
+
+            let resolvedReportAuditRows = null;
+            let resolvedReportSourceLabel = 'AppData';
+            const genericArray = key => Array.isArray(AppData && AppData[key]) ? AppData[key] : [];
+            const genericDateKeys = ['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'];
+            const genericInRange = rows => rows.filter(row=>reportItemInRange(row,genericDateKeys));
+            const genericDate = row => row?.date||row?.createdAt||row?.created_at||row?.timestamp||row?.invoiceDate||row?.invoice_date||'—';
+            const genericMoneyCents = row => {
+                if(!row||typeof row!=='object')return null;
+                for(const key of ['amountCentimes','totalCentimes','amount_cents','total_cents'])if(Number.isSafeInteger(row[key]))return BigInt(row[key]);
+                const raw=row.amount??row.total??row.amt??row.value;
+                const cents=anasPurchaseToCents(raw);
+                return Number.isSafeInteger(cents)?BigInt(cents):null;
+            };
+            const genericFmtCents = cents => {
+                if(cents===null||cents===undefined)return 'غير صالح';
+                const n=cents<0n?-cents:cents;
+                return (cents<0n?'−':'')+(n/100n).toLocaleString('fr-DZ')+','+(n%100n).toString().padStart(2,'0')+' د.ج';
+            };
+            const genericGroupTotals = (records,keyOf,amountOf) => {
+                const groups=new Map();
+                records.forEach(row=>{
+                    const key=String(keyOf(row)||'غير محدد');
+                    const item=groups.get(key)||{count:0,total:0n,invalid:0};
+                    item.count++;
+                    const amount=amountOf(row);
+                    if(amount===null)item.invalid++;else item.total+=amount;
+                    groups.set(key,item);
+                });
+                return [...groups.entries()].map(([key,value])=>[key,value.count,genericFmtCents(value.total),value.invalid]);
+            };
+            const genericInvoiceItems = invoices => invoices.flatMap(invoice=>(Array.isArray(invoice.items)?invoice.items:[]).map(item=>({...item,__invoice:invoice})));
+            const genericItemName = item => item.productName||item.name||item.itemName||item.product?.name||item.productId||item.id||'صنف غير محدد';
+            const genericCustomerName = row => row.customerName||row.customer||row.clientName||row.clientId||row.__invoice?.customerName||row.__invoice?.customer||row.__invoice?.clientName||'عميل غير محدد';
+            const genericSupplierName = row => row.supplierName||row.supplier||row.__purchase?.supplierName||row.__purchase?.supplier||row.supplierId||'مورد غير محدد';
+            const genericTaxCents = item => {
+                for(const key of ['taxAmountCentimes','taxCentimes','tax_amount_centimes'])if(Number.isSafeInteger(item?.[key]))return BigInt(item[key]);
+                const raw=item?.taxAmount??item?.tax_amount??item?.vatAmount??item?.vat_amount;
+                if(raw===undefined||raw===null||raw==='')return null;
+                const cents=anasPurchaseToCents(raw);
+                return Number.isSafeInteger(cents)?BigInt(cents):null;
+            };
+            const renderGenericReport = title => {
+                const allInvoices=genericInRange(genericArray('invoices'));
+                const salesInvoices=allInvoices.filter(i=>!(i.cancelled||i.isCancelled||['cancelled','canceled','void','voided'].includes(String(i.status||'').toLowerCase())));
+                const purchaseRows=genericInRange(genericArray('purchases'));
+                const clientMovements=genericInRange(genericArray('clientMovements'));
+                const supplierMovements=genericInRange(genericArray('supplierMovements'));
+                const cashMovements=genericInRange(genericArray('cashMovements'));
+                const expenseRows=genericInRange(genericArray('expenses'));
+                const returnRows=genericInRange(genericArray('returns')).filter(r=>r&&r.status==='POSTED');
+                const products=genericArray('products');
+                const customers=genericArray('customers');
+                const suppliers=genericArray('suppliers');
+                const salesItems=genericInvoiceItems(salesInvoices);
+                const purchaseItems=purchaseRows.flatMap(p=>(Array.isArray(p.items)?p.items:Array.isArray(p.products)?p.products:[]).map(item=>({...item,__purchase:p})));
+                let sourceRows=[],sourceLabel='',headers=[],rows=[],emptyText='لا توجد سجلات مطابقة للفترة المحددة.';
+                const movementRows=(records,entityName)=>records.map(m=>[
+                    entityName(m),m.type||m.direction||'حركة',m.referenceId||m.id||'—',genericDate(m),
+                    genericFmtCents(genericMoneyCents(m)),m.note||m.description||'—'
+                ]);
+                const invoiceTable=(records,entity)=>records.map(i=>[
+                    i.id||i.invoiceId||'—',genericDate(i),entity(i),
+                    genericFmtCents(genericMoneyCents(i)),i.paid==null?'غير مسجل':genericFmtCents(anasPurchaseToCents(i.paid)===0&&String(i.paid)!=='0'?null:BigInt(anasPurchaseToCents(i.paid))),
+                    i.remaining==null?'غير مسجل':genericFmtCents(anasPurchaseToCents(i.remaining)===0&&String(i.remaining)!=='0'?null:BigInt(anasPurchaseToCents(i.remaining)))
+                ]);
+                const taxTotals=(records,keyOf)=>genericGroupTotals(records,keyOf,genericTaxCents);
+                switch(title){
+                    case 'تقرير بالفواتير المرتجع-مبيعات':
+                    case 'تقرير بالفواتير المرتجع لعميل':
+                        sourceRows=returnRows.filter(r=>r.returnType==='SALE_RETURN'&&(!r.originalInvoiceType||r.originalInvoiceType==='sales_invoice'));
+                        sourceLabel='AppData.returns';
+                        headers=['رقم المرتجع','التاريخ','العميل','الفاتورة الأصلية','قيمة المرتجع','الحالة'];
+                        rows=sourceRows.map(r=>[r.returnId||r.id||'—',genericDate(r),genericCustomerName(r),r.originalInvoiceId||r.invoiceId||r.referenceId||'—',genericFmtCents(genericMoneyCents(r)),r.status||'—']);
+                        break;
+                    case 'تقرير بفواتير المبيعات التي تم إلغاؤها':
+                        sourceRows=allInvoices.filter(i=>i.cancelled||i.isCancelled||['cancelled','canceled','void','voided'].includes(String(i.status||'').toLowerCase()));
+                        sourceLabel='AppData.invoices';
+                        headers=['رقم الفاتورة','التاريخ','العميل','الإجمالي','سبب/حالة الإلغاء'];
+                        rows=sourceRows.map(i=>[i.id||'—',genericDate(i),genericCustomerName(i),genericFmtCents(genericMoneyCents(i)),i.cancelReason||i.cancellationReason||i.status||'ملغاة']);
+                        break;
+                    case 'تقرير بعروض الأسعار':
+                        sourceRows=genericInRange([...genericArray('quotes'),...genericArray('quotations'),...genericArray('salesQuotes')]);
+                        sourceLabel='AppData.quotes / AppData.quotations';
+                        headers=['رقم العرض','التاريخ','العميل','الإجمالي','الحالة'];
+                        rows=sourceRows.map(q=>[q.id||q.number||'—',genericDate(q),genericCustomerName(q),genericFmtCents(genericMoneyCents(q)),q.status||'—']);
+                        emptyText='لا توجد مجموعة عروض أسعار محفوظة في AppData الحالية؛ لم تُنشأ عروض افتراضية.';
+                        break;
+                    case 'إجمالي الضرائب حسب الصنف':
+                        sourceRows=salesInvoices;sourceLabel='AppData.invoices.items';
+                        headers=['الصنف','عدد البنود','إجمالي الضريبة','بنود بلا قيمة ضريبية'];
+                        rows=taxTotals(salesItems,genericItemName);
+                        emptyText='لا توجد مبالغ ضريبية صريحة محفوظة في سطور فواتير المبيعات.';
+                        break;
+                    case 'إجمالي الضرائب حسب العميل':
+                        sourceRows=salesInvoices;sourceLabel='AppData.invoices';
+                        headers=['العميل','عدد البنود','إجمالي الضريبة','بنود بلا قيمة ضريبية'];
+                        rows=taxTotals(salesItems,genericCustomerName);
+                        emptyText='لا توجد مبالغ ضريبية صريحة محفوظة في فواتير المبيعات.';
+                        break;
+                    case 'تقرير بحركة الرصيد الافتتاحي والقيد للعميل':
+                        sourceRows=clientMovements.filter(m=>['opening_balance','invoice_debit','adjustment'].includes(m.type));
+                        sourceLabel='AppData.clientMovements';
+                        headers=['العميل','نوع القيد','المرجع','التاريخ','المبلغ','الاتجاه'];
+                        rows=sourceRows.map(m=>[genericCustomerName(m),m.type,m.referenceId||m.id||'—',genericDate(m),genericFmtCents(genericMoneyCents(m)),m.direction||'—']);
+                        break;
+                    case 'تقرير بالفواتير للعميل':
+                        sourceRows=salesInvoices;sourceLabel='AppData.invoices';
+                        headers=['رقم الفاتورة','التاريخ','العميل','الإجمالي','المدفوع','المتبقي'];
+                        rows=invoiceTable(sourceRows,genericCustomerName);
+                        break;
+                    case 'تقرير بالفواتير للعميل - إجمالي':
+                        sourceRows=salesInvoices;sourceLabel='AppData.invoices';
+                        headers=['العميل','عدد الفواتير','الإجمالي','مبالغ غير صالحة'];
+                        rows=genericGroupTotals(sourceRows,genericCustomerName,genericMoneyCents);
+                        break;
+                    case 'تقرير بسندات القبض لعميل':
+                        sourceRows=clientMovements.filter(m=>m.type==='receipt');
+                        sourceLabel='AppData.clientMovements';
+                        headers=['العميل','نوع السند','المرجع','التاريخ','المبلغ','البيان'];
+                        rows=movementRows(sourceRows,genericCustomerName);
+                        break;
+                    case 'تقرير بسندات الصرف لعميل':
+                        sourceRows=clientMovements.filter(m=>['refund','disbursement','payment','refund_debit','customer_refund'].includes(String(m.type||m.referenceType||'')));
+                        sourceLabel='AppData.clientMovements';
+                        headers=['العميل','نوع السند','المرجع','التاريخ','المبلغ','البيان'];
+                        rows=movementRows(sourceRows,genericCustomerName);
+                        emptyText='لا توجد سندات صرف/استرداد عميل مسجلة ضمن دفتر العميل.';
+                        break;
+                    case 'تقرير بحركة التسديد لعميل':
+                        sourceRows=genericInRange(genericArray('settlementAllocations')).filter(a=>a.partyType==='customer');
+                        sourceLabel='AppData.settlementAllocations';
+                        headers=['العميل/المعرّف','الفاتورة','حركة المصدر','التاريخ','المبلغ','نوع الطرف'];
+                        rows=sourceRows.map(a=>[a.partyName||a.partyId||'—',a.invoiceId||'—',a.sourceMovementId||'—',genericDate(a),genericFmtCents(genericMoneyCents(a)),a.partyType||'customer']);
+                        break;
+                    case 'تقرير إجمالي حسب الصنف لعميل':
+                        sourceRows=salesInvoices;sourceLabel='AppData.invoices.items';
+                        headers=['الصنف','عدد البنود','الإجمالي','بنود غير مكتملة'];
+                        rows=genericGroupTotals(salesItems,genericItemName,genericMoneyCents);
+                        break;
+                    case 'تقرير بحركة سداد العملاء':
+                        sourceRows=clientMovements.filter(m=>m.type==='receipt'||m.type==='invoice_debit');
+                        sourceLabel='AppData.clientMovements';
+                        headers=['العميل','نوع الحركة','المرجع','التاريخ','المبلغ','البيان'];
+                        rows=movementRows(sourceRows,genericCustomerName);
+                        break;
+                    case 'تقرير بحركة سداد العملاء حسب طريقة الدفع':
+                        sourceRows=cashMovements.filter(m=>m.referenceType==='customer_debt'||m.referenceType==='customer_payment'||String(m.description||'').includes('تحصيل دين'));
+                        sourceLabel='AppData.cashMovements';
+                        headers=['طريقة الدفع','عدد الحركات','الإجمالي','مبالغ غير صالحة'];
+                        rows=genericGroupTotals(sourceRows,m=>m.paymentMethod||m.method||m.channel||'نقدي/غير محدد',genericMoneyCents);
+                        break;
+                    case 'تقرير بحركة الرصيد الافتتاحي والقيد للمورد':
+                        sourceRows=supplierMovements.filter(m=>['opening_balance','purchase'].includes(m.type));
+                        sourceLabel='AppData.supplierMovements';
+                        headers=['المورد','نوع القيد','المرجع','التاريخ','المبلغ'];
+                        rows=sourceRows.map(m=>[genericSupplierName(m),m.type,m.referenceId||m.id||'—',genericDate(m),genericFmtCents(genericMoneyCents(m))]);
+                        break;
+                    case 'تقرير بفواتير المورد':
+                        sourceRows=purchaseRows;sourceLabel='AppData.purchases';
+                        headers=['رقم الفاتورة','التاريخ','المورد','الإجمالي','المدفوع','المتبقي'];
+                        rows=invoiceTable(sourceRows,genericSupplierName);
+                        break;
+                    case 'تقرير بفواتير المورد - إجمالي':
+                        sourceRows=purchaseRows;sourceLabel='AppData.purchases';
+                        headers=['المورد','عدد الفواتير','الإجمالي','مبالغ غير صالحة'];
+                        rows=genericGroupTotals(sourceRows,genericSupplierName,genericMoneyCents);
+                        break;
+                    case 'تقرير بسندات الصرف لمورد':
+                        sourceRows=supplierMovements.filter(m=>m.type==='payment');
+                        sourceLabel='AppData.supplierMovements';
+                        headers=['المورد','نوع السند','المرجع','التاريخ','المبلغ','البيان'];
+                        rows=movementRows(sourceRows,genericSupplierName);
+                        break;
+                    case 'تقرير بسندات القبض لمورد':
+                        sourceRows=supplierMovements.filter(m=>['receipt','credit','return_credit'].includes(m.type));
+                        sourceLabel='AppData.supplierMovements';
+                        headers=['المورد','نوع السند','المرجع','التاريخ','المبلغ','البيان'];
+                        rows=movementRows(sourceRows,genericSupplierName);
+                        emptyText='لا توجد سندات قبض/إشعار دائن للمورد مسجلة ضمن الفترة.';
+                        break;
+                    case 'تقرير بحركة التسديد لمورد':
+                        sourceRows=genericInRange(genericArray('settlementAllocations')).filter(a=>a.partyType==='supplier');
+                        sourceLabel='AppData.settlementAllocations';
+                        headers=['المورد/المعرّف','الفاتورة','حركة المصدر','التاريخ','المبلغ','نوع الطرف'];
+                        rows=sourceRows.map(a=>[a.partyName||a.partyId||'—',a.invoiceId||'—',a.sourceMovementId||'—',genericDate(a),genericFmtCents(genericMoneyCents(a)),a.partyType||'supplier']);
+                        break;
+                    case 'تقرير إجمالي حسب الصنف لمورد':
+                        sourceRows=purchaseRows;sourceLabel='AppData.purchases.items';
+                        headers=['الصنف','عدد البنود','الإجمالي','بنود غير مكتملة'];
+                        rows=genericGroupTotals(purchaseItems,genericItemName,genericMoneyCents);
+                        break;
+                    case 'تقرير بحركة سداد الموردين':
+                        sourceRows=supplierMovements.filter(m=>m.type==='payment'||m.type==='purchase');
+                        sourceLabel='AppData.supplierMovements';
+                        headers=['المورد','نوع الحركة','المرجع','التاريخ','المبلغ','البيان'];
+                        rows=movementRows(sourceRows,genericSupplierName);
+                        break;
+                    case 'تقرير بحركة سداد الموردين حسب طريقة الدفع':
+                        sourceRows=cashMovements.filter(m=>m.referenceType==='supplier_payment'||String(m.description||'').includes('تسديد مستحقات المورد'));
+                        sourceLabel='AppData.cashMovements';
+                        headers=['طريقة الدفع','عدد الحركات','الإجمالي','مبالغ غير صالحة'];
+                        rows=genericGroupTotals(sourceRows,m=>m.paymentMethod||m.method||m.channel||'نقدي/غير محدد',genericMoneyCents);
+                        break;
+                    case 'تقرير رأس المال':
+                        sourceRows=[...genericInRange(genericArray('cashMovements')),...genericInRange(genericArray('bankMovements'))].filter(m=>String(m.referenceType||'').toLowerCase().includes('capital')||String(m.description||m.note||'').includes('رأس المال'));
+                        sourceLabel='AppData.cashMovements / AppData.bankMovements';
+                        headers=['التاريخ','المصدر','المرجع','البيان','المبلغ'];
+                        rows=sourceRows.map(m=>[genericDate(m),m.referenceType||m.type||'—',m.referenceId||m.id||'—',m.description||m.note||'—',genericFmtCents(genericMoneyCents(m))]);
+                        emptyText='لا توجد حركات موثقة تحمل مرجع رأس المال أو وصفه؛ لم تُصنّف إضافات الصندوق العامة كرأس مال تلقائياً.';
+                        break;
+                    case 'حساب الزكاة': {
+                        const stock=anasInventoryCostAggregateCents(products);
+                        const cash=anasPurchaseToCents(AppData.caisseBalance);
+                        let receivables=0n,payables=0n,invalidParties=0;
+                        customers.forEach(c=>{const n=anasPurchaseToCents(c.debt??0);if(Number.isSafeInteger(n)&&n>0)receivables+=BigInt(n);else if(!Number.isSafeInteger(n))invalidParties++;});
+                        suppliers.forEach(s=>{const n=anasPurchaseToCents(s.balance??0);if(Number.isSafeInteger(n)&&n>0)payables+=BigInt(n);else if(!Number.isSafeInteger(n))invalidParties++;});
+                        const complete=stock.invalidRecords===0&&Number.isSafeInteger(cash)&&invalidParties===0;
+                        const base=complete?BigInt(stock.totalCentimes)+BigInt(cash)+receivables-payables:null;
+                        sourceRows=[...products,...customers,...suppliers];
+                        sourceLabel='AppData.products + caisseBalance + customers.debt + suppliers.balance';
+                        headers=['البند','القيمة','ملاحظة'];
+                        rows=[
+                            ['المخزون بسعر الشراء',genericFmtCents(BigInt(stock.totalCentimes)),stock.invalidRecords?'توجد تكاليف/كميات ناقصة':'محسوب بالسنتيم'],
+                            ['الصندوق',Number.isSafeInteger(cash)?genericFmtCents(BigInt(cash)):'غير صالح','الرصيد الحالي المسجل'],
+                            ['ديون العملاء',genericFmtCents(receivables),'مستحقات مدينة حالية، لا كشف تاريخي'],
+                            ['مستحقات الموردين',genericFmtCents(payables),'التزامات الموردين الحالية'],
+                            ['الوعاء الصافي الأولي',base===null?'غير مكتمل':genericFmtCents(base),'قبل التحقق من النصاب والحول والديون المرجوة'],
+                            ['2.5% تقديرية',base!==null&&base>0n?genericFmtCents((base*25n+500n)/1000n):'غير محسوبة','مؤشر حسابي فقط؛ لا يقرر وجوب الزكاة']
+                        ];
+                        emptyText='لا تتوفر بيانات مكتملة لحساب الوعاء.';
+                        content.innerHTML='<p style="padding:9px;border:1px solid var(--mp-border,#cbd5e1);border-radius:8px;color:var(--mp-text,#172033)">تنبيه: هذا تقدير حسابي أولي ولا يثبت النصاب أو مرور الحول أو حكم الديون.</p>'+renderQueryTable(headers,rows,emptyText);
+                        resolvedReportAuditRows=sourceRows;resolvedReportSourceLabel=sourceLabel;return true;
+                    }
+                    case 'تقرير بالإقرار الضريبي':
+                    case 'تقرير بالإقرار الضريبي مع المرتجع': {
+                        const saleTaxItems=salesItems.map(item=>({item,amount:genericTaxCents(item)}));
+                        const returnTaxItems=returnRows.filter(r=>r.returnType==='SALE_RETURN').flatMap(r=>(Array.isArray(r.items)?r.items:[]).map(item=>({item,amount:genericTaxCents(item)})));
+                        const sum=items=>items.reduce((acc,row)=>({total:acc.total+(row.amount??0n),missing:acc.missing+(row.amount===null?1:0)}),{total:0n,missing:0});
+                        const salesTax=sum(saleTaxItems),returnsTax=sum(returnTaxItems),withReturns=title==='تقرير بالإقرار الضريبي مع المرتجع';
+                        const net=salesTax.total-(withReturns?returnsTax.total:0n);
+                        sourceRows=withReturns?[...salesInvoices,...returnRows.filter(r=>r.returnType==='SALE_RETURN')]:salesInvoices;
+                        sourceLabel=withReturns?'AppData.invoices.items + AppData.returns.items':'AppData.invoices.items';
+                        headers=['البند','القيمة','عدد البنود غير المسجلة'];
+                        rows=[['ضريبة المبيعات المسجلة',genericFmtCents(salesTax.total),salesTax.missing],...(withReturns?[['ضريبة المرتجعات المسجلة',genericFmtCents(returnsTax.total),returnsTax.missing],['صافي الضريبة بعد المرتجعات',genericFmtCents(net),salesTax.missing+returnsTax.missing]]:[])];
+                        content.innerHTML='<p style="padding:9px;border:1px solid var(--mp-border,#cbd5e1);border-radius:8px;color:var(--mp-text,#172033)">تُحتسب القيم من حقول الضريبة الصريحة في سطور الفواتير فقط؛ لا يتم استنتاج ضريبة من سعر أو نسبة غير مؤكدة.</p>'+renderQueryTable(headers,rows,'لا توجد قيم ضريبية صريحة ضمن الفترة.');
+                        resolvedReportAuditRows=sourceRows;resolvedReportSourceLabel=sourceLabel;return true;
+                    }
+                    case 'تقرير بالمصروفات':
+                    case 'تقرير بالمصروفات لحساب':
+                        sourceRows=expenseRows;sourceLabel='AppData.expenses';
+                        headers=['التاريخ','الحساب','البيان','المبلغ','طريقة الدفع','حالة التسوية'];
+                        rows=sourceRows.map(e=>[genericDate(e),e.account||e.accountName||'غير محدد',e.desc||e.description||'—',genericFmtCents(genericMoneyCents(e)),e.paymentMethod||'—',e.settlementStatus||'—']);
+                        break;
+                    case 'جرد مخزني حسب التصنيف': {
+                        sourceRows=products;sourceLabel='AppData.products';
+                        const groups=new Map();
+                        products.forEach(p=>{const key=String(p.category||p.categoryName||'غير مصنف');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);});
+                        headers=['التصنيف','عدد الأصناف','مجموع الكمية','قيمة التكلفة','أصناف بلا تكلفة'];
+                        rows=[...groups.entries()].map(([key,items])=>{const agg=anasInventoryCostAggregateCents(items);return[key,items.length,items.reduce((n,p)=>n+(Number(p.stock)||0),0).toLocaleString('fr-DZ'),genericFmtCents(BigInt(agg.totalCentimes)),agg.invalidRecords];});
+                        break;
+                    }
+                    case 'جرد مخزني لصنف':
+                        sourceRows=products;sourceLabel='AppData.products';
+                        headers=['الصنف','الكود','التصنيف','الكمية','سعر الشراء','سعر البيع','قيمة التكلفة'];
+                        rows=products.map(p=>{const agg=anasInventoryCostAggregateCents([p]);return[p.name||'—',p.sku||p.code||p.id||'—',p.category||p.categoryName||'—',p.stock??'غير مسجل',p.buyPrice??'غير مسجل',p.sellPrice??p.price??'غير مسجل',genericFmtCents(BigInt(agg.totalCentimes))];});
+                        break;
+                    case 'تقرير بالمنتجات حسب تاريخ الانتهاء':
+                        sourceRows=products;sourceLabel='AppData.products.expiryDate';
+                        headers=['الصنف','الكود','تاريخ الانتهاء','الكمية','الحالة'];
+                        rows=products.filter(p=>p.expiryDate||p.expirationDate||p.expireDate||p.expiry||p.dateExpiry).map(p=>{const date=p.expiryDate||p.expirationDate||p.expireDate||p.expiry||p.dateExpiry;const parsed=reportParseDate(date);return[p.name||'—',p.sku||p.code||p.id||'—',date,p.stock??'—',parsed?'مؤرخ':'تاريخ غير صالح'];});
+                        emptyText='لا توجد تواريخ انتهاء مسجلة للمنتجات؛ لم يتم افتراض تاريخ.';
+                        break;
+                    case 'تقرير بالمنتجات التالفة':
+                        sourceRows=genericArray('damagedStock');
+                        sourceLabel='AppData.damagedStock';
+                        if(!sourceRows.length){sourceRows=genericArray('stockAdjustments').filter(m=>/damage|damaged|scrap|تالف|إتلاف/i.test(String(m.type||m.movementType||m.note||'')));sourceLabel='AppData.stockAdjustments';}
+                        if(!sourceRows.length){sourceRows=genericArray('stockMovements').filter(m=>/damage|damaged|scrap|تالف|إتلاف/i.test(String(m.type||m.movementType||m.note||'')));sourceLabel='AppData.stockMovements';}
+                        sourceRows=genericInRange(sourceRows);
+                        headers=['التاريخ','الصنف','المرجع','الكمية','السبب/النوع','المبلغ'];
+                        rows=sourceRows.map(m=>[genericDate(m),m.productName||m.name||m.productId||'—',m.referenceId||m.id||'—',m.quantity??m.qty??m.quantityMicroUnits??'—',m.type||m.movementType||m.note||'تالف',genericFmtCents(genericMoneyCents(m))]);
+                        emptyText='لا توجد قيود تالف موثقة في AppData ضمن الفترة المحددة.';
+                        break;
+                    default:
+                        return false;
+                }
+                resolvedReportAuditRows=sourceRows;
+                resolvedReportSourceLabel=sourceLabel;
+                content.innerHTML=renderQueryTable(headers,rows,emptyText);
+                return true;
+            };
+
             if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني') {
                 const totalSalesValid = reportInvoices.every(b => reportNumber(b.total) !== null);
                 const totalPurchasesCents = anasPurchaseAggregateCents(reportPurchases);
@@ -9446,7 +9738,8 @@ function wtAuditTransfers(){
             } else if(title === 'كشف حساب المورد' || title === 'كشف حساب مورد') {
                 const suppliers=Array.isArray(AppData.suppliers)?AppData.suppliers:[], movements=Array.isArray(AppData.supplierMovements)?AppData.supplierMovements:[];
                 const {from,to}=getReportRange();
-                const centsOf=m=>{const raw=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return 0n;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
+                const centsOf=m=>{if(Number.isSafeInteger(m.amountCentimes))return BigInt(m.amountCentimes);const raw=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return null;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
+                const signed=m=>{const amount=centsOf(m);return amount===null?null:(m.type==='payment'?-amount:amount);};
                 const fmt=c=>{const a=c<0n?-c:c;return(c<0n?'−':'')+(a/100n)+','+(a%100n).toString().padStart(2,'0')+' د.ج';};
                 const rows=[];
                 [...new Set(movements.map(m=>String(m.supplierId??'')))].forEach(id=>{
@@ -9454,9 +9747,9 @@ function wtAuditTransfers(){
                     const dated=all.map(m=>({m,d:reportParseDate(m.date||m.createdAt||m.timestamp)}));
                     const before=dated.filter(x=>x.d&&from&&reportLocalDateValue(x.d)<from);
                     const current=dated.filter(x=>x.d&&(!from||reportLocalDateValue(x.d)>=from)&&(!to||reportLocalDateValue(x.d)<=to)).sort((a,b)=>a.d-b.d);
-                    let balance=before.reduce((n,x)=>n+(x.m.type==='payment'?-centsOf(x.m):centsOf(x.m)),0n);
+                    let balance=before.reduce((n,x)=>n+(signed(x.m)??0n),0n);
                     if(from&&before.length)rows.push([supplier?.name||'—','رصيد افتتاحي','—',from,fmt(balance),fmt(balance)]);
-                    current.forEach(({m})=>{const delta=m.type==='payment'?-centsOf(m):centsOf(m);balance+=delta;rows.push([supplier?.name||'—',m.type==='purchase'?'فاتورة شراء':m.type==='payment'?'تسديد':'رصيد/تسوية',m.referenceId||m.id||'—',m.date||m.createdAt||'—',fmt(centsOf(m)),fmt(balance)]);});
+                    current.forEach(({m})=>{const amount=centsOf(m),delta=signed(m),label=m.type==='purchase'?'فاتورة شراء':m.type==='payment'?'تسديد':'رصيد/تسوية';if(delta===null){rows.push([supplier?.name||'—',label,m.referenceId||m.id||'—',m.date||m.createdAt||'—','قيمة غير صالحة',fmt(balance)]);return;}balance+=delta;rows.push([supplier?.name||'—',label,m.referenceId||m.id||'—',m.date||m.createdAt||'—',fmt(amount),fmt(balance)]);});
                 });
                 content.innerHTML=renderQueryTable(['المورد','نوع الحركة','المرجع','التاريخ','المبلغ','الرصيد التراكمي'],rows,'لا توجد حركات موردين مؤرخة ضمن الفترة المحددة.');
             } else if(title === 'تقرير بحركة الصندوق') {
@@ -9476,13 +9769,25 @@ function wtAuditTransfers(){
                 expenses.forEach(e=>{const k=String(e.account||e.accountName||'غير محدد'),v=groups.get(k)||{count:0,total:0n,invalid:0};v.count++;const c=centsOf(e);if(c===null)v.invalid++;else v.total+=c;groups.set(k,v);});
                 const fmt=c=>{const a=c<0n?-c:c;return(c<0n?'−':'')+(a/100n)+','+(a%100n).toString().padStart(2,'0')+' د.ج';};
                 content.innerHTML=renderQueryTable(['الحساب','عدد الحركات','الإجمالي','مبالغ غير صالحة'],[...groups.entries()].map(([k,v])=>[k,v.count,fmt(v.total),v.invalid]),'لا توجد مصروفات ضمن الفترة المحددة.');
-            } else {
+            } else if(!renderGenericReport(title)) {
                 content.innerHTML = `<p style="text-align:center;color:#b45309;font-weight:700;">هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق؛ لم يتم إنشاء نتائج تقديرية أو تسجيل أي عملية.</p>`;
             }
-            const rangeMeta=getReportRange(), reportSources=[AppData.invoices,AppData.purchases,AppData.clientMovements,AppData.supplierMovements,AppData.cashMovements,AppData.expenses,AppData.returns];
+            const rangeMeta=getReportRange(), auditSourceMap={
+                'حركة المتجر':[reportInvoices,reportPurchases,genericArray('cashMovements'),genericArray('expenses')],
+                'حركة المتجر - رسم بياني':[reportInvoices,reportPurchases,genericArray('cashMovements'),genericArray('expenses')],
+                'تقرير فواتير الآجل':[reportInvoices],'تقرير الخصومات':[reportInvoices],'تقرير المبيعات':[reportInvoices],
+                'تنبيه نقص المخزون':[genericArray('products')],'تقرير بحركة منتج':[genericArray('stockMovements'),genericArray('inventoryMovements'),genericArray('purchases'),genericArray('invoices'),genericArray('returns'),genericArray('warehouseTransfers'),genericArray('stockAdjustments')],
+                'حركة منتج':[genericArray('stockMovements'),genericArray('inventoryMovements'),genericArray('purchases'),genericArray('invoices'),genericArray('returns'),genericArray('warehouseTransfers'),genericArray('stockAdjustments')],
+                'جرد مخزني':[genericArray('products')],'تقرير المشتريات':[reportPurchases],'عرض فواتير المبيعات':[reportInvoices],
+                'كشف حساب عميل':[genericArray('clientMovements')],'تقرير مصادقة حساب العميل':[genericArray('clientMovements')],
+                'كشف حساب المورد':[genericArray('supplierMovements')],'كشف حساب مورد':[genericArray('supplierMovements')],
+                'تقرير بحركة الصندوق':[genericArray('cashMovements')],'تقرير بالمصروفات حسب الحساب':[genericArray('expenses')],
+                'تقرير المصروفات حسب الحساب':[genericArray('expenses')]
+            };
+            const reportSources=resolvedReportAuditRows!==null?[resolvedReportAuditRows]:(auditSourceMap[title]||[]);
             let auditMatched=0,auditExcluded=0;
             reportSources.forEach(rows=>(Array.isArray(rows)?rows:[]).forEach(row=>{const raw=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(k=>row?.[k]).find(v=>v!==undefined&&v!==null&&v!=='');const d=reportParseDate(raw);if(!d){auditExcluded++;return;}const day=reportLocalDateValue(d);if((!rangeMeta.from||day>=rangeMeta.from)&&(!rangeMeta.to||day<=rangeMeta.to))auditMatched++;}));
-            content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> AppData · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
+            content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> ${esc(resolvedReportSourceLabel||((auditSourceMap[title]||[]).length?'AppData':'AppData (غير محدد)'))} · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
             document.getElementById('customReportModal').classList.add('active');
             const searchBox = document.getElementById('anasReportSearch');
             if (searchBox) searchBox.value = '';
