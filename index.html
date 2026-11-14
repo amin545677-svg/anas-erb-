@@ -9024,6 +9024,14 @@ function wtAuditTransfers(){
             body.querySelectorAll('[data-profit-tab]').forEach(btn => { btn.classList.toggle('active', btn.getAttribute('data-profit-tab') === tab); });
         }
 
+        function anasHistoricalSaleUnitCost(item) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+            const raw = item.buyPrice ?? item.costPrice ?? item.purchasePrice;
+            if (raw === null || raw === undefined || String(raw).trim() === '' ||
+                !Number.isFinite(Number(raw)) || Number(raw) < 0) return null;
+            return Number(raw);
+        }
+
         function showProfitsReportModal() {
             const allProfitInvoices=(typeof getReportInvoices==='function'?getReportInvoices():(Array.isArray(AppData.invoices)?AppData.invoices:[]));
             const cancelledProfitInvoices=allProfitInvoices.filter(inv=>inv&&(inv.cancelled===true||inv.isCancelled===true||['cancelled','CANCELLED','void','VOID'].includes(inv.status)||inv.reversed===true));
@@ -9054,8 +9062,7 @@ function wtAuditTransfers(){
                     const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
                     const price = Number(it.price ?? it.salePrice ?? it.sellingPrice ?? 0) || 0;
                     const prod = products.find(p => String(p.id) === String(it.id ?? it.productId ?? it.product_id));
-                    const rawCost=it.buyPrice??it.costPrice??it.purchasePrice??(prod?prod.buyPrice:null);
-                    const costPrice=rawCost!==null&&rawCost!==undefined&&String(rawCost).trim()!==''&&Number.isFinite(Number(rawCost))&&Number(rawCost)>=0?Number(rawCost):null;
+                    const costPrice=anasHistoricalSaleUnitCost(it);
                     const revenue = Number(it.total ?? it.subtotal ?? (price * qty)) || (price * qty);
                     const cost = costPrice===null?0:costPrice*qty, profit = costPrice===null?0:revenue-cost;
                     if(costPrice===null){incompleteCostLines++;incompleteCostRevenue+=revenue;}
@@ -9082,8 +9089,7 @@ function wtAuditTransfers(){
                 items.forEach(it => {
                     const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
                     const prod = products.find(p => String(p.id) === String(it.id ?? it.productId ?? it.product_id));
-                    const rawCost=it.buyPrice??it.costPrice??it.purchasePrice??(prod?prod.buyPrice:null);
-                    const costPrice=rawCost!==null&&rawCost!==undefined&&String(rawCost).trim()!==''&&Number.isFinite(Number(rawCost))&&Number(rawCost)>=0?Number(rawCost):null;
+                    const costPrice=anasHistoricalSaleUnitCost(it);
                     const price = Number(it.price ?? it.salePrice ?? it.sellingPrice ?? 0) || 0;
                     const revenue = Number(it.total ?? it.subtotal ?? (price * qty)) || price * qty;
                     customerQty += qty; itemRevenue += revenue; if(costPrice!==null){customerCost += costPrice * qty; customerProfit += revenue - costPrice * qty;}
@@ -9259,7 +9265,7 @@ function wtAuditTransfers(){
               <div class="profit-section" data-profit-panel="customer" hidden><h4>👥 تقارير الأرباح حسب العميل</h4>${renderRows(byCustomer,'لا توجد فواتير عملاء ضمن الفترة المحددة.','customer')}</div>
               <div class="profit-section" data-profit-panel="product" hidden><h4>🏷️ تقارير الأرباح حسب المنتج</h4>${renderRows(byProduct,'لا توجد منتجات مباعة ضمن الفترة المحددة.')}</div>
               <div class="profit-section" data-profit-panel="user" hidden><h4>👤 تقارير المبيعات والأرباح حسب المستخدم</h4>${renderRows(byUser,'لا توجد فواتير مرتبطة بالمستخدمين ضمن الفترة المحددة.','user')}<p class="profit-note">الفواتير القديمة التي لا تحتوي على بيانات المستخدم ستظهر باسم «غير محدد». تُسجَّل هوية المستخدم تلقائيًا في الفواتير الجديدة.</p></div>
-              <p class="profit-note" role="status">تنبيه محاسبي: الربح المعروض يقتصر على البنود التي تتوفر لها تكلفة تاريخية في سطر الفاتورة أو تكلفة حالية موثوقة للمنتج. لم تُسجّل البنود الناقصة التكلفة كتكلفة صفر؛ عددها ${incompleteCostLines} وقيمة مبيعاتها ${moneyFmt(incompleteCostRevenue)}، وهي مستبعدة من الربح المؤكد حتى استكمال التكلفة.</p>
+              <p class="profit-note" role="status">تنبيه محاسبي: الربح المعروض يقتصر على البنود التي تتوفر لها تكلفة تاريخية محفوظة في سطر الفاتورة؛ لا يُستخدم سعر الشراء الحالي للمنتج بديلاً عن التكلفة التاريخية. لم تُسجّل البنود الناقصة التكلفة كتكلفة صفر؛ عددها ${incompleteCostLines} وقيمة مبيعاتها ${moneyFmt(incompleteCostRevenue)}، وهي مستبعدة من الربح المؤكد حتى استكمال التكلفة.</p>
               <button type="button" class="btn-full-submit" style="margin:10px 0;background:#1d4ed8" onclick="showProfitsReportModal()">↻ تحديث التقرير</button>`;
             document.getElementById('profitsModal').classList.add('active');
         }

@@ -76,6 +76,26 @@ test('profit report explicitly excludes incomplete-cost sales from confirmed pro
 });
 
 
+test('profit report uses invoice-line historical cost only and never current product cost fallback', () => {
+  const start=html.indexOf('function anasHistoricalSaleUnitCost(item) {');
+  const end=html.indexOf('function showProfitsReportModal()',start);
+  assert.ok(start>=0&&end>start);
+  const context={};
+  vm.runInNewContext(html.slice(start,end)+';globalThis.resolveCost=anasHistoricalSaleUnitCost;',context);
+  assert.equal(context.resolveCost({buyPrice:'12.50'}),12.5);
+  assert.equal(context.resolveCost({costPrice:8}),8);
+  assert.equal(context.resolveCost({purchasePrice:7}),7);
+  assert.equal(context.resolveCost({}),null);
+  assert.equal(context.resolveCost({buyPrice:null,costPrice:'4.25'}),4.25);
+  assert.equal(context.resolveCost({buyPrice:'-1'}),null);
+  const profitStart=html.indexOf('function showProfitsReportModal()');
+  const profitEnd=html.indexOf('const ANAS_QUERY_OPTIONS',profitStart);
+  const profitSource=html.slice(profitStart,profitEnd);
+  assert.equal((profitSource.match(/anasHistoricalSaleUnitCost\(it\)/g)||[]).length,2);
+  assert.doesNotMatch(profitSource,/prod\s*\?\s*prod\.buyPrice/);
+  assert.match(profitSource,/لا يُستخدم سعر الشراء الحالي للمنتج بديلاً عن التكلفة التاريخية/);
+});
+
 test('all previously unlinked report routes have explicit AppData-backed handlers', () => {
   const titles = [
     'تقرير بالفواتير المرتجع-مبيعات','تقرير بفواتير المبيعات التي تم إلغاؤها','تقرير بعروض الأسعار','إجمالي الضرائب حسب الصنف','إجمالي الضرائب حسب العميل',
