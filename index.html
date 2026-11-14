@@ -13038,7 +13038,7 @@ function wtAuditTransfers(){
             const from=document.getElementById('reportDateFrom'),to=document.getElementById('reportDateTo');
             try {
                 const saved=JSON.parse(localStorage.getItem(ANAS_REPORT_RANGE_STORAGE_KEY)||'null');
-                if(saved && /^\d{4}-\d{2}-\d{2}$/.test(saved.from||'') && /^\d{4}-\d{2}-\d{2}$/.test(saved.to||'') && saved.from<=saved.to) {
+                if(saved && typeof saved.from==='string' && typeof saved.to==='string' && (!saved.from||reportParseDate(saved.from)) && (!saved.to||reportParseDate(saved.to)) && (!saved.from||!saved.to||saved.from<=saved.to)) {
                     if(from)from.value=saved.from;
                     if(to)to.value=saved.to;
                 }
@@ -14882,5 +14882,42 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
   }
 </style>
 
+
+<style id="anas-product-picker-dark-surface-r43">
+  /* r43: force a real opaque dark surface on the picker itself; avoid inheriting grey backdrop colors. */
+  html:root[data-anas-theme="dark"] body #productPickerModal .picker-dialog-scroll {
+    background-color:#0f172a!important;
+    background-image:none!important;
+    color:#f8fafc!important;
+    -webkit-text-fill-color:#f8fafc!important;
+    border-color:#475569!important;
+  }
+  html:root[data-anas-theme="dark"] body #productPickerModal .picker-dialog-scroll :is(h3,strong,b,span,p,label) {
+    color:#f8fafc!important;
+    -webkit-text-fill-color:#f8fafc!important;
+  }
+  html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card {
+    background-color:#1e293b!important;
+    background-image:none!important;
+    color:#f8fafc!important;
+    -webkit-text-fill-color:#f8fafc!important;
+    border-color:#64748b!important;
+  }
+  html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card small {
+    color:#cbd5e1!important;
+    -webkit-text-fill-color:#cbd5e1!important;
+  }
+  html:root[data-anas-theme="dark"] body #productPickerModal #productPickerSearch {
+    background-color:#111827!important;
+    color:#f8fafc!important;
+    -webkit-text-fill-color:#f8fafc!important;
+    border-color:#64748b!important;
+  }
+  html:root[data-anas-theme="dark"] body #productPickerModal #productPickerSearch::placeholder {
+    color:#cbd5e1!important;
+    -webkit-text-fill-color:#cbd5e1!important;
+    opacity:1!important;
+  }
+</style>
 </body>
 </html>
