@@ -1563,3 +1563,34 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-group-heading {
   #view-reports .anas-query-options { flex-basis:48%; padding-inline:3px; }
   #view-reports .anas-query-toggle { gap:4px; font-size:9px; }
 }
+
+
+/* Dark-mode product picker contrast: outrank inherited modal/theme variables. */
+html:root[data-anas-theme="dark"] body #productPickerModal .picker-dialog-scroll,
+html:root[data-theme="dark"] body #productPickerModal .picker-dialog-scroll {
+  background:#111c2e!important;
+  color:#f1f5f9!important;
+  -webkit-text-fill-color:#f1f5f9!important;
+  border-color:#475569!important;
+}
+html:root[data-anas-theme="dark"] body #productPickerModal .picker-dialog-scroll h3,
+html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card,
+html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card *,
+html:root[data-theme="dark"] body #productPickerModal .picker-dialog-scroll h3,
+html:root[data-theme="dark"] body #productPickerModal .menu-action-card,
+html:root[data-theme="dark"] body #productPickerModal .menu-action-card * {
+  color:#f1f5f9!important;
+  -webkit-text-fill-color:#f1f5f9!important;
+}
+html:root[data-anas-theme="dark"] body #productPickerModal .menu-action-card,
+html:root[data-theme="dark"] body #productPickerModal .menu-action-card {
+  background:#1b2940!important;
+  border-color:#64748b!important;
+}
+html:root[data-anas-theme="dark"] body #productPickerModal #productPickerSearch,
+html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
+  background:#0b1424!important;
+  color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;
+  border-color:#64748b!important;
+}
