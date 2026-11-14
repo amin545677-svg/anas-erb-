@@ -6030,6 +6030,24 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : NaN;
             } catch (_) { return NaN; }
         }
+        function anasInventoryCostAggregateCents(products) {
+            let total=0n,validRecords=0,invalidRecords=0;
+            for (const product of (Array.isArray(products)?products:[])) {
+                const quantity=anasPurchaseToQtyUnits(product && product.stock != null ? product.stock : 0);
+                if (!Number.isSafeInteger(quantity)) { invalidRecords++; continue; }
+                const units=Math.max(0,quantity);
+                if (units===0) { validRecords++; continue; }
+                const unitCost=anasPurchaseToCents(product && product.buyPrice);
+                if (!Number.isSafeInteger(unitCost) || unitCost<0) { invalidRecords++; continue; }
+                const line=anasPurchaseStockValueCents(units,unitCost);
+                if (!Number.isSafeInteger(line) || line<0) { invalidRecords++; continue; }
+                const next=total+BigInt(line);
+                if (next>BigInt(Number.MAX_SAFE_INTEGER)) { invalidRecords++; continue; }
+                total=next; validRecords++;
+            }
+            return {totalCentimes:Number(total),validRecords,invalidRecords};
+        }
+
         function anasPurchaseLineTotalForRecordCents(record) {
             if (!record || typeof record !== 'object' || Array.isArray(record)) return NaN;
             if (Object.prototype.hasOwnProperty.call(record, 'total')) return anasPurchaseToCents(record.total);
@@ -9021,7 +9039,7 @@ function wtAuditTransfers(){
                 return;
             }
             const byProduct = {}, byCategory = {}, byCustomer = {}, byUser = {};
-            let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0, incompleteCostLines = 0;
+            let totalRevenue = 0, totalCost = 0, lineProfit = 0, itemCount = 0, incompleteCostLines = 0, incompleteCostRevenue = 0;
             const moneyFmt = n => (Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' د.ج';
             const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const add = (obj, key, qty, revenue, cost, profit) => {
@@ -9040,7 +9058,7 @@ function wtAuditTransfers(){
                     const costPrice=rawCost!==null&&rawCost!==undefined&&String(rawCost).trim()!==''&&Number.isFinite(Number(rawCost))&&Number(rawCost)>=0?Number(rawCost):null;
                     const revenue = Number(it.total ?? it.subtotal ?? (price * qty)) || (price * qty);
                     const cost = costPrice===null?0:costPrice*qty, profit = costPrice===null?0:revenue-cost;
-                    if(costPrice===null)incompleteCostLines++;
+                    if(costPrice===null){incompleteCostLines++;incompleteCostRevenue+=revenue;}
                     const pname = it.name || (prod && prod.name) || 'منتج غير معروف';
                     const category = (prod && (prod.cat || prod.category)) || it.category || 'بدون تصنيف';
                     invRevenue += revenue; itemCount += qty; totalCost += cost; lineProfit += profit;
@@ -9235,12 +9253,12 @@ function wtAuditTransfers(){
                 <button type="button" class="profit-tab" data-profit-tab="product" onclick="setProfitReportTab('product',this)">حسب المنتج</button>
                 <button type="button" class="profit-tab" data-profit-tab="user" onclick="setProfitReportTab('user',this)">حسب المستخدم</button>
               </div>
-              <div class="profit-section" data-profit-panel="total"><h4>💰 إجمالي الأرباح</h4><div class="profit-summary"><div class="profit-stat"><span>إجمالي المبيعات</span><strong>${moneyFmt(totalRevenue)}</strong></div><div class="profit-stat"><span>إجمالي التكلفة</span><strong>${moneyFmt(totalCost)}</strong></div><div class="profit-stat"><span>صافي الربح المحسوب</span><strong>${moneyFmt(netProfit)}</strong></div><div class="profit-stat"><span>عدد الفواتير</span><strong>${invoices.length}</strong></div></div></div>
+              <div class="profit-section" data-profit-panel="total"><h4>💰 إجمالي الأرباح</h4><div class="profit-summary"><div class="profit-stat"><span>إجمالي المبيعات</span><strong>${moneyFmt(totalRevenue)}</strong></div><div class="profit-stat"><span>إجمالي التكلفة</span><strong>${moneyFmt(totalCost)}</strong></div><div class="profit-stat"><span>ربح البنود مكتملة التكلفة فقط</span><strong>${moneyFmt(netProfit)}</strong></div><div class="profit-stat"><span>بنود غير مكتملة التكلفة</span><strong>${incompleteCostLines} · ${moneyFmt(incompleteCostRevenue)}</strong></div><div class="profit-stat"><span>عدد الفواتير</span><strong>${invoices.length}</strong></div></div></div>
               <div class="profit-section" data-profit-panel="category" hidden><h4>📊 تقارير الأرباح حسب الصنف / التصنيف</h4>${renderRows(byCategory,'لا توجد أصناف مصنفة في الفواتير ضمن الفترة المحددة.')}</div>
               <div class="profit-section" data-profit-panel="customer" hidden><h4>👥 تقارير الأرباح حسب العميل</h4>${renderRows(byCustomer,'لا توجد فواتير عملاء ضمن الفترة المحددة.','customer')}</div>
               <div class="profit-section" data-profit-panel="product" hidden><h4>🏷️ تقارير الأرباح حسب المنتج</h4>${renderRows(byProduct,'لا توجد منتجات مباعة ضمن الفترة المحددة.')}</div>
               <div class="profit-section" data-profit-panel="user" hidden><h4>👤 تقارير المبيعات والأرباح حسب المستخدم</h4>${renderRows(byUser,'لا توجد فواتير مرتبطة بالمستخدمين ضمن الفترة المحددة.','user')}<p class="profit-note">الفواتير القديمة التي لا تحتوي على بيانات المستخدم ستظهر باسم «غير محدد». تُسجَّل هوية المستخدم تلقائيًا في الفواتير الجديدة.</p></div>
-              <p class="profit-note">ملاحظة: تُحسب الأرباح من سعر البيع ناقص تكلفة الشراء المسجلة للمنتج. إذا كانت تكلفة الشراء غير مسجلة فسيُحسب الربح على أساس تكلفة صفر، وقد لا تكون النتيجة دقيقة.</p>
+              <p class="profit-note" role="status">تنبيه محاسبي: الربح المعروض يقتصر على البنود التي تتوفر لها تكلفة تاريخية في سطر الفاتورة أو تكلفة حالية موثوقة للمنتج. لم تُسجّل البنود الناقصة التكلفة كتكلفة صفر؛ عددها ${incompleteCostLines} وقيمة مبيعاتها ${moneyFmt(incompleteCostRevenue)}، وهي مستبعدة من الربح المؤكد حتى استكمال التكلفة.</p>
               <button type="button" class="btn-full-submit" style="margin:10px 0;background:#1d4ed8" onclick="showProfitsReportModal()">↻ تحديث التقرير</button>`;
             document.getElementById('profitsModal').classList.add('active');
         }
@@ -9342,18 +9360,21 @@ function wtAuditTransfers(){
                 const allProducts = Array.isArray(AppData.products) ? AppData.products : [];
                 const products = ANAS_QUERY_OPTIONS.stock.showAvailable ? allProducts.filter(p => Number(p.stock) > 0) : allProducts;
                 const nval = v => Number.isFinite(Number(v)) ? Number(v) : 0;
-                const money = v => nval(v).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2});
+                const money = v => Number.isFinite(Number(v))?Number(v).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'غير صالح';
                 const totalQty = products.reduce((n,p)=>n+nval(p.stock),0);
-                const totalCostValue = products.reduce((n,p)=>n+Math.max(0,nval(p.stock))*Math.max(0,nval(p.buyPrice)),0);
+                const stockCostAggregate=anasInventoryCostAggregateCents(products);
+                const totalCostValue = anasPurchaseCentsToCurrency(stockCostAggregate.totalCentimes);
                 const totalRetailValue = products.reduce((n,p)=>n+Math.max(0,nval(p.stock))*Math.max(0,nval(p.sellPrice ?? p.price)),0);
                 const negativeCount = products.filter(p=>nval(p.stock)<0).length;
                 const zeroCount = products.filter(p=>nval(p.stock)===0).length;
                 const lowCount = products.filter(p=>nval(p.stock)>0 && nval(p.stock)<=Math.max(0,nval(p.minStock ?? p.reorderLevel ?? p.minQty))).length;
-                const invalidCostCount = products.filter(p=>!(nval(p.buyPrice)>0)).length;
+                const invalidCostCount = stockCostAggregate.invalidRecords;
                 const rows = products.map(p=>{
                     const stock=nval(p.stock), cost=nval(p.buyPrice), sell=nval(p.sellPrice ?? p.price);
                     const min=Math.max(0,nval(p.minStock ?? p.reorderLevel ?? p.minQty));
-                    const costValue=Math.max(0,stock)*Math.max(0,cost);
+                    const quantityUnits=anasPurchaseToQtyUnits(Math.max(0,stock)),unitCostCents=anasPurchaseToCents(cost);
+                    const costValueCents=quantityUnits===0?0:(Number.isSafeInteger(quantityUnits)&&Number.isSafeInteger(unitCostCents)&&unitCostCents>=0?anasPurchaseStockValueCents(quantityUnits,unitCostCents):NaN);
+                    const costValue=Number.isSafeInteger(costValueCents)?anasPurchaseCentsToCurrency(costValueCents):NaN;
                     const retailValue=Math.max(0,stock)*Math.max(0,sell);
                     const status=stock<0?'رصيد سالب':stock===0?'نفد المخزون':stock<=min?'قريب من النفاد':'متوفر';
                     const statusColor=stock<0?'#b91c1c':stock===0?'#dc2626':stock<=min?'#b45309':'#15803d';
@@ -9398,18 +9419,18 @@ function wtAuditTransfers(){
                     headers = ['العميل','نوع الحركة','المرجع','التاريخ','المبلغ'];
                     if (!opts.hideBalance) headers.push('الرصيد التراكمي');
                     const ids=[...new Set(movements.map(m=>String(m.clientId??'')))];
-                    const centsOf=m=>{if(Number.isSafeInteger(m.amountCentimes))return BigInt(m.amountCentimes);const raw=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return 0n;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
-                    const signed=m=>(m.direction||(['receipt','return_credit'].includes(m.type)?'credit':'debit'))==='credit'?-centsOf(m):centsOf(m);
+                    const centsOf=m=>{if(Number.isSafeInteger(m.amountCentimes))return BigInt(m.amountCentimes);const raw=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return null;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
+                    const signed=m=>{const amount=centsOf(m);if(amount===null)return null;return (m.direction||(['receipt','return_credit'].includes(m.type)?'credit':'debit'))==='credit'?-amount:amount;};
                     const fmt=c=>{const n=c<0n?-c:c;return(c<0n?'−':'')+(n/100n)+','+(n%100n).toString().padStart(2,'0')+' د.ج';};
                     ids.forEach(id=>{
                         const all=movements.filter(m=>String(m.clientId??'')===id);
                         const dated=all.map(m=>({m,d:reportParseDate(m.createdAt||m.date||m.timestamp)}));
                         const before=dated.filter(x=>x.d&&rangeFrom&&reportLocalDateValue(x.d)<rangeFrom);
                         const current=dated.filter(x=>x.d&&(!rangeFrom||reportLocalDateValue(x.d)>=rangeFrom)&&(!rangeTo||reportLocalDateValue(x.d)<=rangeTo)).sort((a,b)=>a.d-b.d||String(a.m.movementId||a.m.id||'').localeCompare(String(b.m.movementId||b.m.id||'')));
-                        let balance=before.reduce((n,x)=>n+signed(x.m),0n);
+                        let balance=before.reduce((n,x)=>n+(signed(x.m)??0n),0n);
                         const customer=customers.find(c=>String(c.id)===id);
                         if(!opts.hideOpening&&rangeFrom&&before.length)rows.push([customer?.name||all[0]?.clientName||'—','الرصيد الافتتاحي','—',rangeFrom,fmt(balance),...(opts.hideBalance?[]:[fmt(balance)])]);
-                        current.forEach(({m})=>{balance+=signed(m);const label=({opening_balance:'رصيد افتتاحي',invoice_debit:'فاتورة آجلة',receipt:'سند قبض',return_credit:'مرتجع/إشعار دائن',adjustment:'تسوية'})[m.type]||m.type||'حركة';const row=[customer?.name||m.clientName||'—',label,m.referenceId||'—',m.createdAt||m.date||'—',fmt(centsOf(m))];if(!opts.hideBalance)row.push(fmt(balance));if(!opts.hideOpening||!(m.type==='opening_balance'||m.referenceType==='opening_balance'))rows.push(row);});
+                        current.forEach(({m})=>{const amount=centsOf(m),delta=signed(m);const label=({opening_balance:'رصيد افتتاحي',invoice_debit:'فاتورة آجلة',receipt:'سند قبض',return_credit:'مرتجع/إشعار دائن',adjustment:'تسوية'})[m.type]||m.type||'حركة';if(delta===null){const invalidRow=[customer?.name||m.clientName||'—',label,m.referenceId||'—',m.createdAt||m.date||'—','قيمة غير صالحة'];if(!opts.hideBalance)invalidRow.push(fmt(balance));if(!opts.hideOpening||!(m.type==='opening_balance'||m.referenceType==='opening_balance'))rows.push(invalidRow);return;}balance+=delta;const row=[customer?.name||m.clientName||'—',label,m.referenceId||'—',m.createdAt||m.date||'—',fmt(amount)];if(!opts.hideBalance)row.push(fmt(balance));if(!opts.hideOpening||!(m.type==='opening_balance'||m.referenceType==='opening_balance'))rows.push(row);});
                     });
                     if(opts.showCashInvoices)reportInvoices.filter(i=>{const t=reportNumber(i.total),p=reportNumber(i.paid),r=reportNumber(i.remaining);return(r!==null&&r<=0)||(t!==null&&p!==null&&p>=t);}).forEach(i=>rows.push([i.customer||'عميل نقدي','فاتورة نقدية',i.id||'—',i.date||i.createdAt||'—',reportDisplay(i.total),...(opts.hideBalance?[]:['—'])]));
                 } else {
@@ -10817,7 +10838,8 @@ function wtAuditTransfers(){
             const debtors=customers.filter(c=>n(c.debt)>0).sort((a,b)=>n(b.debt)-n(a.debt));
             const badInvoices=invoices.filter(i=>{const total=anasToCents(i.total),paid=anasToCents(i.paid),rem=anasToCents(i.remaining);return !Number.isSafeInteger(total)||!Number.isSafeInteger(paid)||!Number.isSafeInteger(rem)||total<0||paid<0||rem<0||total!==paid+rem;});
             const noSupplier=products.filter(p=>!p.supplier && !p.supplierId);
-            const stockCost=products.reduce((a,p)=>a+n(p.stock)*n(p.buyPrice),0);
+            const stockCostAggregate=anasInventoryCostAggregateCents(products);
+            const stockCost=anasPurchaseCentsToCurrency(stockCostAggregate.totalCentimes);
             const stockSell=products.reduce((a,p)=>a+n(p.stock)*n(p.price1),0);
             const debtTotal=debtors.reduce((a,c)=>a+n(c.debt),0);
 
@@ -10830,7 +10852,8 @@ function wtAuditTransfers(){
             if(low.length)issues.push(['متوسط','منتجات بلغت حد المخزون الأدنى',low.length,low.slice(0,8).map(p=>p.name).join('، ')]);
             if(zero.length)issues.push(['تنبيه','منتجات رصيدها صفر',zero.length,zero.slice(0,8).map(p=>p.name).join('، ')]);
             if(noSupplier.length)info.push('عدد المنتجات دون مورد مرتبط: '+noSupplier.length+' (قد يكون ذلك طبيعيًا حسب طريقة إدخال بياناتك).');
-            const fmt=v=>Math.round(v).toLocaleString('fr-FR')+' دج';
+            if(stockCostAggregate.invalidRecords)info.push('قيمة المخزون بسعر الشراء جزئية: '+stockCostAggregate.validRecords+' سجلًا صالحًا و'+stockCostAggregate.invalidRecords+' سجلًا يحتاج إلى استكمال كمية/تكلفة الشراء.');
+            const fmt=v=>Number.isFinite(v)?v.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' دج':'غير صالح';
             const operations=window.ANASLocalOperations?window.ANASLocalOperations.analyze(AppData,{windowDays:30}):null;
             const operationsCards=operations?'<section style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:10px;background:var(--mp-card,#fff)"><h4 style="margin:0 0 8px">📦 توقع النفاد وأعمار الديون — تحليل محلي</h4><p style="margin:4px 0">معدل البيع اليومي من فواتير آخر '+operations.windowDays+' يوماً، دون اتصال خارجي.</p><div><strong>الأصناف المتوقع نفادها:</strong> '+operations.stockout.slice(0,6).map(x=>escAudit(x.name)+' — '+x.daysRemaining.toFixed(1)+' يوم').join('، ')+'</div><div style="margin-top:6px"><strong>أعمار الديون:</strong> 0–30: '+fmt(operations.debtAging.current)+' | 31–60: '+fmt(operations.debtAging.days31to60)+' | 61–90: '+fmt(operations.debtAging.days61to90)+' | أكثر من 90: '+fmt(operations.debtAging.over90)+' | دون تاريخ: '+fmt(operations.debtAging.unaged)+'</div><p style="font-size:11px;color:var(--mp-text-muted)">لا يظهر تنبؤ للصنف دون حركة بيع موثقة، ولا يعدّل التحليل السجلات.</p></section>':'';
             const cards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:7px;margin:8px 0">'+[
@@ -10886,13 +10909,8 @@ function wtAuditTransfers(){
                 });
                 return {total,validRecords,invalidRecords};
             };
-            const stock=aggregate(products,p=>{
-                const qty=anasPurchaseToQtyUnits(p.stock);
-                const cost=anasPurchaseToCents(p.buyPrice);
-                if(!Number.isSafeInteger(qty)||qty<0||!Number.isSafeInteger(cost)||cost<0)return null;
-                const cents=anasPurchaseStockValueCents(qty,cost);
-                return Number.isSafeInteger(cents)?cents/100:null;
-            });
+            const stockAggregate=anasInventoryCostAggregateCents(products);
+            const stock={total:anasPurchaseCentsToCurrency(stockAggregate.totalCentimes),validRecords:stockAggregate.validRecords,invalidRecords:stockAggregate.invalidRecords};
             const debts=aggregate(customers,c=>c.debt,value=>Math.max(0,value));
             const sales=aggregate(invoices,i=>i.total);
             const purchaseRows=purchases.map(row=>anasPurchaseLineTotalForRecordCents(row));
@@ -14425,9 +14443,9 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
   #anasQuickBottomNav button .nav-icon{font-size:18px;line-height:1.1}
   #anasQuickBottomNav button .nav-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(9px,2.45vw,11px);line-height:1.2}
   #anasQuickBottomNav button.active{color:var(--mp-accent,#2563eb);background:var(--mp-accent-soft,#eff6ff)}
-  :root[data-anas-theme="dark"] #anasQuickBottomNav{background:#101a2b;border-color:#334155;box-shadow:0 -4px 18px #0006}
-  :root[data-anas-theme="dark"] #anasQuickBottomNav button{color:#dbe7f5}
-  :root[data-anas-theme="dark"] #anasQuickBottomNav button.active{color:#93c5fd;background:#1e3a5f}
+  :root[data-anas-theme="dark"] #anasQuickBottomNav{background:#0f172a;border-color:#1e293b;box-shadow:0 -4px 18px #0006}
+  :root[data-anas-theme="dark"] #anasQuickBottomNav button{color:#f8fafc}
+  :root[data-anas-theme="dark"] #anasQuickBottomNav button.active{color:#f8fafc;background:#1e293b}
   body{padding-bottom:calc(112px + env(safe-area-inset-bottom))!important}
   #anasContextAiFab{bottom:calc(74px + env(safe-area-inset-bottom, 0px))!important}
   #anasContextAiPanel{bottom:calc(132px + env(safe-area-inset-bottom, 0px))!important}

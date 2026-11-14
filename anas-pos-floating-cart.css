@@ -61,3 +61,7 @@
 :root[data-anas-theme="dark"] #anasPosFloatingCart .anas-pos-mini-actions button:not(.anas-pos-mini-checkout),
 :root[data-anas-theme="dark"] #anasPosFloatingCart .anas-weight-chip{background:#1e293b!important;color:#f8fafc!important;border-color:#64748b!important}
 @media(min-width:769px){#anasPosFloatingCart.anas-pos-unified-checkout:not([hidden]){bottom:18px!important;right:18px!important;left:auto!important;width:min(460px,calc(100vw - 36px))!important}}
+
+/* r41: one checkout owner; the unified cart carries the total and payment action. */
+#view-pos.anas-has-unified-cart .bottom-totals-bar{display:none!important}
+#view-pos.anas-has-unified-cart{padding-bottom:calc(112px + env(safe-area-inset-bottom,0px))!important}

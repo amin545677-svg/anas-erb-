@@ -1715,3 +1715,11 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 :root[data-anas-theme="dark"] #productPickerModal .menu-action-card .product-name {color:#f8fafc!important}
 :root[data-anas-theme="dark"] #productPickerModal .menu-action-card small,
 :root[data-anas-theme="dark"] #productPickerModal .menu-action-card .product-meta {color:#cbd5e1!important}
+
+/* r41: scoped dark-mode contrast for settings and AI quick actions. */
+:root[data-anas-theme="dark"] #view-settings .settings-card :is(button,.btn,input[type="button"],input[type="submit"]){background-color:#1e293b!important;background-image:none!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#64748b!important}
+:root[data-anas-theme="dark"] #view-settings .settings-card :is(button,.btn) *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-quick-actions button,:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section>button{color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;text-shadow:0 1px 1px #0008}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section{background:#0f172a!important;color:#f8fafc!important;border-color:#334155!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-section :is(strong,h3,h4,p,small,label,span){color:#e2e8f0!important;-webkit-text-fill-color:#e2e8f0!important}
+:root[data-anas-theme="dark"] .anas-ai-import-pro :is(.anas-ai-import-type,.anas-ai-import-actions button,.anas-ai-import-primary){color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important}

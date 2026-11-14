@@ -30,21 +30,15 @@ on:
       - staging/unified-release-candidate
     paths:
       - 'functions/**'
-      - 'scripts/**'
       - 'reverse-ledger/**'
       - 'firebase.staging.json'
-      - 'firebase/firestore.staging.rules'
-      - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
-      - '.github/workflows/deploy-reverse-ledger-console-staging.yml'
-      - '.github/workflows/anas-erp-safety-checks.yml'
       - 'cashbox-readonly-ledger.js'
-      - 'tests/**'
-      - 'erp/**'
-      - 'index.html'
-      - 'sw.js'
-      - 'anas-*.js'
-      - 'firebase/**'
-      - '.github/workflows/**'
+      - 'scripts/check-staging-readiness.mjs'
+      - 'scripts/verify-reverse-ledger-core-parity.mjs'
+      - 'scripts/assert-staging-deployment-identity.mjs'
+      - 'scripts/prepare-staging-service-account.mjs'
+      - '.github/workflows/deploy-reverse-ledger-functions-staging.yml'
+      - '.github/workflows/anas-erp-safety-checks.yml'
 
 permissions:
   contents: read
