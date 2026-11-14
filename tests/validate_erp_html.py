@@ -1516,11 +1516,12 @@ console.log('PASS: AI behavioral tests validate date fallback/deduplication, Ara
         errors.append("AI payload runtime extraction must preserve the async function declaration")
     if ai_ask_fn and "async function anasLoadSheetJs(" in ai_ask_fn:
         errors.append("AI payload runtime extraction crossed into the next async function")
+    ai_inventory_aggregate_fn = function_source("anasInventoryCostAggregateCents")
     ai_snapshot_fn = function_source("anasBuildBusinessSnapshot")
     ai_append_fn = function_source("anasAiAppendMessage")
     ai_fallback_fn = function_source("anasAiLocalFallback")
-    if not ai_ask_fn or not ai_snapshot_fn or not ai_append_fn or not ai_fallback_fn:
-        errors.append("AI payload runtime test could not locate functions: ask=" + str(bool(ai_ask_fn)) + ", snapshot=" + str(bool(ai_snapshot_fn)) + ", append=" + str(bool(ai_append_fn)) + ", fallback=" + str(bool(ai_fallback_fn)))
+    if not ai_ask_fn or not ai_inventory_aggregate_fn or not ai_snapshot_fn or not ai_append_fn or not ai_fallback_fn:
+        errors.append("AI payload runtime test could not locate functions: ask=" + str(bool(ai_ask_fn)) + ", inventory=" + str(bool(ai_inventory_aggregate_fn)) + ", snapshot=" + str(bool(ai_snapshot_fn)) + ", append=" + str(bool(ai_append_fn)) + ", fallback=" + str(bool(ai_fallback_fn)))
     else:
         ai_payload_harness = r"""
 const vm = require('node:vm');
@@ -1570,10 +1571,14 @@ const context = {
     return {ok:true,status:200,headers:{get(){return 'application/json'}},text:async()=>JSON.stringify({text:'synthetic response'})};
   },
   anasNormalizeAiGatewayUrl(value) { return value; },
-  Number, String, Math, Array, Object, JSON, RegExp, Map
+  anasPurchaseToQtyUnits(value) { const n=Number(value); return Number.isFinite(n)?Math.round(n*1000000):NaN; },
+  anasPurchaseToCents(value) { const n=Number(value); return Number.isFinite(n)?Math.round(n*100):NaN; },
+  anasPurchaseStockValueCents(quantity,cost) { const cents=(BigInt(quantity)*BigInt(cost)+500000n)/1000000n; return cents<=BigInt(Number.MAX_SAFE_INTEGER)?Number(cents):NaN; },
+  anasPurchaseCentsToCurrency(cents) { return Number.isSafeInteger(cents)?cents/100:NaN; },
+  Number, String, Math, Array, Object, JSON, RegExp, Map, BigInt
 };
 vm.createContext(context);
-vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ + '\nconst anasAiAnswerCache=new Map();\n' + __ASK_FN__, context);
+vm.runInContext(__INVENTORY_AGGREGATE_FN__ + '\n' + __SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ + '\nconst anasAiAnswerCache=new Map();\n' + __ASK_FN__, context);
 (async () => {
   elements.anasAiQuestion.value = 'سؤال اصطناعي دون مشاركة';
   elements.anasAiShareContext.checked = false;
@@ -1603,6 +1608,7 @@ vm.runInContext(__SNAPSHOT_FN__ + '\n' + __APPEND_FN__ + '\n' + __FALLBACK_FN__ 
   console.log('PASS: intercepted AI requests omit businessData without consent and send only identity-free aggregates with consent; no console output');
 })().catch(err => { console.error('AI_PAYLOAD_FAILURE:', err.message); process.exitCode = 1; });
 """;
+        ai_payload_harness = ai_payload_harness.replace("__INVENTORY_AGGREGATE_FN__", json.dumps(ai_inventory_aggregate_fn))
         ai_payload_harness = ai_payload_harness.replace("__SNAPSHOT_FN__", json.dumps(ai_snapshot_fn))
         ai_payload_harness = ai_payload_harness.replace("__APPEND_FN__", json.dumps(ai_append_fn))
         ai_payload_harness = ai_payload_harness.replace("__FALLBACK_FN__", json.dumps(ai_fallback_fn))

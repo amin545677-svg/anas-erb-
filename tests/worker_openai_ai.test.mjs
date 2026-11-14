@@ -314,7 +314,8 @@ test("Arabic sales draft matches local records and converts to a review-only POS
 });
 
 test("local AI audit values stock at both purchase and selling prices", () => {
-  assert.match(appHtml, /const stockCost=products\.reduce/);
+  assert.match(appHtml, /function anasInventoryCostAggregateCents\(products\)/);
+  assert.match(appHtml, /const stockCostAggregate=anasInventoryCostAggregateCents\(products\)/);
   assert.match(appHtml, /const stockSell=products\.reduce/);
   assert.match(appHtml, /قيمة المخزون بسعر الشراء/);
   assert.match(appHtml, /قيمة المخزون بسعر البيع/);
