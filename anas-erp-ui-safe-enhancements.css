@@ -1771,3 +1771,13 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 /* r41.3: enforce the agreed night-mode active navigation surface over generic button tokens. */
 :root[data-anas-theme="dark"] #anasQuickBottomNav button.active{background:#1e293b!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#334155!important}
 :root[data-anas-theme="dark"] #anasQuickBottomNav button.active *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+
+/* r42.1 — override the legacy high-specificity payment palette only in dark mode. */
+:root[data-anas-theme="dark"] html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(2) {
+  background:#dbeafe!important;
+  background-color:#dbeafe!important;
+  background-image:none!important;
+  color:#1e40af!important;
+  -webkit-text-fill-color:#1e40af!important;
+  border-color:#93c5fd!important;
+}
