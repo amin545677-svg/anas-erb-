@@ -779,7 +779,7 @@ test('r40 source-level regression: strict calendar, ledger math, POS single bar 
   assert.ok(parser,'strict report date parser must exist');
   const parse=vm.runInNewContext('('+parser[0]+')');
   assert.equal(parse('2026-02-31'),null,'impossible calendar date must be rejected');
-  assert.equal(parse('2026-02-28') instanceof Date,true);
+  assert.equal(parse('2026-02-28')?.toISOString().slice(0,10),'2026-02-28');
   assert.match(html,/الرصيد التراكمي/,'customer statement must show a running balance');
   assert.match(html,/BigInt\(m\.amountCentimes\)/,'customer ledger uses integer centimes');
   assert.match(html,/renderQueryTable\(\['الحساب','عدد الحركات','الإجمالي'/,'expenses must be grouped by account');
