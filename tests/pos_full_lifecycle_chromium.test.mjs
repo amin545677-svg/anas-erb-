@@ -180,7 +180,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       AppData.products[0].price3 = 25;
       if (saveDB() !== true) throw new Error('Could not restore legacy price-tier fixture');
     });
-    assert.equal(await page.locator('#posCheckoutBtn').isEnabled(), true,
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').isEnabled(), true,
       'the single guided checkout action must enable after a valid product is added');
 
     const cartProof = await page.evaluate(() => ({
@@ -205,7 +205,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
 
 
     // Open the original Hasib modal through its actual toolbar control.
-    await page.locator('#posCheckoutBtn').click();
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     const paymentActionColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
       nodes.map(node => getComputedStyle(node).backgroundColor));
@@ -587,7 +587,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await weightedResult.click();
     await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1 && posCart[0].unit === 'كغ',
       null, { timeout: 10000 });
-    await page.locator('#posCheckoutBtn').click();
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibCartItems input[aria-label^="كمية"]').first().waitFor({ state: 'visible', timeout: 10000 });
     await commitNumberEditor(quantitySelector, '0.25');
@@ -644,7 +644,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await creditResult.waitFor({ state: 'visible', timeout: 10000 });
     await creditResult.click();
     await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1, null, { timeout: 10000 });
-    await page.locator('#posCheckoutBtn').click();
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibPaymentMethod').selectOption('credit');
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
