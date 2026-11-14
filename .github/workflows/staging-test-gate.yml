@@ -186,6 +186,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run r39 POS and durability acceptance in Chromium
         run: node --check tests/pos_r39_acceptance_chromium.test.mjs && node --test tests/pos_r39_acceptance_chromium.test.mjs
+      - name: Run scoped dark-mode WCAG AA acceptance in Chromium
+        run: node --test tests/anas_scoped_dark_actions_chromium.test.mjs
       - name: Verify delegated AI Center actions and offline local import in Chromium
         run: node --test tests/pdf_extraction_e2e.test.mjs tests/ai_center_interactions.test.mjs tests/ai_center_chromium_interactions.test.mjs tests/ai_ocr_offline_assets.test.mjs tests/firebase_sdk_offline_assets.test.mjs tests/smart_import_backup_gate.test.mjs tests/csv_excel_locale_compat.test.mjs tests/gps_request_fallback.test.mjs tests/local_operations_engine.test.mjs tests/storage_transaction_abort_guard.test.mjs tests/ai_excel_import_ui_staging.test.mjs
       - name: Run PR260 reconciliation, V42 runtime and PR261 Worker health tests
