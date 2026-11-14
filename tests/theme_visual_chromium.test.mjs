@@ -497,7 +497,18 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         const pair = id => {
           const node = document.getElementById(id);
           const css = getComputedStyle(node);
-          return { color: css.color, background: backgroundOf(node), border: css.borderColor };
+          const rules = [...document.styleSheets].flatMap(sheet => {
+            try { return [...sheet.cssRules].filter(rule => rule.selectorText && node.matches(rule.selectorText) &&
+              (rule.style?.getPropertyValue('background') || rule.style?.getPropertyValue('background-color')))
+              .map(rule => ({ selector:rule.selectorText, background:rule.style.getPropertyValue('background'),
+                backgroundColor:rule.style.getPropertyValue('background-color'),
+                important:rule.style.getPropertyPriority('background-color') })); }
+            catch (_) { return []; }
+          });
+          return { color: css.color, background: backgroundOf(node), border: css.borderColor,
+            className:node.className, ariaPressed:node.getAttribute('aria-pressed'),
+            videoToken:getComputedStyle(document.documentElement).getPropertyValue('--anas-video-control-bg').trim(),
+            matchedBackgroundRules:rules };
         };
         return {
           plain: pair('plain-action'),
