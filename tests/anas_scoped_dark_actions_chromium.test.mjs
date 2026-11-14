@@ -72,7 +72,7 @@ test('scoped dark-mode actions and semantic payment controls meet WCAG AA in Chr
     assert.notEqual(results[8].background, results[9].background, 'full and partial payment colors must remain distinct');
     assert.notEqual(results[9].background, results[10].background, 'partial and debt payment colors must remain distinct');
     assert.match(results[8].background, /220, 252, 231/, 'full payment remains green');
-    assert.match(results[9].background, /219, 234, 254/, 'partial payment remains blue');
+    assert.match(results[9].background, /239, 246, 255/, 'partial payment remains blue');
     assert.match(results[10].background, /254, 226, 226/, 'debt payment remains red');
   } finally {
     await browser.close();

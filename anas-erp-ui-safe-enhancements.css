@@ -929,7 +929,7 @@ button.is-loading,
 
 /* Plain controls and legacy action classes: preserve dedicated success/danger/checkout
    colors while preventing the old global pale-background/white-text collision. */
-:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
 :root[data-anas-theme] .menu-action-card,
 :root[data-anas-theme] .pill-select-btn,
@@ -952,7 +952,7 @@ button.is-loading,
   border-color:var(--anas-video-control-border)!important;
   box-shadow:0 2px 8px rgba(15,23,42,.12)!important;
 }
-:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout) *,
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type) *,
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) *,
 :root[data-anas-theme] .menu-action-card *,
 :root[data-anas-theme] .pill-select-btn *,
@@ -973,7 +973,7 @@ button.is-loading,
   opacity:1!important;
   visibility:visible!important;
 }
-:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]):not([aria-current="page"]):hover,
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]):not([aria-current="page"]):hover,
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):hover {
   background-color:var(--anas-video-control-hover)!important;
 }
@@ -1189,7 +1189,7 @@ button.is-loading,
 
 /* Explicit dark-mode values are kept literal here so legacy inline/button palette
    declarations cannot resolve to the light token on older WebView cascades. */
-:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]),
 :root[data-anas-theme="dark"] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]),
 :root[data-anas-theme="dark"] .menu-action-card:not(.active),
 :root[data-anas-theme="dark"] .pill-select-btn:not(.active),
@@ -1211,7 +1211,7 @@ button.is-loading,
   -webkit-text-fill-color:#f3f7ff!important;
   border-color:#526782!important;
 }
-:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]) *,
+:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]) *,
 :root[data-anas-theme="dark"] .menu-action-card:not(.active) *,
 :root[data-anas-theme="dark"] .pill-select-btn:not(.active) *,
 :root[data-anas-theme="dark"] .filter-chip:not(.active) *,
@@ -1253,7 +1253,7 @@ button.is-loading,
 
 /* r39.1 — close legacy cascade leaks without flattening semantic POS actions.
    The extra root/html/body specificity wins over later legacy button shorthand rules. */
-html:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
+html:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]):not([aria-current="page"]),
 html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]):not([aria-current="page"]) {
   background:#26364d!important;
   background-color:#26364d!important;
@@ -1289,7 +1289,7 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
 
 /* r39.2 — final cascade guard: keep ordinary dark controls dark even when
    later legacy component rules use button-level background shorthands. */
-:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] body button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):not(.active):not([aria-pressed="true"]),
 :root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]) {
   background-color:#26364d!important;
   background-image:none!important;
@@ -1341,20 +1341,20 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
 }
 
 /* Preserve semantic payment colors above generic theme button selectors. */
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(1),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(1) {
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1) {
   background:#dcfce7!important;background-color:#dcfce7!important;background-image:none!important;
   color:#166534!important;-webkit-text-fill-color:#166534!important;border-color:#86efac!important;
   transition:none!important;
 }
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(2),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(2) {
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2) {
   background:#eff6ff!important;background-color:#eff6ff!important;background-image:none!important;
   color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;border-color:#bfdbfe!important;
   transition:none!important;
 }
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(3),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(3) {
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3) {
   background:#fee2e2!important;background-color:#fee2e2!important;background-image:none!important;
   color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
   transition:none!important;
@@ -1753,31 +1753,7 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 :root[data-anas-theme="dark"] #settingsModal :is(button,.btn) * {
   color:inherit!important;-webkit-text-fill-color:inherit!important;
 }
-/* Payment modes remain semantic: green full, blue partial, red debt. */
-:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(1),
-:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="full"],
-:root[data-anas-theme="dark"] #hasibModal button[onclick*="full"] {
-  background-color:#dcfce7!important;color:#14532d!important;-webkit-text-fill-color:#14532d!important;border-color:#86efac!important;
-}
-:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(2),
-:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="partial"] {
-  background-color:#dbeafe!important;color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;border-color:#93c5fd!important;
-}
-:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(3),
-:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="debt"] {
-  background-color:#fee2e2!important;color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
-}
-
 /* r41.3: enforce the agreed night-mode active navigation surface over generic button tokens. */
 :root[data-anas-theme="dark"] #anasQuickBottomNav button.active{background:#1e293b!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#334155!important}
 :root[data-anas-theme="dark"] #anasQuickBottomNav button.active *{color:inherit!important;-webkit-text-fill-color:inherit!important}
 
-/* r42.1 — override the legacy high-specificity payment palette only in dark mode. */
-:root[data-anas-theme="dark"] html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(2) {
-  background:#dbeafe!important;
-  background-color:#dbeafe!important;
-  background-image:none!important;
-  color:#1e40af!important;
-  -webkit-text-fill-color:#1e40af!important;
-  border-color:#93c5fd!important;
-}
