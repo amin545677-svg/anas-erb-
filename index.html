@@ -9288,9 +9288,8 @@ function wtAuditTransfers(){
             document.getElementById('customReportTitle').innerText = title;
             const content = document.getElementById('customReportContent');
             const renderQueryTable = (headers, rows, emptyText) => rows.length
-                ? `<div style="max-height:360px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr style="background:#f1f5f9;">${headers.map(h=>`<th style="padding:7px;border-bottom:1px solid #cbd5e1;">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr style="border-bottom:1px solid #e2e8f0;">${row.map(cell=>`<td style="padding:7px;">${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
-                : `<p style="text-align:center;color:#94a3b8;">${esc(emptyText)}</p>`;
-
+                ? '<div style="max-height:360px;overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;background:var(--mp-card-bg,#fff);color:var(--mp-text-dark,#0f172a);"><thead><tr style="background:var(--mp-table-head,#f1f5f9);color:var(--mp-text-dark,#0f172a);">' + headers.map(h=>'<th style="padding:7px;border-bottom:1px solid var(--mp-border,#cbd5e1);color:var(--mp-text-dark,#0f172a);">'+esc(h)+'</th>').join('') + '</tr></thead><tbody>' + rows.map(row=>'<tr style="border-bottom:1px solid var(--mp-border,#e2e8f0);color:var(--mp-text-dark,#0f172a);">'+row.map(cell=>'<td style="padding:7px;color:var(--mp-text-dark,#0f172a);">'+esc(cell)+'</td>').join('')+'</tr>').join('') + '</tbody></table></div>'
+                : '<p style="text-align:center;color:var(--mp-text-muted,#94a3b8);">'+esc(emptyText)+'</p>';
 
             let resolvedReportAuditRows = null;
             let resolvedReportSourceLabel = '';
@@ -9821,7 +9820,7 @@ function wtAuditTransfers(){
             const reportSourceLabel=resolvedReportSourceLabel||auditSourceLabels[title]||'AppData (مصدر محدد بالتقرير)';
             let auditMatched=0,auditExcluded=0;
             reportSources.forEach(rows=>(Array.isArray(rows)?rows:[]).forEach(row=>{const raw=['date','createdAt','created_at','timestamp','invoiceDate','invoice_date','dateCreated','created'].map(k=>row?.[k]).find(v=>v!==undefined&&v!==null&&v!=='');const d=reportParseDate(raw);if(!d){auditExcluded++;return;}const day=reportLocalDateValue(d);if((!rangeMeta.from||day>=rangeMeta.from)&&(!rangeMeta.to||day<=rangeMeta.to))auditMatched++;}));
-            content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text,#172033);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> ${esc(reportSourceLabel)} · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
+            content.insertAdjacentHTML('afterbegin',`<section class="anas-report-audit-meta" style="padding:9px;margin-bottom:10px;border:1px solid var(--mp-border,#cbd5e1);border-radius:9px;background:var(--mp-card-bg,#1e293b);color:var(--mp-text-dark,#f8fafc);font-size:12px;line-height:1.8"><strong>الفترة:</strong> ${esc((rangeMeta.from||'بلا بداية')+' → '+(rangeMeta.to||'بلا نهاية'))} · <strong>المصدر:</strong> ${esc(reportSourceLabel)} · <strong>المطابقة:</strong> ${auditMatched} · <strong>المستبعدة لغياب/فساد التاريخ:</strong> ${auditExcluded}</section>`);
             document.getElementById('customReportModal').classList.add('active');
             const searchBox = document.getElementById('anasReportSearch');
             if (searchBox) searchBox.value = '';
