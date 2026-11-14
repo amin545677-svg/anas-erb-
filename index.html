@@ -9397,7 +9397,7 @@ function wtAuditTransfers(){
                     if (!opts.hideBalance) headers.push('الرصيد/الدين');
                     rows = customers.map(c => {
                         const row=[c.name || '—',c.phone || '—'];
-                        if (!opts.hideBalance) row.push(reportDisplay(c.debt) + ' د.ج');
+                        if (!opts.hideBalance) row.push(`${reportDisplay(c.debt)} د.ج`);
                         return row;
                     });
                 }
