@@ -164,6 +164,32 @@
     };
     const linkedCreditsForInvoice=(invoice,clientId)=>{
       const ref=invoiceId(invoice),seen=new Set();let sum=0n;
+      // ANAS customer-debt receipts are stored once in clientMovements and apportioned
+      // per invoice in settlementAllocations. Match the allocation to its real receipt.
+      const settlementAllocations=Array.isArray(state.settlementAllocations)?state.settlementAllocations:[];
+      const seenAllocations=new Set();
+      for(const allocation of settlementAllocations){
+        if(!allocation||allocation.partyType!=='customer'||String(allocation.partyId??'')!==clientId||
+          allocation.invoiceType!=='sales_invoice'||String(allocation.invoiceId??'')!==ref||
+          allocation.sourceMovementType!=='customer_debt')continue;
+        const sourceId=String(allocation.sourceMovementId??'');
+        if(!sourceId)continue;
+        const source=movements.find(movement=>{
+          if(!movement||String(movement.clientId??'')!==clientId||movement.type!=='receipt')return false;
+          const movementId=String(movement.movementId||movement.id||'');
+          return movementId===sourceId||movementId==='CL-REC-'+sourceId||String(movement.id??'')===sourceId;
+        });
+        if(!source)continue;
+        const allocationKey=String(allocation.allocationId??'')||
+          [sourceId,ref,String(allocation.amountCentimes??allocation.amount_cents??allocation.amount??'')].join('|');
+        if(seenAllocations.has(allocationKey))continue;
+        const allocated=allocationAmount(allocation);
+        if(allocated===null||allocated<=0n)continue;
+        seenAllocations.add(allocationKey);
+        const sourceKey=String(source.movementId||source.id||'');
+        if(sourceKey)seen.add(sourceKey);
+        sum+=allocated;
+      }
       for(const movement of movements){
         if(!movement||String(movement.clientId??'')!==clientId)continue;
         const signed=signedAmount(movement);if(signed===null||signed>=0n)continue;
@@ -187,8 +213,9 @@
             if(allocated!==null&&allocated>0n)linked+=allocated;
           }
         }else{
-          const direct=[movement.invoiceId,movement.invoice_id,movement.refId,movement.referenceId]
-            .some(value=>value!=null&&String(value)===ref);
+          const direct=[movement.invoiceId,movement.invoice_id,movement.refId].some(value=>value!=null&&String(value)===ref)||
+            (String(movement.referenceType||'').toLowerCase().includes('invoice')&&
+              movement.referenceId!=null&&String(movement.referenceId)===ref);
           if(direct)linked=-signed;
         }
         if(linked>0n){sum+=linked;if(movementKey)seen.add(movementKey);}
@@ -206,8 +233,25 @@
       if(invoiceTotalCents===null||invoiceTotalCents<=0n)continue;
       const paid=invoicePaidCents!==null&&invoicePaidCents>0n?invoicePaidCents:0n;
       const linkedMovementCreditsCents=linkedCreditsForInvoice(invoice,id);
-      const untrackedInitialPaidCents=paid>linkedMovementCreditsCents?
-        paid-linkedMovementCreditsCents:0n;
+      // Current POS persists the immediate sale payment as a sales_invoice allocation.
+      // Prefer this explicit origin amount; old imported invoices without it use the
+      // cumulative paid minus invoice-linked client-ledger credits reconstruction.
+      let hasInitialSaleAllocation=false,initialSalePaidCents=0n;
+      const saleAllocations=Array.isArray(state.settlementAllocations)?state.settlementAllocations:[];
+      const seenSaleAllocations=new Set();
+      for(const allocation of saleAllocations){
+        if(!allocation||allocation.partyType!=='customer'||String(allocation.partyId??'')!==id||
+          allocation.invoiceType!=='sales_invoice'||String(allocation.invoiceId??'')!==ref||
+          allocation.sourceMovementType!=='sales_invoice')continue;
+        const key=String(allocation.allocationId??'')||
+          [String(allocation.sourceMovementId??''),ref,String(allocation.amountCentimes??allocation.amount_cents??allocation.amount??'')].join('|');
+        if(seenSaleAllocations.has(key))continue;
+        const amount=allocationAmount(allocation);
+        if(amount===null||amount<0n)continue;
+        seenSaleAllocations.add(key);hasInitialSaleAllocation=true;initialSalePaidCents+=amount;
+      }
+      const untrackedInitialPaidCents=hasInitialSaleAllocation?initialSalePaidCents:
+        (paid>linkedMovementCreditsCents?paid-linkedMovementCreditsCents:0n);
       const initialPaidCents=untrackedInitialPaidCents>invoiceTotalCents?
         invoiceTotalCents:untrackedInitialPaidCents;
       const originalReceivableCents=invoiceTotalCents-initialPaidCents;

@@ -157,3 +157,20 @@ test('6. Allocation links apportion a shared receipt across invoices of the same
  const row=reconciliationRows(data).find(r=>r.customerId==='A1');
  assert.equal(row.periodDebitCents,16000n);assert.equal(row.periodCreditCents,4000n);assert.equal(row.closingBalanceCents,12000n);
 });
+
+test('7. ANAS POS settlementAllocations: original sale payment is not confused with later receipt credits',()=>{
+ const data={customers:[{id:'POS-C',name:'عميل نقطة البيع'}],
+  invoices:[{id:'POS-INV',customerId:'POS-C',total:100,paid:30,remaining:70,date:'2026-02-02'}],
+  clientMovements:[
+   {movementId:'CL-REC-CASH-REC-4',clientId:'POS-C',type:'receipt',amountCentimes:4000,direction:'credit',referenceType:'customer_debt',referenceId:'POS-C',createdAt:'2026-02-05'},
+   {movementId:'POS-RETURN',clientId:'POS-C',type:'return_credit',amountCentimes:1000,direction:'credit',referenceId:'POS-RET',createdAt:'2026-02-06'}],
+  returns:[{returnId:'POS-RET',originalInvoiceId:'POS-INV',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',financialMovementIds:['POS-RETURN']}],
+  settlementAllocations:[
+   {allocationId:'ALLOC-SALE-POS-INV',partyType:'customer',partyId:'POS-C',invoiceType:'sales_invoice',invoiceId:'POS-INV',sourceMovementId:'CASH-SALE-POS-INV',sourceMovementType:'sales_invoice',amountCentimes:3000},
+   {allocationId:'ALLOC-RECEIPT-POS-INV',partyType:'customer',partyId:'POS-C',invoiceType:'sales_invoice',invoiceId:'POS-INV',sourceMovementId:'CASH-REC-4',sourceMovementType:'customer_debt',amountCentimes:4000}
+  ]};
+ const row=reconciliationRows(data).find(r=>r.customerId==='POS-C');
+ assert.equal(row.periodDebitCents,7000n,'original receivable excludes only the explicitly allocated immediate sale payment');
+ assert.equal(row.periodCreditCents,5000n,'later receipt allocation and POSTED return are counted once');
+ assert.equal(row.closingBalanceCents,2000n);
+});
