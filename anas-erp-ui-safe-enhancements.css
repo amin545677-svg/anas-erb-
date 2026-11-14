@@ -1702,3 +1702,16 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
   background:#1e293b!important;color:#f8fafc!important;border-color:#64748b!important;
 }
 :is(.status-badge,.badge,.priority-badge,[class*="priority"],.tax-icon,[aria-label*="TAX" i]) {white-space:nowrap;flex-shrink:0}
+
+
+/* Chromium WCAG regression closure: product picker modal contrast in dark theme. */
+:root[data-anas-theme="dark"] #productPickerModal .picker-dialog-scroll {
+  background:#0f172a!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card {
+  background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important;
+}
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card strong,
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card .product-name {color:#f8fafc!important}
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card small,
+:root[data-anas-theme="dark"] #productPickerModal .menu-action-card .product-meta {color:#cbd5e1!important}
