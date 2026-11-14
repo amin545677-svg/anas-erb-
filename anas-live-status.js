@@ -201,6 +201,10 @@
           const linkedIds=Array.isArray(posted.financialMovementIds)?posted.financialMovementIds.map(String):[];
           const movementId=String(movement.movementId||movement.id||'');
           if(!movementId||!linkedIds.includes(movementId))continue;
+          if(seen.has(movementId))continue;
+          // A validated POSTED return links through its return record, not through
+          // movement.referenceId (which is the return ID rather than the invoice ID).
+          sum+=-signed;seen.add(movementId);continue;
         }
         const movementKey=String(movement.movementId||movement.id||'');
         if(movementKey&&seen.has(movementKey))continue;
