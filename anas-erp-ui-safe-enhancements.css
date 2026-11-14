@@ -1414,7 +1414,7 @@ html:root[data-anas-theme="dark"] body .picker-dialog-scroll :is(small, label, p
 #view-reports .anas-query-group-heading {
   margin:7px 0 1px; padding:5px 7px; min-height:28px;
   display:flex; align-items:center; background:#f3f4f6;
-  border-bottom:1px solid #e5e7eb; color:#ef4444;
+  border-bottom:1px solid #e5e7eb; color:#b91c1c;
   font-size:13px; line-height:1.4; font-weight:900;
 }
 #view-reports .anas-query-row {

@@ -64,7 +64,7 @@ test('real Chromium theme acceptance: eight-module dashboard, purchase OCR, sett
     assert.equal(initial.modules, 8, 'r39 dashboard must render all eight primary operational modules');
     assert.equal(initial.overflow, false, 'dashboard must not overflow at 390px');
 
-    const moduleRoutes = ['pos','inventory','cash','purchases','suppliers','customers','invoices-list','reports'];
+    const moduleRoutes = ['pos','inventory','cash','purchases','suppliers','customers','reports','reports'];
     for (const width of [320, 360, 390]) {
       await page.setViewportSize({ width, height: 844 });
       const grid = await page.locator('#view-dashboard .dashboard-grid-8').evaluate(el => ({
@@ -589,5 +589,109 @@ test('video-driven shared controls, product-search popups and AI import surfaces
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
+  }
+});
+
+
+test('video-matched inquiries workspace: date range, grouped reports, invoice archive and both themes', async () => {
+  const server = await serve();
+  const baseURL = 'http://127.0.0.1:' + server.address().port + '/';
+  let browser;
+  try {
+    browser = await chromium.launch({ headless:true });
+    const context = await browser.newContext({
+      viewport:{ width:390, height:844 }, colorScheme:'light', serviceWorkers:'block'
+    });
+    await context.addInitScript(() => localStorage.setItem('ANAS_ERP_THEME','light'));
+    const page = await context.newPage();
+    await page.route('https://**/*', route => route.abort());
+    await page.goto(baseURL,{waitUntil:'domcontentloaded'});
+    await page.waitForFunction(() => document.body && !document.body.inert && typeof window.openView === 'function',{timeout:20000});
+
+    await page.locator('#view-dashboard [data-erp-module="inquiries"]').click();
+    await page.locator('#view-reports').waitFor({state:'visible'});
+    const structure = await page.evaluate(() => ({
+      active:document.getElementById('view-reports').classList.contains('active'),
+      title:document.querySelector('#view-reports .sub-header-title')?.textContent.trim(),
+      rows:[...document.querySelectorAll('#view-reports .anas-query-row')].length,
+      buttons:[...document.querySelectorAll('#view-reports .anas-query-row')].every(node => node.tagName==='BUTTON' && node.type==='button'),
+      groups:[...document.querySelectorAll('#view-reports .anas-query-group-heading')].map(node => node.textContent.trim()),
+      from:document.getElementById('reportDateFrom')?.value,
+      to:document.getElementById('reportDateTo')?.value,
+      statsCollapsed:document.querySelector('#view-reports .anas-query-stats')?.open===false
+    }));
+    assert.equal(structure.active,true);
+    assert.equal(structure.title,'الاستعلامات');
+    assert.equal(structure.rows,23,'all grouped report destinations must render');
+    assert.equal(structure.buttons,true,'each report row must be a real keyboard-operable button');
+    assert.ok(structure.groups.includes('العملاء') && structure.groups.includes('الموردون') &&
+      structure.groups.includes('المصروفات') && structure.groups.includes('المخازن وجرد المخزون'));
+    assert.ok(structure.from && structure.to,'both date controls must initialize');
+    assert.equal(structure.statsCollapsed,true,'statistics must not push the report list below the initial viewport');
+
+    for (const width of [320,360,390]) {
+      await page.setViewportSize({width,height:844});
+      const layout=await page.evaluate(() => {
+        const root=document.documentElement;
+        const datebar=document.querySelector('#view-reports .anas-query-datebar');
+        const rows=[...document.querySelectorAll('#view-reports .anas-query-row')];
+        return {
+          viewport:root.clientWidth, documentWidth:root.scrollWidth,
+          dateWidth:datebar.clientWidth,dateScrollWidth:datebar.scrollWidth,
+          rowWidths:rows.map(row=>({client:row.clientWidth,scroll:row.scrollWidth,height:row.getBoundingClientRect().height}))
+        };
+      });
+      assert.ok(layout.documentWidth<=layout.viewport+1,'inquiries page must not overflow horizontally at '+width+'px');
+      assert.ok(layout.dateScrollWidth<=layout.dateWidth+1,'date strip must fit at '+width+'px');
+      for(const row of layout.rowWidths){
+        assert.ok(row.scroll<=row.client+1,'report text must wrap instead of overflow at '+width+'px');
+        assert.ok(row.height>=44,'each report row must remain an accessible touch target');
+      }
+    }
+
+    for (const themeName of ['light','dark']) {
+      await page.evaluate(value=>document.documentElement.setAttribute('data-anas-theme',value),themeName);
+      const visual=await page.evaluate(() => {
+        const pair=node=>({color:getComputedStyle(node).color,background:getComputedStyle(node).backgroundColor});
+        const row=document.querySelector('#view-reports .anas-query-row');
+        const heading=document.querySelector('#view-reports .anas-query-group-heading');
+        const date=document.getElementById('reportDateFrom');
+        const arrow=row?.querySelector('.anas-query-arrow');
+        return {row:pair(row.querySelector('.anas-query-row-label')),rowSurface:getComputedStyle(row).backgroundColor,
+          heading:pair(heading),date:pair(date),arrow:pair(arrow)};
+      });
+      assert.ok(contrast(visual.row.color,visual.rowSurface)>=4.5,'report row text must meet WCAG AA in '+themeName);
+      assert.ok(contrast(visual.heading.color,visual.heading.background)>=4.5,'group heading must meet WCAG AA in '+themeName);
+      assert.ok(contrast(visual.date.color,visual.date.background)>=4.5,'date field must meet WCAG AA in '+themeName);
+      assert.ok(contrast(visual.arrow.color,visual.arrow.background)>=4.5,'navigation arrow must meet WCAG AA in '+themeName);
+    }
+
+    await page.evaluate(()=>document.documentElement.setAttribute('data-anas-theme','light'));
+    await page.locator('#reportDateFrom').fill('2026-11-01');
+    await page.locator('#reportDateTo').fill('2026-11-14');
+    assert.match(await page.locator('#reportDateRangeStatus').textContent(),/الفترة المحددة/);
+    await page.locator('#reportDateFrom').fill('2026-11-15');
+    await page.locator('#reportDateTo').fill('2026-11-14');
+    assert.match(await page.locator('#reportDateRangeStatus').textContent(),/تاريخ البداية/);
+
+    await page.locator('#reportDateFrom').fill('2026-11-01');
+    await page.locator('#reportDateTo').fill('2026-11-14');
+    await page.locator('#view-reports .anas-query-row').filter({hasText:'تقرير بالمبيعات'}).click();
+    await page.locator('#customReportModal').waitFor({state:'visible'});
+    assert.equal((await page.locator('#customReportTitle').textContent()).trim(),'تقرير المبيعات');
+    await page.evaluate(()=>window.closeModal('customReportModal'));
+
+    await page.locator('#view-reports .anas-query-row').filter({hasText:'سجل فواتير المبيعات'}).click();
+    await page.locator('#view-invoices-list').waitFor({state:'visible'});
+    assert.equal(await page.locator('#view-invoices-list').evaluate(node=>node.classList.contains('active')),true);
+    await page.locator('#view-invoices-list button').filter({hasText:'فتح التقارير والإحصائيات'}).click();
+    await page.locator('#view-reports').waitFor({state:'visible'});
+    assert.equal(await page.locator('#view-reports').evaluate(node=>node.classList.contains('active')),true);
+
+    await page.close();
+    await context.close();
+  } finally {
+    if(browser) await browser.close();
+    await new Promise(resolve=>server.close(resolve));
   }
 });
