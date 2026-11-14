@@ -239,3 +239,24 @@ test('AI upload tiles and category pills define readable foregrounds in both app
     ':root[data-anas-theme="dark"] .anas-inventory-product-meta'
   ]) assert.ok(css.includes(selector), 'missing theme-specific text visibility rule: ' + selector);
 });
+
+
+test('video-driven theme repair defines accessible light/dark tokens for POS controls, fields and popup surfaces', () => {
+  const css = readFileSync(new URL('../anas-erp-ui-safe-enhancements.css', import.meta.url), 'utf8');
+  for (const rule of [
+    '--anas-video-control-bg:#f1f3f6',
+    '--anas-video-control-text:#172033',
+    '--anas-video-panel-bg:#ffffff',
+    '--anas-video-field-bg:#ffffff',
+    ':root[data-anas-theme="dark"] {',
+    '--anas-video-control-bg:#26364d',
+    '--anas-video-control-text:#f3f7ff',
+    '--anas-video-panel-bg:#182438',
+    '--anas-video-field-bg:#101a2b',
+    ':root[data-anas-theme="dark"] button:not(.danger)',
+    ':root[data-anas-theme] input:not([type="checkbox"])',
+    ':root[data-anas-theme="dark"] .picker-dialog-scroll',
+    ':root[data-anas-theme="dark"] .anas-ai-import-pro',
+    '@media print'
+  ]) assert.ok(css.includes(rule), 'missing video-driven theme contract: ' + rule);
+});

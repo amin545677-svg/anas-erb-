@@ -455,3 +455,68 @@ test('real Chromium theme acceptance: eight-module dashboard, purchase OCR, sett
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('video-driven shared controls, product-search popups and AI import surfaces meet WCAG AA in both themes', async () => {
+  const server = await serve();
+  const baseURL = 'http://127.0.0.1:' + server.address().port + '/';
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 360, height: 800 }, serviceWorkers: 'block' });
+    await page.route('https://**/*', route => route.abort());
+    await page.goto(baseURL, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.body && !document.body.inert);
+    await page.evaluate(() => {
+      const fixture = document.createElement('section');
+      fixture.id = 'anas-video-theme-fixture';
+      fixture.innerHTML = `
+        <button id="plain-action" type="button">تأكيد البيع</button>
+        <button id="menu-action" class="menu-action-card" type="button"><span>إضافة منتج</span></button>
+        <input id="theme-field" value="2000">
+        <div class="picker-dialog-scroll" id="picker-surface">
+          <label for="theme-field">سعر البيع</label><small id="picker-hint">اختر السعر المناسب</small>
+        </div>
+        <section class="anas-ai-import-pro" id="ai-import-surface">
+          <div class="anas-ai-import-benefits"><b id="ai-import-label">استيراد البيانات</b></div>
+          <div class="anas-ai-import-drop"><p>اختر الملف</p></div>
+        </section>
+        <div id="legalInvoiceA4Area"><p id="print-text">فاتورة البيع</p></div>`;
+      document.body.appendChild(fixture);
+    });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(value => document.documentElement.setAttribute('data-anas-theme', value), theme);
+      const snapshot = await page.evaluate(() => {
+        const pair = id => {
+          const node = document.getElementById(id);
+          const css = getComputedStyle(node);
+          return { color: css.color, background: css.backgroundColor, border: css.borderColor };
+        };
+        return {
+          plain: pair('plain-action'),
+          menu: pair('menu-action'),
+          field: pair('theme-field'),
+          picker: pair('picker-surface'),
+          pickerLabel: pair('picker-hint'),
+          ai: pair('ai-import-surface'),
+          aiLabel: pair('ai-import-label')
+        };
+      });
+      for (const [name, item] of Object.entries(snapshot)) {
+        assert.ok(item.background !== 'rgba(0, 0, 0, 0)', name + ' must have a defined surface in ' + theme);
+        assert.ok(contrast(item.color, item.background) >= 4.5,
+          name + ' foreground/background must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
+      }
+    }
+    await page.emulateMedia({ media: 'print' });
+    const print = await page.locator('#legalInvoiceA4Area').evaluate(node => ({
+      background: getComputedStyle(node).backgroundColor,
+      color: getComputedStyle(node.querySelector('p')).color
+    }));
+    assert.equal(print.background, 'rgb(255, 255, 255)', 'invoice print surface must remain white regardless of screen theme');
+    assert.equal(print.color, 'rgb(17, 17, 17)', 'invoice print text must remain black regardless of screen theme');
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});

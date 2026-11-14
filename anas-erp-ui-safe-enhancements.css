@@ -894,3 +894,224 @@ button.is-loading,
 #anas-live-status-bar[data-durability-state="committed"] #anas-status-durability-badge{color:#15803d}
 #anas-live-status-bar[data-durability-state="uncommitted"] #anas-status-durability-badge,#anas-live-status-bar[data-durability-state="saving"] #anas-status-durability-badge{color:#b45309}
 :root[data-anas-theme="dark"] #anas-live-status-bar{background:var(--anas-ui-panel,#182438);color:var(--anas-ui-panel-text,#f3f7ff);border-color:var(--anas-ui-btn-border,#526782)}
+
+
+/* r40 video-driven repair: one theme-aware contract for controls and surfaces.
+   This block intentionally comes last so legacy !important palette rules cannot
+   leave pale controls with pale text when the dark theme is active. */
+:root {
+  --anas-video-control-bg:#f1f3f6;
+  --anas-video-control-text:#172033;
+  --anas-video-control-border:#cbd5e1;
+  --anas-video-control-hover:#e2e8f0;
+  --anas-video-panel-bg:#ffffff;
+  --anas-video-panel-text:#172033;
+  --anas-video-field-bg:#ffffff;
+  --anas-video-field-text:#172033;
+  --anas-video-field-border:#cbd5e1;
+}
+:root[data-anas-theme="dark"] {
+  color-scheme:dark;
+  --anas-video-control-bg:#26364d;
+  --anas-video-control-text:#f3f7ff;
+  --anas-video-control-border:#526782;
+  --anas-video-control-hover:#344965;
+  --anas-video-panel-bg:#182438;
+  --anas-video-panel-text:#f3f7ff;
+  --anas-video-field-bg:#101a2b;
+  --anas-video-field-text:#f3f7ff;
+  --anas-video-field-border:#526782;
+}
+
+/* Plain controls and legacy action classes: preserve dedicated success/danger/checkout
+   colors while preventing the old global pale-background/white-text collision. */
+:root[data-anas-theme] button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
+:root[data-anas-theme] .grid-card-item,
+:root[data-anas-theme] .menu-action-card,
+:root[data-anas-theme] .pill-select-btn,
+:root[data-anas-theme] .filter-chip,
+:root[data-anas-theme] .filter-btn,
+:root[data-anas-theme] .filter-button,
+:root[data-anas-theme] .nav-tab,
+:root[data-anas-theme] .product-card,
+:root[data-anas-theme] .product-item,
+:root[data-anas-theme] .product-tile,
+:root[data-anas-theme] .pos-product,
+:root[data-anas-theme] .pos-product-card,
+:root[data-anas-theme] .category-btn,
+:root[data-anas-theme] .category-button,
+:root[data-anas-theme] .quick-product-btn {
+  background-color:var(--anas-video-control-bg)!important;
+  background-image:none!important;
+  color:var(--anas-video-control-text)!important;
+  -webkit-text-fill-color:var(--anas-video-control-text)!important;
+  border-color:var(--anas-video-control-border)!important;
+  box-shadow:0 2px 8px rgba(15,23,42,.12)!important;
+}
+:root[data-anas-theme] button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout) *,
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) *,
+:root[data-anas-theme] .grid-card-item *,
+:root[data-anas-theme] .menu-action-card *,
+:root[data-anas-theme] .pill-select-btn *,
+:root[data-anas-theme] .filter-chip *,
+:root[data-anas-theme] .filter-btn *,
+:root[data-anas-theme] .filter-button *,
+:root[data-anas-theme] .nav-tab *,
+:root[data-anas-theme] .product-card *,
+:root[data-anas-theme] .product-item *,
+:root[data-anas-theme] .product-tile *,
+:root[data-anas-theme] .pos-product *,
+:root[data-anas-theme] .pos-product-card *,
+:root[data-anas-theme] .category-btn *,
+:root[data-anas-theme] .category-button *,
+:root[data-anas-theme] .quick-product-btn * {
+  color:inherit!important;
+  -webkit-text-fill-color:inherit!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme] button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):hover,
+:root[data-anas-theme] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):hover {
+  background-color:var(--anas-video-control-hover)!important;
+}
+:root[data-anas-theme] button[aria-pressed="true"],
+:root[data-anas-theme] button[aria-selected="true"],
+:root[data-anas-theme] .grid-card-item.active,
+:root[data-anas-theme] .menu-action-card.active,
+:root[data-anas-theme] .pill-select-btn.active,
+:root[data-anas-theme] .filter-chip.active,
+:root[data-anas-theme] .filter-btn.active,
+:root[data-anas-theme] .filter-button.active,
+:root[data-anas-theme] .nav-tab.active,
+:root[data-anas-theme] .quick-product-btn.active {
+  background:#244b78!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border-color:#5b8fc5!important;
+}
+:root[data-anas-theme] button[aria-pressed="true"] *,
+:root[data-anas-theme] button[aria-selected="true"] *,
+:root[data-anas-theme] .grid-card-item.active *,
+:root[data-anas-theme] .menu-action-card.active *,
+:root[data-anas-theme] .pill-select-btn.active *,
+:root[data-anas-theme] .filter-chip.active *,
+:root[data-anas-theme] .filter-btn.active *,
+:root[data-anas-theme] .filter-button.active *,
+:root[data-anas-theme] .nav-tab.active *,
+:root[data-anas-theme] .quick-product-btn.active * {
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+
+/* Form fields are independent of buttons and must not retain forced white fills. */
+:root[data-anas-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+:root[data-anas-theme] select,
+:root[data-anas-theme] textarea {
+  background:var(--anas-video-field-bg)!important;
+  color:var(--anas-video-field-text)!important;
+  -webkit-text-fill-color:var(--anas-video-field-text)!important;
+  border-color:var(--anas-video-field-border)!important;
+  caret-color:var(--anas-video-field-text);
+}
+:root[data-anas-theme] input::placeholder,
+:root[data-anas-theme] textarea::placeholder {
+  color:var(--anas-ui-text-muted,#94a3b8)!important;
+  -webkit-text-fill-color:var(--anas-ui-text-muted,#94a3b8)!important;
+  opacity:1!important;
+}
+:root[data-anas-theme="dark"] input[type="checkbox"],
+:root[data-anas-theme="dark"] input[type="radio"] { accent-color:#93c5fd; }
+
+/* Shared popup, picker and modal surfaces used by product search and checkout flows. */
+:root[data-anas-theme="dark"] .modal-content,
+:root[data-anas-theme="dark"] .modal-dialog,
+:root[data-anas-theme="dark"] .picker-dialog-scroll,
+:root[data-anas-theme="dark"] .dropdown-menu,
+:root[data-anas-theme="dark"] .autocomplete-items,
+:root[data-anas-theme="dark"] .suggestion-list,
+:root[data-anas-theme="dark"] .search-results,
+:root[data-anas-theme="dark"] [role="dialog"] > div {
+  background-color:var(--anas-video-panel-bg)!important;
+  color:var(--anas-video-panel-text)!important;
+  border-color:var(--anas-video-control-border)!important;
+}
+:root[data-anas-theme="dark"] .modal-content *,
+:root[data-anas-theme="dark"] .modal-dialog *,
+:root[data-anas-theme="dark"] .picker-dialog-scroll *,
+:root[data-anas-theme="dark"] .dropdown-menu *,
+:root[data-anas-theme="dark"] .autocomplete-items *,
+:root[data-anas-theme="dark"] .suggestion-list *,
+:root[data-anas-theme="dark"] .search-results *,
+:root[data-anas-theme="dark"] [role="dialog"] > div * {
+  border-color:var(--anas-video-control-border);
+}
+:root[data-anas-theme="dark"] .modal-content p,
+:root[data-anas-theme="dark"] .modal-content label,
+:root[data-anas-theme="dark"] .modal-content small,
+:root[data-anas-theme="dark"] .modal-content strong,
+:root[data-anas-theme="dark"] .modal-dialog p,
+:root[data-anas-theme="dark"] .modal-dialog label,
+:root[data-anas-theme="dark"] .modal-dialog small,
+:root[data-anas-theme="dark"] .modal-dialog strong,
+:root[data-anas-theme="dark"] .picker-dialog-scroll p,
+:root[data-anas-theme="dark"] .picker-dialog-scroll label,
+:root[data-anas-theme="dark"] .picker-dialog-scroll small,
+:root[data-anas-theme="dark"] .picker-dialog-scroll strong {
+  color:var(--anas-video-panel-text)!important;
+  -webkit-text-fill-color:var(--anas-video-panel-text)!important;
+}
+
+/* The AI import panel has a deliberately light visual identity in light mode;
+   provide a complete dark surface instead of mixing white cards and pale text. */
+:root[data-anas-theme="dark"] .anas-ai-import-pro {
+  background:#182438!important;
+  border-color:#526782!important;
+  color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-benefits,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-drop,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-rules {
+  background:#101a2b!important;
+  border-color:#526782!important;
+  color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-pro *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-benefits *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-drop *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-rules * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-type,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-actions button {
+  background:#26364d!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-type.is-active {
+  background:#244b78!important;
+  border-color:#7aa7d8!important;
+}
+
+/* Keep invoice output independent of application theme: printed pages stay white,
+   black-on-white and free from screen-only controls. */
+@media print {
+  #receiptPrintArea, #legalInvoiceA4Area,
+  #receiptPrintArea *, #legalInvoiceA4Area * {
+    color:#111!important;
+    -webkit-text-fill-color:#111!important;
+    background:#fff!important;
+    box-shadow:none!important;
+  }
+  #receiptPrintArea, #legalInvoiceA4Area {
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    margin:0!important;
+    padding:0!important;
+  }
+  #receiptPrintArea .no-print, #legalInvoiceA4Area .no-print { display:none!important; }
+}
