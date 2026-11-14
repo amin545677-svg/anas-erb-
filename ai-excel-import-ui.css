@@ -83,3 +83,51 @@
 .anas-ai-import-pro button,.anas-ai-import-pro [role=button]{background-color:#e7e8e5!important;background-image:none!important;border-color:#c9ccc7!important;color:#30343a!important;box-shadow:none!important}
 .anas-ai-import-pro button:focus-visible{outline-color:#737b84!important}
 .anas-ai-import-pro .anas-ai-dropzone,.anas-ai-import-pro .anas-ai-upload-card{border-color:#bfc5ca!important;background:#f8f9f7!important;color:#303943!important}
+
+
+/* r40.6 — dark theme wins over late AI-import neutral palette overrides. */
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro {
+  background:#182438!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-head {
+  background:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-benefits,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-drop,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-rules,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-note,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-file-icon {
+  background:#101a2b!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-type,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-actions button {
+  background:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro .anas-ai-import-type.is-active {
+  background:#244b78!important;
+  border-color:#7aa7d8!important;
+  color:#ffffff!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro * {
+  -webkit-text-fill-color:currentColor!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro :is(p,b,strong,small,span,label,h1,h2,h3,h4) {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro button,
+html:root[data-anas-theme="dark"] body .anas-ai-import-pro [role="button"] {
+  transition:none!important;
+}
