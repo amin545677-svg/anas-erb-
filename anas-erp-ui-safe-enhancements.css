@@ -1781,3 +1781,9 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
     break-after:auto!important;break-inside:auto!important;
   }
 }
+
+/* r42.3 — define the dark panel tokens consumed by product-picker selectors. */
+:root[data-anas-theme="dark"] {
+  --anas-video-panel-bg:#0f172a;
+  --anas-video-panel-text:#f8fafc;
+}
