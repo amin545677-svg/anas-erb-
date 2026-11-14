@@ -1312,59 +1312,46 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
 }
 
 
-/* r40.2 — explicit high-specificity theme and POS semantic exceptions. */
-html[data-anas-theme="dark"] body #anas-video-theme-fixture #plain-action {
-  background:#26364d!important;
-  background-color:#26364d!important;
-  background-image:none!important;
-  color:#f3f7ff!important;
-  -webkit-text-fill-color:#f3f7ff!important;
-  border-color:#526782!important;
-}
-html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-of-type(1) {
-  background:#dcfce7!important;background-color:#dcfce7!important;
-  color:#166534!important;-webkit-text-fill-color:#166534!important;
-  border-color:#86efac!important;
-}
-html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-of-type(2) {
-  background:#eff6ff!important;background-color:#eff6ff!important;
-  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;
-  border-color:#bfdbfe!important;
-}
-html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-of-type(3) {
-  background:#fee2e2!important;background-color:#fee2e2!important;
-  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;
-  border-color:#fca5a5!important;
+
+/* r40.4 — theme colors must be deterministic at the moment the theme changes.
+   CSS transitions temporarily interpolate the old light surface with the new dark
+   foreground, which is both visually unsafe and fails real rendered contrast checks.
+   Keep color/surface transitions off theme-managed controls; retain other motion. */
+:root[data-anas-theme] body button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
+:root[data-anas-theme] body [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
+:root[data-anas-theme] body .menu-action-card,
+:root[data-anas-theme] body .pill-select-btn,
+:root[data-anas-theme] body .filter-chip,
+:root[data-anas-theme] body .filter-btn,
+:root[data-anas-theme] body .filter-button,
+:root[data-anas-theme] body .nav-tab,
+:root[data-anas-theme] body .product-card,
+:root[data-anas-theme] body .product-item,
+:root[data-anas-theme] body .product-tile,
+:root[data-anas-theme] body .pos-product,
+:root[data-anas-theme] body .pos-product-card,
+:root[data-anas-theme] body .category-btn,
+:root[data-anas-theme] body .category-button,
+:root[data-anas-theme] body .quick-product-btn {
+  transition:none!important;
 }
 
-
-/* r40.3 — deterministic specificity guard for the observed legacy button cascade.
-   Duplicate ID selectors are intentional: legacy !important rules accumulate many
-   :not() class selectors and otherwise override semantic/theme controls. */
-html:root[data-anas-theme="dark"] body
-#anas-video-theme-fixture#anas-video-theme-fixture
-#plain-action#plain-action {
-  background:#26364d!important;
-  background-color:#26364d!important;
-  background-image:none!important;
-  color:#f3f7ff!important;
-  -webkit-text-fill-color:#f3f7ff!important;
-  border-color:#526782!important;
+/* Preserve semantic payment colors above generic theme button selectors. */
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(1),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(1) {
+  background:#dcfce7!important;background-color:#dcfce7!important;background-image:none!important;
+  color:#166534!important;-webkit-text-fill-color:#166534!important;border-color:#86efac!important;
+  transition:none!important;
 }
-
-/* Preserve payment meaning regardless of the active theme or generic button rules. */
-html:root body #hasibModal#hasibModal .anas-quick-payment-actions button:nth-of-type(1) {
-  background:#dcfce7!important;background-color:#dcfce7!important;
-  background-image:none!important;color:#166534!important;
-  -webkit-text-fill-color:#166534!important;border-color:#86efac!important;
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(2),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(2) {
+  background:#eff6ff!important;background-color:#eff6ff!important;background-image:none!important;
+  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;border-color:#bfdbfe!important;
+  transition:none!important;
 }
-html:root body #hasibModal#hasibModal .anas-quick-payment-actions button:nth-of-type(2) {
-  background:#eff6ff!important;background-color:#eff6ff!important;
-  background-image:none!important;color:#1e40af!important;
-  -webkit-text-fill-color:#1e40af!important;border-color:#bfdbfe!important;
-}
-html:root body #hasibModal#hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
-  background:#fee2e2!important;background-color:#fee2e2!important;
-  background-image:none!important;color:#991b1b!important;
-  -webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(3),
+html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):nth-of-type(3) {
+  background:#fee2e2!important;background-color:#fee2e2!important;background-image:none!important;
+  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
+  transition:none!important;
 }
