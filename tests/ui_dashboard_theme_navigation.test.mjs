@@ -48,10 +48,10 @@ test('theme contrast tokens define both light and dark states', () => {
 
 test('r39 dashboard exposes the eight canonical operational modules exactly once', () => {
   assert.equal((dashboard.match(/class="grid-card-item"/g) || []).length, 8);
-  const modules = ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","reports"];
+  const modules = ["sales-pos","mstore","cashbox","purchases","suppliers","customers","inquiries","expenses"];
   for (const module of modules) assert.equal((dashboard.match(new RegExp('data-erp-module="' + module + '"',"g")) || []).length, 1,
     "dashboard must expose exactly one " + module + " module");
-  for (const action of ["openView('pos')","openView('inventory')","openView('cash')","openView('purchases')","openView('suppliers')","openView('customers')","openView('reports')"]) {
+  for (const action of ["openView('pos')","openView('inventory')","openView('cash')","openView('purchases')","openView('suppliers')","openView('customers')","openView('reports')","openView('expenses')"]) {
     assert.ok(dashboard.includes(action), "dashboard is missing " + action);
   }
   assert.doesNotMatch(dashboard, /openView\('trucks'\)|openAddProductModal\(\)|openInvoiceOcr\(/);
@@ -102,14 +102,14 @@ test('invoice action buttons and AI import category controls have theme-safe con
 });
 
 
-test('More workspace contains eight secondary tools without duplicating primary modules', () => {
+test('More workspace contains seven secondary tools without duplicating primary modules', () => {
   const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات'));
-  assert.equal((more.match(/class="anas-more-card"/g) || []).length, 8);
-  for (const action of ["expenses","trucks","warehouse-transfer","warehouse-stock","users","settings","sync","ai-excel-hub"]) {
+  assert.equal((more.match(/class="anas-more-card"/g) || []).length, 7);
+  for (const action of ["trucks","warehouse-transfer","warehouse-stock","users","settings","sync","ai-excel-hub"]) {
     assert.ok(more.includes('data-secondary-module="' + action + '"'), "More workspace is missing " + action);
     assert.ok(more.includes("openView('" + action + "')"), "More workspace route is missing " + action);
   }
-  for (const primary of ["pos","inventory","cash","purchases","suppliers","customers","invoices-list","reports"]) {
+  for (const primary of ["pos","inventory","cash","purchases","suppliers","customers","invoices-list","reports","expenses"]) {
     assert.doesNotMatch(more, new RegExp("openView\\('" + primary + "'\\)"), "Primary module duplicated in More: " + primary);
   }
   assert.ok(html.includes('data-nav-view="more"'));
@@ -159,4 +159,15 @@ test('inquiries screen has explicit light/dark row and date-field contrast rules
   assert.match(css, /html:root\[data-anas-theme="dark"\] body #view-reports \.anas-query-row/);
   assert.match(css, /#view-reports \.anas-query-datebar/);
   assert.match(css, /anas-query-row:focus-visible/);
+});
+
+test('dashboard replaces the duplicate reports shortcut with the canonical expenses workspace', () => {
+  assert.match(dashboard, /data-erp-module="expenses" onclick="openView\\('expenses'\\)" aria-label="المصاريف"/);
+  assert.match(dashboard, /<span class="card-title-text">المصاريف<\\/span>/);
+  assert.doesNotMatch(dashboard, /data-erp-module="reports"|class="card-title-text">التقارير<\\/span>/);
+  assert.equal((dashboard.match(/openView\\('expenses'\\)/g) || []).length, 1);
+  const more = html.slice(html.indexOf('<section id="view-more"'), html.indexOf('<!-- 3. شاشة المبيعات'));
+  assert.doesNotMatch(more, /data-secondary-module="expenses"|openView\\('expenses'\\)/);
+  const expenses = html.slice(html.indexOf('<section id="view-expenses"'), html.indexOf('</section>', html.indexOf('<section id="view-expenses"')));
+  assert.match(expenses, /<div class="sub-header-title">المصاريف<\\/div>/);
 });
