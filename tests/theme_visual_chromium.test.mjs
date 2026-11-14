@@ -570,14 +570,14 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       }
     }
     await page.emulateMedia({ media: 'print' });
-    const print = await page.locator('#legalInvoiceA4Area').evaluate(node => ({
+    const print = await page.locator('#anas-video-theme-fixture #legalInvoiceA4Area').evaluate(node => ({
       background: getComputedStyle(node).backgroundColor,
       color: getComputedStyle(node.querySelector('p')).color
     }));
     assert.equal(print.background, 'rgb(255, 255, 255)', 'invoice print surface must remain white regardless of screen theme');
 
     assert.equal(print.color, 'rgb(17, 17, 17)', 'invoice print text must remain black regardless of screen theme');
-    await page.locator('#legalInvoiceA4Area').evaluate(node => {
+    await page.locator('#anas-video-theme-fixture #legalInvoiceA4Area').evaluate(node => {
       node.innerHTML = '<div style="direction:rtl;width:100%;min-height:240mm;box-sizing:border-box;padding:4mm;background:#fff;font-size:12px"><h2>فاتورة اختبار الطباعة</h2><table style="width:100%;border-collapse:collapse"><thead><tr><th>المنتج</th><th>الكمية</th><th>الإجمالي</th></tr></thead><tbody><tr><td>منتج تجريبي</td><td>2</td><td>4000 دج</td></tr></tbody></table><p>إجمالي الفاتورة: 4000 دج</p></div>';
       node.classList.add('printable');
     });
