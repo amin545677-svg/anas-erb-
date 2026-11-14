@@ -475,8 +475,17 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         <button id="plain-action" type="button">تأكيد البيع</button>
         <button id="menu-action" class="menu-action-card" type="button"><span>إضافة منتج</span></button>
         <section class="anas-ai-import-pro" id="ai-import-surface">
-          <div class="anas-ai-import-benefits"><b id="ai-import-label">استيراد البيانات</b></div>
-          <div class="anas-ai-import-drop"><p>اختر الملف</p></div>
+          <div class="anas-ai-import-benefits">
+            <div><b id="ai-import-label">Excel / CSV</b><small id="ai-import-detail">استيراد الجداول</small></div>
+            <div><b id="ai-import-smart">ذكي</b><small id="ai-import-smart-detail">تعرّف تلقائي على الأعمدة</small></div>
+            <div><b id="ai-import-precise">دقيق</b><small id="ai-import-precise-detail">مراجعة قبل الحفظ</small></div>
+            <div><b id="ai-import-safe">آمن</b><small id="ai-import-safe-detail">لا حفظ جزئي</small></div>
+          </div>
+          <div class="anas-ai-import-types">
+            <button id="ai-import-type" class="anas-ai-import-type is-active" type="button">منتجات</button>
+            <button id="ai-import-type-secondary" class="anas-ai-import-type" type="button">عملاء</button>
+          </div>
+          <div class="anas-ai-import-drop" id="ai-import-drop"><p id="ai-import-drop-text">اختر الملف</p><button id="ai-import-primary" class="anas-ai-import-primary" type="button">اختيار الملف</button></div>
         </section>
         <div id="hasibModal"><div class="anas-quick-payment-actions">
           <button id="payment-full" type="button">الدفع الكامل</button>
@@ -571,7 +580,18 @@ test('video-driven shared controls, product-search popups and AI import surfaces
           plain: pair('plain-action'),
           menu: pair('menu-action'),
           ai: pair('ai-import-surface'),
-          aiLabel: pair('ai-import-label')
+          aiLabel: pair('ai-import-label'),
+          aiDetail: pair('ai-import-detail'),
+          aiSmart: pair('ai-import-smart'),
+          aiSmartDetail: pair('ai-import-smart-detail'),
+          aiPrecise: pair('ai-import-precise'),
+          aiPreciseDetail: pair('ai-import-precise-detail'),
+          aiSafe: pair('ai-import-safe'),
+          aiSafeDetail: pair('ai-import-safe-detail'),
+          aiDrop: pair('ai-import-drop'),
+          aiDropText: pair('ai-import-drop-text'),
+          aiType: pair('ai-import-type'),
+          aiTypeSecondary: pair('ai-import-type-secondary')
         };
       });
       for (const [name, item] of Object.entries(snapshot)) {
@@ -604,7 +624,8 @@ test('video-driven shared controls, product-search popups and AI import surfaces
           settingsAction:pair('theme-settings-button'),
           invoiceAction:pair('theme-invoice-action'),
           bottomNavAction:pair('theme-bottom-action'),
-          bottomNavSurface:getComputedStyle(nav).backgroundColor
+          bottomNavSurface:getComputedStyle(nav).backgroundColor,
+          bottomNavBorder:getComputedStyle(nav).borderTopColor
         };
       });
       for(const [name,item] of Object.entries(targetVisuals)){
@@ -615,9 +636,18 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       if(theme==='dark'){
         assert.equal(targetVisuals.settingsGroup.background,'rgb(30, 41, 59)','settings field group must use the dark surface');
         assert.equal(targetVisuals.bottomNavSurface,'rgb(15, 23, 42)','bottom navigation surface must use #0f172a');
+        assert.equal(targetVisuals.bottomNavBorder,'rgb(30, 41, 59)','bottom navigation border must use #1e293b');
         assert.equal(targetVisuals.bottomNavAction.background,'rgb(30, 41, 59)','active bottom navigation action must use #1e293b');
       }
     }
+    const darkPrimary = await page.locator('#ai-import-primary').evaluate(node => {
+      const css=getComputedStyle(node);
+      return {color:css.color,background:css.backgroundColor,backgroundImage:css.backgroundImage};
+    });
+    assert.equal(darkPrimary.background,'rgb(29, 78, 216)','dark AI import primary action must use the contrast-safe blue surface');
+    assert.equal(darkPrimary.backgroundImage,'none','dark AI import primary action must not retain the low-contrast gradient');
+    assert.ok(contrast(darkPrimary.color,darkPrimary.background)>=4.5,'dark AI import primary action must meet WCAG AA');
+
     await page.emulateMedia({ media: 'print' });
     const print = await page.locator('#anas-video-theme-fixture #legalInvoiceA4Area').evaluate(node => ({
       background: getComputedStyle(node).backgroundColor,

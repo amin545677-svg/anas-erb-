@@ -1767,3 +1767,7 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
 :root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="debt"] {
   background-color:#fee2e2!important;color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
 }
+
+/* r41.3: enforce the agreed night-mode active navigation surface over generic button tokens. */
+:root[data-anas-theme="dark"] #anasQuickBottomNav button.active{background:#1e293b!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important;border-color:#334155!important}
+:root[data-anas-theme="dark"] #anasQuickBottomNav button.active *{color:inherit!important;-webkit-text-fill-color:inherit!important}
