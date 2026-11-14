@@ -9269,13 +9269,15 @@ function wtAuditTransfers(){
                 const totalPurchasesValid = Number.isSafeInteger(totalPurchasesCents);
                 const totalSales = reportInvoices.reduce((a, b) => a + (reportNumber(b.total) ?? 0), 0);
                 const totalPurchases = totalPurchasesValid ? anasPurchaseCentsToCurrency(totalPurchasesCents) : NaN;
-                content.innerHTML = `
-                    <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:10px;">
-                        <div>إجمالي المبيعات: <strong>${totalSalesValid ? totalSales.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
-                        <div>إجمالي المشتريات: <strong>${totalPurchasesValid ? totalPurchases.toFixed(2) : 'غير صالح — توجد قيمة فاتورة غير صالحة'} د.ج</strong></div>
-                        <div>حركات البيع: <strong>${reportInvoices.length} فواتير</strong></div>
-                    </div>
-                `;
+                const cashRows=(Array.isArray(AppData.cashMovements)?AppData.cashMovements:[]).filter(m=>reportItemInRange(m));
+                const expenseRows=(Array.isArray(AppData.expenses)?AppData.expenses:[]).filter(e=>reportItemInRange(e));
+                const collected=cashRows.filter(m=>m.type==='add').reduce((n,m)=>n+(Number(m.amount)||0),0);
+                const expenseTotal=expenseRows.reduce((n,e)=>n+(Number(e.amt??e.amount)||0),0);
+                const net=totalSales-totalPurchases-expenseTotal;
+                const max=Math.max(1,totalSales,totalPurchases,expenseTotal,collected);
+                const bars=[['المبيعات',totalSales,'#16a34a'],['المشتريات',totalPurchases,'#2563eb'],['التحصيل',collected,'#0d9488'],['المصروفات',expenseTotal,'#dc2626']];
+                const svg=bars.map(([label,value,color],i)=>{const y=20+i*40,w=Math.max(1,250*Math.max(0,Number(value)||0)/max);return '<g><text x="300" y="'+(y+12)+'" text-anchor="end" font-size="12" fill="currentColor">'+esc(label)+'</text><rect x="8" y="'+(y+18)+'" width="'+w+'" height="16" rx="5" fill="'+color+'"/><text x="13" y="'+(y+30)+'" font-size="10" fill="#fff">'+Number(value||0).toFixed(2)+'</text></g>';}).join('');
+                content.innerHTML='<div style="padding:12px;border-radius:10px;background:var(--mp-card,#fff);color:var(--mp-text,#172033)"><div>صافي الحركة: <strong>'+net.toFixed(2)+' د.ج</strong> · فواتير: '+reportInvoices.length+'</div><svg viewBox="0 0 320 190" role="img" aria-label="رسم بياني لحركة المتجر" style="width:100%;height:auto;max-height:260px">'+svg+'</svg></div>';
             } else if(title === 'تقرير فواتير الآجل') {
                 const creditInvoices = reportInvoices.filter(i => reportNumber(i.remaining) === null || reportNumber(i.remaining) > 0);
                 content.innerHTML = creditInvoices.length > 0 ? creditInvoices.map(i => `
@@ -9367,34 +9369,27 @@ function wtAuditTransfers(){
                     ? { detailed:false, hideBalance:false, hideOpening:false, showCashInvoices:false }
                     : ANAS_QUERY_OPTIONS.customer;
                 const movements = Array.isArray(AppData.clientMovements) ? AppData.clientMovements : [];
-                const selectedMovements = movements.filter(m => reportItemInRange(m, ['createdAt','date','timestamp']) &&
-                    (!opts.hideOpening || (m.type !== 'opening_balance' && m.referenceType !== 'opening_balance')));
+                const {from:rangeFrom,to:rangeTo}=getReportRange();
                 const detailed = opts.detailed || opts.showCashInvoices;
-                let rows = [];
-                let headers = [];
+                let rows = [], headers = [];
                 if (detailed) {
                     headers = ['العميل','نوع الحركة','المرجع','التاريخ','المبلغ'];
-                    if (!opts.hideBalance) headers.push('الرصيد الحالي');
-                    rows = selectedMovements.map(m => {
-                        const customer = customers.find(c => String(c.id) === String(m.clientId));
-                        const cents = reportNumber(m.amountCentimes);
-                        const amount = cents !== null && Number.isSafeInteger(cents) ? anasCentsToCurrency(cents) : reportDisplay(m.amount);
-                        const typeLabel = ({opening_balance:'رصيد افتتاحي',invoice_debit:'فاتورة آجلة',receipt:'سند قبض'})[m.type] || m.type || 'حركة';
-                        const row = [customer?.name || m.clientName || '—',typeLabel,m.referenceId || '—',m.createdAt || m.date || '—',amount];
-                        if (!opts.hideBalance) row.push(reportDisplay(customer?.debt));
-                        return row;
+                    if (!opts.hideBalance) headers.push('الرصيد التراكمي');
+                    const ids=[...new Set(movements.map(m=>String(m.clientId??'')))];
+                    const centsOf=m=>{if(Number.isSafeInteger(m.amountCentimes))return BigInt(m.amountCentimes);const raw=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return 0n;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
+                    const signed=m=>(m.direction||(['receipt','return_credit'].includes(m.type)?'credit':'debit'))==='credit'?-centsOf(m):centsOf(m);
+                    const fmt=c=>{const n=c<0n?-c:c;return(c<0n?'−':'')+(n/100n)+','+(n%100n).toString().padStart(2,'0')+' د.ج';};
+                    ids.forEach(id=>{
+                        const all=movements.filter(m=>String(m.clientId??'')===id);
+                        const dated=all.map(m=>({m,d:reportParseDate(m.createdAt||m.date||m.timestamp)}));
+                        const before=dated.filter(x=>x.d&&rangeFrom&&reportLocalDateValue(x.d)<rangeFrom);
+                        const current=dated.filter(x=>x.d&&(!rangeFrom||reportLocalDateValue(x.d)>=rangeFrom)&&(!rangeTo||reportLocalDateValue(x.d)<=rangeTo)).sort((a,b)=>a.d-b.d||String(a.m.movementId||a.m.id||'').localeCompare(String(b.m.movementId||b.m.id||'')));
+                        let balance=before.reduce((n,x)=>n+signed(x.m),0n);
+                        const customer=customers.find(c=>String(c.id)===id);
+                        if(!opts.hideOpening&&rangeFrom&&before.length)rows.push([customer?.name||all[0]?.clientName||'—','الرصيد الافتتاحي','—',rangeFrom,fmt(balance),...(opts.hideBalance?[]:[fmt(balance)])]);
+                        current.forEach(({m})=>{balance+=signed(m);const label=({opening_balance:'رصيد افتتاحي',invoice_debit:'فاتورة آجلة',receipt:'سند قبض',return_credit:'مرتجع/إشعار دائن',adjustment:'تسوية'})[m.type]||m.type||'حركة';const row=[customer?.name||m.clientName||'—',label,m.referenceId||'—',m.createdAt||m.date||'—',fmt(centsOf(m))];if(!opts.hideBalance)row.push(fmt(balance));if(!opts.hideOpening||!(m.type==='opening_balance'||m.referenceType==='opening_balance'))rows.push(row);});
                     });
-                    if (opts.showCashInvoices) {
-                        const cashInvoices = reportInvoices.filter(i => {
-                            const total=reportNumber(i.total), paid=reportNumber(i.paid), remaining=reportNumber(i.remaining);
-                            return (remaining !== null && remaining <= 0) || (total !== null && paid !== null && paid >= total);
-                        });
-                        cashInvoices.forEach(i => {
-                            const row=[i.customer || 'عميل نقدي','فاتورة نقدية',i.id || '—',i.date || i.createdAt || '—',reportDisplay(i.total)];
-                            if (!opts.hideBalance) row.push(reportDisplay(customers.find(c=>String(c.name)===String(i.customer))?.debt));
-                            rows.push(row);
-                        });
-                    }
+                    if(opts.showCashInvoices)reportInvoices.filter(i=>{const t=reportNumber(i.total),p=reportNumber(i.paid),r=reportNumber(i.remaining);return(r!==null&&r<=0)||(t!==null&&p!==null&&p>=t);}).forEach(i=>rows.push([i.customer||'عميل نقدي','فاتورة نقدية',i.id||'—',i.date||i.createdAt||'—',reportDisplay(i.total),...(opts.hideBalance?[]:['—'])]));
                 } else {
                     headers = ['العميل','الهاتف'];
                     if (!opts.hideBalance) headers.push('الرصيد/الدين');
@@ -9416,10 +9411,11 @@ function wtAuditTransfers(){
                 content.innerHTML=renderQueryTable(['التاريخ','نوع الحركة','البيان','المبلغ','المصدر'],rows,'لا توجد حركات صندوق مطابقة للفترة والخيارات المحددة.');
             
             } else if(title === 'تقرير بالمصروفات حسب الحساب' || title === 'تقرير المصروفات حسب الحساب') {
-                content.innerHTML = (AppData.expenses && AppData.expenses.filter(e=>reportItemInRange(e)).length > 0) ? `
-                    <div style="max-height:220px; overflow-y:auto;">
-                        ${AppData.expenses.filter(e=>reportItemInRange(e)).map(e => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:12px;"><span>${esc(e.account)} - ${esc(e.desc)}</span><strong style="color:#ef4444;">${reportDisplay(e.amt)} د.ج</strong></div>`).join('')}
-                    </div>` : '<p style="text-align:center; color:#94a3b8;">لا توجد مصروفات مسجلة.</p>';
+                const expenses=(Array.isArray(AppData.expenses)?AppData.expenses:[]).filter(e=>reportItemInRange(e)), groups=new Map();
+                const centsOf=e=>{if(Number.isSafeInteger(e.amountCentimes))return BigInt(e.amountCentimes);const raw=String(e.amt??e.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return null;const [a,b='']=raw.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));};
+                expenses.forEach(e=>{const k=String(e.account||e.accountName||'غير محدد'),v=groups.get(k)||{count:0,total:0n,invalid:0};v.count++;const c=centsOf(e);if(c===null)v.invalid++;else v.total+=c;groups.set(k,v);});
+                const fmt=c=>{const a=c<0n?-c:c;return(c<0n?'−':'')+(a/100n)+','+(a%100n).toString().padStart(2,'0')+' د.ج';};
+                content.innerHTML=renderQueryTable(['الحساب','عدد الحركات','الإجمالي','مبالغ غير صالحة'],[...groups.entries()].map(([k,v])=>[k,v.count,fmt(v.total),v.invalid]),'لا توجد مصروفات ضمن الفترة المحددة.');
             } else {
                 content.innerHTML = `<p style="text-align:center;color:#b45309;font-weight:700;">هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق؛ لم يتم إنشاء نتائج تقديرية أو تسجيل أي عملية.</p>`;
             }
