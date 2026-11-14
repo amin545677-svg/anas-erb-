@@ -1310,3 +1310,29 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
   color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;
   border-color:#fca5a5!important;
 }
+
+
+/* r40.2 — explicit high-specificity theme and POS semantic exceptions. */
+html[data-anas-theme="dark"] body #anas-video-theme-fixture #plain-action {
+  background:#26364d!important;
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-of-type(1) {
+  background:#dcfce7!important;background-color:#dcfce7!important;
+  color:#166534!important;-webkit-text-fill-color:#166534!important;
+  border-color:#86efac!important;
+}
+html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-of-type(2) {
+  background:#eff6ff!important;background-color:#eff6ff!important;
+  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;
+  border-color:#bfdbfe!important;
+}
+html[data-anas-theme] body #hasibModal .anas-quick-payment-actions > button:nth-of-type(3) {
+  background:#fee2e2!important;background-color:#fee2e2!important;
+  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;
+  border-color:#fca5a5!important;
+}
