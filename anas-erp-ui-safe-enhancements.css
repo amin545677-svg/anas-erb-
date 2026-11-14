@@ -1355,3 +1355,16 @@ html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-ite
   color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
   transition:none!important;
 }
+
+
+/* r40.5 — final dark-theme form-field cascade guard. */
+html:root[data-anas-theme="dark"] body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+html:root[data-anas-theme="dark"] body select,
+html:root[data-anas-theme="dark"] body textarea {
+  background-color:#101a2b!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+  caret-color:#f3f7ff!important;
+}
