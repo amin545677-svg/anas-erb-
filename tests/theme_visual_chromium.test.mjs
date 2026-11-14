@@ -530,7 +530,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         assert.ok(contrast(item.color, item.background) >= 4.5,
           name + ' foreground/background must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
       }
-      const paymentColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
+      const paymentColors = await page.locator('#anas-video-theme-fixture #hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
         nodes.map(node => ({ background:getComputedStyle(node).backgroundColor, color:getComputedStyle(node).color })));
       assert.deepEqual(paymentColors.map(item => item.background),
         ['rgb(220, 252, 231)', 'rgb(239, 246, 255)', 'rgb(254, 226, 226)'],
