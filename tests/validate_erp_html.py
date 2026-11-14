@@ -76,11 +76,18 @@ def main():
         "purchases": "openView('purchases')",
         "suppliers": "openView('suppliers')",
         "customers": "openView('customers')",
-        "inquiries": "openView('invoices-list')",
+        "inquiries": "openView('reports')",
         "reports": "openView('reports')",
     }
     missing_modules = [module for module, route in required_modules.items()
                        if f'data-erp-module="{module}"' not in dashboard_markup or route not in dashboard_markup]
+    reports_start = source.find('<section id="view-reports"')
+    reports_end = source.find('<!-- 11. شاشة الإعدادات', reports_start)
+    reports_markup = source[reports_start:reports_end] if reports_start >= 0 and reports_end > reports_start else ""
+    if "openView('invoices-list')" not in reports_markup:
+        errors.append("inquiries screen must retain a direct route to the separate invoice history")
+    else:
+        print("PASS: inquiries screen keeps invoice history as a separate destination")
     more_start = source.find('<section id="view-more"')
     more_end = source.find('<!-- 3. شاشة المبيعات', more_start)
     more_markup = source[more_start:more_end] if more_start >= 0 and more_end > more_start else ""
