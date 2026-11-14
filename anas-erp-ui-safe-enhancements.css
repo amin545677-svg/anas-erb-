@@ -1787,3 +1787,29 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
   --anas-video-panel-bg:#0f172a;
   --anas-video-panel-text:#f8fafc;
 }
+
+
+/* ANAS AI Center KPI cards: four values per tab, with a shared centime valuation. */
+#aiHubTabContent .anas-ai-hub-kpis{margin:10px 0 14px;min-width:0}
+#aiHubTabContent .anas-ai-hub-kpis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#aiHubTabContent .anas-ai-hub-kpi-card{display:flex;min-width:0;min-height:82px;flex-direction:column;justify-content:space-between;gap:6px;padding:10px;border:1px solid #dbe3ec;border-radius:11px;background:#fff!important;color:#0f172a!important;box-shadow:0 2px 7px rgba(15,23,42,.05)}
+#aiHubTabContent .anas-ai-hub-kpi-label{display:block;color:#475569!important;font-size:11px;font-weight:800;line-height:1.45;overflow-wrap:anywhere}
+#aiHubTabContent .anas-ai-hub-kpi-value{display:block;color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;font-size:15px;font-weight:900;line-height:1.35;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#aiHubTabContent .anas-ai-hub-kpi-detail{display:block;color:#64748b!important;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-card{background:#1e293b!important;color:#f8fafc!important;border-color:#475569!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-label{color:#cbd5e1!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-value{color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important}
+:root[data-anas-theme="dark"] #aiHubTabContent .anas-ai-hub-kpi-detail{color:#cbd5e1!important}
+/* Override legacy dark KPI surfaces in light mode; dark text must never sit on a dark card. */
+:root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card){background:#fff!important;color:#0f172a!important;border-color:#dbe3ec!important}
+:root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) *{color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;opacity:1!important}
+/* Algerian NIS is the actual field id; retain NIC as an accepted legacy alias. */
+:is(input,textarea,[contenteditable="true"])[name*="NIS" i],
+:is(input,textarea,[contenteditable="true"])[id*="NIS" i],
+:is(input,textarea)[placeholder*="NIS" i]{
+  direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums!important;
+}
+/* Keep narrow status, priority and icon cells indivisible on phone widths. */
+:is(.badge,.status-badge,.badge-active-tag,[class*="priority"],.anas-ai-priority,.tax-icon,[aria-label*="TAX" i],.drawer-nav-row .row-icon){
+  white-space:nowrap!important;flex-shrink:0!important;
+}

@@ -182,3 +182,95 @@ test('AI executive dashboard shares the same centime-exact BigInt inventory valu
   assert.doesNotMatch(dashboard,/inventoryValue\s*\+=\s*row\.stock\s*\*\s*row\.cost/);
   assert.match(dashboard,/قيمة المخزون بسعر الشراء/);
 });
+
+
+test('AI hub renders four AppData-backed KPIs per tab and shares centime-exact inventory valuation', () => {
+  const start=html.indexOf('function anasGetAiHubKpiMetrics(tabKey)');
+  const end=html.indexOf('function anasRenderAiHubKpis()',start);
+  assert.ok(start>=0&&end>start);
+  const context={
+    AppData:{
+      products:[{stock:'2',buyPrice:'100'}],
+      customers:[{debt:'20'}],
+      suppliers:[{balance:'30'}],
+      invoices:[{id:'I-1'}],
+      clientMovements:[],
+      purchases:[]
+    },
+    anasInventoryCostAggregateCents:()=>({totalCentimes:51154260,validRecords:1,invalidRecords:0}),
+    anasPurchaseToCents:value=>value==null||String(value).trim()===''?NaN:Math.round(Number(value)*100),
+    anasPurchaseToQtyUnits:value=>Number.isFinite(Number(value))?Math.round(Number(value)*1000000):NaN,
+    anasGetInvoiceCollectionBalance:()=>({status:'valid',totalCents:10000,paidCents:4000,remainingCents:6000})
+  };
+  vm.runInNewContext(html.slice(start,end)+';globalThis.getMetrics=anasGetAiHubKpiMetrics;',context);
+  for(const tab of ['all','products','customers','suppliers','invoices'])assert.equal(context.getMetrics(tab).length,4,tab);
+  const allInventory=context.getMetrics('all').find(metric=>metric.label==='قيمة المخزون بسعر الشراء');
+  const productInventory=context.getMetrics('products').find(metric=>metric.label==='قيمة المخزون بسعر الشراء');
+  assert.equal(allInventory.value,'511,542.60 دج');
+  assert.equal(productInventory.value,allInventory.value);
+  assert.ok(html.includes('anasRenderAiHubKpis();'));
+  assert.ok(html.includes('id="anasAiHubKpis"'));
+});
+
+test('AI KPI light theme, NIS fiscal fields and narrow labels have explicit mobile-safe styling', () => {
+  assert.ok(safeCss.includes(':root:not([data-anas-theme="dark"]) #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card){background:#fff!important;color:#0f172a!important;'));
+  assert.ok(safeCss.includes('.anas-ai-hub-kpi-value{display:block;color:#0f172a!important;'));
+  assert.ok(safeCss.includes('[id*="NIS" i]'));
+  assert.ok(safeCss.includes('direction:ltr!important;text-align:left!important;font-variant-numeric:tabular-nums!important'));
+  assert.ok(safeCss.includes('.badge-active-tag'));
+  assert.ok(safeCss.includes('.anas-ai-priority'));
+  assert.ok(safeCss.includes('.drawer-nav-row .row-icon'));
+  assert.ok(html.includes('class="anas-ai-priority"'));
+});
+
+test('all 50 visible report entries have explicit AppData-backed routes', () => {
+  const start=html.indexOf('<section id="view-reports"');
+  const end=html.indexOf('<!-- 11.',start);
+  assert.ok(start>=0&&end>start);
+  const markup=html.slice(start,end);
+  const groups=[...markup.matchAll(/<section class="anas-query-group"[^>]*>([\s\S]*?)<\/section>/g)];
+  const expected=[2,11,13,1,9,5,3,6];
+  assert.equal(groups.length,8);
+  const counts=groups.map(match=>(match[1].match(/data-report-entry/g)||[]).length);
+  assert.deepEqual(counts,expected);
+  assert.equal(counts.reduce((sum,value)=>sum+value,0),50);
+  const reportHandlerStart=html.indexOf('function showReportDetails(title)');
+  const reportHandlerEnd=html.indexOf('// أدوات احترافية مشتركة لكل تقارير',reportHandlerStart);
+  assert.ok(reportHandlerStart>=0&&reportHandlerEnd>reportHandlerStart);
+  const handler=html.slice(reportHandlerStart,reportHandlerEnd);
+  const handled=new Set([
+    ...[...handler.matchAll(/case '([^']+)'/g)].map(match=>match[1]),
+    ...[...handler.matchAll(/title === '([^']+)'/g)].map(match=>match[1])
+  ]);
+  const reportRoutes=[...markup.matchAll(/onclick="showReportDetails\('([^']+)'\)"/g)].map(match=>match[1]);
+  for(const title of reportRoutes)assert.ok(handled.has(title),'missing explicit handler: '+title);
+  assert.ok(handler.includes('AppData.clientMovements'));
+  assert.ok(handler.includes('AppData.expenses'));
+  assert.ok(handler.includes('هذا التقرير غير مربوط حالياً بمصدر بيانات موثوق'));
+  const profitStart=html.indexOf('function showProfitsReportModal()');
+  const profitEnd=html.indexOf('function showReportDetails(title)',profitStart);
+  assert.ok(profitStart>=0&&profitEnd>profitStart);
+  assert.ok(html.slice(profitStart,profitEnd).includes('getReportInvoices'));
+  assert.ok(html.includes('const allInvoices = Array.isArray(AppData.invoices) ? AppData.invoices : [];'));
+  assert.ok(html.includes('const customers = Array.isArray(AppData?.customers) ? AppData.customers : [];'));
+});
+
+test('invoice share text contains complete receipt details and item lines', () => {
+  const start=html.indexOf('function buildInvoiceShareText(inv)');
+  const end=html.indexOf('function closeInvoicePostSaveActions()',start);
+  assert.ok(start>=0&&end>start);
+  const context={AppData:{storeConfig:{name:'متجر الاختبار',footer:'شكراً'}}};
+  vm.runInNewContext(html.slice(start,end)+';globalThis.share=buildInvoiceShareText;',context);
+  const message=context.share({id:'INV-77',date:'2026-11-14',customer:'عميل تجريبي',items:[{name:'شاي',qty:2,total:500}],total:500,paid:300,remaining:200});
+  for(const value of ['متجر الاختبار','INV-77','2026-11-14','عميل تجريبي','شاي × 2 = 500 د.ج','الإجمالي: 500 د.ج','المدفوع: 300 د.ج','المتبقي: 200 د.ج'])assert.ok(message.includes(value),value);
+});
+
+test('store movement chart route renders a real accessible SVG chart', () => {
+  const start=html.indexOf("if(title === 'حركة المتجر' || title === 'حركة المتجر - رسم بياني')");
+  assert.ok(start>=0);
+  const end=html.indexOf("} else if(title === 'تقرير فواتير الآجل')",start);
+  const chart=html.slice(start,end);
+  assert.ok(chart.includes('<svg viewBox="0 0 320 190" role="img" aria-label="رسم بياني لحركة المتجر"'));
+  assert.ok(chart.includes('<rect x="8"'));
+  assert.ok(chart.includes('bars.map'));
+});

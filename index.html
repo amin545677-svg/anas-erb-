@@ -10964,7 +10964,134 @@ function wtAuditTransfers(){
         }
 
         // ================= مركز الإكسل والذكاء الاصطناعي (أوفلاين 100%) =================
-        function switchAiTab(tabKey, el) {
+function anasGetAiHubKpiMetrics(tabKey) {
+            const products=Array.isArray(AppData&&AppData.products)?AppData.products:[];
+            const customers=Array.isArray(AppData&&AppData.customers)?AppData.customers:[];
+            const suppliers=Array.isArray(AppData&&AppData.suppliers)?AppData.suppliers:[];
+            const invoices=Array.isArray(AppData&&AppData.invoices)?AppData.invoices:[];
+            const inventory=anasInventoryCostAggregateCents(products);
+            const formatCents=value=>{
+                if(!Number.isSafeInteger(value))return 'غير صالح';
+                const cents=BigInt(value),abs=cents<0n?-cents:cents;
+                return (cents<0n?'−':'')+(abs/100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')+'.'+(abs%100n).toString().padStart(2,'0')+' دج';
+            };
+            const toCents=value=>{
+                const cents=anasPurchaseToCents(value);
+                return Number.isSafeInteger(cents)&&cents>=0?BigInt(cents):null;
+            };
+            const sumCents=(rows,read)=>rows.reduce((sum,row)=>{
+                const cents=toCents(read(row));
+                return cents===null?sum:sum+cents;
+            },0n);
+            const sumQuantity=rows=>rows.reduce((sum,row)=>{
+                const units=anasPurchaseToQtyUnits(row&&row.stock!=null?row.stock:0);
+                return Number.isSafeInteger(units)&&units>0?sum+BigInt(units):sum;
+            },0n);
+            const formatQuantity=units=>{
+                const whole=units/1000000n,rest=units%1000000n;
+                const fraction=rest.toString().padStart(6,'0').replace(/0+$/,'');
+                return whole.toLocaleString('fr-DZ')+(fraction?','+fraction:'')+' وحدة';
+            };
+            const inventoryValue=formatCents(inventory.totalCentimes);
+            const inventoryDetail=inventory.invalidRecords
+                ? 'قيمة جزئية؛ '+inventory.validRecords+' صالح و'+inventory.invalidRecords+' يحتاج مراجعة'
+                : 'محسوبة بالسنتيم من تكلفة الشراء';
+            const activeInvoices=invoices.filter(invoice=>invoice&&
+                !(invoice.cancelled||invoice.isCancelled||invoice.reversed||
+                  ['cancelled','canceled','void','voided'].includes(String(invoice.status||'').toLowerCase())));
+            const invoiceBalances=activeInvoices.map(invoice=>anasGetInvoiceCollectionBalance(invoice))
+                .filter(balance=>balance&&balance.status!=='invalid'&&
+                    Number.isSafeInteger(balance.totalCents)&&Number.isSafeInteger(balance.paidCents)&&
+                    Number.isSafeInteger(balance.remainingCents));
+            const invoiceTotal=invoiceBalances.reduce((sum,balance)=>sum+BigInt(balance.totalCents),0n);
+            const invoicePaid=invoiceBalances.reduce((sum,balance)=>sum+BigInt(balance.paidCents),0n);
+            const invoiceRemaining=invoiceBalances.reduce((sum,balance)=>sum+BigInt(balance.remainingCents),0n);
+            const customerDebtors=customers.filter(customer=>{
+                const cents=toCents(customer&&customer.debt);
+                return cents!==null&&cents>0n;
+            });
+            const supplierDebtors=suppliers.filter(supplier=>{
+                const cents=toCents(supplier&&(supplier.balance??supplier.debt));
+                return cents!==null&&cents>0n;
+            });
+            const customerDebt=sumCents(customerDebtors,customer=>customer.debt);
+            const supplierDebt=sumCents(supplierDebtors,supplier=>supplier.balance??supplier.debt);
+            const lowStock=products.filter(product=>{
+                const stock=Number(product&&product.stock);
+                const rawMinimum=product&&(product.minStock??product.minAlert??product.reorderLevel);
+                const minimum=rawMinimum===null||rawMinimum===undefined||rawMinimum===''?5:Number(rawMinimum);
+                return Number.isFinite(stock)&&Number.isFinite(minimum)&&stock<=minimum;
+            });
+            const stockQuantity=sumQuantity(products);
+            const count=value=>Number(value).toLocaleString('fr-DZ');
+            switch(tabKey){
+                case 'products':
+                    return [
+                        {label:'عدد المنتجات',value:count(products.length)},
+                        {label:'إجمالي الكمية المتاحة',value:formatQuantity(stockQuantity)},
+                        {label:'أصناف عند حد الطلب أو دونه',value:count(lowStock.length)},
+                        {label:'قيمة المخزون بسعر الشراء',value:inventoryValue,detail:inventoryDetail}
+                    ];
+                case 'customers':
+                    return [
+                        {label:'عدد العملاء',value:count(customers.length)},
+                        {label:'العملاء ذوو الدين',value:count(customerDebtors.length)},
+                        {label:'إجمالي ديون العملاء',value:formatCents(Number(customerDebt))},
+                        {label:'حركات دفتر العملاء',value:count(Array.isArray(AppData.clientMovements)?AppData.clientMovements.length:0)}
+                    ];
+                case 'suppliers':
+                    return [
+                        {label:'عدد الموردين',value:count(suppliers.length)},
+                        {label:'الموردون ذوو المستحقات',value:count(supplierDebtors.length)},
+                        {label:'إجمالي مستحقات الموردين',value:formatCents(Number(supplierDebt))},
+                        {label:'فواتير المشتريات',value:count(Array.isArray(AppData.purchases)?AppData.purchases.length:0)}
+                    ];
+                case 'invoices':
+                    return [
+                        {label:'فواتير المبيعات السارية',value:count(invoiceBalances.length)},
+                        {label:'إجمالي المبيعات',value:formatCents(Number(invoiceTotal))},
+                        {label:'المقبوض',value:formatCents(Number(invoicePaid))},
+                        {label:'المتبقي',value:formatCents(Number(invoiceRemaining))}
+                    ];
+                case 'all':
+                default:
+                    return [
+                        {label:'المنتجات المسجلة',value:count(products.length)},
+                        {label:'العملاء المسجلون',value:count(customers.length)},
+                        {label:'الموردون المسجلون',value:count(suppliers.length)},
+                        {label:'قيمة المخزون بسعر الشراء',value:inventoryValue,detail:inventoryDetail}
+                    ];
+            }
+        }
+
+        function anasRenderAiHubKpis() {
+            const target=document.getElementById('anasAiHubKpis');
+            if(!target)return;
+            const metrics=anasGetAiHubKpiMetrics(activeAiTab||'all');
+            const grid=document.createElement('div');
+            grid.className='anas-ai-hub-kpis-grid';
+            metrics.forEach(metric=>{
+                const card=document.createElement('article');
+                card.className='anas-ai-hub-kpi-card';
+                const label=document.createElement('span');
+                label.className='anas-ai-hub-kpi-label';
+                label.textContent=String(metric.label||'');
+                const value=document.createElement('strong');
+                value.className='anas-ai-hub-kpi-value';
+                value.textContent=String(metric.value??'—');
+                card.append(label,value);
+                if(metric.detail){
+                    const detail=document.createElement('small');
+                    detail.className='anas-ai-hub-kpi-detail';
+                    detail.textContent=String(metric.detail);
+                    card.appendChild(detail);
+                }
+                grid.appendChild(card);
+            });
+            target.replaceChildren(grid);
+        }
+
+                function switchAiTab(tabKey, el) {
             activeAiTab = tabKey;
             el.parentElement.querySelectorAll('.pill-select-btn').forEach(b => b.classList.remove('active'));
             el.classList.add('active');
@@ -10978,6 +11105,7 @@ function wtAuditTransfers(){
                 <div class="card anas-ai-card" style="border:1px solid #c4b5fd;border-radius:16px;padding:15px;margin-bottom:14px;background:var(--mp-card,#fff);">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:28px">🧠</span><div><h3 style="margin:0;font-weight:900">Anas AI — المساعد التجاري</h3><small style="color:var(--mp-text-muted)">تحليل محلي فوري + مساعد متصل عند إعداد الخادم</small></div></div>
                     <p style="font-size:12px;line-height:1.7;color:var(--mp-text-muted);margin:8px 0">الفحص المحلي لا يرسل البيانات إلى الإنترنت. المساعد المتصل لا يعمل إلا بعد إعداد رابط الخادم.</p>
+                    <div id="anasAiHubKpis" class="anas-ai-hub-kpis" aria-label="مؤشرات تبويب الذكاء الاصطناعي"></div>
                     <button type="button" class="btn-full-submit" style="background:#0f766e;width:100%;margin:6px 0" onclick="anasRunLocalBusinessAudit()">🔎 فحص ذكي شامل للبيانات الآن</button>
                     <div id="anasLocalAuditResults" role="status" aria-live="polite" style="margin:8px 0;line-height:1.65;font-size:13px"></div>
                     <section class="anas-ai-section" aria-label="اختصارات الذكاء الاصطناعي" style="margin:10px 0;padding:10px;border:1px solid var(--mp-border);border-radius:12px">
@@ -11076,6 +11204,7 @@ function wtAuditTransfers(){
                     </div>
                 </div>
             `;
+            anasRenderAiHubKpis();
             // Keep the focused field visible when the mobile virtual keyboard opens.
             cont.querySelectorAll('#anasAiQuestion, #anasAiNaturalDraft input, #anasAiNaturalDraft select').forEach(field => {
                 field.addEventListener('focus', () => {
@@ -11204,7 +11333,7 @@ function wtAuditTransfers(){
             const cards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:7px;margin:8px 0">'+[
               ['المنتجات',products.length],['العملاء',customers.length],['الموردون',suppliers.length],['الفواتير',invoices.length],['قيمة المخزون بسعر الشراء',fmt(stockCost)],['قيمة المخزون بسعر البيع',fmt(stockSell)],['ديون العملاء',fmt(debtTotal)],['المصاريف المسجلة',expenses.length]
             ].map(x=>'<div style="padding:9px;border:1px solid #dbe3ec;border-radius:9px;background:var(--mp-card,#fff)"><small>'+escAudit(x[0])+'</small><div style="font-weight:800;margin-top:3px">'+escAudit(x[1])+'</div></div>').join('')+'</div>';
-            const table=issues.length?'<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الأولوية</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الفحص</th><th style="padding:7px;border-bottom:1px solid #cbd5e1">العدد</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">أمثلة</th></tr></thead><tbody>'+issues.map(i=>'<tr><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[0])+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[1])+'</td><td style="padding:7px;text-align:center;border-bottom:1px solid #e2e8f0">'+i[2]+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[3])+'</td></tr>').join('')+'</tbody></table></div>':'<p style="padding:10px;border-radius:8px;background:#dcfce7;color:#166534">لم تُكتشف المشكلات المحددة في هذا الفحص المحلي. هذا لا يثبت خلو كل بيانات التطبيق من الأخطاء.</p>';
+            const table=issues.length?'<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الأولوية</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">الفحص</th><th style="padding:7px;border-bottom:1px solid #cbd5e1">العدد</th><th style="text-align:right;padding:7px;border-bottom:1px solid #cbd5e1">أمثلة</th></tr></thead><tbody>'+issues.map(i=>'<tr><td class="anas-ai-priority" style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[0])+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[1])+'</td><td style="padding:7px;text-align:center;border-bottom:1px solid #e2e8f0">'+i[2]+'</td><td style="padding:7px;border-bottom:1px solid #e2e8f0">'+escAudit(i[3])+'</td></tr>').join('')+'</tbody></table></div>':'<p style="padding:10px;border-radius:8px;background:#dcfce7;color:#166534">لم تُكتشف المشكلات المحددة في هذا الفحص المحلي. هذا لا يثبت خلو كل بيانات التطبيق من الأخطاء.</p>';
             box.innerHTML='<div style="padding:10px;border:1px solid #cbd5e1;border-radius:10px">'+cards+operationsCards+'<h4 style="margin:10px 0 5px">نتائج فحص البيانات</h4>'+table+(info.length?'<p>'+info.map(escAudit).join('<br>')+'</p>':'')+'<p style="font-size:11px;color:var(--mp-text-muted);margin-top:10px">فحص إرشادي محلي، لا يغيّر البيانات ولا يرسلها إلى الخادم. مراجعة الفواتير تعتمد على الحقول المتاحة وقد تحتاج قواعد محاسبية خاصة بك.</p><button type="button" class="btn-full-submit" style="background:#334155;margin-top:8px" onclick="anasExportLocalAudit()">⬇ تصدير تقرير الفحص CSV</button><button type="button" class="btn-full-submit" style="background:#0f766e;margin-top:8px" onclick="anasExportLocalAuditXLSX()">⬇ تصدير تقرير الفحص Excel (.xlsx)</button></div>';
             window.__anasLastAudit={at:new Date().toISOString(),summary:{products:products.length,customers:customers.length,suppliers:suppliers.length,invoices:invoices.length,stockCost,stockSell,debtTotal,stockoutProducts:operations?operations.stockout.length:0,debtAging:operations?operations.debtAging:null},operations,issues};
         }
