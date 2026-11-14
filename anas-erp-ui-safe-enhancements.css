@@ -1077,7 +1077,7 @@ button.is-loading,
   border-color:#526782!important;
   color:#f3f7ff!important;
 }
-:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-pro *,
+:root[data-anas-theme="dark"] .anas-ai-import-pro *,
 :root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-benefits *,
 :root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-drop *,
 :root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note *,
@@ -1114,4 +1114,19 @@ button.is-loading,
     padding:0!important;
   }
   #receiptPrintArea .no-print, #legalInvoiceA4Area .no-print { display:none!important; }
+}
+
+
+/* Complete the dark AI-import panel: section headings and file glyphs must not
+   inherit the legacy light-mode charcoal foreground. */
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-section-title h3,
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-section-title span {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-file-icon {
+  background:#26364d!important;
+  border-color:#526782!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
 }
