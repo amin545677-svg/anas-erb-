@@ -487,10 +487,17 @@ test('video-driven shared controls, product-search popups and AI import surfaces
     for (const theme of ['light', 'dark']) {
       await page.evaluate(value => document.documentElement.setAttribute('data-anas-theme', value), theme);
       const snapshot = await page.evaluate(() => {
+        const backgroundOf = node => {
+          for (let current = node; current && current !== document.documentElement; current = current.parentElement) {
+            const value = getComputedStyle(current).backgroundColor;
+            if (value && value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)') return value;
+          }
+          return getComputedStyle(document.body).backgroundColor;
+        };
         const pair = id => {
           const node = document.getElementById(id);
           const css = getComputedStyle(node);
-          return { color: css.color, background: css.backgroundColor, border: css.borderColor };
+          return { color: css.color, background: backgroundOf(node), border: css.borderColor };
         };
         return {
           plain: pair('plain-action'),
