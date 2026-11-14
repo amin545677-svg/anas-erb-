@@ -658,7 +658,7 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
         const date=document.getElementById('reportDateFrom');
         const arrow=row?.querySelector('.anas-query-arrow');
         return {row:pair(row.querySelector('.anas-query-row-label')),rowSurface:getComputedStyle(row).backgroundColor,
-          heading:pair(heading),date:pair(date),arrow:pair(arrow)};
+          heading:pair(heading),date:pair(date),arrow:{color:getComputedStyle(arrow).color,background:getComputedStyle(row).backgroundColor}};
       });
       assert.ok(contrast(visual.row.color,visual.rowSurface)>=4.5,'report row text must meet WCAG AA in '+themeName);
       assert.ok(contrast(visual.heading.color,visual.heading.background)>=4.5,'group heading must meet WCAG AA in '+themeName);
