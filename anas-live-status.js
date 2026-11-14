@@ -96,7 +96,7 @@
       const cents=BigInt(match[2])*100n+BigInt(((match[3]||'')+'00').slice(0,2));
       return match[1]==='-'?-cents:cents;
     };
-    const dateOf=row=>row&&(row.createdAt||row.date||row.timestamp||row.invoiceDate||row.created_at);
+    const dateOf=row=>reportRecordDate(row);
     const dayOf=row=>{
       const raw=dateOf(row),parsed=typeof parseDate==='function'?parseDate(raw):(raw?new Date(raw):null);
       if(!parsed||Number.isNaN(parsed.getTime()))return null;
