@@ -925,7 +925,7 @@ button.is-loading,
 
 /* Plain controls and legacy action classes: preserve dedicated success/danger/checkout
    colors while preventing the old global pale-background/white-text collision. */
-:root[data-anas-theme] button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout),
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]),
 :root[data-anas-theme] .menu-action-card,
 :root[data-anas-theme] .pill-select-btn,
@@ -948,7 +948,7 @@ button.is-loading,
   border-color:var(--anas-video-control-border)!important;
   box-shadow:0 2px 8px rgba(15,23,42,.12)!important;
 }
-:root[data-anas-theme] button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout) *,
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout) *,
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]) *,
 :root[data-anas-theme] .menu-action-card *,
 :root[data-anas-theme] .pill-select-btn *,
@@ -969,7 +969,7 @@ button.is-loading,
   opacity:1!important;
   visibility:visible!important;
 }
-:root[data-anas-theme] button:not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):hover,
+:root[data-anas-theme] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):hover,
 :root[data-anas-theme] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):hover {
   background-color:var(--anas-video-control-hover)!important;
 }
@@ -1180,4 +1180,68 @@ button.is-loading,
     color:#111!important;-webkit-text-fill-color:#111!important;
     box-shadow:none!important;
   }
+}
+
+
+/* Explicit dark-mode values are kept literal here so legacy inline/button palette
+   declarations cannot resolve to the light token on older WebView cascades. */
+:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] [role="button"]:not(.danger):not(.success):not([class*="danger"]):not([class*="success"]):not(.active):not([aria-pressed="true"]),
+:root[data-anas-theme="dark"] .menu-action-card:not(.active),
+:root[data-anas-theme="dark"] .pill-select-btn:not(.active),
+:root[data-anas-theme="dark"] .filter-chip:not(.active),
+:root[data-anas-theme="dark"] .filter-btn:not(.active),
+:root[data-anas-theme="dark"] .filter-button:not(.active),
+:root[data-anas-theme="dark"] .nav-tab:not(.active),
+:root[data-anas-theme="dark"] .product-card,
+:root[data-anas-theme="dark"] .product-item,
+:root[data-anas-theme="dark"] .product-tile,
+:root[data-anas-theme="dark"] .pos-product,
+:root[data-anas-theme="dark"] .pos-product-card,
+:root[data-anas-theme="dark"] .category-btn:not(.active),
+:root[data-anas-theme="dark"] .category-button:not(.active),
+:root[data-anas-theme="dark"] .quick-product-btn:not(.active) {
+  background-color:#26364d!important;
+  background-image:none!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.active):not([aria-pressed="true"]) *,
+:root[data-anas-theme="dark"] .menu-action-card:not(.active) *,
+:root[data-anas-theme="dark"] .pill-select-btn:not(.active) *,
+:root[data-anas-theme="dark"] .filter-chip:not(.active) *,
+:root[data-anas-theme="dark"] .filter-btn:not(.active) *,
+:root[data-anas-theme="dark"] .filter-button:not(.active) *,
+:root[data-anas-theme="dark"] .nav-tab:not(.active) *,
+:root[data-anas-theme="dark"] .product-card *,
+:root[data-anas-theme="dark"] .product-item *,
+:root[data-anas-theme="dark"] .product-tile *,
+:root[data-anas-theme="dark"] .pos-product *,
+:root[data-anas-theme="dark"] .pos-product-card *,
+:root[data-anas-theme="dark"] .category-btn:not(.active) *,
+:root[data-anas-theme="dark"] .category-button:not(.active) *,
+:root[data-anas-theme="dark"] .quick-product-btn:not(.active) * {
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+}
+:root[data-anas-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+:root[data-anas-theme="dark"] select,
+:root[data-anas-theme="dark"] textarea {
+  background:#101a2b!important;
+  color:#f3f7ff!important;
+  -webkit-text-fill-color:#f3f7ff!important;
+  border-color:#526782!important;
+}
+:root[data-anas-theme="dark"] .modal-content,
+:root[data-anas-theme="dark"] .modal-dialog,
+:root[data-anas-theme="dark"] .picker-dialog-scroll,
+:root[data-anas-theme="dark"] .dropdown-menu,
+:root[data-anas-theme="dark"] .autocomplete-items,
+:root[data-anas-theme="dark"] .suggestion-list,
+:root[data-anas-theme="dark"] .search-results,
+:root[data-anas-theme="dark"] [role="dialog"] > div {
+  background-color:#182438!important;
+  color:#f3f7ff!important;
+  border-color:#526782!important;
 }

@@ -253,7 +253,7 @@ test('video-driven theme repair defines accessible light/dark tokens for POS con
     '--anas-video-control-text:#f3f7ff',
     '--anas-video-panel-bg:#182438',
     '--anas-video-field-bg:#101a2b',
-    ':root[data-anas-theme] button:not(.danger)',
+    ':root[data-anas-theme] button:not(.grid-card-item):not(.danger)',
     ':root[data-anas-theme] input:not([type="checkbox"])',
     ':root[data-anas-theme="dark"] .picker-dialog-scroll',
     ':root[data-anas-theme="dark"] .anas-ai-import-pro',
