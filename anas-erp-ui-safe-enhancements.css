@@ -1368,3 +1368,12 @@ html:root[data-anas-theme="dark"] body textarea {
   border-color:#526782!important;
   caret-color:#f3f7ff!important;
 }
+
+
+/* r40.7 — theme changes must not interpolate form-field surfaces.
+   A stale light frame against dark foreground fails real Chromium contrast checks. */
+html:root[data-anas-theme] body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+html:root[data-anas-theme] body select,
+html:root[data-anas-theme] body textarea {
+  transition:none!important;
+}
