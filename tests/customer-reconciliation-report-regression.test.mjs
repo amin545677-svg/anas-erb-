@@ -22,11 +22,11 @@ test('Node: BigInt reconciliation, POSTED return gate, invoice fallback and canc
 });
 test('Node: report search, CSV, print controls and shared AI inventory formatter are retained',()=>{
  const source=fs.readFileSync('index.html','utf8');
- assert.match(source,/<script src=["']\\.\\/anas-live-status\\.js["'] defer>/);
- assert.match(source,/function anasFilterCurrentReport\\(/);assert.match(source,/function anasExportCurrentReportCSV\\(/);assert.match(source,/function anasPrintCurrentReport\\(/);
- assert.match(script,/title==='تقرير مصادقة حساب العميل'\\|\\|title==='مصادقة حساب العميل'/);
- assert.match(css,/#cfgStoreNIF[\\s\\S]*?font-feature-settings:"tnum" 1/);assert.match(css,/\\.badge-active-tag[\\s\\S]*?word-break:keep-all/);
- assert.match(css,/\\.drawer-nav-row \\.row-icon[\\s\\S]*?min-width:28px/);assert.match(css,/body\\.dark-mode #aiHubTabContent[\\s\\S]*?#1e293b/);
+ assert.match(source,/<script src=["']\.\/anas-live-status\.js["'] defer>/);
+ assert.match(source,/function anasFilterCurrentReport\(/);assert.match(source,/function anasExportCurrentReportCSV\(/);assert.match(source,/function anasPrintCurrentReport\(/);
+ assert.match(script,/title==='تقرير مصادقة حساب العميل'\|\|title==='مصادقة حساب العميل'/);
+ assert.match(css,/#cfgStoreNIF[\s\S]*?font-feature-settings:"tnum" 1/);assert.match(css,/\.badge-active-tag[\s\S]*?word-break:keep-all/);
+ assert.match(css,/\.drawer-nav-row \.row-icon[\s\S]*?min-width:28px/);assert.match(css,/body\.dark-mode #aiHubTabContent[\s\S]*?#1e293b/);
  const metrics=source.slice(source.indexOf('function anasGetAiHubKpiMetrics(tabKey)'),source.indexOf('function anasRenderAiHubKpis()'));
  assert.equal((metrics.match(/value:inventoryValue/g)||[]).length,2);
 });
@@ -38,7 +38,7 @@ test('Chromium: report DOM, LTR tax fields, nowrap badges and KPI light/dark con
   await page.addStyleTag({content:css});
   await page.evaluate(data=>{window.AppData=data;window.applyReportDateRange=()=>true;window.getReportRange=()=>({from:'2026-02-01',to:'2026-02-28'});window.reportParseDate=v=>new Date(String(v).slice(0,10)+'T00:00:00');window.anasFilterCurrentReport=()=>{};window.showReportDetails=()=>'original';},fixture);
   await page.addScriptTag({content:script});await page.evaluate(()=>window.showReportDetails('تقرير مصادقة حساب العميل'));
-  const report=await page.locator('#customReportContent').innerText();assert.match(report,/الرصيد الختامي المستحق للمصادقة/);assert.match(report,/بانتظار المطابقة/);assert.match(report,/1[\\s, ]001[\\s, ]250,00/);
+  const report=await page.locator('#customReportContent').innerText();assert.match(report,/الرصيد الختامي المستحق للمصادقة/);assert.match(report,/بانتظار المطابقة/);assert.match(report,/1[\s, ]001[\s, ]250,00/);
   const light=await page.evaluate(()=>({dir:getComputedStyle(cfgStoreNIF).direction,num:getComputedStyle(cfgStoreNIF).fontVariantNumeric,badge:getComputedStyle(document.querySelector('.badge-active-tag')).whiteSpace,icon:getComputedStyle(document.querySelector('.row-icon')).whiteSpace,min:getComputedStyle(document.querySelector('.row-icon')).minWidth,bg:getComputedStyle(document.querySelector('.anas-ai-hub-kpi-card')).backgroundColor,val:getComputedStyle(document.querySelector('.anas-ai-hub-kpi-value')).color,label:getComputedStyle(document.querySelector('.anas-ai-hub-kpi-label')).color}));
   assert.equal(light.dir,'ltr');assert.match(light.num,/tabular-nums/);assert.equal(light.badge,'nowrap');assert.equal(light.icon,'nowrap');assert.equal(light.min,'28px');assert.equal(light.bg,'rgb(248, 250, 252)');assert.equal(light.val,'rgb(15, 23, 42)');assert.equal(light.label,'rgb(51, 65, 85)');
   await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
