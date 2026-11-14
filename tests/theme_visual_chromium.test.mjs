@@ -629,8 +629,6 @@ test('video-matched inquiries workspace: date range, grouped reports, invoice ar
     assert.equal(structure.toggles,8,'all report option switches must be present');
     assert.equal(structure.saveButton,true,'date range save action must be present');
     assert.deepEqual(structure.groups,['المتجر','المبيعات','العملاء','المشتريات','الموردين','الصندوق','المصروفات','المخازن']);
-    assert.ok(structure.groups.includes('العملاء') && structure.groups.includes('الموردين') &&
-      structure.groups.includes('المصروفات') && structure.groups.includes('المخازن وجرد المخزون'));
     assert.ok(structure.from && structure.to,'both date controls must initialize');
     assert.equal(structure.statsCollapsed,true,'statistics must not push the report list below the initial viewport');
 
