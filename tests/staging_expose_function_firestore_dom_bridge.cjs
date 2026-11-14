@@ -87,6 +87,7 @@ async function main() {
   const userRef = db.collection('users').doc(UID);
   const operationIds = [];
   let bridgeFailure = null;
+  let bridgeCompleted = false;
   let browser;
   let server;
   try {
@@ -155,13 +156,17 @@ async function main() {
             snapshotUpdatedAt: committedSnapshot.get('updatedAt')?.toDate?.().toISOString() || null
           }));
         }
+        bridgeCompleted = true;
         return result;
       } catch (error) {
         bridgeFailure = String(error && error.message || error);
         throw error;
       }
     });
-    await page.exposeFunction('__anasBridgeState', () => ({ failure: bridgeFailure }));
+    await page.exposeFunction('__anasBridgeState', () => ({
+      failure: bridgeFailure,
+      completed: bridgeCompleted
+    }));
     await page.exposeFunction('__anasReadCloudSnapshot', async () => {
       const snap = await userRef.collection('snapshots').doc('latest').get();
       assert.equal(snap.exists, true, 'Firestore snapshot must exist');
@@ -199,7 +204,8 @@ async function main() {
     await page.waitForFunction(async () => {
       const state = await window.__anasBridgeState();
       const button = document.querySelector('#alloc-submit');
-      return Boolean(state.failure) || Boolean(button && !button.disabled && button.textContent.trim() === 'اعتماد التخصيص');
+      return Boolean(state.failure) || Boolean(state.completed && button &&
+        !button.disabled && button.textContent.trim() === 'اعتماد التخصيص');
     }, { timeout: 30000 });
     assert.equal(bridgeFailure, null, 'settlement service rejected the DOM request: ' + bridgeFailure);
     const allocationStatus = await page.locator('#alloc-status').textContent();

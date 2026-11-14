@@ -473,10 +473,6 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       fixture.innerHTML = `
         <button id="plain-action" type="button">تأكيد البيع</button>
         <button id="menu-action" class="menu-action-card" type="button"><span>إضافة منتج</span></button>
-        <input id="theme-field" value="2000">
-        <div class="picker-dialog-scroll" id="picker-surface">
-          <label for="theme-field">سعر البيع</label><small id="picker-hint">اختر السعر المناسب</small>
-        </div>
         <section class="anas-ai-import-pro" id="ai-import-surface">
           <div class="anas-ai-import-benefits"><b id="ai-import-label">استيراد البيانات</b></div>
           <div class="anas-ai-import-drop"><p>اختر الملف</p></div>
@@ -489,6 +485,42 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         <div id="legalInvoiceA4Area"><p id="print-text">فاتورة البيع</p></div>`;
       document.body.appendChild(fixture);
     });
+    // Exercise the actual product picker modal (including its real dialog surface),
+    // rather than a detached .picker-dialog-scroll fragment with no modal ancestor.
+    await page.evaluate(() => {
+      const probe = { id:'ANAS_VIDEO_PICKER_PROBE', name:'اختبار نافذة اختيار المنتج', barcode:'VIDEO-PICKER-PROBE', price1:1234, stock:4, unit:'كغ' };
+      AppData.products = [...AppData.products.filter(item => item.id !== probe.id), probe];
+      const search = document.getElementById('productPickerSearch');
+      if (search) search.value = 'VIDEO-PICKER-PROBE';
+      window.openProductPickerModal();
+    });
+    await page.locator('#productPickerModal .picker-dialog-scroll').waitFor({ state:'visible' });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(value => document.documentElement.setAttribute('data-anas-theme', value), theme);
+      const pickerVisual = await page.locator('#productPickerModal .menu-action-card').evaluate(card => {
+        const backgroundOf = node => {
+          for (let current = node; current && current !== document.documentElement; current = current.parentElement) {
+            const value = getComputedStyle(current).backgroundColor;
+            if (value && value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)') return value;
+          }
+          return getComputedStyle(document.body).backgroundColor;
+        };
+        const pair = node => ({ color:getComputedStyle(node).color, background:backgroundOf(node) });
+        const panel = document.querySelector('#productPickerModal .picker-dialog-scroll');
+        const name = card.querySelector('strong');
+        const meta = card.querySelector('small');
+        return { panel:pair(panel), card:pair(card), name:pair(name), meta:pair(meta) };
+      });
+      for (const [name, pair] of Object.entries(pickerVisual)) {
+        assert.ok(contrast(pair.color, pair.background) >= 4.5,
+          'real product picker ' + name + ' must meet WCAG AA in ' + theme + ': ' + JSON.stringify(pair));
+      }
+    }
+    await page.evaluate(() => {
+      window.closeModal('productPickerModal');
+      AppData.products = AppData.products.filter(item => item.id !== 'ANAS_VIDEO_PICKER_PROBE');
+    });
+
     for (const theme of ['light', 'dark']) {
       await page.evaluate(value => document.documentElement.setAttribute('data-anas-theme', value), theme);
       const snapshot = await page.evaluate(() => {
@@ -518,9 +550,6 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         return {
           plain: pair('plain-action'),
           menu: pair('menu-action'),
-          field: pair('theme-field'),
-          picker: pair('picker-surface'),
-          pickerLabel: pair('picker-hint'),
           ai: pair('ai-import-surface'),
           aiLabel: pair('ai-import-label')
         };
