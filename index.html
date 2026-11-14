@@ -9064,7 +9064,8 @@ function wtAuditTransfers(){
                 items.forEach(it => {
                     const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
                     const prod = products.find(p => String(p.id) === String(it.id ?? it.productId ?? it.product_id));
-                    const costPrice = Number(it.buyPrice ?? it.costPrice ?? it.purchasePrice ?? (prod ? prod.buyPrice : 0)) || 0;
+                    const rawCost=it.buyPrice??it.costPrice??it.purchasePrice??(prod?prod.buyPrice:null);
+                    const costPrice=rawCost!==null&&rawCost!==undefined&&String(rawCost).trim()!==''&&Number.isFinite(Number(rawCost))&&Number(rawCost)>=0?Number(rawCost):null;
                     const price = Number(it.price ?? it.salePrice ?? it.sellingPrice ?? 0) || 0;
                     const revenue = Number(it.total ?? it.subtotal ?? (price * qty)) || price * qty;
                     customerQty += qty; itemRevenue += revenue; if(costPrice!==null){customerCost += costPrice * qty; customerProfit += revenue - costPrice * qty;}
