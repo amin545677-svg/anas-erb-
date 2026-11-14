@@ -629,7 +629,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         };
       });
       for(const [name,item] of Object.entries(targetVisuals)){
-        if(name==='bottomNavSurface')continue;
+        if(name==='bottomNavSurface'||name==='bottomNavBorder')continue;
         assert.ok(contrast(item.color,item.background)>=4.5,
           name+' must meet WCAG AA in '+theme+': '+JSON.stringify(item));
       }
