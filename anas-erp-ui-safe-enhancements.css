@@ -1897,3 +1897,99 @@ body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
 #customReportContent .anas-report-integrity-note,
 #customReportContent .anas-report-integrity-warning {font-size:11px;line-height:1.7;margin:6px 0}
 #customReportContent .anas-report-integrity-warning {color:#b45309;font-weight:800}
+
+
+/* r44 — one consistent action-button palette in both themes, with WCAG AA text.
+   Inputs used as switches/checkboxes/radios are intentionally not button controls. */
+:root[data-anas-theme="light"],
+:root[data-anas-theme="dark"] {
+  --anas-unified-button-bg:#1d4ed8;
+  --anas-unified-button-hover:#1e40af;
+  --anas-unified-button-text:#ffffff;
+  --anas-unified-button-border:#1d4ed8;
+}
+:root[data-anas-theme] body :is(
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="button"],
+  .btn,
+  .pill-select-btn,
+  .anas-ai-import-type,
+  .anas-ai-import-primary
+) {
+  background-color:var(--anas-unified-button-bg)!important;
+  background-image:none!important;
+  color:var(--anas-unified-button-text)!important;
+  -webkit-text-fill-color:var(--anas-unified-button-text)!important;
+  border-color:var(--anas-unified-button-border)!important;
+}
+:root[data-anas-theme] body :is(
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="button"],
+  .btn,
+  .pill-select-btn,
+  .anas-ai-import-type,
+  .anas-ai-import-primary
+) :is(span,strong,b,i,small,svg) {
+  color:inherit!important;
+  -webkit-text-fill-color:inherit!important;
+  fill:currentColor!important;
+}
+:root[data-anas-theme] body :is(
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="button"],
+  .btn,
+  .pill-select-btn,
+  .anas-ai-import-type,
+  .anas-ai-import-primary
+):is(:hover,:focus-visible) {
+  background-color:var(--anas-unified-button-hover)!important;
+  background-image:none!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+:root[data-anas-theme] body :is(
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="button"],
+  .btn,
+  .pill-select-btn,
+  .anas-ai-import-type,
+  .anas-ai-import-primary
+):disabled {
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+/* Main section bars use theme-aware surfaces; headings remain readable in both modes. */
+:root:not([data-anas-theme="dark"]) body .sub-header-bar,
+:root:not([data-anas-theme="dark"]) body .sub-header-title {
+  background-color:#eff6ff!important;
+  background-image:none!important;
+  color:#172554!important;
+  -webkit-text-fill-color:#172554!important;
+  border-color:#bfdbfe!important;
+}
+:root[data-anas-theme="dark"] body .sub-header-bar,
+:root[data-anas-theme="dark"] body .sub-header-title {
+  background-color:#1e293b!important;
+  background-image:none!important;
+  color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;
+  border-color:#475569!important;
+}
+:root[data-anas-theme] body .sub-header-bar .sub-header-title,
+:root[data-anas-theme] body .sub-header-bar :is(h1,h2,h3,strong) {
+  color:inherit!important;
+  -webkit-text-fill-color:inherit!important;
+}

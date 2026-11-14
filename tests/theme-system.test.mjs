@@ -219,6 +219,18 @@ test('automatic appearance mode persists independently and follows later operati
   assert.equal(app.values.get('ANAS_ERP_THEME'), 'system');
 });
 
+test('all action buttons share one accessible blue palette in both themes', () => {
+  const css = readFileSync(new URL('../anas-erp-ui-safe-enhancements.css', import.meta.url), 'utf8');
+  for (const token of [
+    '--anas-unified-button-bg:#1d4ed8',
+    '--anas-unified-button-hover:#1e40af',
+    '--anas-unified-button-text:#ffffff',
+    ':root[data-anas-theme] body :is(',
+    ':root[data-anas-theme="dark"] body .sub-header-bar',
+    ':root:not([data-anas-theme="dark"]) body .sub-header-bar'
+  ]) assert.ok(css.includes(token), 'missing unified button/theme heading rule: ' + token);
+});
+
 test('theme contrast repair explicitly covers invoice actions, AI import tabs and quick navigation', () => {
   const css = readFileSync(new URL('../anas-erp-ui-safe-enhancements.css', import.meta.url), 'utf8');
   for (const selector of [

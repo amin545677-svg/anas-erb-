@@ -602,8 +602,18 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       const paymentColors = await page.locator('#anas-video-theme-fixture #hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
         nodes.map(node => ({ background:getComputedStyle(node).backgroundColor, color:getComputedStyle(node).color })));
       assert.deepEqual(paymentColors.map(item => item.background),
-        ['rgb(220, 252, 231)', 'rgb(239, 246, 255)', 'rgb(254, 226, 226)'],
-        'full payment stays green, partial payment blue and debt red in ' + theme);
+        ['rgb(29, 78, 216)', 'rgb(29, 78, 216)', 'rgb(29, 78, 216)'],
+        'all POS payment actions use the same brand-blue surface in ' + theme);
+      for (const item of paymentColors) {
+        assert.equal(item.color, 'rgb(255, 255, 255)',
+          'all POS payment actions use the same white label color in ' + theme);
+      }
+      const buttonPalette = await page.locator('#anas-video-theme-fixture button').evaluateAll(nodes =>
+        nodes.map(node => ({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
+      for (const item of buttonPalette) {
+        assert.equal(item.background, 'rgb(29, 78, 216)', 'every action button must use the shared blue in ' + theme);
+        assert.equal(item.color, 'rgb(255, 255, 255)', 'every action button must use white text in ' + theme);
+      }
       for (const item of paymentColors) {
         assert.ok(contrast(item.color, item.background) >= 4.5,
           'POS payment action colors must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
