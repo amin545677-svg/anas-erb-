@@ -306,15 +306,8 @@
     return rows;
   }
   g.anasBuildCustomerReconciliationRows=buildCustomerReconciliationRows;
-  const originalShowReportDetails=g.showReportDetails;
-  if(typeof originalShowReportDetails==='function'&&!originalShowReportDetails.__anasCustomerReconciliationWrapped){
-    const wrappedShowReportDetails=function(title){
-      if(title==='تقرير مصادقة حساب العميل'||title==='مصادقة حساب العميل')return renderCustomerReconciliationReport(title);
-      return originalShowReportDetails.apply(this,arguments);
-    };
-    wrappedShowReportDetails.__anasCustomerReconciliationWrapped=true;
-    g.showReportDetails=wrappedShowReportDetails;
-  }
+  // Report handlers are composed once below, after both report renderers exist.
+
 
 
   // r46: normalized report date extraction and store movement report modal.
@@ -371,11 +364,22 @@
     content.querySelector('[data-store-csv]').addEventListener('click',()=>{const csv=[['رقم الفاتورة','التاريخ','الإجمالي','المدفوع','المتبقي'],...invoices].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));const a=g.document.createElement('a');a.href=url;a.download='store-movement-report.csv';a.click();URL.revokeObjectURL(url);});
     return true;
   }
-  const baseShowReport=g.showReportDetails;
-  if(typeof baseShowReport==='function'&&!baseShowReport.__anasStoreMovementR46){
-    const wrapped=function(title){if(title==='حركة المتجر'||title==='حركة المتجر - رسم بياني')return renderStoreMovementReport(title.includes('رسم بياني'));return baseShowReport.apply(this,arguments);};
-    wrapped.__anasStoreMovementR46=true;g.showReportDetails=wrapped;
+  function hookShowReportDetails(){
+    const current=g.showReportDetails;
+    if(typeof current!=='function'||current.__anasHooked)return false;
+    const original=current;
+    const wrapped=function(title){
+      if(title==='تقرير مصادقة حساب العميل'||title==='مصادقة حساب العميل')return renderCustomerReconciliationReport(title);
+      if(title==='حركة المتجر'||title==='حركة المتجر - رسم بياني')return renderStoreMovementReport(title.includes('رسم بياني'));
+      const result=original.apply(this,arguments);
+      scheduleDomRepairs();
+      return result;
+    };
+    wrapped.__anasHooked=true;
+    g.showReportDetails=wrapped;
+    return true;
   }
+
   function installInquiryTabs(){
     const list=g.document.getElementById('anasQueriesList');if(!list||list.dataset.anasTabsReady)return;
     const groups=Array.from(list.querySelectorAll(':scope > .anas-query-group'));if(!groups.length)return;
@@ -393,7 +397,11 @@
   }
   function normalizeInvoiceCurrency(){
     const root=g.document.getElementById('invoicesList')||g.document.getElementById('view-invoices-list');if(!root)return;
-    root.querySelectorAll('*').forEach(el=>{if(!el.children.length&&/\bDA\b/.test(el.textContent||''))el.textContent=el.textContent.replace(/\bDA\b/g,'د.ج');});
+    root.querySelectorAll('*').forEach(el=>{
+      if(el.children.length||el.dataset.anasNormalized==='1')return;
+      const text=el.textContent||'';
+      if(/\bDA\b/.test(text)){el.textContent=text.replace(/\bDA\b/g,'د.ج');el.dataset.anasNormalized='1';}
+    });
   }
   function applyR46DomRepairs(){
     installInquiryTabs();compactCustomerActions();normalizeInvoiceCurrency();
@@ -404,7 +412,27 @@
     const purchases=g.document.getElementById('view-purchases');
     if(purchases)purchases.querySelectorAll('button').forEach(b=>{if(b.textContent.trim()==='مسح الكل')b.classList.add('anas-purchase-clear-action');});
   }
-  if(g.document.readyState==='loading')g.document.addEventListener('DOMContentLoaded',applyR46DomRepairs,{once:true});else applyR46DomRepairs();
-  if(typeof g.MutationObserver==='function'){const observer=new g.MutationObserver(()=>applyR46DomRepairs());observer.observe(g.document.documentElement,{childList:true,subtree:true});}
+  let repairTimer=null;
+  function scheduleDomRepairs(){
+    if(repairTimer!==null)g.clearTimeout(repairTimer);
+    repairTimer=g.setTimeout(()=>{repairTimer=null;applyR46DomRepairs();},50);
+  }
+  function hookOpenView(){
+    const current=g.openView;
+    if(typeof current!=='function'||current.__anasHooked)return false;
+    const original=current;
+    const wrapped=function(){
+      const result=original.apply(this,arguments);
+      scheduleDomRepairs();
+      return result;
+    };
+    wrapped.__anasHooked=true;
+    g.openView=wrapped;
+    return true;
+  }
+  function installNavigationHooks(){hookOpenView();hookShowReportDetails();}
+  if(g.document.readyState==='loading'){
+    g.document.addEventListener('DOMContentLoaded',function(){installNavigationHooks();scheduleDomRepairs();},{once:true});
+  }else{installNavigationHooks();scheduleDomRepairs();}
 
 })(window);
