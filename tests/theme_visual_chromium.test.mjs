@@ -495,9 +495,9 @@ test('video-driven shared controls, product-search popups and AI import surfaces
           <div class="anas-ai-import-drop" id="ai-import-drop"><p id="ai-import-drop-text">اختر الملف</p><button id="ai-import-primary" class="anas-ai-import-primary" type="button">اختيار الملف</button></div>
         </section>
         <div id="hasibModal"><div class="anas-quick-payment-actions">
-          <button id="payment-full" type="button">الدفع الكامل</button>
-          <button id="payment-partial" type="button">الدفع الجزئي</button>
-          <button id="payment-debt" type="button">الدين</button>
+          <button id="payment-full" data-payment-mode="full" type="button">الدفع الكامل</button>
+          <button id="payment-partial" data-payment-mode="partial" type="button">الدفع الجزئي</button>
+          <button id="payment-debt" data-payment-mode="debt" type="button">الدين</button>
         </div></div>
         <div id="legalInvoiceA4Area"><p id="print-text">فاتورة البيع</p></div>`;
       document.body.appendChild(fixture);
@@ -606,7 +606,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         assert.ok(contrast(item.color, item.background) >= 4.5,
           name + ' foreground/background must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
       }
-      const paymentColors = await page.locator('#anas-video-theme-fixture #hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
+      const paymentColors = await page.locator('#anas-video-theme-fixture #hasibModal .anas-quick-payment-actions button[data-payment-mode]').evaluateAll(nodes =>
         nodes.map(node => ({ background:getComputedStyle(node).backgroundColor, color:getComputedStyle(node).color,
           fontSize:getComputedStyle(node).fontSize, fontWeight:getComputedStyle(node).fontWeight })));
       assert.deepEqual(paymentColors.map(item => item.background),

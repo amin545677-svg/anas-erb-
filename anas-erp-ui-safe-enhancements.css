@@ -1263,29 +1263,6 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
   border-color:#526782!important;
 }
 
-/* Payment shortcuts retain their individual financial meaning in both themes. */
-#hasibModal .anas-quick-payment-actions > button:nth-child(1) {
-  background:#dcfce7!important;
-  background-color:#dcfce7!important;
-  color:#166534!important;
-  -webkit-text-fill-color:#166534!important;
-  border-color:#86efac!important;
-}
-#hasibModal .anas-quick-payment-actions > button:nth-child(2) {
-  background:#eff6ff!important;
-  background-color:#eff6ff!important;
-  color:#1e40af!important;
-  -webkit-text-fill-color:#1e40af!important;
-  border-color:#bfdbfe!important;
-}
-#hasibModal .anas-quick-payment-actions > button:nth-child(3) {
-  background:#fee2e2!important;
-  background-color:#fee2e2!important;
-  color:#991b1b!important;
-  -webkit-text-fill-color:#991b1b!important;
-  border-color:#fca5a5!important;
-}
-
 
 /* r39.2 — final cascade guard: keep ordinary dark controls dark even when
    later legacy component rules use button-level background shorthands. */
@@ -1296,23 +1273,6 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
   color:#f3f7ff!important;
   -webkit-text-fill-color:#f3f7ff!important;
   border-color:#526782!important;
-}
-
-/* Payment action ordering is based on button type, not all sibling nodes. */
-#hasibModal .anas-quick-payment-actions button:nth-of-type(1) {
-  background:#dcfce7!important;background-color:#dcfce7!important;
-  color:#166534!important;-webkit-text-fill-color:#166534!important;
-  border-color:#86efac!important;
-}
-#hasibModal .anas-quick-payment-actions button:nth-of-type(2) {
-  background:#eff6ff!important;background-color:#eff6ff!important;
-  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;
-  border-color:#bfdbfe!important;
-}
-#hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
-  background:#fee2e2!important;background-color:#fee2e2!important;
-  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;
-  border-color:#fca5a5!important;
 }
 
 
@@ -1337,26 +1297,6 @@ html:root[data-anas-theme="dark"] body [role="button"]:not(.danger):not(.success
 :root[data-anas-theme] body .category-btn,
 :root[data-anas-theme] body .category-button,
 :root[data-anas-theme] body .quick-product-btn {
-  transition:none!important;
-}
-
-/* Preserve semantic payment colors above generic theme button selectors. */
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1) {
-  background:#dcfce7!important;background-color:#dcfce7!important;background-image:none!important;
-  color:#166534!important;-webkit-text-fill-color:#166534!important;border-color:#86efac!important;
-  transition:none!important;
-}
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2) {
-  background:#eff6ff!important;background-color:#eff6ff!important;background-image:none!important;
-  color:#1e40af!important;-webkit-text-fill-color:#1e40af!important;border-color:#bfdbfe!important;
-  transition:none!important;
-}
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3) {
-  background:#fee2e2!important;background-color:#fee2e2!important;background-image:none!important;
-  color:#991b1b!important;-webkit-text-fill-color:#991b1b!important;border-color:#fca5a5!important;
   transition:none!important;
 }
 
@@ -1635,14 +1575,6 @@ html:root[data-theme="dark"] body #productPickerModal #productPickerSearch {
   background-color:#334155;
   color:#fff;
 }
-/* Semantic POS payment buttons are explicit exceptions to generic theme rules. */
-:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(1),
-:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="full"],
-:root[data-anas-theme="dark"] #hasibModal button[onclick*="full"] {background-color:#dcfce7;color:#14532d;border-color:#86efac;}
-:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(2),
-:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="partial"] {background-color:#dbeafe;color:#1e40af;border-color:#93c5fd;}
-:root[data-anas-theme="dark"] #hasibModal .anas-quick-payment-actions button:nth-child(3),
-:root[data-anas-theme="dark"] #hasibModal button[data-payment-mode="debt"] {background-color:#fee2e2;color:#991b1b;border-color:#fca5a5;}
 :root[data-anas-theme="dark"] #hasibModal #confirmSaleBtn,
 :root[data-anas-theme="dark"] #hasibModal #confirmPaymentBtn,
 :root[data-anas-theme="dark"] #hasibModal button[data-action="confirm-sale"] {background-color:#15803d;color:#fff;border-color:#166534;}
@@ -2064,17 +1996,6 @@ html:root body #hasibModal button[data-action="confirm-sale"] {
   font-weight:800!important;
   transition:none!important;
 }
-html:root body #hasibModal .anas-quick-payment-actions button[data-payment-mode="partial"],
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(2),
-html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(2) {
-  background:#1d4ed8!important;
-  background-color:rgb(29, 78, 216)!important;
-  background-image:none!important;
-  color:#ffffff!important;
-  -webkit-text-fill-color:#ffffff!important;
-  border-color:#1e40af!important;
-  transition:none!important;
-}
 html:root body #hasibModal .anas-quick-payment-actions button[data-payment-mode="debt"],
 html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(3),
 html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
@@ -2126,11 +2047,6 @@ html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button:nth-o
   background:#16a34a!important;background-color:rgb(22,163,74)!important;background-image:none!important;
   color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#15803d!important;
   font-size:19px!important;font-weight:800!important;transition:none!important;
-}
-html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button[data-payment-mode="partial"],
-html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button:nth-of-type(2) {
-  background:#1d4ed8!important;background-color:rgb(29,78,216)!important;background-image:none!important;
-  color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#1e40af!important;transition:none!important;
 }
 html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button[data-payment-mode="debt"],
 html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button:nth-of-type(3) {
