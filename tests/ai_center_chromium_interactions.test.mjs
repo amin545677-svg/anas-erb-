@@ -135,6 +135,10 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.equal(aiScroll.overflowY, 'auto');
   assert.ok(parseFloat(aiScroll.maxHeight) <= aiScroll.viewportHeight * 0.86,
     'AI Center content must remain scrollable within the 85dvh mobile viewport');
+  // The chat composer is intentionally hidden in the Overview workspace.
+  // Navigate through the real workspace control before interacting with it.
+  await page.locator('#aiHubTabContent [data-ai-workspace-tab="assistant"]').click();
+  await page.locator('#aiHubTabContent [data-ai-workspace-panel="assistant"]').waitFor({ state: 'visible' });
   await page.locator('#anasAiQuestion').fill('بيع 3 أريشا للعميل عمر شريفي بسعر 250');
   await page.evaluate(() => anasPrepareNaturalLanguageDraft());
   const parsedDraft = await page.evaluate(() => ({
@@ -458,6 +462,10 @@ test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on r
       }) })
     };
   });
+  // OCR controls live inside the Documents workspace; selecting the tab is
+  // part of the real user flow and must precede visibility assertions.
+  await page.locator('#aiHubTabContent [data-ai-workspace-tab="documents"]').click();
+  await page.locator('#aiHubTabContent [data-ai-workspace-panel="documents"]').waitFor({ state: 'visible' });
   await page.locator('#smartPdfOcrButton').waitFor({ state: 'visible' });
 
   await page.locator('#smartPdfOcrButton').evaluate(button => button.click());

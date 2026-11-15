@@ -627,12 +627,23 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       }
       const buttonPalette = await page.locator('#anas-video-theme-fixture button:not(.grid-card-item)').evaluateAll(nodes =>
         nodes.filter(node => !node.closest('#hasibModal .anas-quick-payment-actions') &&
-          !node.matches('#hasibModal #confirmSaleBtn, #hasibModal button[data-action="confirm-sale"]'))
-          .map(node => ({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
+          !node.matches('#hasibModal #confirmSaleBtn, #hasibModal button[data-action="confirm-sale"]') &&
+          !node.matches('.anas-ai-import-type:not(.is-active)'))
+          .map(node => ({id:node.id,className:node.className,background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
       for (const item of buttonPalette) {
-        assert.equal(item.background, 'rgb(29, 78, 216)', 'every non-payment action button must use the shared blue in ' + theme);
-        assert.equal(item.color, 'rgb(255, 255, 255)', 'every non-payment action button must use white text in ' + theme);
+        assert.equal(item.background, 'rgb(29, 78, 216)',
+          'semantic non-payment action ' + (item.id || item.className || '(unlabelled)') + ' must use shared royal blue in ' + theme);
+        assert.equal(item.color, 'rgb(255, 255, 255)',
+          'semantic non-payment action ' + (item.id || item.className || '(unlabelled)') + ' must use white text in ' + theme);
       }
+      // The inactive import-type pill is a deliberate neutral state, not a primary action.
+      const inactiveImportTab = await page.locator('#anas-video-theme-fixture #ai-import-type-secondary').evaluate(node => ({
+        background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color
+      }));
+      assert.equal(inactiveImportTab.background, 'rgb(248, 250, 252)', 'inactive AI import type retains its neutral light surface in ' + theme);
+      assert.equal(inactiveImportTab.color, 'rgb(15, 23, 42)', 'inactive AI import type retains dark readable text in ' + theme);
+      assert.ok(contrast(inactiveImportTab.color, inactiveImportTab.background) >= 4.5,
+        'inactive AI import type remains WCAG AA in ' + theme);
       const targetVisuals=await page.evaluate(()=>{
         const backgroundOf=node=>{
           for(let current=node;current&&current!==document.documentElement;current=current.parentElement){
