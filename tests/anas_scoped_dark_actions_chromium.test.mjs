@@ -49,7 +49,8 @@ test('scoped dark-mode actions and semantic payment controls meet WCAG AA in Chr
         const el = document.querySelector(selector);
         if (!el) throw new Error('Missing test surface: ' + selector);
         const css = getComputedStyle(el);
-        return { selector, foreground: css.color, background: css.backgroundColor, border: css.borderColor };
+        return { selector, foreground: css.color, background: css.backgroundColor, border: css.borderColor,
+          fontSize: css.fontSize, fontWeight: css.fontWeight };
       };
       return [
         read('.anas-ai-import-pro .anas-ai-import-drop'),
@@ -65,15 +66,25 @@ test('scoped dark-mode actions and semantic payment controls meet WCAG AA in Chr
         read('#hasibModal button[data-payment-mode="debt"]')
       ];
     });
-    for (const item of results) {
+    for (const item of results.slice(0, 8)) {
       assert.ok(contrast(item.foreground, item.background) >= 4.5,
         item.selector + ' contrast below WCAG AA: ' + JSON.stringify(item));
     }
-    assert.notEqual(results[8].background, results[9].background, 'full and partial payment colors must remain distinct');
-    assert.notEqual(results[9].background, results[10].background, 'partial and debt payment colors must remain distinct');
-    assert.match(results[8].background, /220, 252, 231/, 'full payment remains green');
-    assert.match(results[9].background, /239, 246, 255/, 'partial payment remains blue');
-    assert.match(results[10].background, /254, 226, 226/, 'debt payment remains red');
+    const full = results[8], partial = results[9], debt = results[10];
+    assert.equal(full.background, 'rgb(22, 163, 74)', 'full payment uses emerald green');
+    assert.equal(partial.background, 'rgb(29, 78, 216)', 'partial payment uses royal blue');
+    assert.equal(debt.background, 'rgb(220, 38, 38)', 'debt payment uses crimson red');
+    for (const item of [full, partial, debt]) {
+      assert.equal(item.foreground, 'rgb(255, 255, 255)', 'payment labels remain white');
+    }
+    assert.ok(Number.parseFloat(full.fontSize) >= 18.67 && Number.parseInt(full.fontWeight, 10) >= 700,
+      'full-payment label must qualify as WCAG large bold text on the specified emerald surface');
+    assert.ok(contrast(full.foreground, full.background) >= 3,
+      'large bold full-payment label must meet WCAG AA large-text contrast');
+    for (const item of [partial, debt]) {
+      assert.ok(contrast(item.foreground, item.background) >= 4.5,
+        item.selector + ' must meet WCAG AA normal-text contrast: ' + JSON.stringify(item));
+    }
   } finally {
     await browser.close();
   }
