@@ -77,7 +77,7 @@ function createHandler(options = {}) {
     }
   };
   return createReverseLedgerHandler({
-    db,
+    db: options.db || db,
     getUser: async () => ({ disabled: false, displayName: 'Firestore Emulator Operator' }),
     FieldValue,
     HttpsError: TestHttpsError,
@@ -87,10 +87,11 @@ function createHandler(options = {}) {
       assert.equal(context.reservation.acquired, true);
       assert.equal(context.reservation.durable, true);
       if (options.denyAuthorization) throw new TestHttpsError('permission-denied', 'emulator grant denied');
+      if (typeof options.onAuthorize === 'function') options.onAuthorize(context);
       return { authorized: true };
     },
     projectId: PROJECT_ID,
-    now: () => 1793400200000
+    now: options.now || (() => 1793400200000)
   });
 }
 
@@ -258,6 +259,81 @@ test('Firestore transaction can create an operation record when no Worker reserv
   assert.equal(operation.get('status'), 'POSTED');
   const snapshot = await user.collection('snapshots').doc('latest').get();
   assert.equal(JSON.parse(snapshot.get('payload')).returns.length, 1);
+});
+
+test('Retry Clock refreshes after real Firestore SDK transaction contention', async t => {
+  const uid = 'emu-retry-clock-' + crypto.randomUUID();
+  const operationId = 'REV-' + crypto.randomUUID();
+  const { user } = await seed(uid, [operationId]);
+  t.after(() => cleanup(uid, [operationId]));
+
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  let contentionInjected = false;
+  let transactionCallbacks = 0;
+  const clockReads = [];
+  const authorizationTimes = [];
+  const baseNow = 1793400200000;
+
+  // Keep the real Admin SDK transaction implementation. The wrapper only
+  // injects one independent committed write after the first transaction read.
+  const contentionDb = {
+    collection: (...args) => db.collection(...args),
+    runTransaction: (updateFunction, transactionOptions) => db.runTransaction(async transaction => {
+      transactionCallbacks += 1;
+      const transactionProxy = new Proxy(transaction, {
+        get(target, property) {
+          if (property === 'getAll') {
+            return async (...references) => {
+              const documents = await target.getAll(...references);
+              if (!contentionInjected) {
+                contentionInjected = true;
+                // This independent commit changes a document already read by
+                // the in-flight transaction, forcing a real commit conflict.
+                await snapshotRef.update({ retryClockContentionNonce: crypto.randomUUID() });
+              }
+              return documents;
+            };
+          }
+          const value = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+      });
+      return updateFunction(transactionProxy);
+    }, transactionOptions)
+  };
+
+  const handler = createHandler({
+    db: contentionDb,
+    now: () => {
+      const value = baseNow + clockReads.length * 1000;
+      clockReads.push(value);
+      return value;
+    },
+    onAuthorize: context => authorizationTimes.push(context.nowEpochMs)
+  });
+
+  const response = await handler(makeRequest(uid, operationId));
+  assert.equal(contentionInjected, true, 'the competing Firestore write must commit');
+  assert.ok(transactionCallbacks >= 2, 'the Admin SDK must re-run the transaction callback');
+  assert.ok(clockReads.length >= 2, 'now() must be called again by the SDK retry');
+  assert.ok(authorizationTimes.length >= 2, 'the retried attempt must reach authorization');
+  assert.ok(authorizationTimes[1] > authorizationTimes[0], 'the retried attempt must observe a newer clock');
+  assert.equal(response.ok, true);
+
+  const [persistedSnapshot, persistedOperation] = await Promise.all([
+    snapshotRef.get(),
+    db.collection('reverseLedgerOperations').doc(operationId).get()
+  ]);
+  const persistedState = JSON.parse(persistedSnapshot.get('payload'));
+  assert.equal(persistedSnapshot.get('retryClockContentionNonce') !== undefined, true);
+  assert.equal(persistedState.returns.length, 1, 'only one return may be persisted');
+  assert.equal(persistedOperation.get('status'), 'POSTED');
+  assert.equal(
+    persistedOperation.get('expiresAtEpochMs'),
+    authorizationTimes[authorizationTimes.length - 1] + 60000,
+    'the durable operation must use the successful retry attempt clock'
+  );
+  assert.equal(persistedOperation.get('result').document.returnId, response.document.returnId);
 });
 
 function createRealEngineHandler() {
