@@ -369,6 +369,7 @@
     if(typeof current!=='function'||current.__anasHooked)return false;
     const original=current;
     const wrapped=function(title){
+      scheduleDomRepairs();
       if(title==='تقرير مصادقة حساب العميل'||title==='مصادقة حساب العميل')return renderCustomerReconciliationReport(title);
       if(title==='حركة المتجر'||title==='حركة المتجر - رسم بياني')return renderStoreMovementReport(title.includes('رسم بياني'));
       const result=original.apply(this,arguments);
@@ -414,7 +415,8 @@
   }
   let repairTimer=null;
   function scheduleDomRepairs(){
-    if(repairTimer!==null)g.clearTimeout(repairTimer);
+    if(typeof g.setTimeout!=='function'){applyR46DomRepairs();return;}
+    if(repairTimer!==null&&typeof g.clearTimeout==='function')g.clearTimeout(repairTimer);
     repairTimer=g.setTimeout(()=>{repairTimer=null;applyR46DomRepairs();},50);
   }
   function hookOpenView(){
