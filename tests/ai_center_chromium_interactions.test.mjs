@@ -366,12 +366,12 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
 
   // 3) Generate a blank, safe template and assert the browser download.
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: /توليد بيانات جاهزة/ }).click();
+  await page.locator('#aiHubTabContent [data-anas-ai-action="generate"]').click();
   const download = await downloadPromise;
   assert.match(download.suggestedFilename(), /قالب_.*\.xlsx/);
 
   // 4) Invoice OCR: clicking the action must open the actual OCR modal.
-  await page.getByRole('button', { name: /مسح الفواتير بالذكاء الاصطناعي/ }).click();
+  await page.locator('#aiHubTabContent [data-anas-ai-action="ocr"]').click();
   await page.locator('#invoiceOcrModal').waitFor({ state: 'visible' });
   const ocrFocusCss = await page.locator('style').evaluateAll(nodes => nodes.map(node => node.textContent || '').join('\n'));
   assert.match(ocrFocusCss, /#invoiceOcrModal button:focus-visible[^}]*#1e3a8a/);
