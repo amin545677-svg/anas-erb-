@@ -97,3 +97,13 @@ test('R46 report dates parse Arabic digits and time suffixes, reject impossible 
   assert.equal(h.window.anasGetReportRecordDate({ id: 'INV-20261108-0001' }), '2026-11-08',
     'a valid date embedded in an invoice ID remains a fallback');
 });
+
+test('R46 report date extraction returns null when all record and invoice-ID date candidates are impossible', () => {
+  const h = harness({ value: { revision: 1 } }, { revision: 1 });
+  assert.equal(h.window.anasGetReportRecordDate({
+    date: '2026-02-31',
+    invoiceDate: '2026/02/31',
+    createdAt: 'not-a-date',
+    id: 'INV-20260231-0001'
+  }), null);
+});
