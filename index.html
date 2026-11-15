@@ -1760,9 +1760,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
   .anas-pos-product-price{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none;color:#15803d}
   .anas-pos-product-price strong{font-size:15px;font-weight:950;white-space:nowrap}.anas-pos-product-price small{font-size:10px;color:#2563eb;font-weight:900}
   #anasPosPriceTierModal h3{font-size:18px;font-weight:950;line-height:1.4}
-  #hasibModal .anas-quick-payment-actions button:nth-child(1){background:#dcfce7!important;border-color:#16a34a!important;color:#166534!important}
-  #hasibModal .anas-quick-payment-actions button:nth-child(2){background:#eff6ff!important;border-color:#60a5fa!important;color:#1d4ed8!important}
-  #hasibModal .anas-quick-payment-actions button:nth-child(3){background:#fee2e2!important;border-color:#dc2626!important;color:#b91c1c!important}
+  #hasibModal .anas-quick-payment-actions button:nth-child(1){background:#16a34a!important;background-color:rgb(22,163,74)!important;background-image:none!important;border-color:#15803d!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+  #hasibModal .anas-quick-payment-actions button:nth-child(2){background:#1d4ed8!important;background-color:rgb(29,78,216)!important;background-image:none!important;border-color:#1e40af!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+  #hasibModal .anas-quick-payment-actions button:nth-child(3){background:#dc2626!important;background-color:rgb(220,38,38)!important;background-image:none!important;border-color:#b91c1c!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
   @media(max-width:480px){#quickProductsContainer.anas-pos-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}#quickProductsContainer .anas-pos-product-card{padding:9px;gap:8px}.anas-pos-product-name{font-size:13px}.anas-pos-product-price strong{font-size:13px}}
 </style>
 <style id="anas-firebase-mobile-layout-v3">
@@ -3054,9 +3054,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                         <option value="other">📌 أخرى — تحصيل غير نقدي</option>
                     </select>
                     <div class="anas-quick-payment-actions" role="group" aria-label="اختصارات الدفع السريع" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px">
-                        <button type="button" onclick="setHasibPaymentMode('cash')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">كامل</button>
-                        <button type="button" onclick="setHasibPaymentMode('partial')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">½ الآن</button>
-                        <button type="button" onclick="setHasibPaymentMode('credit')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">دين كامل</button>
+                        <button type="button" data-payment-mode="full" onclick="setHasibPaymentMode('cash')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">كامل</button>
+                        <button type="button" data-payment-mode="partial" onclick="setHasibPaymentMode('partial')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">½ الآن</button>
+                        <button type="button" data-payment-mode="debt" onclick="setHasibPaymentMode('credit')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">دين كامل</button>
                     </div>
                 </div>
                 <div id="hasibPaidGroup" class="field-group">
