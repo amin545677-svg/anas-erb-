@@ -680,7 +680,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         assert.equal(targetVisuals.settingsGroup.background,'rgb(30, 41, 59)','settings field group must use the dark surface');
         assert.equal(targetVisuals.bottomNavSurface,'rgb(15, 23, 42)','bottom navigation surface must use #0f172a');
         assert.equal(targetVisuals.bottomNavBorder,'rgb(30, 41, 59)','bottom navigation border must use #1e293b');
-        assert.equal(targetVisuals.bottomNavAction.background,'rgb(30, 41, 59)','active bottom navigation action must use #1e293b');
+        assert.equal(targetVisuals.bottomNavAction.background,'rgb(30, 64, 175)','active bottom navigation action must use the shared dark-theme royal-blue hover surface');
       }
     }
     const darkPrimary = await page.locator('#ai-import-primary').evaluate(node => {
