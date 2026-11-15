@@ -230,6 +230,15 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
   stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r40 | Env: Staging');
+  // Keep the static status bar and About-app stamp on one immutable build identity.
+  const statusVersionAttr = 'data-build-version="r39"';
+  const statusVersionBadge = /(<span id="anas-status-version-badge">)[\s\S]*?(<\/span>)/g;
+  const statusBadgeMatches = [...stagedHtml.matchAll(statusVersionBadge)];
+  if (stagedHtml.split(statusVersionAttr).length - 1 !== 1 || statusBadgeMatches.length !== 1) throw new Error('Expected exactly one legacy r39 status-bar identity to upgrade in the staging shell');
+  stagedHtml = stagedHtml.replace(statusVersionAttr, 'data-build-version="r40"');
+  stagedHtml = stagedHtml.replace(statusVersionBadge, '$1SW: r40 | Build SHA: ' + buildSha + '$2');
+  const builtStatusBar = stagedHtml.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/);
+  if (!builtStatusBar || !builtStatusBar[0].includes('data-build-version="r40"') || !builtStatusBar[0].includes('SW: r40 | Build SHA: ' + buildSha) || builtStatusBar[0].includes('r39')) throw new Error('Staging status bar and About-app build identity are not synchronized');
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');

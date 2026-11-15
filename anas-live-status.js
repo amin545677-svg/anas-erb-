@@ -3,6 +3,18 @@
   if (g.__ANAS_LIVE_DURABILITY_STATUS_R46__) return;
   g.__ANAS_LIVE_DURABILITY_STATUS_R46__ = true;
   function bar() { return g.document && g.document.getElementById('anas-live-status-bar'); }
+  function syncBuildIdentity() {
+    const b = bar(); if (!b) return false;
+    const stamp = g.document.getElementById('anasBuildStamp');
+    const badge = g.document.getElementById('anas-status-version-badge');
+    const raw = stamp && typeof stamp.textContent === 'string' ? stamp.textContent.trim() : '';
+    const match = /^Build SHA:\s*([0-9a-f]{7,40}|local)\s*\|\s*SW:\s*(r[0-9]+)\s*\|\s*Env:\s*Staging$/i.exec(raw);
+    if (!match) { b.dataset.buildIdentityState = 'unverified'; if (badge) badge.textContent = '⚠ إصدار غير متحقق'; return false; }
+    const sha = match[1].toLowerCase(), version = match[2].toLowerCase();
+    b.dataset.buildSha = sha; b.dataset.buildVersion = version; b.dataset.buildIdentityState = 'verified';
+    if (badge) badge.textContent = 'SW: ' + version + ' | Build SHA: ' + sha;
+    return true;
+  }
   function emit(type, detail) {
     if (!g.document || typeof g.CustomEvent !== 'function') return;
     try { g.document.dispatchEvent(new g.CustomEvent(type, { detail: detail || {} })); } catch (_) {}
@@ -62,6 +74,8 @@
     };
     wrapped.__anasR40Wrapped = true; g.saveDBDurably = wrapped; return true;
   }
+  syncBuildIdentity();
+  if (g.document && g.document.addEventListener) g.document.addEventListener('DOMContentLoaded', syncBuildIdentity);
   network();
   g.addEventListener('online', function () { network(true); });
   g.addEventListener('offline', function () { network(false); });

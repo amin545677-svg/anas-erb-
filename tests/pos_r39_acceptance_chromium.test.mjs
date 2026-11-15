@@ -22,7 +22,7 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
   const page=await browser.newPage({viewport:{width:390,height:844}});
   assert.ok(html.includes('id="anas-live-status-bar"'));
   await page.setContent('<!doctype html><html><head><style>'+cartCss+'</style><style>'+inlineStyle('anas-r39-financial-numerals')+'</style></head><body>'+
-    '<div id="anas-live-status-bar" data-network-state="online" data-durability-state="committed" data-build-version="r39"><span id="anas-status-network-badge"></span><span id="anas-status-durability-badge"></span><span id="anas-status-version-badge">r39</span></div>'+
+    '<div id="anas-live-status-bar" data-network-state="online" data-durability-state="committed" data-build-version="r40"><span id="anas-status-network-badge"></span><span id="anas-status-durability-badge"></span><span id="anas-status-version-badge">SW: r40 | Build SHA: abcdef0</span></div><p id="anasBuildStamp">Build SHA: abcdef0 | SW: r40 | Env: Staging</p>'+
     '<section id="view-pos" class="active"><div id="posItemsTableBody"></div></section>'+
     '<div class="erp-num" id="n1">12</div><div class="pos-qty" id="n2">.25</div><div class="balance-badge" id="n3">3</div><table><tr><td>label</td><td id="n4">4</td></tr></table><input id="n5" type="number" value="2"></body></html>');
   await page.evaluate(()=>{
@@ -102,5 +102,5 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
   assert.equal(await page.locator('#anas-live-status-bar').getAttribute('data-durability-state'),'committed');
   await page.evaluate(()=>{window.AppData={revision:2,balance:99n};window.syncLiveDurabilityStatusBar();});
   assert.equal(await page.locator('#anas-live-status-bar').getAttribute('data-durability-state'),'uncommitted');
-  assert.equal(await page.locator('#anas-status-version-badge').textContent(),'r39');
+  assert.equal(await page.locator('#anas-status-version-badge').textContent(),'SW: r40 | Build SHA: abcdef0');
 });

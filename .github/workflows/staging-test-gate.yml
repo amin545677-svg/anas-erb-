@@ -186,7 +186,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify strict report dates and historical product kardex opening balances
         run: node --test tests/report-stock-kardex-regression.test.mjs tests/customer-reconciliation-report-regression.test.mjs tests/report-arabic-datetime-regression.test.mjs
-      - name: Run r39 POS and durability acceptance in Chromium
+      - name: Run r40 POS and durability acceptance in Chromium
         run: node --check tests/pos_r39_acceptance_chromium.test.mjs && node --test tests/pos_r39_acceptance_chromium.test.mjs
       - name: Run scoped dark-mode WCAG AA acceptance in Chromium
         run: node --test tests/anas_scoped_dark_actions_chromium.test.mjs

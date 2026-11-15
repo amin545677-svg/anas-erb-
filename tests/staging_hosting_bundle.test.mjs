@@ -52,6 +52,9 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /typeof window\.saveDBDurably === 'function'/, 'bridge readiness must require the durable persistence API');
     assert.match(erp, /anasCompareProductNames/);
     assert.match(erp, /Build SHA: 1234567 \| SW: r40 \| Env: Staging/, 'explicit ANAS_BUILD_SHA must override runner checkout metadata and match the deployment SHA');
+    assert.match(erp, /data-build-version="r40"/, 'the static status bar must carry the generated r40 identity');
+    assert.match(erp, /<span id="anas-status-version-badge">SW: r40 \| Build SHA: 1234567<\/span>/, 'the status bar must expose the same build SHA as the About-app stamp');
+    assert.doesNotMatch(erp.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/)?.[0] || '', /r39/, 'the generated status bar must not retain the old r39 identity');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
     assert.match(erp, /anas-pos-search-first-v1/, 'the deployed ERP shell must carry the search-first POS presentation');
