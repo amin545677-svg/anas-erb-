@@ -1086,14 +1086,14 @@ function makeSettlementRequest(uid, operationId, overrides = {}) {
   };
 }
 
-function createSettlementHandler() {
+function createSettlementHandler(options = {}) {
   return createSettlementAllocationHandler({
-    db,
+    db: options.db || db,
     getUser: async () => ({ disabled: false, displayName: 'Firestore Emulator Operator' }),
     FieldValue,
     HttpsError: TestHttpsError,
     ReverseLedger,
-    now: () => 1793441100000
+    now: options.now || (() => 1793441100000)
   });
 }
 
@@ -1103,6 +1103,72 @@ async function seedSettlement(uid) {
     permissions: ['settlement_allocation_post']
   });
 }
+
+test('settlement allocation refreshes its timestamp after real Firestore transaction contention', async t => {
+  const uid = 'emu-alloc-retry-clock-' + crypto.randomUUID();
+  const operationId = 'ALLOC-' + crypto.randomUUID();
+  const { user } = await seedSettlement(uid);
+  t.after(() => cleanup(uid, [operationId]));
+
+  const snapshotRef = user.collection('snapshots').doc('latest');
+  let contentionInjected = false;
+  let transactionCallbacks = 0;
+  const clockReads = [];
+  const baseNow = 1793441100000;
+  const contentionDb = {
+    collection: (...args) => db.collection(...args),
+    runTransaction: (updateFunction, transactionOptions) => db.runTransaction(async transaction => {
+      transactionCallbacks += 1;
+      const transactionProxy = new Proxy(transaction, {
+        get(target, property) {
+          if (property === 'getAll') {
+            return async (...references) => {
+              const documents = await target.getAll(...references);
+              if (!contentionInjected) {
+                contentionInjected = true;
+                await snapshotRef.update({ settlementRetryContentionNonce: crypto.randomUUID() });
+              }
+              return documents;
+            };
+          }
+          const value = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+      });
+      return updateFunction(transactionProxy);
+    }, transactionOptions)
+  };
+
+  const handler = createSettlementHandler({
+    db: contentionDb,
+    now: () => {
+      const value = baseNow + clockReads.length * 1000;
+      clockReads.push(value);
+      return value;
+    }
+  });
+  const response = await handler(makeSettlementRequest(uid, operationId));
+
+  assert.equal(response.ok, true);
+  assert.equal(contentionInjected, true);
+  assert.ok(transactionCallbacks >= 2, 'Firestore Admin SDK must retry the conflicted callback');
+  assert.ok(clockReads.length >= 2, 'the clock must be read again inside the retried callback');
+
+  const [snapshot, operation] = await Promise.all([
+    snapshotRef.get(),
+    db.collection('reverseLedgerOperations').doc(operationId).get()
+  ]);
+  const state = JSON.parse(snapshot.get('payload'));
+  assert.equal(snapshot.get('settlementRetryContentionNonce') !== undefined, true);
+  assert.equal(state.settlementAllocations.length, 1);
+  assert.equal(operation.get('status'), 'POSTED');
+  assert.equal(
+    state.settlementAllocations[0].createdAt,
+    new Date(clockReads[clockReads.length - 1]).toISOString(),
+    'the committed allocation timestamp must come from the successful retry attempt'
+  );
+  assert.equal(operation.get('result').allocationCount, 1);
+});
 
 test('Firestore Emulator posts settlement allocation atomically and replays the identical operation', async t => {
   const uid = 'emu-alloc-' + crypto.randomUUID();
