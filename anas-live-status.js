@@ -8,7 +8,7 @@
     const stamp = g.document.getElementById('anasBuildStamp');
     const badge = g.document.getElementById('anas-status-version-badge');
     const raw = stamp && typeof stamp.textContent === 'string' ? stamp.textContent.trim() : '';
-    const match = /^Build SHA:\s*([0-9a-f]{7,40}|local)\s*\|\s*SW:\s*(r[0-9]+)\s*\|\s*Env:\s*Staging$/i.exec(raw);
+    const match = /^Build SHA:\s*([0-9a-f]{7,40}|local)\s*\|\s*SW:\s*(r40)\s*\|\s*Env:\s*Staging$/i.exec(raw);
     if (!match) { b.dataset.buildIdentityState = 'unverified'; if (badge) badge.textContent = '⚠ إصدار غير متحقق'; return false; }
     const sha = match[1].toLowerCase(), version = match[2].toLowerCase();
     b.dataset.buildSha = sha; b.dataset.buildVersion = version; b.dataset.buildIdentityState = 'verified';
