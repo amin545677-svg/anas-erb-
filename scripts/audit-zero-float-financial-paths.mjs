@@ -18,6 +18,24 @@ const sources = new Map(files.map(path => {
   assert.ok(fs.existsSync(path), 'Required financial module is missing: ' + path);
   return [path, fs.readFileSync(path, 'utf8')];
 }));
+const shell = fs.readFileSync('index.html', 'utf8');
+const checkoutStart = shell.indexOf('async function confirmHasibPaymentDurable()');
+const inputStart = shell.indexOf('for (const item of cart)', checkoutStart);
+const inputEnd = shell.indexOf('const discountCents =', inputStart);
+assert.ok(checkoutStart >= 0 && inputStart > checkoutStart && inputEnd > inputStart, 'V42 POS durable checkout input loop must be auditable');
+const checkoutInput = shell.slice(inputStart, inputEnd);
+assert.doesNotMatch(checkoutInput, /\bNumber\s*\(\s*item\.(?:qty|price)\s*\)/,
+  'POS checkout must not convert raw quantity/price through Number before BigInt parsing');
+assert.match(checkoutInput, /const qtyRaw = String\(item\.qty\)\.trim\(\)/, 'raw quantity text is retained');
+assert.match(checkoutInput, /const priceRaw = String\(item\.price\)\.trim\(\)/, 'raw unit-price text is retained');
+assert.match(checkoutInput, /anasToQtyUnits\(qtyRaw\)/, 'quantity is parsed from raw text');
+assert.match(checkoutInput, /anasToCents\(priceRaw\)/, 'price is parsed from raw text');
+const decimalParserStart = shell.indexOf('function anasDecimalToScaledInteger');
+const decimalParserEnd = shell.indexOf('function anasToCents', decimalParserStart);
+assert.ok(decimalParserStart >= 0 && decimalParserEnd > decimalParserStart, 'BigInt decimal parser must be present');
+const decimalParser = shell.slice(decimalParserStart, decimalParserEnd);
+assert.match(decimalParser, /BigInt\(match\[4\]\)/, 'decimal exponent is parsed as BigInt');
+assert.doesNotMatch(decimalParser, /Number\(match\[4\]\)/, 'raw decimal exponent does not pass through Number');
 const violations = [];
 for (const [path, source] of sources) {
   const checks = [
@@ -59,5 +77,6 @@ console.log(JSON.stringify({
   bigintArithmetic: 'required',
   rbac: 'required',
   idempotency: 'required',
-  note: 'Bounded Number(BigInt) conversions are permitted only after explicit MAX_SAFE_INTEGER checks at API/storage boundaries.'
+  note: 'Bounded Number(BigInt) conversions are permitted only after explicit MAX_SAFE_INTEGER checks at API/storage boundaries.',
+  posShell: 'raw quantity/price text is parsed through BigInt before safe Number serialization'
 }, null, 2));

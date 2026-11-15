@@ -973,7 +973,7 @@ test('Chromium UAT: 0.75 kg sale, 400.00 initial payment, 200.00 receipt and rep
       const product = s.products.find(row => String(row.id) === 'STG-POS-LIFECYCLE-001');
       const saleCash = s.cashMovements.filter(row => row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
       const receiptCash = s.cashMovements.filter(row => row.referenceType === 'customer_debt' && String(row.referenceId) === 'STG-CUSTOMER-001');
-      const reportDay = String(invoice.date || invoice.createdAt || new Date().toISOString()).slice(0, 10);
+      const reportDay = new Date().toISOString().slice(0, 10);
       const reportRow = anasBuildCustomerReconciliationRows(s, { from: reportDay, to: reportDay }, reportParseDate)
         .find(row => row.customerId === 'STG-CUSTOMER-001');
       const invoiceDebit = s.clientMovements.find(row => row.type === 'invoice_debit' && String(row.referenceId) === String(invoice.id));
