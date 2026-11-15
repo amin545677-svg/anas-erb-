@@ -158,9 +158,9 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     convertButton: true
   });
 
-  // 1) Ask Anas AI: actual HTMLElement.click(), then verify a local answer appears.
+  // 1) Ask Anas AI through a real browser click, then verify a local answer appears.
   await page.locator('#anasAiQuestion').fill('كيف أراجع المخزون؟');
-  await page.locator('#anasAiAskBtn').evaluate(button => button.click());
+  await page.locator('#anasAiAskBtn').click();
   await page.waitForFunction(() => {
     const log = document.querySelector('#anasAiChatLog');
     return !!log && /وضع محلي|تحليل محلي|المخزون/.test(log.textContent || '');
@@ -202,7 +202,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
       recognize: async () => ({ data: { text: 'OCR PAGE TEXT VERIFIED' } })
     });
   });
-  await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
+  await page.locator('#smartPdfOcrButton').click();
   await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ));
@@ -211,7 +211,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.match(scannedPdfText, /الصفحة 2 \(OCR\)/);
   assert.equal(await page.locator('#smartPdfExtractText').isEditable(), true,
     'OCR output must be editable for human correction before export or AI analysis');
-  await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
+  await page.locator('#smartPdfOcrButton').click();
   await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ));
@@ -222,7 +222,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // The PDF preview is intentionally modal and blocks clicks on the AI import
   // type selector behind it. Close it before starting a new CSV import flow;
   // do not bypass the overlay with force-clicks.
-  await page.locator('#smartImportCancel').evaluate(button => button.click());
+  await page.locator('#smartImportCancel').click();
   await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('#smartImportTarget').count(), 1,
     'the stable import target must remain after preview dismissal');
@@ -237,7 +237,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
 
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
+  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles({
     name: 'ai-smoke.csv',
@@ -274,7 +274,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     XLSX.utils.aoa_to_sheet([['memo'],['not an import sheet']]), 'Notes');
   const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   const xlsxChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
+  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).click();
   const xlsxChooser = await xlsxChooserPromise;
   await xlsxChooser.setFiles({
     name: 'multi-sheet-smoke.xlsx',
@@ -296,7 +296,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     XLSX.utils.aoa_to_sheet([['name','stock','price'],['Widget XLSX',5,12]]), 'Products');
   const singleBuffer = XLSX.write(singleWorkbook, { type: 'buffer', bookType: 'xlsx' });
   const singleChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).evaluate(button => button.click());
+  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).click();
   const singleChooser = await singleChooserPromise;
   await singleChooser.setFiles({
     name: 'single-sheet-smoke.xlsx',
@@ -311,7 +311,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   // the row must enter AppData, be acknowledged by durable storage, and have a
   // verified pre-import snapshot before the modal reports success.
   await page.locator('#smartImportTargetSelect').selectOption('products');
-  await page.locator('#smartImportConfirm').evaluate(button => button.click());
+  await page.locator('#smartImportConfirm').click();
   await page.locator('#smartImportReview').getByText('Widget XLSX').waitFor({ state: 'visible' });
   assert.match(await page.locator('#smartImportReview').innerText(), /مطابقة كل البنود تلقائياً/);
   assert.equal(await page.locator('#smartImportReview .anas-import-review-card').count(), 1,
@@ -322,7 +322,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.equal(await page.locator('#smartImportReview [data-import-decision]').inputValue(), 'insert',
     'automatic matching must choose a safe insert decision for a new record');
 
-  await page.locator('#smartImportConfirm').evaluate(button => button.click());
+  await page.locator('#smartImportConfirm').click();
   await page.waitForFunction(() => /اكتمل الاستيراد المحلي/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ), { timeout: 15000 });
@@ -366,12 +366,12 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
 
   // 3) Generate a blank, safe template and assert the browser download.
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: /توليد بيانات جاهزة/ }).evaluate(button => button.click());
+  await page.getByRole('button', { name: /توليد بيانات جاهزة/ }).click();
   const download = await downloadPromise;
   assert.match(download.suggestedFilename(), /قالب_.*\.xlsx/);
 
   // 4) Invoice OCR: clicking the action must open the actual OCR modal.
-  await page.getByRole('button', { name: /مسح الفواتير بالذكاء الاصطناعي/ }).evaluate(button => button.click());
+  await page.getByRole('button', { name: /مسح الفواتير بالذكاء الاصطناعي/ }).click();
   await page.locator('#invoiceOcrModal').waitFor({ state: 'visible' });
   const ocrFocusCss = await page.locator('style').evaluateAll(nodes => nodes.map(node => node.textContent || '').join('\n'));
   assert.match(ocrFocusCss, /#invoiceOcrModal button:focus-visible[^}]*#1e3a8a/);
@@ -471,7 +471,7 @@ test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on r
   await page.locator('#aiHubTabContent [data-ai-workspace-panel="documents"]').waitFor({ state: 'visible' });
   await page.locator('#smartPdfOcrButton').waitFor({ state: 'visible' });
 
-  await page.locator('#smartPdfOcrButton').evaluate(button => button.click());
+  await page.locator('#smartPdfOcrButton').click();
   await page.waitForFunction(() => /اكتمل OCR محلياً/.test(
     document.querySelector('#smartAiExcelStatus')?.textContent || ''
   ), { timeout: 120000 });
