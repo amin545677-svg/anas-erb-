@@ -640,8 +640,8 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       const inactiveImportTab = await page.locator('#anas-video-theme-fixture #ai-import-type-secondary').evaluate(node => ({
         background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color
       }));
-      assert.equal(inactiveImportTab.background, 'rgb(248, 250, 252)', 'inactive AI import type retains its neutral light surface in ' + theme);
-      assert.equal(inactiveImportTab.color, 'rgb(15, 23, 42)', 'inactive AI import type retains dark readable text in ' + theme);
+      assert.equal(inactiveImportTab.background, 'rgb(29, 78, 216)', 'inactive AI import type retains the shared royal-blue action palette in ' + theme);
+      assert.equal(inactiveImportTab.color, 'rgb(255, 255, 255)', 'inactive AI import type retains white action text in ' + theme);
       assert.ok(contrast(inactiveImportTab.color, inactiveImportTab.background) >= 4.5,
         'inactive AI import type remains WCAG AA in ' + theme);
       // Menu action cards are content surfaces, not primary CTA buttons; retain
