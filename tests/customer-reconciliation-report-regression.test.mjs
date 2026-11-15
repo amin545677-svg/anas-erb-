@@ -189,10 +189,14 @@ test('8. Exact financial triangle: 900.00 invoice, 400.00 initial cash and 200.0
    {allocationId:'ALLOC-SALE-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'SALE-CASH-UAT-INV-900',sourceMovementType:'sales_invoice',amountCentimes:40000,createdAt:'2026-02-15T10:00:00'},
    {allocationId:'ALLOC-RECEIPT-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'DEBT-RECEIPT-200',sourceMovementType:'customer_debt',amountCentimes:20000,createdAt:'2026-02-15T11:00:00'}
   ],returns:[]};
- const row=reconciliationRows(data).find(r=>r.customerId==='UAT-C');
+ const row=reconciliationRows(data,{from:'',to:''}).find(r=>r.customerId==='UAT-C');
+ assert.equal(row.invalidRows,0);
+ assert.equal(row.missingDateRows,0);
  assert.equal(row.periodDebitCents,90000n);
  assert.equal(row.periodCreditCents,60000n);
  assert.equal(row.closingBalanceCents,30000n);
- assert.equal(row.invalidRows,0);
- assert.equal(row.missingDateRows,0);
+ console.log('CUSTOMER_RECONCILIATION_UAT_CENTS',JSON.stringify({
+  debit:row.periodDebitCents.toString(),credit:row.periodCreditCents.toString(),
+  closing:row.closingBalanceCents.toString(),invalid:row.invalidRows,missingDates:row.missingDateRows
+ }));
 });
