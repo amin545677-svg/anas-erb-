@@ -4654,8 +4654,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 let magnitude;
                 if (power >= 0n) magnitude = coefficient * (10n ** power);
                 else { const divisor = 10n ** (-power); magnitude = (coefficient + divisor / 2n) / divisor; }
-                if (magnitude > BigInt(Number.MAX_SAFE_INTEGER) || magnitude < BigInt(Number.MIN_SAFE_INTEGER)) return NaN;
-                return Number(magnitude);
+                if (magnitude > BigInt(Number.MAX_SAFE_INTEGER)) return NaN;
+                const scaled = Number(magnitude);
+                return match[1] === '-' && scaled !== 0 ? -scaled : scaled;
             } catch (_) { return NaN; }
         }
         function anasToCents(value) { return anasDecimalToScaledInteger(value, 2); }

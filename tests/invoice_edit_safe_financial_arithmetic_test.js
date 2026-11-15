@@ -85,6 +85,25 @@ function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, cus
   `, ctx);
   assert.deepEqual(Array.from(ctx.__centimeCases), [101,10,1,30,70],
     'decimal strings and line/cart totals must resolve through exact integer base units');
+  const signedCtx = {};
+  vm.createContext(signedCtx);
+  vm.runInContext(helperSource + `
+    globalThis.__signedDecimalCases = [
+      anasToCents('-5'),
+      anasToCents('-1.005'),
+      anasToCents('-0.10'),
+      anasToQtyUnits('-0.000001'),
+      anasToCents('-0'),
+      anasToCents('+1.005'),
+      anasToCents('-90071992547409.91')
+    ];
+  `, signedCtx);
+  assert.deepEqual(Array.from(signedCtx.__signedDecimalCases),
+    [-500,-101,-10,-1,0,101,-Number.MAX_SAFE_INTEGER],
+    'signed decimal conversion must preserve negative financial balances and round symmetrically');
+  assert.ok(Number.isNaN(vm.runInContext("anasToCents('-90071992547409.92')", signedCtx)),
+    'negative values outside the safe integer range must be rejected');
+
   assert.ok(Number.isNaN(vm.runInContext("anasCartTotalCents([{qty:'0',price:'5'}])", ctx)),
     'a zero-quantity line must invalidate the cart preview rather than silently pass');
 }
