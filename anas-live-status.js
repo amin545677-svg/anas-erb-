@@ -338,9 +338,17 @@
   }
   function reportRecordDate(row){
     if(!row||typeof row!=='object')return null;
-    for(const k of ['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date'])if(row[k]!==undefined&&row[k]!==null&&row[k]!=='')return row[k];
+    // Skip malformed preferred fields instead of hiding a valid invoiceDate/createdAt.
+    // Every candidate is validated by the same strict parser used by the report filters.
+    for(const k of ['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','updatedAt','updated_at']){
+      const candidate=row[k];
+      if(candidate===undefined||candidate===null||candidate==='')continue;
+      if(normalizeReportDateValue(candidate))return candidate;
+    }
     const m=/(?:^|\D)(20\d{2})[-_/]?(\d{2})[-_/]?(\d{2})(?:\D|$)/.exec(String(row.id||row.invoiceId||''));
-    return m?m[1]+'-'+m[2]+'-'+m[3]:null;
+    if(!m)return null;
+    const fromId=m[1]+'-'+m[2]+'-'+m[3];
+    return normalizeReportDateValue(fromId)?fromId:null;
   }
   g.anasNormalizeReportDateValue=normalizeReportDateValue;g.anasGetReportRecordDate=reportRecordDate;
   if(typeof g.reportParseDate==='function'&&!g.reportParseDate.__anasR46){

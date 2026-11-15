@@ -67,3 +67,33 @@ test('runtime status bar fails closed when the About-app build stamp is malforme
   assert.equal(h.bar.dataset.buildIdentityState, 'unverified');
   assert.equal(h.versionBadge.textContent, '⚠ إصدار غير متحقق');
 });
+
+test('R46 report dates parse Arabic digits and time suffixes, reject impossible dates, and fall through invalid date fields', () => {
+  const h = harness({ value: { revision: 1 } }, { revision: 1 });
+  const parse = h.window.anasNormalizeReportDateValue;
+  const samples = [
+    '2026/11/8, 2:31:22 م',
+    '٢٠٢٦/١١/٨، ٢:٣١:٢٢ ص',
+    '۲۰۲۶/۱۱/۸ ۲:۳۱:۲۲ م',
+    '2026-11-08T14:31:22.000Z',
+    '08/11/2026 2:31 PM'
+  ];
+  for (const sample of samples) {
+    const parsed = parse(sample);
+    assert.ok(parsed && !Number.isNaN(parsed.getTime()), 'date should parse: ' + sample);
+    assert.equal(parsed.getFullYear(), 2026);
+    assert.equal(parsed.getMonth(), 10);
+    assert.equal(parsed.getDate(), 8);
+  }
+  assert.equal(parse('2026-02-31'), null, 'impossible calendar dates must be rejected');
+  assert.equal(h.window.anasGetReportRecordDate({
+    date: '2026-02-31',
+    invoiceDate: '2026/11/8, 2:31:22 م'
+  }), '2026/11/8, 2:31:22 م', 'an invalid preferred field must not mask a valid invoiceDate');
+  assert.equal(h.window.anasGetReportRecordDate({
+    date: 'not-a-date',
+    createdAt: '٢٠٢٦/١١/٨، ٢:٣١:٢٢ ص'
+  }), '٢٠٢٦/١١/٨، ٢:٣١:٢٢ ص', 'createdAt is a valid fallback when earlier fields are malformed');
+  assert.equal(h.window.anasGetReportRecordDate({ id: 'INV-20261108-0001' }), '2026-11-08',
+    'a valid date embedded in an invoice ID remains a fallback');
+});
