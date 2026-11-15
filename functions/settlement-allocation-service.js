@@ -147,10 +147,11 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
 
     try {
       return await db.runTransaction(async transaction => {
-        const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await Promise.all([
-          transaction.get(snapshotRef), transaction.get(grantRef),
-          transaction.get(periodRef), transaction.get(operationRef)
-        ]);
+        // Match reverse-ledger posting: batch document reads through getAll
+        // rather than racing concurrent transaction.get() calls on one SDK transaction.
+        const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await transaction.getAll(
+          snapshotRef, grantRef, periodRef, operationRef
+        );
         if (operationSnap.exists) {
           const prior = operationSnap.data();
           if (prior.ownerUid !== uid) fail('already-exists', 'operationId belongs to another Firebase user.');
