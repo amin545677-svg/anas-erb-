@@ -261,49 +261,45 @@ test('Firestore transaction can create an operation record when no Worker reserv
   assert.equal(JSON.parse(snapshot.get('payload')).returns.length, 1);
 });
 
-test('Retry Clock refreshes after real Firestore SDK transaction contention', async t => {
+test('Retry Clock refreshes after an SDK ABORTED commit retry on the Firestore Emulator', async t => {
   const uid = 'emu-retry-clock-' + crypto.randomUUID();
   const operationId = 'REV-' + crypto.randomUUID();
   const { user } = await seed(uid, [operationId]);
   t.after(() => cleanup(uid, [operationId]));
 
   const snapshotRef = user.collection('snapshots').doc('latest');
-  let contentionInjected = false;
+  let abortInjected = false;
+  let commitAttempts = 0;
   let transactionCallbacks = 0;
   const clockReads = [];
   const authorizationTimes = [];
   const baseNow = 1793400200000;
 
-  // Keep the real Admin SDK transaction implementation. The wrapper only
-  // injects one independent committed write after the first transaction read.
-  const contentionDb = {
+  // Preserve the real Admin SDK runTransaction retry loop and real Emulator
+  // reads/writes. Inject one retryable ABORTED result at the commit boundary.
+  // No competing write is awaited while the transaction holds a read lock.
+  const retryDb = {
     collection: (...args) => db.collection(...args),
     runTransaction: (updateFunction, transactionOptions) => db.runTransaction(async transaction => {
       transactionCallbacks += 1;
-      const transactionProxy = new Proxy(transaction, {
-        get(target, property) {
-          if (property === 'getAll') {
-            return async (...references) => {
-              const documents = await target.getAll(...references);
-              if (!contentionInjected) {
-                contentionInjected = true;
-                // This independent commit changes a document already read by
-                // the in-flight transaction, forcing a real commit conflict.
-                await snapshotRef.update({ retryClockContentionNonce: crypto.randomUUID() });
-              }
-              return documents;
-            };
-          }
-          const value = Reflect.get(target, property, target);
-          return typeof value === 'function' ? value.bind(target) : value;
+      const originalCommit = transaction.commit;
+      assert.equal(typeof originalCommit, 'function', 'Admin SDK transaction commit must be callable');
+      transaction.commit = function (...args) {
+        commitAttempts += 1;
+        if (!abortInjected) {
+          abortInjected = true;
+          const error = new Error('Injected retryable Firestore ABORTED at transaction commit');
+          error.code = 10;
+          return Promise.reject(error);
         }
-      });
-      return updateFunction(transactionProxy);
+        return originalCommit.apply(this, args);
+      };
+      return updateFunction(transaction);
     }, transactionOptions)
   };
 
   const handler = createHandler({
-    db: contentionDb,
+    db: retryDb,
     now: () => {
       const value = baseNow + clockReads.length * 1000;
       clockReads.push(value);
@@ -313,11 +309,12 @@ test('Retry Clock refreshes after real Firestore SDK transaction contention', as
   });
 
   const response = await handler(makeRequest(uid, operationId));
-  assert.equal(contentionInjected, true, 'the competing Firestore write must commit');
-  assert.ok(transactionCallbacks >= 2, 'the Admin SDK must re-run the transaction callback');
-  assert.ok(clockReads.length >= 2, 'now() must be called again by the SDK retry');
-  assert.ok(authorizationTimes.length >= 2, 'the retried attempt must reach authorization');
-  assert.ok(authorizationTimes[1] > authorizationTimes[0], 'the retried attempt must observe a newer clock');
+  assert.equal(abortInjected, true, 'the first commit must be aborted exactly once');
+  assert.equal(commitAttempts, 2, 'the SDK must attempt the aborted commit and one successful retry commit');
+  assert.equal(transactionCallbacks, 2, 'the real SDK must rerun the transaction callback exactly once');
+  assert.equal(clockReads.length, 2, 'now() must be read once per callback attempt');
+  assert.equal(authorizationTimes.length, 2, 'both attempts must reach the authorization clock check');
+  assert.ok(authorizationTimes[1] > authorizationTimes[0], 'the retry must observe a newer clock');
   assert.equal(response.ok, true);
 
   const [persistedSnapshot, persistedOperation] = await Promise.all([
@@ -325,17 +322,15 @@ test('Retry Clock refreshes after real Firestore SDK transaction contention', as
     db.collection('reverseLedgerOperations').doc(operationId).get()
   ]);
   const persistedState = JSON.parse(persistedSnapshot.get('payload'));
-  assert.equal(persistedSnapshot.get('retryClockContentionNonce') !== undefined, true);
-  assert.equal(persistedState.returns.length, 1, 'only one return may be persisted');
+  assert.equal(persistedState.returns.length, 1, 'only the successful retry may persist one return');
   assert.equal(persistedOperation.get('status'), 'POSTED');
   assert.equal(
     persistedOperation.get('expiresAtEpochMs'),
-    authorizationTimes[authorizationTimes.length - 1] + 60000,
+    authorizationTimes[1] + 60000,
     'the durable operation must use the successful retry attempt clock'
   );
   assert.equal(persistedOperation.get('result').document.returnId, response.document.returnId);
 });
-
 function createRealEngineHandler() {
   return createReverseLedgerHandler({
     db,
@@ -1104,43 +1099,40 @@ async function seedSettlement(uid) {
   });
 }
 
-test('settlement allocation refreshes its timestamp after real Firestore transaction contention', async t => {
+test('settlement allocation refreshes its timestamp after an SDK ABORTED commit retry on the Firestore Emulator', async t => {
   const uid = 'emu-alloc-retry-clock-' + crypto.randomUUID();
   const operationId = 'ALLOC-' + crypto.randomUUID();
   const { user } = await seedSettlement(uid);
   t.after(() => cleanup(uid, [operationId]));
 
   const snapshotRef = user.collection('snapshots').doc('latest');
-  let contentionInjected = false;
+  let abortInjected = false;
+  let commitAttempts = 0;
   let transactionCallbacks = 0;
   const clockReads = [];
   const baseNow = 1793441100000;
-  const contentionDb = {
+  const retryDb = {
     collection: (...args) => db.collection(...args),
     runTransaction: (updateFunction, transactionOptions) => db.runTransaction(async transaction => {
       transactionCallbacks += 1;
-      const transactionProxy = new Proxy(transaction, {
-        get(target, property) {
-          if (property === 'getAll') {
-            return async (...references) => {
-              const documents = await target.getAll(...references);
-              if (!contentionInjected) {
-                contentionInjected = true;
-                await snapshotRef.update({ settlementRetryContentionNonce: crypto.randomUUID() });
-              }
-              return documents;
-            };
-          }
-          const value = Reflect.get(target, property, target);
-          return typeof value === 'function' ? value.bind(target) : value;
+      const originalCommit = transaction.commit;
+      assert.equal(typeof originalCommit, 'function', 'Admin SDK transaction commit must be callable');
+      transaction.commit = function (...args) {
+        commitAttempts += 1;
+        if (!abortInjected) {
+          abortInjected = true;
+          const error = new Error('Injected retryable Firestore ABORTED at allocation commit');
+          error.code = 10;
+          return Promise.reject(error);
         }
-      });
-      return updateFunction(transactionProxy);
+        return originalCommit.apply(this, args);
+      };
+      return updateFunction(transaction);
     }, transactionOptions)
   };
 
   const handler = createSettlementHandler({
-    db: contentionDb,
+    db: retryDb,
     now: () => {
       const value = baseNow + clockReads.length * 1000;
       clockReads.push(value);
@@ -1150,26 +1142,25 @@ test('settlement allocation refreshes its timestamp after real Firestore transac
   const response = await handler(makeSettlementRequest(uid, operationId));
 
   assert.equal(response.ok, true);
-  assert.equal(contentionInjected, true);
-  assert.ok(transactionCallbacks >= 2, 'Firestore Admin SDK must retry the conflicted callback');
-  assert.ok(clockReads.length >= 2, 'the clock must be read again inside the retried callback');
+  assert.equal(abortInjected, true);
+  assert.equal(commitAttempts, 2, 'the SDK must retry the aborted commit once');
+  assert.equal(transactionCallbacks, 2, 'the SDK must invoke the callback again');
+  assert.equal(clockReads.length, 2, 'the callback must obtain one fresh clock per attempt');
 
   const [snapshot, operation] = await Promise.all([
     snapshotRef.get(),
     db.collection('reverseLedgerOperations').doc(operationId).get()
   ]);
   const state = JSON.parse(snapshot.get('payload'));
-  assert.equal(snapshot.get('settlementRetryContentionNonce') !== undefined, true);
-  assert.equal(state.settlementAllocations.length, 1);
+  assert.equal(state.settlementAllocations.length, 1, 'only the successful retry may persist one allocation');
   assert.equal(operation.get('status'), 'POSTED');
   assert.equal(
     state.settlementAllocations[0].createdAt,
-    new Date(clockReads[clockReads.length - 1]).toISOString(),
+    new Date(clockReads[1]).toISOString(),
     'the committed allocation timestamp must come from the successful retry attempt'
   );
   assert.equal(operation.get('result').allocationCount, 1);
 });
-
 test('Firestore Emulator posts settlement allocation atomically and replays the identical operation', async t => {
   const uid = 'emu-alloc-' + crypto.randomUUID();
   const operationId = 'ALLOC-' + crypto.randomUUID();
