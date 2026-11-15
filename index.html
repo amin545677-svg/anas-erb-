@@ -15180,6 +15180,18 @@ html[lang="ar"] .quick-product-btn, html[lang="ar"] .pill-select-btn {
     -webkit-text-fill-color:#cbd5e1!important;
     opacity:1!important;
   }
+
+  /* Deterministic WCAG contrast: cancel the legacy color transitions on the
+     actual product-picker surfaces before Chromium samples the rendered theme.
+     Theme changes must not expose an intermediate grey-on-grey frame. */
+  :root[data-anas-theme] #productPickerModal,
+  :root[data-anas-theme] #productPickerModal .picker-dialog-scroll,
+  :root[data-anas-theme] #productPickerModal .picker-dialog-scroll *,
+  :root[data-anas-theme] #productPickerModal .menu-action-card,
+  :root[data-anas-theme] #productPickerModal .menu-action-card *,
+  :root[data-anas-theme] #productPickerModal #productPickerSearch {
+    transition:none!important;
+  }
 </style>
 </body>
 </html>
