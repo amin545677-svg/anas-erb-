@@ -52,7 +52,6 @@ function createReverseLedgerHandler({
 
   const uid = request.auth.uid;
   const token = request.auth.token || {};
-  const nowEpochMs = now();
   const authUser = await getUser(uid);
   if (authUser.disabled) throw new HttpsError('permission-denied', 'Firebase account is disabled.');
 
@@ -68,6 +67,9 @@ function createReverseLedgerHandler({
 
   try {
     return await db.runTransaction(async (transaction) => {
+      // Refresh time for every SDK retry: a prior attempt must not authorize
+      // an expired lease or Firebase token using a stale request-start clock.
+      const nowEpochMs = now();
       // Firestore transaction reads must share one read batch. Issuing several
       // transaction.get() calls concurrently can race the SDK transaction's
       // read state under duplicate idempotent requests and surface
