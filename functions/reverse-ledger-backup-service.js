@@ -98,10 +98,11 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
 
     try {
       return await db.runTransaction(async transaction => {
-        const [snapshotSnap, operationsSnap] = await Promise.all([
-          transaction.get(snapshotRef),
-          transaction.get(operationsQuery)
-        ]);
+        // Keep reads on this transaction sequential. The reverse-ledger posting
+        // handler uses one read batch (getAll) specifically to avoid concurrent
+        // transaction.get() calls racing the Admin SDK transaction state.
+        const snapshotSnap = await transaction.get(snapshotRef);
+        const operationsSnap = await transaction.get(operationsQuery);
         if (!snapshotSnap.exists) fail('failed-precondition', 'A cloud snapshot is required before creating a trusted reverse-ledger backup.');
         const payload = snapshotSnap.get('payload');
         const records = operationMap(operationsSnap, uid);
@@ -148,12 +149,12 @@ function createReverseLedgerBackupHandlers({ db, FieldValue, HttpsError, Reverse
 
     try {
       return await db.runTransaction(async transaction => {
-        const [backupSnap, backupOperationsSnap, currentOperationsSnap, snapshotSnap] = await Promise.all([
-          transaction.get(backupRef),
-          transaction.get(backupOperationsQuery),
-          transaction.get(currentOperationsQuery),
-          transaction.get(snapshotRef)
-        ]);
+        // Do not issue concurrent reads against one Firestore transaction.
+        // Sequential reads preserve a single, deterministic transaction read path.
+        const backupSnap = await transaction.get(backupRef);
+        const backupOperationsSnap = await transaction.get(backupOperationsQuery);
+        const currentOperationsSnap = await transaction.get(currentOperationsQuery);
+        const snapshotSnap = await transaction.get(snapshotRef);
         if (!backupSnap.exists || backupSnap.get('ownerUid') !== uid || backupSnap.get('schemaVersion') !== 1) {
           fail('not-found', 'Trusted reverse-ledger backup was not found for this user.');
         }
