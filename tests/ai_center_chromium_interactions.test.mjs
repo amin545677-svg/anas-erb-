@@ -237,7 +237,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
 
   // 2) Safe Excel/CSV import: click the actual action button and choose a CSV file.
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).click();
+  await page.locator('[data-anas-ai-import-ui] button[data-import-action="file"]').click();
   const chooser = await chooserPromise;
   await chooser.setFiles({
     name: 'ai-smoke.csv',
@@ -274,7 +274,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     XLSX.utils.aoa_to_sheet([['memo'],['not an import sheet']]), 'Notes');
   const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   const xlsxChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).click();
+  await page.locator('[data-anas-ai-import-ui] button[data-import-action="file"]').click();
   const xlsxChooser = await xlsxChooserPromise;
   await xlsxChooser.setFiles({
     name: 'multi-sheet-smoke.xlsx',
@@ -296,7 +296,7 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     XLSX.utils.aoa_to_sheet([['name','stock','price'],['Widget XLSX',5,12]]), 'Products');
   const singleBuffer = XLSX.write(singleWorkbook, { type: 'buffer', bookType: 'xlsx' });
   const singleChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /استيراد Excel\/CSV بأمان/ }).click();
+  await page.locator('[data-anas-ai-import-ui] button[data-import-action="file"]').click();
   const singleChooser = await singleChooserPromise;
   await singleChooser.setFiles({
     name: 'single-sheet-smoke.xlsx',
