@@ -209,12 +209,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     const paymentActionColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
       nodes.map(node => getComputedStyle(node).backgroundColor));
-    assert.match(paymentActionColors[0], /220, 252, 231/,
-      'full-payment shortcut must be visually marked green');
-    assert.match(paymentActionColors[1], /239, 246, 255/,
-      'half-payment shortcut must remain the neutral blue middle action');
-    assert.match(paymentActionColors[2], /254, 226, 226/,
-      'full-debt shortcut must be visually marked red');
+    assert.equal(paymentActionColors[0], 'rgb(22, 163, 74)',
+      'full-payment shortcut must use the semantic green contract');
+    assert.equal(paymentActionColors[1], 'rgb(29, 78, 216)',
+      'half-payment shortcut must use the shared royal-blue contract');
+    assert.equal(paymentActionColors[2], 'rgb(220, 38, 38)',
+      'full-debt shortcut must use the semantic red contract');
     await page.locator('#hasibModal button').filter({ hasText: /^دين كامل$/ }).click();
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00',
       'quick full-credit action must set zero paid and leave the full invoice due');
