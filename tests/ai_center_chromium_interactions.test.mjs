@@ -166,6 +166,9 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
     return !!log && /وضع محلي|تحليل محلي|المخزون/.test(log.textContent || '');
   });
 
+  // PDF upload is owned by the Documents workspace; open it before selecting a file.
+  await page.locator('#aiHubTabContent [data-ai-workspace-tab="documents"]').click();
+  await page.locator('#aiHubTabContent [data-ai-workspace-panel="documents"]').waitFor({ state: 'visible' });
   // Android document providers can return a PDF without its suffix and with a generic MIME type.
   // The dedicated PDF input must still route it to PDF.js, not the Excel/CSV rejection branch.
   await page.locator('#smartAiPdfUpload').setInputFiles({
@@ -439,7 +442,7 @@ test('built /erp/ scanned PDF path runs the real local Tesseract OCR engine on r
     // exercising the upload handler; reveal the same results panel that the
     // production PDF upload flow reveals after extraction.
     const results = document.getElementById('smartPdfExtractResults');
-    if (results) results.style.display = 'block';
+    if (results) { results.hidden = false; results.removeAttribute('hidden'); results.style.display = 'block'; }
     window.pdfjsLib = {
       GlobalWorkerOptions: {},
       getDocument: () => ({ promise: Promise.resolve({
