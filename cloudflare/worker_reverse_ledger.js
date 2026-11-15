@@ -15,7 +15,7 @@ const PERMISSIONS = Object.freeze({
 const ALLOWED_ORIGINS = env => (env.ALLOWED_ORIGINS || "").split(",").map(x => x.trim()).filter(Boolean);
 const json = (data, status, origin) => {
   const headers = { "Content-Type":"application/json; charset=utf-8", "Cache-Control":"no-store",
-    "Access-Control-Allow-Methods":"GET,POST,OPTIONS", "Access-Control-Allow-Headers":"Authorization,Content-Type",
+    "Access-Control-Allow-Methods":"GET,POST,OPTIONS", "Access-Control-Allow-Headers":"Authorization,Content-Type,X-Firebase-AppCheck",
     "Vary":"Origin" };
   if (origin) headers["Access-Control-Allow-Origin"] = origin;
   return new Response(JSON.stringify(data), { status, headers });
@@ -31,6 +31,81 @@ const b64url = bytes => {
   return btoa(s).replaceAll("=","").replaceAll("+","-").replaceAll("/","_");
 };
 const enc = value => b64url(new TextEncoder().encode(value));
+const APP_CHECK_JWKS_URL = "https://firebaseappcheck.googleapis.com/v1/jwks";
+const APP_CHECK_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
+let appCheckJwksCache = null;
+let appCheckJwksExpiry = 0;
+let appCheckImportCache = new Map();
+function appCheckEnabled(env) {
+  return String(env.APP_CHECK_ENFORCED ?? "true").toLowerCase() !== "false";
+}
+function decodeJwtPart(part, label) {
+  if (typeof part !== "string" || !/^[A-Za-z0-9_-]+$/.test(part)) throw new Error("Firebase App Check token " + label + " is malformed");
+  const normalized=part.replace(/-/g,"+").replace(/_/g,"/");
+  const padded=normalized+"=".repeat((4-normalized.length%4)%4);
+  try { return JSON.parse(atob(padded)); }
+  catch { throw new Error("Firebase App Check token " + label + " is malformed"); }
+}
+async function getAppCheckJwks(forceRefresh=false) {
+  if (!forceRefresh && appCheckJwksCache && appCheckJwksExpiry > Date.now()) return appCheckJwksCache;
+  const response=await fetch(APP_CHECK_JWKS_URL,{headers:{Accept:"application/json"}});
+  if(!response.ok) throw new Error("Firebase App Check public keys are unavailable");
+  const data=await response.json().catch(()=>null);
+  if(!record(data) || !Array.isArray(data.keys) || !data.keys.length) throw new Error("Firebase App Check public keys are invalid");
+  const keys=data.keys.filter(k=>record(k)&&k.kty==="RSA"&&k.alg==="RS256"&&typeof k.kid==="string"&&k.kid&&typeof k.n==="string"&&typeof k.e==="string");
+  if(!keys.length) throw new Error("Firebase App Check public keys contain no usable RSA keys");
+  appCheckJwksCache=keys;
+  appCheckJwksExpiry=Date.now()+APP_CHECK_JWKS_TTL_MS;
+  appCheckImportCache=new Map();
+  return keys;
+}
+async function verifyAppCheckToken(token,env) {
+  if(!appCheckEnabled(env)) return {enforced:false,appId:null};
+  const projectNumber=required(env.FIREBASE_PROJECT_NUMBER,"Firebase project number",32);
+  if(!/^\d{6,20}$/.test(projectNumber)) throw new Error("Firebase App Check project number is invalid");
+  const expectedAppId=required(env.FIREBASE_APP_ID,"Firebase App ID",160);
+  if(!/^1:\d{6,20}:(web|android|ios):[A-Za-z0-9]+$/.test(expectedAppId) || expectedAppId.split(":")[1]!==projectNumber)
+    throw new Error("Firebase App Check application ID does not belong to the staging project");
+  if(typeof token!=="string" || !token || token.length>8192) throw new Error("Missing or invalid Firebase App Check token");
+  const parts=token.split(".");
+  if(parts.length!==3) throw new Error("Firebase App Check token format is invalid");
+  const header=decodeJwtPart(parts[0],"header");
+  const claims=decodeJwtPart(parts[1],"claims");
+  if(header.alg!=="RS256" || header.typ!=="JWT" || typeof header.kid!=="string" || !header.kid)
+    throw new Error("Firebase App Check token header is invalid");
+  let keys=await getAppCheckJwks();
+  let jwk=keys.find(k=>k.kid===header.kid);
+  if(!jwk) {
+    keys=await getAppCheckJwks(true);
+    jwk=keys.find(k=>k.kid===header.kid);
+  }
+  if(!jwk) throw new Error("Firebase App Check signing key is unknown");
+  let key=appCheckImportCache.get(header.kid);
+  if(!key) {
+    key=await crypto.subtle.importKey("jwk",jwk,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);
+    appCheckImportCache.set(header.kid,key);
+  }
+  let signature;
+  try {
+    const normalized=parts[2].replace(/-/g,"+").replace(/_/g,"/");
+    signature=Uint8Array.from(atob(normalized+"=".repeat((4-normalized.length%4)%4)),c=>c.charCodeAt(0));
+  } catch { throw new Error("Firebase App Check token signature is malformed"); }
+  const valid=await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,signature,new TextEncoder().encode(parts[0]+"."+parts[1]));
+  if(!valid) throw new Error("Firebase App Check token signature is invalid");
+  const now=Math.floor(Date.now()/1000);
+  if(claims.iss!=="https://firebaseappcheck.googleapis.com/"+projectNumber)
+    throw new Error("Firebase App Check token issuer does not match the staging project");
+  const audiences=Array.isArray(claims.aud)?claims.aud:[claims.aud];
+  if(!audiences.includes("projects/"+projectNumber))
+    throw new Error("Firebase App Check token audience does not match the staging project");
+  if(typeof claims.sub!=="string" || claims.sub!==expectedAppId)
+    throw new Error("Firebase App Check token application ID does not match staging");
+  if(!Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp) ||
+     claims.iat<=0 || claims.exp<=claims.iat || claims.iat>now+60 || claims.exp<=now)
+    throw new Error("Firebase App Check token is expired or has invalid time claims");
+  return {enforced:true,appId:claims.sub};
+}
+
 let cachedAccessToken = null;
 let cachedAccessTokenExpiry = 0;
 
@@ -228,16 +303,18 @@ async function handle(request,env) {
   const allowed=ALLOWED_ORIGINS(env);
   const accepted=allowed.includes(origin)?origin:"";
   if(request.method==="OPTIONS") return accepted
-    ? new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":accepted,"Access-Control-Allow-Methods":"GET,POST,OPTIONS","Access-Control-Allow-Headers":"Authorization,Content-Type","Vary":"Origin"}})
+    ? new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":accepted,"Access-Control-Allow-Methods":"GET,POST,OPTIONS","Access-Control-Allow-Headers":"Authorization,Content-Type,X-Firebase-AppCheck","Vary":"Origin"}})
     : json({error:"Origin is not allowed"},403,"");
   if(origin && !accepted) return json({error:"Origin is not allowed"},403,"");
   const url=new URL(request.url);
   if(request.method==="GET" && url.pathname==="/health") return json({
     ok:true,service:"anas-erp-reverse-ledger-reservation",
-    configured:!!(env.FIREBASE_API_KEY&&env.FIREBASE_PROJECT_ID&&env.FIREBASE_SERVICE_ACCOUNT_JSON),
-    postingEnabled:false
+    configured:!!(env.FIREBASE_API_KEY&&env.FIREBASE_PROJECT_ID&&env.FIREBASE_SERVICE_ACCOUNT_JSON&&(!appCheckEnabled(env)||(env.FIREBASE_PROJECT_NUMBER&&env.FIREBASE_APP_ID))),
+    appCheckEnforced:appCheckEnabled(env), postingEnabled:false
   },200,accepted);
   if(request.method!=="POST" || url.pathname!=="/reserve") return json({error:"Not found"},404,accepted);
+  try { await verifyAppCheckToken(request.headers.get("X-Firebase-AppCheck")||"",env); }
+  catch(error) { return json({error:String(error?.message||"Firebase App Check verification failed"),posted:false},401,accepted); }
   const auth=request.headers.get("Authorization")||"";
   const match=auth.match(/^Bearer +(.+)$/i);
   if(!match) return json({error:"Missing Firebase bearer token"},401,accepted);

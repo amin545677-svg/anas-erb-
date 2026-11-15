@@ -8,4 +8,4 @@ FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"
 ALLOWED_ORIGINS = "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com"
 
 [secrets]
-required = ["FIREBASE_API_KEY", "FIREBASE_SERVICE_ACCOUNT_JSON"]
+required = ["FIREBASE_API_KEY", "FIREBASE_SERVICE_ACCOUNT_JSON", "FIREBASE_PROJECT_NUMBER", "FIREBASE_APP_ID"]

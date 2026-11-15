@@ -15,7 +15,7 @@ const mockFirebaseIdToken = "header."+Buffer.from(JSON.stringify(firebaseClaims)
 const env = { FIREBASE_API_KEY:"test-key", FIREBASE_PROJECT_ID:"anas-erp-staging-a25e1",
   FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({client_email:"worker@test.iam.gserviceaccount.com",
     private_key:"-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQD\\n-----END PRIVATE KEY-----"}),
-  ALLOWED_ORIGINS:origin };
+  ALLOWED_ORIGINS:origin, APP_CHECK_ENFORCED:"false" };
 function request(path,{method="GET",body,auth=true,requestOrigin=origin}={}) {
   const headers=new Headers({Origin:requestOrigin});
   if(auth) headers.set("Authorization","Bearer "+mockFirebaseIdToken);
@@ -26,7 +26,7 @@ function request(path,{method="GET",body,auth=true,requestOrigin=origin}={}) {
 test("health is explicit that reservation service cannot post accounting",async()=>{
   const r=await worker.fetch(request("/health"),env);
   assert.equal(r.status,200);
-  assert.deepEqual(await r.json(),{ok:true,service:"anas-erp-reverse-ledger-reservation",configured:true,postingEnabled:false});
+  assert.deepEqual(await r.json(),{ok:true,service:"anas-erp-reverse-ledger-reservation",configured:true,appCheckEnforced:false,postingEnabled:false});
 });
 test("unknown origins are rejected without permissive CORS",async()=>{
   const r=await worker.fetch(request("/health",{requestOrigin:"https://evil.example"}),env);
@@ -228,4 +228,100 @@ test("closed financial periods roll back and cannot create a reservation",async(
     assert.equal(commitCount,0);
     assert.equal(rollbackCount,1);
   } finally { globalThis.fetch=oldFetch; }
+});
+
+const appCheckProjectNumber="123456789012";
+const appCheckAppId="1:123456789012:web:abcdef012345";
+const appCheckKeys=await crypto.subtle.generateKey(
+  {name:"RSASSA-PKCS1-v1_5",modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:"SHA-256"},
+  true,["sign","verify"]);
+const appCheckJwk=await crypto.subtle.exportKey("jwk",appCheckKeys.publicKey);
+appCheckJwk.kid="app-check-test-key"; appCheckJwk.alg="RS256"; appCheckJwk.use="sig";
+const enforcedAppCheckEnv={...env,APP_CHECK_ENFORCED:"true",FIREBASE_PROJECT_NUMBER:appCheckProjectNumber,FIREBASE_APP_ID:appCheckAppId};
+function appCheckB64(value){return Buffer.from(JSON.stringify(value)).toString("base64url");}
+async function makeAppCheckToken(overrides={},signingKey=appCheckKeys.privateKey){
+  const now=Math.floor(Date.now()/1000);
+  const header=appCheckB64({alg:"RS256",typ:"JWT",kid:"app-check-test-key"});
+  const claims={iss:"https://firebaseappcheck.googleapis.com/"+appCheckProjectNumber,
+    aud:["projects/"+appCheckProjectNumber],sub:appCheckAppId,iat:now-10,exp:now+3600,...overrides};
+  const payload=appCheckB64(claims),unsigned=header+"."+payload;
+  const signature=await crypto.subtle.sign("RSASSA-PKCS1-v1_5",signingKey,new TextEncoder().encode(unsigned));
+  return unsigned+"."+Buffer.from(signature).toString("base64url");
+}
+function appCheckRequest(token,path="/reserve",body=validBody){
+  const headers=new Headers({Origin:origin,Authorization:"Bearer "+mockFirebaseIdToken});
+  if(token)headers.set("X-Firebase-AppCheck",token);
+  return new Request("https://reverse-ledger.test"+path,{method:"POST",headers,body:JSON.stringify(body)});
+}
+async function withAppCheckJwks(run){
+  const oldFetch=globalThis.fetch;
+  globalThis.fetch=async(url)=>{
+    if(String(url)==="https://firebaseappcheck.googleapis.com/v1/jwks")
+      return new Response(JSON.stringify({keys:[appCheckJwk]}),{status:200});
+    if(String(url).includes("identitytoolkit.googleapis.com"))
+      return new Response(JSON.stringify({error:{message:"INVALID_ID_TOKEN"}}),{status:400});
+    throw new Error("Unexpected fetch while testing App Check: "+String(url));
+  };
+  try{return await run();}finally{globalThis.fetch=oldFetch;}
+}
+test("App Check is enforced by default and rejects a missing attestation",async()=>{
+  const strictEnv={...enforcedAppCheckEnv}; delete strictEnv.APP_CHECK_ENFORCED;
+  const r=await worker.fetch(appCheckRequest(null),strictEnv);
+  assert.equal(r.status,401);
+  assert.match((await r.json()).error,/App Check/i);
+});
+test("App Check explicitly disabled remains compatible with legacy test clients",async()=>{
+  const r=await worker.fetch(request("/health"),{...env,APP_CHECK_ENFORCED:"false"});
+  assert.equal(r.status,200);
+  assert.equal((await r.json()).appCheckEnforced,false);
+});
+test("valid App Check RS256 token passes attestation verification and proceeds to Firebase Auth",async()=>{
+  await withAppCheckJwks(async()=>{
+    const token=await makeAppCheckToken();
+    const r=await worker.fetch(appCheckRequest(token),enforcedAppCheckEnv);
+    assert.equal(r.status,401);
+    assert.match((await r.json()).error,/Firebase identity/i);
+  });
+});
+test("App Check rejects a forged signature",async()=>{
+  await withAppCheckJwks(async()=>{
+    const token=await makeAppCheckToken({},signingKeys.privateKey);
+    const r=await worker.fetch(appCheckRequest(token),enforcedAppCheckEnv);
+    assert.equal(r.status,401);
+    assert.match((await r.json()).error,/signature/i);
+  });
+});
+test("App Check rejects expired tokens",async()=>{
+  await withAppCheckJwks(async()=>{
+    const token=await makeAppCheckToken({exp:Math.floor(Date.now()/1000)-1});
+    const r=await worker.fetch(appCheckRequest(token),enforcedAppCheckEnv);
+    assert.equal(r.status,401);
+    assert.match((await r.json()).error,/expired|time claims/i);
+  });
+});
+test("App Check rejects wrong project audience and issuer",async()=>{
+  await withAppCheckJwks(async()=>{
+    for(const claims of [
+      {aud:["projects/999999999999"]},
+      {iss:"https://firebaseappcheck.googleapis.com/999999999999"}
+    ]){
+      const token=await makeAppCheckToken(claims);
+      const r=await worker.fetch(appCheckRequest(token),enforcedAppCheckEnv);
+      assert.equal(r.status,401);
+      assert.match((await r.json()).error,/audience|issuer/i);
+    }
+  });
+});
+test("App Check rejects a token issued to a different Firebase application",async()=>{
+  await withAppCheckJwks(async()=>{
+    const token=await makeAppCheckToken({sub:"1:123456789012:web:another-app"});
+    const r=await worker.fetch(appCheckRequest(token),enforcedAppCheckEnv);
+    assert.equal(r.status,401);
+    assert.match((await r.json()).error,/application ID/i);
+  });
+});
+test("CORS preflight explicitly permits the Firebase App Check header",async()=>{
+  const r=await worker.fetch(new Request("https://reverse-ledger.test/reserve",{method:"OPTIONS",headers:{Origin:origin}}),env);
+  assert.equal(r.status,204);
+  assert.match(r.headers.get("Access-Control-Allow-Headers"),/X-Firebase-AppCheck/);
 });
