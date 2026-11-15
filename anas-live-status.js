@@ -434,7 +434,7 @@
   function applyR46DomRepairs(){
     installInquiryTabs();compactCustomerActions();normalizeInvoiceCurrency();restoreAiPdfUploadCard();
     const badge=g.document.getElementById('anas-status-version-badge'),bar=g.document.getElementById('anas-live-status-bar');
-    if(badge&&bar){badge.textContent='r40';bar.dataset.buildVersion='r40';}
+    syncBuildIdentity();
     const trucks=g.document.getElementById('view-trucks');
     if(trucks)trucks.querySelectorAll('button').forEach(b=>{const t=b.textContent.trim();if(t==='إضافة'||t==='حفظ الرحلة')b.classList.add('anas-truck-primary-action');});
     const purchases=g.document.getElementById('view-purchases');

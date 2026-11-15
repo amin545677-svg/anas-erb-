@@ -44,6 +44,7 @@ test('one live status bar owns durable-save and network DOM updates without a co
   assert.equal(h.document.getElementById('anasDurabilityStatus'), null);
   assert.doesNotMatch(source, /setInterval\s*\(/);
   assert.doesNotMatch(source, /anasDurabilityStatus/);
+  assert.doesNotMatch(source, /badge\.textContent\s*=\s*['"]r40['"]/, 'DOM repairs must not overwrite the verified build SHA with a hard-coded version');
 });
 test('committed is never shown when the durable snapshot differs from AppData', () => {
   const h = harness({ value: { revision: 1 } }, { revision: 2 });
