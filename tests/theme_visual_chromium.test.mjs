@@ -627,7 +627,7 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       }
       // Assert the real semantic action classes. A bare fixture-only button is not
       // representative of a production control and has no action-palette contract.
-      const buttonPalette = await page.locator('#anas-video-theme-fixture button.menu-action-card, #anas-video-theme-fixture button.anas-ai-import-primary, #anas-video-theme-fixture button.anas-ai-import-type.is-active').evaluateAll(nodes =>
+      const buttonPalette = await page.locator('#anas-video-theme-fixture button.anas-ai-import-primary, #anas-video-theme-fixture button.anas-ai-import-type.is-active').evaluateAll(nodes =>
         nodes.filter(node => !node.closest('#hasibModal .anas-quick-payment-actions'))
           .map(node => ({id:node.id,className:node.className,background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
       for (const item of buttonPalette) {
@@ -644,6 +644,13 @@ test('video-driven shared controls, product-search popups and AI import surfaces
       assert.equal(inactiveImportTab.color, 'rgb(15, 23, 42)', 'inactive AI import type retains dark readable text in ' + theme);
       assert.ok(contrast(inactiveImportTab.color, inactiveImportTab.background) >= 4.5,
         'inactive AI import type remains WCAG AA in ' + theme);
+      // Menu action cards are content surfaces, not primary CTA buttons; retain
+      // their theme surface while checking readable foreground contrast.
+      const menuCardVisual = await page.locator('#anas-video-theme-fixture #menu-action').evaluate(node => ({
+        background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color
+      }));
+      assert.ok(contrast(menuCardVisual.color, menuCardVisual.background) >= 4.5,
+        'menu action card remains readable without flattening its card surface in ' + theme);
       const targetVisuals=await page.evaluate(()=>{
         const backgroundOf=node=>{
           for(let current=node;current&&current!==document.documentElement;current=current.parentElement){
