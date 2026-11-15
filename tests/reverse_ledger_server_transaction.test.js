@@ -28,10 +28,11 @@ class FakeSnapshot {
 }
 
 class MemoryFirestore {
-  constructor(seed = {}) {
+  constructor(seed = {}, options = {}) {
     this.records = new Map(Object.entries(seed));
     this.commitCount = 0;
     this.failCommit = false;
+    this.retryFirstAttempt = options.retryFirstAttempt === true;
     this.transactionQueue = Promise.resolve();
   }
   collection(name) { return { doc: id => makeRef(name + '/' + id) }; }
@@ -41,14 +42,22 @@ class MemoryFirestore {
     this.transactionQueue = new Promise(resolve => { release = resolve; });
     await previous;
     try {
-    const writes = [];
-    const tx = {
-      get: async ref => new FakeSnapshot(ref, this.records.get(ref.path)),
-      getAll: async (...refs) => refs.map(ref => new FakeSnapshot(ref, this.records.get(ref.path))),
-      update: (ref, value) => writes.push({ type: 'update', ref, value: structuredClone(value) }),
-      create: (ref, value) => writes.push({ type: 'create', ref, value: structuredClone(value) })
+    const executeAttempt = async () => {
+      const writes = [];
+      const tx = {
+        get: async ref => new FakeSnapshot(ref, this.records.get(ref.path)),
+        getAll: async (...refs) => refs.map(ref => new FakeSnapshot(ref, this.records.get(ref.path))),
+        update: (ref, value) => writes.push({ type: 'update', ref, value: structuredClone(value) }),
+        create: (ref, value) => writes.push({ type: 'create', ref, value: structuredClone(value) })
+      };
+      return { writes, result: await callback(tx) };
     };
-    const result = await callback(tx);
+    // Model the Firestore SDK rerunning a transaction callback after contention.
+    if (this.retryFirstAttempt) {
+      this.retryFirstAttempt = false;
+      await executeAttempt(); // first attempt is deliberately not committed
+    }
+    const { writes, result } = await executeAttempt();
     if (this.failCommit) throw new Error('simulated atomic commit failure');
     const next = new Map(this.records);
     for (const write of writes) {
@@ -125,7 +134,7 @@ function fixture(options = {}) {
     'financialPeriods/FY-2026-10': period
   };
   if (operation) seed['reverseLedgerOperations/REV-OP-00000001'] = operation;
-  const db = new MemoryFirestore(seed);
+  const db = new MemoryFirestore(seed, { retryFirstAttempt: options.retryFirstAttempt });
   const fakeEngine = {
     validateReverseLedgerParity(value) {
       if (!Array.isArray(value.invoices) || !Array.isArray(value.returns)) throw new Error('invalid state fixture');
@@ -153,6 +162,7 @@ function fixture(options = {}) {
     assert.equal(context.reservation.acquired, true);
     assert.equal(context.reservation.durable, true);
     assert.equal(context.period.status, 'OPEN');
+    if (options.observedNowEpochMs) options.observedNowEpochMs.push(context.nowEpochMs);
     if (options.denyAuthorization) throw new FakeHttpsError('permission-denied', 'test grant denied');
     return { authorized: true };
   };
@@ -164,7 +174,7 @@ function fixture(options = {}) {
     ReverseLedger: fakeEngine,
     authorizePreparedReverseOperation: authorize,
     projectId: 'anas-erp-staging-a25e1',
-    now: () => 1793400200000
+    now: options.now || (() => 1793400200000)
   });
   return { db, handler, request };
 }
@@ -183,6 +193,23 @@ test('commits the financial snapshot and Worker reservation finalization atomica
   assert.equal(operation.result.document.returnId, response.document.returnId);
   assert.equal(operation.leaseId.length > 0, true);
   assert.equal(operation.expiresAtEpochMs, 1793400260000);
+});
+
+test('refreshes lease and identity authorization time on every Firestore transaction retry', async () => {
+  const observedNowEpochMs = [];
+  let nowCalls = 0;
+  const { db, handler, request } = fixture({
+    retryFirstAttempt: true,
+    observedNowEpochMs,
+    now: () => 1793400200000 + nowCalls++ * 70000
+  });
+  const response = await handler(request);
+  assert.equal(response.ok, true);
+  assert.equal(nowCalls, 2, 'the clock must be sampled once per transaction callback attempt');
+  assert.deepEqual(observedNowEpochMs, [1793400200000, 1793400270000]);
+  assert.equal(db.commitCount, 1);
+  assert.equal(db.read('reverseLedgerOperations/REV-OP-00000001').expiresAtEpochMs, 1793400330000,
+    'the committed lease must be based on the successful retry clock');
 });
 
 test('same operation ID and same request replay the stored result without a second commit', async () => {
