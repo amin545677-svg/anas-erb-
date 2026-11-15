@@ -2053,3 +2053,15 @@ html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button:nth-o
   background:#dc2626!important;background-color:rgb(220,38,38)!important;background-image:none!important;
   color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#b91c1c!important;transition:none!important;
 }
+
+/* r51 — explicit partial-payment semantic surface, shared by both themes. */
+html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button[data-payment-mode="partial"],
+html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button:nth-of-type(2) {
+  background:#1d4ed8!important;
+  background-color:rgb(29,78,216)!important;
+  background-image:none!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+  border-color:#1e40af!important;
+  transition:none!important;
+}
