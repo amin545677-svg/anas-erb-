@@ -322,3 +322,18 @@ test('Hosting live acceptance does not wait for billable Functions on normal sta
   assert.match(workflow, /github.event_name == 'workflow_dispatch' && inputs.run_functions_live_acceptance == true/);
   assert.match(workflow, /deploy --only hosting/);
 });
+
+
+test('Functions deployment guard matches the canonical r40 Staging worker and generated build stamp', async () => {
+  const fs = await import('node:fs/promises');
+  const [functionsWorkflow, worker, builder] = await Promise.all([
+    fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../sw.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../scripts/build-staging-hosting.mjs', import.meta.url), 'utf8')
+  ]);
+  assert.ok(worker.includes("const CACHE = 'anas-erp-v54-25-r40';"), 'canonical Service Worker must be r40');
+  assert.ok(functionsWorkflow.includes("const CACHE = 'anas-erp-v54-25-r40';"), 'Functions deployment guard must require the current worker');
+  assert.ok(functionsWorkflow.includes(' | SW: r40 | Env: Staging'), 'Functions deployment guard must require the generated r40 build stamp');
+  assert.ok(builder.includes('staging build emits the r40 worker generation'), 'staging build generation must be explicit');
+  assert.ok(builder.includes("'Build SHA: ' + buildSha + ' | SW: r40 | Env: Staging'"), 'staging builder must emit the r40 deployment stamp');
+});
