@@ -183,6 +183,9 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.match(await page.locator('#smartImportPreviewModal').innerText(), /هذه معاينة فقط ولم يتم تعديل بياناتك/);
   assert.match(await page.locator('#smartPdfExtractText').inputValue(), /ANAS ERP PDF Smoke Tes/,
     'PDF text must be extracted locally even when Android omits the extension and reports generic MIME');
+  // The review modal blocks the OCR action panel; dismiss it before starting OCR.
+  await page.locator('#smartImportCancel').click();
+  await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
 
   // Scanned-PDF OCR: exercise page rendering, local OCR handoff, page labels and review output.
   await page.evaluate(() => {
@@ -219,11 +222,8 @@ test('built /erp/ AI Center controls respond to real Chromium DOM clicks with lo
   assert.equal((repeatedOcrText.match(/الصفحة 1 \(OCR\)/g)||[]).length,1,
     're-running OCR must replace the previous OCR segment instead of duplicating it');
 
-  // The PDF preview is intentionally modal and blocks clicks on the AI import
-  // type selector behind it. Close it before starting a new CSV import flow;
-  // do not bypass the overlay with force-clicks.
-  await page.locator('#smartImportCancel').click();
-  await page.locator('#smartImportPreviewModal').waitFor({ state: 'hidden' });
+  // The PDF preview was closed before OCR above; keep the workspace unobstructed
+  // before starting the next CSV import flow.
   assert.equal(await page.locator('#smartImportTarget').count(), 1,
     'the stable import target must remain after preview dismissal');
 

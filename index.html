@@ -12081,7 +12081,7 @@ function anasGetAiHubKpiMetrics(tabKey) {
                     window.anasPdfExtractedBaseMeta='📄 '+file.name+' — '+result.pages+' صفحة — '+result.extractedText.length.toLocaleString('fr-FR')+' حرف'+(result.ocr?' — OCR محلي':' — نص PDF');
                     if(textBox){textBox.value=result.extractedText;textBox.readOnly=true;}
                     if(meta)meta.textContent=window.anasPdfExtractedBaseMeta;
-                    if(box)box.style.display='block';
+                    if(box){box.hidden=false;box.removeAttribute('hidden');box.style.display='block';}
                     anasOpenPdfImportReview();
                     if(status)status.textContent='✅ اكتمل الاستخراج المحلي'+(result.ocr?' وOCR للصفحات المصوّرة':'')+'. راجع النتائج وصنّفها؛ لا يتم اعتماد أي سجل تلقائياً.';
                     return;
