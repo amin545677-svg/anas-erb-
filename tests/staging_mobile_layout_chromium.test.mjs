@@ -152,9 +152,13 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
       const view = document.getElementById('view-ai-excel-hub');
       return !!view && view.classList.contains('active') && getComputedStyle(view).display !== 'none' && !document.body.inert;
     });
+    // Security action starts in Overview; the file-picker cards belong to Documents.
+    await security.waitFor({ state: 'visible' });
+    await security.click();
+    await page.locator('#aiHubTabContent [data-ai-workspace-tab="documents"]').click();
+    await page.locator('#aiHubTabContent [data-ai-workspace-panel="documents"]').waitFor({ state: 'visible' });
     await excel.waitFor({ state: 'visible' });
     await pdf.waitFor({ state: 'visible' });
-    await security.waitFor({ state: 'visible' });
 
     const inputState = await page.evaluate(() => {
       const excelInput = document.getElementById('smartAiExcelUpload');
@@ -167,7 +171,6 @@ test('ANAS AI data cards execute file-picker and data-protection actions on mobi
     assert.deepEqual(inputState, { excel: true, pdf: true },
       'both dedicated file inputs must exist in the live DOM and remain enabled');
 
-    await security.click();
     const panel = page.locator('#anasAiDataProtectionPanel');
     await panel.waitFor({ state: 'visible' });
     assert.match(await page.locator('#anasAiDataProtectionDetails').innerText(), /IndexedDB/);
