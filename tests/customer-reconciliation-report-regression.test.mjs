@@ -178,16 +178,16 @@ test('7. ANAS POS settlementAllocations: gross sale, initial payment, later rece
 
 test('8. Exact financial triangle: 900.00 invoice, 400.00 initial cash and 200.00 later receipt reconcile to 300.00',()=>{
  const data={customers:[{id:'UAT-C',name:'عميل اختبار المثلث'}],
-  invoices:[{id:'UAT-INV-900',customerObj:{id:'UAT-C',name:'عميل اختبار المثلث'},total:900,paid:400,remaining:500,date:'2026-11-15T10:00:00'}],
+  invoices:[{id:'UAT-INV-900',customerObj:{id:'UAT-C',name:'عميل اختبار المثلث'},total:900,paid:400,remaining:500,date:'2026-02-15T10:00:00'}],
   cashMovements:[
-   {id:'SALE-CASH-UAT-INV-900',type:'add',amount:400,referenceType:'sales_invoice',referenceId:'UAT-INV-900',date:'2026-11-15T10:00:00'},
-   {id:'DEBT-RECEIPT-200',type:'add',amount:200,referenceType:'customer_debt',referenceId:'UAT-C',date:'2026-11-15T11:00:00'}],
+   {id:'SALE-CASH-UAT-INV-900',type:'add',amount:400,referenceType:'sales_invoice',referenceId:'UAT-INV-900',date:'2026-02-15T10:00:00'},
+   {id:'DEBT-RECEIPT-200',type:'add',amount:200,referenceType:'customer_debt',referenceId:'UAT-C',date:'2026-02-15T11:00:00'}],
   clientMovements:[
-   {movementId:'CL-INV-UAT-INV-900',clientId:'UAT-C',type:'invoice_debit',amountCentimes:50000,direction:'debit',referenceType:'sales_invoice',referenceId:'UAT-INV-900',createdAt:'2026-11-15T10:00:00'},
-   {movementId:'CL-REC-DEBT-RECEIPT-200',clientId:'UAT-C',type:'receipt',amountCentimes:20000,direction:'credit',referenceType:'customer_debt',referenceId:'UAT-C',createdAt:'2026-11-15T11:00:00'}],
+   {movementId:'CL-INV-UAT-INV-900',clientId:'UAT-C',type:'invoice_debit',amountCentimes:50000,direction:'debit',referenceType:'sales_invoice',referenceId:'UAT-INV-900',createdAt:'2026-02-15T10:00:00'},
+   {movementId:'CL-REC-DEBT-RECEIPT-200',clientId:'UAT-C',type:'receipt',amountCentimes:20000,direction:'credit',referenceType:'customer_debt',referenceId:'UAT-C',createdAt:'2026-02-15T11:00:00'}],
   settlementAllocations:[
-   {allocationId:'ALLOC-SALE-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'SALE-CASH-UAT-INV-900',sourceMovementType:'sales_invoice',amountCentimes:40000,createdAt:'2026-11-15T10:00:00'},
-   {allocationId:'ALLOC-RECEIPT-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'DEBT-RECEIPT-200',sourceMovementType:'customer_debt',amountCentimes:20000,createdAt:'2026-11-15T11:00:00'}
+   {allocationId:'ALLOC-SALE-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'SALE-CASH-UAT-INV-900',sourceMovementType:'sales_invoice',amountCentimes:40000,createdAt:'2026-02-15T10:00:00'},
+   {allocationId:'ALLOC-RECEIPT-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'DEBT-RECEIPT-200',sourceMovementType:'customer_debt',amountCentimes:20000,createdAt:'2026-02-15T11:00:00'}
   ],returns:[]};
  const row=reconciliationRows(data).find(r=>r.customerId==='UAT-C');
  assert.equal(row.periodDebitCents,90000n);
