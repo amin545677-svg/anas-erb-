@@ -404,8 +404,21 @@
       if(/\bDA\b/.test(text)){el.textContent=text.replace(/\bDA\b/g,'د.ج');el.dataset.anasNormalized='1';}
     });
   }
+  function restoreAiPdfUploadCard(){
+    const view=g.document.getElementById('view-ai-excel-hub');
+    if(!view)return false;
+    const card=view.querySelector('label.anas-ai-document-card[data-anas-ai-action="pdf"]');
+    if(!card)return false;
+    card.hidden=false;
+    card.removeAttribute('hidden');
+    card.style.setProperty('display','flex','important');
+    card.style.setProperty('visibility','visible','important');
+    card.style.setProperty('opacity','1','important');
+    card.style.setProperty('pointer-events','auto','important');
+    return true;
+  }
   function applyR46DomRepairs(){
-    installInquiryTabs();compactCustomerActions();normalizeInvoiceCurrency();
+    installInquiryTabs();compactCustomerActions();normalizeInvoiceCurrency();restoreAiPdfUploadCard();
     const badge=g.document.getElementById('anas-status-version-badge'),bar=g.document.getElementById('anas-live-status-bar');
     if(badge&&bar){badge.textContent='r40';bar.dataset.buildVersion='r40';}
     const trucks=g.document.getElementById('view-trucks');
