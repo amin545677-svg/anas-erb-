@@ -603,23 +603,31 @@ test('video-driven shared controls, product-search popups and AI import surfaces
           name + ' foreground/background must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
       }
       const paymentColors = await page.locator('#anas-video-theme-fixture #hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
-        nodes.map(node => ({ background:getComputedStyle(node).backgroundColor, color:getComputedStyle(node).color })));
+        nodes.map(node => ({ background:getComputedStyle(node).backgroundColor, color:getComputedStyle(node).color,
+          fontSize:getComputedStyle(node).fontSize, fontWeight:getComputedStyle(node).fontWeight })));
       assert.deepEqual(paymentColors.map(item => item.background),
-        ['rgb(29, 78, 216)', 'rgb(29, 78, 216)', 'rgb(29, 78, 216)'],
-        'all POS payment actions use the same brand-blue surface in ' + theme);
+        ['rgb(22, 163, 74)', 'rgb(29, 78, 216)', 'rgb(220, 38, 38)'],
+        'POS payment actions retain full/partial/debt semantic colors in ' + theme);
       for (const item of paymentColors) {
         assert.equal(item.color, 'rgb(255, 255, 255)',
-          'all POS payment actions use the same white label color in ' + theme);
+          'POS payment labels remain white in ' + theme);
+      }
+      assert.ok(Number.parseFloat(paymentColors[0].fontSize) >= 18.67 &&
+        Number.parseInt(paymentColors[0].fontWeight, 10) >= 700,
+        'full-payment label uses WCAG large bold text in ' + theme);
+      assert.ok(contrast(paymentColors[0].color, paymentColors[0].background) >= 3,
+        'full-payment large text meets WCAG AA in ' + theme);
+      for (const item of paymentColors.slice(1)) {
+        assert.ok(contrast(item.color, item.background) >= 4.5,
+          'partial/debt payment labels meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
       }
       const buttonPalette = await page.locator('#anas-video-theme-fixture button:not(.grid-card-item)').evaluateAll(nodes =>
-        nodes.map(node => ({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
+        nodes.filter(node => !node.closest('#hasibModal .anas-quick-payment-actions') &&
+          !node.matches('#hasibModal #confirmSaleBtn, #hasibModal button[data-action="confirm-sale"]'))
+          .map(node => ({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
       for (const item of buttonPalette) {
-        assert.equal(item.background, 'rgb(29, 78, 216)', 'every action button must use the shared blue in ' + theme);
-        assert.equal(item.color, 'rgb(255, 255, 255)', 'every action button must use white text in ' + theme);
-      }
-      for (const item of paymentColors) {
-        assert.ok(contrast(item.color, item.background) >= 4.5,
-          'POS payment action colors must meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
+        assert.equal(item.background, 'rgb(29, 78, 216)', 'every non-payment action button must use the shared blue in ' + theme);
+        assert.equal(item.color, 'rgb(255, 255, 255)', 'every non-payment action button must use white text in ' + theme);
       }
       const targetVisuals=await page.evaluate(()=>{
         const backgroundOf=node=>{
