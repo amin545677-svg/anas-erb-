@@ -143,10 +143,12 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
     const snapshotRef = db.collection('users').doc(uid).collection('snapshots').doc('latest');
     const operationRef = db.collection('reverseLedgerOperations').doc(normalized.operationId);
     const requestHash = sha256(canonical(normalized));
-    const nowMs = now();
 
     try {
       return await db.runTransaction(async transaction => {
+        // Refresh the clock for every Admin SDK retry; timestamps from an
+        // aborted attempt must never leak into the committed allocation.
+        const nowMs = now();
         // Match reverse-ledger posting: batch document reads through getAll
         // rather than racing concurrent transaction.get() calls on one SDK transaction.
         const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await transaction.getAll(
