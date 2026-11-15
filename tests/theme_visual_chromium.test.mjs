@@ -257,6 +257,9 @@ test('real Chromium theme acceptance: eight-module dashboard, purchase OCR, sett
 
     await page.evaluate(() => window.openView('ai-excel-hub'));
     await page.locator('#view-ai-excel-hub').waitFor({ state: 'visible' });
+    // The PDF uploader belongs to the Documents workspace, not the default Overview panel.
+    await page.locator('#aiHubTabContent [data-ai-workspace-tab="documents"]').click();
+    await page.locator('#aiHubTabContent [data-ai-workspace-panel="documents"]').waitFor({ state: 'visible' });
     const pdfUploadTile = page.locator('#view-ai-excel-hub label[data-anas-ai-action="pdf"]');
     await pdfUploadTile.waitFor({ state: 'visible' });
     const pdfTileVisual = await pdfUploadTile.evaluate(el => {

@@ -2087,8 +2087,8 @@ html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
   transition:none!important;
 }
 
-/* The AI Center's PDF document tile is a primary upload action, not a hidden
-   file-input proxy. Keep the visible label usable when the workspace opens. */
+/* The PDF tile is rendered inside the Documents workspace; keep the label usable
+   when that workspace is selected without exposing the hidden workspace panel. */
 #view-ai-excel-hub label.anas-ai-document-card[data-anas-ai-action="pdf"] {
   display:flex!important;
   visibility:visible!important;
@@ -2117,3 +2117,26 @@ html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
 .anas-store-kpi span{font-size:11px;font-weight:800}.anas-store-kpi strong{font-size:15px;font-weight:900;overflow-wrap:anywhere}
 .anas-store-report-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 @media(min-width:700px){.anas-store-movement-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+
+/* r49 — force the agreed payment semantics above legacy dark-theme and generic action rules.
+   The extra :not() ID specificity is deliberate: older selectors use !important too. */
+html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(1):not(#anas-pos-payment-color-override),
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(1):not(#anas-pos-payment-color-override),
+html:root[data-anas-theme="dark"] body #hasibModal .anas-quick-payment-actions button:nth-child(1):not(#anas-pos-payment-color-override) {
+  background:#16a34a!important;background-color:rgb(22,163,74)!important;background-image:none!important;
+  color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#15803d!important;
+  font-size:19px!important;font-weight:800!important;
+}
+html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(2):not(#anas-pos-payment-color-override),
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(2):not(#anas-pos-payment-color-override),
+html:root[data-anas-theme="dark"] body #hasibModal .anas-quick-payment-actions button:nth-child(2):not(#anas-pos-payment-color-override) {
+  background:#1d4ed8!important;background-color:rgb(29,78,216)!important;background-image:none!important;
+  color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#1e40af!important;
+}
+html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(3):not(#anas-pos-payment-color-override),
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(3):not(#anas-pos-payment-color-override),
+html:root[data-anas-theme="dark"] body #hasibModal .anas-quick-payment-actions button:nth-child(3):not(#anas-pos-payment-color-override) {
+  background:#dc2626!important;background-color:rgb(220,38,38)!important;background-image:none!important;
+  color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#b91c1c!important;
+}
