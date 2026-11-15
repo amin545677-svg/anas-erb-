@@ -67,7 +67,7 @@ test("staging Worker config uses isolated Firebase project and dedicated service
   const config=await readFile(resolve("cloudflare/wrangler-reverse-ledger-staging.toml"),"utf8");
   assert.match(config,/name = "anas-erp-reverse-ledger-staging"/);
   assert.match(config,/FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"/);
-  assert.match(config,/required = \["FIREBASE_API_KEY", "FIREBASE_SERVICE_ACCOUNT_JSON"\]/);
+  assert.match(config,/required = \["FIREBASE_API_KEY", "FIREBASE_SERVICE_ACCOUNT_JSON", "FIREBASE_PROJECT_NUMBER", "FIREBASE_APP_ID"\]/);
   assert.doesNotMatch(config,/anas-erb|amin545677-svg\.github\.io/);
 });
 
