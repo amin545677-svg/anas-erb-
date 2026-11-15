@@ -120,7 +120,7 @@
     const cancelled=invoice=>!!(invoice&&(invoice.cancelled||invoice.isCancelled||invoice.reversed||
       ['cancelled','canceled','void','voided'].includes(String(invoice.status||'').toLowerCase())));
     const invoiceId=invoice=>String((invoice&&(invoice.id??invoice.invoiceId))??'');
-    const invoiceClientId=invoice=>String((invoice&&(invoice.customerId??invoice.clientId??invoice.customer?.id??invoice.client?.id))??'');
+    const invoiceClientId=invoice=>String((invoice&&(invoice.customerId??invoice.clientId??invoice.customerObj?.id??invoice.customer?.id??invoice.client?.id))??'');
     const invoiceById=new Map(invoices.map(invoice=>[invoiceId(invoice),invoice]).filter(([id])=>id));
     const postedReturns=returns.filter(row=>row&&row.status==='POSTED'&&row.originalInvoiceType==='sales_invoice'&&
       ['SALE_RETURN','INVOICE_CANCEL'].includes(row.returnType));

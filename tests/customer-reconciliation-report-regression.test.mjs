@@ -178,7 +178,7 @@ test('7. ANAS POS settlementAllocations: gross sale, initial payment, later rece
 
 test('8. Exact financial triangle: 900.00 invoice, 400.00 initial cash and 200.00 later receipt reconcile to 300.00',()=>{
  const data={customers:[{id:'UAT-C',name:'عميل اختبار المثلث'}],
-  invoices:[{id:'UAT-INV-900',customerId:'UAT-C',total:900,paid:400,remaining:500,date:'2026-11-15T10:00:00'}],
+  invoices:[{id:'UAT-INV-900',customerObj:{id:'UAT-C',name:'عميل اختبار المثلث'},total:900,paid:400,remaining:500,date:'2026-11-15T10:00:00'}],
   cashMovements:[
    {id:'SALE-CASH-UAT-INV-900',type:'add',amount:400,referenceType:'sales_invoice',referenceId:'UAT-INV-900',date:'2026-11-15T10:00:00'},
    {id:'DEBT-RECEIPT-200',type:'add',amount:200,referenceType:'customer_debt',referenceId:'UAT-C',date:'2026-11-15T11:00:00'}],
