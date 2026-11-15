@@ -142,6 +142,55 @@
       if(direction!=='debit'&&direction!=='credit')return null;
       return direction==='credit'?-amount:amount;
     };
+    const allocationInvoiceId=allocation=>String((allocation&&
+      (allocation.invoiceId??allocation.refId??allocation.referenceId??allocation.invoice_id))??'');
+    const allocationAmount=allocation=>{
+      if(!allocation||typeof allocation!=='object')return null;
+      if(allocation.amountCentimes!=null)return centsField(allocation.amountCentimes);
+      if(allocation.amount_cents!=null)return centsField(allocation.amount_cents);
+      if(allocation.amountCents!=null)return centsField(allocation.amountCents);
+      return moneyCents(allocation.amount);
+    };
+    const invoiceTotalCentsOf=invoice=>invoice&&invoice.totalCentimes!=null?centsField(invoice.totalCentimes):
+      invoice&&invoice.total_cents!=null?centsField(invoice.total_cents):moneyCents(invoice&&invoice.total);
+    const invoicePaidCentsOf=invoice=>invoice&&invoice.paidCentimes!=null?centsField(invoice.paidCentimes):
+      invoice&&invoice.paid_cents!=null?centsField(invoice.paid_cents):moneyCents(invoice?(invoice.paid??0):0);
+    const cashMovements=Array.isArray(state.cashMovements)?state.cashMovements:[];
+    const cashById=new Map();
+    for(const row of cashMovements){
+      const cashId=row&&(row.id??row.movementId);
+      if(cashId!=null&&String(cashId))cashById.set(String(cashId),row);
+    }
+    const saleAllocationsByInvoice=new Map(),seenSaleAllocationIds=new Set();
+    for(const allocation of (Array.isArray(state.settlementAllocations)?state.settlementAllocations:[])){
+      if(!allocation||allocation.partyType!=='customer'||allocation.invoiceType!=='sales_invoice'||
+        allocation.sourceMovementType!=='sales_invoice')continue;
+      const ref=allocationInvoiceId(allocation),clientId=String(allocation.partyId??'');
+      if(!ref||!clientId)continue;
+      const invoice=invoiceById.get(ref),sourceId=String(allocation.sourceMovementId??'');
+      const sourceCash=cashById.get(sourceId),amount=allocationAmount(allocation);
+      const sourceAmount=sourceCash?moneyCents(sourceCash.amount):null;
+      if(!invoice||cancelled(invoice)||invoiceClientId(invoice)!==clientId||
+        !sourceId||!sourceCash||sourceCash.type!=='add'||
+        String(sourceCash.referenceType||'')!=='sales_invoice'||String(sourceCash.referenceId||'')!==ref||
+        amount===null||amount<=0n||sourceAmount===null||sourceAmount!==amount){
+        ensure(clientId).invalid++;continue;
+      }
+      const key=String(allocation.allocationId??'')||
+        [sourceId,ref,String(allocation.amountCentimes??allocation.amount_cents??allocation.amount??'')].join('|');
+      if(seenSaleAllocationIds.has(key))continue;
+      seenSaleAllocationIds.add(key);
+      const entry=saleAllocationsByInvoice.get(ref)||{clientId,totalCents:0n,rows:[],valid:false};
+      entry.totalCents+=amount;entry.rows.push({allocation,amount,sourceId,sourceCash});
+      saleAllocationsByInvoice.set(ref,entry);
+    }
+    for(const [ref,entry] of saleAllocationsByInvoice){
+      const invoice=invoiceById.get(ref),total=invoiceTotalCentsOf(invoice),paid=invoicePaidCentsOf(invoice);
+      if(!invoice||total===null||total<=0n||paid===null||entry.totalCents!==paid||entry.totalCents>total){
+        ensure(entry.clientId).invalid++;entry.valid=false;continue;
+      }
+      entry.valid=true;
+    }
     for(const movement of movements){
       if(!movement||movement.clientId==null)continue;
       const id=String(movement.clientId),type=String(movement.type||'');
@@ -159,23 +208,41 @@
         const movementId=String(movement.movementId||movement.id||'');
         if(!movementId||!linkedIds.includes(movementId))continue;
       }
-      const amount=signedAmount(movement),target=ensure(id);
+      let amount=signedAmount(movement);
+      const target=ensure(id);
+      if(type==='invoice_debit'){
+        const ref=String(movement.referenceId||movement.invoiceId||movement.refId||'');
+        const saleInfo=saleAllocationsByInvoice.get(ref);
+        if(saleInfo&&saleInfo.valid){
+          const gross=invoiceTotalCentsOf(invoiceById.get(ref));
+          if(gross===null||gross<=0n){target.invalid++;continue;}
+          amount=gross;
+        }
+      }
       if(amount===null){target.invalid++;continue;}
       const day=dayOf(movement);if(!day&&(from||to)){target.missingDate++;continue;}
       if(from&&day&&day<from){target.opening+=amount;continue;}
       if(inRange(movement)){if(amount>0n)target.debit+=amount;else if(amount<0n)target.credit+=-amount;}
     }
+    for(const [ref,entry] of saleAllocationsByInvoice){
+      if(!entry.valid)continue;
+      const target=ensure(entry.clientId);
+      for(const row of entry.rows){
+        const alreadyInClientLedger=movements.some(movement=>{
+          if(!movement||movement.type!=='receipt')return false;
+          const movementId=String(movement.movementId||movement.id||'');
+          return movementId===row.sourceId||movementId==='CL-REC-'+row.sourceId;
+        });
+        if(alreadyInClientLedger)continue;
+        const dateRecord={date:row.sourceCash.date,createdAt:row.allocation.createdAt};
+        const day=dayOf(dateRecord);
+        if(!day&&(from||to)){target.missingDate++;continue;}
+        if(from&&day&&day<from){target.opening-=row.amount;continue;}
+        if(inRange(dateRecord))target.credit+=row.amount;
+      }
+    }
     // Legacy invoice fallback: reconstruct only the original receivable, never the mutable
     // remaining balance. Subsequent credits stay in clientMovements at their real dates.
-    const allocationInvoiceId=allocation=>String((allocation&&
-      (allocation.invoiceId??allocation.refId??allocation.referenceId??allocation.invoice_id))??'');
-    const allocationAmount=allocation=>{
-      if(!allocation||typeof allocation!=='object')return null;
-      if(allocation.amountCentimes!=null)return centsField(allocation.amountCentimes);
-      if(allocation.amount_cents!=null)return centsField(allocation.amount_cents);
-      if(allocation.amountCents!=null)return centsField(allocation.amountCents);
-      return moneyCents(allocation.amount);
-    };
     const linkedCreditsForInvoice=(invoice,clientId)=>{
       const ref=invoiceId(invoice),seen=new Set();let sum=0n;
       // ANAS customer-debt receipts are stored once in clientMovements and apportioned
@@ -244,35 +311,21 @@
       if(!invoice||cancelled(invoice))continue;
       const id=invoiceClientId(invoice),ref=invoiceId(invoice);
       if(!id||!ref||invoiceDebitIds.has(ref))continue;
-      const invoiceTotalCents=invoice.totalCentimes!=null?centsField(invoice.totalCentimes):
-        invoice.total_cents!=null?centsField(invoice.total_cents):moneyCents(invoice.total);
-      const invoicePaidCents=invoice.paidCentimes!=null?centsField(invoice.paidCentimes):
-        invoice.paid_cents!=null?centsField(invoice.paid_cents):moneyCents(invoice.paid??0);
+      const invoiceTotalCents=invoiceTotalCentsOf(invoice);
+      const invoicePaidCents=invoicePaidCentsOf(invoice);
       if(invoiceTotalCents===null||invoiceTotalCents<=0n)continue;
       const paid=invoicePaidCents!==null&&invoicePaidCents>0n?invoicePaidCents:0n;
       const linkedMovementCreditsCents=linkedCreditsForInvoice(invoice,id);
-      // Current POS persists the immediate sale payment as a sales_invoice allocation.
-      // Prefer this explicit origin amount; old imported invoices without it use the
-      // cumulative paid minus invoice-linked client-ledger credits reconstruction.
-      let hasInitialSaleAllocation=false,initialSalePaidCents=0n;
-      const saleAllocations=Array.isArray(state.settlementAllocations)?state.settlementAllocations:[];
-      const seenSaleAllocations=new Set();
-      for(const allocation of saleAllocations){
-        if(!allocation||allocation.partyType!=='customer'||String(allocation.partyId??'')!==id||
-          allocation.invoiceType!=='sales_invoice'||String(allocation.invoiceId??'')!==ref||
-          allocation.sourceMovementType!=='sales_invoice')continue;
-        const key=String(allocation.allocationId??'')||
-          [String(allocation.sourceMovementId??''),ref,String(allocation.amountCentimes??allocation.amount_cents??allocation.amount??'')].join('|');
-        if(seenSaleAllocations.has(key))continue;
-        const amount=allocationAmount(allocation);
-        if(amount===null||amount<0n)continue;
-        seenSaleAllocations.add(key);hasInitialSaleAllocation=true;initialSalePaidCents+=amount;
-      }
-      const untrackedInitialPaidCents=hasInitialSaleAllocation?initialSalePaidCents:
+      // Verified immediate sale allocations are gross-invoice credits. Legacy invoices
+      // without a linked source cash movement retain the conservative net fallback.
+      const saleInfo=saleAllocationsByInvoice.get(ref);
+      const explicitInitialPaid=saleInfo&&saleInfo.valid?saleInfo.totalCents:null;
+      const untrackedInitialPaidCents=explicitInitialPaid!==null?explicitInitialPaid:
         (paid>linkedMovementCreditsCents?paid-linkedMovementCreditsCents:0n);
       const initialPaidCents=untrackedInitialPaidCents>invoiceTotalCents?
         invoiceTotalCents:untrackedInitialPaidCents;
-      const originalReceivableCents=invoiceTotalCents-initialPaidCents;
+      const originalReceivableCents=explicitInitialPaid!==null?
+        invoiceTotalCents:invoiceTotalCents-initialPaidCents;
       if(originalReceivableCents<=0n)continue;
       const target=ensure(id),day=dayOf(invoice);
       if(!day&&(from||to)){target.missingDate++;continue;}
@@ -307,7 +360,7 @@
     if(!content||!titleNode||!modal)return;
     titleNode.textContent=title;
     content.innerHTML='<div class="anas-customer-reconciliation-report">'+
-      '<p class="anas-report-source-note">مصدر البيانات: AppData.customers + AppData.invoices + AppData.clientMovements + AppData.returns</p>'+
+      '<p class="anas-report-source-note">مصدر البيانات: AppData.customers + AppData.invoices + AppData.clientMovements + AppData.cashMovements + AppData.settlementAllocations + AppData.returns</p>'+
       '<div style="overflow:auto;max-width:100%"><table><thead><tr>'+headers.map(header=>'<th>'+escape(header)+'</th>').join('')+
       '</tr></thead><tbody>'+body+'</tbody></table></div>'+
       '<p class="anas-report-integrity-note">الحساب بالسنتيم باستخدام BigInt. لا تُدرج المرتجعات إلا إذا كانت POSTED ومرتبطة بحركة دفتر العميل.</p></div>';

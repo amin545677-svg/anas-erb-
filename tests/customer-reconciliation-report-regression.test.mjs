@@ -158,19 +158,41 @@ test('6. Allocation links apportion a shared receipt across invoices of the same
  assert.equal(row.periodDebitCents,16000n);assert.equal(row.periodCreditCents,4000n);assert.equal(row.closingBalanceCents,12000n);
 });
 
-test('7. ANAS POS settlementAllocations: original sale payment is not confused with later receipt credits',()=>{
+test('7. ANAS POS settlementAllocations: gross sale, initial payment, later receipt and return are counted once',()=>{
  const data={customers:[{id:'POS-C',name:'عميل نقطة البيع'}],
   invoices:[{id:'POS-INV',customerId:'POS-C',total:100,paid:30,remaining:70,date:'2026-02-02'}],
+  cashMovements:[{id:'CASH-SALE-POS-INV',type:'add',amount:30,referenceType:'sales_invoice',referenceId:'POS-INV',date:'2026-02-02'}],
   clientMovements:[
    {movementId:'CL-REC-CASH-REC-4',clientId:'POS-C',type:'receipt',amountCentimes:4000,direction:'credit',referenceType:'customer_debt',referenceId:'POS-C',createdAt:'2026-02-05'},
    {movementId:'POS-RETURN',clientId:'POS-C',type:'return_credit',amountCentimes:1000,direction:'credit',referenceId:'POS-RET',createdAt:'2026-02-06'}],
   returns:[{returnId:'POS-RET',originalInvoiceId:'POS-INV',originalInvoiceType:'sales_invoice',returnType:'SALE_RETURN',status:'POSTED',financialMovementIds:['POS-RETURN']}],
   settlementAllocations:[
-   {allocationId:'ALLOC-SALE-POS-INV',partyType:'customer',partyId:'POS-C',invoiceType:'sales_invoice',invoiceId:'POS-INV',sourceMovementId:'CASH-SALE-POS-INV',sourceMovementType:'sales_invoice',amountCentimes:3000},
+   {allocationId:'ALLOC-SALE-POS-INV',partyType:'customer',partyId:'POS-C',invoiceType:'sales_invoice',invoiceId:'POS-INV',sourceMovementId:'CASH-SALE-POS-INV',sourceMovementType:'sales_invoice',amountCentimes:3000,createdAt:'2026-02-02'},
    {allocationId:'ALLOC-RECEIPT-POS-INV',partyType:'customer',partyId:'POS-C',invoiceType:'sales_invoice',invoiceId:'POS-INV',sourceMovementId:'CASH-REC-4',sourceMovementType:'customer_debt',amountCentimes:4000}
   ]};
  const row=reconciliationRows(data).find(r=>r.customerId==='POS-C');
- assert.equal(row.periodDebitCents,7000n,'original receivable excludes only the explicitly allocated immediate sale payment');
- assert.equal(row.periodCreditCents,5000n,'later receipt allocation and POSTED return are counted once');
+ assert.equal(row.periodDebitCents,10000n,'gross invoice amount is reported as customer withdrawals');
+ assert.equal(row.periodCreditCents,8000n,'initial sale payment, later receipt and POSTED return are each credited once');
  assert.equal(row.closingBalanceCents,2000n);
+});
+
+test('8. Exact financial triangle: 900.00 invoice, 400.00 initial cash and 200.00 later receipt reconcile to 300.00',()=>{
+ const data={customers:[{id:'UAT-C',name:'عميل اختبار المثلث'}],
+  invoices:[{id:'UAT-INV-900',customerId:'UAT-C',total:900,paid:400,remaining:500,date:'2026-11-15T10:00:00'}],
+  cashMovements:[
+   {id:'SALE-CASH-UAT-INV-900',type:'add',amount:400,referenceType:'sales_invoice',referenceId:'UAT-INV-900',date:'2026-11-15T10:00:00'},
+   {id:'DEBT-RECEIPT-200',type:'add',amount:200,referenceType:'customer_debt',referenceId:'UAT-C',date:'2026-11-15T11:00:00'}],
+  clientMovements:[
+   {movementId:'CL-INV-UAT-INV-900',clientId:'UAT-C',type:'invoice_debit',amountCentimes:50000,direction:'debit',referenceType:'sales_invoice',referenceId:'UAT-INV-900',createdAt:'2026-11-15T10:00:00'},
+   {movementId:'CL-REC-DEBT-RECEIPT-200',clientId:'UAT-C',type:'receipt',amountCentimes:20000,direction:'credit',referenceType:'customer_debt',referenceId:'UAT-C',createdAt:'2026-11-15T11:00:00'}],
+  settlementAllocations:[
+   {allocationId:'ALLOC-SALE-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'SALE-CASH-UAT-INV-900',sourceMovementType:'sales_invoice',amountCentimes:40000,createdAt:'2026-11-15T10:00:00'},
+   {allocationId:'ALLOC-RECEIPT-UAT-INV-900',partyType:'customer',partyId:'UAT-C',invoiceType:'sales_invoice',invoiceId:'UAT-INV-900',sourceMovementId:'DEBT-RECEIPT-200',sourceMovementType:'customer_debt',amountCentimes:20000,createdAt:'2026-11-15T11:00:00'}
+  ],returns:[]};
+ const row=reconciliationRows(data).find(r=>r.customerId==='UAT-C');
+ assert.equal(row.periodDebitCents,90000n);
+ assert.equal(row.periodCreditCents,60000n);
+ assert.equal(row.closingBalanceCents,30000n);
+ assert.equal(row.invalidRows,0);
+ assert.equal(row.missingDateRows,0);
 });

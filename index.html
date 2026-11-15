@@ -13263,13 +13263,16 @@ function anasGetAiHubKpiMetrics(tabKey) {
             const {from,to}=getReportRange();
             if(!from&&!to)return true;
             const keys=['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','dateCreated','created',...(Array.isArray(dateKeys)?dateKeys:[])];
-            let raw=null;
-            for(const k of keys){if(item && item[k]!==null && item[k]!==undefined && item[k]!==''){raw=item[k];break;}}
-            if(raw===null && item && (item.id||item.invoiceId)){
-                const idDate=String(item.id||item.invoiceId).match(/(?:^|\D)(20\d{2})[-_/]?(\d{2})[-_/]?(\d{2})(?:\D|$)/);
-                if(idDate)raw=idDate[1]+'-'+idDate[2]+'-'+idDate[3];
+            let d=null;
+            for(const k of keys){
+                if(!item||item[k]===null||item[k]===undefined||item[k]==='')continue;
+                d=reportParseDate(item[k]);
+                if(d)break;
             }
-            const d=reportParseDate(raw);
+            if(!d && item && (item.id||item.invoiceId)){
+                const idDate=String(item.id||item.invoiceId).match(/(?:^|\D)(20\d{2})[-_/]?(\d{2})[-_/]?(\d{2})(?:\D|$)/);
+                if(idDate)d=reportParseDate(idDate[1]+'-'+idDate[2]+'-'+idDate[3]);
+            }
             if(!d)return false;
             const day=reportLocalDateValue(d);
             return (!from||day>=from)&&(!to||day<=to);

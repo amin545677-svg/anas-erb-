@@ -44,3 +44,24 @@ test('customer ledger uses the shared ordered date resolver and inquiry tabs exi
  assert.ok(runtime.includes('const dateOf=row=>reportRecordDate(row)'));
  for(const token of ['invoiceDate','createdAt','timestamp','time','day','anas-inquiry-filter-tabs'])assert.ok(runtime.includes(token),token+' must be supported');
 });
+
+test('sales report includes all five Arabic date/time invoice shapes and falls through invalid preferred fields',()=>{
+ const rangeStart=html.indexOf('function reportItemInRange(');
+ const rangeEnd=html.indexOf('function getReportPurchases()',rangeStart);
+ assert.ok(rangeStart>=0&&rangeEnd>rangeStart,'sales report range functions must be isolatable');
+ const rangeSource=html.slice(rangeStart,rangeEnd);
+ const invoices=[
+  {id:'INV-AR-1',date:'2026/11/14, 12:43:17'},
+  {id:'INV-AR-2',date:'2026/11/8, 2:31:22 م'},
+  {id:'INV-AR-3',date:'2026/11/7, 7:40:03 ص'},
+  {id:'INV-AR-4',invoiceDate:'2026-11-06T09:15:00'},
+  {id:'INV-AR-5',createdAt:'14/11/2026'},
+  {id:'INV-AR-6',date:'invalid-date',invoiceDate:'2026-11-12T14:00:00 م'}
+ ];
+ const context={AppData:{invoices},getReportRange:()=>({from:'2026-11-01',to:'2026-11-30'}),
+  reportParseDate:parseDate,reportLocalDateValue:d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+ vm.createContext(context);vm.runInContext(rangeSource,context);
+ const matched=vm.runInContext('getReportInvoices()',context);
+ assert.equal(matched.length,6,'all five Arabic/alternate date shapes plus invalid-first-field fallback must be included');
+ assert.deepEqual(matched.map(x=>x.id),invoices.map(x=>x.id));
+});

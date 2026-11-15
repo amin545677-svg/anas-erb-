@@ -889,3 +889,135 @@ test('free POS item is billed with discount and bank channel without changing in
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('Chromium UAT: 0.75 kg sale, 400.00 initial payment, 200.00 receipt and report 50 reconcile after IndexedDB reload', async () => {
+  const server = await startServer();
+  let browser;
+  const pageErrors = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    const data = initialData();
+    data.caisseBalance = 0;
+    data.products[0].unit = 'كغ';
+    data.products[0].price1 = 1200;
+    data.products[0].price2 = 1199;
+    data.products[0].price3 = 1198;
+    data.customers[0].credit_limit = 1000;
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data });
+
+    const page = await context.newPage();
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+    page.on('dialog', async dialog => {
+      if (dialog.type() === 'prompt') await dialog.accept('200.00');
+      else await dialog.accept();
+    });
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true &&
+      Array.isArray(window.AppData?.products) && Array.isArray(window.AppData?.customers), null, { timeout: 15000 });
+    assert.deepEqual(pageErrors, [], 'isolated ERP must boot without uncaught errors');
+
+    await page.evaluate(() => openView('pos'));
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const result = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await result.waitFor({ state: 'visible', timeout: 10000 });
+    await result.click();
+    await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
+    const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
+    const commitEditor = async (selector, value) => {
+      const editor = page.locator(selector).first();
+      await editor.fill(value);
+      await editor.press('Tab');
+    };
+    await commitEditor(quantitySelector, '0.75');
+    await commitEditor(priceSelector, '1200.00');
+    await page.waitForFunction(() => {
+      const raw = document.getElementById('hasibTotalText')?.textContent || '';
+      const match = raw.match(/[0-9]+(?:[.,][0-9]+)?/);
+      return !!match && Math.abs(Number(match[0].replace(',', '.')) - 900) < 1e-9;
+    }, null, { timeout: 10000 });
+    assert.equal(await page.evaluate(() => posCart[0].qty), 0.75);
+    assert.equal(await page.evaluate(() => posCart[0].price), 1200);
+    await page.locator('#hasibPaymentMethod').selectOption('partial');
+    await page.locator('#hasibPaidAmount').fill('400.00');
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true);
+    const beforeSaleRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#hasibModal button[onclick="confirmHasibPaymentDurable()"]').click();
+    await page.waitForFunction(beforeRevision => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        s.invoices.some(row => row && row.total === 900 && row.paid === 400 && row.remaining === 500);
+    }, beforeSaleRevision, { timeout: 20000 });
+    await page.locator('#anasInvoiceFinishBtn').click();
+
+    const beforeReceiptRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.evaluate(async () => { await collectCustDebt('STG-CUSTOMER-001'); });
+    await page.waitForFunction(beforeRevision => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        customer && customer.debt === 300 && s.caisseBalance === 600;
+    }, beforeReceiptRevision, { timeout: 20000 });
+
+    const readProof = () => page.evaluate(() => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = s.invoices.find(row => row && row.total === 900 && row.paid === 400);
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      const product = s.products.find(row => String(row.id) === 'STG-POS-LIFECYCLE-001');
+      const saleCash = s.cashMovements.filter(row => row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      const receiptCash = s.cashMovements.filter(row => row.referenceType === 'customer_debt' && String(row.referenceId) === 'STG-CUSTOMER-001');
+      const reportDay = String(invoice.date || invoice.createdAt || new Date().toISOString()).slice(0, 10);
+      const reportRow = anasBuildCustomerReconciliationRows(s, { from: reportDay, to: reportDay }, reportParseDate)
+        .find(row => row.customerId === 'STG-CUSTOMER-001');
+      const invoiceDebit = s.clientMovements.find(row => row.type === 'invoice_debit' && String(row.referenceId) === String(invoice.id));
+      const receipt = s.clientMovements.find(row => row.type === 'receipt' && String(row.clientId) === 'STG-CUSTOMER-001');
+      const allocations = s.settlementAllocations.filter(row => String(row.invoiceId) === String(invoice.id));
+      return {
+        invoice: { total: invoice.total, paid: invoice.paid, remaining: invoice.remaining },
+        stock: product.stock, cashbox: s.caisseBalance, customerDebt: customer.debt,
+        saleCash: saleCash.reduce((sum, row) => sum + row.amount, 0),
+        laterReceiptCash: receiptCash.reduce((sum, row) => sum + row.amount, 0),
+        invoiceDebit: invoiceDebit && invoiceDebit.amountCentimes,
+        receiptCredit: receipt && receipt.amountCentimes,
+        allocationAmounts: allocations.map(row => row.amountCentimes).sort((a,b) => a-b),
+        report: reportRow && {
+          debit: reportRow.periodDebitCents.toString(), credit: reportRow.periodCreditCents.toString(),
+          closing: reportRow.closingBalanceCents.toString(), invalid: reportRow.invalidRows,
+          missingDates: reportRow.missingDateRows
+        },
+        storageMode: ANASResilientStorage.status().mode
+      };
+    });
+    const beforeReload = await readProof();
+    assert.deepEqual(beforeReload, {
+      invoice: { total: 900, paid: 400, remaining: 500 }, stock: 9.25, cashbox: 600, customerDebt: 300,
+      saleCash: 400, laterReceiptCash: 200, invoiceDebit: 50000, receiptCredit: 20000,
+      allocationAmounts: [20000, 40000],
+      report: { debit: '90000', credit: '60000', closing: '30000', invalid: 0, missingDates: 0 },
+      storageMode: 'DUAL'
+    });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true, null, { timeout: 20000 });
+    const afterReload = await readProof();
+    assert.deepEqual(afterReload, beforeReload, 'invoice, cash, stock, customer ledger, allocations and report 50 must survive IndexedDB reload');
+    await page.evaluate(() => showReportDetails('تقرير مصادقة حساب العميل'));
+    const reportText = await page.locator('#customReportContent').innerText();
+    assert.match(reportText, /900/);
+    assert.match(reportText, /600/);
+    assert.match(reportText, /300/);
+    assert.doesNotMatch(reportText, /سجلات مستبعدة للمراجعة/);
+    assert.deepEqual(pageErrors, [], 'weighted UAT and reload must not introduce browser errors');
+    console.log('POS_FINANCIAL_TRIANGLE_UAT ' + JSON.stringify(afterReload));
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
