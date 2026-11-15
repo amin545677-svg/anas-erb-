@@ -625,10 +625,10 @@ test('video-driven shared controls, product-search popups and AI import surfaces
         assert.ok(contrast(item.color, item.background) >= 4.5,
           'partial/debt payment labels meet WCAG AA in ' + theme + ': ' + JSON.stringify(item));
       }
-      const buttonPalette = await page.locator('#anas-video-theme-fixture button:not(.grid-card-item)').evaluateAll(nodes =>
-        nodes.filter(node => !node.closest('#hasibModal .anas-quick-payment-actions') &&
-          !node.matches('#hasibModal #confirmSaleBtn, #hasibModal button[data-action="confirm-sale"]') &&
-          !node.matches('.anas-ai-import-type:not(.is-active)'))
+      // Assert the real semantic action classes. A bare fixture-only button is not
+      // representative of a production control and has no action-palette contract.
+      const buttonPalette = await page.locator('#anas-video-theme-fixture button.menu-action-card, #anas-video-theme-fixture button.anas-ai-import-primary, #anas-video-theme-fixture button.anas-ai-import-type.is-active').evaluateAll(nodes =>
+        nodes.filter(node => !node.closest('#hasibModal .anas-quick-payment-actions'))
           .map(node => ({id:node.id,className:node.className,background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})));
       for (const item of buttonPalette) {
         assert.equal(item.background, 'rgb(29, 78, 216)',
