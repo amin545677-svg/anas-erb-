@@ -2047,23 +2047,54 @@ body.dark-mode #aiHubTabContent :is(.ai-stat-card,.kpi-card,.data-hub-card) * {
 }
 
 
-/* r47 — override the higher-specificity r40.5 semantic payment palette.
-   User-requested unified action color supersedes green/neutral/red visual coding. */
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(1),
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(2),
-html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3),
-html:root body #hasibModal .anas-quick-payment-actions button:not(.grid-card-item):not(.danger):not(.success):not(.btn-danger):not(.btn-success):not([class*="danger"]):not([class*="success"]):not(#anas-sticky-checkout-submit):not(.anas-pos-mini-checkout):not(.anas-ai-import-primary):not(.anas-ai-import-type):nth-of-type(3) {
-  background:#1d4ed8!important;
-  background-color:#1d4ed8!important;
+/* r48 — semantic POS payment palette. Payment meaning is intentionally
+   exempt from the generic royal-blue action-button rule in both themes. */
+html:root body #hasibModal .anas-quick-payment-actions button[data-payment-mode="full"],
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(1),
+html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(1),
+html:root body #hasibModal #confirmSaleBtn,
+html:root body #hasibModal button[data-action="confirm-sale"] {
+  background:#16a34a!important;
+  background-color:rgb(22, 163, 74)!important;
   background-image:none!important;
   color:#ffffff!important;
   -webkit-text-fill-color:#ffffff!important;
-  border-color:#1d4ed8!important;
+  border-color:#15803d!important;
+  font-size:19px!important;
+  font-weight:800!important;
+  transition:none!important;
+}
+html:root body #hasibModal .anas-quick-payment-actions button[data-payment-mode="partial"],
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(2),
+html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(2) {
+  background:#1d4ed8!important;
+  background-color:rgb(29, 78, 216)!important;
+  background-image:none!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+  border-color:#1e40af!important;
+  transition:none!important;
+}
+html:root body #hasibModal .anas-quick-payment-actions button[data-payment-mode="debt"],
+html:root[data-anas-theme] body #hasibModal .anas-quick-payment-actions button:nth-of-type(3),
+html:root body #hasibModal .anas-quick-payment-actions button:nth-of-type(3) {
+  background:#dc2626!important;
+  background-color:rgb(220, 38, 38)!important;
+  background-image:none!important;
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+  border-color:#b91c1c!important;
   transition:none!important;
 }
 
+/* The AI Center's PDF document tile is a primary upload action, not a hidden
+   file-input proxy. Keep the visible label usable when the workspace opens. */
+#view-ai-excel-hub label.anas-ai-document-card[data-anas-ai-action="pdf"] {
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+}
 /* r46 — targeted mobile light-mode contrast and report organization. */
 :root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-head,
 :root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-head :is(.anas-ai-import-head-copy,.anas-ai-import-head-copy *,h2,h3,.anas-ai-import-kicker){color:#fff!important;-webkit-text-fill-color:#fff!important}
