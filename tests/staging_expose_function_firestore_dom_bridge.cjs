@@ -172,6 +172,15 @@ async function main() {
       assert.equal(snap.exists, true, 'Firestore snapshot must exist');
       return JSON.parse(snap.get('payload'));
     });
+    await page.exposeFunction('__anasReadCloudSnapshotDiagnostic', async () => {
+      const snap = await userRef.collection('snapshots').doc('latest').get();
+      assert.equal(snap.exists, true, 'Firestore snapshot must exist for diagnostic read');
+      return {
+        payload: JSON.parse(snap.get('payload')),
+        updatedAt: snap.get('updatedAt')?.toDate?.().toISOString() || null,
+        lastSettlementAllocationOperationId: snap.get('lastSettlementAllocationOperationId') || null
+      };
+    });
 
     const indexUrl = 'http://127.0.0.1:' + address.port + '/index.html';
     await page.goto(indexUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -210,12 +219,20 @@ async function main() {
     assert.equal(bridgeFailure, null, 'settlement service rejected the DOM request: ' + bridgeFailure);
     const allocationStatus = await page.locator('#alloc-status').textContent();
     assert.doesNotMatch(allocationStatus, /فشل|خطأ/, 'DOM must not show an allocation error');
-    const allocationSnapshot = await page.evaluate(() => window.__anasReadCloudSnapshot());
+    const allocationDiagnostic = await page.evaluate(() => window.__anasReadCloudSnapshotDiagnostic());
+    const allocationSnapshot = allocationDiagnostic.payload;
+    const browserAllocationState = await page.evaluate(() => ({
+      allocationCount: window.AppData?.settlementAllocations?.length ?? null,
+      invoicePaid: window.AppData?.invoices?.[0]?.paid
+    }));
     console.log('SETTLEMENT_ALLOCATION_BROWSER_SNAPSHOT_DIAGNOSTIC', JSON.stringify({
       allocationCount: allocationSnapshot.settlementAllocations?.length ?? null,
       allocationId: allocationSnapshot.settlementAllocations?.[0]?.allocationId ?? null,
       allocationInvoiceId: allocationSnapshot.settlementAllocations?.[0]?.invoiceId ?? null,
-      invoicePaid: allocationSnapshot.invoices?.[0]?.paid
+      invoicePaid: allocationSnapshot.invoices?.[0]?.paid,
+      snapshotUpdatedAt: allocationDiagnostic.updatedAt,
+      lastSettlementAllocationOperationId: allocationDiagnostic.lastSettlementAllocationOperationId,
+      browserAllocationState
     }));
     assert.equal(allocationSnapshot.settlementAllocations.length, 1);
     assert.equal(allocationSnapshot.settlementAllocations[0].amountCentimes, 5000);
