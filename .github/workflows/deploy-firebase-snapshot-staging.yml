@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: anas-erp-firebase-snapshot-staging
@@ -20,21 +21,52 @@ concurrency:
 
 jobs:
   validate-and-deploy:
+    if: github.ref == 'refs/heads/staging/unified-release-candidate'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: staging
     steps:
-      - name: Checkout reviewed staging branch
+      - name: Checkout exact reviewed staging commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
+      - name: Require successful Staging Test Gate for this exact commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          for (let attempt = 1; attempt <= 100; attempt++) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) throw new Error('Unable to inspect exact-SHA Staging Test Gate: HTTP ' + response.status);
+            const payload = await response.json();
+            const gate = (payload.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.event === 'push' && run.head_sha === process.env.GITHUB_SHA);
+            if (gate?.status === 'completed') {
+              if (gate.conclusion !== 'success') throw new Error('Exact-SHA Staging Test Gate failed: ' + gate.conclusion);
+              console.log('PASS: Staging Test Gate succeeded for exact SHA ' + process.env.GITHUB_SHA);
+              process.exit(0);
+            }
+            console.log('Waiting for exact-SHA Staging Test Gate; attempt ' + attempt + '/100.');
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          throw new Error('Timed out waiting for exact-SHA Staging Test Gate.');
+          NODE
+
       - name: Validate staging isolation and Worker behavior
         run: |
           node --check cloudflare/worker_firebase_snapshot.js
-          node --test tests/worker_firebase_snapshot_cors_test.mjs
+          node --test tests/worker_firebase_snapshot.test.mjs tests/worker_firebase_snapshot_cors_test.mjs
           node --input-type=module <<'NODE'
           import { readFile } from 'node:fs/promises';
           const config = await readFile('cloudflare/wrangler-staging.toml', 'utf8');
