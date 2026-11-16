@@ -146,14 +146,19 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
 
     try {
       return await db.runTransaction(async transaction => {
-        // Refresh the clock for every Admin SDK retry; timestamps from an
-        // aborted attempt must never leak into the committed allocation.
-        const nowMs = now();
         // Match reverse-ledger posting: batch document reads through getAll
         // rather than racing concurrent transaction.get() calls on one SDK transaction.
         const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await transaction.getAll(
           snapshotRef, grantRef, periodRef, operationRef
         );
+
+        // Read the attempt clock after all transaction reads have completed.
+        // A retried callback therefore gets a fresh timestamp without allowing
+        // a clock hook to interrupt the transaction's read phase.
+        const nowMs = Number(await now());
+        if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
+          fail('internal', 'INVALID_RETRY_CLOCK_READING');
+        }
         if (operationSnap.exists) {
           const prior = operationSnap.data();
           if (prior.ownerUid !== uid) fail('already-exists', 'operationId belongs to another Firebase user.');

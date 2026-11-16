@@ -67,9 +67,6 @@ function createReverseLedgerHandler({
 
   try {
     return await db.runTransaction(async (transaction) => {
-      // Refresh time for every SDK retry: a prior attempt must not authorize
-      // an expired lease or Firebase token using a stale request-start clock.
-      const nowEpochMs = now();
       // Firestore transaction reads must share one read batch. Issuing several
       // transaction.get() calls concurrently can race the SDK transaction's
       // read state under duplicate idempotent requests and surface
@@ -77,6 +74,14 @@ function createReverseLedgerHandler({
       const [snapshotSnap, grantSnap, periodSnap, operationSnap] = await transaction.getAll(
         snapshotRef, grantRef, periodRef, operationRef
       );
+
+      // Read a fresh clock only after every transaction read has completed.
+      // This keeps retry timing out of the read phase and refreshes lease/token
+      // authorization for each SDK callback execution.
+      const nowEpochMs = Number(await now());
+      if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs <= 0) {
+        throw new HttpsError('internal', 'INVALID_RETRY_CLOCK_READING');
+      }
 
       const previousOperation = operationSnap.exists ? operationSnap.data() : null;
       if (previousOperation) {

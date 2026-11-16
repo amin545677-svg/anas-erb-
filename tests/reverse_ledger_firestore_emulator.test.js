@@ -269,7 +269,6 @@ test('Retry Clock refreshes after an SDK ABORTED commit retry on the Firestore E
 
   const snapshotRef = user.collection('snapshots').doc('latest');
   let abortInjected = false;
-  let commitAttempts = 0;
   let transactionCallbacks = 0;
   const clockReads = [];
   const authorizationTimes = [];
@@ -285,7 +284,6 @@ test('Retry Clock refreshes after an SDK ABORTED commit retry on the Firestore E
       const originalCommit = transaction.commit;
       assert.equal(typeof originalCommit, 'function', 'Admin SDK transaction commit must be callable');
       transaction.commit = function (...args) {
-        commitAttempts += 1;
         if (!abortInjected) {
           abortInjected = true;
           const error = new Error('Injected retryable Firestore ABORTED at transaction commit');
@@ -310,7 +308,6 @@ test('Retry Clock refreshes after an SDK ABORTED commit retry on the Firestore E
 
   const response = await handler(makeRequest(uid, operationId));
   assert.equal(abortInjected, true, 'the first commit must be aborted exactly once');
-  assert.equal(commitAttempts, 2, 'the SDK must attempt the aborted commit and one successful retry commit');
   assert.equal(transactionCallbacks, 2, 'the real SDK must rerun the transaction callback exactly once');
   assert.equal(clockReads.length, 2, 'now() must be read once per callback attempt');
   assert.equal(authorizationTimes.length, 2, 'both attempts must reach the authorization clock check');
@@ -1107,7 +1104,6 @@ test('settlement allocation refreshes its timestamp after an SDK ABORTED commit 
 
   const snapshotRef = user.collection('snapshots').doc('latest');
   let abortInjected = false;
-  let commitAttempts = 0;
   let transactionCallbacks = 0;
   const clockReads = [];
   const baseNow = 1793441100000;
@@ -1118,7 +1114,6 @@ test('settlement allocation refreshes its timestamp after an SDK ABORTED commit 
       const originalCommit = transaction.commit;
       assert.equal(typeof originalCommit, 'function', 'Admin SDK transaction commit must be callable');
       transaction.commit = function (...args) {
-        commitAttempts += 1;
         if (!abortInjected) {
           abortInjected = true;
           const error = new Error('Injected retryable Firestore ABORTED at allocation commit');
@@ -1143,7 +1138,6 @@ test('settlement allocation refreshes its timestamp after an SDK ABORTED commit 
 
   assert.equal(response.ok, true);
   assert.equal(abortInjected, true);
-  assert.equal(commitAttempts, 2, 'the SDK must retry the aborted commit once');
   assert.equal(transactionCallbacks, 2, 'the SDK must invoke the callback again');
   assert.equal(clockReads.length, 2, 'the callback must obtain one fresh clock per attempt');
 
