@@ -2065,3 +2065,22 @@ html:root body #hasibModal#hasibModal .anas-quick-payment-actions > button:nth-o
   border-color:#1e40af!important;
   transition:none!important;
 }
+
+
+/* r52 — report filters: enabled switches use a clear green success state in both themes. */
+#view-reports .anas-query-toggle input {
+  transition:background-color .18s ease, box-shadow .18s ease;
+}
+#view-reports .anas-query-toggle input:checked,
+html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input:checked {
+  background:#16a34a!important;
+  box-shadow:0 0 0 2px rgba(22,163,74,.18), 0 0 9px rgba(22,163,74,.38)!important;
+}
+#view-reports .anas-query-toggle input:checked::before {
+  background:#fff!important;
+  box-shadow:0 1px 3px rgba(0,0,0,.2), 0 0 5px rgba(255,255,255,.55)!important;
+}
+#view-reports .anas-query-toggle input:focus-visible {
+  outline:2px solid #22c55e!important;
+  outline-offset:3px!important;
+}
