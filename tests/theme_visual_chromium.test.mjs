@@ -925,7 +925,7 @@ test('AI import warning text meets WCAG AA in light and dark themes', async () =
     const page = await browser.newPage();
     await page.setContent('<!doctype html><html><head><style>' + css + '</style></head><body><section class="anas-ai-import-pro"><div class="anas-ai-import-note" role="alert"><span>لن يتم استيراد أي سجل قبل فحص الأعمدة والبيانات</span></div></section><section id="smartImportPreviewModal"><div class="warning-box" role="alert"><span>تحقق من البيانات قبل اعتماد الاستيراد</span></div></section></body></html>');
     const contrast = (fg, bg) => {
-      const rgb = value => value.match(/[\\d.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+      const rgb = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
       const a = rgb(fg), b = rgb(bg);
       const lum = c => .2126*c[0] + .7152*c[1] + .0722*c[2];
       const x = lum(a), y = lum(b);
