@@ -98,8 +98,8 @@ jobs:
         run: node --test tests/micro_pos_deep_core.test.mjs tests/quick_sale_transaction_bridge.test.mjs
       - name: Run exact Micro POS decimal, shared inventory, CRM and sales history tests
         run: node --test tests/micro_pos_core.test.mjs
-      - name: Verify smart import merge and ledger-safe replacement behavior
-        run: node --test tests/smart_import_replace_guard.test.mjs
+      - name: Verify smart import merge, image OCR routing and ledger-safe replacement behavior
+        run: node --test tests/smart_import_replace_guard.test.mjs tests/smart_import_image_ocr_routing.test.mjs
       - name: Run complete workbook import and offline Excel loader regressions
         run: node --test tests/advanced_import_safety.test.mjs tests/excel_import_loader.test.mjs tests/multi_sheet_atomic_import.test.mjs tests/advanced_import_multi_sheet_ui.test.mjs
       - name: Verify durable POS credit-limit enforcement precedes financial mutations
