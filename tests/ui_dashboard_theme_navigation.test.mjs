@@ -174,3 +174,10 @@ test('dashboard replaces the duplicate reports shortcut with the canonical expen
   const expenses = html.slice(expensesStart, html.indexOf('</section>', expensesStart));
   assert.ok(expenses.includes('<div class="sub-header-title">المصاريف</div>'));
 });
+
+test('report query switches illuminate green when enabled in light and dark themes', () => {
+  assert.match(css, /#view-reports \.anas-query-toggle input:checked[\s\S]*?background:#16a34a!important/);
+  assert.match(css, /html:root\[data-anas-theme="dark"\] body #view-reports \.anas-query-toggle input:checked/);
+  assert.match(css, /0 0 9px rgba\(22,163,74,\.38\)/);
+  assert.match(css, /#view-reports \.anas-query-toggle input:focus-visible[\s\S]*?outline:2px solid #22c55e!important/);
+});
