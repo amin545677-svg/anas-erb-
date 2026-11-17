@@ -12087,6 +12087,25 @@ function anasGetAiHubKpiMetrics(tabKey) {
                     if(status)status.textContent='✅ اكتمل الاستخراج المحلي'+(result.ocr?' وOCR للصفحات المصوّرة':'')+'. راجع النتائج وصنّفها؛ لا يتم اعتماد أي سجل تلقائياً.';
                     return;
                 }
+                // Route accepted image uploads into the existing review-only OCR workflow.
+                // OCR text remains a draft; this path never posts invoices or changes stock/balances.
+                if(['jpg','jpeg','png','webp'].includes(ext)) {
+                    if(!/^image\\/(?:jpeg|png|webp)$/i.test(String(file.type||'')))
+                        throw new Error('نوع الصورة غير معروف. اختر صورة JPEG أو PNG أو WEBP صالحة.');
+                    if(file.size>10*1024*1024)
+                        throw new Error('حجم الصورة يتجاوز 10 ميغابايت. اختر صورة أصغر لتسهيل المعالجة.');
+                    if(typeof openInvoiceOcr!=='function')
+                        throw new Error('واجهة OCR المحلية غير متاحة في هذه النسخة.');
+                    openInvoiceOcr('other');
+                    const ocrInput=document.getElementById('invoiceOcrFile');
+                    if(!ocrInput) throw new Error('تعذر فتح حقل صورة OCR.');
+                    const transfer=new DataTransfer();
+                    transfer.items.add(file);
+                    ocrInput.files=transfer.files;
+                    ocrInput.dispatchEvent(new Event('change',{bubbles:true}));
+                    if(status)status.textContent='📷 تم تمرير الصورة إلى OCR المحلي. اضغط «استخراج النص» ثم راجع واحفظها كمسودة فقط.';
+                    return;
+                }
                 let rows=[],detectedDelimiter='';
                 if(ext==='csv' || ext==='txt') {
                     const raw=await file.text();
