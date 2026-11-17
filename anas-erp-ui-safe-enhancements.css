@@ -2084,3 +2084,46 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input:ch
   outline:2px solid #22c55e!important;
   outline-offset:3px!important;
 }
+
+/* ANAS ERP — durable-save status contrast contract (r41).
+   Explicit foreground AND background colors prevent legacy badge rules from
+   producing pale-green/white text collisions in either theme. */
+#anas-live-status-bar #anas-status-durability-badge {
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-height:32px!important;
+  padding:6px 14px!important;
+  border:1px solid transparent!important;
+  border-radius:999px!important;
+  font-weight:800!important;
+  line-height:1.35!important;
+  opacity:1!important;
+  text-shadow:none!important;
+}
+#anas-live-status-bar[data-durability-state="committed"] #anas-status-durability-badge {
+  background-color:#d1fae5!important;
+  border-color:#6ee7b7!important;
+  color:#065f46!important;
+  -webkit-text-fill-color:#065f46!important;
+}
+#anas-live-status-bar[data-durability-state="uncommitted"] #anas-status-durability-badge,
+#anas-live-status-bar[data-durability-state="saving"] #anas-status-durability-badge {
+  background-color:#fef3c7!important;
+  border-color:#fcd34d!important;
+  color:#78350f!important;
+  -webkit-text-fill-color:#78350f!important;
+}
+:root[data-anas-theme="dark"] #anas-live-status-bar[data-durability-state="committed"] #anas-status-durability-badge {
+  background-color:#064e3b!important;
+  border-color:#34d399!important;
+  color:#a7f3d0!important;
+  -webkit-text-fill-color:#a7f3d0!important;
+}
+:root[data-anas-theme="dark"] #anas-live-status-bar[data-durability-state="uncommitted"] #anas-status-durability-badge,
+:root[data-anas-theme="dark"] #anas-live-status-bar[data-durability-state="saving"] #anas-status-durability-badge {
+  background-color:#78350f!important;
+  border-color:#fbbf24!important;
+  color:#fde68a!important;
+  -webkit-text-fill-color:#fde68a!important;
+}
