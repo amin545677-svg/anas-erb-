@@ -12090,7 +12090,7 @@ function anasGetAiHubKpiMetrics(tabKey) {
                 // Route accepted image uploads into the existing review-only OCR workflow.
                 // OCR text remains a draft; this path never posts invoices or changes stock/balances.
                 if(['jpg','jpeg','png','webp'].includes(ext)) {
-                    if(!/^image\\/(?:jpeg|png|webp)$/i.test(String(file.type||'')))
+                    if(!/^image\/(?:jpeg|png|webp)$/i.test(String(file.type||'')))
                         throw new Error('نوع الصورة غير معروف. اختر صورة JPEG أو PNG أو WEBP صالحة.');
                     if(file.size>10*1024*1024)
                         throw new Error('حجم الصورة يتجاوز 10 ميغابايت. اختر صورة أصغر لتسهيل المعالجة.');

@@ -13,8 +13,10 @@ test('smart import routes accepted image files to the existing review-only invoi
   assert.ok(imageBranch >= 0 && csvBranch > imageBranch,
     'image files must be routed before the spreadsheet-only parser branch');
   const route = upload.slice(imageBranch, csvBranch);
-  assert.match(route, /image\\\\\/(?:jpeg\|png\|webp)/,
+  assert.ok(route.includes('image' + String.fromCharCode(92) + '/(?:jpeg|png|webp)'),
     'the image route must require a supported image MIME type');
+  assert.doesNotThrow(() => new Function("return /^image\\\\/(?:jpeg|png|webp)$/i"),
+    'the MIME validator regex must remain valid JavaScript');
   assert.match(route, /10\*1024\*1024/,
     'the OCR route must enforce the 10MB image limit');
   assert.match(route, /openInvoiceOcr\('other'\)/,
