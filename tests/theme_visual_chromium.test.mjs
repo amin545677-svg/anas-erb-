@@ -916,3 +916,32 @@ test('r40 source-level regression: strict calendar, ledger math, POS single bar 
   assert.match(themeCss,/:root\[data-anas-theme="dark"\] #hasibModal/,'dark mode must retain semantic payment colors');
   assert.match(themeCss,/#anasQuickBottomNav/,'bottom navigation must have an explicit dark surface');
 });
+
+
+test('AI import warning text meets WCAG AA in light and dark themes', async () => {
+  const css = fs.readFileSync(path.join(ROOT, 'anas-erp-ui-safe-enhancements.css'), 'utf8');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<!doctype html><html><head><style>' + css + '</style></head><body><section class="anas-ai-import-pro"><div class="anas-ai-import-note" role="alert"><span>لن يتم استيراد أي سجل قبل فحص الأعمدة والبيانات</span></div></section><section id="smartImportPreviewModal"><div class="warning-box" role="alert"><span>تحقق من البيانات قبل اعتماد الاستيراد</span></div></section></body></html>');
+    const contrast = (fg, bg) => {
+      const rgb = value => value.match(/[\\d.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+      const a = rgb(fg), b = rgb(bg);
+      const lum = c => .2126*c[0] + .7152*c[1] + .0722*c[2];
+      const x = lum(a), y = lum(b);
+      return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);
+    };
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.setAttribute('data-anas-theme', theme), theme);
+      for (const selector of ['.anas-ai-import-pro .anas-ai-import-note', '#smartImportPreviewModal .warning-box']) {
+        const colors = await page.locator(selector).evaluate(el => ({
+          fg: getComputedStyle(el).color,
+          bg: getComputedStyle(el).backgroundColor,
+          child: getComputedStyle(el.querySelector('span')).color
+        }));
+        assert.ok(contrast(colors.fg, colors.bg) >= 4.5, theme + ' ' + selector + ' text must meet WCAG AA');
+        assert.ok(contrast(colors.child, colors.bg) >= 4.5, theme + ' ' + selector + ' child text must meet WCAG AA');
+      }
+    }
+  } finally { await browser.close(); }
+});

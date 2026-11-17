@@ -2127,3 +2127,35 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input:ch
   color:#fde68a!important;
   -webkit-text-fill-color:#fde68a!important;
 }
+
+
+/* r46 — semantic import warnings: never pair pale warning surfaces with inherited pale text.
+   Scope to the two import dialogs; preserve the meaning of warning/status colors. */
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-note,
+:root:not([data-anas-theme="dark"]) #smartImportPreviewModal :is([role="alert"],.alert-warning,.warning,.warning-box,.notice-warning,.anas-import-warning,[class*="warning"]),
+:root:not([data-anas-theme="dark"]) #smartImportPreviewModal .anas-ai-import-note {
+  background-color:#fff4cc!important;
+  background-image:none!important;
+  color:#713f12!important;
+  -webkit-text-fill-color:#713f12!important;
+  border:1px solid #d6a84b!important;
+}
+:root:not([data-anas-theme="dark"]) .anas-ai-import-pro .anas-ai-import-note *,
+:root:not([data-anas-theme="dark"]) #smartImportPreviewModal :is([role="alert"],.alert-warning,.warning,.warning-box,.notice-warning,.anas-import-warning,[class*="warning"],.anas-ai-import-note) * {
+  color:#713f12!important;
+  -webkit-text-fill-color:#713f12!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note,
+:root[data-anas-theme="dark"] #smartImportPreviewModal :is([role="alert"],.alert-warning,.warning,.warning-box,.notice-warning,.anas-import-warning,[class*="warning"]),
+:root[data-anas-theme="dark"] #smartImportPreviewModal .anas-ai-import-note {
+  background-color:#3b2d16!important;
+  background-image:none!important;
+  color:#ffedc2!important;
+  -webkit-text-fill-color:#ffedc2!important;
+  border:1px solid #9a7435!important;
+}
+:root[data-anas-theme="dark"] .anas-ai-import-pro .anas-ai-import-note *,
+:root[data-anas-theme="dark"] #smartImportPreviewModal :is([role="alert"],.alert-warning,.warning,.warning-box,.notice-warning,.anas-import-warning,[class*="warning"],.anas-ai-import-note) * {
+  color:#ffedc2!important;
+  -webkit-text-fill-color:#ffedc2!important;
+}
