@@ -85,6 +85,43 @@ function identityFor(type, row) {
   return identityKeysFor(type, row)[0] || '';
 }
 
+/**
+ * A phone number is contact data, not a globally unique party identifier.
+ * Never silently collapse two customers/suppliers because they share a phone.
+ * Existing-party updates in merge mode require the stable database ID.
+ */
+function assertPartyImportPhoneSafety(type, incomingRows, existingRows = [], mode = 'merge') {
+  if (type !== 'customers' && type !== 'suppliers') return;
+  const seenPhones = new Set();
+  const idAliases = type === 'customers'
+    ? ['id', 'customer_id', 'customerId', 'رقم العميل']
+    : ['id', 'supplier_id', 'supplierId', 'رقم المورد'];
+  for (const row of incomingRows || []) {
+    const rawPhone = text(first(row, ['phone', 'الهاتف', 'mobile', 'telephone', 'رقم الهاتف']));
+    const phone = rawPhone
+      ? (normalizeAlgeriaPhone(rawPhone) || rawPhone.toLocaleLowerCase().replace(/\\s+/g, ''))
+      : '';
+    if (!phone) continue;
+    if (seenPhones.has(phone)) throw new Error('IMPORT_PARTY_PHONE_DUPLICATE_REQUIRES_REVIEW:' + type);
+    seenPhones.add(phone);
+    if (mode === 'replace') continue;
+    const matches = (existingRows || []).filter(item => {
+      const existingPhone = text(first(item, ['phone', 'الهاتف', 'mobile', 'telephone', 'رقم الهاتف']));
+      const normalized = existingPhone
+        ? (normalizeAlgeriaPhone(existingPhone) || existingPhone.toLocaleLowerCase().replace(/\\s+/g, ''))
+        : '';
+      return normalized === phone;
+    });
+    if (matches.length > 1) throw new Error('IMPORT_EXISTING_PARTY_PHONE_COLLISION:' + type);
+    if (matches.length === 1) {
+      const explicitId = text(first(row, idAliases));
+      if (!explicitId || explicitId !== text(matches[0].id)) {
+        throw new Error('IMPORT_PARTY_PHONE_MATCH_REQUIRES_REVIEW:' + type);
+      }
+    }
+  }
+}
+
 export function classifyAndStageWorkbookSheets(sheetsDataMap, existingDB = {}, targetBySheet = {}) {
   const staged = { suppliers: [], products: [], customers: [], invoices: [], totalValidRows: 0, sheetCount: 0, unclassified: 0 };
   const existing = {};
@@ -297,14 +334,15 @@ export async function executeSafeBulkImport({ rows, mode = 'merge', entityType =
   let existing;
   try { existing = JSON.parse(raw); } catch (_) { throw new Error('EXISTING_DATA_CORRUPT'); }
   if (!Array.isArray(existing)) throw new Error('EXISTING_DATA_NOT_ARRAY');
-  storage.setItem(backupKey, raw);
   const effectiveKeyFields = Array.isArray(keyFields) && keyFields.length ? keyFields
     : entityType === 'customers' || entityType === 'suppliers' ? ['phone', 'id']
     : entityType === 'invoices' ? ['id', 'invoiceNumber', 'number'] : ['id', 'barcode'];
+  assertPartyImportPhoneSafety(entityType, rows, existing, mode);
   const planned = prepareBulkImport(existing, rows, mode, effectiveKeyFields, {
-    strictIdentity: entityType === 'products'
+    strictIdentity: entityType === 'products' || entityType === 'customers' || entityType === 'suppliers'
   });
   const serialized = JSON.stringify(planned.rows);
+  storage.setItem(backupKey, raw);
   try {
     // The local mirror is staged first so a failed durable write can restore it.
     storage.setItem(storageKey, serialized);
@@ -431,6 +469,7 @@ export async function executeSafeMultiSheetImport({ sheetsDataMap, targetBySheet
     if (staged[type].some(row => row.identityConflict)) throw new Error('IMPORT_IDENTITY_CONFLICT:' + type);
     const existingRows = Array.isArray(existingDB[type]) ? existingDB[type] : [];
     if (existingDB[type] !== undefined && !Array.isArray(existingDB[type])) throw new Error('EXISTING_DATA_NOT_ARRAY:' + type);
+    assertPartyImportPhoneSafety(type, staged[type], existingRows, 'merge');
     const sourceRows = type === 'invoices' ? staged[type].filter(row => !row.isDuplicate) : staged[type];
     const normalizedRows = sourceRows.map((row, index) => normalizeMultiSheetImportRow(type, row, index, existingRows));
     const keys = type === 'products' ? ['id','barcode'] : type === 'customers' || type === 'suppliers' ? ['phone','id'] : ['id'];

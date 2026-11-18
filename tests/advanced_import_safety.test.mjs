@@ -116,23 +116,34 @@ test('Algerian WhatsApp statements normalize valid mobile numbers and omit inval
   assert.equal(buildWhatsAppStatementUrl({ name: 'بدون هاتف', debt: 10 }), null);
 });
 
-test('replace imports deduplicate repeated customer rows by normalized phone number', async () => {
-  const storage = memoryStorage({ anas_customers: JSON.stringify([{ id: 'C-OLD', name: 'قديم', phone: '0550123456' }]) });
-  let saved;
-  const stats = await executeSafeBulkImport({
+test('replace import refuses repeated customer phones instead of silently merging two people', async () => {
+  const original = JSON.stringify([{ id: 'C-OLD', name: 'قديم', phone: '0550123456' }]);
+  const storage = memoryStorage({ anas_customers: original });
+  let repositoryCalls = 0;
+  await assert.rejects(() => executeSafeBulkImport({
     rows: [
       { id: 'C-NEW', name: 'عميل أول', phone: '0550123456' },
       { id: 'C-NEWER', name: 'عميل محدث', phone: '0550123456' }
     ],
     mode: 'replace', entityType: 'customers', storage,
-    repository: { async saveBatchSafe(type, rows) { saved = { type, rows }; } }
-  });
-  assert.equal(saved.type, 'customers');
-  assert.equal(saved.rows.length, 1);
-  assert.equal(saved.rows[0].name, 'عميل محدث');
-  assert.equal(stats.added, 1);
-  assert.equal(stats.updated, 1);
-  assert.equal(stats.skipped, 0);
+    repository: { async saveBatchSafe() { repositoryCalls++; } }
+  }), /IMPORT_PARTY_PHONE_DUPLICATE_REQUIRES_REVIEW/);
+  assert.equal(storage.getItem('anas_customers'), original, 'rejected import must not alter the customer mirror');
+  assert.equal(storage.getItem('anas_customers_backup_pre_import'), null, 'rejected import must not create a misleading backup');
+  assert.equal(repositoryCalls, 0, 'ambiguous party rows must be rejected before durable persistence');
+});
+
+test('merge import requires a stable customer ID before updating an existing phone match', async () => {
+  const original = JSON.stringify([{ id: 'C-1', name: 'عميل أصلي', phone: '0550123456' }]);
+  const storage = memoryStorage({ anas_customers: original });
+  let repositoryCalls = 0;
+  await assert.rejects(() => executeSafeBulkImport({
+    rows: [{ name: 'شخص آخر', phone: '0550123456' }],
+    mode: 'merge', entityType: 'customers', storage,
+    repository: { async saveBatchSafe() { repositoryCalls++; } }
+  }), /IMPORT_PARTY_PHONE_MATCH_REQUIRES_REVIEW/);
+  assert.equal(storage.getItem('anas_customers'), original);
+  assert.equal(repositoryCalls, 0);
 });
 
 test('multi-sheet workbook staging classifies all four entity types and detects database duplicates', () => {
@@ -340,4 +351,14 @@ test('multi-sheet invoice rows with inconsistent centime totals are rejected bef
     repository: { async saveMultiSheetBatchSafe() { calls++; } }
   }), /IMPORT_INVOICE_FINANCIAL_MISMATCH/);
   assert.equal(calls, 0);
+});
+
+test('multi-sheet import blocks phone-only matches to existing customers before commit', async () => {
+  let repositoryCalls = 0;
+  await assert.rejects(() => executeSafeMultiSheetImport({
+    sheetsDataMap: { 'العملاء': [{ name: 'شخص آخر', phone: '0550123456' }] },
+    existingDB: { customers: [{ id: 'C-1', name: 'عميل أصلي', phone: '0550123456' }], suppliers: [], products: [], invoices: [] },
+    repository: { async saveMultiSheetBatchSafe() { repositoryCalls++; } }
+  }), /IMPORT_PARTY_PHONE_MATCH_REQUIRES_REVIEW/);
+  assert.equal(repositoryCalls, 0, 'ambiguous phone-only customer match must not commit');
 });
