@@ -2751,7 +2751,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 <hr style="border:0;border-top:1px solid var(--mp-border);margin:18px 0;">
                 <div class="anas-firebase-auth-card" style="border:1px solid #60a5fa;background:rgba(59,130,246,.07);border-radius:12px;padding:14px;margin-bottom:14px;">
                   <h3 style="margin:0 0 8px;color:var(--mp-navy);font-size:1rem">☁️ ربط Firebase — Anas ERP</h3>
-                  <p style="font-size:.82rem;line-height:1.6;color:var(--mp-text-muted);margin:0 0 10px">تسجيل دخول آمن ومزامنة نسخة بيانات التطبيق. يجب إعداد قواعد Firestore الخاصة بمالك المشروع قبل الرفع أو الاسترجاع. لا تشارك كلمة المرور مع أحد.</p>
+                  <p style="font-size:.82rem;line-height:1.6;color:var(--mp-text-muted);margin:0 0 10px">تسجيل دخول آمن يحتفظ بجلسة هذا الجهاز تلقائيًا بعد أول دخول، ويستعيدها عند فتح التطبيق ما دامت صالحة. يمكنك تسجيل الخروج في أي وقت. يجب إعداد قواعد Firestore الخاصة بمالك المشروع قبل الرفع أو الاسترجاع. لا تشارك كلمة المرور مع أحد.</p>
                   <label for="anasWorkerUrl" style="display:block;font-weight:700;margin:8px 0 5px">رابط Cloudflare Worker بعد النشر</label>
                   <input id="anasWorkerUrl" type="url" class="field-input" inputmode="url" value="https://anas-erp-firebase-snapshot.amin545677.workers.dev" placeholder="https://عامل-firebase-الجديد.workers.dev" autocomplete="url">
                   <p style="font-size:.76rem;line-height:1.5;color:var(--mp-text-muted);margin:5px 0 10px">مهم: هذا رابط عامل Firebase للنسخ الاحتياطي، ويجب أن يكون منفصلًا عن عامل الذكاء الاصطناعي. لا تستخدم رابط Gemini الحالي هنا ولا تستبدل كود عامل الذكاء الاصطناعي. انشر عامل Firebase جديدًا مستقلًا ثم ضع رابطه هنا.</p>
@@ -14515,7 +14515,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
       if(!navigator.onLine) throw Error('الجهاز غير متصل بالإنترنت. يلزم الاتصال لإكمال تسجيل الدخول.');
       await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
       const provider=new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({prompt:'select_account'});
+      // Let Google reuse its existing browser session when possible; Firebase LOCAL persistence restores the app session on startup.
       status('جارٍ تحويلك إلى Google لتسجيل الدخول…');
       // Redirect is more reliable on mobile browsers and avoids popup-blocker failures.
       await auth.signInWithRedirect(provider);
