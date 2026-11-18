@@ -99,7 +99,7 @@ function assertPartyImportPhoneSafety(type, incomingRows, existingRows = [], mod
   for (const row of incomingRows || []) {
     const rawPhone = text(first(row, ['phone', 'الهاتف', 'mobile', 'telephone', 'رقم الهاتف']));
     const phone = rawPhone
-      ? (normalizeAlgeriaPhone(rawPhone) || rawPhone.toLocaleLowerCase().replace(/\\s+/g, ''))
+      ? (normalizeAlgeriaPhone(rawPhone) || rawPhone.toLocaleLowerCase().replace(/\s+/g, ''))
       : '';
     if (!phone) continue;
     if (seenPhones.has(phone)) throw new Error('IMPORT_PARTY_PHONE_DUPLICATE_REQUIRES_REVIEW:' + type);
@@ -108,7 +108,7 @@ function assertPartyImportPhoneSafety(type, incomingRows, existingRows = [], mod
     const matches = (existingRows || []).filter(item => {
       const existingPhone = text(first(item, ['phone', 'الهاتف', 'mobile', 'telephone', 'رقم الهاتف']));
       const normalized = existingPhone
-        ? (normalizeAlgeriaPhone(existingPhone) || existingPhone.toLocaleLowerCase().replace(/\\s+/g, ''))
+        ? (normalizeAlgeriaPhone(existingPhone) || existingPhone.toLocaleLowerCase().replace(/\s+/g, ''))
         : '';
       return normalized === phone;
     });
