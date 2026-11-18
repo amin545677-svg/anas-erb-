@@ -2159,3 +2159,57 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input:ch
   color:#ffedc2!important;
   -webkit-text-fill-color:#ffedc2!important;
 }
+
+
+/* r41 — import preview validation/error list contrast.
+   The preview can render duplicate/validation rows with legacy error classes
+   rather than role=alert. Give those surfaces explicit foreground AND fill
+   colors in both themes so inherited white text cannot disappear on cream. */
+:root:not([data-anas-theme="dark"]) #smartImportPreviewModal :is(
+  .error,.error-box,.error-list,.import-error,.import-errors,
+  .validation-error,.validation-errors,.preview-error,.preview-errors,
+  .alert,.alert-danger,[class*="error"],[data-state="error"]
+) {
+  color:#7f1d1d!important;
+  -webkit-text-fill-color:#7f1d1d!important;
+  background-color:#fff1f0!important;
+  background-image:none!important;
+  border-color:#dc8b86!important;
+  opacity:1!important;
+  visibility:visible!important;
+  text-shadow:none!important;
+}
+:root:not([data-anas-theme="dark"]) #smartImportPreviewModal :is(
+  .error,.error-box,.error-list,.import-error,.import-errors,
+  .validation-error,.validation-errors,.preview-error,.preview-errors,
+  .alert,.alert-danger,[class*="error"],[data-state="error"]
+) :is(p,span,b,strong,small,label,li,div) {
+  color:#7f1d1d!important;
+  -webkit-text-fill-color:#7f1d1d!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] #smartImportPreviewModal :is(
+  .error,.error-box,.error-list,.import-error,.import-errors,
+  .validation-error,.validation-errors,.preview-error,.preview-errors,
+  .alert,.alert-danger,[class*="error"],[data-state="error"]
+) {
+  color:#ffe4e6!important;
+  -webkit-text-fill-color:#ffe4e6!important;
+  background-color:#451a1d!important;
+  background-image:none!important;
+  border-color:#a34b54!important;
+  opacity:1!important;
+  visibility:visible!important;
+  text-shadow:none!important;
+}
+:root[data-anas-theme="dark"] #smartImportPreviewModal :is(
+  .error,.error-box,.error-list,.import-error,.import-errors,
+  .validation-error,.validation-errors,.preview-error,.preview-errors,
+  .alert,.alert-danger,[class*="error"],[data-state="error"]
+) :is(p,span,b,strong,small,label,li,div) {
+  color:#ffe4e6!important;
+  -webkit-text-fill-color:#ffe4e6!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
