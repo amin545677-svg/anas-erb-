@@ -38,7 +38,7 @@ function classifyImportRow(row, sheetName = '') {
   const supplierScore = Number(/مورد|supplier|fournisseur/.test(sheet)) +
     Number(has('المورد', 'supplier', 'fournisseur', 'شركة')) +
     Number(has('رقم المورد', 'supplier id'));
-  const customerScore = Number(/عميل|زبائن|customer|client/.test(sheet)) +
+  const customerScore = Number(/عملاء|العملاء|عميل|زبائن|الزبائن|زبون|الزبون|customer|client/.test(sheet)) +
     Number(has('العميل', 'زبون', 'customer', 'client')) +
     Number(has('حد الائتمان', 'credit limit', 'دين'));
   const productScore = Number(/منتج|مخزون|product|stock/.test(sheet)) +
