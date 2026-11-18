@@ -84,6 +84,8 @@ jobs:
         run: node --test tests/sovereign-kernel-level11.test.mjs
       - name: Verify single-source live durability and network status bar
         run: node --test tests/anas_live_status.test.mjs
+      - name: Verify persistent Firebase email and Google login contract
+        run: node --test tests/firebase_persistent_login_contract.test.mjs
       - name: Syntax-check every repository script, POS engine and test module
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check && node --check pos/micro-pos-engine.mjs && node --check anas-pos-floating-cart.js && node --check ai-excel-import-ui.js && node --check core/pos-quick-sale-transaction-bridge.js
       - name: Run ANAS ERP unified light/dark theme regression tests
