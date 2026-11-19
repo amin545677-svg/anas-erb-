@@ -138,20 +138,17 @@ async function installHarness(page, { firstPushConflict = false, cloudV1 = null 
     // durable bytes as JSON or bypassing the application's codec.
     const bridgeStorage = {
       getItem(key) {
-        const raw = localStorage.getItem(key);
-        if (key === "ANAS_THE_ENTERPRISE_V11_OFFLINE" && typeof raw === "string" && raw.startsWith("ANASERP2:")) {
-          return JSON.stringify(window.ANASResilientStorage.decode(raw));
-        }
-        return raw;
+        const value = window.ANASResilientStorage.getItem(key);
+        if (value == null) return null;
+        return typeof value === "string" ? value : JSON.stringify(value);
       },
       setItem(key, value) {
-        if (key === "ANAS_THE_ENTERPRISE_V11_OFFLINE") {
-          const parsed = JSON.parse(String(value));
-          return localStorage.setItem(key, window.ANASResilientStorage.encode(parsed));
-        }
-        return localStorage.setItem(key, value);
+        let decoded;
+        try { decoded = JSON.parse(String(value)); }
+        catch { decoded = String(value); }
+        return window.ANASResilientStorage.setItem(key, decoded);
       },
-      removeItem(key) { return localStorage.removeItem(key); },
+      removeItem(key) { return window.ANASResilientStorage.removeSync(key); },
       getCommittedSnapshot() { return window.ANASResilientStorage.getCommittedSnapshot(); }
     };
     const orchestrator = createMutationQueueOrchestrator({ storage: bridgeStorage, pullCloud, pushCloud });
