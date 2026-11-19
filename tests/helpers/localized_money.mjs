@@ -45,9 +45,9 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
       offset = value.indexOf(separator, offset + separator.length);
     }
   }
-  const preferred = occurrences
-    .filter(item => item.separator === localeDecimal && item.tail > 0 && item.tail <= fractionDigits)
-    .sort((a, b) => b.offset - a.offset)[0];
+  const localeOccurrences = occurrences.filter(item => item.separator === localeDecimal);
+  if (localeOccurrences.length > 1) throw new Error("multiple decimal separators");
+  const preferred = localeOccurrences.sort((a, b) => b.offset - a.offset)[0];
   const decimalMark = preferred?.separator
     ?? occurrences.filter(item => item.tail > 0 && item.tail <= fractionDigits)
       .sort((a, b) => b.offset - a.offset)[0]?.separator
