@@ -51,6 +51,7 @@ test("saveDB false removes PREPARED and reverts only bridge metadata before V42 
   assert.deepEqual(appData.appliedOpIds, ["previous-op"]);
   assert.equal(appData.invoices[0].syncOpId, undefined);
   assert.equal(appData.invoices[0].syncCreatedAt, undefined);
+  assert.equal(Object.prototype.hasOwnProperty.call(appData, "auditTrail"), false);
   assert.equal(installer.uninstall(), true);
 });
 

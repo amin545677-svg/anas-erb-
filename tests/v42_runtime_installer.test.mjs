@@ -386,6 +386,10 @@ test("runtime wrapper passes every invoice line to reconciliation and quarantine
   assert.equal(saveDB(), true);
   assert.equal(mappedLines, 2, "both invoice lines must reach mapMutation");
   assert.equal(storage.json(MUTATION_KEYS.pending)[0].status, "PENDING");
+  const preparedSale = storage.json(MUTATION_KEYS.pending)[0];
+  assert.equal(preparedSale.payload.v42Ledger.auditTrail.length, 1);
+  assert.equal(preparedSale.payload.v42Ledger.auditTrail[0].opId, preparedSale.opId);
+  assert.equal(preparedSale.payload.v42Ledger.auditTrail[0].amountCentimes, 3000);
 
   const result = await windowObject.anasFirebaseSyncPull();
   assert.equal(result.status, "synced");

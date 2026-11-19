@@ -115,6 +115,55 @@ export function installV42RuntimeWiring({
     if (deltas.invoices.length > 1) return null;
 
     const invoice = deltas.invoices[0] || null;
+    let auditRowsSynthesized = false;
+    const auditTrailWasMissing = !Object.prototype.hasOwnProperty.call(current, "auditTrail");
+    const auditTrailBefore = Array.isArray(current.auditTrail) ? current.auditTrail.slice() : null;
+    if (invoice && deltas.auditTrail.length === 0) {
+      if (!auditTrailWasMissing && !Array.isArray(current.auditTrail)) {
+        throw new Error("Malformed current auditTrail collection");
+      }
+      if (Object.prototype.hasOwnProperty.call(previous || {}, "auditTrail") &&
+          !Array.isArray(previous.auditTrail)) {
+        throw new Error("Malformed previous auditTrail collection");
+      }
+      const parseCentimes = value => {
+        const match = String(value ?? "").trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
+        if (!match) return null;
+        const cents = BigInt(match[1]) * 100n + BigInt((match[2] || "").padEnd(2, "0"));
+        return cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
+      };
+      const amountCentimes = parseCentimes(invoice.total);
+      const paidCentimes = parseCentimes(invoice.paid ?? invoice.total);
+      const remainingCentimes = invoice.remaining == null
+        ? (amountCentimes !== null && paidCentimes !== null ? amountCentimes - paidCentimes : null)
+        : parseCentimes(invoice.remaining);
+      if (amountCentimes === null || paidCentimes === null || remainingCentimes === null ||
+          paidCentimes > amountCentimes || remainingCentimes !== amountCentimes - paidCentimes) {
+        throw new Error("Cannot synthesize a centime-exact audit event for an incomplete V42 invoice");
+      }
+      const auditId = "AUD-SALE-" + String(invoice.id);
+      if ((Array.isArray(current.auditTrail) ? current.auditTrail : [])
+        .some(row => String(row?.id ?? "") === auditId)) {
+        throw new Error("V42 sale audit event ID already exists");
+      }
+      deltas.auditTrail.push({
+        id: auditId,
+        opId: null,
+        eventType: "SALE_COMMITTED",
+        entityType: "sales_invoice",
+        entityId: String(invoice.id),
+        referenceType: "sales_invoice",
+        referenceId: String(invoice.id),
+        warehouse: String(invoice.warehouse ?? invoice.warehouseName ?? "المخزن الرئيسي"),
+        amountCentimes,
+        paidCentimes,
+        remainingCentimes,
+        actorId: current.currentUser?.id == null ? null : String(current.currentUser.id),
+        actorName: current.currentUser?.name ? String(current.currentUser.name) : "غير محدد",
+        createdAt: now().toISOString()
+      });
+      auditRowsSynthesized = true;
+    }
     if (invoice) {
       const invoiceId = String(invoice.id);
       const belongsToInvoice = row =>
@@ -170,7 +219,10 @@ export function installV42RuntimeWiring({
       return {
         entity: invoice, operation,
         auditRows: deltas.auditTrail,
-        auditOpIdsBefore: deltas.auditTrail.map(row => row.opId)
+        auditOpIdsBefore: deltas.auditTrail.map(row => row.opId),
+        auditRowsSynthesized,
+        auditTrailWasMissing,
+        auditTrailBefore
       };
     }
 
@@ -401,6 +453,23 @@ export function installV42RuntimeWiring({
     const beforeApplied = Array.isArray(current.appliedOpIds) ? current.appliedOpIds.slice() : undefined;
     const auditRows = Array.isArray(captured.auditRows) ? captured.auditRows : [];
     const beforeAuditOpIds = Array.isArray(captured.auditOpIdsBefore) ? captured.auditOpIdsBefore : [];
+    const auditRowsSynthesized = captured.auditRowsSynthesized === true;
+    const auditTrailWasMissing = captured.auditTrailWasMissing === true;
+    const auditTrailBefore = captured.auditTrailBefore;
+    const restoreAuditCapture = () => {
+      auditRows.forEach((row, index) => {
+        if (beforeAuditOpIds[index] === undefined) delete row.opId;
+        else row.opId = beforeAuditOpIds[index];
+      });
+      if (auditRowsSynthesized) {
+        if (auditTrailWasMissing) delete current.auditTrail;
+        else current.auditTrail = auditTrailBefore;
+      }
+    };
+    if (auditRowsSynthesized) {
+      if (auditTrailWasMissing) current.auditTrail = [];
+      current.auditTrail.unshift(...auditRows);
+    }
     auditRows.forEach(row => { row.opId = captured.operation.opId; });
     if (captured.operation.payload?.v42Ledger) {
       captured.operation.payload.v42Ledger.auditTrail = structuredClone(auditRows);
@@ -428,10 +497,7 @@ export function installV42RuntimeWiring({
       else captured.entity.opId = beforeEntityOpId;
       if (beforeApplied === undefined) delete current.appliedOpIds;
       else current.appliedOpIds = beforeApplied;
-      auditRows.forEach((row, index) => {
-        if (beforeAuditOpIds[index] === undefined) delete row.opId;
-        else row.opId = beforeAuditOpIds[index];
-      });
+      restoreAuditCapture();
       throw error;
     }
 
@@ -443,10 +509,7 @@ export function installV42RuntimeWiring({
       else captured.entity.opId = beforeEntityOpId;
       if (beforeApplied === undefined) delete current.appliedOpIds;
       else current.appliedOpIds = beforeApplied;
-      auditRows.forEach((row, index) => {
-        if (beforeAuditOpIds[index] === undefined) delete row.opId;
-        else row.opId = beforeAuditOpIds[index];
-      });
+      restoreAuditCapture();
     };
 
     let saved;

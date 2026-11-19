@@ -132,14 +132,15 @@ test('dark palette meets WCAG AA for navigation and scoped actions', () => {
   assert.match(safeCss,/#aiHubTabContent \.anas-ai-quick-actions/);
 });
 
-test('Hosting trigger includes app changes while Functions trigger excludes UI-only changes', () => {
+test('Hosting trigger includes app changes while Functions trigger includes V42 sale paths but excludes unrelated UI-only changes', () => {
   const hosting=read('.github/workflows/deploy-reverse-ledger-console-staging.yml');
   const functions=read('.github/workflows/deploy-reverse-ledger-functions-staging.yml');
   const hostPush=hosting.match(/\n  push:\n([\s\S]*?)\n\npermissions:/)?.[1]||'';
   const fnPush=functions.match(/\n  push:\n([\s\S]*?)\n\npermissions:/)?.[1]||'';
   for (const pattern of ["'index.html'","'erp/**'","'sw.js'","'anas-*.js'","'anas-*.css'","'firebase/**'","'.github/workflows/**'"]) assert.ok(hostPush.includes(pattern),pattern);
   assert.ok(fnPush.includes("'functions/**'"));
-  for (const pattern of ["'index.html'","'erp/**'","'sw.js'","'anas-*.js'","'anas-*.css'","'firebase/**'"]) assert.ok(!fnPush.includes(pattern),pattern);
+  for (const pattern of ["'index.html'","'sync/**'","'tests/v42_runtime_installer.test.mjs'"]) assert.ok(fnPush.includes(pattern),pattern);
+  for (const pattern of ["'erp/**'","'sw.js'","'anas-*.js'","'anas-*.css'","'firebase/**'"]) assert.ok(!fnPush.includes(pattern),pattern);
   assert.ok(fs.existsSync(new URL('.github/workflows/deploy-staging-firestore-rules.yml',root)));
 });
 

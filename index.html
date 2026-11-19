@@ -5190,8 +5190,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     referenceId: String(invObj.id),
                     warehouse: String(saleWarehouse),
                     amountCentimes: totalCents,
-                    paidCentimes,
-                    remainingCentimes,
+                    paidCentimes: paidCents,
+                    remainingCentimes: remainingCents,
                     actorId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                     actorName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد',
                     createdAt: new Date().toISOString()
@@ -5692,8 +5692,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     referenceId: String(invObj.id),
                     warehouse: String(saleWarehouse),
                     amountCentimes: totalCents,
-                    paidCentimes,
-                    remainingCentimes,
+                    paidCentimes: paidCents,
+                    remainingCentimes: remainingCents,
                     actorId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                     actorName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد',
                     createdAt: new Date().toISOString()
