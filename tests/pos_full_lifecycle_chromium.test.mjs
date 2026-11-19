@@ -125,14 +125,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Keep the sorted catalogue visible; cart-only persistence must not replace its DOM.
     await page.evaluate(() => openView('pos'));
     const productContainer = page.locator('#quickProductsContainer');
-    await page.locator('#quickProductsContainer button').first().waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await productContainer.isHidden(), false,
-      'the product catalogue must remain visible when the sales screen opens');
-    assert.equal(await productContainer.locator('button').count(), 1,
-      'the seeded product must render exactly once in the catalogue');
+    await page.waitForFunction(() => document.getElementById('quickProductsContainer')?.hidden === true);
+    assert.equal(await productContainer.isHidden(), true,
+      'the full product catalogue must remain hidden until a cashier searches');
     for (const selector of ['#posCategoryTabs', '#posStockFilterChips', '#anasPosProductViewToggle']) {
-      assert.equal(await page.locator(selector).isHidden(), false,
-        'catalogue category, stock and view controls must remain available');
+      assert.equal(await page.locator(selector).isHidden(), true,
+        'catalogue browsing controls must stay hidden in search-first POS');
     }
     const checkoutBeforeAdd = await page.locator('#posCheckoutBtn').isDisabled();
     assert.equal(checkoutBeforeAdd, true, 'checkout must stay disabled while the cart is empty');
@@ -148,14 +146,6 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await productResult.waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await page.locator('#posSearchResults .pos-search-result').count(), 1,
       'name search must return only the matching product');
-    const productCardBeforeAdd = await productContainer.locator('button').first().elementHandle();
-    await productContainer.evaluate(element => {
-      element.style.maxHeight = '1px';
-      element.style.overflowY = 'auto';
-      element.scrollTop = element.scrollHeight;
-    });
-    const catalogueScrollBeforeAdd = await productContainer.evaluate(element => element.scrollTop);
-    assert.ok(catalogueScrollBeforeAdd > 0, 'the test must establish a non-zero catalogue scroll position');
     await productResult.click();
     await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await page.locator('#anasPosPriceTierModal button').count(), 4,
@@ -166,15 +156,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
     assert.equal(await page.locator('#posSearchField').inputValue(), PRODUCT_NAME,
       'selecting a product must preserve the cashier search text');
-    // The result popover may close after selection; the search query itself must remain intact.
-    assert.equal(await productCardBeforeAdd.evaluate(element => element.isConnected), true,
-      'cart persistence must preserve the existing catalogue card node');
-    assert.equal(await productContainer.evaluate(element => element.scrollTop), catalogueScrollBeforeAdd,
-      'adding a product must preserve the catalogue scroll position');
-    await productContainer.evaluate(element => {
-      element.style.maxHeight = '';
-      element.style.overflowY = '';
-    });
+    assert.equal(await productContainer.isHidden(), true, 'search selection must not reveal the full catalogue');
     await page.evaluate(() => {
       AppData.products[0].price2 = 25;
       AppData.products[0].price3 = 25;
@@ -207,6 +189,15 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForFunction(() => document.getElementById('anasPosFloatingCart')?.hidden === true);
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isVisible(), true,
+      'the payment confirmation action must remain reachable while the checkout modal is open');
+    const checkoutLayers = await page.evaluate(() => ({
+      modal: Number(getComputedStyle(document.getElementById('hasibModal')).zIndex),
+      cartHidden: document.getElementById('anasPosFloatingCart').hidden
+    }));
+    assert.ok(checkoutLayers.modal > 99990, 'payment modal must render above every floating POS surface');
+    assert.equal(checkoutLayers.cartHidden, true, 'floating cart must not cover payment fields or confirmation');
     const paymentActionColors = await page.locator('#hasibModal .anas-quick-payment-actions button').evaluateAll(nodes =>
       nodes.map(node => getComputedStyle(node).backgroundColor));
     assert.equal(paymentActionColors[0], 'rgb(22, 163, 74)',
