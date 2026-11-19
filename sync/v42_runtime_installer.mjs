@@ -149,8 +149,7 @@ export function installV42RuntimeWiring({
       return { entity: invoice, operation };
     }
 
-    if (deltas.bankMovements.length || deltas.stockMovements.length ||
-        deltas.clientMovements.length || deltas.settlementAllocations.length) {
+    if (deltas.bankMovements.length || deltas.stockMovements.length) {
       throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
     }
     const movement = deltas.cashMovements[0] || null;
@@ -173,7 +172,38 @@ export function installV42RuntimeWiring({
         !mapped.payload || typeof mapped.payload !== "object") {
       throw new Error("mapMutation must return a DEBT_COLLECTION payload for a customer collection");
     }
-    const operation = createMutationEnvelope({ type: mapped.type, payload: mapped.payload, now, uuid });
+    const payload = structuredClone(mapped.payload);
+    const customerId = String(movement.referenceId);
+    const receipts = deltas.clientMovements.filter(row =>
+      row?.type === "receipt" &&
+      String(row?.referenceType || "").toLowerCase() === "customer_debt" &&
+      String(row?.referenceId ?? "") === customerId &&
+      String(row?.clientId ?? "") === customerId
+    );
+    const openingRows = deltas.clientMovements.filter(row => row?.type === "opening_balance");
+    if (deltas.clientMovements.some(row =>
+        !row || String(row.clientId ?? "") !== customerId ||
+        !["receipt", "opening_balance"].includes(row.type)) ||
+        receipts.length !== 1 ||
+        receipts[0].direction !== "credit" ||
+        openingRows.length > 1 ||
+        openingRows.some(row =>
+          String(row.referenceType || "").toLowerCase() !== "opening_balance" ||
+          String(row.referenceId ?? "") !== customerId ||
+          row.direction !== "debit") ||
+        deltas.settlementAllocations.some(row =>
+          !row || row.partyType !== "customer" ||
+          String(row.partyId) !== customerId ||
+          row.invoiceType !== "sales_invoice" ||
+          String(row.sourceMovementId) !== String(movement.id) ||
+          row.sourceMovementType !== "customer_debt")) {
+      throw new Error("V42 customer collection ledger bundle is incomplete or unrelated");
+    }
+    payload.v42Ledger = {
+      clientMovements: deltas.clientMovements,
+      settlementAllocations: deltas.settlementAllocations
+    };
+    const operation = createMutationEnvelope({ type: mapped.type, payload, now, uuid });
     return { entity: movement, operation };
   }
 
@@ -256,7 +286,7 @@ export function installV42RuntimeWiring({
     const allowedCollections = captured.operation.type === "SALE_INVOICE"
       ? new Set(["products", "customers", "invoices", "cashMovements", "bankMovements",
           "stockMovements", "clientMovements", "settlementAllocations"])
-      : new Set(["customers", "cashMovements"]);
+      : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
     if (hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections)) {
       throw new Error("Unsupported additional business collection change; no local persistence was performed");
     }

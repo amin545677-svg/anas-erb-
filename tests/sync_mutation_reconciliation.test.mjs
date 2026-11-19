@@ -482,3 +482,62 @@ test("V42 sale with a missing cash ledger row is quarantined without changing an
   assert.equal(result.snapshot.customers[0].debt, 26000);
   assert.deepEqual(result.snapshot.invoices, initial.invoices);
 });
+
+
+test("V42 debt collection reconciliation preserves receipt, opening balance and FIFO allocation ledgers", () => {
+  const initial = cloud();
+  initial.invoices = [{
+    id: "inv-collection-v42", customerId: "cust_s",
+    total: 26000, paid: 0, remaining: 26000
+  }];
+  const op = {
+    opId: "collection-v42-ledger", type: "DEBT_COLLECTION",
+    createdAt: "2026-10-28T12:00:00.000Z",
+    payload: {
+      customerId: "cust_s", amount: 500.5,
+      cashMovementId: "DEBT-IN-v42-50050",
+      cashMovement: {
+        id: "DEBT-IN-v42-50050", opId: "collection-v42-ledger",
+        type: "add", amount: 500.5, referenceType: "customer_debt",
+        referenceId: "cust_s"
+      },
+      v42Ledger: {
+        clientMovements: [
+          {
+            movementId: "CL-OPEN-cust_s-v42", clientId: "cust_s",
+            type: "opening_balance", amountCentimes: 2600000,
+            direction: "debit", referenceType: "opening_balance",
+            referenceId: "cust_s", createdAt: "2026-10-28T12:00:00.000Z"
+          },
+          {
+            movementId: "CL-REC-DEBT-IN-v42-50050", clientId: "cust_s",
+            type: "receipt", amountCentimes: 50050,
+            direction: "credit", referenceType: "customer_debt",
+            referenceId: "cust_s", createdAt: "2026-10-28T12:00:00.000Z"
+          }
+        ],
+        settlementAllocations: [{
+          allocationId: "ALLOC-DEBT-IN-v42-50050-inv-collection-v42",
+          partyType: "customer", partyId: "cust_s",
+          invoiceType: "sales_invoice", invoiceId: "inv-collection-v42",
+          sourceMovementId: "DEBT-IN-v42-50050",
+          sourceMovementType: "customer_debt", amountCentimes: 50050,
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }]
+      }
+    }
+  };
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.customers[0].debt, 25499.5);
+  assert.equal(result.snapshot.customers[0].ledgerVersion, 2);
+  assert.equal(result.snapshot.caisseBalance, 54500.5);
+  assert.equal(result.snapshot.cashMovements.filter(row => row.id === op.payload.cashMovementId).length, 1);
+  assert.equal(result.snapshot.clientMovements.length, 2);
+  assert.equal(result.snapshot.settlementAllocations.length, 1);
+  const replay = reconcilePendingMutations(result.snapshot, [op]);
+  assert.deepEqual(replay.review, []);
+  assert.equal(replay.snapshot.cashMovements.length, result.snapshot.cashMovements.length);
+  assert.equal(replay.snapshot.clientMovements.length, result.snapshot.clientMovements.length);
+  assert.equal(replay.snapshot.settlementAllocations.length, result.snapshot.settlementAllocations.length);
+});

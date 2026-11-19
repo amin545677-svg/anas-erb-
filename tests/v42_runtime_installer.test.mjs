@@ -214,7 +214,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   vm.createContext(context);
   vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
 
-  let cloud = { data: cloudV1(), revision: 1 };
+  let cloud = { data: collectionCloudV1(), revision: 1 };
   const eventOrder = [];
   let firstPush = true;
   const orchestrator = createMutationQueueOrchestrator({
@@ -269,7 +269,11 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   installer.install();
   await context.runActualV42Collection("cust_1");
   const pending = storage.json(MUTATION_KEYS.pending);
-  assert.equal(pending.length, 1);
+  assert.equal(pending.length, 1, JSON.stringify({
+    alerts, mapped, cashMovements: context.AppData.cashMovements,
+    clientMovements: context.AppData.clientMovements,
+    settlementAllocations: context.AppData.settlementAllocations
+  }));
   assert.equal(pending[0].status, "PENDING");
   assert.equal(pending[0].payload.amount, 500.5);
   assert.equal(pending[0].payload.cashMovementId, context.AppData.cashMovements[0].id);
@@ -284,6 +288,10 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   assert.equal(cloud.data.customers[0].debt, 25499.5);
   assert.equal(cloud.data.cashMovements.filter(m => m.id === pending[0].payload.cashMovementId).length, 1);
   assert.equal(cloud.data.cashMovements.find(m => m.id === pending[0].payload.cashMovementId).amount, 500.5);
+  assert.equal(cloud.data.clientMovements.filter(m => m.type === "receipt" && m.amountCentimes === 50050).length, 1);
+  assert.equal(cloud.data.clientMovements.filter(m => m.type === "opening_balance" && m.amountCentimes === 2600000).length, 1);
+  assert.equal(cloud.data.settlementAllocations.filter(a => a.sourceMovementId === pending[0].payload.cashMovementId).length, 1);
+  assert.equal(cloud.data.customers[0].ledgerVersion, 2);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(alerts.some(message => message.includes("تم تسجيل سند القبض وتوزيعه تلقائياً FIFO")), true);
   assert.equal(installer.uninstall(), true);
