@@ -98,7 +98,8 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
     saveDB: () => {
       storage.setItem(MUTATION_KEYS.appData, JSON.stringify(context.AppData));
       return true;
-    }
+    },
+    saveDBDurably: async () => true
   };
   vm.createContext(context);
   vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
@@ -139,6 +140,8 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
     setAppData: value => { context.AppData = value; },
     getSaveDB: () => context.saveDB,
     setSaveDB: fn => { context.saveDB = fn; },
+    getSaveDBDurably: () => context.saveDBDurably,
+    setSaveDBDurably: fn => { context.saveDBDurably = fn; },
     mapMutation: ({ entity, kind }) => {
       assert.equal(kind, "sale");
       return {
@@ -162,8 +165,11 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
     "manual snapshot restore must remain a separate explicit action");
   context.runActualV42Sale();
 
-  const pending = storage.json(MUTATION_KEYS.pending);
-  assert.equal(pending.length, 1, "the real V42 invoice must be captured as one pending operation");
+  let pending = storage.json(MUTATION_KEYS.pending);
+  assert.equal(pending.length, 1, "the real V42 invoice must be captured as one prepared operation");
+  assert.equal(pending[0].status, "PREPARED", "the queue must not become replayable before durable AppData acknowledgement");
+  await context.saveDBDurably();
+  pending = storage.json(MUTATION_KEYS.pending);
   assert.equal(pending[0].type, "SALE_INVOICE");
   assert.equal(pending[0].status, "PENDING");
   assert.equal(pending[0].payload.v42Ledger.cashMovements.length, 1);
@@ -252,6 +258,8 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     setAppData: value => { context.AppData = value; },
     getSaveDB: () => context.saveDB,
     setSaveDB: fn => { context.saveDB = fn; },
+    getSaveDBDurably: () => context.saveDBDurably,
+    setSaveDBDurably: fn => { context.saveDBDurably = fn; },
     mapMutation: ({ entity, kind, current, previous }) => {
       assert.equal(kind, "collection");
       const delta = current.cashMovements.filter(item =>

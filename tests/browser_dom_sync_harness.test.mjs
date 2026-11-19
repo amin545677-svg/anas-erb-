@@ -151,7 +151,8 @@ async function installHarness(page, { firstPushConflict = false, cloudV1 = null 
         }
         return localStorage.setItem(key, value);
       },
-      removeItem(key) { return localStorage.removeItem(key); }
+      removeItem(key) { return localStorage.removeItem(key); },
+      getCommittedSnapshot() { return window.ANASResilientStorage.getCommittedSnapshot(); }
     };
     const orchestrator = createMutationQueueOrchestrator({ storage: bridgeStorage, pullCloud, pushCloud });
     const onQuarantine = items => {
@@ -172,6 +173,8 @@ async function installHarness(page, { firstPushConflict = false, cloudV1 = null 
       setAppData: value => { AppData = value; },
       getSaveDB: () => saveDB,
       setSaveDB: fn => { saveDB = fn; },
+      getSaveDBDurably: () => saveDBDurably,
+      setSaveDBDurably: fn => { saveDBDurably = fn; },
       mapMutation: ({ entity, kind }) => {
         if (kind === "collection") {
           return {

@@ -16,6 +16,8 @@ export function installV42RuntimeWiring({
   setAppData,
   getSaveDB,
   setSaveDB,
+  getSaveDBDurably,
+  setSaveDBDurably,
   mapMutation,
   uuid,
   now = () => new Date(),
@@ -36,10 +38,18 @@ export function installV42RuntimeWiring({
   const originalSyncPush = windowObject.anasFirebaseSyncPush;
   const originalSaveDB = getSaveDB();
   if (typeof originalSaveDB !== "function") throw new Error("V42 saveDB binding is unavailable");
+  const originalSaveDBDurably = typeof getSaveDBDurably === "function" ? getSaveDBDurably() : null;
+  if (originalSaveDBDurably && typeof originalSaveDBDurably !== "function") {
+    throw new Error("V42 saveDBDurably binding is invalid");
+  }
+  if (originalSaveDBDurably && typeof setSaveDBDurably !== "function") {
+    throw new Error("A setter is required to guard V42 durable saves");
+  }
 
   let installed = false;
   let isReconcilingWrite = false;
   let lastSnapshot = null;
+  let pendingPrepared = null;
 
   function readStoredAppData() {
     const raw = storage.getItem(MUTATION_KEYS.appData);
@@ -265,12 +275,78 @@ export function installV42RuntimeWiring({
     storage.setItem(MUTATION_KEYS.pending, JSON.stringify(next));
   }
 
+  function hasCommittedOperationMarker(opId) {
+    try {
+      const snapshot = typeof storage.getCommittedSnapshot === "function"
+        ? storage.getCommittedSnapshot() : null;
+      if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return false;
+      if (Array.isArray(snapshot.appliedOpIds) && snapshot.appliedOpIds.includes(opId)) return true;
+      for (const key of ["invoices", "cashMovements"]) {
+        if (Array.isArray(snapshot[key]) && snapshot[key].some(row =>
+          row && (row.syncOpId === opId || row.opId === opId))) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function discardPrepared(pending) {
+    if (!pending) return;
+    try { pending.restoreCaptureMetadata(); } catch (_) {}
+    try {
+      storage.setItem(MUTATION_KEYS.pending, JSON.stringify(
+        JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]")
+          .filter(item => item?.opId !== pending.operation.opId)
+      ));
+    } catch (error) {
+      onStatus({ level: "critical", code: "V42_PREPARED_MUTATION_CLEANUP_FAILED", message: String(error?.message || error) });
+    }
+    if (pendingPrepared === pending) pendingPrepared = null;
+  }
+
+  async function wrappedSaveDBDurably(...args) {
+    if (!originalSaveDBDurably) throw new Error("V42 durable save binding is unavailable");
+    const pending = pendingPrepared;
+    try {
+      const result = await originalSaveDBDurably.apply(this, args);
+      if (!pending) return result;
+      if (result === true || hasCommittedOperationMarker(pending.operation.opId)) {
+        try {
+          promote(pending.operation.opId);
+        } catch (error) {
+          // The durable business snapshot is authoritative. Keep PREPARED so
+          // boot recovery can promote it from the persisted operation marker.
+          onStatus({ level: "warning", code: "V42_QUEUE_PROMOTION_DEFERRED", opId: pending.operation.opId, message: String(error?.message || error) });
+        }
+        pendingPrepared = null;
+        lastSnapshot = structuredClone(getAppData());
+        return true;
+      }
+      discardPrepared(pending);
+      return result;
+    } catch (error) {
+      if (pending && hasCommittedOperationMarker(pending.operation.opId)) {
+        try { promote(pending.operation.opId); }
+        catch (promotionError) {
+          onStatus({ level: "warning", code: "V42_QUEUE_PROMOTION_DEFERRED", opId: pending.operation.opId, message: String(promotionError?.message || promotionError) });
+        }
+        pendingPrepared = null;
+        lastSnapshot = structuredClone(getAppData());
+        return true;
+      }
+      if (pending) discardPrepared(pending);
+      throw error;
+    }
+  }
+
   function wrappedSaveDB(...args) {
     // A snapshot persisted by reconciliation is not a new local business mutation.
     if (isReconcilingWrite) {
       const saved = originalSaveDB.apply(this, args);
       if (saved === true) lastSnapshot = structuredClone(getAppData());
       return saved;
+    }
+    if (pendingPrepared) {
+      throw new Error("A previous V42 mutation is still awaiting its durable save acknowledgement");
     }
     const current = getAppData();
     if (!current || typeof current !== "object" || Array.isArray(current)) {
@@ -351,6 +427,16 @@ export function installV42RuntimeWiring({
         JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]").filter(item => item?.opId !== captured.operation.opId)
       ));
       return saved;
+    }
+
+    if (originalSaveDBDurably) {
+      pendingPrepared = {
+        operation: captured.operation,
+        restoreCaptureMetadata,
+        previous: structuredClone(previous),
+        context: this
+      };
+      return true;
     }
 
     try {
@@ -438,6 +524,7 @@ export function installV42RuntimeWiring({
     windowObject.anasFirebaseSyncPull = wrappedPull;
     windowObject.anasFirebaseSyncPush = wrappedPush;
     setSaveDB(wrappedSaveDB);
+    if (originalSaveDBDurably) setSaveDBDurably(wrappedSaveDBDurably);
     installed = true;
     return { installed: true };
   }
@@ -449,9 +536,10 @@ export function installV42RuntimeWiring({
     if (originalSyncPush === undefined) delete windowObject.anasFirebaseSyncPush;
     else windowObject.anasFirebaseSyncPush = originalSyncPush;
     setSaveDB(originalSaveDB);
+    if (originalSaveDBDurably) setSaveDBDurably(originalSaveDBDurably);
     installed = false;
     return true;
   }
 
-  return { install, uninstall, wrappedSaveDB, wrappedPull, wrappedPush };
+  return { install, uninstall, wrappedSaveDB, wrappedSaveDBDurably, wrappedPull, wrappedPush };
 }
