@@ -69,7 +69,7 @@ export function installV42RuntimeWiring({
     const identityKey = {
       invoices: "id", cashMovements: "id", bankMovements: "id",
       stockMovements: "id", clientMovements: "movementId",
-      settlementAllocations: "allocationId"
+      settlementAllocations: "allocationId", auditTrail: "id"
     };
     function collectRows(key) {
       const field = identityKey[key];
@@ -109,7 +109,7 @@ export function installV42RuntimeWiring({
 
     const ledgerKeys = [
       "invoices", "cashMovements", "bankMovements", "stockMovements",
-      "clientMovements", "settlementAllocations"
+      "clientMovements", "settlementAllocations", "auditTrail"
     ];
     const deltas = Object.fromEntries(ledgerKeys.map(key => [key, collectRows(key)]));
     if (deltas.invoices.length > 1) return null;
@@ -136,6 +136,15 @@ export function installV42RuntimeWiring({
       if (deltas.settlementAllocations.some(row => String(row?.invoiceId ?? "") !== invoiceId)) {
         throw new Error("Unrelated settlement allocation cannot be bundled into a sale");
       }
+      if (deltas.auditTrail.length !== 1 || deltas.auditTrail.some(row =>
+        row?.eventType !== "SALE_COMMITTED" || row?.entityType !== "sales_invoice" ||
+        String(row?.entityId ?? "") !== invoiceId ||
+        String(row?.referenceType ?? "").toLowerCase() !== "sales_invoice" ||
+        String(row?.referenceId ?? "") !== invoiceId ||
+        !Number.isSafeInteger(row?.amountCentimes) || row.amountCentimes < 0 ||
+        !Number.isSafeInteger(row?.paidCentimes) || row.paidCentimes < 0 ||
+        !Number.isSafeInteger(row?.remainingCentimes) || row.remainingCentimes < 0
+      )) throw new Error("V42 sale audit trail is missing or malformed");
 
       const mapped = mapMutation({
         current: structuredClone(current),
@@ -154,10 +163,15 @@ export function installV42RuntimeWiring({
         bankMovements: structuredClone(deltas.bankMovements),
         stockMovements: structuredClone(deltas.stockMovements),
         clientMovements: structuredClone(deltas.clientMovements),
-        settlementAllocations: structuredClone(deltas.settlementAllocations)
+        settlementAllocations: structuredClone(deltas.settlementAllocations),
+        auditTrail: structuredClone(deltas.auditTrail)
       };
       const operation = createMutationEnvelope({ type: mapped.type, payload, now, uuid });
-      return { entity: invoice, operation };
+      return {
+        entity: invoice, operation,
+        auditRows: deltas.auditTrail,
+        auditOpIdsBefore: deltas.auditTrail.map(row => row.opId)
+      };
     }
 
     if (deltas.bankMovements.length || deltas.stockMovements.length) return null;
@@ -228,7 +242,7 @@ export function installV42RuntimeWiring({
       "products", "customers", "suppliers", "invoices", "purchases",
       "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
       "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
-      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits"
+      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail"
     ];
     return businessCollections.some(key => changed(current[key], previous[key]));
   }
@@ -239,7 +253,7 @@ export function installV42RuntimeWiring({
       "products", "customers", "suppliers", "invoices", "purchases",
       "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
       "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
-      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits"
+      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail"
     ];
     return businessCollections.some(key =>
       !allowedCollections.has(key) && changed(current[key], previous[key])
@@ -376,7 +390,7 @@ export function installV42RuntimeWiring({
 
     const allowedCollections = captured.operation.type === "SALE_INVOICE"
       ? new Set(["products", "customers", "invoices", "cashMovements", "bankMovements",
-          "stockMovements", "clientMovements", "settlementAllocations"])
+          "stockMovements", "clientMovements", "settlementAllocations", "auditTrail"])
       : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
     if (hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections)) {
       throw new Error("Unsupported additional business collection change; no local persistence was performed");
@@ -385,6 +399,12 @@ export function installV42RuntimeWiring({
     const beforeEntityMarker = captured.entity.syncOpId;
     const beforeEntityOpId = captured.entity.opId;
     const beforeApplied = Array.isArray(current.appliedOpIds) ? current.appliedOpIds.slice() : undefined;
+    const auditRows = Array.isArray(captured.auditRows) ? captured.auditRows : [];
+    const beforeAuditOpIds = Array.isArray(captured.auditOpIdsBefore) ? captured.auditOpIdsBefore : [];
+    auditRows.forEach(row => { row.opId = captured.operation.opId; });
+    if (captured.operation.payload?.v42Ledger) {
+      captured.operation.payload.v42Ledger.auditTrail = structuredClone(auditRows);
+    }
     captured.entity.syncOpId = captured.operation.opId;
     captured.entity.syncCreatedAt = captured.operation.createdAt;
     if (captured.operation.type === "DEBT_COLLECTION") captured.entity.opId = captured.operation.opId;
@@ -408,6 +428,10 @@ export function installV42RuntimeWiring({
       else captured.entity.opId = beforeEntityOpId;
       if (beforeApplied === undefined) delete current.appliedOpIds;
       else current.appliedOpIds = beforeApplied;
+      auditRows.forEach((row, index) => {
+        if (beforeAuditOpIds[index] === undefined) delete row.opId;
+        else row.opId = beforeAuditOpIds[index];
+      });
       throw error;
     }
 
@@ -419,6 +443,10 @@ export function installV42RuntimeWiring({
       else captured.entity.opId = beforeEntityOpId;
       if (beforeApplied === undefined) delete current.appliedOpIds;
       else current.appliedOpIds = beforeApplied;
+      auditRows.forEach((row, index) => {
+        if (beforeAuditOpIds[index] === undefined) delete row.opId;
+        else row.opId = beforeAuditOpIds[index];
+      });
     };
 
     let saved;

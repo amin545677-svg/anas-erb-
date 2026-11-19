@@ -4926,7 +4926,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
                 alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.'); return;
             }
-            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون']]) {
+            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون'], ['auditTrail', 'سجل التدقيق']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData, field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(record => !record || typeof record !== 'object' || Array.isArray(record)))) {
                     alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
@@ -5022,6 +5022,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             }
             const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const rawCaisseBalance = AppData.caisseBalance;
+            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
+            const auditTrailBefore = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
             const oldCart = cart.map(it => ({...it}));
             const hadInvoicesArray = Array.isArray(AppData.invoices);
             const oldInvoices = hadInvoicesArray ? AppData.invoices : [];
@@ -5048,7 +5050,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     if (Number.isSafeInteger(costCents) && costCents >= 0) costPrice = anasCentsToCurrency(costCents);
                 } catch (_) {}
                 return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents), costPrice,
-                    total:anasCentsToCurrency(Math.round(qtyUnits * priceCents / ANAS_QTY_SCALE))};
+                    total:anasCentsToCurrency(anasLineTotalCents(qtyUnits, priceCents))};
             });
             const invObj = {
                 id: invoiceId, date: new Date().toLocaleString('ar-DZ'), customer: cust.name,
@@ -5174,6 +5176,30 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                if (!Array.isArray(AppData.auditTrail)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData, 'auditTrail')) throw new Error('سجل التدقيق تالف.');
+                    AppData.auditTrail = [];
+                }
+                const saleAuditRecord = {
+                    id: 'AUD-SALE-' + String(invObj.id),
+                    opId: null,
+                    eventType: 'SALE_COMMITTED',
+                    entityType: 'sales_invoice',
+                    entityId: String(invObj.id),
+                    referenceType: 'sales_invoice',
+                    referenceId: String(invObj.id),
+                    warehouse: String(saleWarehouse),
+                    amountCentimes: totalCents,
+                    paidCentimes,
+                    remainingCentimes,
+                    actorId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                    actorName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد',
+                    createdAt: new Date().toISOString()
+                };
+                if (AppData.auditTrail.some(row => String(row?.id ?? '') === saleAuditRecord.id)) {
+                    throw new Error('معرّف سجل تدقيق الفاتورة موجود مسبقاً.');
+                }
+                AppData.auditTrail.unshift(saleAuditRecord);
                 // Empty the cart before persistence so a repeated click cannot post the same sale twice.
                 posCart = [];
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
@@ -5202,6 +5228,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 else delete AppData.clientMovements;
                 if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore;
                 else delete AppData.settlementAllocations;
+                if (hadAuditTrail) AppData.auditTrail = auditTrailBefore;
+                else delete AppData.auditTrail;
                 posCart = oldCart;
                 try {
                     if (typeof updateCashUI === 'function') updateCashUI();
@@ -5323,7 +5351,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 (!Array.isArray(AppData.invoices) || AppData.invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv)))) {
                 alert('تعذر تأكيد البيع: سجل الفواتير تالف. أصلح البيانات قبل تسجيل عملية جديدة.'); return;
             }
-            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['bankMovements', 'حركات التحصيل البنكي/الآجل'], ['stockMovements', 'حركات المخزون']]) {
+            for (const [field, label] of [['cashMovements', 'حركات الصندوق'], ['bankMovements', 'حركات التحصيل البنكي/الآجل'], ['stockMovements', 'حركات المخزون'], ['auditTrail', 'سجل التدقيق']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData, field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(record => !record || typeof record !== 'object' || Array.isArray(record)))) {
                     alert('تعذر تأكيد البيع: سجل ' + label + ' تالف. لم يتم تغيير المخزون أو الحسابات.'); return;
@@ -5429,6 +5457,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             }
             const hadCaisseBalance = Object.prototype.hasOwnProperty.call(AppData, 'caisseBalance');
             const rawCaisseBalance = AppData.caisseBalance;
+            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
+            const auditTrailBefore = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
             const oldCart = cart.map(it => ({...it}));
             const hadCartDiscounts = Object.prototype.hasOwnProperty.call(AppData, 'posCartDiscounts');
             const oldCartDiscounts = AppData.posCartDiscounts;
@@ -5509,6 +5539,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             else delete AppData.clientMovements;
             if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore;
             else delete AppData.settlementAllocations;
+            if (hadAuditTrail) AppData.auditTrail = auditTrailBefore;
+            else delete AppData.auditTrail;
             if (hadCartDiscounts) AppData.posCartDiscounts = oldCartDiscounts;
             else delete AppData.posCartDiscounts;
             posCart = oldCart;
@@ -5646,6 +5678,30 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                if (!Array.isArray(AppData.auditTrail)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData, 'auditTrail')) throw new Error('سجل التدقيق تالف.');
+                    AppData.auditTrail = [];
+                }
+                const saleAuditRecord = {
+                    id: 'AUD-SALE-' + String(invObj.id),
+                    opId: null,
+                    eventType: 'SALE_COMMITTED',
+                    entityType: 'sales_invoice',
+                    entityId: String(invObj.id),
+                    referenceType: 'sales_invoice',
+                    referenceId: String(invObj.id),
+                    warehouse: String(saleWarehouse),
+                    amountCentimes: totalCents,
+                    paidCentimes,
+                    remainingCentimes,
+                    actorId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
+                    actorName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد',
+                    createdAt: new Date().toISOString()
+                };
+                if (AppData.auditTrail.some(row => String(row?.id ?? '') === saleAuditRecord.id)) {
+                    throw new Error('معرّف سجل تدقيق الفاتورة موجود مسبقاً.');
+                }
+                AppData.auditTrail.unshift(saleAuditRecord);
                 // Empty the cart and clear only this tab's discount before persistence so a repeated click cannot repost it.
                 posCart = [];
                 const discountTab = String(AppData.activePosScreenTab ?? 'default');

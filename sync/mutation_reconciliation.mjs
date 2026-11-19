@@ -464,7 +464,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           const bundle = payload.v42Ledger;
           const idKeys = {
             cashMovements: "id", bankMovements: "id", stockMovements: "id",
-            clientMovements: "movementId", settlementAllocations: "allocationId"
+            clientMovements: "movementId", settlementAllocations: "allocationId", auditTrail: "id"
           };
           const customerId = payload.customerId ?? invoice.customerId ?? invoice.customerObj?.id;
           const customer = customerId == null ? null : findById(snapshot.customers, customerId);
@@ -475,6 +475,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
             : moneyCents(invoice.remaining);
           const debtAfterCents = customer ? moneyCents(customer.debt ?? 0) : null;
           for (const [key, idKey] of Object.entries(idKeys)) {
+            if (key === "auditTrail" && bundle?.auditTrail === undefined) continue;
             if (!Array.isArray(bundle?.[key])) { sameLedgerBundle = false; break; }
             for (const row of bundle[key]) {
               let expected = row;
@@ -606,11 +607,14 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         }
       }
       const v42Ledger = payload.v42Ledger;
+      const hasAuditTrail = Boolean(v42Ledger && Object.prototype.hasOwnProperty.call(v42Ledger, "auditTrail"));
+      const auditRows = hasAuditTrail ? v42Ledger.auditTrail : null;
       let normalizedClientRows = null;
       if (v42Ledger !== undefined) {
         const ledgerKeys = ["cashMovements", "bankMovements", "stockMovements", "clientMovements", "settlementAllocations"];
         if (!v42Ledger || typeof v42Ledger !== "object" || Array.isArray(v42Ledger) ||
-            ledgerKeys.some(key => !Array.isArray(v42Ledger[key]))) {
+            ledgerKeys.some(key => !Array.isArray(v42Ledger[key])) ||
+            (hasAuditTrail && !Array.isArray(auditRows))) {
           review.push({ opId: op.opId, reason: "INCOMPLETE_V42_SALE_LEDGER_BUNDLE", operation: op });
           continue;
         }
@@ -621,6 +625,19 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         const clientRows = v42Ledger.clientMovements;
         const allocationRows = v42Ledger.settlementAllocations;
         const cashChannel = channel === "cash";
+        if (hasAuditTrail && (auditRows.length !== 1 || auditRows.some(row =>
+          !row || !row.id || row.opId !== op.opId || row.eventType !== "SALE_COMMITTED" ||
+          row.entityType !== "sales_invoice" || String(row.entityId ?? "") !== String(invoice.id) ||
+          String(row.referenceType ?? "").toLowerCase() !== "sales_invoice" ||
+          String(row.referenceId ?? "") !== String(invoice.id) ||
+          String(row.warehouse ?? "") !== warehouse ||
+          row.amountCentimes !== totalCents || row.paidCentimes !== paidCents ||
+          row.remainingCentimes !== remainingCents ||
+          typeof row.createdAt !== "string" || !Number.isFinite(Date.parse(row.createdAt))
+        ))) {
+          review.push({ opId: op.opId, reason: "SALE_AUDIT_TRAIL_MISMATCH", operation: op });
+          continue;
+        }
         const paymentRows = cashChannel ? cashRows : bankRows;
         const wrongPaymentRows = cashChannel ? bankRows : cashRows;
         const paymentId = paymentRows.length === 1 ? paymentRows[0]?.id : null;
@@ -699,6 +716,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           ["cashMovements", "id"], ["bankMovements", "id"], ["stockMovements", "id"],
           ["clientMovements", "movementId"], ["settlementAllocations", "allocationId"]
         ];
+        if (hasAuditTrail) ledgerCollections.push(["auditTrail", "id"]);
         let ledgerCollision = false;
         for (const [key, idKey] of ledgerCollections) {
           const rows = v42Ledger[key];

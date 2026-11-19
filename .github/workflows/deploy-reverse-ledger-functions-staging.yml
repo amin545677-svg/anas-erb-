@@ -30,6 +30,9 @@ on:
       - staging/unified-release-candidate
     paths:
       - 'functions/**'
+      - 'index.html'
+      - 'sync/**'
+      - 'tests/v42_runtime_installer.test.mjs'
       - 'reverse-ledger/**'
       - 'firebase.staging.json'
       - 'cashbox-readonly-ledger.js'

@@ -337,3 +337,19 @@ test('Functions deployment guard matches the canonical r42 Staging worker and ge
   assert.ok(builder.includes('staging build emits the r42 worker generation'), 'staging build generation must be explicit');
   assert.ok(builder.includes("'Build SHA: ' + buildSha + ' | SW: r42 | Env: Staging'"), 'staging builder must emit the r42 deployment stamp');
 });
+
+test('Functions staging push path includes V42 runtime sale changes without allowing PR deployment', async () => {
+  const workflow = await (await import('node:fs/promises')).readFile(
+    new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'
+  );
+  const pushStart = workflow.indexOf('  push:');
+  const permissionsStart = workflow.indexOf('\npermissions:', pushStart);
+  assert.ok(pushStart >= 0 && permissionsStart > pushStart, 'Functions push trigger must be explicit');
+  const pushPaths = workflow.slice(pushStart, permissionsStart);
+  assert.ok(pushPaths.includes("'index.html'"), 'V42 sale UI changes must trigger the guarded Staging Functions workflow');
+  assert.ok(pushPaths.includes("'sync/**'"), 'V42 mutation runtime changes must trigger the guarded Staging Functions workflow');
+  assert.ok(pushPaths.includes("'tests/v42_runtime_installer.test.mjs'"), 'actual sale acceptance changes must trigger the guarded Staging Functions workflow');
+  assert.match(workflow, /staging-project-guard:[\s\S]*?github\.event_name == 'push'/);
+  assert.match(workflow, /deploy-reverse-ledger-staging:[\s\S]*?needs:\s*staging-project-guard/);
+  assert.match(workflow, /github\.ref == 'refs\/heads\/staging\/unified-release-candidate'/);
+});

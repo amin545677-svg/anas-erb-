@@ -102,7 +102,8 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
     saveDBDurably: async () => true
   };
   vm.createContext(context);
-  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"),
+      extractFunction("anasLineTotalCents", "qtyUnits, priceCents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("confirmHasibPayment"), "globalThis.runActualV42Sale = confirmHasibPayment;"].join("\n"), context);
 
   let cloud = { data: collectionCloudV1(), revision: 1 };
   const eventOrder = [];
@@ -647,6 +648,7 @@ test("runtime wiring posts actual V42 partial and credit sales as complete compo
       extractFunction("anasToQtyUnits", "value"),
       extractFunction("anasCentsToCurrency", "cents"),
       extractFunction("anasQtyFromUnits", "units"),
+      extractFunction("anasLineTotalCents", "qtyUnits, priceCents"),
       "const ANAS_QTY_SCALE = 1000000;",
       extractFunction("confirmHasibPayment"),
       "globalThis.runActualV42Sale = confirmHasibPayment;"
@@ -713,6 +715,10 @@ test("runtime wiring posts actual V42 partial and credit sales as complete compo
     assert.equal(pending[0].payload.v42Ledger.clientMovements.filter(row => row.type === "invoice_debit").length, 1);
     assert.equal(pending[0].payload.v42Ledger.clientMovements.find(row => row.type === "invoice_debit").amountCentimes, scenario.remainingCentimes);
     assert.equal(pending[0].payload.v42Ledger.settlementAllocations.length, scenario.paidCentimes > 0 ? 1 : 0);
+    assert.equal(pending[0].payload.v42Ledger.auditTrail.length, 1);
+    assert.equal(pending[0].payload.v42Ledger.auditTrail[0].eventType, "SALE_COMMITTED");
+    assert.equal(pending[0].payload.v42Ledger.auditTrail[0].opId, pending[0].opId);
+    assert.equal(pending[0].payload.v42Ledger.auditTrail[0].amountCentimes, 100000);
     const stableOpId = pending[0].opId;
 
     const result = await windowObject.anasFirebaseSyncPush();
@@ -723,6 +729,7 @@ test("runtime wiring posts actual V42 partial and credit sales as complete compo
     assert.equal(cloud.data.caisseBalance, scenario.expectedCash);
     assert.equal(cloud.data.customers[0].debt, scenario.expectedDebt);
     assert.equal(cloud.data.invoices.filter(row => row?.syncOpId === stableOpId).length, 1);
+    assert.equal(cloud.data.auditTrail.filter(row => row?.opId === stableOpId).length, 1);
     assert.equal(cloud.data.stockMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, 1);
     assert.equal(cloud.data.cashMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, scenario.paidCentimes > 0 ? 1 : 0);
     assert.equal(cloud.data.clientMovements.filter(row => row.type === "invoice_debit" && row.referenceId === pending[0].payload.invoice.id && row.amountCentimes === scenario.remainingCentimes).length, 1);
@@ -731,4 +738,220 @@ test("runtime wiring posts actual V42 partial and credit sales as complete compo
     assert.equal(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")), false);
     assert.equal(installer.uninstall(), true);
   }
+});
+
+test("actual V42 durable truck sale reconciles only warehouseStock after HTTP 409 and commits opId audit", async () => {
+  const initial = fixture();
+  initial.products[0].warehouseStock = { "شاحنة 1": 12 };
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]",
+    [MUTATION_KEYS.rescue]: "null",
+    [MUTATION_KEYS.quarantined]: "[]",
+    [MUTATION_KEYS.revision]: "0"
+  });
+  const alerts = [];
+  const elements = {
+    hasibCustomerSelect: { value: "" },
+    hasibPaidAmount: { value: "1000" },
+    hasibPaymentChannel: { value: "cash" }
+  };
+  const context = {
+    AppData: structuredClone(initial),
+    posCart: [{ id: "item_a", name: "صنف اختبار", qty: 2, price: 500 }],
+    lastConfirmedInvoice: null,
+    Date, Math, Number, String, Set, Map, Array, Object, JSON, BigInt, structuredClone,
+    document: { getElementById: id => elements[id] || null },
+    wtTryEnsureData: () => true,
+    wtCurrentSaleWarehouse: () => "شاحنة 1",
+    wtAvailableStock: (product, warehouse) => Number(product.warehouseStock?.[warehouse] ?? 0),
+    anasGetPosCartDiscountCents: () => 0,
+    alert: message => alerts.push(String(message)),
+    updateCashUI: () => {},
+    renderCustomersDebts: () => {},
+    renderPosTable: () => {},
+    closeModal: () => {},
+    showInvoicePostSaveActions: () => {},
+    console,
+    saveDB: () => {
+      storage.setItem(MUTATION_KEYS.appData, JSON.stringify(context.AppData));
+      return true;
+    },
+    saveDBDurably: async () => true
+  };
+  vm.createContext(context);
+  vm.runInContext([
+    reverseLedgerSource,
+    extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"),
+    extractFunction("anasToCents", "value"),
+    extractFunction("anasToQtyUnits", "value"),
+    extractFunction("anasCentsToCurrency", "cents"),
+    extractFunction("anasQtyFromUnits", "units"),
+    extractFunction("anasLineTotalCents", "qtyUnits, priceCents"),
+    "const ANAS_QTY_SCALE = 1000000;",
+    extractFunction("confirmHasibPaymentDurable"),
+    "globalThis.runActualV42Sale = confirmHasibPaymentDurable;"
+  ].join("\n"), context);
+
+  let cloud = { data: cloudV1(), revision: 1 };
+  cloud.data.products[0].warehouseStock = { "شاحنة 1": 12 };
+  let firstPush = true;
+  const eventOrder = [];
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => {
+      eventOrder.push("pull");
+      return structuredClone(cloud);
+    },
+    pushCloud: async ({ data, baseRevision }) => {
+      eventOrder.push("push");
+      if (firstPush) {
+        firstPush = false;
+        return { status: 409 };
+      }
+      if (baseRevision !== cloud.revision) return { status: 409 };
+      cloud = { data: structuredClone(data), revision: cloud.revision + 1 };
+      return { status: 200, revision: cloud.revision };
+    }
+  });
+  const windowObject = {};
+  const installer = installV42RuntimeWiring({
+    windowObject, storage, orchestrator,
+    getAppData: () => context.AppData,
+    setAppData: value => { context.AppData = value; },
+    getSaveDB: () => context.saveDB,
+    setSaveDB: fn => { context.saveDB = fn; },
+    getSaveDBDurably: () => context.saveDBDurably,
+    setSaveDBDurably: fn => { context.saveDBDurably = fn; },
+    mapMutation: ({ entity, kind }) => {
+      assert.equal(kind, "sale");
+      return {
+        type: "SALE_INVOICE",
+        payload: {
+          customerId: entity.customerObj?.id ?? null,
+          warehouse: entity.warehouse,
+          invoice: entity
+        }
+      };
+    },
+    uuid: () => "runtime-truck-sale-001",
+    now: () => new Date("2026-10-28T12:00:00.000Z")
+  });
+  installer.install();
+
+  assert.equal(await context.runActualV42Sale(), true);
+  const pending = storage.json(MUTATION_KEYS.pending);
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].status, "PENDING");
+  assert.equal(pending[0].type, "SALE_INVOICE");
+  assert.equal(pending[0].payload.invoice.warehouse, "شاحنة 1");
+  assert.equal(pending[0].payload.v42Ledger.stockMovements.length, 1);
+  assert.equal(pending[0].payload.v42Ledger.stockMovements[0].warehouse, "شاحنة 1");
+  assert.equal(pending[0].payload.v42Ledger.auditTrail.length, 1);
+  const opId = pending[0].opId;
+  assert.equal(pending[0].payload.v42Ledger.auditTrail[0].opId, opId);
+  assert.equal(context.AppData.auditTrail[0].opId, opId);
+  assert.equal(context.AppData.products[0].stock, 90, "main warehouse stock must not be changed by a truck sale");
+  assert.equal(context.AppData.products[0].warehouseStock["شاحنة 1"], 10);
+
+  const result = await windowObject.anasFirebaseSyncPush();
+  assert.equal(result.status, "synced");
+  assert.deepEqual(eventOrder, ["push", "pull", "push"]);
+  assert.equal(cloud.revision, 2);
+  assert.equal(cloud.data.products[0].stock, 90, "cloud main warehouse stock must remain unchanged");
+  assert.equal(cloud.data.products[0].warehouseStock["شاحنة 1"], 10, "cloud truck stock must be decremented exactly once");
+  assert.equal(cloud.data.caisseBalance, 55000);
+  assert.equal(cloud.data.invoices.filter(row => row?.syncOpId === opId).length, 1);
+  assert.equal(cloud.data.stockMovements.filter(row => row.referenceId === pending[0].payload.invoice.id && row.warehouse === "شاحنة 1").length, 1);
+  assert.equal(cloud.data.auditTrail.filter(row => row?.opId === opId && row.eventType === "SALE_COMMITTED").length, 1);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.equal(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")), false);
+  assert.equal(installer.uninstall(), true);
+});
+
+test("actual V42 sale rollback removes audit, invoice, truck stock and cash changes when saveDB rejects", async () => {
+  const initial = fixture();
+  initial.products[0].warehouseStock = { "شاحنة 1": 12 };
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]",
+    [MUTATION_KEYS.rescue]: "null",
+    [MUTATION_KEYS.quarantined]: "[]",
+    [MUTATION_KEYS.revision]: "0"
+  });
+  const alerts = [];
+  const elements = {
+    hasibCustomerSelect: { value: "" },
+    hasibPaidAmount: { value: "1000" },
+    hasibPaymentChannel: { value: "cash" }
+  };
+  const context = {
+    AppData: structuredClone(initial),
+    posCart: [{ id: "item_a", name: "صنف اختبار", qty: 2, price: 500 }],
+    lastConfirmedInvoice: null,
+    Date, Math, Number, String, Set, Map, Array, Object, JSON, BigInt, structuredClone,
+    document: { getElementById: id => elements[id] || null },
+    wtTryEnsureData: () => true,
+    wtCurrentSaleWarehouse: () => "شاحنة 1",
+    wtAvailableStock: (product, warehouse) => Number(product.warehouseStock?.[warehouse] ?? 0),
+    anasGetPosCartDiscountCents: () => 0,
+    alert: message => alerts.push(String(message)),
+    updateCashUI: () => {},
+    renderCustomersDebts: () => {},
+    renderPosTable: () => {},
+    closeModal: () => {},
+    showInvoicePostSaveActions: () => {},
+    console,
+    saveDB: () => false,
+    saveDBDurably: async () => true
+  };
+  vm.createContext(context);
+  vm.runInContext([
+    reverseLedgerSource,
+    extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"),
+    extractFunction("anasToCents", "value"),
+    extractFunction("anasToQtyUnits", "value"),
+    extractFunction("anasCentsToCurrency", "cents"),
+    extractFunction("anasQtyFromUnits", "units"),
+    extractFunction("anasLineTotalCents", "qtyUnits, priceCents"),
+    "const ANAS_QTY_SCALE = 1000000;",
+    extractFunction("confirmHasibPaymentDurable"),
+    "globalThis.runActualV42Sale = confirmHasibPaymentDurable;"
+  ].join("\n"), context);
+
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => ({ data: cloudV1(), revision: 1 }),
+    pushCloud: async () => ({ status: 200, revision: 2 })
+  });
+  const installer = installV42RuntimeWiring({
+    windowObject: {}, storage, orchestrator,
+    getAppData: () => context.AppData,
+    setAppData: value => { context.AppData = value; },
+    getSaveDB: () => context.saveDB,
+    setSaveDB: fn => { context.saveDB = fn; },
+    getSaveDBDurably: () => context.saveDBDurably,
+    setSaveDBDurably: fn => { context.saveDBDurably = fn; },
+    mapMutation: ({ entity }) => ({
+      type: "SALE_INVOICE",
+      payload: { customerId: null, warehouse: entity.warehouse, invoice: entity }
+    }),
+    uuid: () => "runtime-truck-rollback-001",
+    now: () => new Date("2026-10-28T12:00:00.000Z")
+  });
+  installer.install();
+
+  assert.equal(await context.runActualV42Sale(), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(context.AppData, "auditTrail"), false);
+  assert.deepEqual(context.AppData.invoices, []);
+  assert.deepEqual(context.AppData.cashMovements, []);
+  assert.deepEqual(context.AppData.stockMovements, []);
+  assert.equal(context.AppData.caisseBalance, 54000);
+  assert.equal(context.AppData.products[0].stock, 90);
+  assert.equal(context.AppData.products[0].warehouseStock["شاحنة 1"], 12);
+  assert.equal(context.AppData.customers[0].debt, 26000);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.deepEqual(storage.json(MUTATION_KEYS.appData), initial);
+  assert.ok(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")));
+  assert.equal(installer.uninstall(), true);
 });
