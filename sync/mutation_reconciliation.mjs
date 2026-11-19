@@ -201,7 +201,13 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           markApplied();
           appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "CASH_MOVEMENT_ENTITY_EXISTS" });
         } else {
-          review.push({ opId: op.opId, reason: "CASH_MOVEMENT_ID_COLLISION_OR_INCOMPLETE_BUNDLE", operation: op });
+          review.push({
+            opId: op.opId,
+            reason: !customerMatches || !operationMatches || existingAmountCents !== amountCents
+              ? "CASH_MOVEMENT_ID_COLLISION"
+              : "V42_COLLECTION_LEDGER_INCOMPLETE",
+            operation: op
+          });
         }
         continue;
       }

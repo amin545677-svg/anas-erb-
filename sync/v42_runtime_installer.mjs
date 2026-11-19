@@ -85,7 +85,7 @@ export function installV42RuntimeWiring({
             throw new Error("Existing " + key + " ledger row was modified during a new operation");
           }
         } else {
-          added.push(structuredClone(row));
+          added.push(row);
         }
       }
       if (previousRows.some(row => !currentIds.has(String(row[field])))) {
@@ -139,11 +139,11 @@ export function installV42RuntimeWiring({
       const payload = structuredClone(mapped.payload);
       payload.invoice = structuredClone(invoice);
       payload.v42Ledger = {
-        cashMovements: deltas.cashMovements,
-        bankMovements: deltas.bankMovements,
-        stockMovements: deltas.stockMovements,
-        clientMovements: deltas.clientMovements,
-        settlementAllocations: deltas.settlementAllocations
+        cashMovements: structuredClone(deltas.cashMovements),
+        bankMovements: structuredClone(deltas.bankMovements),
+        stockMovements: structuredClone(deltas.stockMovements),
+        clientMovements: structuredClone(deltas.clientMovements),
+        settlementAllocations: structuredClone(deltas.settlementAllocations)
       };
       const operation = createMutationEnvelope({ type: mapped.type, payload, now, uuid });
       return { entity: invoice, operation };
@@ -174,35 +174,37 @@ export function installV42RuntimeWiring({
     }
     const payload = structuredClone(mapped.payload);
     const customerId = String(movement.referenceId);
-    const receipts = deltas.clientMovements.filter(row =>
-      row?.type === "receipt" &&
-      String(row?.referenceType || "").toLowerCase() === "customer_debt" &&
-      String(row?.referenceId ?? "") === customerId &&
-      String(row?.clientId ?? "") === customerId
-    );
-    const openingRows = deltas.clientMovements.filter(row => row?.type === "opening_balance");
-    if (deltas.clientMovements.some(row =>
-        !row || String(row.clientId ?? "") !== customerId ||
-        !["receipt", "opening_balance"].includes(row.type)) ||
-        receipts.length !== 1 ||
-        receipts[0].direction !== "credit" ||
-        openingRows.length > 1 ||
-        openingRows.some(row =>
-          String(row.referenceType || "").toLowerCase() !== "opening_balance" ||
-          String(row.referenceId ?? "") !== customerId ||
-          row.direction !== "debit") ||
-        deltas.settlementAllocations.some(row =>
-          !row || row.partyType !== "customer" ||
-          String(row.partyId) !== customerId ||
-          row.invoiceType !== "sales_invoice" ||
-          String(row.sourceMovementId) !== String(movement.id) ||
-          row.sourceMovementType !== "customer_debt")) {
-      throw new Error("V42 customer collection ledger bundle is incomplete or unrelated");
+    if (deltas.clientMovements.length || deltas.settlementAllocations.length) {
+      const receipts = deltas.clientMovements.filter(row =>
+        row?.type === "receipt" &&
+        String(row?.referenceType || "").toLowerCase() === "customer_debt" &&
+        String(row?.referenceId ?? "") === customerId &&
+        String(row?.clientId ?? "") === customerId
+      );
+      const openingRows = deltas.clientMovements.filter(row => row?.type === "opening_balance");
+      if (deltas.clientMovements.some(row =>
+          !row || String(row.clientId ?? "") !== customerId ||
+          !["receipt", "opening_balance"].includes(row.type)) ||
+          receipts.length !== 1 ||
+          receipts[0].direction !== "credit" ||
+          openingRows.length > 1 ||
+          openingRows.some(row =>
+            String(row.referenceType || "").toLowerCase() !== "opening_balance" ||
+            String(row.referenceId ?? "") !== customerId ||
+            row.direction !== "debit") ||
+          deltas.settlementAllocations.some(row =>
+            !row || row.partyType !== "customer" ||
+            String(row.partyId) !== customerId ||
+            row.invoiceType !== "sales_invoice" ||
+            String(row.sourceMovementId) !== String(movement.id) ||
+            row.sourceMovementType !== "customer_debt")) {
+        throw new Error("V42 customer collection ledger bundle is incomplete or unrelated");
+      }
+      payload.v42Ledger = {
+        clientMovements: structuredClone(deltas.clientMovements),
+        settlementAllocations: structuredClone(deltas.settlementAllocations)
+      };
     }
-    payload.v42Ledger = {
-      clientMovements: deltas.clientMovements,
-      settlementAllocations: deltas.settlementAllocations
-    };
     const operation = createMutationEnvelope({ type: mapped.type, payload, now, uuid });
     return { entity: movement, operation };
   }
