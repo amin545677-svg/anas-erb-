@@ -598,3 +598,137 @@ test("runtime wiring rejects unrelated business writes bundled with a supported 
     installer.uninstall();
   }
 });
+
+test("runtime wiring posts actual V42 partial and credit sales as complete composite mutations after HTTP 409", async () => {
+  for (const scenario of [
+    { name: "partial", paid: "400", expectedCash: 54400, expectedDebt: 26600, paidCentimes: 40000, remainingCentimes: 60000 },
+    { name: "credit", paid: "0", expectedCash: 54000, expectedDebt: 27000, paidCentimes: 0, remainingCentimes: 100000 }
+  ]) {
+    const initial = fixture();
+    const storage = new MemoryStorage({
+      [MUTATION_KEYS.appData]: JSON.stringify(initial),
+      [MUTATION_KEYS.pending]: "[]",
+      [MUTATION_KEYS.rescue]: "null",
+      [MUTATION_KEYS.quarantined]: "[]",
+      [MUTATION_KEYS.revision]: "0"
+    });
+    const alerts = [];
+    const elements = {
+      hasibCustomerSelect: { value: "cust_1" },
+      hasibPaidAmount: { value: scenario.paid },
+      hasibPaymentChannel: { value: "cash" }
+    };
+    const context = {
+      AppData: structuredClone(initial),
+      posCart: [{ id: "item_a", name: "صنف اختبار", qty: 2, price: 500 }],
+      lastConfirmedInvoice: null,
+      Date, Math, Number, String, Set, Map, Array, Object, JSON,
+      document: { getElementById: id => elements[id] || null },
+      wtTryEnsureData: () => true,
+      wtCurrentSaleWarehouse: () => "المخزن الرئيسي",
+      wtAvailableStock: product => Number(product.stock) || 0,
+      alert: message => alerts.push(String(message)),
+      updateCashUI: () => {},
+      renderCustomersDebts: () => {},
+      renderPosTable: () => {},
+      closeModal: () => {},
+      console,
+      saveDB: () => {
+        storage.setItem(MUTATION_KEYS.appData, JSON.stringify(context.AppData));
+        return true;
+      },
+      saveDBDurably: async () => true
+    };
+    vm.createContext(context);
+    vm.runInContext([
+      reverseLedgerSource,
+      extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"),
+      extractFunction("anasToCents", "value"),
+      extractFunction("anasToQtyUnits", "value"),
+      extractFunction("anasCentsToCurrency", "cents"),
+      extractFunction("anasQtyFromUnits", "units"),
+      "const ANAS_QTY_SCALE = 1000000;",
+      extractFunction("confirmHasibPayment"),
+      "globalThis.runActualV42Sale = confirmHasibPayment;"
+    ].join("\n"), context);
+
+    let cloud = { data: cloudV1(), revision: 1 };
+    let firstPush = true;
+    const eventOrder = [];
+    const orchestrator = createMutationQueueOrchestrator({
+      storage,
+      pullCloud: async () => {
+        eventOrder.push("pull");
+        return structuredClone(cloud);
+      },
+      pushCloud: async ({ data, baseRevision }) => {
+        eventOrder.push("push");
+        if (firstPush) {
+          firstPush = false;
+          return { status: 409 };
+        }
+        if (baseRevision !== cloud.revision) return { status: 409 };
+        cloud = { data: structuredClone(data), revision: cloud.revision + 1 };
+        return { status: 200, revision: cloud.revision };
+      }
+    });
+    const windowObject = {};
+    const installer = installV42RuntimeWiring({
+      windowObject,
+      storage,
+      orchestrator,
+      getAppData: () => context.AppData,
+      setAppData: value => { context.AppData = value; },
+      getSaveDB: () => context.saveDB,
+      setSaveDB: fn => { context.saveDB = fn; },
+      getSaveDBDurably: () => context.saveDBDurably,
+      setSaveDBDurably: fn => { context.saveDBDurably = fn; },
+      mapMutation: ({ entity, kind }) => {
+        assert.equal(kind, "sale");
+        return {
+          type: "SALE_INVOICE",
+          payload: {
+            customerId: entity.customerObj?.id ?? null,
+            warehouse: entity.warehouse,
+            invoice: entity
+          }
+        };
+      },
+      uuid: () => "runtime-sale-" + scenario.name,
+      now: () => new Date("2026-10-28T12:00:00.000Z")
+    });
+
+    installer.install();
+    context.runActualV42Sale();
+    assert.equal(await context.saveDBDurably(), true);
+    const pending = storage.json(MUTATION_KEYS.pending);
+    assert.equal(pending.length, 1, scenario.name + ": exactly one operation must be journaled");
+    assert.equal(pending[0].status, "PENDING");
+    assert.equal(pending[0].type, "SALE_INVOICE");
+    assert.equal(pending[0].payload.invoice.total, 1000);
+    assert.equal(pending[0].payload.invoice.paid, scenario.paidCentimes / 100);
+    assert.equal(pending[0].payload.invoice.remaining, scenario.remainingCentimes / 100);
+    assert.equal(pending[0].payload.v42Ledger.cashMovements.length, scenario.paidCentimes > 0 ? 1 : 0);
+    assert.equal(pending[0].payload.v42Ledger.stockMovements.length, 1);
+    assert.equal(pending[0].payload.v42Ledger.clientMovements.filter(row => row.type === "invoice_debit").length, 1);
+    assert.equal(pending[0].payload.v42Ledger.clientMovements.find(row => row.type === "invoice_debit").amountCentimes, scenario.remainingCentimes);
+    assert.equal(pending[0].payload.v42Ledger.settlementAllocations.length, scenario.paidCentimes > 0 ? 1 : 0);
+    const stableOpId = pending[0].opId;
+
+    const result = await windowObject.anasFirebaseSyncPush();
+    assert.equal(result.status, "synced", scenario.name + ": 409 must reconcile and safely retry");
+    assert.deepEqual(eventOrder, ["push", "pull", "push"]);
+    assert.equal(cloud.revision, 2);
+    assert.equal(cloud.data.products[0].stock, 88);
+    assert.equal(cloud.data.caisseBalance, scenario.expectedCash);
+    assert.equal(cloud.data.customers[0].debt, scenario.expectedDebt);
+    assert.equal(cloud.data.invoices.filter(row => row?.syncOpId === stableOpId).length, 1);
+    assert.equal(cloud.data.stockMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, 1);
+    assert.equal(cloud.data.cashMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, scenario.paidCentimes > 0 ? 1 : 0);
+    assert.equal(cloud.data.clientMovements.filter(row => row.type === "invoice_debit" && row.referenceId === pending[0].payload.invoice.id && row.amountCentimes === scenario.remainingCentimes).length, 1);
+    assert.equal(cloud.data.settlementAllocations.filter(row => row.sourceMovementId === (pending[0].payload.v42Ledger.cashMovements[0]?.id ?? "")).length, scenario.paidCentimes > 0 ? 1 : 0);
+    assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+    assert.equal(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")), false);
+    assert.equal(installer.uninstall(), true);
+  }
+});
