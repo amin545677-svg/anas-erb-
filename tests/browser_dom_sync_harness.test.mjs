@@ -256,8 +256,8 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
     queue: ANASResilientStorage.decode(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
   }));
   assert.equal(beforeSync.queue.length, 1);
-  // A durable V42 save is still awaiting acknowledgement here; PREPARED must not replay until sync recovery verifies the committed AppData marker.
-  assert.equal(beforeSync.queue[0].status, "PREPARED");
+  // collectCustDebt awaits the V42 durable-save wrapper; a committed snapshot is promoted to PENDING before sync starts.
+  assert.equal(beforeSync.queue[0].status, "PENDING");
   assert.equal(beforeSync.queue[0].payload.amount, 500.5);
   const sync = await page.evaluate(() => window.anasFirebaseSyncPush());
   assert.equal(sync.status, "synced");
@@ -334,7 +334,7 @@ test("multi-line sale is quarantined atomically and browser DOM shows quarantine
   const mock = { cloud: { data: cloud, revision: 1 }, firstPushConflict: false, posts: 0, pulls: 0 };
   await setMockCloudRoutes(page, mock);
   await installHarness(page, { cloudV1: mock.cloud });
-  await page.evaluate(() => {
+  const preparedSale = await page.evaluate(async () => {
     AppData.invoices.push({
       id: "browser-multi-line-invoice",
       items: [
@@ -344,8 +344,21 @@ test("multi-line sale is quarantined atomically and browser DOM shows quarantine
       total: 30, paid: 30, remaining: 0,
       warehouse: "المخزن الرئيسي", warehouseName: "المخزن الرئيسي"
     });
-    saveDB();
+    const saved = saveDB();
+    if (saved !== true) throw new Error("V42 sale capture did not persist the prepared snapshot");
+    const durable = await saveDBDurably();
+    if (durable !== true) throw new Error("V42 sale durable save was not acknowledged");
+    return {
+      app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
+      queue: ANASResilientStorage.decode(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
+    };
   });
+  assert.equal(preparedSale.queue.length, 1, "one multi-line sale must be durably journaled");
+  assert.equal(preparedSale.queue[0].type, "SALE_INVOICE");
+  assert.equal(preparedSale.queue[0].status, "PENDING", "sale must be replayable only after durable acknowledgement");
+  assert.equal(preparedSale.queue[0].payload.invoice.id, "browser-multi-line-invoice");
+  assert.equal(preparedSale.queue[0].payload.invoice.items.length, 2, "both invoice lines must be captured");
+  assert.ok(preparedSale.app.appliedOpIds.includes(preparedSale.queue[0].opId), "durable AppData must contain the operation marker");
   const result = await page.evaluate(() => window.anasFirebaseSyncPull());
   assert.equal(result.status, "synced");
   const state = await page.evaluate(() => ({
