@@ -51,9 +51,9 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(erp, /ANASFinancialIntegerEngine = Object\.freeze/);
     assert.match(erp, /typeof window\.saveDBDurably === 'function'/, 'bridge readiness must require the durable persistence API');
     assert.match(erp, /anasCompareProductNames/);
-    assert.match(erp, /Build SHA: 1234567 \| SW: r41 \| Env: Staging/, 'explicit ANAS_BUILD_SHA must override runner checkout metadata and match the deployment SHA');
-    assert.match(erp, /data-build-version="r41"/, 'the static status bar must carry the generated r41 identity');
-    assert.match(erp, /<span id="anas-status-version-badge">SW: r41 \| Build SHA: 1234567<\/span>/, 'the status bar must expose the same build SHA as the About-app stamp');
+    assert.match(erp, /Build SHA: 1234567 \| SW: r42 \| Env: Staging/, 'explicit ANAS_BUILD_SHA must override runner checkout metadata and match the deployment SHA');
+    assert.match(erp, /data-build-version="r42"/, 'the static status bar must carry the generated r42 identity');
+    assert.match(erp, /<span id="anas-status-version-badge">SW: r42 \| Build SHA: 1234567<\/span>/, 'the status bar must expose the same build SHA as the About-app stamp');
     assert.doesNotMatch(erp.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/)?.[0] || '', /r39/, 'the generated status bar must not retain the old r39 identity');
     assert.match(erp, /anas-pos-floating-cart\.js/);
     assert.match(erp, /anas-pos-floating-cart\.css/);
@@ -91,7 +91,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(importCss, /\.anas-ai-import-head \{ background:linear-gradient\(115deg,#1e293b,#334155\)/,
       'AI import header must use a calm navy palette');
 
-    assert.match(serviceWorker, /anas-erp-v54-25-r41/, 'built PWA must install the r41 cache namespace');
+    assert.match(serviceWorker, /anas-erp-v54-25-r42/, 'built PWA must install the r42 cache namespace');
     const recoveryRuntime = await fs.readFile(path.join(outDir, 'erp/sync/v42-prepared-recovery-runtime.mjs'), 'utf8');
     assert.match(recoveryRuntime, /recoverPreparedMutationsOnBoot/);
     const syncBootstrap = await fs.readFile(path.join(outDir, 'erp/sync/v42_runtime_bootstrap.mjs'), 'utf8');
@@ -248,7 +248,7 @@ test('includes App Check in the reverse-ledger console config only when a site k
 });
 
 
-test('live staging verification binds hosted ERP to the exact deployment SHA and r41 cache namespace', async () => {
+test('live staging verification binds hosted ERP to the exact deployment SHA and r42 cache namespace', async () => {
   const rootDir = path.resolve('.');
   const workflow = await fs.readFile(
     path.join(rootDir, '.github/workflows/deploy-reverse-ledger-console-staging.yml'),
@@ -259,11 +259,11 @@ test('live staging verification binds hosted ERP to the exact deployment SHA and
   assert.ok(workflow.includes('short_sha="${DEPLOY_SHA:0:7}"'),
     'live verification must derive the build stamp from the deployment SHA');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/" "exact deployed commit and r41 build stamp" "Build SHA: ${short_sha} | SW: r41 | Env: Staging"'
-  ), 'live ERP HTML must prove the exact deployed commit and r41 build stamp');
+    'fetch_expect "/erp/" "exact deployed commit and r42 build stamp" "Build SHA: ${short_sha} | SW: r42 | Env: Staging"'
+  ), 'live ERP HTML must prove the exact deployed commit and r42 build stamp');
   assert.ok(workflow.includes(
-    'fetch_expect "/erp/sw.js" "r41 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r41\';"'
-  ), 'live service worker must prove the expected r41 cache namespace');
+    'fetch_expect "/erp/sw.js" "r42 service-worker cache namespace" "const CACHE = \'anas-erp-v54-25-r42\';"'
+  ), 'live service worker must prove the expected r42 cache namespace');
   assert.ok(workflow.includes(
     'fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"'
   ), 'live ERP must prove the V42 PREPARED recovery module is served');
