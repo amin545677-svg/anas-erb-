@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
-const file = 'index.html';
+const file = process.argv[2] || 'index.html';
 let html = fs.readFileSync(file, 'utf8');
 const before = Buffer.byteLength(html, 'utf8');
 if (html.includes('id="anas-pos-search-first-v1"') &&
