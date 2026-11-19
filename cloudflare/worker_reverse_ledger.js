@@ -1,3 +1,4 @@
+import { runFirestoreRestTransaction } from "./firestore_rest_transaction.mjs";
 import { requestHash } from "../functions/shared-application-core.mjs";
 import { prepareFinancialMigration } from "../functions/financial-migration-coordinator.mjs";
 /**
@@ -213,7 +214,7 @@ async function readDocument(env,path,transaction) {
   const suffix=transaction ? "?transaction="+encodeURIComponent(transaction) : "";
   const {response,data} = await firestoreRequest(env,path+suffix);
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error("Trusted Firestore read failed");
+  if (!response.ok) { const error = new Error(data.error?.message || "Trusted Firestore read failed"); error.code = data.error?.status || String(response.status); error.httpStatus = response.status; throw error; }
   return { fields:decodeFields(data.fields || {}), name:data.name, updateTime:data.updateTime || null };
 }
 async function firestoreAction(env,action,init={}) {
@@ -262,12 +263,17 @@ async function reserveOperation(env, uid, requestData) {
   if (!permission) throw new Error("Unsupported reverse operation type");
   const invoiceId = required(requestData.invoiceId,"invoice ID",160);
   const periodId = required(requestData.periodId,"financial period ID",128);
-  const transaction = await beginTransaction(env);
-  try {
+
+  return runFirestoreRestTransaction({
+    beginTransaction: () => beginTransaction(env),
+    readDocument: (path, transaction) => readDocument(env, path, transaction),
+    commitTransaction: (transaction, writes) => commitTransaction(env, transaction, writes),
+    rollbackTransaction: transaction => rollbackTransaction(env, transaction)
+  }, async ({ get }) => {
     const [grantDoc,periodDoc,existingOperation] = await Promise.all([
-      readDocument(env,"reverseLedgerGrants/"+encodeURIComponent(uid),transaction),
-      readDocument(env,"financialPeriods/"+encodeURIComponent(periodId),transaction),
-      readDocument(env,"reverseLedgerOperations/"+encodeURIComponent(operationId),transaction)
+      get("reverseLedgerGrants/"+encodeURIComponent(uid)),
+      get("financialPeriods/"+encodeURIComponent(periodId)),
+      get("reverseLedgerOperations/"+encodeURIComponent(operationId))
     ]);
     if(existingOperation) throw new Error("Operation ID is already reserved; duplicate posting is blocked");
     const grant=grantDoc?.fields;
@@ -287,18 +293,8 @@ async function reserveOperation(env, uid, requestData) {
       update:{name,fields:Object.fromEntries(Object.entries(reservation).map(([k,v])=>[k,firestoreFields(v)]))},
       currentDocument:{exists:false}
     };
-    const committed=await commitTransaction(env,transaction,[write]);
-    if(!committed.response.ok) {
-      const code=String(committed.data.error?.status||"");
-      if(code==="ALREADY_EXISTS"||code==="ABORTED"||code==="FAILED_PRECONDITION")
-        throw new Error("Operation ID is already reserved or a trusted grant/period changed; retry with a new verified operation");
-      throw new Error("Atomic Firestore operation reservation failed");
-    }
-    return reservation;
-  } catch(error) {
-    await rollbackTransaction(env,transaction);
-    throw error;
-  }
+    return { writes:[write], result:reservation };
+  });
 }
 async function readLimited(request) {
   const reader=request.body?.getReader(); if(!reader) return "";
