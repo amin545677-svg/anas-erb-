@@ -307,9 +307,12 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   // Compare the monetary value, not ICU/browser-specific presentation characters.
   const normalizedRenderedDebt = finalState.renderedDebt
     .normalize("NFKC")
-    .replace(/[\\s\\u00a0\\u202f]/g, "")
-    .replace(/[،٬]/g, ",")
-    .replace(/,/g, ".");
+    .replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[\\s\\u00a0\\u202f٬]/g, "")
+    .replace(/٫/g, ".")
+    .replace(/,(?=\\d{1,2}(?:\\D|$))/g, ".")
+    .replace(/,/g, "");
   assert.ok(normalizedRenderedDebt.includes("18999.5"),
     "customer debt must be rendered in the DOM as exactly 18,999.50 DZD; got: " + finalState.renderedDebt);
   assert.ok(externalRequests.every(url => !url.startsWith(origin)), "all attempted external requests must be blocked by the browser route");
