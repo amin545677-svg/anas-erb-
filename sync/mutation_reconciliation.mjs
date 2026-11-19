@@ -413,7 +413,12 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           markApplied();
           appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "VERIFIED_INVOICE_AND_LEDGER_BUNDLE" });
         } else {
-          review.push({ opId: op.opId, reason: sameInvoice ? "INVOICE_LEDGER_BUNDLE_INCOMPLETE" : "INVOICE_ID_COLLISION", operation: op });
+          review.push({
+            opId: op.opId,
+            reason: sameInvoice && payload.v42Ledger !== undefined
+              ? "INVOICE_LEDGER_BUNDLE_INCOMPLETE" : "INVOICE_ID_COLLISION",
+            operation: op
+          });
         }
         continue;
       }

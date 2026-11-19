@@ -192,7 +192,7 @@ test("existing invoice is skipped only when its operation marker and full payloa
   assert.deepEqual(result.appliedNow, [{
     opId: op.opId,
     outcome: "already-applied",
-    reason: "VERIFIED_INVOICE_OPERATION_MARKER"
+    reason: "VERIFIED_INVOICE_AND_LEDGER_BUNDLE"
   }]);
   assert.equal(result.snapshot.products[0].stock, 90, "verified duplicate must not deduct stock twice");
   assert.equal(result.snapshot.caisseBalance, 54000, "verified duplicate must not add cash twice");

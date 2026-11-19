@@ -160,8 +160,7 @@ export function installV42RuntimeWiring({
       return { entity: invoice, operation };
     }
 
-    if (deltas.bankMovements.length || deltas.stockMovements.length ||
-        deltas.clientMovements.length || deltas.settlementAllocations.length) return null;
+    if (deltas.bankMovements.length || deltas.stockMovements.length) return null;
     const movement = deltas.cashMovements[0] || null;
     if (deltas.cashMovements.length > 1) return null;
     if (!movement) return null;
