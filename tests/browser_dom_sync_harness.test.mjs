@@ -150,6 +150,7 @@ async function installHarness(page, { firstPushConflict = false, cloudV1 = null 
         return window.ANASResilientStorage.setItem(key, decoded);
       },
       removeItem(key) { return window.ANASResilientStorage.removeSync(key); },
+      flush() { return window.ANASResilientStorage.flushDurableItems(); },
       getCommittedSnapshot() { return window.ANASResilientStorage.getCommittedSnapshot(); }
     };
     const orchestrator = createMutationQueueOrchestrator({ storage: bridgeStorage, pullCloud, pushCloud });
@@ -237,6 +238,41 @@ async function seedCollectionV1(page) {
     return v1;
   });
 }
+
+test("offline mutation journal is durably stored in IndexedDB and recovered after reload", async t => {
+  const { page } = await openIsolatedPage(t);
+  await page.evaluate(async () => {
+    const entries = [
+      { opId: "offline-cash-sale", type: "SALE_INVOICE", status: "PENDING", payload: { invoice: { id: "i-cash" } } },
+      { opId: "offline-credit-sale", type: "SALE_INVOICE", status: "PENDING", payload: { invoice: { id: "i-credit" } } },
+      { opId: "offline-debt-collection", type: "DEBT_COLLECTION", status: "PENDING", payload: { customerId: "cust-browser-1", amount: 100 } }
+    ];
+    await ANASResilientStorage.setItem(PENDING_KEY, entries);
+    await ANASResilientStorage.flushDurableItems();
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(ANASResilientStorage.DB_NAME);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const record = await new Promise((resolve, reject) => {
+      const request = db.transaction(ANASResilientStorage.STORE_NAME, "readonly")
+        .objectStore(ANASResilientStorage.STORE_NAME).get(PENDING_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    if (!record || typeof record.payload !== "string" || typeof record.checksum !== "string") {
+      throw new Error("MUTATION_QUEUE_NOT_DURABLE_IN_INDEXEDDB");
+    }
+    localStorage.removeItem(PENDING_KEY);
+    db.close();
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.ANASResilientStorage?.ready?.() === true, null, { timeout: 15000 });
+  const recovered = await page.evaluate(() => ANASResilientStorage.getItem(PENDING_KEY));
+  assert.deepEqual(recovered.map(item => item.opId), [
+    "offline-cash-sale", "offline-credit-sale", "offline-debt-collection"
+  ], "IndexedDB must restore pending operations when the localStorage mirror is absent");
+});
 
 test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal ledger", async t => {
   const { page, errors, externalRequests } = await openIsolatedPage(t);
