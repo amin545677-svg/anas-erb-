@@ -8,9 +8,16 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   const digitFmt=new Intl.NumberFormat(locale,{useGrouping:false,maximumFractionDigits:0});
   const map=new Map();
   for(let n=0;n<=9;n++) map.set(digitFmt.formatToParts(n).filter(p=>p.type==="integer").map(p=>p.value).join(""),String(n));
+  // Accept Arabic-Indic and Eastern Arabic-Indic input independently of the
+  // locale's preferred numbering system (e.g. Arabic digits typed in fr-DZ).
+  for (const [digits] of [["٠١٢٣٤٥٦٧٨٩"], ["۰۱۲۳۴۵۶۷۸۹"]]) {
+    [...digits].forEach((glyph, index) => map.set(glyph, String(index)));
+  }
   let value=input.normalize("NFKC");
   for(const [glyph,ascii] of map)value=value.split(glyph).join(ascii);
   if(group)value=value.split(group).join("");
+  value=value.split("\\u066c").join("");
+  value=value.split("\\u066b").join(decimal);
   value=value.split(minus).join("-").replace(/[\s\u00a0\u202f\u200e\u200f\u061c]/g,"");
   value=[...value].filter(ch=>/[0-9]/.test(ch)||ch===decimal||ch==="-").join("");
   const first=value.indexOf(decimal);
