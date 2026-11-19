@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { parseLocalizedMoneyToMinorUnits } from "./helpers/localized_money.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP_KEY = "ANAS_THE_ENTERPRISE_V11_OFFLINE";
@@ -303,18 +304,10 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   assert.deepEqual(finalState.queue, []);
   assert.ok(mock.pulls >= 1);
   assert.ok(mock.posts >= 2);
-  // fr-DZ uses a narrow no-break space for grouping and a comma decimal separator.
-  // Compare the monetary value, not ICU/browser-specific presentation characters.
-  const normalizedRenderedDebt = finalState.renderedDebt
-    .normalize("NFKC")
-    .replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
-    .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
-    .replace(/[\s\u00a0\u202f٬]/g, "")
-    .replace(/٫/g, ".")
-    .replace(/,(?=\d{1,2}(?:\D|$))/g, ".")
-    .replace(/,/g, "");
-  assert.ok(normalizedRenderedDebt.includes("18999.5"),
-    "customer debt must be rendered in the DOM as exactly 18,999.50 DZD; got: " + finalState.renderedDebt);
+  // ICU supplies locale-specific separators and digit glyphs; no punctuation heuristics.
+  const renderedDebtMinorUnits = parseLocalizedMoneyToMinorUnits(finalState.renderedDebt, "fr-DZ");
+  assert.equal(renderedDebtMinorUnits, 1899950n,
+    "customer debt must render as exactly 1,899,950 centimes; got: " + finalState.renderedDebt);
   assert.ok(externalRequests.every(url => !url.startsWith(origin)), "all attempted external requests must be blocked by the browser route");
   assert.equal(errors.some(x => /v42_runtime_installer|mutation_queue_orchestrator/.test(x) && /ReferenceError|SyntaxError/.test(x)), false);
 });
