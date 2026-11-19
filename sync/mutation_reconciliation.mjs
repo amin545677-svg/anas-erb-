@@ -269,17 +269,62 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
             String(row.referenceId) === String(customer.id) &&
             Number.isSafeInteger(row.amountCentimes) && row.amountCentimes > 0);
         const invoiceRows = Array.isArray(snapshot.invoices) ? snapshot.invoices : [];
-        const validAllocations = allocationRows.length > 0 &&
-          allocationRows.every(row => row?.allocationId &&
-            row.partyType === "customer" &&
-            String(row.partyId) === String(customer.id) &&
-            row.invoiceType === "sales_invoice" &&
-            row.sourceMovementType === "customer_debt" &&
-            String(row.sourceMovementId) === movementId &&
-            Number.isSafeInteger(row.amountCentimes) && row.amountCentimes > 0 &&
-            invoiceRows.some(invoice => String(invoice?.id) === String(row.invoiceId) &&
-              String(invoice?.customerId ?? invoice?.customerObj?.id ?? "") === String(customer.id))) &&
-          allocationRows.reduce((sum, row) => sum + row.amountCentimes, 0) === amountCents;
+        const existingAllocations = Array.isArray(snapshot.settlementAllocations)
+          ? snapshot.settlementAllocations : [];
+        const incomingByInvoice = new Map();
+        let validAllocations = allocationRows.length > 0;
+        let allocationTotalCents = 0;
+        for (const row of allocationRows) {
+          const matches = invoiceRows.filter(invoice =>
+            String(invoice?.id) === String(row?.invoiceId) &&
+            String(invoice?.customerId ?? invoice?.customerObj?.id ?? "") === String(customer.id));
+          if (!row?.allocationId || row.partyType !== "customer" ||
+              String(row.partyId) !== String(customer.id) ||
+              row.invoiceType !== "sales_invoice" ||
+              row.sourceMovementType !== "customer_debt" ||
+              String(row.sourceMovementId) !== movementId ||
+              !Number.isSafeInteger(row.amountCentimes) || row.amountCentimes <= 0 ||
+              matches.length !== 1) {
+            validAllocations = false;
+            break;
+          }
+          const invoice = matches[0];
+          const totalCents = moneyCents(invoice.total);
+          const paidCents = moneyCents(invoice.paid ?? 0);
+          const originalRemainingCents = moneyCents(invoice.remaining);
+          if (![totalCents, paidCents, originalRemainingCents].every(Number.isSafeInteger) ||
+              totalCents <= 0 || paidCents < 0 || originalRemainingCents < 0 ||
+              paidCents + originalRemainingCents !== totalCents) {
+            validAllocations = false;
+            break;
+          }
+          let priorLaterAllocations = 0;
+          for (const prior of existingAllocations) {
+            if (prior?.partyType === "customer" &&
+                prior.invoiceType === "sales_invoice" &&
+                String(prior.invoiceId) === String(invoice.id) &&
+                prior.sourceMovementType === "customer_debt") {
+              if (!Number.isSafeInteger(prior.amountCentimes) || prior.amountCentimes <= 0 ||
+                  !Number.isSafeInteger(priorLaterAllocations + prior.amountCentimes)) {
+                validAllocations = false;
+                break;
+              }
+              priorLaterAllocations += prior.amountCentimes;
+            }
+          }
+          if (!validAllocations) break;
+          const currentRemainingCents = totalCents - paidCents - priorLaterAllocations;
+          const alreadyIncoming = incomingByInvoice.get(String(invoice.id)) || 0;
+          if (currentRemainingCents < 0 ||
+              row.amountCentimes > currentRemainingCents - alreadyIncoming ||
+              !Number.isSafeInteger(allocationTotalCents + row.amountCentimes)) {
+            validAllocations = false;
+            break;
+          }
+          incomingByInvoice.set(String(invoice.id), alreadyIncoming + row.amountCentimes);
+          allocationTotalCents += row.amountCentimes;
+        }
+        validAllocations = validAllocations && allocationTotalCents === amountCents;
         const validClientRows = clientRows.length === receipts.length + openings.length &&
           clientRows.every(row => row?.movementId &&
             String(row.clientId) === String(customer.id) &&

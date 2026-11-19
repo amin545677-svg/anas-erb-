@@ -557,3 +557,67 @@ test("V42 debt collection reconciliation preserves receipt, opening balance and 
   assert.equal(replay.snapshot.clientMovements.length, result.snapshot.clientMovements.length);
   assert.equal(replay.snapshot.settlementAllocations.length, result.snapshot.settlementAllocations.length);
 });
+
+
+test("quarantines a debt collection when another device has consumed the invoice FIFO balance", () => {
+  const initial = cloud();
+  initial.customers[0].debt = 1000;
+  initial.invoices = [{
+    id: "inv-overallocated", customerId: "cust_s",
+    total: 1000, paid: 0, remaining: 1000
+  }];
+  initial.settlementAllocations = [{
+    allocationId: "ALLOC-OTHER-DEVICE-900",
+    partyType: "customer", partyId: "cust_s",
+    invoiceType: "sales_invoice", invoiceId: "inv-overallocated",
+    sourceMovementId: "DEBT-OTHER-DEVICE-900",
+    sourceMovementType: "customer_debt", amountCentimes: 90000
+  }];
+  const op = {
+    opId: "collection-overallocated-after-409",
+    type: "DEBT_COLLECTION",
+    createdAt: "2026-10-28T12:00:00.000Z",
+    payload: {
+      customerId: "cust_s",
+      amount: 200,
+      cashMovementId: "DEBT-IN-OVERALLOCATED-200",
+      cashMovement: {
+        id: "DEBT-IN-OVERALLOCATED-200",
+        opId: "collection-overallocated-after-409",
+        type: "add", amount: 200,
+        referenceType: "customer_debt", referenceId: "cust_s"
+      },
+      v42Ledger: {
+        clientMovements: [
+          {
+            movementId: "CL-OPEN-OVERALLOCATED", clientId: "cust_s",
+            type: "opening_balance", amountCentimes: 120000,
+            direction: "debit", referenceType: "opening_balance",
+            referenceId: "cust_s", createdAt: "2026-10-28T12:00:00.000Z"
+          },
+          {
+            movementId: "CL-REC-OVERALLOCATED", clientId: "cust_s",
+            type: "receipt", amountCentimes: 20000,
+            direction: "credit", referenceType: "customer_debt",
+            referenceId: "cust_s", createdAt: "2026-10-28T12:00:00.000Z"
+          }
+        ],
+        settlementAllocations: [{
+          allocationId: "ALLOC-OVERALLOCATED-200",
+          partyType: "customer", partyId: "cust_s",
+          invoiceType: "sales_invoice", invoiceId: "inv-overallocated",
+          sourceMovementId: "DEBT-IN-OVERALLOCATED-200",
+          sourceMovementType: "customer_debt", amountCentimes: 20000,
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }]
+      }
+    }
+  };
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.equal(result.review.length, 1);
+  assert.equal(result.review[0].reason, "V42_COLLECTION_LEDGER_MISMATCH");
+  assert.equal(result.snapshot.customers[0].debt, 1000);
+  assert.equal(result.snapshot.caisseBalance, initial.caisseBalance);
+  assert.equal(result.snapshot.cashMovements.some(row => row.id === op.payload.cashMovementId), false);
+  assert.equal(result.snapshot.settlementAllocations.length, 1);
+});
