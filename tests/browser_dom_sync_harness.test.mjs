@@ -244,13 +244,43 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   const mock = { cloud, firstPushConflict: true, posts: 0, pulls: 0 };
   await setMockCloudRoutes(page, mock);
   await installHarness(page, { firstPushConflict: true, cloudV1: cloud });
-  await page.evaluate(async () => {
+  const lifecycle = await page.evaluate(async () => {
     window.prompt = message => String(message).startsWith("خصّص")
       ? JSON.stringify([{ invoiceId: "browser-debt-invoice", amount: "500.50" }])
       : "500.50";
     window.alert = () => {};
-    await collectCustDebt("cust-browser-1");
+
+    // Hold the real durable-save acknowledgement so the browser test can
+    // observe PREPARED before the wrapper is allowed to promote it.
+    const originalDurableSave = saveDBDurably;
+    let releaseDurableSave;
+    const durableSaveGate = new Promise(resolve => { releaseDurableSave = resolve; });
+    saveDBDurably = async function(...args) {
+      await durableSaveGate;
+      return originalDurableSave.apply(this, args);
+    };
+
+    try {
+      const collection = collectCustDebt("cust-browser-1");
+      const prepared = ANASResilientStorage.decode(
+        localStorage.getItem("ANAS_PENDING_MUTATIONS_V1")
+      );
+      const preparedStatus = prepared[0]?.status ?? null;
+      releaseDurableSave();
+      await collection;
+      const promoted = ANASResilientStorage.decode(
+        localStorage.getItem("ANAS_PENDING_MUTATIONS_V1")
+      );
+      return { preparedStatus, promotedStatus: promoted[0]?.status ?? null };
+    } finally {
+      releaseDurableSave();
+      saveDBDurably = originalDurableSave;
+    }
   });
+  assert.deepEqual(lifecycle, {
+    preparedStatus: "PREPARED",
+    promotedStatus: "PENDING"
+  }, "V42 must persist PREPARED before durable acknowledgement and promote only afterwards");
   const beforeSync = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
     queue: ANASResilientStorage.decode(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
