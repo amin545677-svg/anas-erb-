@@ -144,3 +144,37 @@ test("pushCurrent restores PREPARED intent then blocks all five server-owned fin
   assert.equal(persisted.length, 5);
   assert.ok(persisted.every(item => item.status === "PENDING"));
 });
+
+
+test("409 rollback preserves operations queued while the cloud request is in flight", async () => {
+  const originalAppData = { customers: [{ id: "c1", debt: 500 }], cashMovements: [], appliedOpIds: [] };
+  const originalPending = [{ opId: "op-before", type: "DEBT_COLLECTION", status: "PENDING", payload: {} }];
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: json(originalAppData),
+    [MUTATION_KEYS.pending]: json(originalPending),
+    [MUTATION_KEYS.revision]: json("rev-before"),
+    [MUTATION_KEYS.quarantined]: json([])
+  });
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    maxConflictRetries: 1,
+    pullCloud: async () => ({ data: { customers: [{ id: "c1", debt: 500 }], cashMovements: [], appliedOpIds: [] }, revision: "rev-cloud" }),
+    pushCloud: async () => {
+      const pending = read(storage, MUTATION_KEYS.pending);
+      storage.setItem(MUTATION_KEYS.pending, json([...pending, {
+        opId: "op-during-request", type: "SALE_INVOICE", status: "PENDING", payload: { invoice: { id: "i2" } }
+      }]));
+      return { status: 409 };
+    },
+    reconcile: snapshot => ({ snapshot: { ...snapshot, attemptOnlyField: true }, review: [], appliedNow: [] })
+  });
+
+  const result = await orchestrator.reconcileAndSync();
+  assert.equal(result.status, "conflict-limit");
+  assert.deepEqual(read(storage, MUTATION_KEYS.appData), originalAppData, "409 must roll back speculative AppData");
+  assert.equal(read(storage, MUTATION_KEYS.revision, null), "rev-before", "409 must restore the prior cloud revision");
+  assert.deepEqual(read(storage, MUTATION_KEYS.quarantined), [], "409 must not finalize speculative quarantine");
+  assert.deepEqual(read(storage, MUTATION_KEYS.pending).map(item => item.opId), ["op-before", "op-during-request"],
+    "newly queued offline work must survive conflict rollback");
+  assert.equal(storage.getItem(MUTATION_KEYS.rescue), null, "completed rollback must clear the rescue marker");
+});

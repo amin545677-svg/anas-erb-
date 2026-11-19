@@ -48,6 +48,22 @@ function restoreStorage(storage, captured) {
   }
 }
 
+/** Restore the attempt snapshot without dropping operations queued during network I/O. */
+function restoreAttemptStorage(storage, captured) {
+  const pendingKey = MUTATION_KEYS.pending;
+  const pendingBefore = captured[pendingKey] == null ? [] : JSON.parse(captured[pendingKey]);
+  const pendingDuringAttempt = readJson(storage, pendingKey, []);
+  const originalIds = new Set(pendingBefore.map(item => item?.opId).filter(Boolean));
+  const concurrent = pendingDuringAttempt.filter(item =>
+    item && typeof item.opId === "string" && item.opId && !originalIds.has(item.opId)
+  );
+  restoreStorage(storage, captured);
+  if (concurrent.length) {
+    const restored = readJson(storage, pendingKey, []);
+    writeJson(storage, pendingKey, uniqueByOpId([...restored, ...concurrent]));
+  }
+}
+
 /**
  * Persist a local mutation with a recoverable write-ahead journal.
  * The intent is written before AppData so a crash between keys can be recovered.
@@ -220,7 +236,7 @@ export function createMutationQueueOrchestrator({
         const response = await pushCloud({ data: structuredClone(result.snapshot), baseRevision: cloud.revision });
         if (statusOf(response) === 409) {
           lastConflict = { attempt, revision: cloud.revision };
-          restoreStorage(storage, before);
+          restoreAttemptStorage(storage, before);
           storage.removeItem(MUTATION_KEYS.rescue);
           continue;
         }
@@ -246,7 +262,7 @@ export function createMutationQueueOrchestrator({
         // A network error after the remote server accepted a request is ambiguous.
         // Restore local state but retain pending operations; retry relies on opId and
         // entity-level idempotency in the next pull/reconcile cycle.
-        restoreStorage(storage, before);
+        restoreAttemptStorage(storage, before);
         storage.removeItem(MUTATION_KEYS.rescue);
         if (isConflict(error)) {
           lastConflict = { attempt, revision: cloud?.revision ?? null };
