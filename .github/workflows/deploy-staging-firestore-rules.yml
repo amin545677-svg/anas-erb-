@@ -55,13 +55,13 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
-          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}&event=push&per_page=100`;
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs?head_sha=${encodeURIComponent(process.env.GITHUB_SHA)}&per_page=100`;
           const headers = { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json' };
           for (let i = 1; i <= 120; i++) {
             const response = await fetch(endpoint, { headers });
             if (!response.ok) throw new Error('Cannot inspect exact-SHA Staging Test Gate: HTTP ' + response.status);
             const data = await response.json();
-            const gate = (data.workflow_runs || []).find(run => run.name === 'Staging Test Gate' && run.head_sha === process.env.GITHUB_SHA && ['push', 'pull_request'].includes(run.event));
+            const gate = (data.workflow_runs || []).find(run => (run.path === '.github/workflows/staging-test-gate.yml' || run.name === 'Staging Test Gate') && run.head_sha === process.env.GITHUB_SHA && ['push', 'pull_request'].includes(run.event));
             if (gate?.status === 'completed') {
               if (gate.conclusion !== 'success') throw new Error('Exact-SHA Staging Test Gate failed: ' + gate.conclusion);
               console.log('PASS: exact-SHA Staging Test Gate ' + gate.id);
