@@ -23,7 +23,7 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
   assert.ok(html.includes('id="anas-live-status-bar"'));
   await page.setContent('<!doctype html><html><head><style>'+cartCss+'</style><style>'+inlineStyle('anas-r39-financial-numerals')+'</style></head><body>'+
     '<div id="anas-live-status-bar" data-network-state="online" data-durability-state="committed" data-build-version="r40"><span id="anas-status-network-badge"></span><span id="anas-status-durability-badge"></span><span id="anas-status-version-badge">SW: r40 | Build SHA: abcdef0</span></div><p id="anasBuildStamp">Build SHA: abcdef0 | SW: r40 | Env: Staging</p>'+
-    '<section id="view-pos" class="active"><div id="posItemsTableBody"></div></section>'+
+    '<section id="view-pos" class="active"><div id="posItemsTableBody"></div></section><div id="hasibModal" aria-hidden="true"></div>'+
     '<div class="erp-num" id="n1">12</div><div class="pos-qty" id="n2">.25</div><div class="balance-badge" id="n3">3</div><table><tr><td>label</td><td id="n4">4</td></tr></table><input id="n5" type="number" value="2"></body></html>');
   await page.evaluate(()=>{
     window.posCart=[{name:'وزن',price:'125.50',qty:'1',unit:'kg'}];
@@ -34,7 +34,7 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
       const cents=BigInt(item.price.replace('.',''));
       return sum+(cents*qty+500n)/1000n;
     },0n);
-    window.openHasibModal=()=>window.__checkout=true;
+    window.openHasibModal=()=>{window.__checkout=true;const modal=document.getElementById('hasibModal');modal.classList.add('active');modal.setAttribute('aria-hidden','false');};
     window.renderPosTable=()=>document.dispatchEvent(new Event('anas:pos-cart-updated'));
   });
   await page.addScriptTag({path:cartScript});
@@ -81,6 +81,9 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
   assert.equal(await page.evaluate(()=>window.posCart[0].qty),'0.25');
   await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
   assert.equal(await page.evaluate(()=>window.__checkout),true);
+  await page.waitForFunction(()=>document.getElementById('anasPosFloatingCart').hidden===true);
+  await page.evaluate(()=>{const modal=document.getElementById('hasibModal');modal.classList.remove('active');modal.setAttribute('aria-hidden','true');});
+  await page.waitForFunction(()=>document.getElementById('anasPosFloatingCart').hidden===false);
   const numerals=await page.evaluate(()=>['n1','n2','n3','n4','n5'].map(id=>getComputedStyle(document.getElementById(id)).fontVariantNumeric));
   assert.deepEqual(numerals,['tabular-nums','tabular-nums','tabular-nums','tabular-nums','tabular-nums']);
   await page.evaluate(()=>{
