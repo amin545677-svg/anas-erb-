@@ -189,9 +189,18 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
               !Array.isArray(v42Ledger.settlementAllocations)) {
             completeBundle = false;
           } else {
-            completeBundle = v42Ledger.clientMovements.every(row =>
-              (Array.isArray(snapshot.clientMovements) ? snapshot.clientMovements : [])
-                .some(existing => JSON.stringify(existing) === JSON.stringify(row))) &&
+            const existingCustomer = findById(snapshot.customers, payload.customerId);
+            const postDebtCents = moneyCents(existingCustomer?.debt);
+            const expectedOpeningCents = postDebtCents === null
+              ? null : postDebtCents + amountCents;
+            completeBundle = expectedOpeningCents !== null &&
+              v42Ledger.clientMovements.every(row => {
+                const expected = row?.type === "opening_balance"
+                  ? { ...row, amountCentimes: expectedOpeningCents }
+                  : row;
+                return (Array.isArray(snapshot.clientMovements) ? snapshot.clientMovements : [])
+                  .some(existing => JSON.stringify(existing) === JSON.stringify(expected));
+              }) &&
               v42Ledger.settlementAllocations.every(row =>
                 (Array.isArray(snapshot.settlementAllocations) ? snapshot.settlementAllocations : [])
                   .some(existing => JSON.stringify(existing) === JSON.stringify(row)));
@@ -258,7 +267,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
             String(row.clientId) === String(customer.id) &&
             String(row.referenceType) === "opening_balance" &&
             String(row.referenceId) === String(customer.id) &&
-            row.amountCentimes === debtCents);
+            Number.isSafeInteger(row.amountCentimes) && row.amountCentimes > 0);
         const invoiceRows = Array.isArray(snapshot.invoices) ? snapshot.invoices : [];
         const validAllocations = allocationRows.length > 0 &&
           allocationRows.every(row => row?.allocationId &&
@@ -300,6 +309,18 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         }
       }
 
+      const normalizedClientRows = v42Ledger === undefined
+        ? [] : structuredClone(clientRows);
+      if (v42Ledger !== undefined && customer.ledgerVersion !== 2) {
+        const opening = normalizedClientRows.find(row => row?.type === "opening_balance");
+        if (!opening) {
+          review.push({ opId: op.opId, reason: "V42_COLLECTION_OPENING_BALANCE_MISSING", operation: op });
+          continue;
+        }
+        // The opening-balance row migrates the authoritative cloud legacy debt,
+        // not the stale local debt that existed when the device captured the receipt.
+        opening.amountCentimes = debtCents;
+      }
       customer.debt = fromMoneyCents(debtCents - amountCents);
       snapshot.caisseBalance = fromMoneyCents(cashCents + amountCents);
       if (v42Ledger !== undefined) customer.ledgerVersion = 2;
@@ -312,7 +333,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (v42Ledger !== undefined) {
         if (!Array.isArray(snapshot.clientMovements)) snapshot.clientMovements = [];
         if (!Array.isArray(snapshot.settlementAllocations)) snapshot.settlementAllocations = [];
-        snapshot.clientMovements.push(...structuredClone(clientRows));
+        snapshot.clientMovements.push(...normalizedClientRows);
         snapshot.settlementAllocations.push(...structuredClone(allocationRows));
       }
       markApplied();

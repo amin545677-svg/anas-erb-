@@ -486,6 +486,7 @@ test("V42 sale with a missing cash ledger row is quarantined without changing an
 
 test("V42 debt collection reconciliation preserves receipt, opening balance and FIFO allocation ledgers", () => {
   const initial = cloud();
+  initial.customers[0].debt = 19500;
   initial.invoices = [{
     id: "inv-collection-v42", customerId: "cust_s",
     total: 26000, paid: 0, remaining: 26000
@@ -529,11 +530,13 @@ test("V42 debt collection reconciliation preserves receipt, opening balance and 
   };
   const result = reconcilePendingMutations(initial, [op]);
   assert.deepEqual(result.review, []);
-  assert.equal(result.snapshot.customers[0].debt, 25499.5);
+  assert.equal(result.snapshot.customers[0].debt, 18999.5);
   assert.equal(result.snapshot.customers[0].ledgerVersion, 2);
   assert.equal(result.snapshot.caisseBalance, 54500.5);
   assert.equal(result.snapshot.cashMovements.filter(row => row.id === op.payload.cashMovementId).length, 1);
   assert.equal(result.snapshot.clientMovements.length, 2);
+  assert.equal(result.snapshot.clientMovements.find(row => row.type === "opening_balance").amountCentimes, 1950000,
+    "the opening balance must be rebased to the authoritative cloud debt, not stale local debt");
   assert.equal(result.snapshot.settlementAllocations.length, 1);
   const replay = reconcilePendingMutations(result.snapshot, [op]);
   assert.deepEqual(replay.review, []);
