@@ -247,7 +247,7 @@ test("offline mutation journal is durably stored in IndexedDB and recovered afte
       { opId: "offline-credit-sale", type: "SALE_INVOICE", status: "PENDING", payload: { invoice: { id: "i-credit" } } },
       { opId: "offline-debt-collection", type: "DEBT_COLLECTION", status: "PENDING", payload: { customerId: "cust-browser-1", amount: 100 } }
     ];
-    await ANASResilientStorage.setItem(PENDING_KEY, entries);
+    await ANASResilientStorage.setItem("ANAS_PENDING_MUTATIONS_V1", entries);
     await ANASResilientStorage.flushDurableItems();
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open(ANASResilientStorage.DB_NAME);
@@ -256,19 +256,19 @@ test("offline mutation journal is durably stored in IndexedDB and recovered afte
     });
     const record = await new Promise((resolve, reject) => {
       const request = db.transaction(ANASResilientStorage.STORE_NAME, "readonly")
-        .objectStore(ANASResilientStorage.STORE_NAME).get(PENDING_KEY);
+        .objectStore(ANASResilientStorage.STORE_NAME).get("ANAS_PENDING_MUTATIONS_V1");
       request.onsuccess = () => resolve(request.result || null);
       request.onerror = () => reject(request.error);
     });
     if (!record || typeof record.payload !== "string" || typeof record.checksum !== "string") {
       throw new Error("MUTATION_QUEUE_NOT_DURABLE_IN_INDEXEDDB");
     }
-    localStorage.removeItem(PENDING_KEY);
+    localStorage.removeItem("ANAS_PENDING_MUTATIONS_V1");
     db.close();
   });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.ANASResilientStorage?.ready?.() === true, null, { timeout: 15000 });
-  const recovered = await page.evaluate(() => ANASResilientStorage.getItem(PENDING_KEY));
+  const recovered = await page.evaluate(() => ANASResilientStorage.getItem("ANAS_PENDING_MUTATIONS_V1"));
   assert.deepEqual(recovered.map(item => item.opId), [
     "offline-cash-sale", "offline-credit-sale", "offline-debt-collection"
   ], "IndexedDB must restore pending operations when the localStorage mirror is absent");
