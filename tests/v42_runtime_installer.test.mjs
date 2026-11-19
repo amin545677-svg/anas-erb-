@@ -126,7 +126,9 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
 
   const windowObject = {
     anasFirebasePull: async () => "legacy-destructive-pull",
-    anasFirebasePush: async () => "legacy-snapshot-push"
+    anasFirebasePush: async () => "legacy-snapshot-push",
+    anasFirebaseSyncPull: async () => "legacy-sync-pull",
+    anasFirebaseSyncPush: async () => "legacy-sync-push"
   };
   const statuses = [];
   const installer = installV42RuntimeWiring({
@@ -154,6 +156,10 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
   });
 
   installer.install();
+  assert.equal(await windowObject.anasFirebasePush(), "legacy-snapshot-push",
+    "manual backup upload must not be replaced by operational sync");
+  assert.equal(await windowObject.anasFirebasePull(), "legacy-destructive-pull",
+    "manual snapshot restore must remain a separate explicit action");
   context.runActualV42Sale();
 
   const pending = storage.json(MUTATION_KEYS.pending);
@@ -169,7 +175,7 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
   assert.equal(context.AppData.stockMovements.length, 1);
   assert.equal(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")), false);
 
-  const result = await windowObject.anasFirebasePush();
+  const result = await windowObject.anasFirebaseSyncPush();
   assert.equal(result.status, "synced");
   assert.deepEqual(eventOrder, ["push", "pull", "push"]);
   assert.equal(cloud.revision, 2);
@@ -180,8 +186,9 @@ test("runtime wiring captures actual V42 cash sale and reconciles all ledgers at
   assert.equal(cloud.data.stockMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, 1);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(installer.uninstall(), true);
-  assert.equal(await windowObject.anasFirebasePull(), "legacy-destructive-pull",
-    "uninstall restores the legacy pull function; staging must keep restore distinct from operational reconcile");
+  assert.equal(await windowObject.anasFirebasePull(), "legacy-destructive-pull");
+  assert.equal(await windowObject.anasFirebaseSyncPull(), "legacy-sync-pull",
+    "uninstall restores the prior operational sync function");
 });
 
 
@@ -282,7 +289,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   assert.equal(context.AppData.cashMovements[0].opId, pending[0].opId);
   assert.equal(mapped.length, 1);
 
-  const result = await windowObject.anasFirebasePush();
+  const result = await windowObject.anasFirebaseSyncPush();
   assert.equal(result.status, "synced");
   assert.deepEqual(eventOrder, ["push", "pull", "push"]);
   assert.equal(cloud.revision, 2);
@@ -371,7 +378,7 @@ test("runtime wrapper passes every invoice line to reconciliation and quarantine
   assert.equal(mappedLines, 2, "both invoice lines must reach mapMutation");
   assert.equal(storage.json(MUTATION_KEYS.pending)[0].status, "PENDING");
 
-  const result = await windowObject.anasFirebasePull();
+  const result = await windowObject.anasFirebaseSyncPull();
   assert.equal(result.status, "synced");
   assert.ok(result.quarantined.some(item =>
     item.opId === storage.json(MUTATION_KEYS.quarantined)[0]?.opId &&

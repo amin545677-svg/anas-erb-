@@ -258,7 +258,7 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   assert.equal(beforeSync.queue.length, 1);
   assert.equal(beforeSync.queue[0].status, "PENDING");
   assert.equal(beforeSync.queue[0].payload.amount, 500.5);
-  const sync = await page.evaluate(() => window.anasFirebasePush());
+  const sync = await page.evaluate(() => window.anasFirebaseSyncPush());
   assert.equal(sync.status, "synced");
   assert.deepEqual(sync.quarantined || [], [], "the exact-decimal collection must replay, not be quarantined");
   const finalState = await page.evaluate(() => ({
@@ -308,7 +308,7 @@ test("real page reload recovers PREPARED mutation before reconciliation", async 
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => typeof AppData !== "undefined" && typeof saveDB === "function");
   await installHarness(page, { cloudV1: mock.cloud });
-  const result = await page.evaluate(() => window.anasFirebasePush());
+  const result = await page.evaluate(() => window.anasFirebaseSyncPush());
   assert.equal(result.status, "synced");
   const recovered = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
@@ -345,7 +345,7 @@ test("multi-line sale is quarantined atomically and browser DOM shows quarantine
     });
     saveDB();
   });
-  const result = await page.evaluate(() => window.anasFirebasePull());
+  const result = await page.evaluate(() => window.anasFirebaseSyncPull());
   assert.equal(result.status, "synced");
   const state = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),

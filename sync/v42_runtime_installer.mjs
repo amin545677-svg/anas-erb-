@@ -30,8 +30,10 @@ export function installV42RuntimeWiring({
     throw new Error("V42 runtime wiring dependencies are incomplete");
   }
 
-  const originalPull = windowObject.anasFirebasePull;
-  const originalPush = windowObject.anasFirebasePush;
+  // Keep the explicit backup upload/restore actions untouched. Operational
+  // mutation sync has its own names so it cannot silently replace backup UX.
+  const originalSyncPull = windowObject.anasFirebaseSyncPull;
+  const originalSyncPush = windowObject.anasFirebaseSyncPush;
   const originalSaveDB = getSaveDB();
   if (typeof originalSaveDB !== "function") throw new Error("V42 saveDB binding is unavailable");
 
@@ -433,8 +435,8 @@ export function installV42RuntimeWiring({
 
   function install() {
     if (installed) throw new Error("V42 runtime wiring is already installed");
-    windowObject.anasFirebasePull = wrappedPull;
-    windowObject.anasFirebasePush = wrappedPush;
+    windowObject.anasFirebaseSyncPull = wrappedPull;
+    windowObject.anasFirebaseSyncPush = wrappedPush;
     setSaveDB(wrappedSaveDB);
     installed = true;
     return { installed: true };
@@ -442,8 +444,10 @@ export function installV42RuntimeWiring({
 
   function uninstall() {
     if (!installed) return false;
-    windowObject.anasFirebasePull = originalPull;
-    windowObject.anasFirebasePush = originalPush;
+    if (originalSyncPull === undefined) delete windowObject.anasFirebaseSyncPull;
+    else windowObject.anasFirebaseSyncPull = originalSyncPull;
+    if (originalSyncPush === undefined) delete windowObject.anasFirebaseSyncPush;
+    else windowObject.anasFirebaseSyncPush = originalSyncPush;
     setSaveDB(originalSaveDB);
     installed = false;
     return true;
