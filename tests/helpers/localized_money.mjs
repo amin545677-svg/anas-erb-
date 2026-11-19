@@ -28,10 +28,15 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   value = value.replace(/[\u200e\u200f\u061c]/g, "");
   value = value.replace(/[−﹣－]/g, "-");
 
-  // UI text may be rendered with Arabic separators even when the test locale is
-  // fr-DZ (or vice versa). Normalize all supported decimal glyphs, then choose
-  // the rightmost separator whose fractional tail fits the requested precision.
-  const separators = [".", ",", "\u066b"];
+  // Strip currency labels and grouping whitespace before measuring the
+  // fractional tail; suffixes such as "دج" must not invalidate a decimal.
+  if (localeGroup) value = value.split(localeGroup).join("");
+  value = value.replace(/[\\s\\u066c'’]/g, "");
+  value = [...value].filter(character => /[0-9]/.test(character)
+    || character === "." || character === "," || character === "\\u066b" || character === "-").join("");
+
+  // The UI may use Arabic separators even when the test locale is fr-DZ.
+  const separators = [".", ",", "\\u066b"];
   const occurrences = [];
   for (const separator of separators) {
     let offset = value.indexOf(separator);
@@ -41,7 +46,7 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
     }
   }
   const preferred = occurrences
-    .filter(item => item.separator === localeDecimal && item.tail <= fractionDigits)
+    .filter(item => item.separator === localeDecimal && item.tail > 0 && item.tail <= fractionDigits)
     .sort((a, b) => b.offset - a.offset)[0];
   const decimalMark = preferred?.separator
     ?? occurrences.filter(item => item.tail > 0 && item.tail <= fractionDigits)
@@ -54,10 +59,6 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   }
   const negative = value.trimStart().startsWith("-");
   value = value.replace(/-/g, "");
-
-  // Remove locale and Arabic grouping marks, whitespace, and currency text.
-  const groupingMarks = new Set([localeGroup, "\u066c", "\u00a0", "\u202f", " ", "'", "’"]);
-  for (const mark of groupingMarks) if (mark) value = value.split(mark).join("");
 
   let normalized = "";
   let decimalUsed = false;
