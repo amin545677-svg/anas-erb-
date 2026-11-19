@@ -303,7 +303,15 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   assert.deepEqual(finalState.queue, []);
   assert.ok(mock.pulls >= 1);
   assert.ok(mock.posts >= 2);
-  assert.ok(finalState.renderedDebt.includes("18,999.5") || finalState.renderedDebt.includes("18999.5"));
+  // fr-DZ uses a narrow no-break space for grouping and a comma decimal separator.
+  // Compare the monetary value, not ICU/browser-specific presentation characters.
+  const normalizedRenderedDebt = finalState.renderedDebt
+    .normalize("NFKC")
+    .replace(/[\\s\\u00a0\\u202f]/g, "")
+    .replace(/[،٬]/g, ",")
+    .replace(/,/g, ".");
+  assert.ok(normalizedRenderedDebt.includes("18999.5"),
+    "customer debt must be rendered in the DOM as exactly 18,999.50 DZD; got: " + finalState.renderedDebt);
   assert.ok(externalRequests.every(url => !url.startsWith(origin)), "all attempted external requests must be blocked by the browser route");
   assert.equal(errors.some(x => /v42_runtime_installer|mutation_queue_orchestrator/.test(x) && /ReferenceError|SyntaxError/.test(x)), false);
 });
