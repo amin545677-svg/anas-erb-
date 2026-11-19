@@ -185,6 +185,16 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.evaluate(() => posCart[0].qty), 1,
       'floating cart quantity minus must restore the original quantity through the POS mutation');
 
+    // Quick entries must use a validated in-app form, never disruptive browser prompt dialogs.
+    await page.locator('#anasPosFloatingCart [data-mini-action="free"]').click();
+    await page.locator('#anasPosQuickEntryDialog[role="presentation"]').waitFor({state:'visible'});
+    assert.equal(await page.locator('#anasPosQuickEntryDialog input').count(), 4);
+    await page.locator('#anasPosQuickEntryDialog button').filter({hasText:'إلغاء'}).click();
+    await page.locator('#anasPosFloatingCart [data-mini-action="discount"]').click();
+    await page.locator('#anasPosQuickEntryDialog input').waitFor({state:'visible'});
+    assert.equal(await page.locator('#anasPosQuickEntryDialog input').count(), 1);
+    await page.locator('#anasPosQuickEntryDialog button').filter({hasText:'إلغاء'}).click();
+
 
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
