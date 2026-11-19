@@ -767,10 +767,16 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (paidCents > 0 && cashChannel) snapshot.caisseBalance = fromMoneyCents(cashCents + paidCents);
       if (v42Ledger !== undefined) {
         for (const [key, rows] of Object.entries(v42Ledger)) {
-          if (!Array.isArray(snapshot[key])) snapshot[key] = [];
+          // Preserve the exact V42 storage shape: an absent optional ledger remains absent
+          // when this mutation has no rows for it (for example, no bank movement on a cash sale).
+          // A non-empty collection is materialized only when there is a real row to commit.
+          if (!Array.isArray(snapshot[key])) {
+            if (rows.length === 0) continue;
+            snapshot[key] = [];
+          }
           const committedRows = key === "clientMovements" && normalizedClientRows !== null
             ? normalizedClientRows : rows;
-          snapshot[key].unshift(...structuredClone(committedRows));
+          if (committedRows.length > 0) snapshot[key].unshift(...structuredClone(committedRows));
         }
       }
       snapshot.invoices.unshift(structuredClone(invoice));
