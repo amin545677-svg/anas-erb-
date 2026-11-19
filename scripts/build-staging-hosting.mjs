@@ -3,6 +3,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
+import { execFileSync } from 'node:child_process';
 
 const PROJECT_ID = 'anas-erp-staging-a25e1';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -167,6 +168,8 @@ export async function buildStagingHosting(options = {}) {
   for (const relativePath of ERP_FILES) await copyRelative(rootDir, path.join(outDir, 'erp'), relativePath);
 
   const erpIndexPath = path.join(outDir, 'erp', 'index.html');
+  // Apply the search-first POS layout to the isolated Staging copy only; never rewrite source/main HTML.
+  execFileSync(process.execPath, [path.join(rootDir, 'scripts/apply-pos-reference-ui.mjs'), erpIndexPath], { cwd: rootDir, stdio: 'inherit' });
   const erpHtml = await fs.readFile(erpIndexPath, 'utf8');
   // Firebase responsive CSS must remain a live style element in the actual document head.
   const responsiveStyle = '<style id="anas-firebase-mobile-layout-v3">';
