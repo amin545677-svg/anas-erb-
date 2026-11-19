@@ -85,3 +85,16 @@
 }
 :root[data-anas-theme="dark"] #hasibModal .picker-dialog-scroll,
 :root[data-anas-theme="dark"] #hasibModal .picker-dialog-scroll>div:last-child{background:#111c2e!important;color:#f1f5f9!important;border-color:#475569!important}
+
+/* r42: structured quick-entry forms replace disruptive browser prompts. */
+#anasPosQuickEntryDialog{z-index:100120!important;padding:12px!important}
+#anasPosQuickEntryDialog .anas-pos-quick-entry{width:min(100%,440px);max-height:calc(100dvh - 24px);overflow:auto;background:var(--mp-card,#fff);color:var(--mp-text,#172033);border:1px solid var(--mp-border,#cbd5e1);box-shadow:0 18px 50px rgba(15,23,42,.28)}
+#anasPosQuickEntryDialog .anas-pos-quick-entry h3{margin:0 0 14px;text-align:center;font-size:18px;font-weight:900}
+#anasPosQuickEntryDialog .field-group{display:grid;gap:6px;margin:0 0 12px}
+#anasPosQuickEntryDialog .field-group label{font-size:13px;font-weight:800;color:var(--mp-text,#172033)}
+#anasPosQuickEntryDialog .field-input{width:100%;min-height:48px;box-sizing:border-box;font-size:16px}
+#anasPosQuickEntryDialog .anas-pos-quick-entry-error{min-height:22px;color:#b91c1c;font-size:12px;font-weight:800}
+#anasPosQuickEntryDialog .anas-pos-quick-entry-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}
+#anasPosQuickEntryDialog .anas-pos-quick-entry-actions button{min-height:48px;border-radius:10px;font-weight:900}
+#anasPosQuickEntryDialog .anas-pos-quick-entry-actions .anas-pos-mini-checkout{background:#15803d!important;color:#fff!important;border-color:#166534!important}
+:root[data-anas-theme="dark"] #anasPosQuickEntryDialog .anas-pos-quick-entry{background:#111c2e;color:#f1f5f9;border-color:#475569}
