@@ -302,6 +302,9 @@ jobs:
           fetch_expect "/erp/sw.js" "ERP offline service worker" "android-resilient-storage.js"
           fetch_expect "/erp/storage/android-resilient-storage.js" "IndexedDB resilient storage module" "IndexedDB"
           fetch_expect "/erp/sync/v42-prepared-recovery-runtime.mjs" "V42 PREPARED boot recovery runtime" "recoverPreparedMutationsOnBoot"
+        fetch_expect "/erp/sync/v42_runtime_bootstrap.mjs" "V42 staging runtime bootstrap" "installANASV42Runtime"
+        fetch_expect "/erp/sync/v42_runtime_installer.mjs" "V42 guarded runtime installer" "wrappedSaveDBDurably"
+        fetch_expect "/erp/sync/firebase_snapshot_transport.mjs" "Firebase snapshot transport" "pushCloud"
           fetch_expect "/erp/arabic-query-engine.js" "Arabic POS search collation" "Intl.Collator"
           echo "PASS: full staging ERP/POS PWA, offline storage assets, reverse-ledger console and staging-only Firebase configuration are live."
 

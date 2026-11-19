@@ -94,6 +94,15 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.match(serviceWorker, /anas-erp-v54-25-r41/, 'built PWA must install the r41 cache namespace');
     const recoveryRuntime = await fs.readFile(path.join(outDir, 'erp/sync/v42-prepared-recovery-runtime.mjs'), 'utf8');
     assert.match(recoveryRuntime, /recoverPreparedMutationsOnBoot/);
+    const syncBootstrap = await fs.readFile(path.join(outDir, 'erp/sync/v42_runtime_bootstrap.mjs'), 'utf8');
+    assert.match(syncBootstrap, /installANASV42Runtime/);
+    assert.match(syncBootstrap, /STAGING_WORKER/);
+    const syncInstaller = await fs.readFile(path.join(outDir, 'erp/sync/v42_runtime_installer.mjs'), 'utf8');
+    assert.match(syncInstaller, /wrappedSaveDBDurably/);
+    assert.match(syncInstaller, /blocked-unsupported-local-mutations/);
+    const syncTransport = await fs.readFile(path.join(outDir, 'erp/sync/firebase_snapshot_transport.mjs'), 'utf8');
+    assert.match(syncTransport, /pushCloud/);
+    assert.match(syncTransport, /pullCloud/);
     const quickSaleBridge = await fs.readFile(path.join(outDir, 'erp/core/pos-quick-sale-transaction-bridge.js'), 'utf8');
     assert.match(quickSaleBridge, /addItemToPosCart/);
     assert.match(quickSaleBridge, /changePosQty/);
@@ -133,7 +142,7 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(coreMatch, 'built service worker must declare a core asset list');
     const coreAssets = [...coreMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(coreAssets.length > 0, 'built service worker core list must not be empty');
-    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_keys.mjs', './sync/v42_transactional_bridge.mjs', './sync/v42-prepared-recovery-runtime.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js', './core/pos-quick-sale-transaction-bridge.js']) {
+    for (const syncAsset of ['./sync/mutation_queue_orchestrator.mjs', './sync/mutation_reconciliation.mjs', './sync/mutation_capture.mjs', './sync/mutation_keys.mjs', './sync/firebase_snapshot_transport.mjs', './sync/v42_runtime_installer.mjs', './sync/v42_runtime_bootstrap.mjs', './sync/v42_transactional_bridge.mjs', './sync/v42-prepared-recovery-runtime.mjs', './core/sovereign-kernel.mjs', './safe-update-ui.js', './core/pos-quick-sale-transaction-bridge.js']) {
       assert.ok(coreAssets.includes(syncAsset), 'sync module must be precached for the ERP runtime: ' + syncAsset);
     }
     for (const asset of coreAssets) {
@@ -182,6 +191,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'erp/sync/mutation_queue_orchestrator.mjs',
       'erp/sync/mutation_reconciliation.mjs',
       'erp/sync/mutation_keys.mjs',
+      'erp/sync/mutation_capture.mjs',
+      'erp/sync/firebase_snapshot_transport.mjs',
+      'erp/sync/v42_runtime_installer.mjs',
+      'erp/sync/v42_runtime_bootstrap.mjs',
       'erp/sync/v42_transactional_bridge.mjs',
       'erp/core/sovereign-kernel.mjs',
       'erp/core/pos-quick-sale-transaction-bridge.js',
