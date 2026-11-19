@@ -50,6 +50,7 @@ export function installV42RuntimeWiring({
   let isReconcilingWrite = false;
   let lastSnapshot = null;
   let pendingPrepared = null;
+  let unsupportedLocalMutations = Boolean(storage.getItem(MUTATION_KEYS.unsupported));
 
   function readStoredAppData() {
     const raw = storage.getItem(MUTATION_KEYS.appData);
@@ -111,9 +112,7 @@ export function installV42RuntimeWiring({
       "clientMovements", "settlementAllocations"
     ];
     const deltas = Object.fromEntries(ledgerKeys.map(key => [key, collectRows(key)]));
-    if (deltas.invoices.length > 1) {
-      throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
-    }
+    if (deltas.invoices.length > 1) return null;
 
     const invoice = deltas.invoices[0] || null;
     if (invoice) {
@@ -161,18 +160,15 @@ export function installV42RuntimeWiring({
       return { entity: invoice, operation };
     }
 
-    if (deltas.bankMovements.length || deltas.stockMovements.length) {
-      throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
-    }
+    if (deltas.bankMovements.length || deltas.stockMovements.length ||
+        deltas.clientMovements.length || deltas.settlementAllocations.length) return null;
     const movement = deltas.cashMovements[0] || null;
-    if (deltas.cashMovements.length > 1) {
-      throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
-    }
+    if (deltas.cashMovements.length > 1) return null;
     if (!movement) return null;
     if (String(movement.type || "").toLowerCase() !== "add" ||
         String(movement.referenceType || "").toLowerCase() !== "customer_debt" ||
         movement.referenceId == null || String(movement.referenceId).trim() === "") {
-      throw new Error("Unsupported cash movement; only customer-debt collections can enter the sync queue");
+      return null;
     }
     const mapped = mapMutation({
       current: structuredClone(current),
@@ -356,7 +352,23 @@ export function installV42RuntimeWiring({
     const captured = makeOperation(current, previous);
     if (!captured) {
       if (hasUnsupportedBusinessDelta(current, previous)) {
-        throw new Error("Unsupported V42 financial or inventory change; no local persistence was performed");
+        const ok = originalSaveDB.apply(this, args);
+        if (ok === true) {
+          unsupportedLocalMutations = true;
+          storage.setItem(MUTATION_KEYS.unsupported, JSON.stringify({
+            version: 1,
+            status: "BLOCKED",
+            reason: "UNSUPPORTED_BUSINESS_MUTATION_TYPE",
+            recordedAt: now().toISOString()
+          }));
+          lastSnapshot = structuredClone(getAppData());
+          onStatus({
+            level: "warning",
+            code: "V42_UNSUPPORTED_LOCAL_MUTATION_SAVED_LOCALLY",
+            message: "The local transaction was saved, but cloud sync is paused until its mutation type has a verified replay contract."
+          });
+        }
+        return ok;
       }
       const ok = originalSaveDB.apply(this, args);
       if (ok === true) lastSnapshot = structuredClone(getAppData());
@@ -495,7 +507,29 @@ export function installV42RuntimeWiring({
     finally { isReconcilingWrite = wasReconciling; }
   }
 
+  function unsupportedBlockResult() {
+    if (!unsupportedLocalMutations && !storage.getItem(MUTATION_KEYS.unsupported)) return null;
+    const result = {
+      status: "blocked-unsupported-local-mutations",
+      reason: "UNSUPPORTED_BUSINESS_MUTATIONS_ARE_SAVED_LOCALLY_BUT_NOT_SAFE_TO_REPLAY"
+    };
+    onStatus({ level: "warning", code: "V42_UNSUPPORTED_LOCAL_MUTATIONS_PRESENT", result });
+    return result;
+  }
+
+  function clearUnsupportedMutationBlock({ verifiedSnapshot = false } = {}) {
+    if (verifiedSnapshot !== true) {
+      throw new Error("A verified full-cloud baseline is required before clearing the local-only sync block");
+    }
+    storage.removeItem(MUTATION_KEYS.unsupported);
+    unsupportedLocalMutations = false;
+    onStatus({ level: "success", code: "V42_UNSUPPORTED_LOCAL_MUTATION_BLOCK_CLEARED" });
+    return true;
+  }
+
   async function wrappedPush() {
+    const blocked = unsupportedBlockResult();
+    if (blocked) return blocked;
     const result = await orchestrator.pushCurrent();
     if (result?.status === "conflict") {
       onStatus({ level: "warning", code: "V42_SYNC_CONFLICT_RECONCILING" });
@@ -512,6 +546,8 @@ export function installV42RuntimeWiring({
   async function wrappedPull() {
     // This is an operational reconciliation pull, intentionally distinct from the
     // legacy destructive full-snapshot restore function.
+    const blocked = unsupportedBlockResult();
+    if (blocked) return blocked;
     const result = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
     if (result?.status === "synced") refreshFromPersistedSnapshot();
     if (result?.quarantined?.length) onQuarantine(result.quarantined);
@@ -526,6 +562,7 @@ export function installV42RuntimeWiring({
     setSaveDB(wrappedSaveDB);
     if (originalSaveDBDurably) setSaveDBDurably(wrappedSaveDBDurably);
     installed = true;
+    if (unsupportedLocalMutations) unsupportedBlockResult();
     return { installed: true };
   }
 
@@ -541,5 +578,9 @@ export function installV42RuntimeWiring({
     return true;
   }
 
-  return { install, uninstall, wrappedSaveDB, wrappedSaveDBDurably, wrappedPull, wrappedPush };
+  return {
+    install, uninstall, wrappedSaveDB, wrappedSaveDBDurably, wrappedPull, wrappedPush,
+    clearUnsupportedMutationBlock,
+    get unsupportedLocalMutations() { return unsupportedLocalMutations; }
+  };
 }

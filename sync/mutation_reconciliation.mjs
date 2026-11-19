@@ -371,13 +371,49 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           return JSON.stringify(value);
         };
         const sameInvoice = stableJson(existingCopy) === stableJson(incomingCopy);
+        let sameLedgerBundle = true;
+        if (payload.v42Ledger !== undefined) {
+          const bundle = payload.v42Ledger;
+          const idKeys = {
+            cashMovements: "id", bankMovements: "id", stockMovements: "id",
+            clientMovements: "movementId", settlementAllocations: "allocationId"
+          };
+          const customerId = payload.customerId ?? invoice.customerId ?? invoice.customerObj?.id;
+          const customer = customerId == null ? null : findById(snapshot.customers, customerId);
+          const totalCents = moneyCents(invoice.total);
+          const paidCents = moneyCents(invoice.paid ?? invoice.total);
+          const remainingCents = invoice.remaining == null
+            ? (totalCents !== null && paidCents !== null ? totalCents - paidCents : null)
+            : moneyCents(invoice.remaining);
+          const debtAfterCents = customer ? moneyCents(customer.debt ?? 0) : null;
+          for (const [key, idKey] of Object.entries(idKeys)) {
+            if (!Array.isArray(bundle?.[key])) { sameLedgerBundle = false; break; }
+            for (const row of bundle[key]) {
+              let expected = row;
+              if (key === "clientMovements" && row?.type === "opening_balance") {
+                const openingCents = debtAfterCents !== null && remainingCents !== null
+                  ? debtAfterCents - remainingCents : null;
+                if (!Number.isSafeInteger(openingCents) || openingCents <= 0) {
+                  sameLedgerBundle = false; break;
+                }
+                expected = { ...row, amountCentimes: openingCents };
+              }
+              if (!(Array.isArray(snapshot[key]) ? snapshot[key] : []).some(existing =>
+                String(existing?.[idKey] ?? "") === String(expected?.[idKey] ?? "") &&
+                stableJson(existing) === stableJson(expected))) {
+                sameLedgerBundle = false; break;
+              }
+            }
+            if (!sameLedgerBundle) break;
+          }
+        }
         if (matchingInvoices.length === 1 &&
             existingInvoice.syncOpId === op.opId &&
-            sameInvoice) {
+            sameInvoice && sameLedgerBundle) {
           markApplied();
-          appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "VERIFIED_INVOICE_OPERATION_MARKER" });
+          appliedNow.push({ opId: op.opId, outcome: "already-applied", reason: "VERIFIED_INVOICE_AND_LEDGER_BUNDLE" });
         } else {
-          review.push({ opId: op.opId, reason: "INVOICE_ID_COLLISION", operation: op });
+          review.push({ opId: op.opId, reason: sameInvoice ? "INVOICE_LEDGER_BUNDLE_INCOMPLETE" : "INVOICE_ID_COLLISION", operation: op });
         }
         continue;
       }
@@ -477,6 +513,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         }
       }
       const v42Ledger = payload.v42Ledger;
+      let normalizedClientRows = null;
       if (v42Ledger !== undefined) {
         const ledgerKeys = ["cashMovements", "bankMovements", "stockMovements", "clientMovements", "settlementAllocations"];
         if (!v42Ledger || typeof v42Ledger !== "object" || Array.isArray(v42Ledger) ||
@@ -528,17 +565,30 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           String(row?.referenceId ?? "") === String(invoice.id)
         );
         const openingRows = clientRows.filter(row => row?.type === "opening_balance");
+        const customerDebtCents = customer ? moneyCents(customer.debt ?? 0) : null;
+        const expectsOpening = Boolean(customer && customer.ledgerVersion !== 2 &&
+          customerDebtCents !== null && customerDebtCents > 0);
+        const existingClientRows = customer
+          ? (Array.isArray(snapshot.clientMovements) ? snapshot.clientMovements : [])
+              .filter(row => String(row?.clientId ?? "") === customerId)
+          : [];
         if (clientRows.some(row => !row || !row.movementId ||
             (row.type !== "invoice_debit" && row.type !== "opening_balance") ||
-            (customerId && String(row.clientId) !== customerId)) ||
+            !customer || String(row.clientId) !== customerId) ||
             invoiceDebits.length !== (customer && remainingCents > 0 ? 1 : 0) ||
             invoiceDebits.some(row => Number(row.amountCentimes) !== remainingCents ||
               row.direction !== "debit" || String(row.clientId) !== customerId) ||
-            openingRows.length > 1 ||
+            openingRows.length !== (expectsOpening ? 1 : 0) ||
             openingRows.some(row => row.direction !== "debit" ||
-              !Number.isSafeInteger(row.amountCentimes) || row.amountCentimes <= 0)) {
+              !Number.isSafeInteger(row.amountCentimes) || row.amountCentimes <= 0) ||
+            (customer && customer.ledgerVersion !== 2 && existingClientRows.length > 0)) {
           review.push({ opId: op.opId, reason: "SALE_CLIENT_LEDGER_MISMATCH", operation: op });
           continue;
+        }
+        normalizedClientRows = structuredClone(clientRows);
+        if (expectsOpening) {
+          const opening = normalizedClientRows.find(row => row?.type === "opening_balance");
+          opening.amountCentimes = customerDebtCents;
         }
         if (allocationRows.length !== (customer && paidCents > 0 ? 1 : 0) ||
             allocationRows.some(row => !row?.allocationId ||
@@ -607,7 +657,9 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (v42Ledger !== undefined) {
         for (const [key, rows] of Object.entries(v42Ledger)) {
           if (!Array.isArray(snapshot[key])) snapshot[key] = [];
-          snapshot[key].unshift(...structuredClone(rows));
+          const committedRows = key === "clientMovements" && normalizedClientRows !== null
+            ? normalizedClientRows : rows;
+          snapshot[key].unshift(...structuredClone(committedRows));
         }
       }
       snapshot.invoices.unshift(structuredClone(invoice));

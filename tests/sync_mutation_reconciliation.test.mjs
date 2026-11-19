@@ -348,6 +348,7 @@ test("derives omitted sale remaining balance using exact integer centimes", () =
 
 test("V42 sale reconciliation commits cash, stock, customer and allocation ledgers as one exact bundle", () => {
   const initial = cloud();
+  initial.customers[0].debt = 25000;
   const invoice = {
     id: "inv-v42-bundle", customerId: "cust_s", total: 1000, paid: 400, remaining: 600,
     paymentMethod: "partial", paymentChannel: "cash", warehouse: "المخزن الرئيسي",
@@ -371,6 +372,11 @@ test("V42 sale reconciliation commits cash, stock, customer and allocation ledge
           referenceId: invoice.id, warehouse: "المخزن الرئيسي"
         }],
         clientMovements: [{
+          movementId: "CL-OPEN-cust_s-v42-sale", clientId: "cust_s",
+          type: "opening_balance", amountCentimes: 2600000, direction: "debit",
+          referenceType: "opening_balance", referenceId: "cust_s",
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }, {
           movementId: "CL-INV-inv-v42-bundle", clientId: "cust_s",
           type: "invoice_debit", amountCentimes: 60000, direction: "debit",
           referenceType: "sales_invoice", referenceId: invoice.id,
@@ -390,11 +396,13 @@ test("V42 sale reconciliation commits cash, stock, customer and allocation ledge
   assert.deepEqual(result.review, []);
   assert.equal(result.snapshot.products[0].stock, 88);
   assert.equal(result.snapshot.caisseBalance, 54400);
-  assert.equal(result.snapshot.customers[0].debt, 26600);
+  assert.equal(result.snapshot.customers[0].debt, 25600);
   assert.equal(result.snapshot.invoices[0].id, invoice.id);
   assert.equal(result.snapshot.cashMovements.filter(row => row.id === "SALE-CASH-inv-v42-bundle").length, 1);
   assert.equal(result.snapshot.stockMovements.filter(row => row.id === "SALE-STOCK-inv-v42-bundle-item_a").length, 1);
   assert.equal(result.snapshot.clientMovements.filter(row => row.movementId === "CL-INV-inv-v42-bundle").length, 1);
+  assert.equal(result.snapshot.clientMovements.find(row => row.type === "opening_balance").amountCentimes, 2500000,
+    "sale opening balance must be rebased to authoritative cloud debt");
   assert.equal(result.snapshot.settlementAllocations.filter(row => row.allocationId === "ALLOC-SALE-inv-v42-bundle").length, 1);
   const replay = reconcilePendingMutations(result.snapshot, [op]);
   assert.deepEqual(replay.review, []);
@@ -426,7 +434,12 @@ test("V42 non-cash sale records bank settlement without increasing physical cash
           qty: -1, type: "SALE_OUT", referenceType: "sales_invoice",
           referenceId: invoice.id, warehouse: "المخزن الرئيسي"
         }],
-        clientMovements: [],
+        clientMovements: [{
+          movementId: "CL-OPEN-cust_s-v42-bank", clientId: "cust_s",
+          type: "opening_balance", amountCentimes: 2600000, direction: "debit",
+          referenceType: "opening_balance", referenceId: "cust_s",
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }],
         settlementAllocations: [{
           allocationId: "ALLOC-SALE-inv-v42-bank", partyType: "customer",
           partyId: "cust_s", invoiceType: "sales_invoice", invoiceId: invoice.id,

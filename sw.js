@@ -1,5 +1,5 @@
-const APP_VERSION = 'r40';
-const CACHE = 'anas-erp-v54-25-r40';
+const APP_VERSION = 'r41';
+const CACHE = 'anas-erp-v54-25-r41';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
@@ -29,7 +29,11 @@ const CORE = [
   './warehouse-transfer-audit.js',
   './sync/mutation_queue_orchestrator.mjs',
   './sync/mutation_reconciliation.mjs',
+  './sync/mutation_capture.mjs',
   './sync/mutation_keys.mjs',
+  './sync/firebase_snapshot_transport.mjs',
+  './sync/v42_runtime_installer.mjs',
+  './sync/v42_runtime_bootstrap.mjs',
   './sync/v42_transactional_bridge.mjs',
   './sync/v42-prepared-recovery-runtime.mjs',
   './core/sovereign-kernel.mjs',

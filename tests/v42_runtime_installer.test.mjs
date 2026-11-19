@@ -402,7 +402,7 @@ test("runtime wrapper passes every invoice line to reconciliation and quarantine
 });
 
 
-test("runtime wiring fails closed for unsupported cash movements before local persistence", () => {
+test("runtime wiring keeps unsupported cash movements local and blocks cloud sync", async () => {
   const initial = fixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
@@ -429,15 +429,17 @@ test("runtime wiring fails closed for unsupported cash movements before local pe
     mapMutation: () => { throw new Error("mapper must not classify an expense as a collection"); }
   });
   installer.install();
-  assert.throws(() => installer.wrappedSaveDB(),
-    /Unsupported cash movement/);
-  assert.equal(persisted, false, "unsupported movement must not reach original saveDB");
+  assert.equal(installer.wrappedSaveDB(), true);
+  assert.equal(persisted, true, "unsupported business movements must remain usable in local mode");
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
-  assert.equal(JSON.parse(storage.getItem(MUTATION_KEYS.appData)).cashMovements.length, 0);
+  assert.equal(JSON.parse(storage.getItem(MUTATION_KEYS.appData)).cashMovements.length, 1);
+  assert.ok(storage.getItem(MUTATION_KEYS.unsupported), "the local-only sync barrier must persist across reloads");
+  assert.equal((await windowObject.anasFirebaseSyncPush()).status, "blocked-unsupported-local-mutations");
+  assert.equal((await windowObject.anasFirebaseSyncPull()).status, "blocked-unsupported-local-mutations");
   installer.uninstall();
 });
 
-test("runtime wiring rejects multiple appended business entities before local persistence", () => {
+test("runtime wiring keeps multi-invoice batches local and blocks unsafe cloud replay", async () => {
   const initial = fixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
@@ -455,14 +457,16 @@ test("runtime wiring rejects multiple appended business entities before local pe
     mapMutation: () => ({ type: "SALE_INVOICE", payload: { invoice: {} } })
   });
   installer.install();
-  assert.throws(() => installer.wrappedSaveDB(), /Unsupported multi-entity V42 save/);
-  assert.equal(persisted, false);
+  assert.equal(installer.wrappedSaveDB(), true);
+  assert.equal(persisted, true);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.ok(storage.getItem(MUTATION_KEYS.unsupported));
+  assert.equal((await installer.wrappedPush()).status, "blocked-unsupported-local-mutations");
   installer.uninstall();
 });
 
 
-test("runtime wiring fails closed when financial balances or stock change without a queued operation", () => {
+test("runtime wiring preserves unsupported financial changes locally and persists a cloud-sync barrier", async () => {
   for (const mutate of [
     data => { data.products[0].stock -= 3; },
     data => { data.products[0].warehouseStock = { "مخزن ثانوي": 3 }; },
@@ -491,9 +495,11 @@ test("runtime wiring fails closed when financial balances or stock change withou
       mapMutation: () => null
     });
     installer.install();
-    assert.throws(() => installer.wrappedSaveDB(), /Unsupported V42 financial or inventory change/);
-    assert.equal(persisted, false);
+    assert.equal(installer.wrappedSaveDB(), true);
+    assert.equal(persisted, true, "existing local ERP modules must not be disabled by missing sync adapters");
     assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+    assert.ok(storage.getItem(MUTATION_KEYS.unsupported));
+    assert.equal((await installer.wrappedPush()).status, "blocked-unsupported-local-mutations");
     installer.uninstall();
   }
 });

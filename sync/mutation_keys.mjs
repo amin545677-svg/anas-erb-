@@ -4,5 +4,6 @@ export const MUTATION_KEYS = Object.freeze({
   pending: "ANAS_PENDING_MUTATIONS_V1",
   rescue: "ANAS_CONFLICT_RESCUE_SNAPSHOT",
   quarantined: "ANAS_QUARANTINED_MUTATIONS_V1",
-  revision: "ANAS_CLOUD_REVISION_V1"
+  revision: "ANAS_CLOUD_REVISION_V1",
+  unsupported: "ANAS_UNSUPPORTED_LOCAL_MUTATIONS_V1"
 });

@@ -2774,7 +2774,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                   <div class="anas-firebase-cloud-actions">
                     <button type="button" class="btn-full-submit" style="background:#15803d;flex:1;margin:0" onclick="anasFirebasePush()">☁️ رفع نسخة البيانات</button>
                     <button type="button" class="btn-full-submit" style="background:#7c3aed;flex:1;margin:0" onclick="anasFirebasePull()">⬇️ استرجاع من السحابة</button>
+                    <button id="anasFirebaseSyncBtn" type="button" class="btn-full-submit" style="background:#0f766e;flex:1;margin:0" disabled>🔄 مزامنة العمليات</button>
                   </div>
+                  <p id="anasFirebaseSyncStatus" role="status" aria-live="polite" style="font-size:.8rem;line-height:1.6;margin:8px 0;color:var(--mp-text-muted)">المزامنة التشغيلية غير مفعّلة بعد. النسخ الاحتياطي والاسترجاع اليدوي يعملان بشكل مستقل.</p>
                   <p style="font-size:.76rem;line-height:1.6;color:var(--mp-text-muted);margin:10px 0 0">تنبيه: لا تستخدم قواعد تسمح للجميع بالقراءة والكتابة. إذا ظهرت رسالة صلاحيات، أوقف المزامنة وأرسلها لي؛ لا تفتح القاعدة للعامة.</p>
                 </div>
 
@@ -14825,6 +14827,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
         recoverInterruptedLocalMutation
       });
     </script>
+    <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>
 
 <script>
 (function () {
