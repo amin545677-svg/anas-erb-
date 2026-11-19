@@ -621,3 +621,57 @@ test("quarantines a debt collection when another device has consumed the invoice
   assert.equal(result.snapshot.cashMovements.some(row => row.id === op.payload.cashMovementId), false);
   assert.equal(result.snapshot.settlementAllocations.length, 1);
 });
+
+
+test("quarantines a debt collection that skips an older eligible invoice after a cloud conflict", () => {
+  const initial = cloud();
+  initial.customers[0].debt = 1000;
+  initial.invoices = [
+    { id: "inv-older-fifo", customerId: "cust_s", date: "2026-10-01", total: 500, paid: 0, remaining: 500 },
+    { id: "inv-later-fifo", customerId: "cust_s", date: "2026-10-10", total: 500, paid: 0, remaining: 500 }
+  ];
+  const op = {
+    opId: "collection-skips-older-invoice",
+    type: "DEBT_COLLECTION",
+    createdAt: "2026-10-28T12:00:00.000Z",
+    payload: {
+      customerId: "cust_s",
+      amount: 200,
+      cashMovementId: "DEBT-IN-FIFO-SKIP",
+      cashMovement: {
+        id: "DEBT-IN-FIFO-SKIP", opId: "collection-skips-older-invoice",
+        type: "add", amount: 200, referenceType: "customer_debt", referenceId: "cust_s"
+      },
+      v42Ledger: {
+        clientMovements: [
+          {
+            movementId: "CL-OPEN-FIFO-SKIP", clientId: "cust_s",
+            type: "opening_balance", amountCentimes: 120000,
+            direction: "debit", referenceType: "opening_balance",
+            referenceId: "cust_s", createdAt: "2026-10-28T12:00:00.000Z"
+          },
+          {
+            movementId: "CL-REC-FIFO-SKIP", clientId: "cust_s",
+            type: "receipt", amountCentimes: 20000,
+            direction: "credit", referenceType: "customer_debt",
+            referenceId: "cust_s", createdAt: "2026-10-28T12:00:00.000Z"
+          }
+        ],
+        settlementAllocations: [{
+          allocationId: "ALLOC-FIFO-SKIP-LATER",
+          partyType: "customer", partyId: "cust_s",
+          invoiceType: "sales_invoice", invoiceId: "inv-later-fifo",
+          sourceMovementId: "DEBT-IN-FIFO-SKIP",
+          sourceMovementType: "customer_debt", amountCentimes: 20000,
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }]
+      }
+    }
+  };
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.equal(result.review.length, 1);
+  assert.equal(result.review[0].reason, "V42_COLLECTION_LEDGER_MISMATCH");
+  assert.equal(result.snapshot.customers[0].debt, 1000);
+  assert.equal(result.snapshot.cashMovements.some(row => row.id === op.payload.cashMovementId), false);
+  assert.equal(result.snapshot.settlementAllocations.length, 0);
+});

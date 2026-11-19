@@ -271,24 +271,19 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         const invoiceRows = Array.isArray(snapshot.invoices) ? snapshot.invoices : [];
         const existingAllocations = Array.isArray(snapshot.settlementAllocations)
           ? snapshot.settlementAllocations : [];
-        const incomingByInvoice = new Map();
+        const customerInvoices = invoiceRows.filter(invoice =>
+          String(invoice?.customerId ?? invoice?.customerObj?.id ?? "") === String(customer.id));
+        const invoiceById = new Map();
+        const priorByInvoice = new Map();
+        const eligibleBalances = [];
         let validAllocations = allocationRows.length > 0;
-        let allocationTotalCents = 0;
-        for (const row of allocationRows) {
-          const matches = invoiceRows.filter(invoice =>
-            String(invoice?.id) === String(row?.invoiceId) &&
-            String(invoice?.customerId ?? invoice?.customerObj?.id ?? "") === String(customer.id));
-          if (!row?.allocationId || row.partyType !== "customer" ||
-              String(row.partyId) !== String(customer.id) ||
-              row.invoiceType !== "sales_invoice" ||
-              row.sourceMovementType !== "customer_debt" ||
-              String(row.sourceMovementId) !== movementId ||
-              !Number.isSafeInteger(row.amountCentimes) || row.amountCentimes <= 0 ||
-              matches.length !== 1) {
+        for (const invoice of customerInvoices) {
+          const invoiceId = String(invoice?.id ?? "");
+          if (!invoiceId || invoiceById.has(invoiceId)) {
             validAllocations = false;
             break;
           }
-          const invoice = matches[0];
+          invoiceById.set(invoiceId, invoice);
           const totalCents = moneyCents(invoice.total);
           const paidCents = moneyCents(invoice.paid ?? 0);
           const originalRemainingCents = moneyCents(invoice.remaining);
@@ -298,33 +293,81 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
             validAllocations = false;
             break;
           }
-          let priorLaterAllocations = 0;
+          priorByInvoice.set(invoiceId, 0);
+        }
+        if (validAllocations) {
           for (const prior of existingAllocations) {
-            if (prior?.partyType === "customer" &&
-                prior.invoiceType === "sales_invoice" &&
-                String(prior.invoiceId) === String(invoice.id) &&
-                prior.sourceMovementType === "customer_debt") {
-              if (!Number.isSafeInteger(prior.amountCentimes) || prior.amountCentimes <= 0 ||
-                  !Number.isSafeInteger(priorLaterAllocations + prior.amountCentimes)) {
+            if (prior?.partyType !== "customer" ||
+                String(prior.partyId) !== String(customer.id) ||
+                prior.invoiceType !== "sales_invoice" ||
+                prior.sourceMovementType !== "customer_debt") continue;
+            const invoiceId = String(prior.invoiceId ?? "");
+            if (!invoiceById.has(invoiceId) ||
+                !Number.isSafeInteger(prior.amountCentimes) || prior.amountCentimes <= 0) {
+              validAllocations = false;
+              break;
+            }
+            const accumulated = (priorByInvoice.get(invoiceId) || 0) + prior.amountCentimes;
+            if (!Number.isSafeInteger(accumulated)) {
+              validAllocations = false;
+              break;
+            }
+            priorByInvoice.set(invoiceId, accumulated);
+          }
+        }
+        if (validAllocations) {
+          for (const [invoiceId, invoice] of invoiceById.entries()) {
+            const totalCents = moneyCents(invoice.total);
+            const paidCents = moneyCents(invoice.paid ?? 0);
+            const remainingCents = totalCents - paidCents - (priorByInvoice.get(invoiceId) || 0);
+            if (!Number.isSafeInteger(remainingCents) || remainingCents < 0) {
+              validAllocations = false;
+              break;
+            }
+            if (remainingCents > 0) {
+              const dateValue = invoice.date || invoice.createdAt || invoice.timestamp || invoice.invoiceDate || "";
+              const parsedDate = Date.parse(dateValue);
+              eligibleBalances.push({
+                invoiceId,
+                remaining: remainingCents,
+                date: Number.isFinite(parsedDate) && parsedDate ? parsedDate : 0
+              });
+            }
+          }
+        }
+        if (validAllocations) {
+          eligibleBalances.sort((a, b) => a.date - b.date || a.invoiceId.localeCompare(b.invoiceId));
+          let remainingToAllocate = amountCents;
+          const expectedAllocations = [];
+          for (const invoice of eligibleBalances) {
+            if (remainingToAllocate <= 0) break;
+            const allocated = Math.min(invoice.remaining, remainingToAllocate);
+            if (!Number.isSafeInteger(allocated) || allocated <= 0) {
+              validAllocations = false;
+              break;
+            }
+            expectedAllocations.push({ invoiceId: invoice.invoiceId, amountCentimes: allocated });
+            remainingToAllocate -= allocated;
+          }
+          if (remainingToAllocate !== 0 || expectedAllocations.length !== allocationRows.length) {
+            validAllocations = false;
+          } else {
+            for (let index = 0; index < expectedAllocations.length; index++) {
+              const actual = allocationRows[index];
+              const expected = expectedAllocations[index];
+              if (!actual?.allocationId || actual.partyType !== "customer" ||
+                  String(actual.partyId) !== String(customer.id) ||
+                  actual.invoiceType !== "sales_invoice" ||
+                  String(actual.invoiceId) !== expected.invoiceId ||
+                  actual.sourceMovementType !== "customer_debt" ||
+                  String(actual.sourceMovementId) !== movementId ||
+                  actual.amountCentimes !== expected.amountCentimes) {
                 validAllocations = false;
                 break;
               }
-              priorLaterAllocations += prior.amountCentimes;
             }
           }
-          if (!validAllocations) break;
-          const currentRemainingCents = totalCents - paidCents - priorLaterAllocations;
-          const alreadyIncoming = incomingByInvoice.get(String(invoice.id)) || 0;
-          if (currentRemainingCents < 0 ||
-              row.amountCentimes > currentRemainingCents - alreadyIncoming ||
-              !Number.isSafeInteger(allocationTotalCents + row.amountCentimes)) {
-            validAllocations = false;
-            break;
-          }
-          incomingByInvoice.set(String(invoice.id), alreadyIncoming + row.amountCentimes);
-          allocationTotalCents += row.amountCentimes;
         }
-        validAllocations = validAllocations && allocationTotalCents === amountCents;
         const validClientRows = clientRows.length === receipts.length + openings.length &&
           clientRows.every(row => row?.movementId &&
             String(row.clientId) === String(customer.id) &&
