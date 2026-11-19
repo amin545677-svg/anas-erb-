@@ -35,6 +35,20 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   value = [...value].filter(character => /[0-9]/.test(character)
     || character === "." || character === "," || character === "\u066b" || character === "-").join("");
 
+  // DOM containers can include labels and dates alongside the rendered amount.
+  // Select the final decimal-bearing numeric token instead of treating every
+  // unrelated hyphen/date digit as part of the money value.
+  const numericTokens = value.match(/-?\\d+(?:[.,\\u066b]\\d+)*/g) || [];
+  if (numericTokens.length > 1) {
+    const decimalTokens = numericTokens.filter(token => {
+      const mark = [...token].find(character => separators.includes(character));
+      if (!mark) return false;
+      const tail = token.length - token.lastIndexOf(mark) - 1;
+      return tail > 0 && tail <= fractionDigits;
+    });
+    if (decimalTokens.length) value = decimalTokens[decimalTokens.length - 1];
+  }
+
   // The UI may use Arabic separators even when the test locale is fr-DZ.
   const separators = [".", ",", "\u066b"];
   const occurrences = [];
