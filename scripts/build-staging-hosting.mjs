@@ -231,21 +231,21 @@ export async function buildStagingHosting(options = {}) {
       stagedHtml.includes('value="https://anas-erp-firebase-snapshot.amin545677.workers.dev"')) {
     throw new Error('Staging ERP shell retained a Production Firebase snapshot Worker URL');
   }
-  // The canonical source shell remains r26; this staging build emits the r41 worker generation.
+  // The canonical source shell remains r26; this staging build emits the r42 worker generation.
   const stamp = 'Build SHA: __ANAS_BUILD_SHA__ | SW: r26 | Env: Staging';
   if (stagedHtml.split(stamp).length - 1 !== 1) {
     throw new Error('Expected exactly one canonical source staging build stamp');
   }
-  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r41 | Env: Staging');
+  stagedHtml = stagedHtml.replace(stamp, 'Build SHA: ' + buildSha + ' | SW: r42 | Env: Staging');
   // Keep the static status bar and About-app stamp on one immutable build identity.
   const statusVersionAttr = 'data-build-version="r39"';
   const statusVersionBadge = /(<span id="anas-status-version-badge">)[\s\S]*?(<\/span>)/g;
   const statusBadgeMatches = [...stagedHtml.matchAll(statusVersionBadge)];
   if (stagedHtml.split(statusVersionAttr).length - 1 !== 1 || statusBadgeMatches.length !== 1) throw new Error('Expected exactly one legacy r39 status-bar identity to upgrade in the staging shell');
-  stagedHtml = stagedHtml.replace(statusVersionAttr, 'data-build-version="r41"');
-  stagedHtml = stagedHtml.replace(statusVersionBadge, '$1SW: r41 | Build SHA: ' + buildSha + '$2');
+  stagedHtml = stagedHtml.replace(statusVersionAttr, 'data-build-version="r42"');
+  stagedHtml = stagedHtml.replace(statusVersionBadge, '$1SW: r42 | Build SHA: ' + buildSha + '$2');
   const builtStatusBar = stagedHtml.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/);
-  if (!builtStatusBar || !builtStatusBar[0].includes('data-build-version="r41"') || !builtStatusBar[0].includes('SW: r41 | Build SHA: ' + buildSha) || builtStatusBar[0].includes('r40')) throw new Error('Staging status bar and About-app build identity are not synchronized');
+  if (!builtStatusBar || !builtStatusBar[0].includes('data-build-version="r42"') || !builtStatusBar[0].includes('SW: r42 | Build SHA: ' + buildSha) || builtStatusBar[0].includes('r40')) throw new Error('Staging status bar and About-app build identity are not synchronized');
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
