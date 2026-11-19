@@ -771,7 +771,9 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           // when this mutation has no rows for it (for example, no bank movement on a cash sale).
           // A non-empty collection is materialized only when there is a real row to commit.
           if (!Array.isArray(snapshot[key])) {
-            if (rows.length === 0) continue;
+            // V42 materializes settlementAllocations even when a credit-only sale has no
+            // settlement rows. Cash and bank ledgers remain absent when they have no movement.
+            if (rows.length === 0 && key !== "settlementAllocations") continue;
             snapshot[key] = [];
           }
           const committedRows = key === "clientMovements" && normalizedClientRows !== null
