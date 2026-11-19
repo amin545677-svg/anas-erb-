@@ -89,7 +89,7 @@ test("runtime pull entrypoint routes to reconciliation and surfaces quarantine i
   });
 
   installer.install();
-  const result = await windowObject.anasFirebasePull();
+  const result = await windowObject.anasFirebaseSyncPull();
 
   assert.equal(result.status, "synced");
   assert.deepEqual(order, ["reconcile"]);
@@ -194,7 +194,7 @@ test("reconciliation save is suppressed from local mutation capture to prevent r
   });
 
   installer.install();
-  const result = await windowObject.anasFirebasePull();
+  const result = await windowObject.anasFirebaseSyncPull();
   assert.equal(result.status, "synced");
   assert.equal(mapCalls, 0, "saveDB called inside reconciliation must bypass operation capture");
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
