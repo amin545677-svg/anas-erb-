@@ -32,8 +32,13 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   // fractional tail; suffixes such as "دج" must not invalidate a decimal.
   if (localeGroup) value = value.split(localeGroup).join("");
   value = value.replace(/[\s\u066c'’]/g, "");
-  value = [...value].filter(character => /[0-9]/.test(character)
-    || character === "." || character === "," || character === "\u066b" || character === "-").join("");
+  const leadingNegative = value.trimStart().startsWith("-");
+  // Preserve token boundaries from DOM labels/dates. Grouping whitespace has
+  // already been removed above, so remaining non-numeric characters delimit
+  // unrelated text rather than joining its digits to the amount.
+  value = [...value].map(character => /[0-9.,\u066b]/.test(character)
+    ? character
+    : character === "-" && leadingNegative ? "-" : " ").join(" ");
 
   // The UI may use Arabic separators even when the test locale is fr-DZ.
   const separators = [".", ",", "\u066b"];
