@@ -658,7 +658,16 @@ test("runtime wiring posts actual V42 partial and credit sales as complete compo
       "globalThis.runActualV42Sale = confirmHasibPayment;"
     ].join("\n"), context);
 
-    let cloud = { data: cloudV1(), revision: 1 };
+    let cloud = {
+      data: {
+        ...cloudV1(),
+        bankMovements: [],
+        clientMovements: [],
+        settlementAllocations: [],
+        auditTrail: []
+      },
+      revision: 1
+    };
     let firstPush = true;
     const eventOrder = [];
     const orchestrator = createMutationQueueOrchestrator({
