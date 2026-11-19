@@ -47,6 +47,7 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   // Select the final decimal-bearing numeric token instead of treating every
   // unrelated hyphen/date digit as part of the money value.
   const numericTokens = value.match(/-?\d+(?:[.,\u066b]\d+)*/g) || [];
+  if (numericTokens.length === 1) value = numericTokens[0];
   if (numericTokens.length > 1) {
     const decimalTokens = numericTokens.filter(token => {
       const mark = [...token].find(character => separators.includes(character));
