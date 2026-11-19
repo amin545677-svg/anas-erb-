@@ -53,43 +53,128 @@ export function installV42RuntimeWiring({
   }
 
   function makeOperation(current, previous) {
-    const newInvoices = (Array.isArray(current.invoices) ? current.invoices : []).filter(item =>
-      item && item.id != null && !(Array.isArray(previous?.invoices) ? previous.invoices : [])
-        .some(old => String(old?.id) === String(item.id))
-    );
-    const newMovements = (Array.isArray(current.cashMovements) ? current.cashMovements : []).filter(item =>
-      item && item.id != null && !(Array.isArray(previous?.cashMovements) ? previous.cashMovements : [])
-        .some(old => String(old?.id) === String(item.id))
-    );
+    const identityKey = {
+      invoices: "id", cashMovements: "id", bankMovements: "id",
+      stockMovements: "id", clientMovements: "movementId",
+      settlementAllocations: "allocationId"
+    };
+    function collectRows(key) {
+      const field = identityKey[key];
+      const currentRows = Array.isArray(current?.[key]) ? current[key] : [];
+      const previousRows = Array.isArray(previous?.[key]) ? previous[key] : [];
+      const previousById = new Map();
+      for (const row of previousRows) {
+        if (!row || row[field] == null || String(row[field]).trim() === "") {
+          throw new Error("Malformed existing " + key + " ledger row");
+        }
+        const id = String(row[field]);
+        if (previousById.has(id)) throw new Error("Duplicate existing " + key + " ledger ID");
+        previousById.set(id, row);
+      }
+      const currentIds = new Set();
+      const added = [];
+      for (const row of currentRows) {
+        if (!row || row[field] == null || String(row[field]).trim() === "") {
+          throw new Error("Malformed current " + key + " ledger row");
+        }
+        const id = String(row[field]);
+        if (currentIds.has(id)) throw new Error("Duplicate current " + key + " ledger ID");
+        currentIds.add(id);
+        if (previousById.has(id)) {
+          if (JSON.stringify(row) !== JSON.stringify(previousById.get(id))) {
+            throw new Error("Existing " + key + " ledger row was modified during a new operation");
+          }
+        } else {
+          added.push(structuredClone(row));
+        }
+      }
+      if (previousRows.some(row => !currentIds.has(String(row[field])))) {
+        throw new Error("Existing " + key + " ledger row was removed during a new operation");
+      }
+      return added;
+    }
 
-    // The V42 adapter currently supports exactly one atomic sale OR one customer-debt
-    // collection. Never guess the meaning of an expense, supplier payment, or a
-    // multi-entity save: reject it before the original saveDB can persist it.
-    if (newInvoices.length > 1 || newMovements.length > 1 ||
-        (newInvoices.length && newMovements.length)) {
+    const ledgerKeys = [
+      "invoices", "cashMovements", "bankMovements", "stockMovements",
+      "clientMovements", "settlementAllocations"
+    ];
+    const deltas = Object.fromEntries(ledgerKeys.map(key => [key, collectRows(key)]));
+    if (deltas.invoices.length > 1) {
       throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
     }
-    const invoice = newInvoices[0] || null;
-    const movement = newMovements[0] || null;
-    if (movement && (String(movement.type || "").toLowerCase() !== "add" ||
+
+    const invoice = deltas.invoices[0] || null;
+    if (invoice) {
+      const invoiceId = String(invoice.id);
+      const belongsToInvoice = row =>
+        String(row?.referenceType || "").toLowerCase() === "sales_invoice" &&
+        String(row?.referenceId ?? "") === invoiceId;
+      for (const key of ["cashMovements", "bankMovements", "stockMovements"]) {
+        if (deltas[key].some(row => !belongsToInvoice(row))) {
+          throw new Error("Unrelated " + key + " change cannot be bundled into a sale");
+        }
+      }
+      const customerId = invoice.customerObj?.id ?? invoice.customerId ?? null;
+      if (deltas.clientMovements.some(row =>
+        !belongsToInvoice(row) &&
+        !(String(row?.referenceType || "").toLowerCase() === "opening_balance" &&
+          customerId != null && String(row?.clientId ?? "") === String(customerId))
+      )) {
+        throw new Error("Unrelated client ledger change cannot be bundled into a sale");
+      }
+      if (deltas.settlementAllocations.some(row => String(row?.invoiceId ?? "") !== invoiceId)) {
+        throw new Error("Unrelated settlement allocation cannot be bundled into a sale");
+      }
+
+      const mapped = mapMutation({
+        current: structuredClone(current),
+        previous: structuredClone(previous),
+        entity: structuredClone(invoice),
+        kind: "sale"
+      });
+      if (!mapped || mapped.type !== "SALE_INVOICE" ||
+          !mapped.payload || typeof mapped.payload !== "object") {
+        throw new Error("mapMutation must return a SALE_INVOICE payload for a V42 sale");
+      }
+      const payload = structuredClone(mapped.payload);
+      payload.invoice = structuredClone(invoice);
+      payload.v42Ledger = {
+        cashMovements: deltas.cashMovements,
+        bankMovements: deltas.bankMovements,
+        stockMovements: deltas.stockMovements,
+        clientMovements: deltas.clientMovements,
+        settlementAllocations: deltas.settlementAllocations
+      };
+      const operation = createMutationEnvelope({ type: mapped.type, payload, now, uuid });
+      return { entity: invoice, operation };
+    }
+
+    if (deltas.bankMovements.length || deltas.stockMovements.length ||
+        deltas.clientMovements.length || deltas.settlementAllocations.length) {
+      throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
+    }
+    const movement = deltas.cashMovements[0] || null;
+    if (deltas.cashMovements.length > 1) {
+      throw new Error("Unsupported multi-entity V42 save; no local persistence was performed");
+    }
+    if (!movement) return null;
+    if (String(movement.type || "").toLowerCase() !== "add" ||
         String(movement.referenceType || "").toLowerCase() !== "customer_debt" ||
-        movement.referenceId == null || String(movement.referenceId).trim() === "")) {
+        movement.referenceId == null || String(movement.referenceId).trim() === "") {
       throw new Error("Unsupported cash movement; only customer-debt collections can enter the sync queue");
     }
-    const entity = invoice || movement;
-    if (!entity) return null;
     const mapped = mapMutation({
       current: structuredClone(current),
       previous: structuredClone(previous),
-      entity: structuredClone(entity),
-      kind: invoice ? "sale" : "collection"
+      entity: structuredClone(movement),
+      kind: "collection"
     });
-    if (!mapped || !["SALE_INVOICE", "DEBT_COLLECTION"].includes(mapped.type) ||
+    if (!mapped || mapped.type !== "DEBT_COLLECTION" ||
         !mapped.payload || typeof mapped.payload !== "object") {
-      throw new Error("mapMutation must return a supported operation type and a valid payload");
+      throw new Error("mapMutation must return a DEBT_COLLECTION payload for a customer collection");
     }
     const operation = createMutationEnvelope({ type: mapped.type, payload: mapped.payload, now, uuid });
-    return { entity, operation };
+    return { entity: movement, operation };
   }
 
   function hasUnsupportedBusinessDelta(current, previous) {
@@ -169,7 +254,8 @@ export function installV42RuntimeWiring({
     }
 
     const allowedCollections = captured.operation.type === "SALE_INVOICE"
-      ? new Set(["products", "customers", "invoices"])
+      ? new Set(["products", "customers", "invoices", "cashMovements", "bankMovements",
+          "stockMovements", "clientMovements", "settlementAllocations"])
       : new Set(["customers", "cashMovements"]);
     if (hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections)) {
       throw new Error("Unsupported additional business collection change; no local persistence was performed");

@@ -344,3 +344,141 @@ test("derives omitted sale remaining balance using exact integer centimes", () =
   assert.equal(result.snapshot.customers[0].debt, 26000.2);
   assert.equal(result.snapshot.invoices[0].total, 0.3);
 });
+
+
+test("V42 sale reconciliation commits cash, stock, customer and allocation ledgers as one exact bundle", () => {
+  const initial = cloud();
+  const invoice = {
+    id: "inv-v42-bundle", customerId: "cust_s", total: 1000, paid: 400, remaining: 600,
+    paymentMethod: "partial", paymentChannel: "cash", warehouse: "المخزن الرئيسي",
+    items: [{ id: "item_a", qty: 2, price: 500 }]
+  };
+  const op = {
+    opId: "sale-v42-bundle", type: "SALE_INVOICE",
+    createdAt: "2026-10-28T12:00:00.000Z",
+    payload: {
+      customerId: "cust_s", warehouse: "المخزن الرئيسي", invoice,
+      v42Ledger: {
+        cashMovements: [{
+          id: "SALE-CASH-inv-v42-bundle", type: "add", amount: 400,
+          paymentChannel: "cash", cashImpact: true,
+          referenceType: "sales_invoice", referenceId: invoice.id
+        }],
+        bankMovements: [],
+        stockMovements: [{
+          id: "SALE-STOCK-inv-v42-bundle-item_a", productId: "item_a",
+          qty: -2, type: "SALE_OUT", referenceType: "sales_invoice",
+          referenceId: invoice.id, warehouse: "المخزن الرئيسي"
+        }],
+        clientMovements: [{
+          movementId: "CL-INV-inv-v42-bundle", clientId: "cust_s",
+          type: "invoice_debit", amountCentimes: 60000, direction: "debit",
+          referenceType: "sales_invoice", referenceId: invoice.id,
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }],
+        settlementAllocations: [{
+          allocationId: "ALLOC-SALE-inv-v42-bundle", partyType: "customer",
+          partyId: "cust_s", invoiceType: "sales_invoice", invoiceId: invoice.id,
+          sourceMovementId: "SALE-CASH-inv-v42-bundle",
+          sourceMovementType: "sales_invoice", amountCentimes: 40000,
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }]
+      }
+    }
+  };
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.products[0].stock, 88);
+  assert.equal(result.snapshot.caisseBalance, 54400);
+  assert.equal(result.snapshot.customers[0].debt, 26600);
+  assert.equal(result.snapshot.invoices[0].id, invoice.id);
+  assert.equal(result.snapshot.cashMovements.filter(row => row.id === "SALE-CASH-inv-v42-bundle").length, 1);
+  assert.equal(result.snapshot.stockMovements.filter(row => row.id === "SALE-STOCK-inv-v42-bundle-item_a").length, 1);
+  assert.equal(result.snapshot.clientMovements.filter(row => row.movementId === "CL-INV-inv-v42-bundle").length, 1);
+  assert.equal(result.snapshot.settlementAllocations.filter(row => row.allocationId === "ALLOC-SALE-inv-v42-bundle").length, 1);
+  const replay = reconcilePendingMutations(result.snapshot, [op]);
+  assert.deepEqual(replay.review, []);
+  assert.equal(replay.snapshot.cashMovements.filter(row => row.id === "SALE-CASH-inv-v42-bundle").length, 1);
+  assert.equal(replay.snapshot.stockMovements.filter(row => row.id === "SALE-STOCK-inv-v42-bundle-item_a").length, 1);
+});
+
+test("V42 non-cash sale records bank settlement without increasing physical cashbox", () => {
+  const initial = cloud();
+  const invoice = {
+    id: "inv-v42-bank", customerId: "cust_s", total: 1000, paid: 1000, remaining: 0,
+    paymentMethod: "cash", paymentChannel: "transfer", warehouse: "المخزن الرئيسي",
+    items: [{ id: "item_a", qty: 1, price: 1000 }]
+  };
+  const op = {
+    opId: "sale-v42-bank", type: "SALE_INVOICE",
+    createdAt: "2026-10-28T12:00:00.000Z",
+    payload: {
+      customerId: "cust_s", invoice,
+      v42Ledger: {
+        cashMovements: [],
+        bankMovements: [{
+          id: "SALE-BANK-inv-v42-bank", type: "add", amount: 1000,
+          paymentChannel: "transfer", cashImpact: false,
+          referenceType: "sales_invoice", referenceId: invoice.id
+        }],
+        stockMovements: [{
+          id: "SALE-STOCK-inv-v42-bank-item_a", productId: "item_a",
+          qty: -1, type: "SALE_OUT", referenceType: "sales_invoice",
+          referenceId: invoice.id, warehouse: "المخزن الرئيسي"
+        }],
+        clientMovements: [],
+        settlementAllocations: [{
+          allocationId: "ALLOC-SALE-inv-v42-bank", partyType: "customer",
+          partyId: "cust_s", invoiceType: "sales_invoice", invoiceId: invoice.id,
+          sourceMovementId: "SALE-BANK-inv-v42-bank",
+          sourceMovementType: "sales_invoice", amountCentimes: 100000,
+          createdAt: "2026-10-28T12:00:00.000Z"
+        }]
+      }
+    }
+  };
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.snapshot.caisseBalance, 54000);
+  assert.equal(result.snapshot.products[0].stock, 89);
+  assert.equal(result.snapshot.bankMovements.length, 1);
+  assert.equal(result.snapshot.bankMovements[0].amount, 1000);
+  assert.equal(result.snapshot.settlementAllocations[0].amountCentimes, 100000);
+});
+
+test("V42 sale with a missing cash ledger row is quarantined without changing any financial entity", () => {
+  const initial = cloud();
+  const invoice = {
+    id: "inv-v42-missing-ledger", customerId: "cust_s", total: 1000, paid: 1000, remaining: 0,
+    paymentChannel: "cash", warehouse: "المخزن الرئيسي",
+    items: [{ id: "item_a", qty: 1, price: 1000 }]
+  };
+  const op = {
+    opId: "sale-v42-missing-ledger", type: "SALE_INVOICE",
+    createdAt: "2026-10-28T12:00:00.000Z",
+    payload: {
+      customerId: "cust_s", invoice,
+      v42Ledger: {
+        cashMovements: [], bankMovements: [],
+        stockMovements: [{
+          id: "SALE-STOCK-inv-v42-missing-ledger-item_a", productId: "item_a",
+          qty: -1, type: "SALE_OUT", referenceType: "sales_invoice",
+          referenceId: invoice.id, warehouse: "المخزن الرئيسي"
+        }],
+        clientMovements: [],
+        settlementAllocations: [{
+          allocationId: "ALLOC-SALE-inv-v42-missing-ledger", partyType: "customer",
+          partyId: "cust_s", invoiceType: "sales_invoice", invoiceId: invoice.id,
+          sourceMovementId: "missing-cash-movement", sourceMovementType: "sales_invoice",
+          amountCentimes: 100000, createdAt: "2026-10-28T12:00:00.000Z"
+        }]
+      }
+    }
+  };
+  const result = reconcilePendingMutations(initial, [op]);
+  assert.equal(result.review[0]?.reason, "SALE_PAYMENT_LEDGER_MISMATCH");
+  assert.equal(result.snapshot.products[0].stock, 90);
+  assert.equal(result.snapshot.caisseBalance, 54000);
+  assert.equal(result.snapshot.customers[0].debt, 26000);
+  assert.deepEqual(result.snapshot.invoices, initial.invoices);
+});

@@ -66,7 +66,7 @@ function cloudV1() {
   };
 }
 
-test("runtime wiring fails closed for actual V42 sale with multiple ledger side effects", async () => {
+test("runtime wiring captures actual V42 cash sale and reconciles all ledgers atomically after 409", async () => {
   const initial = fixture();
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
@@ -156,17 +156,29 @@ test("runtime wiring fails closed for actual V42 sale with multiple ledger side 
   installer.install();
   context.runActualV42Sale();
 
-  // Current V42 writes an invoice plus separate cash/stock/client ledger rows.
-  // The older PR260 prototype has no atomic replay contract for that multi-entity
-  // sale shape, so the correct behavior is fail-closed with a full V42 rollback.
-  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
-  assert.equal(context.AppData.invoices.length, 0);
-  assert.equal(context.AppData.products[0].stock, 90);
-  assert.equal(context.AppData.caisseBalance, 54000);
-  assert.equal(context.AppData.customers[0].debt, 26000);
-  assert.ok(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")));
-  assert.equal(storage.json(MUTATION_KEYS.appData).invoices.length, 0);
+  const pending = storage.json(MUTATION_KEYS.pending);
+  assert.equal(pending.length, 1, "the real V42 invoice must be captured as one pending operation");
+  assert.equal(pending[0].type, "SALE_INVOICE");
+  assert.equal(pending[0].status, "PENDING");
+  assert.equal(pending[0].payload.v42Ledger.cashMovements.length, 1);
+  assert.equal(pending[0].payload.v42Ledger.stockMovements.length, 1);
+  assert.equal(context.AppData.invoices.length, 1);
+  assert.equal(context.AppData.products[0].stock, 88);
+  assert.equal(context.AppData.caisseBalance, 55000);
+  assert.equal(context.AppData.cashMovements.length, 1);
+  assert.equal(context.AppData.stockMovements.length, 1);
+  assert.equal(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")), false);
 
+  const result = await windowObject.anasFirebasePush();
+  assert.equal(result.status, "synced");
+  assert.deepEqual(eventOrder, ["push", "pull", "push"]);
+  assert.equal(cloud.revision, 2);
+  assert.equal(cloud.data.products[0].stock, 88);
+  assert.equal(cloud.data.caisseBalance, 55000);
+  assert.equal(cloud.data.invoices.filter(row => row?.syncOpId === pending[0].opId).length, 1);
+  assert.equal(cloud.data.cashMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, 1);
+  assert.equal(cloud.data.stockMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, 1);
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(installer.uninstall(), true);
   assert.equal(await windowObject.anasFirebasePull(), "legacy-destructive-pull",
     "uninstall restores the legacy pull function; staging must keep restore distinct from operational reconcile");

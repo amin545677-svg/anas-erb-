@@ -339,32 +339,134 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         continue;
       }
       let customer = null;
-      if (remainingCents > 0) {
-        if (typeof op.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(op.createdAt) || !Number.isFinite(Date.parse(op.createdAt))) {
-          review.push({ opId: op.opId, reason: "SALE_OPERATION_TIMESTAMP_MISSING", operation: op });
-          continue;
-        }
-        const customerId = payload.customerId ?? invoice.customerId ?? invoice.customerObj?.id;
-        if (customerId == null) {
-          review.push({ opId: op.opId, reason: "CUSTOMER_REQUIRED_FOR_CREDIT_SALE", operation: op });
-          continue;
-        }
+      const saleCustomerId = payload.customerId ?? invoice.customerId ?? invoice.customerObj?.id;
+      if (saleCustomerId != null) {
         const matches = (Array.isArray(snapshot.customers) ? snapshot.customers : [])
-          .filter(item => item && String(item.id) === String(customerId));
+          .filter(item => item && String(item.id) === String(saleCustomerId));
         if (matches.length !== 1) {
           review.push({ opId: op.opId, reason: matches.length ? "DUPLICATE_CUSTOMER_ID" : "CUSTOMER_NOT_FOUND", operation: op });
           continue;
         }
         customer = matches[0];
+      }
+      if (remainingCents > 0) {
+        if (typeof op.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(op.createdAt) || !Number.isFinite(Date.parse(op.createdAt))) {
+          review.push({ opId: op.opId, reason: "SALE_OPERATION_TIMESTAMP_MISSING", operation: op });
+          continue;
+        }
+        if (!customer) {
+          review.push({ opId: op.opId, reason: "CUSTOMER_REQUIRED_FOR_CREDIT_SALE", operation: op });
+          continue;
+        }
         const debtCents = moneyCents(customer.debt ?? 0);
         if (debtCents === null || debtCents + remainingCents > Number.MAX_SAFE_INTEGER) {
           review.push({ opId: op.opId, reason: "INVALID_CUSTOMER_DEBT", operation: op });
           continue;
         }
       }
-      if (cashCents + paidCents > Number.MAX_SAFE_INTEGER) {
-        review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
-        continue;
+      const v42Ledger = payload.v42Ledger;
+      if (v42Ledger !== undefined) {
+        const ledgerKeys = ["cashMovements", "bankMovements", "stockMovements", "clientMovements", "settlementAllocations"];
+        if (!v42Ledger || typeof v42Ledger !== "object" || Array.isArray(v42Ledger) ||
+            ledgerKeys.some(key => !Array.isArray(v42Ledger[key]))) {
+          review.push({ opId: op.opId, reason: "INCOMPLETE_V42_SALE_LEDGER_BUNDLE", operation: op });
+          continue;
+        }
+        const channel = String(invoice.paymentChannel || "cash").toLowerCase();
+        const cashRows = v42Ledger.cashMovements;
+        const bankRows = v42Ledger.bankMovements;
+        const stockRows = v42Ledger.stockMovements;
+        const clientRows = v42Ledger.clientMovements;
+        const allocationRows = v42Ledger.settlementAllocations;
+        const cashChannel = channel === "cash";
+        const paymentRows = cashChannel ? cashRows : bankRows;
+        const wrongPaymentRows = cashChannel ? bankRows : cashRows;
+        const paymentId = paymentRows.length === 1 ? paymentRows[0]?.id : null;
+        if (wrongPaymentRows.length !== 0 ||
+            paymentRows.length !== (paidCents > 0 ? 1 : 0) ||
+            (paidCents > 0 && (
+              !paymentId || moneyCents(paymentRows[0]?.amount) !== paidCents ||
+              String(paymentRows[0]?.referenceType || "").toLowerCase() !== "sales_invoice" ||
+              String(paymentRows[0]?.referenceId ?? "") !== String(invoice.id) ||
+              String(paymentRows[0]?.paymentChannel || channel).toLowerCase() !== channel ||
+              Boolean(paymentRows[0]?.cashImpact) !== cashChannel
+            ))) {
+          review.push({ opId: op.opId, reason: "SALE_PAYMENT_LEDGER_MISMATCH", operation: op });
+          continue;
+        }
+        if (stockRows.length !== productUpdates.length ||
+            productUpdates.some(update => {
+              const matches = stockRows.filter(row =>
+                String(row?.productId ?? "") === String(update.product.id) &&
+                String(row?.referenceType || "").toLowerCase() === "sales_invoice" &&
+                String(row?.referenceId ?? "") === String(invoice.id) &&
+                String(row?.warehouse ?? "المخزن الرئيسي") === warehouse &&
+                Number(row?.qty) === -update.quantity
+              );
+              return matches.length !== 1;
+            })) {
+          review.push({ opId: op.opId, reason: "SALE_STOCK_LEDGER_MISMATCH", operation: op });
+          continue;
+        }
+        const customerId = customer ? String(customer.id) : null;
+        const invoiceDebits = clientRows.filter(row =>
+          row?.type === "invoice_debit" &&
+          String(row?.referenceType || "").toLowerCase() === "sales_invoice" &&
+          String(row?.referenceId ?? "") === String(invoice.id)
+        );
+        const openingRows = clientRows.filter(row => row?.type === "opening_balance");
+        if (clientRows.some(row => !row || !row.movementId ||
+            (row.type !== "invoice_debit" && row.type !== "opening_balance") ||
+            (customerId && String(row.clientId) !== customerId)) ||
+            invoiceDebits.length !== (customer && remainingCents > 0 ? 1 : 0) ||
+            invoiceDebits.some(row => Number(row.amountCentimes) !== remainingCents ||
+              row.direction !== "debit" || String(row.clientId) !== customerId) ||
+            openingRows.length > 1 ||
+            openingRows.some(row => row.direction !== "debit" ||
+              !Number.isSafeInteger(row.amountCentimes) || row.amountCentimes <= 0)) {
+          review.push({ opId: op.opId, reason: "SALE_CLIENT_LEDGER_MISMATCH", operation: op });
+          continue;
+        }
+        if (allocationRows.length !== (customer && paidCents > 0 ? 1 : 0) ||
+            allocationRows.some(row => !row?.allocationId ||
+              row.partyType !== "customer" ||
+              String(row.partyId) !== customerId ||
+              row.invoiceType !== "sales_invoice" ||
+              String(row.invoiceId) !== String(invoice.id) ||
+              row.amountCentimes !== paidCents ||
+              String(row.sourceMovementId) !== String(paymentId))) {
+          review.push({ opId: op.opId, reason: "SALE_SETTLEMENT_ALLOCATION_MISMATCH", operation: op });
+          continue;
+        }
+
+        const ledgerCollections = [
+          ["cashMovements", "id"], ["bankMovements", "id"], ["stockMovements", "id"],
+          ["clientMovements", "movementId"], ["settlementAllocations", "allocationId"]
+        ];
+        let ledgerCollision = false;
+        for (const [key, idKey] of ledgerCollections) {
+          const rows = v42Ledger[key];
+          const ids = new Set();
+          const existing = Array.isArray(snapshot[key]) ? snapshot[key] : [];
+          for (const row of rows) {
+            const id = row?.[idKey];
+            if (id == null || String(id).trim() === "" || ids.has(String(id)) ||
+                existing.some(old => String(old?.[idKey] ?? "") === String(id))) {
+              ledgerCollision = true;
+              break;
+            }
+            ids.add(String(id));
+          }
+          if (ledgerCollision) break;
+        }
+        if (ledgerCollision) {
+          review.push({ opId: op.opId, reason: "SALE_LEDGER_ENTITY_ID_COLLISION", operation: op });
+          continue;
+        }
+        if (cashChannel && cashCents + paidCents > Number.MAX_SAFE_INTEGER) {
+          review.push({ opId: op.opId, reason: "INVALID_CASH_BALANCE", operation: op });
+          continue;
+        }
       }
 
       for (const update of productUpdates) {
@@ -377,13 +479,24 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           update.product.stock = update.stock - update.quantity;
         }
       }
+      if (customer && v42Ledger !== undefined &&
+          (v42Ledger.clientMovements.length || v42Ledger.settlementAllocations.length)) {
+        customer.ledgerVersion = 2;
+      }
       if (customer && remainingCents > 0) {
         customer.debt = fromMoneyCents(moneyCents(customer.debt ?? 0) + remainingCents);
         // V42 records debtDate as an ISO date, independent of the invoice's localized display date.
         customer.debtDate = op.createdAt.slice(0, 10);
       }
-      if (paidCents > 0) snapshot.caisseBalance = fromMoneyCents(cashCents + paidCents);
-      // V42 uses unshift and does not create cashMovements/stockMovements in this function.
+      const cashChannel = v42Ledger === undefined ||
+        String(invoice.paymentChannel || "cash").toLowerCase() === "cash";
+      if (paidCents > 0 && cashChannel) snapshot.caisseBalance = fromMoneyCents(cashCents + paidCents);
+      if (v42Ledger !== undefined) {
+        for (const [key, rows] of Object.entries(v42Ledger)) {
+          if (!Array.isArray(snapshot[key])) snapshot[key] = [];
+          snapshot[key].unshift(...structuredClone(rows));
+        }
+      }
       snapshot.invoices.unshift(structuredClone(invoice));
       markApplied();
       appliedNow.push({ opId: op.opId, outcome: "applied" });
