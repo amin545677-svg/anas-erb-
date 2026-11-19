@@ -673,5 +673,5 @@ test("quarantines a debt collection that skips an older eligible invoice after a
   assert.equal(result.review[0].reason, "V42_COLLECTION_LEDGER_MISMATCH");
   assert.equal(result.snapshot.customers[0].debt, 1000);
   assert.equal(result.snapshot.cashMovements.some(row => row.id === op.payload.cashMovementId), false);
-  assert.equal(result.snapshot.settlementAllocations.length, 0);
+  assert.equal((result.snapshot.settlementAllocations || []).length, 0);
 });
