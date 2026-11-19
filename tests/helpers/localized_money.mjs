@@ -79,6 +79,7 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   const decimalMark = preferred?.separator
     ?? occurrences.filter(item => item.tail > 0 && item.tail <= fractionDigits)
       .sort((a, b) => b.offset - a.offset)[0]?.separator
+    ?? localeOccurrences[0]?.separator
     ?? null;
 
   const minusCount = (value.match(/-/g) || []).length;
