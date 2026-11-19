@@ -215,8 +215,8 @@ test('live financial E2E workflow is manual, staging-only, explicitly confirmed 
   const consoleWorkflow = await fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-console-staging.yml', import.meta.url), 'utf8');
   assert.match(consoleWorkflow, /staging-project-guard:/);
   assert.match(consoleWorkflow, /needs:\s*staging-project-guard/);
-  assert.match(consoleWorkflow, /exact deployed commit and r40 build stamp/);
-  assert.match(consoleWorkflow, /r40 service-worker cache namespace/);
+  assert.match(consoleWorkflow, /exact deployed commit and r41 build stamp/);
+  assert.match(consoleWorkflow, /r41 service-worker cache namespace/);
   assert.match(consoleWorkflow, /Wait for matching Firebase Functions deployment success/);
   assert.ok(consoleWorkflow.includes('ANAS_BUILD_SHA: ${{ github.sha }}'));
   assert.ok(consoleWorkflow.includes('live-staging-acceptance:'));
@@ -324,16 +324,16 @@ test('Hosting live acceptance does not wait for billable Functions on normal sta
 });
 
 
-test('Functions deployment guard matches the canonical r40 Staging worker and generated build stamp', async () => {
+test('Functions deployment guard matches the canonical r41 Staging worker and generated build stamp', async () => {
   const fs = await import('node:fs/promises');
   const [functionsWorkflow, worker, builder] = await Promise.all([
     fs.readFile(new URL('../.github/workflows/deploy-reverse-ledger-functions-staging.yml', import.meta.url), 'utf8'),
     fs.readFile(new URL('../sw.js', import.meta.url), 'utf8'),
     fs.readFile(new URL('../scripts/build-staging-hosting.mjs', import.meta.url), 'utf8')
   ]);
-  assert.ok(worker.includes("const CACHE = 'anas-erp-v54-25-r40';"), 'canonical Service Worker must be r40');
-  assert.ok(functionsWorkflow.includes("const CACHE = 'anas-erp-v54-25-r40';"), 'Functions deployment guard must require the current worker');
-  assert.ok(functionsWorkflow.includes(' | SW: r40 | Env: Staging'), 'Functions deployment guard must require the generated r40 build stamp');
-  assert.ok(builder.includes('staging build emits the r40 worker generation'), 'staging build generation must be explicit');
-  assert.ok(builder.includes("'Build SHA: ' + buildSha + ' | SW: r40 | Env: Staging'"), 'staging builder must emit the r40 deployment stamp');
+  assert.ok(worker.includes("const CACHE = 'anas-erp-v54-25-r41';"), 'canonical Service Worker must be r41');
+  assert.ok(functionsWorkflow.includes("const CACHE = 'anas-erp-v54-25-r41';"), 'Functions deployment guard must require the current worker');
+  assert.ok(functionsWorkflow.includes(' | SW: r41 | Env: Staging'), 'Functions deployment guard must require the generated r41 build stamp');
+  assert.ok(builder.includes('staging build emits the r41 worker generation'), 'staging build generation must be explicit');
+  assert.ok(builder.includes("'Build SHA: ' + buildSha + ' | SW: r41 | Env: Staging'"), 'staging builder must emit the r41 deployment stamp');
 });
