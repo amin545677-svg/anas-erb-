@@ -256,7 +256,8 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
     queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
   }));
   assert.equal(beforeSync.queue.length, 1);
-  assert.equal(beforeSync.queue[0].status, "PENDING");
+  // A durable V42 save is still awaiting acknowledgement here; PREPARED must not replay until sync recovery verifies the committed AppData marker.
+  assert.equal(beforeSync.queue[0].status, "PREPARED");
   assert.equal(beforeSync.queue[0].payload.amount, 500.5);
   const sync = await page.evaluate(() => window.anasFirebaseSyncPush());
   assert.equal(sync.status, "synced");
