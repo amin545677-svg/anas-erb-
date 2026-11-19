@@ -50,7 +50,7 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   if (numericTokens.length === 1) value = numericTokens[0];
   if (numericTokens.length > 1) {
     const decimalTokens = numericTokens.filter(token => {
-      const mark = [...token].find(character => separators.includes(character));
+      const mark = [...token].reverse().find(character => separators.includes(character));
       if (!mark) return false;
       const tail = token.length - token.lastIndexOf(mark) - 1;
       return tail > 0 && tail <= fractionDigits;
@@ -75,7 +75,7 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   }
   const localeOccurrences = occurrences.filter(item => item.separator === localeDecimal);
   if (localeOccurrences.length > 1) throw new Error("multiple decimal separators");
-  const preferred = localeOccurrences.sort((a, b) => b.offset - a.offset)[0];
+  const preferred = localeOccurrences.find(item => item.tail > 0 && item.tail <= fractionDigits);
   const decimalMark = preferred?.separator
     ?? occurrences.filter(item => item.tail > 0 && item.tail <= fractionDigits)
       .sort((a, b) => b.offset - a.offset)[0]?.separator
