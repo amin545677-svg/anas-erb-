@@ -65,3 +65,23 @@
 /* r41: one checkout owner; the unified cart carries the total and payment action. */
 #view-pos.anas-has-unified-cart .bottom-totals-bar{display:none!important}
 #view-pos.anas-has-unified-cart{padding-bottom:calc(112px + env(safe-area-inset-bottom,0px))!important}
+
+/* r42: search-first catalogue and mobile checkout completion hardening. */
+#quickProductsContainer[hidden],#posCategoryTabs[hidden],#posStockFilterChips[hidden],
+#anasPosProductViewToggle[hidden],#posQuickProductsProgress[hidden],#posQuickProductsEmpty[hidden]{display:none!important}
+#view-pos #posSearchResults{position:relative;z-index:30;max-height:min(52dvh,440px);overflow:auto;overscroll-behavior:contain}
+#view-pos #posSearchResults .pos-search-result{min-height:52px;width:100%;text-align:start;touch-action:manipulation}
+#hasibModal.modal-bg-backdrop{z-index:100100!important;align-items:center!important;justify-content:center!important;overflow-y:auto!important}
+#hasibModal .picker-dialog-scroll{position:relative;z-index:100101;box-sizing:border-box;width:min(100%,560px);max-height:calc(100dvh - 20px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-padding-block:16px 120px}
+#hasibModal .picker-dialog-scroll>div:last-child{position:sticky;bottom:0;z-index:5;margin:14px -12px -12px;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));background:var(--mp-card,#fff);border-top:1px solid var(--mp-border,#dbe3ed);box-shadow:0 -8px 20px rgba(15,23,42,.10)}
+#hasibModal #hasibConfirmSaleBtn{width:100%;min-height:54px;border-radius:12px;background:#15803d!important;border:1px solid #166534!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:16px;font-weight:950;touch-action:manipulation}
+#hasibModal .anas-payment-back-btn{width:100%;min-height:46px}
+#hasibModal input,#hasibModal select{min-height:46px;max-width:100%;box-sizing:border-box;font-size:16px}
+@media(max-width:600px){
+ #hasibModal.modal-bg-backdrop{padding:8px!important;align-items:flex-start!important}
+ #hasibModal .picker-dialog-scroll{width:100%;max-height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));padding:12px}
+ #hasibModal .picker-dialog-scroll>div:last-child{margin:12px -12px -12px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))}
+ #hasibModal #hasibConfirmSaleBtn{min-height:56px}
+}
+:root[data-anas-theme="dark"] #hasibModal .picker-dialog-scroll,
+:root[data-anas-theme="dark"] #hasibModal .picker-dialog-scroll>div:last-child{background:#111c2e!important;color:#f1f5f9!important;border-color:#475569!important}
