@@ -101,7 +101,9 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   if (!/^\d+(?:\.\d+)?$/.test(normalized)) throw new Error("invalid localized amount");
 
   const [whole, fraction = ""] = normalized.split(".");
-  if (fraction.length > fractionDigits) throw new Error("exceeds permitted precision");
+  if (fraction.length > fractionDigits) {
+    throw new Error("exceeds permitted precision: " + JSON.stringify({ input, value, normalized, decimalMark, fractionDigits }));
+  }
   const units = BigInt(whole) * 10n ** BigInt(fractionDigits)
     + BigInt((fraction + "0".repeat(fractionDigits)).slice(0, fractionDigits) || "0");
   return negative ? -units : units;
