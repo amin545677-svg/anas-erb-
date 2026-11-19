@@ -368,11 +368,13 @@ export function installV42RuntimeWiring({
     if (!originalSaveDBDurably) throw new Error("V42 durable save binding is unavailable");
     const pending = pendingPrepared;
     try {
+      if (typeof storage.flush === "function") await storage.flush();
       const result = await originalSaveDBDurably.apply(this, args);
       if (!pending) return result;
       if (result === true || hasCommittedOperationMarker(pending.operation.opId)) {
         try {
           promote(pending.operation.opId);
+          if (typeof storage.flush === "function") await storage.flush();
         } catch (error) {
           // The durable business snapshot is authoritative. Keep PREPARED so
           // boot recovery can promote it from the persisted operation marker.
@@ -383,6 +385,7 @@ export function installV42RuntimeWiring({
         return true;
       }
       discardPrepared(pending);
+      if (typeof storage.flush === "function") await storage.flush();
       return result;
     } catch (error) {
       if (pending && hasCommittedOperationMarker(pending.operation.opId)) {
@@ -394,7 +397,10 @@ export function installV42RuntimeWiring({
         lastSnapshot = structuredClone(getAppData());
         return true;
       }
-      if (pending) discardPrepared(pending);
+      if (pending) {
+        discardPrepared(pending);
+        if (typeof storage.flush === "function") await storage.flush();
+      }
       throw error;
     }
   }
@@ -618,12 +624,15 @@ export function installV42RuntimeWiring({
   }
 
   async function wrappedPush() {
+    if (typeof storage.flush === "function") await storage.flush();
     const blocked = unsupportedBlockResult();
     if (blocked) return blocked;
     const result = await orchestrator.pushCurrent();
+    if (typeof storage.flush === "function") await storage.flush();
     if (result?.status === "conflict") {
       onStatus({ level: "warning", code: "V42_SYNC_CONFLICT_RECONCILING" });
       const reconciled = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
+      if (typeof storage.flush === "function") await storage.flush();
       if (reconciled?.status === "synced") refreshFromPersistedSnapshot();
       if (reconciled?.quarantined?.length) onQuarantine(reconciled.quarantined);
       onStatus({ level: reconciled?.status === "synced" ? "success" : "error", result: reconciled });
@@ -636,9 +645,11 @@ export function installV42RuntimeWiring({
   async function wrappedPull() {
     // This is an operational reconciliation pull, intentionally distinct from the
     // legacy destructive full-snapshot restore function.
+    if (typeof storage.flush === "function") await storage.flush();
     const blocked = unsupportedBlockResult();
     if (blocked) return blocked;
     const result = await withReconcilingWrite(() => orchestrator.reconcileAndSync());
+    if (typeof storage.flush === "function") await storage.flush();
     if (result?.status === "synced") refreshFromPersistedSnapshot();
     if (result?.quarantined?.length) onQuarantine(result.quarantined);
     onStatus({ level: result?.status === "synced" ? "success" : "error", result });

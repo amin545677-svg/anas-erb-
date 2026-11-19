@@ -23,6 +23,13 @@
   let writeQueue = Promise.resolve();
   let writeConflict = false;
   let writeConflictError = null;
+  let auxiliaryWriteTail = Promise.resolve();
+  let auxiliaryWriteFailure = null;
+  const DURABLE_AUX_KEYS = new Set([
+    'ANAS_PENDING_MUTATIONS_V1', 'ANAS_CONFLICT_RESCUE_SNAPSHOT',
+    'ANAS_QUARANTINED_MUTATIONS_V1', 'ANAS_CLOUD_REVISION_V1',
+    'ANAS_UNSUPPORTED_LOCAL_MUTATIONS_V1'
+  ]);
   let mode = 'DUAL';
 
   function assertWellFormedUnicode(text) {
@@ -387,6 +394,52 @@
       tx.onabort = () => reject(conflictError || tx.error || new Error('IndexedDB transaction aborted'));
     });
   }
+  async function readAuxiliaryRecords() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).getAll();
+      request.onsuccess = () => resolve((request.result || []).filter(record => record && record.key !== APP_KEY));
+      request.onerror = () => reject(request.error || new Error('IndexedDB auxiliary read failed'));
+    });
+  }
+  function persistAuxiliary(key, payload) {
+    const task = auxiliaryWriteTail.then(async () => {
+      const digest = await checksum(payload);
+      const db = await openDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put({ key, payload, checksum: digest, updatedAt: new Date().toISOString() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB auxiliary write failed'));
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB auxiliary write aborted'));
+      });
+    });
+    auxiliaryWriteTail = task.catch(error => { auxiliaryWriteFailure = error; });
+    return task;
+  }
+  function deleteAuxiliary(key) {
+    const task = auxiliaryWriteTail.then(async () => {
+      const db = await openDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB auxiliary delete failed'));
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB auxiliary delete aborted'));
+      });
+    });
+    auxiliaryWriteTail = task.catch(error => { auxiliaryWriteFailure = error; });
+    return task;
+  }
+  async function flushDurableItems() {
+    await auxiliaryWriteTail;
+    if (auxiliaryWriteFailure) {
+      const error = auxiliaryWriteFailure;
+      auxiliaryWriteFailure = null;
+      throw error;
+    }
+  }
   async function validateRecord(record) {
     if (!record || record.key !== APP_KEY || !Number.isSafeInteger(record.revision) || record.revision < 1 ||
         typeof record.payload !== 'string' || typeof record.checksum !== 'string') return false;
@@ -428,7 +481,7 @@
     if (key !== APP_KEY) {
       cache[key] = text;
       try { global.localStorage.setItem(key, text); } catch (_) {}
-      return Promise.resolve();
+      return DURABLE_AUX_KEYS.has(key) ? persistAuxiliary(key, text) : Promise.resolve();
     }
     // The complete commit (revision allocation, checksum, both durable stores,
     // and cache publication) is serialized by persist(). Do not do async work
@@ -443,6 +496,7 @@
     }
     delete cache[key];
     try { global.localStorage.removeItem(key); } catch (_) {}
+    return DURABLE_AUX_KEYS.has(key) ? deleteAuxiliary(key) : undefined;
   }
   function persist(payload, targetRevision, expectedCorruptRecord = null) {
     const task = writeQueue.then(async () => {
@@ -570,6 +624,29 @@
       global.__ANAS_STORAGE_LAST_ERROR__ = String(error && error.message || error);
     }
     const idbValid = await validateRecord(record);
+    if (!idbUnavailable) {
+      const auxiliaryRecords = await readAuxiliaryRecords();
+      const durableKeys = new Set();
+      for (const auxiliary of auxiliaryRecords) {
+        if (!DURABLE_AUX_KEYS.has(auxiliary.key)) continue;
+        if (typeof auxiliary.payload !== 'string' || typeof auxiliary.checksum !== 'string' ||
+            await checksum(auxiliary.payload) !== auxiliary.checksum) {
+          throw Object.assign(new Error('Durable mutation journal checksum validation failed: ' + auxiliary.key), { code: 'ANAS_AUXILIARY_CHECKSUM_INVALID' });
+        }
+        decode(auxiliary.payload);
+        cache[auxiliary.key] = auxiliary.payload;
+        durableKeys.add(auxiliary.key);
+      }
+      for (const key of DURABLE_AUX_KEYS) {
+        if (durableKeys.has(key)) continue;
+        let legacy = null;
+        try { legacy = global.localStorage?.getItem(key) ?? null; } catch (_) {}
+        if (legacy == null) continue;
+        decode(legacy);
+        cache[key] = legacy;
+        await persistAuxiliary(key, legacy);
+      }
+    }
     // A successful durable read is the only operation that clears a prior
     // cross-tab write lock. The following selection uses the newest validated
     // snapshot before any subsequent domain write is allowed.
@@ -668,6 +745,7 @@
     APP_KEY, DB_NAME, STORE_NAME, getSync, setSync, removeSync, hydrate, persist,
     getItem(key) { const text = getSync(key); return text == null ? null : decode(text); },
     setItem(key, value) { return setSync(key, encode(value)); },
-    ready, status, encode, decode, canonicalizeJson, checksum, assertWellFormedUtf16, isStrictBigIntEnvelope, cloneAndDeepFreezeState, getCommittedSnapshot() { return committedSnapshot; }
+    ready, status, encode, decode, canonicalizeJson, checksum, assertWellFormedUtf16, isStrictBigIntEnvelope, cloneAndDeepFreezeState,
+    flushDurableItems, getCommittedSnapshot() { return committedSnapshot; }
   });
 })(window);

@@ -48,6 +48,10 @@ function makeStorageAdapter(resilient) {
     removeItem(key) {
       return resilient.removeSync(key);
     },
+    flush() {
+      return typeof resilient.flushDurableItems === "function"
+        ? resilient.flushDurableItems() : Promise.resolve();
+    },
     getCommittedSnapshot() {
       return typeof resilient.getCommittedSnapshot === "function"
         ? resilient.getCommittedSnapshot() : null;
