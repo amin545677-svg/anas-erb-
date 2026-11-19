@@ -247,12 +247,12 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   const mock = { cloud, firstPushConflict: true, posts: 0, pulls: 0 };
   await setMockCloudRoutes(page, mock);
   await installHarness(page, { firstPushConflict: true, cloudV1: cloud });
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     window.prompt = message => String(message).startsWith("خصّص")
       ? JSON.stringify([{ invoiceId: "browser-debt-invoice", amount: "500.50" }])
       : "500.50";
     window.alert = () => {};
-    collectCustDebt("cust-browser-1");
+    await collectCustDebt("cust-browser-1");
   });
   const beforeSync = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
