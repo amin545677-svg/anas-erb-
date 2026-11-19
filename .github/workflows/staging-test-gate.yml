@@ -90,6 +90,8 @@ jobs:
         run: find scripts tests -type f -name '*.mjs' -print0 | xargs -0 -r -n1 node --check && node --check pos/micro-pos-engine.mjs && node --check anas-pos-floating-cart.js && node --check ai-excel-import-ui.js && node --check core/pos-quick-sale-transaction-bridge.js
       - name: Run shared financial application core unit tests
         run: node --test tests/shared_application_core.test.js
+      - name: Verify ESM shared core and pure financial migration coordinator
+        run: node --test tests/shared_application_core_esm.test.mjs tests/financial_migration_coordinator.test.mjs
       - name: Run ANAS ERP unified light/dark theme regression tests
         run: node --test tests/theme-system.test.mjs
       - name: Run rooted UI and accounting regression tests

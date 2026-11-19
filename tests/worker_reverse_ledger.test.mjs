@@ -4,8 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const workerSource = await readFile(resolve("cloudflare/worker_reverse_ledger.js"),"utf8");
-const workerUrl = "data:text/javascript;base64,"+Buffer.from(workerSource).toString("base64");
-const { default: worker } = await import(workerUrl);
+const { default: worker } = await import(new URL("../cloudflare/worker_reverse_ledger.js", import.meta.url));
 const origin = "https://anas-erp-staging-a25e1.web.app";
 const nowSeconds = Math.floor(Date.now()/1000);
 const firebaseClaims = { sub:"trusted-user-1", user_id:"trusted-user-1",
@@ -324,4 +323,10 @@ test("CORS preflight explicitly permits the Firebase App Check header",async()=>
   const r=await worker.fetch(new Request("https://reverse-ledger.test/reserve",{method:"OPTIONS",headers:{Origin:origin}}),env);
   assert.equal(r.status,204);
   assert.match(r.headers.get("Access-Control-Allow-Headers"),/X-Firebase-AppCheck/);
+});
+
+test("Worker source imports the shared ESM core and pure migration coordinator", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const workerModule = await import(pathToFileURL(resolve("cloudflare/worker_reverse_ledger.js")).href + "?esm-contract-test=1");
+  assert.equal(typeof workerModule.default.fetch, "function");
 });

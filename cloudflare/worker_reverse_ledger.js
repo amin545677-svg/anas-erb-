@@ -1,3 +1,5 @@
+import { requestHash } from "../functions/shared-application-core.mjs";
+import { prepareFinancialMigration } from "../functions/financial-migration-coordinator.mjs";
 /**
  * ANAS ERP reverse-ledger reservation Worker.
  *
@@ -7,6 +9,15 @@
  * separate server-side transaction implementation is completed and audited.
  */
 const MAX_BODY_BYTES = 16 * 1024;
+
+// Platform adapter: Web Crypto is injected rather than coupled to Node crypto.
+async function sha256Hex(value, webCrypto = globalThis.crypto) {
+  if (!webCrypto?.subtle?.digest) throw new TypeError("Web Crypto SHA-256 is unavailable");
+  const digest = await webCrypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+// Keep the shared ESM contracts linked in the Worker bundle without enabling posting.
+export const sharedFinancialContracts = Object.freeze({ requestHash, prepareFinancialMigration, sha256Hex });
 const PERMISSIONS = Object.freeze({
   SALE_RETURN: "reverse_sale_return",
   PURCHASE_RETURN: "reverse_purchase_return",
