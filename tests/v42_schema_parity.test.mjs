@@ -221,6 +221,11 @@ function assertDeepSaleParity({ warehouse, paid, total = 1000, customerId = "cus
       ...(warehouse && warehouse !== "المخزن الرئيسي" ? { warehouseStock: { [warehouse]: secondaryStock } } : {})
     }],
     invoices: [],
+    cashMovements: [],
+    bankMovements: [],
+    stockMovements: [],
+    clientMovements: [],
+    settlementAllocations: [],
     currentUser: { id: "user_1", name: "مدير", role: "admin" }
   };
   const cart = [{ id: "item_a", name: "صنف اختبار", qty: 2, price: total / 2 }];

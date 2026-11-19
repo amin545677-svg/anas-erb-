@@ -733,6 +733,9 @@ test("runtime wiring posts actual V42 partial and credit sales as complete compo
     assert.equal(cloud.data.caisseBalance, scenario.expectedCash);
     assert.equal(cloud.data.customers[0].debt, scenario.expectedDebt);
     assert.equal(cloud.data.invoices.filter(row => row?.syncOpId === stableOpId).length, 1);
+    assert.deepEqual(result.quarantined, [], scenario.name + ": a valid V42 sale must not be quarantined");
+    assert.ok(Array.isArray(cloud.data.auditTrail),
+      scenario.name + ": accepted cloud snapshot must include the SALE_COMMITTED audit ledger");
     assert.equal(cloud.data.auditTrail.filter(row => row?.opId === stableOpId).length, 1);
     assert.equal(cloud.data.stockMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, 1);
     assert.equal(cloud.data.cashMovements.filter(row => row.referenceId === pending[0].payload.invoice.id).length, scenario.paidCentimes > 0 ? 1 : 0);
