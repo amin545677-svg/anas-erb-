@@ -38,7 +38,7 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   // unrelated text rather than joining its digits to the amount.
   value = [...value].map(character => /[0-9.,\u066b]/.test(character)
     ? character
-    : character === "-" && leadingNegative ? "-" : " ").join(" ");
+    : character === "-" && leadingNegative ? "-" : " ").join("");
 
   // The UI may use Arabic separators even when the test locale is fr-DZ.
   const separators = [".", ",", "\u066b"];
