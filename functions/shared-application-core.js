@@ -14,9 +14,21 @@ function authorizeFinancialScope(context, authorize) {
   }
   return authorize(context);
 }
+function canonicalSerialize(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(item => {
+    const serialized = canonicalSerialize(item);
+    return serialized === undefined ? 'null' : serialized;
+  }).join(',') + ']';
+  const entries = Object.keys(value).sort().flatMap(key => {
+    const serialized = canonicalSerialize(value[key]);
+    return serialized === undefined ? [] : [JSON.stringify(key) + ':' + serialized];
+  });
+  return '{' + entries.join(',') + '}';
+}
 function requestHash(normalizedRequest, sha256Hex) {
   if (typeof sha256Hex !== 'function') throw new TypeError('sha256Hex dependency is required');
-  const digest = sha256Hex(JSON.stringify(normalizedRequest));
+  const digest = sha256Hex(canonicalSerialize(normalizedRequest));
   if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/i.test(digest)) throw new TypeError('sha256Hex must return a 64-character hexadecimal digest');
   return digest.toLowerCase();
 }
@@ -39,4 +51,4 @@ function resolveIdempotency(previous, { uid, requestHash: expectedHash, operatio
   }
   return Object.freeze({ replay: false, previous });
 }
-module.exports = Object.freeze({ normalizeRequest, authorizeFinancialScope, requestHash, buildOperationRecord, resolveIdempotency });
+module.exports = Object.freeze({ normalizeRequest, authorizeFinancialScope, canonicalSerialize, requestHash, buildOperationRecord, resolveIdempotency });
