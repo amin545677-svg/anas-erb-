@@ -34,6 +34,7 @@ on:
       - 'firebase.staging.json'
       - 'cashbox-readonly-ledger.js'
       - 'scripts/check-staging-readiness.mjs'
+      - 'scripts/fuzz_anas_invariants.mjs'
       - 'scripts/verify-reverse-ledger-core-parity.mjs'
       - 'scripts/assert-staging-deployment-identity.mjs'
       - 'scripts/prepare-staging-service-account.mjs'
