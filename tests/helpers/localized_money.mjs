@@ -31,12 +31,12 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
   // Strip currency labels and grouping whitespace before measuring the
   // fractional tail; suffixes such as "دج" must not invalidate a decimal.
   if (localeGroup) value = value.split(localeGroup).join("");
-  value = value.replace(/[\\s\\u066c'’]/g, "");
+  value = value.replace(/[\s\u066c'’]/g, "");
   value = [...value].filter(character => /[0-9]/.test(character)
-    || character === "." || character === "," || character === "\\u066b" || character === "-").join("");
+    || character === "." || character === "," || character === "\u066b" || character === "-").join("");
 
   // The UI may use Arabic separators even when the test locale is fr-DZ.
-  const separators = [".", ",", "\\u066b"];
+  const separators = [".", ",", "\u066b"];
   const occurrences = [];
   for (const separator of separators) {
     let offset = value.indexOf(separator);
