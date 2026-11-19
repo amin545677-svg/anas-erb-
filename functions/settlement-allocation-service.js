@@ -136,6 +136,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
     const operationRef = db.collection('reverseLedgerOperations').doc(normalized.operationId);
     const sha256Hex = value => require('node:crypto').createHash('sha256').update(value).digest('hex');
     const requestHash = SharedApplicationCore.requestHash(normalized, sha256Hex);
+    const legacyRequestHash = sha256Hex(SharedApplicationCore.legacyCanonicalSerialize(normalized));
 
     try {
       return await db.runTransaction(async transaction => {
@@ -154,7 +155,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         }
         const prior = operationSnap.exists ? operationSnap.data() : null;
         let idempotency;
-        try { idempotency = SharedApplicationCore.resolveIdempotency(prior, { uid, requestHash, operationType: 'SETTLEMENT_ALLOCATION' }); }
+        try { idempotency = SharedApplicationCore.resolveIdempotency(prior, { uid, requestHash, legacyRequestHashes: [legacyRequestHash], operationType: 'SETTLEMENT_ALLOCATION' }); }
         catch (error) { fail('already-exists', String(error.message || error)); }
         if (idempotency.replay) return idempotency.result;
         if (idempotency.previous) fail('already-exists', 'operationId is already reserved by another financial operation.');

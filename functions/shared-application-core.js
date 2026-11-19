@@ -26,6 +26,13 @@ function canonicalSerialize(value) {
   });
   return '{' + entries.join(',') + '}';
 }
+// Exact serializer retained for replay compatibility with pre-Shared-Core records.
+function legacyCanonicalSerialize(value) {
+  if (Array.isArray(value)) return '[' + value.map(legacyCanonicalSerialize).join(',') + ']';
+  if (value && typeof value === 'object') return '{' +
+    Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + legacyCanonicalSerialize(value[key])).join(',') + '}';
+  return JSON.stringify(value);
+}
 function requestHash(normalizedRequest, sha256Hex) {
   if (typeof sha256Hex !== 'function') throw new TypeError('sha256Hex dependency is required');
   const digest = sha256Hex(canonicalSerialize(normalizedRequest));
@@ -39,11 +46,12 @@ function buildOperationRecord(fields) {
   if (!/^[a-f0-9]{64}$/i.test(fields.requestHash)) throw new TypeError('operation record requestHash is invalid');
   return Object.freeze({ ...fields });
 }
-function resolveIdempotency(previous, { uid, requestHash: expectedHash, operationType }) {
+function resolveIdempotency(previous, { uid, requestHash: expectedHash, legacyRequestHashes = [], operationType }) {
   if (!previous) return Object.freeze({ replay: false });
   if (previous.ownerUid !== uid) { const error = new Error('operationId belongs to another Firebase user.'); error.code = 'already-exists'; throw error; }
   if (previous.status === 'POSTED') {
-    if (previous.requestHash !== expectedHash || (operationType && previous.operationType !== operationType) || !previous.result) {
+    const acceptedHashes = [expectedHash, ...legacyRequestHashes];
+    if (!acceptedHashes.includes(previous.requestHash) || (operationType && previous.operationType !== operationType) || !previous.result) {
       const error = new Error('IDEMPOTENCY_PAYLOAD_MISMATCH: operationId was already used for a different financial operation.');
       error.code = 'already-exists'; error.details = { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' }; throw error;
     }
@@ -51,4 +59,4 @@ function resolveIdempotency(previous, { uid, requestHash: expectedHash, operatio
   }
   return Object.freeze({ replay: false, previous });
 }
-module.exports = Object.freeze({ normalizeRequest, authorizeFinancialScope, canonicalSerialize, requestHash, buildOperationRecord, resolveIdempotency });
+module.exports = Object.freeze({ normalizeRequest, authorizeFinancialScope, canonicalSerialize, legacyCanonicalSerialize, requestHash, buildOperationRecord, resolveIdempotency });

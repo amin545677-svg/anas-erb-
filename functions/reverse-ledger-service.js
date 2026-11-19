@@ -59,6 +59,7 @@ function createReverseLedgerHandler({
   const operationRef = db.collection('reverseLedgerOperations').doc(normalized.operationId);
   const sha256Hex = value => require('node:crypto').createHash('sha256').update(value).digest('hex');
   const requestHash = SharedApplicationCore.requestHash(normalized, sha256Hex);
+  const legacyRequestHash = sha256Hex(JSON.stringify(normalized));
   const returnId = 'RET-' + sha256Hex(JSON.stringify(normalized)).slice(0, 32);
   const leaseId = 'LEASE-' + sha256Hex(uid + ':' + normalized.operationId).slice(0, 24);
 
@@ -82,7 +83,7 @@ function createReverseLedgerHandler({
 
       const previousOperation = operationSnap.exists ? operationSnap.data() : null;
       let idempotency;
-      try { idempotency = SharedApplicationCore.resolveIdempotency(previousOperation, { uid, requestHash }); }
+      try { idempotency = SharedApplicationCore.resolveIdempotency(previousOperation, { uid, requestHash, legacyRequestHashes: [legacyRequestHash], operationType: normalized.returnType }); }
       catch (error) { throw new HttpsError('already-exists', String(error.message || error), error.details); }
       if (idempotency.replay) return idempotency.result;
       let reservation;
