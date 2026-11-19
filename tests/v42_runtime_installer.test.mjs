@@ -947,6 +947,10 @@ test("actual V42 sale rollback removes audit, invoice, truck stock and cash chan
 
   assert.equal(await context.runActualV42Sale(), false);
   assert.equal(Object.prototype.hasOwnProperty.call(context.AppData, "auditTrail"), false);
+  assert.equal((context.AppData.auditTrail || []).filter(row => row?.opId === "runtime-truck-rollback-001").length, 0,
+    "failed persistence must leave no SALE_COMMITTED audit event for the rejected opId");
+  assert.equal(Object.prototype.hasOwnProperty.call(storage.json(MUTATION_KEYS.appData), "auditTrail"), false,
+    "the durable snapshot must contain no auditTrail residue after rollback");
   assert.deepEqual(context.AppData.invoices, []);
   assert.deepEqual(context.AppData.cashMovements, []);
   assert.deepEqual(context.AppData.stockMovements, []);
