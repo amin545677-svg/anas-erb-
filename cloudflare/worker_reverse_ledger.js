@@ -1,6 +1,7 @@
 import { runFirestoreRestTransaction } from "./firestore_rest_transaction.mjs";
 import { requestHash } from "../functions/shared-application-core.mjs";
 import { prepareFinancialMigration } from "../functions/financial-migration-coordinator.mjs";
+import { runFirestoreRestTransaction } from "./firestore_rest_transaction.mjs";
 /**
  * ANAS ERP reverse-ledger reservation Worker.
  *
@@ -230,7 +231,7 @@ async function beginTransaction(env) {
   const {response,data}=await firestoreAction(env,"beginTransaction",{
     method:"POST",body:JSON.stringify({options:{readWrite:{}}})
   });
-  if(!response.ok || !data.transaction) throw new Error("Trusted Firestore transaction could not begin");
+  if(!response.ok || !data.transaction) { const error=new Error(data.error?.message||"Trusted Firestore transaction could not begin"); error.code=data.error?.status||data.error?.code||String(response.status); throw error; }
   return data.transaction;
 }
 async function commitTransaction(env,transaction,writes) {
