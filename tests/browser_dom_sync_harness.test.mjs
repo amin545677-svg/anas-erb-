@@ -253,7 +253,7 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   });
   const beforeSync = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
-    queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
+    queue: ANASResilientStorage.decode(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
   }));
   assert.equal(beforeSync.queue.length, 1);
   // A durable V42 save is still awaiting acknowledgement here; PREPARED must not replay until sync recovery verifies the committed AppData marker.
@@ -264,7 +264,7 @@ test("browser DOM boot, installer wiring, 409 reconciliation, and exact decimal 
   assert.deepEqual(sync.quarantined || [], [], "the exact-decimal collection must replay, not be quarantined");
   const finalState = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
-    queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1")),
+    queue: ANASResilientStorage.decode(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1")),
     renderedDebt: document.getElementById("custDebtsContainer")?.textContent || ""
   }));
   assert.equal(finalState.app.caisseBalance, 51000.5);
@@ -313,7 +313,7 @@ test("real page reload recovers PREPARED mutation before reconciliation", async 
   assert.equal(result.status, "synced");
   const recovered = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
-    queue: JSON.parse(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
+    queue: ANASResilientStorage.decode(localStorage.getItem("ANAS_PENDING_MUTATIONS_V1"))
   }));
   assert.equal(recovered.app.caisseBalance, 51000.5);
   assert.equal(recovered.app.customers[0].debt, 18999.5);
@@ -350,7 +350,7 @@ test("multi-line sale is quarantined atomically and browser DOM shows quarantine
   assert.equal(result.status, "synced");
   const state = await page.evaluate(() => ({
     app: ANASResilientStorage.decode(localStorage.getItem("ANAS_THE_ENTERPRISE_V11_OFFLINE")),
-    quarantine: JSON.parse(localStorage.getItem("ANAS_QUARANTINED_MUTATIONS_V1")),
+    quarantine: ANASResilientStorage.decode(localStorage.getItem("ANAS_QUARANTINED_MUTATIONS_V1")),
     alert: document.getElementById("sync-quarantine-alert")?.textContent || ""
   }));
   assert.equal(state.app.products.find(p => p.id === "browser-item-a").stock, 5);
