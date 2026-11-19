@@ -191,22 +191,23 @@ function runV42Sale(initial, { warehouse = "المخزن الرئيسي", paid, 
 
 function paritySnapshot(value) {
   const copy = structuredClone(value);
+  // Queue/replay and schema-version markers are protocol metadata, not V42 business state.
   delete copy.appliedOpIds;
-  delete copy.appliedOperations; // cryptographic replay metadata is not V42 business state
-  delete copy.cashMovements;
-  delete copy.stockMovements;
-  delete copy.clientMovements;
-  delete copy.settlementAllocations;
+  delete copy.appliedOperations;
+  delete copy.auditTrail; // asserted independently below, including opId and idempotency
   for (const customer of copy.customers || []) delete customer.ledgerVersion;
   for (const invoice of copy.invoices || []) {
     if (invoice.customerObj && typeof invoice.customerObj === "object") delete invoice.customerObj.ledgerVersion;
     delete invoice.syncOpId;
     delete invoice.syncCreatedAt;
   }
-  for (const movement of copy.cashMovements || []) {
-    delete movement.opId;
-    delete movement.syncOpId;
-    delete movement.syncCreatedAt;
+  // Keep every V42 ledger collection in the parity comparison. Only strip transport markers.
+  for (const key of ["cashMovements", "bankMovements", "stockMovements", "clientMovements", "settlementAllocations"]) {
+    for (const row of copy[key] || []) {
+      delete row.opId;
+      delete row.syncOpId;
+      delete row.syncCreatedAt;
+    }
   }
   return copy;
 }
@@ -232,30 +233,87 @@ function assertDeepSaleParity({ warehouse, paid, total = 1000, customerId = "cus
   }
 
   const remaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
+  const opId = "deep-parity-" + (warehouse || "main") + "-" + paid;
+  const createdAt = "2026-10-28T12:00:00.000Z";
+  const invoice = {
+    ...structuredClone(original.invoice),
+    syncOpId: opId,
+    syncCreatedAt: createdAt
+  };
+  const ledgerKeys = [
+    "cashMovements", "bankMovements", "stockMovements",
+    "clientMovements", "settlementAllocations"
+  ];
+  const v42Ledger = Object.fromEntries(ledgerKeys.map(key => [
+    key,
+    (original.snapshot[key] || []).filter(row =>
+      !(initial[key] || []).some(previous => String(previous?.id ?? previous?.movementId ?? previous?.allocationId) ===
+        String(row?.id ?? row?.movementId ?? row?.allocationId))
+    ).map(row => structuredClone(row))
+  ]));
+  const totalCentimes = Math.round(Number(invoice.total) * 100);
+  const paidCentimes = Math.round(Number(invoice.paid ?? invoice.total) * 100);
+  const remainingCentimes = Math.round(Number(invoice.remaining ?? (total - paid)) * 100);
+  const auditRecord = {
+    id: "AUD-SALE-" + String(invoice.id),
+    opId,
+    eventType: "SALE_COMMITTED",
+    entityType: "sales_invoice",
+    entityId: String(invoice.id),
+    referenceType: "sales_invoice",
+    referenceId: String(invoice.id),
+    warehouse: String(invoice.warehouse ?? invoice.warehouseName ?? "المخزن الرئيسي"),
+    amountCentimes: totalCentimes,
+    paidCentimes,
+    remainingCentimes,
+    actorId: original.snapshot.currentUser?.id == null ? null : String(original.snapshot.currentUser.id),
+    actorName: original.snapshot.currentUser?.name ? String(original.snapshot.currentUser.name) : "غير محدد",
+    createdAt
+  };
+  v42Ledger.auditTrail = [auditRecord];
   const operation = {
-    opId: "deep-parity-" + (warehouse || "main") + "-" + paid,
+    opId,
     type: "SALE_INVOICE",
-    createdAt: "2026-10-28T12:00:00.000Z",
+    createdAt,
     payload: {
       customerId,
       warehouse: warehouse || "المخزن الرئيسي",
-      invoice: structuredClone(original.invoice)
+      invoice,
+      v42Ledger
     }
   };
   const reconciled = reconcilePendingMutations(structuredClone(initial), [operation]);
   assert.deepEqual(reconciled.review, [], "valid V42 sale must not be quarantined");
   assert.equal(reconciled.snapshot.caisseBalance, original.snapshot.caisseBalance);
   assert.equal(reconciled.snapshot.customers[0].debt, original.snapshot.customers[0].debt);
+  const expectedBusinessState = structuredClone(original.snapshot);
+  expectedBusinessState.invoices[0].syncOpId = opId;
+  expectedBusinessState.invoices[0].syncCreatedAt = createdAt;
   assert.deepEqual(
     paritySnapshot(reconciled.snapshot),
-    paritySnapshot(original.snapshot),
-    "entire V42 AppData snapshot, including invoice keys, nested customerObj, item order, user/date metadata, balances and stock, must match"
+    paritySnapshot(expectedBusinessState),
+    "V42 business state must match strictly: invoices, cash, stock, customer debts, client movements and settlement allocations"
   );
-  assert.deepEqual(Object.keys(reconciled.snapshot.invoices[0]), Object.keys(original.snapshot.invoices[0]));
+  assert.deepEqual(paritySnapshot(reconciled.snapshot).invoices, paritySnapshot(expectedBusinessState).invoices);
   assert.equal(reconciled.snapshot.invoices[0].customerObj?.id, original.snapshot.invoices[0].customerObj?.id);
   assert.equal(reconciled.snapshot.invoices[0].userId, original.snapshot.invoices[0].userId);
   assert.equal(reconciled.snapshot.invoices[0].date, original.snapshot.invoices[0].date);
   assert.equal(reconciled.snapshot.invoices[0].remaining, remaining);
+
+  // Audit is deliberately independent from the strict V42 business-state comparison.
+  const committedAudit = (reconciled.snapshot.auditTrail || []).filter(row =>
+    row?.eventType === "SALE_COMMITTED" && row?.opId === opId
+  );
+  assert.equal(committedAudit.length, 1, "exactly one SALE_COMMITTED event must be committed for this opId");
+  assert.deepEqual(committedAudit[0], auditRecord, "audit amount, invoice reference, warehouse and opId must be exact");
+
+  // Replaying the same immutable operation must fold as an idempotent duplicate, not append audit twice.
+  const replayed = reconcilePendingMutations(reconciled.snapshot, [operation]);
+  assert.deepEqual(replayed.review, []);
+  assert.ok(replayed.appliedNow.some(row => row.opId === opId && row.outcome === "folded-duplicate"));
+  assert.equal((replayed.snapshot.auditTrail || []).filter(row =>
+    row?.eventType === "SALE_COMMITTED" && row?.opId === opId
+  ).length, 1, "retry with the same opId must not duplicate SALE_COMMITTED");
 }
 
 test("DEEP PARITY: SALE_INVOICE matches the actual V42 function for a full cash sale", () => {
