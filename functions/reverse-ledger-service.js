@@ -1,15 +1,11 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const { authorizeFinancialScope } = require('./lib/user-rbac-bridge.js');
+const SharedApplicationCore = require('./shared-application-core.js');
 const {
   normalizeReverseRequest,
   buildTrustedReservation
 } = require('./reverse-ledger-adapter.js');
-
-function sha256(value) {
-  return crypto.createHash('sha256').update(value).digest('hex');
-}
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -45,7 +41,7 @@ function createReverseLedgerHandler({
 
   let normalized;
   try {
-    normalized = normalizeReverseRequest(request.data);
+    normalized = SharedApplicationCore.normalizeRequest(request.data, normalizeReverseRequest);
   } catch (error) {
     throw new HttpsError('invalid-argument', String(error.message || error).slice(0, 300));
   }
@@ -61,9 +57,10 @@ function createReverseLedgerHandler({
   const grantRef = db.collection('reverseLedgerGrants').doc(uid);
   const periodRef = db.collection('financialPeriods').doc(normalized.periodId);
   const operationRef = db.collection('reverseLedgerOperations').doc(normalized.operationId);
-  const requestHash = sha256(JSON.stringify(normalized));
-  const returnId = 'RET-' + requestHash.slice(0, 32);
-  const leaseId = 'LEASE-' + sha256(uid + ':' + normalized.operationId).slice(0, 24);
+  const sha256Hex = value => require('node:crypto').createHash('sha256').update(value).digest('hex');
+  const requestHash = SharedApplicationCore.requestHash(normalized, sha256Hex);
+  const returnId = 'RET-' + sha256Hex(JSON.stringify(normalized)).slice(0, 32);
+  const leaseId = 'LEASE-' + sha256Hex(uid + ':' + normalized.operationId).slice(0, 24);
 
   try {
     return await db.runTransaction(async (transaction) => {
@@ -84,17 +81,10 @@ function createReverseLedgerHandler({
       }
 
       const previousOperation = operationSnap.exists ? operationSnap.data() : null;
-      if (previousOperation) {
-        if (previousOperation.ownerUid !== uid) {
-          throw new HttpsError('already-exists', 'operationId belongs to another Firebase user.');
-        }
-        if (previousOperation.status === 'POSTED') {
-          if (previousOperation.requestHash !== requestHash || !previousOperation.result) {
-            throw new HttpsError('already-exists', 'IDEMPOTENCY_PAYLOAD_MISMATCH: operationId was already used for a different reverse request.', { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' });
-          }
-          return previousOperation.result;
-        }
-      }
+      let idempotency;
+      try { idempotency = SharedApplicationCore.resolveIdempotency(previousOperation, { uid, requestHash }); }
+      catch (error) { throw new HttpsError('already-exists', String(error.message || error), error.details); }
+      if (idempotency.replay) return idempotency.result;
       let reservation;
       try {
         // The reservation Worker may have created this root control-plane record.
@@ -147,7 +137,9 @@ function createReverseLedgerHandler({
       const financialAction = permissionByReturnType[normalized.returnType];
       if (!financialAction) throw new HttpsError('permission-denied', 'Unsupported financial operation permission.');
       try {
-        authorizeFinancialScope({ uid, grant, action: financialAction, resource: invoice, state });
+        SharedApplicationCore.authorizeFinancialScope(
+          { uid, grant, action: financialAction, resource: invoice, state }, authorizeFinancialScope
+        );
       } catch (error) {
         throw new HttpsError('permission-denied', String(error.message || error));
       }
@@ -209,7 +201,7 @@ function createReverseLedgerHandler({
         updatedAt: FieldValue.serverTimestamp(),
         lastReverseOperationId: normalized.operationId
       });
-      const operationRecord = {
+      const operationRecord = SharedApplicationCore.buildOperationRecord({
         ownerUid: uid,
         operationId: normalized.operationId,
         operationType: normalized.returnType,
@@ -223,7 +215,7 @@ function createReverseLedgerHandler({
         expiresAtEpochMs: reservation.expiresAtEpochMs,
         schemaVersion: 1,
         postedAt: FieldValue.serverTimestamp()
-      };
+      });
       if (operationSnap.exists) transaction.update(operationRef, operationRecord);
       else transaction.create(operationRef, {
         ...operationRecord,

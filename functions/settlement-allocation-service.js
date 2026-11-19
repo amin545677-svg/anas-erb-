@@ -1,20 +1,12 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const { PERMISSIONS } = require('./lib/authorization.js');
 const { authorizeFinancialScope } = require('./lib/user-rbac-bridge.js');
+const SharedApplicationCore = require('./shared-application-core.js');
 
 const MAX_SNAPSHOT_BYTES = 700 * 1024;
 const MAX_ALLOCATIONS = 200;
-const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
-
-function canonical(value) {
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
-  if (value && typeof value === 'object') return '{' +
-    Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}';
-  return JSON.stringify(value);
-}
 
 function requiredText(value, label, max = 160) {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(label + ' is invalid');
@@ -133,7 +125,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
       fail('permission-denied', 'Client-supplied tenant/store scope is not trusted.');
     }
     let normalized;
-    try { normalized = normalizeAllocationRequest(request.data); }
+    try { normalized = SharedApplicationCore.normalizeRequest(request.data, normalizeAllocationRequest); }
     catch (error) { fail('invalid-argument', String(error.message || error).slice(0, 300)); }
     const uid = request.auth.uid;
     const authUser = await getUser(uid);
@@ -142,7 +134,8 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
     const periodRef = db.collection('financialPeriods').doc(normalized.periodId);
     const snapshotRef = db.collection('users').doc(uid).collection('snapshots').doc('latest');
     const operationRef = db.collection('reverseLedgerOperations').doc(normalized.operationId);
-    const requestHash = sha256(canonical(normalized));
+    const sha256Hex = value => require('node:crypto').createHash('sha256').update(value).digest('hex');
+    const requestHash = SharedApplicationCore.requestHash(normalized, sha256Hex);
 
     try {
       return await db.runTransaction(async transaction => {
@@ -159,16 +152,12 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
           fail('internal', 'INVALID_RETRY_CLOCK_READING');
         }
-        if (operationSnap.exists) {
-          const prior = operationSnap.data();
-          if (prior.ownerUid !== uid) fail('already-exists', 'operationId belongs to another Firebase user.');
-          if (prior.status === 'POSTED') {
-            if (prior.requestHash !== requestHash || prior.operationType !== 'SETTLEMENT_ALLOCATION' || !prior.result)
-              fail('already-exists', 'operationId was already used for a different financial operation.');
-            return prior.result;
-          }
-          fail('already-exists', 'operationId is already reserved by another financial operation.');
-        }
+        const prior = operationSnap.exists ? operationSnap.data() : null;
+        let idempotency;
+        try { idempotency = SharedApplicationCore.resolveIdempotency(prior, { uid, requestHash, operationType: 'SETTLEMENT_ALLOCATION' }); }
+        catch (error) { fail('already-exists', String(error.message || error)); }
+        if (idempotency.replay) return idempotency.result;
+        if (idempotency.previous) fail('already-exists', 'operationId is already reserved by another financial operation.');
         if (!snapshotSnap.exists || typeof snapshotSnap.get('payload') !== 'string')
           fail('failed-precondition', 'A valid cloud snapshot is required before allocation.');
         if (!grantSnap.exists) fail('permission-denied', 'No trusted financial authorization grant exists.');
@@ -199,9 +188,9 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
         if (sources.length !== 1) fail('failed-precondition', 'Source movement is missing or ambiguous.');
         const source = sources[0];
         try {
-          authorizeFinancialScope({
-            uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: source, state
-          });
+          SharedApplicationCore.authorizeFinancialScope(
+            { uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: source, state }, authorizeFinancialScope
+          );
         } catch (error) {
           fail('permission-denied', String(error.message || error));
         }
@@ -230,9 +219,9 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           if (matches.length !== 1) fail('failed-precondition', 'Target invoice is missing or ambiguous.');
           const invoice = matches[0];
           try {
-            authorizeFinancialScope({
-              uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: invoice, state
-            });
+            SharedApplicationCore.authorizeFinancialScope(
+              { uid, grant, action: PERMISSIONS.SETTLEMENT_ALLOCATION, resource: invoice, state }, authorizeFinancialScope
+            );
           } catch (error) {
             fail('permission-denied', String(error.message || error));
           }
@@ -264,7 +253,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           if (initialAllocated + laterAllocated + amount > BigInt(total))
             fail('failed-precondition', 'Total invoice allocations exceed the invoice total.');
           const record = ReverseLedger.sealSettlementAllocation(state, {
-            allocationId: 'ALLOC-' + sha256(uid + ':' + normalized.operationId + ':' + allocation.invoiceId).slice(0, 28),
+            allocationId: 'ALLOC-' + sha256Hex(uid + ':' + normalized.operationId + ':' + allocation.invoiceId).slice(0, 28),
             partyType: normalized.partyType,
             partyId: normalized.partyId,
             invoiceType: allocation.invoiceType,
@@ -313,7 +302,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           updatedAt: FieldValue.serverTimestamp(),
           lastSettlementAllocationOperationId: normalized.operationId
         });
-        transaction.create(operationRef, {
+        transaction.create(operationRef, SharedApplicationCore.buildOperationRecord({
           ownerUid: uid,
           operationId: normalized.operationId,
           operationType: 'SETTLEMENT_ALLOCATION',
@@ -325,7 +314,7 @@ function createSettlementAllocationHandler({ db, getUser, FieldValue, HttpsError
           schemaVersion: 1,
           postedAt: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp()
-        });
+        }));
         return result;
       }, { maxAttempts: 5 });
     } catch (error) {
