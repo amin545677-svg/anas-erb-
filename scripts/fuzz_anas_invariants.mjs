@@ -179,10 +179,18 @@ function assertReplayAndFinancialInvariants(seed, scenario) {
   assert.equal(netFinancialDelta, expected.salesCents,
     "cash plus receivables must increase only by recognized sale value; collections are balance transfers");
 
-  const replay = reconcilePendingMutations(snapshot, pending);
-  assert.deepEqual(replay.snapshot, snapshot, "replaying after a simulated process boundary must not mutate posted state");
+  // Operations returned in review are quarantined by the orchestrator after a
+  // successful cloud commit. They are deliberately NOT replayed against a later
+  // snapshot: a previously rejected collection could become payable after a
+  // subsequent sale increases debt, which would silently change its outcome.
+  const quarantinedIds = new Set(review.map(item => item.opId));
+  const replayable = pending.filter(op => !quarantinedIds.has(op.opId));
+  assert.equal(replayable.length, expected.appliedSales + expected.appliedCollections,
+    "only accepted operations remain eligible for idempotent replay");
+  const replay = reconcilePendingMutations(snapshot, replayable);
+  assert.deepEqual(replay.snapshot, snapshot, "replaying accepted operations after a simulated process boundary must not mutate posted state");
   assert.equal(replay.appliedNow.filter(row => row.outcome === "folded-duplicate").length,
-    expected.appliedSales + expected.appliedCollections, "posted operations fold as duplicates exactly once");
+    replayable.length, "every accepted operation folds as a duplicate exactly once");
 
   const postedSale = pending.find(op => op.type === "SALE_INVOICE" &&
     snapshot.appliedOperations.some(record => record.opId === op.opId));
@@ -243,6 +251,15 @@ async function assertOfflineRestartAndCas(seed, scenario) {
   assert.equal(first.attempts, 2, "the stale first revision must be rejected and replayed against the fresh revision");
   assert.equal(cloud.concurrentDeviceMarker, "DEVICE-B-" + seed, "concurrent device commit must survive replay");
   assert.deepEqual(JSON.parse(storage.getItem(MUTATION_KEYS.pending)), [], "accepted and quarantined work leaves the active queue");
+  assert.equal(first.quarantined.length, scenario.expected.rejectedCollections,
+    "every rejected collection is explicitly reported as quarantined");
+  const persistedQuarantine = JSON.parse(storage.getItem(MUTATION_KEYS.quarantined));
+  assert.equal(persistedQuarantine.length, scenario.expected.rejectedCollections,
+    "rejected collections are durably quarantined after the cloud commit");
+  assert.ok(persistedQuarantine.every(item =>
+    item.status === "QUARANTINED" &&
+    item.reason === "COLLECTION_EXCEEDS_RECORDED_DEBT_OR_INVALID_DEBT"
+  ), "quarantine records retain an explicit reason and terminal status");
 
   // Simulate app close/reopen: rebuild the orchestrator around the same durable storage.
   const reopenedQueue = makeQueue();
