@@ -49,7 +49,14 @@ export function parseLocalizedMoneyToMinorUnits(input, locale, fractionDigits = 
       const tail = token.length - token.lastIndexOf(mark) - 1;
       return tail > 0 && tail <= fractionDigits;
     });
-    if (decimalTokens.length) value = decimalTokens[decimalTokens.length - 1];
+    if (decimalTokens.length) {
+      const selected = decimalTokens[decimalTokens.length - 1];
+      // A dash joining an earlier date/label to the amount is punctuation,
+      // not a negative sign on the final amount token.
+      value = selected.startsWith("-") && selected !== numericTokens[0]
+        ? selected.slice(1)
+        : selected;
+    }
   }
 
   const occurrences = [];
