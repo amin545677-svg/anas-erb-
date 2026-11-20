@@ -430,6 +430,16 @@ test("Firestore REST codec round-trips supported scalar, array and map values", 
   ), source);
 });
 
+test("Firestore REST codec treats prototype-sensitive map keys as ordinary data", () => {
+  const source = Object.fromEntries([["__proto__", "safe-value"], ["constructor", "ordinary-value"]]);
+  const encoded = encodeFirestoreValue(source);
+  const decoded = decodeFirestoreValue(encoded);
+  assert.equal(Object.hasOwn(decoded, "__proto__"), true);
+  assert.equal(decoded.__proto__, "safe-value");
+  assert.equal(Object.hasOwn(decoded, "constructor"), true);
+  assert.equal(decoded.constructor, "ordinary-value");
+});
+
 test("Firestore REST decoder preserves timestamp, bytes, reference and geo-point representations", () => {
   assert.equal(decodeFirestoreValue({ timestampValue: "2026-11-20T00:00:00Z" }), "2026-11-20T00:00:00Z");
   assert.equal(decodeFirestoreValue({ bytesValue: "AQID" }), "AQID");

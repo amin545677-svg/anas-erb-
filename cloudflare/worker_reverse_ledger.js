@@ -233,7 +233,9 @@ export function decodeValue(value) {
 export function decodeFields(fields) {
   if (!record(fields)) throw new TypeError("Firestore fields must be an object");
   const out = {};
-  for (const [key,value] of Object.entries(fields)) out[key] = decodeValue(value);
+  for (const [key,value] of Object.entries(fields)) {
+    Object.defineProperty(out,key,{value:decodeValue(value),enumerable:true,writable:true,configurable:true});
+  }
   return out;
 }
 async function firestoreRequest(env, path, init={}) {
@@ -289,7 +291,9 @@ export function firestoreFields(value) {
   if (Array.isArray(value)) return { arrayValue:{ values:value.map(firestoreFields) } };
   if (record(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
     const fields={};
-    for (const [key,item] of Object.entries(value)) fields[key]=firestoreFields(item);
+    for (const [key,item] of Object.entries(value)) {
+      Object.defineProperty(fields,key,{value:firestoreFields(item),enumerable:true,writable:true,configurable:true});
+    }
     return { mapValue:{ fields } };
   }
   throw new TypeError("Unsupported or undefined Firestore field value");
