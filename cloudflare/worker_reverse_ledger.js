@@ -202,7 +202,7 @@ export function decodeValue(value) {
     return value.booleanValue;
   }
   if (type === "integerValue") {
-    if (typeof value.integerValue !== "string" || !/^-?\\d+$/.test(value.integerValue)) throw new TypeError("Firestore integerValue is malformed");
+    if (typeof value.integerValue !== "string" || !/^-?\d+$/.test(value.integerValue)) throw new TypeError("Firestore integerValue is malformed");
     const exact = BigInt(value.integerValue);
     const number = Number(exact);
     if (!Number.isSafeInteger(number) || BigInt(number) !== exact) throw new RangeError("Firestore integerValue exceeds JavaScript safe integer range");
