@@ -156,8 +156,9 @@ jobs:
             const payload = await response.json();
             const gate = (payload.workflow_runs || []).find(run =>
               run.name === 'Staging Test Gate' &&
-              ['push', 'workflow_dispatch'].includes(run.event) &&
-              run.head_sha === process.env.GITHUB_SHA
+              ['push', 'workflow_dispatch', 'pull_request'].includes(run.event) &&
+              run.head_sha === process.env.GITHUB_SHA &&
+              (run.event !== 'pull_request' || (run.head_branch === process.env.GITHUB_REF_NAME && run.head_repository?.full_name === process.env.GITHUB_REPOSITORY))
             );
             if (gate?.status === 'completed') {
               if (gate.conclusion !== 'success') {
