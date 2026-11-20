@@ -112,6 +112,10 @@ jobs:
         run: node --test tests/pos_credit_limit_guard.test.mjs
       - name: Verify zero-price and invalid-price POS checkout is blocked before confirmation
         run: node --test tests/pos_zero_price_guard.test.mjs
+      - name: Verify P0/P1 closed-loop truck settlement engine
+        run: node --test tests/truck-settlement-engine.test.mjs
+      - name: Verify Arabic ESC/POS raster templates and GS v 0 packing
+        run: node --test tests/arabic-escpos-engine.test.mjs
       - name: Level 9 adversarial identity, valuation and idempotency proofs
         run: node --test tests/staging_deployment_identity_guard.test.mjs tests/reverse_ledger_valuation.test.js tests/reverse_ledger_server_transaction.test.js
       - name: Run Firestore REST transaction retry and rollback unit tests

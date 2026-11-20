@@ -1,5 +1,5 @@
-const APP_VERSION = 'r42';
-const CACHE = 'anas-erp-v54-25-r42';
+const APP_VERSION = 'r43';
+const CACHE = 'anas-erp-v54-25-r43';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './anas-erp-ui-safe-enhancements.css',
@@ -27,6 +27,8 @@ const CORE = [
   './arabic-query-engine.js',
   './customer-debt-protection.js',
   './warehouse-transfer-audit.js',
+  './fleet/truck-settlement-engine.mjs',
+  './printing/arabic-escpos-engine.js',
   './sync/mutation_queue_orchestrator.mjs',
   './sync/mutation_reconciliation.mjs',
   './sync/mutation_capture.mjs',

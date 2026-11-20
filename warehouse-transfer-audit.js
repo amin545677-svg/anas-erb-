@@ -94,3 +94,8 @@
   root.anasAuditWarehouseTransfers = auditWarehouseTransfers;
   if (typeof module !== 'undefined' && module.exports) module.exports = { auditWarehouseTransfers };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* Load isolated P0/P1 fleet and thermal engines in the staging application. */
+import('./fleet/truck-settlement-engine.mjs').then(function(m){window.ANASTruckFleetEngine=m;window.dispatchEvent(new CustomEvent('anas:fleet-engine-ready'));}).catch(function(e){console.error('[ANAS] fleet engine failed to load',e);});
+import('./printing/arabic-escpos-engine.js').catch(function(e){console.error('[ANAS] Arabic ESC/POS engine failed to load',e);});
