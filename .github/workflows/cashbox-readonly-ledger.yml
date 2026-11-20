@@ -1,0 +1,29 @@
+name: ANAS ERP Cashbox Ledger View Tests
+
+on:
+  pull_request:
+    branches: [staging/firebase-snapshot-worker]
+    paths:
+      - 'index.html'
+      - 'tests/cashbox_readonly_ledger_test.js'
+      - '.github/workflows/cashbox-readonly-ledger.yml'
+  push:
+    branches: [feat/cashbox-readonly-ledger-v1]
+    paths:
+      - 'index.html'
+      - 'tests/cashbox_readonly_ledger_test.js'
+      - '.github/workflows/cashbox-readonly-ledger.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cashbox-ledger-view:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run cashbox ledger view regression tests
+        run: node --test tests/cashbox_readonly_ledger_test.js

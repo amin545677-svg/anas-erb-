@@ -1,0 +1,63 @@
+name: ANAS ERP Safety Checks
+
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "reverse-ledger/**"
+      - "tests/**"
+      - "sw.js"
+      - ".github/workflows/anas-erp-safety-gate.yml"
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    paths:
+      - "index.html"
+      - "reverse-ledger/**"
+      - "tests/**"
+      - "sw.js"
+      - ".github/workflows/anas-erp-safety-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safety-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Preserve V42 identity and reverse-ledger wiring
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          sw = Path("sw.js").read_text(encoding="utf-8")
+          assert '<title>Anas ERP v42' in html, "V42 application identity changed"
+          assert 'ANAS_THE_ENTERPRISE_V11_OFFLINE' in html, "legacy local storage key missing"
+          assert '<script src="./reverse-ledger/reverse-ledger.js"></script>' in html, "reverse-ledger runtime is not loaded"
+          for key in ("clientMovements", "settlementAllocations", "returns"):
+              assert key in html, f"AppData collection not wired: {key}"
+          assert "validateReverseLedgerParity(incoming)" in html, "restore parity guard is not wired"
+          assert "./reverse-ledger/reverse-ledger.js" in sw, "offline core cache omits reverse-ledger runtime"
+          print("V42 identity, AppData collections, restore guards and offline runtime verified")
+          PY
+      - name: Syntax-check reverse-ledger runtime and browser suite
+        run: node --check reverse-ledger/reverse-ledger.js && node --check tests/reverse_ledger_chromium.test.mjs
+      - name: Run financial and reverse-ledger unit invariants
+        run: node --test tests/hasib_sale_ledger_parity_test.js tests/customer_debt_collection_guard_test.js tests/expense_ledger_id_integrity_test.js tests/purchase_supplier_centime_ledger_test.js tests/reverse_ledger_primitives.test.js
+      - name: Run HTML and inline JavaScript regression suite
+        run: python tests/validate_erp_html.py
+      - name: Run service-worker cache and offline regression suite
+        run: python tests/test_service_worker_cache.py
+      - name: Run invoice, product-delete and POS persistence guards
+        run: node tests/invoice_print_html_escape_test.js && node tests/product_delete_stock_guard_test.js && node tests/pos_cart_persistence_rollback_test.js

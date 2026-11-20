@@ -1,0 +1,32 @@
+# Local-only Firebase staging web configuration. Never commit deployment identifiers from a real project.
+staging/config.js
+
+# Dependencies and package-manager diagnostics
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+*.local
+
+# Test, coverage, browser, and build artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+dist/
+build/
+
+# Firebase local state and diagnostics
+.firebase/
+firebase-debug.log*
+ui-debug.log*
+
+# Operating-system noise
+.DS_Store
+Thumbs.db
