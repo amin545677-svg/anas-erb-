@@ -262,7 +262,7 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Expected exactly one durable POS finalize boundary for fleet invoice capture');
   }
   stagedHtml = stagedHtml.replace(fleetPosHookAnchor,
-    "            finalizeSale();\\n            if (window.ANASFleetPOS && typeof window.ANASFleetPOS.onInvoiceCommitted === 'function') {\\n              try { await window.ANASFleetPOS.onInvoiceCommitted(invObj); }\\n              catch (fleetError) { console.error("[ANAS Fleet] POS invoice committed but fleet ledger capture needs retry:", fleetError); window.dispatchEvent(new CustomEvent("anas:fleet-error", { detail: String(fleetError?.message || fleetError) })); }\\n            }\\n            return true;");
+    "            finalizeSale();\\n            if (window.ANASFleetPOS && typeof window.ANASFleetPOS.onInvoiceCommitted === 'function') {\\n              try { await window.ANASFleetPOS.onInvoiceCommitted(invObj); }\\n              catch (fleetError) { console.error('[ANAS Fleet] POS invoice committed but fleet ledger capture needs retry:', fleetError); window.dispatchEvent(new CustomEvent('anas:fleet-error', { detail: String(fleetError?.message || fleetError) })); }\\n            }\\n            return true;");
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
