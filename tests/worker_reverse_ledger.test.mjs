@@ -330,3 +330,79 @@ test("Worker source imports the shared ESM core and pure migration coordinator",
   const workerModule = await import(pathToFileURL(resolve("cloudflare/worker_reverse_ledger.js")).href + "?esm-contract-test=1");
   assert.equal(typeof workerModule.default.fetch, "function");
 });
+
+
+// Cross-service contract: the reservation written by the Worker must be accepted
+// unchanged by the Firebase Functions reverse-ledger adapter before posting.
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { buildTrustedReservation } = require("../functions/reverse-ledger-adapter.js");
+const { buildReservationRecord } = await import("../cloudflare/worker_reverse_ledger.js");
+
+test("Worker reservation record is accepted unchanged by the Firebase Functions adapter", () => {
+  const uid = "trusted-user-contract";
+  const now = 1795132800000;
+  const request = {
+    operationId: "RET-CONTRACT-20261120-01",
+    returnType: "SALE_RETURN",
+    invoiceId: "INV-CONTRACT-01",
+    periodId: "FY-2026-11"
+  };
+  const createdAt = new Date(now).toISOString();
+  const workerRecord = buildReservationRecord({
+    operationId: request.operationId,
+    ownerUid: uid,
+    operationType: request.returnType,
+    invoiceId: request.invoiceId,
+    periodId: request.periodId,
+    createdAt
+  });
+  assert.deepEqual(workerRecord, {
+    operationId: request.operationId,
+    ownerUid: uid,
+    operationType: request.returnType,
+    invoiceId: request.invoiceId,
+    periodId: request.periodId,
+    status: "RESERVED",
+    schemaVersion: 1,
+    createdAt
+  });
+  const accepted = buildTrustedReservation(
+    workerRecord, request, uid, "LEASE-FUNCTIONS-FALLBACK", now, "request-hash"
+  );
+  assert.equal(accepted.acquired, true);
+  assert.equal(accepted.durable, true);
+  assert.equal(accepted.operationId, request.operationId);
+  assert.equal(accepted.ownerUid, uid);
+  assert.equal(accepted.leaseId, "LEASE-FUNCTIONS-FALLBACK");
+  assert.equal(accepted.expiresAtEpochMs, now + 60000);
+  assert.deepEqual(Object.keys(workerRecord).sort(), [
+    "createdAt", "invoiceId", "operationId", "operationType", "ownerUid",
+    "periodId", "schemaVersion", "status"
+  ]);
+});
+
+test("Functions adapter rejects a Worker reservation with mismatched owner or operation scope", () => {
+  const now = 1795132800000;
+  const request = {
+    operationId: "RET-CONTRACT-20261120-02",
+    returnType: "SALE_RETURN",
+    invoiceId: "INV-CONTRACT-02",
+    periodId: "FY-2026-11"
+  };
+  const workerRecord = buildReservationRecord({
+    operationId: request.operationId,
+    ownerUid: "trusted-user-contract",
+    operationType: request.returnType,
+    invoiceId: request.invoiceId,
+    periodId: request.periodId,
+    createdAt: new Date(now).toISOString()
+  });
+  assert.throws(() => buildTrustedReservation(
+    workerRecord, request, "different-user", "LEASE-1", now, "hash"
+  ), /belongs to another Firebase user/);
+  assert.throws(() => buildTrustedReservation(
+    workerRecord, { ...request, invoiceId: "INV-OTHER" },
+    "trusted-user-contract", "LEASE-1", now, "hash"
+  ), /does not match this request/);
+});

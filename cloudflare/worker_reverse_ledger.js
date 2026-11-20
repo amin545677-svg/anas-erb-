@@ -251,6 +251,13 @@ function firestoreFields(value) {
   }
   return { nullValue:null };
 }
+export function buildReservationRecord({ operationId, ownerUid, operationType, invoiceId, periodId, createdAt = new Date().toISOString() }) {
+  return Object.freeze({
+    operationId, ownerUid, operationType, invoiceId, periodId,
+    status: "RESERVED", schemaVersion: 1, createdAt
+  });
+}
+
 async function reserveOperation(env, uid, requestData) {
   if (!record(requestData)) throw new Error("Request body must be an object");
   const allowed = new Set(["operationId", "type", "invoiceId", "periodId"]);
@@ -284,10 +291,9 @@ async function reserveOperation(env, uid, requestData) {
     if (!grant.permissions.includes(permission)) throw new Error("Missing required permission: "+permission);
     if (!period || period.periodId !== periodId || period.status !== "OPEN")
       throw new Error("Financial period is not OPEN");
-    const reservation = {
-      operationId, ownerUid:uid, operationType:type, invoiceId, periodId,
-      status:"RESERVED", schemaVersion:1, createdAt:new Date().toISOString()
-    };
+    const reservation = buildReservationRecord({
+      operationId, ownerUid:uid, operationType:type, invoiceId, periodId
+    });
     const name=documentUrl(env,"reverseLedgerOperations/"+encodeURIComponent(operationId));
     const write={
       update:{name,fields:Object.fromEntries(Object.entries(reservation).map(([k,v])=>[k,firestoreFields(v)]))},
