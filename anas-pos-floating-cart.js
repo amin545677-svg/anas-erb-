@@ -14,7 +14,7 @@ function validateCartPricing(cart){
  if(!Array.isArray(cart)||!cart.length)return{ok:false,code:'EMPTY_CART',index:-1};
  for(let i=0;i<cart.length;i++){
   const item=cart[i],raw=String(item&&item.price!=null?item.price:'').trim();
-  if(!/^\\d+(?:[.,]\\d{1,2})?$/.test(raw))return{ok:false,code:'INVALID_PRICE',index:i};
+  if(!/^\d+(?:[.,]\d{1,2})?$/.test(raw))return{ok:false,code:'INVALID_PRICE',index:i};
   const cents=decimalScaled(raw,2);
   if(cents===null||cents<0n)return{ok:false,code:'INVALID_PRICE',index:i};
   const approvedFree=item&&item.freeSample===true&&typeof item.freeSampleReason==='string'&&item.freeSampleReason.trim().length>=3;

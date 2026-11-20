@@ -8,7 +8,7 @@ const start = source.indexOf('function decimalScaled(');
 const end = source.indexOf('function render()', start);
 assert.ok(start >= 0 && end > start, 'pricing primitives must remain isolatable');
 const isolated = source.slice(start, end);
-const validateCartPricing = new Function(isolated + '; return validateCartPricing;')();
+const validateCartPricing = new Function('window', isolated + '; return validateCartPricing;')({});
 
 test('POS rejects zero, negative, malformed and over-precision unit prices before confirmation', () => {
   for (const price of ['0', '0.00', '-1', '12.345', 'NaN', '']) {
