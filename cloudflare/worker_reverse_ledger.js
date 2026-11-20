@@ -187,19 +187,53 @@ function documentUrl(env, path) {
   return "https://firestore.googleapis.com/v1/projects/" + encodeURIComponent(env.FIREBASE_PROJECT_ID) +
     "/databases/(default)/documents/" + path;
 }
-function decodeValue(value) {
-  if (!record(value)) return undefined;
-  if ("stringValue" in value) return value.stringValue;
-  if ("booleanValue" in value) return value.booleanValue;
-  if ("integerValue" in value) return Number(value.integerValue);
-  if ("doubleValue" in value) return Number(value.doubleValue);
-  if ("arrayValue" in value) return (value.arrayValue.values || []).map(decodeValue);
-  if ("mapValue" in value) return decodeFields(value.mapValue.fields || {});
-  return undefined;
+export function decodeValue(value) {
+  if (!record(value)) throw new TypeError("Firestore value must be an object");
+  const keys = ["nullValue","stringValue","booleanValue","integerValue","doubleValue","timestampValue","bytesValue","referenceValue","geoPointValue","arrayValue","mapValue"].filter(key => Object.prototype.hasOwnProperty.call(value,key));
+  if (keys.length !== 1) throw new TypeError("Firestore value must contain exactly one supported type");
+  const type = keys[0];
+  if (type === "nullValue") return null;
+  if (type === "stringValue" || type === "timestampValue" || type === "bytesValue" || type === "referenceValue") {
+    if (typeof value[type] !== "string") throw new TypeError("Firestore " + type + " must be a string");
+    return value[type];
+  }
+  if (type === "booleanValue") {
+    if (typeof value.booleanValue !== "boolean") throw new TypeError("Firestore booleanValue must be a boolean");
+    return value.booleanValue;
+  }
+  if (type === "integerValue") {
+    if (typeof value.integerValue !== "string" || !/^-?\\d+$/.test(value.integerValue)) throw new TypeError("Firestore integerValue is malformed");
+    const exact = BigInt(value.integerValue);
+    const number = Number(exact);
+    if (!Number.isSafeInteger(number) || BigInt(number) !== exact) throw new RangeError("Firestore integerValue exceeds JavaScript safe integer range");
+    return number;
+  }
+  if (type === "doubleValue") {
+    const number = Number(value.doubleValue);
+    if (!Number.isFinite(number)) throw new TypeError("Firestore doubleValue must be finite");
+    return number;
+  }
+  if (type === "geoPointValue") {
+    const point = value.geoPointValue;
+    if (!record(point) || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) throw new TypeError("Firestore geoPointValue is malformed");
+    return { latitude: point.latitude, longitude: point.longitude };
+  }
+  if (type === "arrayValue") {
+    const values = value.arrayValue?.values ?? [];
+    if (!Array.isArray(values)) throw new TypeError("Firestore arrayValue.values must be an array");
+    return values.map(decodeValue);
+  }
+  if (type === "mapValue") {
+    const fields = value.mapValue?.fields ?? {};
+    if (!record(fields)) throw new TypeError("Firestore mapValue.fields must be an object");
+    return decodeFields(fields);
+  }
+  throw new TypeError("Unsupported Firestore value type");
 }
-function decodeFields(fields) {
+export function decodeFields(fields) {
+  if (!record(fields)) throw new TypeError("Firestore fields must be an object");
   const out = {};
-  for (const [key,value] of Object.entries(fields || {})) out[key] = decodeValue(value);
+  for (const [key,value] of Object.entries(fields)) out[key] = decodeValue(value);
   return out;
 }
 async function firestoreRequest(env, path, init={}) {
@@ -240,16 +274,25 @@ async function rollbackTransaction(env,transaction) {
   if(!transaction)return;
   try{await firestoreAction(env,"rollback",{method:"POST",body:JSON.stringify({transaction})});}catch{}
 }
-function firestoreFields(value) {
+export function firestoreFields(value) {
+  if (value === null) return { nullValue:null };
   if (typeof value === "string") return { stringValue:value };
   if (typeof value === "boolean") return { booleanValue:value };
-  if (typeof value === "number" && Number.isSafeInteger(value)) return { integerValue:String(value) };
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError("Firestore numbers must be finite");
+    if (Number.isInteger(value)) {
+      if (!Number.isSafeInteger(value)) throw new RangeError("Firestore integer exceeds JavaScript safe integer range");
+      return { integerValue:String(value) };
+    }
+    return { doubleValue:value };
+  }
   if (Array.isArray(value)) return { arrayValue:{ values:value.map(firestoreFields) } };
-  if (record(value)) {
-    const fields={}; for (const [k,v] of Object.entries(value)) fields[k]=firestoreFields(v);
+  if (record(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
+    const fields={};
+    for (const [key,item] of Object.entries(value)) fields[key]=firestoreFields(item);
     return { mapValue:{ fields } };
   }
-  return { nullValue:null };
+  throw new TypeError("Unsupported or undefined Firestore field value");
 }
 export function buildReservationRecord({ operationId, ownerUid, operationType, invoiceId, periodId, createdAt = new Date().toISOString() }) {
   return Object.freeze({

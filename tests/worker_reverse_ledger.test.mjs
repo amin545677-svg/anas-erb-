@@ -406,3 +406,42 @@ test("Functions adapter rejects a Worker reservation with mismatched owner or op
     "trusted-user-contract", "LEASE-1", now, "hash"
   ), /does not match this request/);
 });
+
+
+// Firestore REST codec must preserve supported values and fail closed on lossy data.
+import {
+  decodeFields as decodeFirestoreFields,
+  decodeValue as decodeFirestoreValue,
+  firestoreFields as encodeFirestoreValue
+} from "../cloudflare/worker_reverse_ledger.js";
+
+test("Firestore REST codec round-trips supported scalar, array and map values", () => {
+  const source = {
+    text: "ANAS",
+    enabled: true,
+    count: 42,
+    amount: 12.5,
+    empty: null,
+    tags: ["sale", "return"],
+    nested: { code: "INV-1", active: false }
+  };
+  assert.deepEqual(decodeFirestoreFields(
+    Object.fromEntries(Object.entries(source).map(([key,value]) => [key, encodeFirestoreValue(value)]))
+  ), source);
+});
+
+test("Firestore REST decoder preserves timestamp, bytes, reference and geo-point representations", () => {
+  assert.equal(decodeFirestoreValue({ timestampValue: "2026-11-20T00:00:00Z" }), "2026-11-20T00:00:00Z");
+  assert.equal(decodeFirestoreValue({ bytesValue: "AQID" }), "AQID");
+  assert.equal(decodeFirestoreValue({ referenceValue: "projects/p/databases/(default)/documents/x/y" }), "projects/p/databases/(default)/documents/x/y");
+  assert.deepEqual(decodeFirestoreValue({ geoPointValue: { latitude: 35.7, longitude: -0.6 } }), { latitude: 35.7, longitude: -0.6 });
+});
+
+test("Firestore REST codec rejects unsafe integers, malformed and unsupported values instead of corrupting them", () => {
+  assert.throws(() => decodeFirestoreValue({ integerValue: "9007199254740993" }), /safe integer range/);
+  assert.throws(() => encodeFirestoreValue(Number.MAX_SAFE_INTEGER + 1), /safe integer range/);
+  assert.throws(() => encodeFirestoreValue(Number.NaN), /finite/);
+  assert.throws(() => encodeFirestoreValue(undefined), /Unsupported or undefined/);
+  assert.throws(() => decodeFirestoreValue({ unknownValue: "x" }), /exactly one supported type/);
+  assert.throws(() => decodeFirestoreValue({ integerValue: "not-an-integer" }), /malformed/);
+});
