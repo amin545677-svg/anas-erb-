@@ -162,6 +162,138 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       appliedRecords.set(op.opId, record);
     };
 
+    if (op.type === "TRUCK_FLEET_OPERATION") {
+      const baseState = payload.baseState ?? null;
+      const nextState = payload.nextState;
+      if (!nextState || typeof nextState !== "object" || Array.isArray(nextState) ||
+          nextState.schemaVersion !== 1 || !Array.isArray(nextState.products) ||
+          !Array.isArray(nextState.trucks) || !Array.isArray(nextState.trips) ||
+          !Array.isArray(nextState.movements)) {
+        review.push({ opId: op.opId, reason: "INVALID_TRUCK_FLEET_STATE", operation: op });
+        continue;
+      }
+      const cloudState = snapshot.anasFleetState ?? null;
+      const hash = value => canonicalOperationHash(value);
+      if (hash(cloudState) === hash(nextState)) {
+        markApplied();
+        appliedNow.push({ opId: op.opId, outcome: "already-applied" });
+        continue;
+      }
+      if (hash(cloudState) !== hash(baseState)) {
+        review.push({opId:op.opId,reason:"TRUCK_FLEET_STATE_CONFLICT",operation:op,cloudState:structuredClone(cloudState),localState:structuredClone(nextState)});
+        continue;
+      }
+      const targetSnapshot = structuredClone(snapshot);
+      if (payload.actorId && targetSnapshot.currentUser &&
+          String(targetSnapshot.currentUser.id ?? "") === String(payload.actorId)) {
+        const ownTrip = [...nextState.trips].reverse().find(trip => String(trip.driverId) === String(payload.actorId));
+        if (ownTrip && (ownTrip.status === "OPEN" || ownTrip.status === "ACTIVE")) {
+          targetSnapshot.currentUser.secondaryWarehouse = String(ownTrip.warehouseName || "");
+        } else if (ownTrip && (ownTrip.status === "CLOSED" || ownTrip.status === "CANCELLED")) {
+          targetSnapshot.currentUser.secondaryWarehouse = String(ownTrip.previousUserWarehouse || "");
+        }
+      }
+      const warehouseRows = Array.isArray(payload.warehouses) ? payload.warehouses : [];
+      if (targetSnapshot.warehouses !== undefined && !Array.isArray(targetSnapshot.warehouses)) {
+        review.push({ opId: op.opId, reason: "TRUCK_FLEET_CLOUD_WAREHOUSES_MALFORMED", operation: op });
+        continue;
+      }
+      if (!Array.isArray(targetSnapshot.warehouses)) targetSnapshot.warehouses = [];
+      for (const warehouse of warehouseRows) {
+        const name = String(typeof warehouse === "string" ? warehouse : warehouse?.name || "").trim();
+        if (!name) {
+          review.push({ opId: op.opId, reason: "TRUCK_FLEET_WAREHOUSE_INVALID", operation: op });
+          continue;
+        }
+        const existing = targetSnapshot.warehouses.find(row =>
+          String(typeof row === "string" ? row : row?.name || "").trim() === name
+        );
+        if (!existing) targetSnapshot.warehouses.push(structuredClone(warehouse));
+        else {
+          const sameIdentity = typeof existing === "object" && typeof warehouse === "object" &&
+            String(existing.id ?? "") === String(warehouse.id ?? "") &&
+            String(existing.name ?? "") === String(warehouse.name ?? "") &&
+            String(existing.type ?? "") === String(warehouse.type ?? "");
+          const existingOwner = existing && typeof existing === "object" ? existing.assigned_user_id ?? null : null;
+          const requestedOwner = warehouse && typeof warehouse === "object" ? warehouse.assigned_user_id ?? null : null;
+          const allowedRelease = sameIdentity && String(existingOwner ?? "") === String(payload.actorId ?? "") && requestedOwner == null;
+          const allowedClaim = sameIdentity && existingOwner == null && String(requestedOwner ?? "") === String(payload.actorId ?? "");
+          if (sameIdentity && (canonicalOperationHash(existing) === canonicalOperationHash(warehouse) || allowedRelease || allowedClaim)) {
+            if (allowedRelease || allowedClaim) existing.assigned_user_id = requestedOwner;
+          } else {
+            review.push({ opId: op.opId, reason: "TRUCK_FLEET_WAREHOUSE_CONFLICT", warehouseName: name, cloudWarehouse: structuredClone(existing), localWarehouse: structuredClone(warehouse), operation: op });
+          }
+        }
+      }
+      if (review.some(item => item.opId === op.opId)) continue;
+      const big = value => {
+        if (typeof value === "bigint") return value;
+        if (typeof value === "string" && /^-?(0|[1-9]\d*)$/.test(value)) return BigInt(value);
+        if (value && typeof value === "object" && typeof value.__anasFleetBigInt === "string" &&
+            /^-?(0|[1-9]\d*)$/.test(value.__anasFleetBigInt)) return BigInt(value.__anasFleetBigInt);
+        throw new TypeError("INVALID_FLEET_BIGINT");
+      };
+      const tagged = value => ({__anasFleetBigInt:value.toString()});
+      const quantity = value => {
+        const m=/^(0|[1-9]\d*)(?:\.(\d{1,3}))?$/.exec(String(value??"0").trim());
+        if(!m)throw new TypeError("INVALID_CLOUD_STOCK_QUANTITY");
+        return BigInt(m[1])*1000n+BigInt((m[2]||"").padEnd(3,"0")||"0");
+      };
+      const formatQuantity=value=>{const n=big(value);return(n/1000n).toString()+"."+String(n%1000n).padStart(3,"0");};
+      const rebased=structuredClone(nextState);
+      const baseProducts=new Map((Array.isArray(baseState?.products)?baseState.products:[]).map(row=>[String(row.id),row]));
+      const nextProducts=new Map(rebased.products.map(row=>[String(row.id),row]));
+      const productRows=new Map();
+      for(const [id,nextProduct] of nextProducts){
+        const matches=(Array.isArray(targetSnapshot.products)?targetSnapshot.products:[]).filter(row=>row&&String(row.id)===id);
+        if(matches.length!==1){review.push({opId:op.opId,reason:"TRUCK_FLEET_PRODUCT_MISSING_OR_AMBIGUOUS",productId:id,operation:op});continue;}
+        productRows.set(id,matches[0]);
+        let cloudMain,baseMain,nextMain;
+        try{cloudMain=quantity(matches[0].stock??0);baseMain=baseProducts.has(id)?big(baseProducts.get(id).mainStockUnits):cloudMain;nextMain=big(nextProduct.mainStockUnits);}
+        catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_MAIN_STOCK",productId:id,operation:op});continue;}
+        const rebasedMain=cloudMain+(nextMain-baseMain);
+        if(rebasedMain<0n){review.push({opId:op.opId,reason:"TRUCK_FLEET_MAIN_STOCK_UNDERFLOW",productId:id,operation:op});continue;}
+        matches[0].stock=formatQuantity(rebasedMain);nextProduct.mainStockUnits=tagged(rebasedMain);
+      }
+      if(review.some(item=>item.opId===op.opId))continue;
+      const baseTrucks=new Map((Array.isArray(baseState?.trucks)?baseState.trucks:[]).map(row=>[String(row.id),row]));
+      const baseTrips=new Map((Array.isArray(baseState?.trips)?baseState.trips:[]).map(row=>[String(row.id),row]));
+      const newTripSales=[];
+      for(const trip of rebased.trips){
+        const oldTrip=baseTrips.get(String(trip.id)),oldSales=new Set((oldTrip?.sales||[]).map(row=>String(row.id)));
+        for(const sale of trip.sales||[])if(!oldSales.has(String(sale.id))&&sale.invoiceId)newTripSales.push({invoiceId:String(sale.invoiceId),productId:String(sale.productId),quantityUnits:big(sale.quantityUnits)});
+      }
+      for(const sale of newTripSales)if(!(Array.isArray(targetSnapshot.invoices)?targetSnapshot.invoices:[]).some(row=>String(row?.id??"")===sale.invoiceId))review.push({opId:op.opId,reason:"TRUCK_FLEET_LINKED_INVOICE_NOT_SYNCED",invoiceId:sale.invoiceId,operation:op});
+      if(review.some(item=>item.opId===op.opId))continue;
+      const nextTrucks=new Map(rebased.trucks.map(row=>[String(row.id),row]));
+      for(const [truckId,nextTruck] of nextTrucks){
+        const baseTruck=baseTrucks.get(truckId),warehouseName=String(nextTruck.warehouseName||baseTruck?.warehouseName||"").trim();
+        if(!warehouseName)continue;
+        const baseStock=baseTruck?.stockUnits||{},nextStock=nextTruck.stockUnits||{};
+        for(const [productId,product] of productRows){
+          let delta;try{delta=big(nextStock[productId]??"0")-big(baseStock[productId]??"0");}catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_TRUCK_STOCK",truckId,productId,operation:op});continue;}
+          for(const sale of newTripSales)if(sale.productId===productId){
+            const invoice=targetSnapshot.invoices.find(row=>String(row?.id??"")===sale.invoiceId);
+            if(invoice&&String(invoice.warehouse||invoice.warehouseName||"")===warehouseName)delta+=sale.quantityUnits;
+          }
+          if(product.warehouseStock!==undefined&&(!product.warehouseStock||typeof product.warehouseStock!=="object"||Array.isArray(product.warehouseStock))){review.push({opId:op.opId,reason:"TRUCK_FLEET_MALFORMED_WAREHOUSE_STOCK",truckId,productId,operation:op});continue;}
+          const map=product.warehouseStock||(product.warehouseStock={});
+          let current;try{current=quantity(map[warehouseName]??0);}catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_WAREHOUSE_STOCK",truckId,productId,operation:op});continue;}
+          const updated=current+delta;
+          if(updated<0n){review.push({opId:op.opId,reason:"TRUCK_FLEET_TRUCK_STOCK_UNDERFLOW",truckId,productId,operation:op});continue;}
+          map[warehouseName]=formatQuantity(updated);
+          if(updated===0n&&!Object.prototype.hasOwnProperty.call(nextStock,productId)&&!Object.prototype.hasOwnProperty.call(baseStock,productId))delete nextTruck.stockUnits[productId];
+          else nextTruck.stockUnits[productId]=tagged(updated);
+        }
+      }
+      if(review.some(item=>item.opId===op.opId))continue;
+      snapshot.products=targetSnapshot.products;
+      snapshot.warehouses=targetSnapshot.warehouses;
+      if(targetSnapshot.currentUser!==undefined)snapshot.currentUser=targetSnapshot.currentUser;
+      snapshot.anasFleetState=rebased;
+      markApplied();appliedNow.push({opId:op.opId,outcome:"applied"});continue;
+    }
+
     if (op.type === "DEBT_COLLECTION") {
       let amount;
       try { amount = finiteAmount(payload.amount, "Collection amount"); }

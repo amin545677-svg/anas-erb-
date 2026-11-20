@@ -4,7 +4,7 @@
  * Creates immutable identity metadata before the queue write. This helper is
  * intentionally not wired into production V42 index.html yet.
  */
-const SUPPORTED_MUTATION_TYPES = new Set(["SALE_INVOICE", "DEBT_COLLECTION"]);
+const SUPPORTED_MUTATION_TYPES = new Set(["SALE_INVOICE", "DEBT_COLLECTION", "TRUCK_FLEET_OPERATION"]);
 
 export function createMutationEnvelope({
   type,
@@ -34,10 +34,13 @@ export function createMutationEnvelope({
     throw new Error("Mutation UUID provider must return a non-empty token without whitespace");
   }
 
+  const opId = "op_" + id;
   return Object.freeze({
-    opId: `op_${id}`,
+    opId,
+    idempotencyKey: "ANAS:" + type + ":" + opId,
     type,
     createdAt,
+    createdAtMs: date.getTime(),
     payload: structuredClone(payload)
   });
 }

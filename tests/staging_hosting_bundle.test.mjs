@@ -45,6 +45,10 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(erp.includes("root.innerHTML + '</body></html>'"),
       'printable HTML closing tags inside JavaScript strings must remain untouched');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
+    await fs.access(path.join(outDir, 'erp/fleet/truck-runtime.mjs'));
+    assert.match(erp, /data-anas-fleet-runtime/, 'fleet runtime must be inlined into the service-worker-cached ERP shell');
+    assert.match(erp, /__ANAS_GET_APP_DATA__/, 'fleet runtime must use the scoped AppData bridge');
+    assert.match(erp, /ANASFleetPOS\.onInvoiceCommitted/, 'POS must hand committed truck invoices to the fleet engine');
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');

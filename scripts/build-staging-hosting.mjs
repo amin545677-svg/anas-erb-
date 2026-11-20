@@ -24,6 +24,7 @@ const ERP_FILES = [
   'supplier-account-statement.js',
   'warehouse-transfer-audit.js',
   'fleet/truck-settlement-engine.mjs',
+  'fleet/truck-runtime.mjs',
   'printing/arabic-escpos-engine.js',
   'icons/icon.svg',
   'reverse-ledger/reverse-ledger.js',
@@ -213,8 +214,16 @@ export async function buildStagingHosting(options = {}) {
   }
   stagedHtml = insertBeforeDocumentHeadClose(stagedHtml,
     '  <link rel="stylesheet" href="./anas-erp-ui-safe-enhancements.css">\n  <link rel="stylesheet" href="./ai-excel-import-ui.css">\n  ');
+  const fleetRuntimeSource = (await fs.readFile(path.join(rootDir, 'fleet/truck-runtime.mjs'), 'utf8'))
+    .replace('from "./truck-settlement-engine.mjs"', 'from "./fleet/truck-settlement-engine.mjs"')
+    .replace('from "../sync/mutation_keys.mjs"', 'from "./sync/mutation_keys.mjs"');
+  if (!fleetRuntimeSource.includes('TRUCK_FLEET_STATE_CONFLICT') &&
+      !fleetRuntimeSource.includes('ANASFleetPOS')) {
+    throw new Error('Integrated fleet runtime source is incomplete');
+  }
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>\n  ');
+    '  <script src="./ai-excel-import-ui.js" defer></script>\\n  <script src="./safe-update-ui.js" defer></script>\\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\\n  <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>\\n  <script>window.__ANAS_GET_APP_DATA__=function(){return AppData;};window.__ANAS_SET_APP_DATA__=function(value){AppData=value;};</script>\\n  ' +
+    '<script type="module" data-anas-fleet-runtime>\\n' + fleetRuntimeSource + '\\n</script>\\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
@@ -248,6 +257,12 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = stagedHtml.replace(statusVersionBadge, '$1SW: r42 | Build SHA: ' + buildSha + '$2');
   const builtStatusBar = stagedHtml.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/);
   if (!builtStatusBar || !builtStatusBar[0].includes('data-build-version="r42"') || !builtStatusBar[0].includes('SW: r42 | Build SHA: ' + buildSha) || builtStatusBar[0].includes('r40')) throw new Error('Staging status bar and About-app build identity are not synchronized');
+  const fleetPosHookAnchor = "            finalizeSale();\\n            return true;";
+  if (stagedHtml.split(fleetPosHookAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one durable POS finalize boundary for fleet invoice capture');
+  }
+  stagedHtml = stagedHtml.replace(fleetPosHookAnchor,
+    "            finalizeSale();\\n            if (window.ANASFleetPOS && typeof window.ANASFleetPOS.onInvoiceCommitted === 'function') {\\n              try { await window.ANASFleetPOS.onInvoiceCommitted(invObj); }\\n              catch (fleetError) { console.error("[ANAS Fleet] POS invoice committed but fleet ledger capture needs retry:", fleetError); window.dispatchEvent(new CustomEvent("anas:fleet-error", { detail: String(fleetError?.message || fleetError) })); }\\n            }\\n            return true;");
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
@@ -285,6 +300,7 @@ export async function buildStagingHosting(options = {}) {
     'erp/anas-pos-floating-cart.js', 'erp/anas-pos-floating-cart.css',
     'erp/storage/android-resilient-storage.js',
     'erp/fleet/truck-settlement-engine.mjs',
+    'erp/fleet/truck-runtime.mjs',
     'erp/printing/arabic-escpos-engine.js',
     'erp/core/ai-operations-engine.js',
     'erp/core/sovereign-kernel.mjs',

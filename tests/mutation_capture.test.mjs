@@ -48,6 +48,10 @@ test("mock sale and collection capture distinct opIds and canonical ISO timestam
   assert.deepEqual(pending.map(item => item.opId), [sale.opId, collection.opId]);
   assert.ok(pending.every(item => item.status === "PENDING"));
   assert.ok(pending.every(item => item.createdAt === "2026-10-28T14:05:06.789Z"));
+  assert.ok(pending.every(item => item.idempotencyKey.startsWith("ANAS:")));
+  assert.ok(pending.every(item => item.createdAtMs === fixed.getTime()));
+  assert.deepEqual(pending.map(item => item.localSeq), [1, 2]);
+  assert.equal(JSON.parse(storage.getItem(MUTATION_KEYS.appData)).anasLocalMutationSequence, 2);
 });
 
 test("capture rejects malformed clocks, UUIDs, payloads, and unsupported operation types", () => {

@@ -66,6 +66,34 @@ export function installV42RuntimeWiring({
   }
 
   function makeOperation(current, previous) {
+    const fleetChanged = JSON.stringify(current?.anasFleetState ?? null) !== JSON.stringify(previous?.anasFleetState ?? null);
+    if (fleetChanged) {
+      const nextState = current?.anasFleetState;
+      if (!nextState || typeof nextState !== "object" || Array.isArray(nextState) ||
+          nextState.schemaVersion !== 1 || !Array.isArray(nextState.products) ||
+          !Array.isArray(nextState.trucks) || !Array.isArray(nextState.trips) ||
+          !Array.isArray(nextState.movements)) {
+        throw new Error("TRUCK_FLEET_STATE_INVALID");
+      }
+      const operation = createMutationEnvelope({
+        type: "TRUCK_FLEET_OPERATION",
+        payload: {
+          baseState: structuredClone(previous?.anasFleetState ?? null),
+          nextState: structuredClone(nextState),
+          warehouses: (() => {
+            const actorId = current.currentUser?.id == null ? "" : String(current.currentUser.id);
+            const latestTrip = [...nextState.trips].reverse().find(trip => String(trip.driverId) === actorId);
+            const changedWarehouseName = String(latestTrip?.warehouseName || "");
+            return (Array.isArray(current.warehouses) ? current.warehouses : [])
+              .filter(row => String(typeof row === "string" ? row : row?.name || "") === changedWarehouseName)
+              .map(row => structuredClone(row));
+          })(),
+          actorId: current.currentUser?.id == null ? null : String(current.currentUser.id)
+        },
+        now, uuid
+      });
+      return { entity: { id: operation.opId }, operation };
+    }
     const identityKey = {
       invoices: "id", cashMovements: "id", bankMovements: "id",
       stockMovements: "id", clientMovements: "movementId",
@@ -294,7 +322,7 @@ export function installV42RuntimeWiring({
       "products", "customers", "suppliers", "invoices", "purchases",
       "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
       "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
-      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail"
+      "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail", "anasFleetState"
     ];
     return businessCollections.some(key => changed(current[key], previous[key]));
   }
@@ -318,8 +346,19 @@ export function installV42RuntimeWiring({
     if (queue.some(item => item?.opId === operation.opId)) {
       throw new Error("Duplicate operation ID detected before saveDB");
     }
+    const currentData = getAppData();
+    const previousSequence = Number(currentData?.anasLocalMutationSequence) || 0;
+    const maxPendingSequence = queue.reduce((max, item) => Math.max(max, Number(item?.localSeq) || 0), 0);
+    const localSeq = Math.max(previousSequence, maxPendingSequence) + 1;
+    if (currentData) currentData.anasLocalMutationSequence = localSeq;
     storage.setItem(MUTATION_KEYS.pending, JSON.stringify([
-      ...queue, { ...structuredClone(operation), status: "PREPARED" }
+      ...queue, {
+        ...structuredClone(operation),
+        idempotencyKey: operation.idempotencyKey || ("ANAS:" + operation.type + ":" + operation.opId),
+        createdAtMs: Number.isSafeInteger(operation.createdAtMs) ? operation.createdAtMs : Date.parse(operation.createdAt),
+        localSeq,
+        status: "PREPARED"
+      }
     ]));
   }
 
@@ -449,7 +488,9 @@ export function installV42RuntimeWiring({
     const allowedCollections = captured.operation.type === "SALE_INVOICE"
       ? new Set(["products", "customers", "invoices", "cashMovements", "bankMovements",
           "stockMovements", "clientMovements", "settlementAllocations", "auditTrail"])
-      : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
+      : captured.operation.type === "TRUCK_FLEET_OPERATION"
+        ? new Set(["products", "warehouses", "anasFleetState"])
+        : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
     if (hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections)) {
       throw new Error("Unsupported additional business collection change; no local persistence was performed");
     }

@@ -84,12 +84,22 @@ export function commitLocalMutation({ storage, nextAppData, operation }) {
   try {
     const pending = readJson(storage, MUTATION_KEYS.pending, []);
     if (!Array.isArray(pending)) throw new Error("Pending queue must be an array");
-    if (!pending.some(item => item?.opId === operation.opId)) {
-      writeJson(storage, MUTATION_KEYS.pending, [...pending, { ...structuredClone(operation), status: "PREPARED" }]);
-    }
     const committed = structuredClone(nextAppData);
     if (!committed || typeof committed !== "object" || Array.isArray(committed)) {
       throw new Error("AppData must be an object");
+    }
+    if (!pending.some(item => item?.opId === operation.opId)) {
+      const previousSequence = Number(committed.anasLocalMutationSequence) || 0;
+      const maxPendingSequence = pending.reduce((max, item) => Math.max(max, Number(item?.localSeq) || 0), 0);
+      const localSeq = Math.max(previousSequence, maxPendingSequence) + 1;
+      committed.anasLocalMutationSequence = localSeq;
+      const durableOperation = {
+        ...structuredClone(operation),
+        idempotencyKey: operation.idempotencyKey || ("ANAS:" + operation.type + ":" + operation.opId),
+        createdAtMs: Number.isSafeInteger(operation.createdAtMs) ? operation.createdAtMs : Date.parse(operation.createdAt),
+        localSeq
+      };
+      writeJson(storage, MUTATION_KEYS.pending, [...pending, { ...durableOperation, status: "PREPARED" }]);
     }
     const ids = new Set(Array.isArray(committed.appliedOpIds) ? committed.appliedOpIds : []);
     ids.add(operation.opId);
@@ -204,6 +214,16 @@ export function createMutationQueueOrchestrator({
           cloudRevision: cloud.revision, createdAt: new Date().toISOString()
         });
         const result = reconcile(cloud.data, replayable);
+        const durableLocalSequence = Math.max(
+          Number(cloud.data.anasLocalMutationSequence) || 0,
+          ...pendingAtStart.map(item => Number(item?.localSeq) || 0)
+        );
+        if (Number.isSafeInteger(durableLocalSequence) && durableLocalSequence > 0) {
+          result.snapshot.anasLocalMutationSequence = Math.max(
+            Number(result.snapshot.anasLocalMutationSequence) || 0,
+            durableLocalSequence
+          );
+        }
         const quarantinedNow = [
           ...serverOwned.map(operation => ({
             opId: operation.opId,
