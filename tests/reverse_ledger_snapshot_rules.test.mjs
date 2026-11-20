@@ -85,15 +85,36 @@ test("another user cannot read or overwrite the owner's snapshot", async t => {
   await assertFails(setDoc(ref, { payload: "{}" }));
 });
 
-test("client users cannot read or mutate reverse-ledger control-plane documents", async t => {
+test("client users receive permission-denied for every root and nested reverse-ledger control-plane collection", async t => {
   const testEnv = await createTestEnv();
   t.after(() => testEnv.cleanup());
 
   const uid = "snapshot-control-plane-user";
   const db = testEnv.authenticatedContext(uid).firestore();
-  await assertFails(getDoc(doc(db, "reverseLedgerGrants", uid)));
-  await assertFails(setDoc(doc(db, "reverseLedgerOperations", "REV-OP-00000001"), {
-    ownerUid: uid, status: "POSTED"
-  }));
-  await assertFails(getDoc(doc(db, "financialPeriods", "FY-2026-10")));
+  const rootCollections = [
+    ["reverseLedgerGrants", uid],
+    ["financialPeriods", "FY-2026-10"],
+    ["reverseLedgerOperations", "REV-OP-00000001"],
+    ["reverseLedgerApprovals", "REV-APP-00000001"],
+    ["reverseLedgerState", uid],
+    ["reverseLedgerEntries", "REV-ENTRY-00000001"]
+  ];
+  for (const [collection, id] of rootCollections) {
+    const ref = doc(db, collection, id);
+    await assertFails(getDoc(ref));
+    await assertFails(setDoc(ref, { ownerUid: uid, status: "POSTED" }));
+  }
+
+  const nestedCollections = [
+    ["reverseLedgerGrants", "grant-1"],
+    ["financialPeriods", "period-1"],
+    ["reverseLedgerOperations", "operation-1"],
+    ["reverseLedgerState", "state-1"],
+    ["reverseLedgerEntries", "entry-1"]
+  ];
+  for (const [collection, id] of nestedCollections) {
+    const ref = doc(db, "users", uid, collection, id);
+    await assertFails(getDoc(ref));
+    await assertFails(setDoc(ref, { ownerUid: uid, status: "POSTED" }));
+  }
 });
