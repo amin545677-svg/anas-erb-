@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'cloudflare/worker_firebase_snapshot.js'
+      - 'cloudflare/worker_reverse_ledger.js'
+      - 'cloudflare/wrangler-reverse-ledger-staging.toml'
+      - 'firebase/firestore.reverse-ledger.rules'
+      - 'tests/worker_reverse_ledger.test.mjs'
+      - 'reverse-ledger/**'
+      - 'tests/reverse_ledger_primitives.test.js'
       - 'tests/worker_firebase_snapshot.test.mjs'
       - '.github/workflows/snapshot-worker-tests.yml'
       - '.github/workflows/deploy-firebase-worker.yml'
@@ -24,5 +30,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run Firebase snapshot Worker tests
-        run: node --test tests/worker_firebase_snapshot.test.mjs
+      - name: Run Firebase snapshot and reverse-ledger Worker tests
+        run: node --test tests/worker_firebase_snapshot.test.mjs tests/worker_reverse_ledger.test.mjs tests/reverse_ledger_primitives.test.js
