@@ -130,6 +130,25 @@ async function recoverDebtMovements(){const d=data();if(!d?.anasFleetState)retur
 async function recordDebt(m,before){if(m?.referenceType!=="customer_debt")return;const customer=data()?.customers?.find(x=>String(x.id)===String(m.referenceId));lastPayment={id:m.id,date:m.date,customerName:customer?.name||"عميل",beforeMinor:before,amountMinor:minor(m.amount)};const s=state(),t=active(s);if(!t||t.status!=="ACTIVE"||t.debtPayments?.some(x=>String(x.referenceId)===String(m.id)))return;const next=recordOldDebtPayment(s,t.id,{customerId:String(m.referenceId),referenceId:String(m.id),amount:String(m.amount)},key("TRUCK-DEBT-"+m.id),actor());await persist(next.state);}
 let posCommitInFlight=null;
 let pendingTruckInvoiceRollback=null;
+let pendingFleetDurableAck=null;
+async function awaitPendingV42DurableSaveAck(){
+ if(pendingFleetDurableAck)await pendingFleetDurableAck;
+ const storage=W.ANASResilientStorage;
+ if(!storage||typeof storage.getItem!=="function")throw Error("V42 durable-save journal is unavailable before POS commit");
+ const queue=storage.getItem(MUTATION_KEYS.pending)||[];
+ if(!Array.isArray(queue))throw Error("V42 durable-save journal is malformed before POS commit");
+ const prepared=queue.filter(item=>item?.status==="PREPARED");
+ if(prepared.length>1)throw Error("Multiple PREPARED V42 operations exist; POS commit is blocked for ledger safety");
+ if(prepared.length===1){
+  const prior=prepared[0];
+  W.__ANAS_FLEET_LAST_DURABLE_BARRIER__={type:String(prior.type||"unknown"),opId:String(prior.opId||""),status:"awaiting-prior-ack"};
+  if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)
+   throw Error("Previous V42 mutation did not receive a durable save acknowledgement");
+  W.__ANAS_FLEET_LAST_DURABLE_BARRIER__={type:String(prior.type||"unknown"),opId:String(prior.opId||""),status:"acknowledged-before-pos"};
+ }
+ return true;
+}
+W.__ANAS_FLEET_AWAIT_PENDING_DURABLE_SAVE__=awaitPendingV42DurableSaveAck;
 function hookPosCartDurability(){
  const originalSaveDB=W.saveDB,originalSaveDBDurably=W.saveDBDurably;
  if(typeof originalSaveDB==="function"&&!originalSaveDB.__anasFleetInvoiceBundled){
@@ -153,8 +172,10 @@ function hookPosCartDurability(){
  if(typeof originalSaveDBDurably==="function"&&!originalSaveDBDurably.__anasFleetInvoiceBundled){
   const wrappedDurable=async function(){
    const rollback=pendingTruckInvoiceRollback;
+   const acknowledgement=Promise.resolve(originalSaveDBDurably.apply(this,arguments));
+   pendingFleetDurableAck=acknowledgement;
    try{
-    const result=await originalSaveDBDurably.apply(this,arguments);
+    const result=await acknowledgement;
     if(rollback){
      pendingTruckInvoiceRollback=null;
      if(result!==true)rollback();
@@ -163,6 +184,8 @@ function hookPosCartDurability(){
    }catch(error){
     if(rollback){pendingTruckInvoiceRollback=null;rollback();}
     throw error;
+   }finally{
+    if(pendingFleetDurableAck===acknowledgement)pendingFleetDurableAck=null;
    }
   };
   wrappedDurable.__anasFleetInvoiceBundled=true;
@@ -175,6 +198,7 @@ function hookPosCartDurability(){
    const receiver=this,args=arguments;
    const acknowledgement=(async()=>{
     try{
+     await awaitPendingV42DurableSaveAck();
      const result=await originalConfirm.apply(receiver,args);
      if(pendingTruckInvoiceRollback){
       const rollback=pendingTruckInvoiceRollback;pendingTruckInvoiceRollback=null;rollback();

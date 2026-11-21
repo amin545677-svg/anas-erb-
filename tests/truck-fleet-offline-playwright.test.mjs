@@ -181,6 +181,13 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("#anasPosFloatingCart [data-mini-action='checkout']").click();
   await page.locator("#hasibModal.active").waitFor({state:"visible"});
   await page.locator("#hasibPaidAmount").fill("10.00");
+  await page.evaluate(async()=>{
+   if(typeof window.__ANAS_FLEET_AWAIT_PENDING_DURABLE_SAVE__!=="function")
+    throw new Error("fleet POS must expose the prior V42 durable-ACK barrier");
+   await window.__ANAS_FLEET_AWAIT_PENDING_DURABLE_SAVE__();
+  });
+  const priorDurableBarrier=await page.evaluate(()=>window.__ANAS_FLEET_LAST_DURABLE_BARRIER__||null);
+  console.log("[truck-offline] prior V42 durable barrier:",JSON.stringify(priorDurableBarrier));
   const posSaveCountsBefore=await page.evaluate(()=>({saveDB:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.saveDBCalls,durable:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.calls}));
   await page.locator("#hasibModal button[onclick='confirmHasibPaymentDurable()']").click();
   await page.evaluate(async()=>{
