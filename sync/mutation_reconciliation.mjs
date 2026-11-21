@@ -214,13 +214,28 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       const derivedWarehouseName = String(
         actorTruck?.warehouseName || baseActorTruck?.warehouseName || ""
       ).trim();
+      // Validate linked POS invoices before warehouse metadata so an offline
+      // fleet sale is quarantined for its actual dependency, not a stale capture
+      // envelope that omitted the warehouse name.
+      const baseTripSales = new Map((Array.isArray(baseState?.trips) ? baseState.trips : [])
+        .map(trip => [String(trip.id), new Set((trip.sales || []).map(row => String(row.id)))]));
+      for (const trip of nextState.trips) {
+        const priorSales = baseTripSales.get(String(trip.id)) || new Set();
+        for (const sale of trip.sales || []) {
+          if (!priorSales.has(String(sale.id)) && sale.invoiceId &&
+              !(Array.isArray(targetSnapshot.invoices) ? targetSnapshot.invoices : [])
+                .some(row => String(row?.id ?? "") === String(sale.invoiceId))) {
+            review.push({ opId: op.opId, reason: "TRUCK_FLEET_LINKED_INVOICE_NOT_SYNCED",
+              invoiceId: String(sale.invoiceId), operation: op });
+          }
+        }
+      }
+      if (review.some(item => item.opId === op.opId)) continue;
       for (const warehouse of warehouseRows) {
         const suppliedName = String(
           typeof warehouse === "string" ? warehouse : warehouse?.name || ""
         ).trim();
-        const name = suppliedName || (
-          warehouse && typeof warehouse === "object" ? derivedWarehouseName : ""
-        );
+        const name = suppliedName || derivedWarehouseName;
         if (!name) {
           review.push({ opId: op.opId, reason: "TRUCK_FLEET_WAREHOUSE_INVALID", operation: op });
           continue;
@@ -286,8 +301,6 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         const oldTrip=baseTrips.get(String(trip.id)),oldSales=new Set((oldTrip?.sales||[]).map(row=>String(row.id)));
         for(const sale of trip.sales||[])if(!oldSales.has(String(sale.id))&&sale.invoiceId)newTripSales.push({invoiceId:String(sale.invoiceId),productId:String(sale.productId),quantityUnits:big(sale.quantityUnits)});
       }
-      for(const sale of newTripSales)if(!(Array.isArray(targetSnapshot.invoices)?targetSnapshot.invoices:[]).some(row=>String(row?.id??"")===sale.invoiceId))review.push({opId:op.opId,reason:"TRUCK_FLEET_LINKED_INVOICE_NOT_SYNCED",invoiceId:sale.invoiceId,operation:op});
-      if(review.some(item=>item.opId===op.opId))continue;
       const nextTrucks=new Map(rebased.trucks.map(row=>[String(row.id),row]));
       for(const [truckId,nextTruck] of nextTrucks){
         const baseTruck=baseTrucks.get(truckId),warehouseName=String(nextTruck.warehouseName||baseTruck?.warehouseName||"").trim();
