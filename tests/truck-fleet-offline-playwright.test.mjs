@@ -225,7 +225,16 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    const bundle=Array.isArray(q)?q.find(item=>{
     if(item?.type!=="TRUCK_FLEET_OPERATION"||item?.status!=="PENDING")return false;
     const deltas=item.payload?.collectionDeltas||{};
-    return addedRows(deltas.invoices).some(row=>String(row.id)===String(invoice?.id))&&fleetSalesAdded(item,invoice?.id).length>0;
+    const invoiceId=String(invoice?.id??"");
+    const addedInvoices=addedRows(deltas.invoices);
+    const addedCash=addedRows(deltas.cashMovements);
+    const addedStock=addedRows(deltas.stockMovements);
+    const addedCustomers=addedRows(deltas.customers);
+    return addedInvoices.some(row=>String(row.id)===invoiceId)&&
+     addedCash.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId)&&
+     addedStock.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId)&&
+     addedCustomers.some(row=>String(row.id)==="C1")&&
+     fleetSalesAdded(item,invoiceId).length>0;
    }):null;
    const deltas=bundle?.payload?.collectionDeltas||{},invoiceId=String(invoice?.id??"");
    const saleOps=(Array.isArray(q)?q:[]).filter(item=>item?.type==="SALE_INVOICE"&&String(item.payload?.invoice?.id??"")===invoiceId);

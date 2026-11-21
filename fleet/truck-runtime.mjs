@@ -110,25 +110,82 @@ function prepareInvoiceCommit(inv){
   restoreFleetAppData(d,before);lastInvoice=previousLastInvoice;throw error;
  }
 }
-async function recordInvoice(inv){
- const rollback=prepareInvoiceCommit(inv);if(typeof rollback!=="function")return false;
- try{
-  if(typeof W.saveDB!=="function"||W.saveDB()!==true)throw Error("تعذر تجهيز ربط فاتورة الشاحنة لطابور المزامنة");
-  if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم لربط فاتورة الشاحنة");
-  render();message("رُبطت فاتورة POS بعهدة الشاحنة وسجل السعر الفعلي.");return true;
- }catch(error){rollback();throw error;}
+function recordInvoice(inv){
+ // Prepare only in memory. The caller owns the single durable save so the
+ // invoice, POS ledgers, stock and fleet linkage enter one mutation envelope.
+ return prepareInvoiceCommit(inv);
 }
-async function recoverInvoices(){const d=data();if(!d?.anasFleetState)return;const t=active();if(!t)return;for(const inv of (d.invoices||[]).filter(x=>String(x.warehouse||x.warehouseName||"")===String(t.warehouseName)))await recordInvoice(inv);}
+async function recoverInvoices(){
+ const d=data();if(!d?.anasFleetState)return;const t=active();if(!t)return;
+ for(const inv of (d.invoices||[]).filter(x=>String(x.warehouse||x.warehouseName||"")===String(t.warehouseName))){
+  const rollback=recordInvoice(inv);if(typeof rollback!=="function")continue;
+  try{
+   if(typeof W.saveDB!=="function"||W.saveDB()!==true)throw Error("تعذر تجهيز استعادة ربط فاتورة الشاحنة");
+   if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم لاستعادة ربط فاتورة الشاحنة");
+   render();message("رُبطت فاتورة POS بعهدة الشاحنة وسجل السعر الفعلي.");
+  }catch(error){rollback();throw error;}
+ }
+}
 async function recoverDebtMovements(){const d=data();if(!d?.anasFleetState)return;const s=state(),t=active(s);if(!t)return;const known=new Set((t.debtPayments||[]).map(x=>String(x.referenceId)));for(const m of (d.cashMovements||[]).filter(x=>x?.type==="add"&&x?.referenceType==="customer_debt"&&!known.has(String(x.id))&&(!x.date||new Date(x.date).getTime()>=new Date(t.openedAt).getTime()))){const c=(d.customers||[]).find(x=>String(x.id)===String(m.referenceId));const before=minor(c?.debt||0)+minor(m.amount||0);await recordDebt(m,before);}}
 async function recordDebt(m,before){if(m?.referenceType!=="customer_debt")return;const customer=data()?.customers?.find(x=>String(x.id)===String(m.referenceId));lastPayment={id:m.id,date:m.date,customerName:customer?.name||"عميل",beforeMinor:before,amountMinor:minor(m.amount)};const s=state(),t=active(s);if(!t||t.status!=="ACTIVE"||t.debtPayments?.some(x=>String(x.referenceId)===String(m.id)))return;const next=recordOldDebtPayment(s,t.id,{customerId:String(m.referenceId),referenceId:String(m.id),amount:String(m.amount)},key("TRUCK-DEBT-"+m.id),actor());await persist(next.state);}
 let posCommitInFlight=null;
+let pendingTruckInvoiceRollback=null;
 function hookPosCartDurability(){
+ const originalSaveDB=W.saveDB,originalSaveDBDurably=W.saveDBDurably;
+ if(typeof originalSaveDB==="function"&&!originalSaveDB.__anasFleetInvoiceBundled){
+  const wrappedSaveDB=function(){
+   if(pendingTruckInvoiceRollback)throw Error("TRUCK_POS_DURABLE_SAVE_ALREADY_PENDING");
+   const d=data(),t=active();
+   const latest=(d?.invoices||[]).slice().reverse().find(inv=>
+    t&&String(inv?.warehouse||inv?.warehouseName||"")===String(t.warehouseName)
+   );
+   const rollback=latest?recordInvoice(latest):null;
+   try{
+    const result=originalSaveDB.apply(this,arguments);
+    if(result!==true){if(typeof rollback==="function")rollback();return result;}
+    if(typeof rollback==="function")pendingTruckInvoiceRollback=rollback;
+    return result;
+   }catch(error){if(typeof rollback==="function")rollback();throw error;}
+  };
+  wrappedSaveDB.__anasFleetInvoiceBundled=true;
+  W.saveDB=wrappedSaveDB;
+ }
+ if(typeof originalSaveDBDurably==="function"&&!originalSaveDBDurably.__anasFleetInvoiceBundled){
+  const wrappedDurable=async function(){
+   const rollback=pendingTruckInvoiceRollback;
+   try{
+    const result=await originalSaveDBDurably.apply(this,arguments);
+    if(rollback){
+     pendingTruckInvoiceRollback=null;
+     if(result!==true)rollback();
+    }
+    return result;
+   }catch(error){
+    if(rollback){pendingTruckInvoiceRollback=null;rollback();}
+    throw error;
+   }
+  };
+  wrappedDurable.__anasFleetInvoiceBundled=true;
+  W.saveDBDurably=wrappedDurable;
+ }
  const originalConfirm=W.confirmHasibPaymentDurable;
  if(typeof originalConfirm==="function"&&!originalConfirm.__anasFleetDurableWrapped){
   const wrappedConfirm=async function(){
    if(posCommitInFlight)return posCommitInFlight;
    const receiver=this,args=arguments;
-   const acknowledgement=(async()=>await originalConfirm.apply(receiver,args))();
+   const acknowledgement=(async()=>{
+    try{
+     const result=await originalConfirm.apply(receiver,args);
+     if(pendingTruckInvoiceRollback){
+      const rollback=pendingTruckInvoiceRollback;pendingTruckInvoiceRollback=null;rollback();
+      throw Error("TRUCK_POS_CONFIRM_DID_NOT_COMPLETE_DURABLE_SAVE");
+     }
+     return result;
+    }catch(error){
+     if(pendingTruckInvoiceRollback){const rollback=pendingTruckInvoiceRollback;pendingTruckInvoiceRollback=null;rollback();}
+     throw error;
+    }
+   })();
    posCommitInFlight=acknowledgement;
    W.__ANAS_POS_CART_DURABLE_SAVE__=acknowledgement;
    try{return await acknowledgement;}
