@@ -319,6 +319,30 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    });
    const bundle=Array.isArray(q)?q.find(item=>inspectFleetOperation(item).matches):null;
    const deltas=bundle?.payload?.collectionDeltas||{},invoiceId=String(invoice?.id??"");
+   const debtBundle=(Array.isArray(q)?q:[]).find(item=>{
+    if(item?.type!=="TRUCK_FLEET_OPERATION"||item?.status!=="PENDING")return false;
+    const delta=item?.payload?.collectionDeltas||{};
+    const cash=addedRows(delta.cashMovements).filter(row=>row?.type==="add"&&row?.referenceType==="customer_debt"&&String(row?.referenceId)==="C1"&&Number(row?.amount)===10);
+    const customers=changedRows(delta.customers).filter(row=>String(row?.id)==="C1"&&Number(row?.debt)===10);
+    const allocations=addedRows(delta.settlementAllocations,"allocationId");
+    const movements=addedRows(delta.clientMovements,"movementId").filter(row=>String(row?.customerId)==="C1");
+    const beforeTrips=item?.payload?.baseState?.trips||[];
+    const beforePayments=new Set(beforeTrips.flatMap(trip=>(trip.debtPayments||[]).map(row=>String(row.referenceId))));
+    const nextTrips=item?.payload?.nextState?.trips||[];
+    const payments=nextTrips.flatMap(trip=>(trip.debtPayments||[]).filter(row=>String(row.customerId)==="C1"&&String(row.referenceId)&&!beforePayments.has(String(row.referenceId))));
+    return cash.length===1&&customers.length===1&&allocations.length===1&&movements.length===2&&payments.length===1;
+   })||null;
+   const debtBundleProof=debtBundle?(()=>{
+    const delta=debtBundle.payload.collectionDeltas||{};
+    return {
+     type:debtBundle.type,status:debtBundle.status,
+     cashReceipts:addedRows(delta.cashMovements).filter(row=>row?.type==="add"&&row?.referenceType==="customer_debt"&&String(row?.referenceId)==="C1"&&Number(row?.amount)===10).length,
+     customerDebtRows:changedRows(delta.customers).filter(row=>String(row?.id)==="C1"&&Number(row?.debt)===10).length,
+     clientMovements:addedRows(delta.clientMovements,"movementId").filter(row=>String(row?.customerId)==="C1").length,
+     settlementAllocations:addedRows(delta.settlementAllocations,"allocationId").length,
+     tripDebtPayments:(debtBundle.payload.nextState?.trips||[]).flatMap(trip=>(trip.debtPayments||[]).filter(row=>String(row?.customerId)==="C1")).length
+    };
+   })():null;
    const saleOps=(Array.isArray(q)?q:[]).filter(item=>item?.type==="SALE_INVOICE"&&String(item.payload?.invoice?.id??"")===invoiceId);
    return{
     invoiceCount:s.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,
@@ -332,6 +356,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
     truckWarehouseStock:Number(s.products.find(x=>String(x.id)==="TRUCK-P1")?.warehouseStock?.["شاحنة 12345-31"]),
     pendingTypes:q.map(x=>x.type),
+    debtBundle:debtBundleProof,
     posBundle:bundle?{
      type:bundle.type,status:bundle.status,
      invoiceIds:addedRows(deltas.invoices).filter(row=>String(row.id)===invoiceId).map(row=>row.id),
@@ -366,7 +391,12 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(localProof.cashBalance,120,"local POS cash and debt receipt must update the cashbox exactly once");
   assert.equal(localProof.customerDebt,10,"collecting 10 from C1 old debt of 20 must leave a balance of 10; the cash POS invoice adds no debt");
   assert.equal(localProof.truckWarehouseStock,99,"local POS must deduct truck warehouse stock exactly once");
-  assert.ok(localProof.pendingTypes.includes("DEBT_COLLECTION"),"customer debt payment must be durably queued");
+  assert.ok(localProof.debtBundle&&localProof.debtBundle.type==="TRUCK_FLEET_OPERATION"&&localProof.debtBundle.status==="PENDING","customer debt payment must be durably queued atomically with its cash receipt, C1 balance, client movements, settlement allocation and trip debt payment; pendingOperations="+safeJson(localProof.pendingOperationDiagnostics));
+  assert.equal(localProof.debtBundle.cashReceipts,1,"the atomic debt operation must contain exactly one 10-unit customer debt cash receipt");
+  assert.equal(localProof.debtBundle.customerDebtRows,1,"the atomic debt operation must persist C1 debt at 10");
+  assert.equal(localProof.debtBundle.clientMovements,2,"the atomic debt operation must contain both client ledger movements");
+  assert.equal(localProof.debtBundle.settlementAllocations,1,"the atomic debt operation must contain one fleet settlement allocation");
+  assert.equal(localProof.debtBundle.tripDebtPayments,1,"the atomic debt operation must link exactly one debt payment to the active trip");
   assert.ok(Number(localProof.sequence)>=6,"local mutation sequence must persist across all truck, invoice and debt operations");
   assert.match(localProof.db,/anas_erp_v42_resilient_db/i);
   assert.deepEqual(errors,[],"offline hard reload must not produce uncaught browser exceptions");
