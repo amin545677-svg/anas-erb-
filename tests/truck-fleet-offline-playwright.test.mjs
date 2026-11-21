@@ -181,6 +181,11 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("#hasibModal.active").waitFor({state:"visible"});
   await page.locator("#hasibPaidAmount").fill("10.00");
   await page.locator("#hasibModal button[onclick='confirmHasibPaymentDurable()']").click();
+  await page.evaluate(async()=>{
+    const acknowledgement=window.__ANAS_POS_CART_DURABLE_SAVE__;
+    if(!acknowledgement||typeof acknowledgement.then!=="function")throw new Error("POS confirmation did not acknowledge the preceding cart save");
+    await acknowledgement;
+  });
   await page.waitForFunction(()=>AppData.invoices.some(x=>String(x.warehouse)==="شاحنة 12345-31"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState?.trips?.some(t=>t.sales?.some(s=>s.invoiceId)),null,{timeout:15000});
   await page.evaluate(async()=>{await collectCustDebt("C1");});
