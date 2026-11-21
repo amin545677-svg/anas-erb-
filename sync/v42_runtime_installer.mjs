@@ -77,7 +77,7 @@ export function installV42RuntimeWiring({
       }
       const fleetReplayCollections = [
         "trucks", "truckTrips", "stockMovements", "expenses",
-        "returns", "warehouseTransfers", "auditTrail"
+        "returns", "warehouseTransfers", "auditTrail", "customers", "invoices"
       ];
       const collectionDeltas = Object.fromEntries(fleetReplayCollections
         .filter(key => JSON.stringify(current?.[key] ?? null) !== JSON.stringify(previous?.[key] ?? null))
@@ -501,7 +501,8 @@ export function installV42RuntimeWiring({
           "stockMovements", "clientMovements", "settlementAllocations", "auditTrail"])
       : captured.operation.type === "TRUCK_FLEET_OPERATION"
         ? new Set(["products", "warehouses", "anasFleetState", "trucks", "truckTrips",
-            "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail"])
+            "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail",
+            "customers", "invoices"])
         : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
     const unsupportedCollections = hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections);
     if (unsupportedCollections.length) {

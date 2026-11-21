@@ -186,10 +186,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       const targetSnapshot = structuredClone(snapshot);
       const fleetCollectionKeys = new Set([
         "trucks", "truckTrips", "stockMovements", "expenses",
-        "returns", "warehouseTransfers", "auditTrail"
+        "returns", "warehouseTransfers", "auditTrail", "customers", "invoices"
       ]);
       const immutableFleetLedgers = new Set([
-        "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail"
+        "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail", "invoices"
       ]);
       const collectionDeltas = payload.collectionDeltas ?? {};
       if (!collectionDeltas || typeof collectionDeltas !== "object" || Array.isArray(collectionDeltas)) {
@@ -218,12 +218,31 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_ROWS_INVALID",collection:key,operation:op});
           continue;
         }
-        let unsafeLedgerEdit = false;
+        let unsafeLedgerEdit = key === "customers" && afterRows.size !== beforeRows.size;
         for (const [id, beforeRow] of beforeRows) {
           const afterRow = afterRows.get(id);
           if (!afterRow || (immutableFleetLedgers.has(key) && hash(beforeRow) !== hash(afterRow))) {
             unsafeLedgerEdit = true;
             break;
+          }
+          if (key === "customers") {
+            const stripDebtFields = row => {
+              const copy = structuredClone(row);
+              delete copy.debt;
+              delete copy.debtDate;
+              delete copy.ledgerVersion;
+              return copy;
+            };
+            const beforeDebt = moneyCents(beforeRow.debt ?? 0);
+            const afterDebt = moneyCents(afterRow.debt ?? 0);
+            if (hash(stripDebtFields(beforeRow)) !== hash(stripDebtFields(afterRow)) ||
+                beforeDebt === null || afterDebt === null ||
+                (afterRow.debtDate != null &&
+                  (typeof afterRow.debtDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(afterRow.debtDate))) ||
+                (afterRow.ledgerVersion != null && ![1, 2].includes(afterRow.ledgerVersion))) {
+              unsafeLedgerEdit = true;
+              break;
+            }
           }
         }
         if (unsafeLedgerEdit) {
@@ -273,6 +292,17 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       const derivedWarehouseName = String(
         actorTruck?.warehouseName || baseActorTruck?.warehouseName || ""
       ).trim();
+      const invoiceDelta = collectionDeltas.invoices;
+      if (invoiceDelta) {
+        const priorInvoiceIds = new Set((invoiceDelta.before || []).map(row => String(row?.id ?? "")));
+        const appendedInvoices = (invoiceDelta.after || []).filter(row => !priorInvoiceIds.has(String(row?.id ?? "")));
+        if (appendedInvoices.some(row =>
+          !derivedWarehouseName ||
+          String(row?.warehouse || row?.warehouseName || "").trim() !== derivedWarehouseName
+        )) {
+          review.push({opId:op.opId,reason:"TRUCK_FLEET_INVOICE_NOT_LINKED_TO_TRUCK_WAREHOUSE",operation:op});
+        }
+      }
       // Validate linked POS invoices before warehouse metadata so an offline
       // fleet sale is quarantined for its actual dependency, not a stale capture
       // envelope that omitted the warehouse name.

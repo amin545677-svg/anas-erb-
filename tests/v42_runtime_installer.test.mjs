@@ -993,8 +993,9 @@ test("truck fleet mutation captures and atomically replays related operational c
   current.anasFleetState = {
     schemaVersion: 1,
     products: [{ id: "item_a", mainStockUnits: { __anasFleetBigInt: "90000" } }],
-    trucks: [],
-    trips: [],
+    trucks: [{ id: "fleet-truck-1", warehouseName: "شاحنة 1", stockUnits: {} }],
+    trips: [{ id: "fleet-trip-1", truckId: "fleet-truck-1", driverId: "user_1",
+      warehouseName: "شاحنة 1", status: "ACTIVE", sales: [] }],
     movements: []
   };
   current.trucks.push({ id: "truck-1", plate: "1", stock: "100.000" });
@@ -1004,6 +1005,13 @@ test("truck fleet mutation captures and atomically replays related operational c
   current.returns.push({ id: "return-1", productId: "item_a", quantity: "1.000" });
   current.warehouseTransfers.push({ id: "transfer-1", productId: "item_a", quantity: "100.000" });
   current.auditTrail.push({ id: "audit-1", eventType: "TRUCK_LOAD" });
+  current.customers[0].debt = "25999.99";
+  current.customers[0].debtDate = "2026-11-21";
+  current.customers[0].ledgerVersion = 2;
+  current.invoices.push({ id: "truck-invoice-1", warehouse: "شاحنة 1",
+    total: "10.00", paid: "10.00", remaining: "0.00" });
+  current.warehouses.push({ id: "wh-truck-1", name: "شاحنة 1",
+    type: "mobile", assigned_user_id: "user_1" });
 
   const storage = new MemoryStorage({
     [MUTATION_KEYS.appData]: JSON.stringify(initial),
@@ -1049,13 +1057,17 @@ test("truck fleet mutation captures and atomically replays related operational c
   assert.equal(pending.length, 1);
   assert.equal(pending[0].type, "TRUCK_FLEET_OPERATION");
   assert.deepEqual(Object.keys(pending[0].payload.collectionDeltas).sort(), [
-    "auditTrail", "expenses", "returns", "stockMovements", "truckTrips", "trucks", "warehouseTransfers"
+    "auditTrail", "customers", "expenses", "invoices", "returns",
+    "stockMovements", "truckTrips", "trucks", "warehouseTransfers"
   ]);
   const result = await orchestrator.reconcileAndSync();
   assert.equal(result.status, "synced");
-  for (const key of ["trucks", "truckTrips", "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail"]) {
+  for (const key of ["trucks", "truckTrips", "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail", "invoices"]) {
     assert.deepEqual(cloud.data[key], current[key], key + " must replay atomically with the fleet state");
   }
+  assert.equal(cloud.data.customers[0].debt, "25999.99",
+    "centime-exact customer debt changes must replay atomically with fleet inventory");
+  assert.equal(cloud.data.customers[0].ledgerVersion, 2);
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(installer.uninstall(), true);
 });
