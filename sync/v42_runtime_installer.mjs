@@ -77,7 +77,8 @@ export function installV42RuntimeWiring({
       }
       const fleetReplayCollections = [
         "trucks", "truckTrips", "stockMovements", "expenses",
-        "returns", "warehouseTransfers", "auditTrail", "customers", "invoices"
+        "returns", "warehouseTransfers", "auditTrail", "customers", "invoices",
+        "cashMovements", "bankMovements", "clientMovements", "settlementAllocations"
       ];
       const collectionDeltas = Object.fromEntries(fleetReplayCollections
         .filter(key => JSON.stringify(current?.[key] ?? null) !== JSON.stringify(previous?.[key] ?? null))
@@ -99,6 +100,8 @@ export function installV42RuntimeWiring({
               .filter(row => String(typeof row === "string" ? row : row?.name || "") === changedWarehouseName)
               .map(row => structuredClone(row));
           })(),
+          caisseBalanceDelta: JSON.stringify(current?.caisseBalance ?? 0) !== JSON.stringify(previous?.caisseBalance ?? 0)
+            ? { before: previous?.caisseBalance ?? 0, after: current?.caisseBalance ?? 0 } : null,
           actorId: current.currentUser?.id == null ? null : String(current.currentUser.id)
         },
         now, uuid
@@ -330,8 +333,9 @@ export function installV42RuntimeWiring({
     // missed warehouseStock, purchases, expenses, truck trips and other ledgers,
     // allowing those changes to be saved locally without entering the sync queue.
     const businessCollections = [
-      "products", "customers", "suppliers", "invoices", "purchases",
-      "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
+      "products", "customers", "suppliers", "supplierMovements", "invoices", "purchases",
+      "purchaseInvoices", "expenses", "cashMovements", "bankMovements", "stockMovements",
+      "clientMovements", "settlementAllocations", "payments", "treasury",
       "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
       "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail", "anasFleetState"
     ];
@@ -341,8 +345,9 @@ export function installV42RuntimeWiring({
   function hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections) {
     const changed = (left, right) => JSON.stringify(left ?? null) !== JSON.stringify(right ?? null);
     const businessCollections = [
-      "products", "customers", "suppliers", "invoices", "purchases",
-      "purchaseInvoices", "expenses", "cashMovements", "stockMovements",
+      "products", "customers", "suppliers", "supplierMovements", "invoices", "purchases",
+      "purchaseInvoices", "expenses", "cashMovements", "bankMovements", "stockMovements",
+      "clientMovements", "settlementAllocations", "payments", "treasury",
       "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
       "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail"
     ];
@@ -502,7 +507,8 @@ export function installV42RuntimeWiring({
       : captured.operation.type === "TRUCK_FLEET_OPERATION"
         ? new Set(["products", "warehouses", "anasFleetState", "trucks", "truckTrips",
             "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail",
-            "customers", "invoices"])
+            "customers", "invoices", "cashMovements", "bankMovements", "clientMovements",
+            "settlementAllocations"])
         : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
     const unsupportedCollections = hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections);
     if (unsupportedCollections.length) {

@@ -6,7 +6,7 @@ import {reconcilePendingMutations} from "../sync/mutation_reconciliation.mjs";
 
 const encode=value=>JSON.parse(JSON.stringify(value,(_k,v)=>typeof v==="bigint"?{__anasFleetBigInt:v.toString()}:v));
 const initial=()=>createFleetState({products:[{id:"P1",name:"Tea",mainStock:"250.000"}],trucks:[{id:"T1",warehouseName:"شاحنة 123",stockUnits:{}}]});
-const op=(base,next,id,actorId="driver-1")=>{const latestTrip=[...next.trips].reverse().find(t=>String(t.driverId)===actorId);return createMutationEnvelope({type:"TRUCK_FLEET_OPERATION",payload:{baseState:base==null?null:encode(base),nextState:encode(next),warehouses:latestTrip?[{id:"wh-mobile-123",name:latestTrip.warehouseName,type:"mobile",status:"active",assigned_user_id:latestTrip.status==="CLOSED"||latestTrip.status==="CANCELLED"?null:actorId}]:[],actorId},now:()=>new Date("2026-11-21T10:00:00.000Z"),uuid:()=>id});};
+const op=(base,next,id,actorId="driver-1",extraPayload={})=>{const latestTrip=[...next.trips].reverse().find(t=>String(t.driverId)===actorId);return createMutationEnvelope({type:"TRUCK_FLEET_OPERATION",payload:{baseState:base==null?null:encode(base),nextState:encode(next),warehouses:latestTrip?[{id:"wh-mobile-123",name:latestTrip.warehouseName,type:"mobile",status:"active",assigned_user_id:latestTrip.status==="CLOSED"||latestTrip.status==="CANCELLED"?null:actorId}]:[],actorId,...extraPayload},now:()=>new Date("2026-11-21T10:00:00.000Z"),uuid:()=>id});};
 const cloud=()=>({products:[{id:"P1",stock:"250.000",warehouseStock:{}}],warehouses:[],invoices:[],anasFleetState:null,appliedOpIds:[]});
 
 test("fleet open and load replay as ordered atomic snapshots, preserve zero stock shape and never duplicate",()=>{
@@ -98,4 +98,55 @@ test("fleet sale waits for its linked POS invoice instead of silently double-pos
  assert.equal(result.review[0].reason,"TRUCK_FLEET_LINKED_INVOICE_NOT_SYNCED");
  assert.equal(result.snapshot.products[0].warehouseStock["شاحنة 123"],"8.000");
  assert.equal(result.snapshot.warehouses.length,0,"a rejected fleet sale must not partially create a warehouse record");
+});
+
+
+test("fleet POS bundle replays cash, stock and centime ledgers atomically after 409",()=>{
+ let state=initial();
+ state=openTrip(state,{tripId:"TRIP-POS",truckId:"T1",driverId:"driver-1"},"open-pos").state;
+ state=loadTrip(state,"TRIP-POS",[{productId:"P1",quantity:"100"}],"load-pos").state;
+ const base=state;
+ state=recordTruckSale(state,"TRIP-POS",{productId:"P1",quantity:"1",catalogPrice:"20",salePrice:"20",cashPaid:"10",invoiceId:"INV-POS",saleId:"INV-POS:0"},"sale-pos",{id:"driver-1"}).state;
+ const customer={id:"C1",name:"Customer",debt:0,ledgerVersion:2};
+ const invoice={id:"INV-POS",customerId:"C1",total:20,paid:10,remaining:10,paymentMethod:"partial",paymentChannel:"cash",warehouse:"شاحنة 123",items:[{id:"P1",qty:1,price:20}]};
+ const cash={id:"CASH-INV-POS",type:"add",amount:10,referenceType:"sales_invoice",referenceId:"INV-POS"};
+ const stock={id:"STOCK-INV-POS",productId:"P1",qty:-1,type:"SALE_OUT",referenceType:"sales_invoice",referenceId:"INV-POS",warehouse:"شاحنة 123"};
+ const client={movementId:"CLIENT-INV-POS",clientId:"C1",type:"invoice_debit",amountCentimes:1000,direction:"debit",referenceType:"sales_invoice",referenceId:"INV-POS"};
+ const allocation={allocationId:"ALLOC-INV-POS",partyType:"customer",partyId:"C1",invoiceType:"sales_invoice",invoiceId:"INV-POS",sourceMovementId:"CASH-INV-POS",sourceMovementType:"sales_invoice",amountCentimes:1000};
+ const audit={id:"AUD-INV-POS",opId:"fleet-pos-bundle",eventType:"SALE_COMMITTED",entityType:"sales_invoice",entityId:"INV-POS",referenceType:"sales_invoice",referenceId:"INV-POS",amountCentimes:2000,paidCentimes:1000,remainingCentimes:1000,createdAt:"2026-11-21T10:00:00.000Z"};
+ const collectionDeltas={invoices:{before:[],after:[invoice]},customers:{before:[customer],after:[{...customer,debt:10}]},cashMovements:{before:[],after:[cash]},stockMovements:{before:[],after:[stock]},clientMovements:{before:[],after:[client]},settlementAllocations:{before:[],after:[allocation]},auditTrail:{before:[],after:[audit]}};
+ const operation=op(base,state,"fleet-pos-bundle","driver-1",{collectionDeltas,caisseBalanceDelta:{before:0,after:10}});
+ const snapshot={...cloud(),products:[{id:"P1",stock:"150.000",warehouseStock:{"شاحنة 123":"99.000"}}],customers:[customer],anasFleetState:encode(base),caisseBalance:0,cashMovements:[],stockMovements:[],clientMovements:[],settlementAllocations:[],auditTrail:[]};
+ const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING"}]);
+ assert.deepEqual(result.review,[]);
+ assert.equal(result.snapshot.invoices.length,1);
+ assert.equal(result.snapshot.cashMovements.length,1);
+ assert.equal(result.snapshot.stockMovements.length,1);
+ assert.equal(result.snapshot.clientMovements.length,1);
+ assert.equal(result.snapshot.settlementAllocations.length,1);
+ assert.equal(result.snapshot.customers[0].debt,10);
+ assert.equal(result.snapshot.caisseBalance,10);
+ assert.equal(result.snapshot.products[0].warehouseStock["شاحنة 123"],"99.000");
+ const invalid={...operation,payload:{...operation.payload,collectionDeltas:{...collectionDeltas,cashMovements:{before:[],after:[{...cash,amount:"10.001"}]}}}};
+ const rejected=reconcilePendingMutations(snapshot,[{...invalid,status:"PENDING"}]);
+ assert.equal(rejected.review[0]?.reason,"TRUCK_FLEET_COLLECTION_DELTA_NOT_APPEND_ONLY");
+ assert.equal(rejected.snapshot.caisseBalance,0);
+ assert.equal(rejected.snapshot.cashMovements.length,0);
+});
+test("fleet POS bank settlement replays bank ledger without touching the cashbox",()=>{
+ let state=initial();
+ state=openTrip(state,{tripId:"TRIP-BANK",truckId:"T1",driverId:"driver-1"},"open-bank").state;
+ state=loadTrip(state,"TRIP-BANK",[{productId:"P1",quantity:"100"}],"load-bank").state;
+ const base=state;
+ state=recordTruckSale(state,"TRIP-BANK",{productId:"P1",quantity:"1",catalogPrice:"10",salePrice:"10",cashPaid:"0",invoiceId:"INV-BANK",saleId:"INV-BANK:0"},"sale-bank",{id:"driver-1"}).state;
+ const invoice={id:"INV-BANK",total:10,paid:10,remaining:0,paymentChannel:"transfer",warehouse:"شاحنة 123",items:[{id:"P1",qty:1,price:10}]};
+ const bank={id:"BANK-INV-BANK",type:"add",amount:10,paymentChannel:"transfer",cashImpact:false,referenceType:"sales_invoice",referenceId:"INV-BANK"};
+ const stock={id:"STOCK-INV-BANK",productId:"P1",qty:-1,type:"SALE_OUT",referenceType:"sales_invoice",referenceId:"INV-BANK",warehouse:"شاحنة 123"};
+ const collectionDeltas={invoices:{before:[],after:[invoice]},bankMovements:{before:[],after:[bank]},stockMovements:{before:[],after:[stock]}};
+ const operation=op(base,state,"fleet-bank-bundle","driver-1",{collectionDeltas});
+ const snapshot={...cloud(),products:[{id:"P1",stock:"150.000",warehouseStock:{"شاحنة 123":"99.000"}}],anasFleetState:encode(base),caisseBalance:0,bankMovements:[],stockMovements:[]};
+ const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING"}]);
+ assert.deepEqual(result.review,[]);
+ assert.equal(result.snapshot.bankMovements.length,1);
+ assert.equal(result.snapshot.caisseBalance,0);
 });

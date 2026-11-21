@@ -186,11 +186,19 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       const targetSnapshot = structuredClone(snapshot);
       const fleetCollectionKeys = new Set([
         "trucks", "truckTrips", "stockMovements", "expenses",
-        "returns", "warehouseTransfers", "auditTrail", "customers", "invoices"
+        "returns", "warehouseTransfers", "auditTrail", "customers", "invoices",
+        "cashMovements", "bankMovements", "clientMovements", "settlementAllocations"
       ]);
       const immutableFleetLedgers = new Set([
-        "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail", "invoices"
+        "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail", "invoices",
+        "cashMovements", "bankMovements", "clientMovements", "settlementAllocations"
       ]);
+      const fleetIdentityFields = {
+        trucks: "id", truckTrips: "id", stockMovements: "id", expenses: "id",
+        returns: "id", warehouseTransfers: "id", auditTrail: "id", customers: "id",
+        invoices: "id", cashMovements: "id", bankMovements: "id",
+        clientMovements: "movementId", settlementAllocations: "allocationId"
+      };
       const collectionDeltas = payload.collectionDeltas ?? {};
       if (!collectionDeltas || typeof collectionDeltas !== "object" || Array.isArray(collectionDeltas)) {
         review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTAS_INVALID",operation:op});
@@ -203,22 +211,63 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
           review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTA_INVALID",collection:key,operation:op});
           continue;
         }
-        const validateRows = rows => {
+        const validateRows = (rows, collection) => {
           if (rows === null) return new Map();
+          const idField = fleetIdentityFields[collection] || "id";
           const byId = new Map();
           for (const row of rows) {
+            const id = row?.[idField];
             if (!row || typeof row !== "object" || Array.isArray(row) ||
-                row.id == null || String(row.id).trim() === "" || byId.has(String(row.id))) return null;
-            byId.set(String(row.id), row);
+                id == null || String(id).trim() === "" || byId.has(String(id))) return null;
+            byId.set(String(id), row);
           }
           return byId;
         };
-        const beforeRows = validateRows(delta.before), afterRows = validateRows(delta.after);
+        const beforeRows = validateRows(delta.before, key), afterRows = validateRows(delta.after, key);
         if (!beforeRows || !afterRows) {
           review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_ROWS_INVALID",collection:key,operation:op});
           continue;
         }
+        const addedRows = [...afterRows.entries()]
+          .filter(([id]) => !beforeRows.has(id)).map(([, row]) => row);
+        const validQuantity = value => {
+          const match = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]{1,3}))?$/.exec(String(value ?? "").trim());
+          if (!match) return false;
+          const units = BigInt(match[2]) * 1000n + BigInt((match[3] || "").padEnd(3, "0") || "0");
+          return (match[1] ? -units : units) !== 0n;
+        };
+        const validLedgerRow = row => {
+          if (key === "cashMovements" || key === "bankMovements") {
+            const cents = moneyCents(row.amount);
+            return cents !== null && cents > 0;
+          }
+          if (key === "stockMovements") return validQuantity(row.qty ?? row.quantity);
+          if (key === "clientMovements" || key === "settlementAllocations") {
+            return Number.isSafeInteger(row.amountCentimes) && row.amountCentimes >= 0;
+          }
+          if (key === "expenses" && row.amount !== undefined) {
+            const cents = moneyCents(row.amount);
+            return cents !== null && cents > 0;
+          }
+          if (key === "invoices") {
+            const total = moneyCents(row.total);
+            const paid = moneyCents(row.paid ?? row.total);
+            const remaining = row.remaining == null
+              ? (total !== null && paid !== null ? total - paid : null)
+              : moneyCents(row.remaining);
+            return total !== null && paid !== null && remaining !== null &&
+              paid <= total && remaining === total - paid;
+          }
+          if (key === "auditTrail") {
+            return ["amountCentimes", "paidCentimes", "remainingCentimes"].every(field =>
+              row[field] === undefined || (Number.isSafeInteger(row[field]) && row[field] >= 0));
+          }
+          return true;
+        };
         let unsafeLedgerEdit = key === "customers" && afterRows.size !== beforeRows.size;
+        if (immutableFleetLedgers.has(key) && addedRows.some(row => !validLedgerRow(row))) {
+          unsafeLedgerEdit = true;
+        }
         for (const [id, beforeRow] of beforeRows) {
           const afterRow = afterRows.get(id);
           if (!afterRow || (immutableFleetLedgers.has(key) && hash(beforeRow) !== hash(afterRow))) {
@@ -260,6 +309,41 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         }
         if (afterValue === null) delete targetSnapshot[key];
         else targetSnapshot[key] = structuredClone(afterValue);
+      }
+      const cashBalanceDelta = payload.caisseBalanceDelta;
+      const cashCollectionDelta = collectionDeltas.cashMovements;
+      const cashBeforeRows = Array.isArray(cashCollectionDelta?.before) ? cashCollectionDelta.before : [];
+      const cashAfterRows = Array.isArray(cashCollectionDelta?.after) ? cashCollectionDelta.after : [];
+      const cashBeforeIds = new Set(cashBeforeRows.map(row => String(row?.id ?? "")));
+      const appendedCashRows = cashAfterRows.filter(row => !cashBeforeIds.has(String(row?.id ?? "")));
+      const cashRowsAlreadyApplied = appendedCashRows.length > 0 && appendedCashRows.every(row =>
+        (Array.isArray(snapshot.cashMovements) ? snapshot.cashMovements : []).some(existing =>
+          String(existing?.id ?? "") === String(row?.id ?? "") && hash(existing) === hash(row)));
+      if (cashBalanceDelta != null || appendedCashRows.length) {
+        const beforeCents = cashBalanceDelta == null ? null : moneyCents(cashBalanceDelta.before);
+        const afterCents = cashBalanceDelta == null ? null : moneyCents(cashBalanceDelta.after);
+        const cloudCents = moneyCents(snapshot.caisseBalance ?? 0);
+        let ledgerDelta = 0n, ledgerValid = true;
+        for (const row of appendedCashRows) {
+          const cents = moneyCents(row?.amount);
+          const type = String(row?.type || "").toLowerCase();
+          if (cents === null || cents <= 0 || !["add", "subtract"].includes(type)) {
+            ledgerValid = false; break;
+          }
+          ledgerDelta += type === "add" ? BigInt(cents) : -BigInt(cents);
+        }
+        if (beforeCents === null || afterCents === null || cloudCents === null ||
+            !ledgerValid || appendedCashRows.length === 0 ||
+            BigInt(afterCents) - BigInt(beforeCents) !== ledgerDelta) {
+          review.push({opId:op.opId,reason:"TRUCK_FLEET_CASH_BALANCE_LEDGER_MISMATCH",operation:op});
+        } else if (!cashRowsAlreadyApplied) {
+          const rebasedCash = BigInt(cloudCents) + ledgerDelta;
+          if (rebasedCash < 0n || rebasedCash > BigInt(Number.MAX_SAFE_INTEGER)) {
+            review.push({opId:op.opId,reason:"TRUCK_FLEET_CASH_BALANCE_OUT_OF_RANGE",operation:op});
+          } else {
+            targetSnapshot.caisseBalance = Number(rebasedCash) / 100;
+          }
+        }
       }
       if (review.some(item => item.opId === op.opId)) continue;
       if (payload.actorId && targetSnapshot.currentUser &&

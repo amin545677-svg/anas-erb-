@@ -194,11 +194,13 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await context.setOffline(true);
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel"),null,{timeout:30000});
-  const localProof=await page.evaluate(({pendingKey})=>{const storage=window.ANASResilientStorage,s=storage.getCommittedSnapshot(),q=storage.getItem(pendingKey)||[];return{invoiceCount:s.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,truckSales:s.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),debtPayments:s.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),cashReceipts:s.cashMovements.filter(x=>x.referenceType==="customer_debt").length,pendingTypes:q.map(x=>x.type),revision:storage.status().revision,db:storage.status().database,sequence:s.anasLocalMutationSequence};},{pendingKey:MUTATION_KEYS.pending});
+  const localProof=await page.evaluate(({pendingKey})=>{const storage=window.ANASResilientStorage,s=storage.getCommittedSnapshot(),q=storage.getItem(pendingKey)||[];return{invoiceCount:s.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,truckSales:s.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),debtPayments:s.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),cashReceipts:s.cashMovements.filter(x=>x.referenceType==="customer_debt").length,saleCashReceipts:s.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,saleStockMovements:s.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,pendingTypes:q.map(x=>x.type),revision:storage.status().revision,db:storage.status().database,sequence:s.anasLocalMutationSequence};},{pendingKey:MUTATION_KEYS.pending});
   assert.equal(localProof.invoiceCount,1,"truck POS invoice must survive a complete offline reload");
   assert.equal(localProof.truckSales,1,"truck sale event must survive offline reload exactly once");
   assert.equal(localProof.debtPayments,1,"old-debt collection linked to the active truck trip must survive offline reload");
   assert.equal(localProof.cashReceipts,1,"the actual debt receipt must survive offline reload alongside the fleet allocation");
+  assert.equal(localProof.saleCashReceipts,1,"the POS cash receipt must survive offline reload with the linked invoice");
+  assert.equal(localProof.saleStockMovements,1,"the POS stock movement must survive offline reload with the linked invoice");
   assert.ok(localProof.pendingTypes.includes("TRUCK_FLEET_OPERATION"),"fleet operations must be durably queued");
   assert.ok(localProof.pendingTypes.includes("SALE_INVOICE"),"POS invoice must be durably queued");
   assert.ok(localProof.pendingTypes.includes("DEBT_COLLECTION"),"customer debt payment must be durably queued");
@@ -213,6 +215,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   const cloud=JSON.parse(serverSnapshot);
   assert.equal(cloud.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,1);
   assert.equal(cloud.cashMovements.filter(x=>x.referenceType==="customer_debt").length,1);
+  assert.equal(cloud.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,1);
+  assert.equal(cloud.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,1);
+  assert.equal(cloud.caisseBalance,120,"the POS sale and debt receipt must update the cashbox exactly once");
   assert.equal(cloud.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),1);
   assert.equal(cloud.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),1);
   assert.equal(cloud.products[0].stock,"100.000","main warehouse stock must reflect the atomic 100-unit truck load");
@@ -233,6 +238,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("#fleetExpenseCategory").fill("وقود");
   await page.locator("#fleetExpenseRef").fill("FUEL-001");
   await page.locator("[data-fleet='expense']").click();
+  await page.waitForFunction(()=>AppData.anasFleetState.trips.some(t=>(t.expenses||[]).some(e=>e.receiptReference==="FUEL-001")),null,{timeout:15000});
   const remote=JSON.parse(serverSnapshot);
   remote.anasFleetState.remoteDeviceMarker="remote-device-change";
   serverSnapshot=JSON.stringify(remote);
