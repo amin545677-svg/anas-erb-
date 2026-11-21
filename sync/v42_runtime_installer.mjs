@@ -496,7 +496,39 @@ export function installV42RuntimeWiring({
     // a blocked overlapping write must not leave even that mutation in memory.
     // Cart/UI-only saves may continue while the prepared financial write waits.
     if (pendingPrepared && hasBusinessDelta) {
-      throw new Error("A previous V42 mutation is still awaiting its durable save acknowledgement");
+      let pendingDiagnostic;
+      try {
+        const pending = pendingPrepared;
+        const operation = pending?.operation || {};
+        const queue = storage.getItem(MUTATION_KEYS.pending) || [];
+        const queueRow = Array.isArray(queue)
+          ? queue.find(item => item?.opId === operation.opId) : null;
+        const previousData = pending?.previous || {};
+        const changedCollections = [...new Set([
+          ...Object.keys(previousData), ...Object.keys(current)
+        ])].filter(key =>
+          JSON.stringify(previousData[key] ?? null) !== JSON.stringify(current[key] ?? null)
+        ).sort();
+        pendingDiagnostic = JSON.stringify({
+          opType: String(operation.type || "unknown"),
+          opId: String(operation.opId || ""),
+          changedCollections,
+          token: queueRow?.idempotencyKey ?? operation.idempotencyKey ?? null,
+          seq: queueRow?.localSeq ?? null,
+          queueStatus: queueRow?.status ?? "missing",
+          lockState: pendingPrepared === pending ? "HELD" : "CHANGED",
+          committedMarker: Boolean(operation.opId && hasCommittedOperationMarker(operation.opId))
+        });
+      } catch (diagnosticError) {
+        pendingDiagnostic = JSON.stringify({
+          diagnosticError: String(diagnosticError?.message || diagnosticError),
+          lockState: pendingPrepared ? "HELD" : "CLEAR"
+        });
+      }
+      throw new Error(
+        "A previous V42 mutation is still awaiting its durable save acknowledgement; pending=" +
+        pendingDiagnostic
+      );
     }
     const captured = makeOperation(current, previous);
     if (!captured) {
