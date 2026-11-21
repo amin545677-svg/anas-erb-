@@ -34,7 +34,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   server=https.createServer({key:await fs.readFile(keyPath),cert:await fs.readFile(certPath)},staticServer(out));
   await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve);});
   const port=server.address().port;
-  browser=await chromium.launch({headless:true,args:["--host-resolver-rules=MAP "+HOST+" 127.0.0.1"]});
+  browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*","--host-resolver-rules=MAP "+HOST+" 127.0.0.1,EXCLUDE localhost"]});
   const context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
   await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
   const page=await context.newPage(),errors=[];
