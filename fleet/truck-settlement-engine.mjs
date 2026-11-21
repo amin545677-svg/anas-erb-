@@ -143,3 +143,19 @@ export function assertFleetInvariants(input){
  return{ok:errors.length===0,errors};
 }
 export const FLEET_UNITS=Object.freeze({quantityScale:QS,moneyScale:MS});
+
+
+/** Restore a failed fleet mutation without replacing the live AppData root object. */
+export function restoreFleetAppData(target, snapshot) {
+  if (!target || typeof target !== "object" || Array.isArray(target) ||
+      !snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    throw new TypeError("FLEET_APP_DATA_ROLLBACK_REQUIRES_OBJECTS");
+  }
+  for (const key of Object.keys(target)) {
+    if (!Object.prototype.hasOwnProperty.call(snapshot, key)) delete target[key];
+  }
+  for (const [key, value] of Object.entries(snapshot)) {
+    target[key] = structuredClone(value);
+  }
+  return target;
+}

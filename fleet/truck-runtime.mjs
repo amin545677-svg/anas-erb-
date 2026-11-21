@@ -1,4 +1,4 @@
-import {createFleetState,openTrip,loadTrip,recordTruckSale,recordCustomerReturn,returnToMainWarehouse,recordDamagedGoods,recordOldDebtPayment,recordFieldExpense,calculateTripInventory,settleTrip,fromQuantityUnits,fromMoneyMinor,toQuantityUnits} from "./truck-settlement-engine.mjs";
+import {createFleetState,openTrip,loadTrip,recordTruckSale,recordCustomerReturn,returnToMainWarehouse,recordDamagedGoods,recordOldDebtPayment,recordFieldExpense,calculateTripInventory,settleTrip,fromQuantityUnits,fromMoneyMinor,toQuantityUnits,restoreFleetAppData} from "./truck-settlement-engine.mjs";
 import {MUTATION_KEYS} from "../sync/mutation_keys.mjs";
 const W=window,TAG="__anasFleetBigInt";
 const encode=v=>JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==="bigint"?{[TAG]:x.toString()}:x));
@@ -13,7 +13,23 @@ function tripWarehouse(t){return String(t?.warehouseName||"شاحنة "+String(t
 function syncCurrentUserWarehouse(d,s){const uid=String(d.currentUser?.id??"");if(!uid)return;const own=[...s.trips].reverse().find(t=>String(t.driverId)===uid);if(!own)return;if(own.status==="ACTIVE"||own.status==="OPEN")d.currentUser.secondaryWarehouse=tripWarehouse(own);else if(own.status==="CLOSED"||own.status==="CANCELLED")d.currentUser.secondaryWarehouse=String(own.previousUserWarehouse||"");}
 function message(s,bad=false){const n=document.getElementById("anasFleetMessage");if(n){n.textContent=s;n.style.color=bad?"#b91c1c":"#166534";}}
 function mirror(d,s){for(const fp of s.products){const p=d.products.find(x=>String(x.id)===String(fp.id));if(!p)throw Error("المنتج غير موجود: "+fp.id);p.stock=fromQuantityUnits(fp.mainStockUnits);if(!p.warehouseStock||typeof p.warehouseStock!=="object"||Array.isArray(p.warehouseStock))p.warehouseStock={};for(const t of s.trucks)if(t.warehouseName)p.warehouseStock[t.warehouseName]=fromQuantityUnits(t.stockUnits[fp.id]||0n);}}
-async function persist(s){const d=data();mirror(d,s);d.anasFleetState=encode(s);if(typeof W.saveDB!=="function"||W.saveDB()!==true)throw Error("تعذر تجهيز سجل الشاحنة للمزامنة");if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم");render();return s;}
+async function persist(s){
+ const d=data();
+ if(!d||typeof d!=="object")throw Error("بيانات التطبيق غير جاهزة للحفظ");
+ const before=structuredClone(d);
+ try{
+  mirror(d,s);
+  d.anasFleetState=encode(s);
+  if(typeof W.saveDB!=="function"||W.saveDB()!==true)throw Error("تعذر تجهيز سجل الشاحنة للمزامنة");
+  if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم");
+  render();
+  return s;
+ }catch(error){
+  restoreFleetAppData(d,before);
+  try{render();}catch(_){}
+  throw error;
+ }
+}
 const uuid=()=>W.crypto.randomUUID(),key=p=>p+"-"+uuid();
 let panel=null,draft=[],lastPayment=null,lastInvoice=null;
 function setup(){
@@ -50,7 +66,7 @@ async function action(name){
 const plate=panel.querySelector("#fleetPlate").value.trim(),driver=panel.querySelector("#fleetDriver").value.trim();if(!plate||!driver)throw Error("أدخل لوحة الشاحنة واسم السائق");const id="TRUCK-"+plate.normalize("NFC").replace(/[^\p{L}\p{N}-]+/gu,"-").toUpperCase(),warehouse="شاحنة "+plate;let truck=s.trucks.find(x=>x.id===id);if(!truck){truck={id,plate,warehouseName:warehouse,stockUnits:{}};s.trucks.push(truck);}else{if(Object.values(truck.stockUnits||{}).some(x=>BigInt(x)!==0n))throw Error("الشاحنة تحمل عهدة سابقة غير مسوّاة");truck.warehouseName=warehouse;}const result=openTrip(s,{tripId:"TRIP-"+uuid(),truckId:id,driverId:a.id,driverName:driver,openedAt:new Date().toISOString()},key("TRIP-OPEN"));const trip=result.state.trips.find(x=>x.id===result.result.tripId);trip.warehouseName=warehouse;trip.truckPlate=plate;trip.previousUserWarehouse=String(d.currentUser?.secondaryWarehouse||d.currentUser?.warehouseName||"");const previousWarehouses=structuredClone(d.warehouses||[]);const previousAssignment=String(trip.previousUserWarehouse||"");try{d.currentUser.secondaryWarehouse=warehouse;const existingWarehouse=(d.warehouses||[]).find(w=>String(typeof w==="string"?w:w?.name||"").trim()===warehouse);if(existingWarehouse&&typeof existingWarehouse==="object"&&existingWarehouse.assigned_user_id!=null&&String(existingWarehouse.assigned_user_id)!==String(a.id))throw Error("اسم مخزن الشاحنة مستخدم ومُسند إلى مستخدم آخر");if(typeof W.wtEnsureMobileWarehouse==="function"&&!W.wtEnsureMobileWarehouse(warehouse))throw Error("تعذر إنشاء مخزن الشاحنة؛ راجع قائمة المخازن");if(typeof W.wtEnsureUserWarehouse==="function"&&!W.wtEnsureUserWarehouse(d.currentUser))throw Error("تعذر إسناد مخزن الشاحنة إلى السائق");await persist(result.state);}catch(error){d.currentUser.secondaryWarehouse=previousAssignment;d.warehouses=previousWarehouses;throw error;}message("تم فتح الجولة وإنشاء مخزن شاحنة فعلي وربطه بمستخدم السائق. أضف الحمولة واعتمدها قبل البيع.");return;}
  if(!t)throw Error("افتح جولة شاحنة أولاً");
  if(name==="add"){const id=p1Value(),q=panel.querySelector("#fleetQty").value;if(!id)throw Error("اختر منتجاً");const units=toQuantityUnits(q);if(units<=0n)throw Error("الكمية يجب أن تكون موجبة");const old=draft.find(x=>x.productId===id);if(old)old.quantity=fromQuantityUnits(toQuantityUnits(old.quantity)+units);else draft.push({productId:id,quantity:fromQuantityUnits(units)});render();return;}
- if(name==="load"){if(!draft.length)throw Error("أضف صنفاً للتحميل");const next=loadTrip(s,t.id,draft,key("TRUCK-LOAD"),a).state;draft=[];await persist(next);message("تم تحويل الحمولة من المستودع إلى مخزن الشاحنة.");return;}
+ if(name==="load"){if(!draft.length)throw Error("أضف صنفاً للتحميل");const next=loadTrip(s,t.id,draft,key("TRUCK-LOAD"),a).state;await persist(next);draft=[];message("تم تحويل الحمولة من المستودع إلى مخزن الشاحنة.");return;}
  if(name==="pos"){if(t.status!=="ACTIVE")throw Error("اعتمد تحميل الشاحنة قبل البيع الميداني");d.currentUser.secondaryWarehouse=t.warehouseName||("شاحنة "+t.truckId);if(W.saveDB()!==true||await W.saveDBDurably()!==true)throw Error("تعذر حفظ مخزن البيع الميداني");W.openView?.("pos");return;}
  if(name==="customer-return"){const next=recordCustomerReturn(s,t.id,{productId:p2Value(),quantity:panel.querySelector("#fleetReturnQty").value,invoiceId:panel.querySelector("#fleetInvoice").value.trim(),reason:panel.querySelector("#fleetReason").value.trim()},key("TRUCK-RETURN"),a).state;await persist(next);message("تم اعتماد مرتجع الزبون في عهدة الشاحنة.");return;}
  if(name==="return-main"){const next=returnToMainWarehouse(s,t.id,p2Value(),panel.querySelector("#fleetReturnQty").value,key("TRUCK-RETURN-MAIN"),a).state;await persist(next);message("تم إرجاع الكمية إلى المستودع الرئيسي.");return;}

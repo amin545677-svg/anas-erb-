@@ -975,3 +975,87 @@ test("actual V42 sale rollback removes audit, invoice, truck stock and cash chan
   assert.ok(alerts.some(message => message.includes("لم يتم تأكيد الفاتورة")));
   assert.equal(installer.uninstall(), true);
 });
+
+
+test("truck fleet mutation captures and atomically replays related operational collections", async () => {
+  const initial = {
+    ...fixture(),
+    warehouses: [],
+    trucks: [],
+    truckTrips: [],
+    stockMovements: [],
+    expenses: [],
+    returns: [],
+    warehouseTransfers: [],
+    auditTrail: []
+  };
+  const current = structuredClone(initial);
+  current.anasFleetState = {
+    schemaVersion: 1,
+    products: [{ id: "item_a", mainStockUnits: { __anasFleetBigInt: "90000" } }],
+    trucks: [],
+    trips: [],
+    movements: []
+  };
+  current.trucks.push({ id: "truck-1", plate: "1", stock: "100.000" });
+  current.truckTrips.push({ id: "trip-1", truckId: "truck-1", status: "ACTIVE" });
+  current.stockMovements.push({ id: "stock-1", type: "TRUCK_LOAD", productId: "item_a", quantity: "100.000" });
+  current.expenses.push({ id: "expense-1", category: "fuel", amount: "10.00" });
+  current.returns.push({ id: "return-1", productId: "item_a", quantity: "1.000" });
+  current.warehouseTransfers.push({ id: "transfer-1", productId: "item_a", quantity: "100.000" });
+  current.auditTrail.push({ id: "audit-1", eventType: "TRUCK_LOAD" });
+
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]",
+    [MUTATION_KEYS.rescue]: "null",
+    [MUTATION_KEYS.quarantined]: "[]",
+    [MUTATION_KEYS.revision]: "0"
+  });
+  let cloud = { data: structuredClone(initial), revision: 1 };
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => structuredClone(cloud),
+    pushCloud: async ({ data, baseRevision }) => {
+      if (baseRevision !== cloud.revision) return { status: 409 };
+      cloud = { data: structuredClone(data), revision: cloud.revision + 1 };
+      return { status: 200, revision: cloud.revision };
+    }
+  });
+  const context = {
+    AppData: current,
+    Date, Math, Number, String, Set, Map, Array, Object, JSON,
+    saveDB: () => { storage.setItem(MUTATION_KEYS.appData, JSON.stringify(current)); return true; },
+    saveDBDurably: async () => true
+  };
+  const installer = installV42RuntimeWiring({
+    windowObject: {},
+    storage,
+    orchestrator,
+    getAppData: () => context.AppData,
+    setAppData: value => { context.AppData = value; },
+    getSaveDB: () => context.saveDB,
+    setSaveDB: fn => { context.saveDB = fn; },
+    getSaveDBDurably: () => context.saveDBDurably,
+    setSaveDBDurably: fn => { context.saveDBDurably = fn; },
+    mapMutation: () => { throw new Error("fleet operation must not use the sale/collection mapper"); },
+    uuid: () => "truck-atomic-collections",
+    now: () => new Date("2026-11-21T00:00:00.000Z")
+  });
+  installer.install();
+  assert.equal(installer.wrappedSaveDB(), true);
+  await context.saveDBDurably();
+  const pending = storage.json(MUTATION_KEYS.pending);
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].type, "TRUCK_FLEET_OPERATION");
+  assert.deepEqual(Object.keys(pending[0].payload.collectionDeltas).sort(), [
+    "auditTrail", "expenses", "returns", "stockMovements", "truckTrips", "trucks", "warehouseTransfers"
+  ]);
+  const result = await orchestrator.reconcileAndSync();
+  assert.equal(result.status, "synced");
+  for (const key of ["trucks", "truckTrips", "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail"]) {
+    assert.deepEqual(cloud.data[key], current[key], key + " must replay atomically with the fleet state");
+  }
+  assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
+  assert.equal(installer.uninstall(), true);
+});

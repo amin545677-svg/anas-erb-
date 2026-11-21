@@ -184,6 +184,65 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         continue;
       }
       const targetSnapshot = structuredClone(snapshot);
+      const fleetCollectionKeys = new Set([
+        "trucks", "truckTrips", "stockMovements", "expenses",
+        "returns", "warehouseTransfers", "auditTrail"
+      ]);
+      const immutableFleetLedgers = new Set([
+        "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail"
+      ]);
+      const collectionDeltas = payload.collectionDeltas ?? {};
+      if (!collectionDeltas || typeof collectionDeltas !== "object" || Array.isArray(collectionDeltas)) {
+        review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTAS_INVALID",operation:op});
+        continue;
+      }
+      for (const [key, delta] of Object.entries(collectionDeltas)) {
+        if (!fleetCollectionKeys.has(key) || !delta || typeof delta !== "object" ||
+            !(delta.before === null || Array.isArray(delta.before)) ||
+            !(delta.after === null || Array.isArray(delta.after))) {
+          review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTA_INVALID",collection:key,operation:op});
+          continue;
+        }
+        const validateRows = rows => {
+          if (rows === null) return new Map();
+          const byId = new Map();
+          for (const row of rows) {
+            if (!row || typeof row !== "object" || Array.isArray(row) ||
+                row.id == null || String(row.id).trim() === "" || byId.has(String(row.id))) return null;
+            byId.set(String(row.id), row);
+          }
+          return byId;
+        };
+        const beforeRows = validateRows(delta.before), afterRows = validateRows(delta.after);
+        if (!beforeRows || !afterRows) {
+          review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_ROWS_INVALID",collection:key,operation:op});
+          continue;
+        }
+        let unsafeLedgerEdit = false;
+        for (const [id, beforeRow] of beforeRows) {
+          const afterRow = afterRows.get(id);
+          if (!afterRow || (immutableFleetLedgers.has(key) && hash(beforeRow) !== hash(afterRow))) {
+            unsafeLedgerEdit = true;
+            break;
+          }
+        }
+        if (unsafeLedgerEdit) {
+          review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTA_NOT_APPEND_ONLY",collection:key,operation:op});
+          continue;
+        }
+        const cloudRows = targetSnapshot[key] ?? null;
+        const beforeValue = delta.before ?? null, afterValue = delta.after ?? null;
+        if (hash(cloudRows) === hash(afterValue)) continue;
+        if (hash(cloudRows) !== hash(beforeValue)) {
+          review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_CONFLICT",collection:key,
+            cloudValue:structuredClone(cloudRows),baseValue:structuredClone(beforeValue),
+            localValue:structuredClone(afterValue),operation:op});
+          continue;
+        }
+        if (afterValue === null) delete targetSnapshot[key];
+        else targetSnapshot[key] = structuredClone(afterValue);
+      }
+      if (review.some(item => item.opId === op.opId)) continue;
       if (payload.actorId && targetSnapshot.currentUser &&
           String(targetSnapshot.currentUser.id ?? "") === String(payload.actorId)) {
         const ownTrip = [...nextState.trips].reverse().find(trip => String(trip.driverId) === String(payload.actorId));
@@ -325,6 +384,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if(review.some(item=>item.opId===op.opId))continue;
       snapshot.products=targetSnapshot.products;
       snapshot.warehouses=targetSnapshot.warehouses;
+      for (const key of Object.keys(collectionDeltas)) {
+        if (targetSnapshot[key] === undefined) delete snapshot[key];
+        else snapshot[key] = targetSnapshot[key];
+      }
       if(targetSnapshot.currentUser!==undefined)snapshot.currentUser=targetSnapshot.currentUser;
       snapshot.anasFleetState=rebased;
       markApplied();appliedNow.push({opId:op.opId,outcome:"applied"});continue;

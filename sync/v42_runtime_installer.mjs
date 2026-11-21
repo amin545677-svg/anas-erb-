@@ -75,11 +75,22 @@ export function installV42RuntimeWiring({
           !Array.isArray(nextState.movements)) {
         throw new Error("TRUCK_FLEET_STATE_INVALID");
       }
+      const fleetReplayCollections = [
+        "trucks", "truckTrips", "stockMovements", "expenses",
+        "returns", "warehouseTransfers", "auditTrail"
+      ];
+      const collectionDeltas = Object.fromEntries(fleetReplayCollections
+        .filter(key => JSON.stringify(current?.[key] ?? null) !== JSON.stringify(previous?.[key] ?? null))
+        .map(key => [key, {
+          before: structuredClone(previous?.[key] ?? null),
+          after: structuredClone(current?.[key] ?? null)
+        }]));
       const operation = createMutationEnvelope({
         type: "TRUCK_FLEET_OPERATION",
         payload: {
           baseState: structuredClone(previous?.anasFleetState ?? null),
           nextState: structuredClone(nextState),
+          collectionDeltas,
           warehouses: (() => {
             const actorId = current.currentUser?.id == null ? "" : String(current.currentUser.id);
             const latestTrip = [...nextState.trips].reverse().find(trip => String(trip.driverId) === actorId);
@@ -335,7 +346,7 @@ export function installV42RuntimeWiring({
       "warehouseTransfers", "truckTrips", "returns", "trucks", "warehouses",
       "stocktakeRecords", "users", "alerts", "productCategories", "productUnits", "auditTrail"
     ];
-    return businessCollections.some(key =>
+    return businessCollections.filter(key =>
       !allowedCollections.has(key) && changed(current[key], previous[key])
     );
   }
@@ -489,10 +500,13 @@ export function installV42RuntimeWiring({
       ? new Set(["products", "customers", "invoices", "cashMovements", "bankMovements",
           "stockMovements", "clientMovements", "settlementAllocations", "auditTrail"])
       : captured.operation.type === "TRUCK_FLEET_OPERATION"
-        ? new Set(["products", "warehouses", "anasFleetState"])
+        ? new Set(["products", "warehouses", "anasFleetState", "trucks", "truckTrips",
+            "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail"])
         : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
-    if (hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections)) {
-      throw new Error("Unsupported additional business collection change; no local persistence was performed");
+    const unsupportedCollections = hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections);
+    if (unsupportedCollections.length) {
+      throw new Error("Unsupported additional business collection change; no local persistence was performed: " +
+        unsupportedCollections.join(", "));
     }
 
     const beforeEntityMarker = captured.entity.syncOpId;

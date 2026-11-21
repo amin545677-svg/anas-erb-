@@ -10,3 +10,22 @@ test("zero price, unauthorized below-minimum and overselling are blocked",()=>{l
 test("cash net is cash sales plus old debt receipts minus documented field expenses",()=>{let s=opened();s=loadTrip(s,"TRIP-1",[{productId:"P1",quantity:"10"}],"load").state;s=recordTruckSale(s,"TRIP-1",{productId:"P1",quantity:"2",catalogPrice:"10",salePrice:"10",cashPaid:"15"},"sale",{id:"D1"}).state;s=recordOldDebtPayment(s,"TRIP-1",{customerId:"C1",referenceId:"OLD-1",amount:"25"},"debt",{id:"D1"}).state;s=recordFieldExpense(s,"TRIP-1",{amount:"5",category:"وقود",receiptReference:"R-1"},"expense",{id:"D1"}).state;const r=settleTrip(s,"TRIP-1",{actualCounts:{P1:"8"},actualCash:"35"},"close");assert.equal(r.result.expectedCashMinor,3500n);assert.equal(r.result.cashVarianceMinor,0n);});
 test("stock or cash variance requires manager authorization, note and audit trail",()=>{let s=opened();s=loadTrip(s,"TRIP-1",[{productId:"P1",quantity:"10"}],"load").state;const data={actualCounts:{P1:"9"},actualCash:"0",varianceNote:"نقص موثق",varianceApprovedBy:"M1"};assert.throws(()=>settleTrip(s,"TRIP-1",data,"close",{id:"M1"}),/AUTHORIZED_MANAGER/);const r=settleTrip(s,"TRIP-1",data,"close",{id:"M1",canApproveVariance:true});assert.equal(r.result.hasVariance,true);assert.equal(r.state.trips[0].settlement.inventory.P1.varianceUnits,-1000n);});
 test("damaged goods require reason and actor and reduce custody",()=>{let s=opened();s=loadTrip(s,"TRIP-1",[{productId:"P1",quantity:"10"}],"load").state;assert.throws(()=>recordDamagedGoods(s,"TRIP-1","P1","1","","bad"),/DAMAGE_REQUIRES/);s=recordDamagedGoods(s,"TRIP-1","P1","1","كسر","damage",{id:"D1"}).state;assert.equal(calculateTripInventory(s.trips[0]).P1,"9.000");});
+
+
+test("fleet AppData rollback restores nested business data in place", async () => {
+  const { restoreFleetAppData } = await import("../fleet/truck-settlement-engine.mjs");
+  const live = {
+    products: [{ id: "P1", stock: "0.000", warehouseStock: { Truck: "100.000" } }],
+    anasFleetState: { trips: [{ id: "T1", status: "ACTIVE" }] },
+    currentUser: { id: "U1", secondaryWarehouse: "Truck" }
+  };
+  const identity = live;
+  const before = structuredClone(live);
+  live.products[0].stock = "100.000";
+  live.anasFleetState.trips[0].status = "CLOSED";
+  live.currentUser.secondaryWarehouse = "";
+  live.extraMutation = true;
+  assert.equal(restoreFleetAppData(live, before), identity);
+  assert.deepEqual(live, before);
+  assert.equal(Object.prototype.hasOwnProperty.call(live, "extraMutation"), false);
+});
