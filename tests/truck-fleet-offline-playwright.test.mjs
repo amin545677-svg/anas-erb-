@@ -238,20 +238,59 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      !(prior.get(String(trip.id))||new Set()).has(String(row.id))&&String(row.invoiceId)===String(invoiceId)
     ));
    };
-   const bundle=Array.isArray(q)?q.find(item=>{
-    if(item?.type!=="TRUCK_FLEET_OPERATION"||item?.status!=="PENDING")return false;
-    const deltas=item.payload?.collectionDeltas||{};
+   const fleetSaleAuditRows=(operation,invoiceId)=>{
+    const saleIds=new Set(fleetSalesAdded(operation,invoiceId).map(row=>String(row.id)));
+    const base=operation?.payload?.baseState||{},next=operation?.payload?.nextState||{};
+    const before=new Set((base.auditTrail||[]).map(row=>[row?.type,row?.tripId,row?.saleId].map(x=>String(x??"")).join("|")));
+    return (next.auditTrail||[]).filter(row=>
+     saleIds.has(String(row?.saleId??""))&&
+     !before.has([row?.type,row?.tripId,row?.saleId].map(x=>String(x??"")).join("|"))
+    );
+   };
+   const fleetStockMatchesSales=(operation,sales)=>{
+    const baseTrucks=new Map((operation?.payload?.baseState?.trucks||[]).map(row=>[String(row.id),row]));
+    const nextState=operation?.payload?.nextState||{};
+    const units=value=>BigInt(value&&typeof value==="object"?value.__anasFleetBigInt??"0":value??"0");
+    return sales.length>0&&sales.every(sale=>{
+     const trip=(nextState.trips||[]).find(row=>(row.sales||[]).some(x=>String(x.id)===String(sale.id)));
+     const baseTruck=baseTrucks.get(String(trip?.truckId??""));
+     const nextTruck=(nextState.trucks||[]).find(row=>String(row.id)===String(trip?.truckId??""));
+     if(!baseTruck||!nextTruck)return false;
+     return units(baseTruck.stockUnits?.[sale.productId])-units(nextTruck.stockUnits?.[sale.productId])===units(sale.quantityUnits);
+    });
+   };
+   const inspectFleetOperation=(item)=>{
+    const deltas=item?.payload?.collectionDeltas||{};
     const invoiceId=String(invoice?.id??"");
+    const invoiceCustomerId=String(invoice?.customerId??invoice?.customerObj?.id??"");
     const addedInvoices=addedRows(deltas.invoices);
     const addedCash=addedRows(deltas.cashMovements);
     const addedStock=addedRows(deltas.stockMovements);
     const changedCustomers=changedRows(deltas.customers);
-    return addedInvoices.some(row=>String(row.id)===invoiceId)&&
-     addedCash.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId)&&
-     addedStock.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId)&&
-     changedCustomers.some(row=>String(row.id)==="C1")&&
-     fleetSalesAdded(item,invoiceId).length>0;
-   }):null;
+    const fleetSales=fleetSalesAdded(item,invoiceId);
+    const auditRows=fleetSaleAuditRows(item,invoiceId);
+    const checks={
+     opType:item?.type==="TRUCK_FLEET_OPERATION",
+     status:item?.status==="PENDING",
+     invoice:addedInvoices.some(row=>String(row.id)===invoiceId),
+     cashMovements:addedCash.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId),
+     stockMovements:addedStock.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId),
+     customer:invoiceCustomerId==="C1"&&changedCustomers.every(row=>String(row.id)==="C1"),
+     truckTripSale:fleetSales.length>0,
+     truckStock:fleetStockMatchesSales(item,fleetSales),
+     auditTrail:auditRows.length===fleetSales.length&&fleetSales.length>0
+    };
+    return {matches:Object.values(checks).every(Boolean),checks,fleetSales,auditRows};
+   };
+   const pendingOperationDiagnostics=(Array.isArray(q)?q:[]).filter(item=>item?.status==="PENDING").map(item=>{
+    const inspection=inspectFleetOperation(item);
+    return {
+     opType:String(item?.type??"unknown"),
+     collectionDeltaKeys:Object.keys(item?.payload?.collectionDeltas||{}).sort(),
+     failedConditions:Object.entries(inspection.checks).filter(([,passed])=>!passed).map(([name])=>name)
+    };
+   });
+   const bundle=Array.isArray(q)?q.find(item=>inspectFleetOperation(item).matches):null;
    const deltas=bundle?.payload?.collectionDeltas||{},invoiceId=String(invoice?.id??"");
    const saleOps=(Array.isArray(q)?q:[]).filter(item=>item?.type==="SALE_INVOICE"&&String(item.payload?.invoice?.id??"")===invoiceId);
    return{
@@ -270,9 +309,10 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      cashMovementIds:addedRows(deltas.cashMovements).filter(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId).map(row=>row.id),
      stockMovementIds:addedRows(deltas.stockMovements).filter(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId).map(row=>row.id),
      fleetSaleIds:fleetSalesAdded(bundle,invoiceId).map(row=>row.id),
-     auditIds:addedRows(deltas.auditTrail).filter(row=>String(row.referenceId)===invoiceId).map(row=>row.id),
+     auditIds:fleetSaleAuditRows(bundle,invoiceId).map(row=>row.saleId),
      separateSaleOps:saleOps.length
     }:null,
+    pendingOperationDiagnostics,
     revision:storage.status().revision,db:storage.status().database,sequence:s.anasLocalMutationSequence
    };
   },{pendingKey:MUTATION_KEYS.pending});
@@ -283,7 +323,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(localProof.saleCashReceipts,1,"the POS cash receipt must survive offline reload with the linked invoice");
   assert.equal(localProof.saleStockMovements,1,"the POS stock movement must survive offline reload with the linked invoice");
   assert.ok(localProof.pendingTypes.includes("TRUCK_FLEET_OPERATION"),"fleet operations must be durably queued");
-  assert.ok(localProof.posBundle,"POS invoice must be durably queued inside its atomic TRUCK_FLEET_OPERATION");
+  assert.ok(localProof.posBundle,"POS invoice must be durably queued inside its atomic TRUCK_FLEET_OPERATION; pendingOperations="+safeJson(localProof.pendingOperationDiagnostics));
   assert.equal(localProof.posBundle.invoiceIds.length,1,"the durable fleet operation must contain the complete POS invoice");
   assert.equal(localProof.posBundle.cashMovementIds.length,1,"the same durable fleet operation must contain the POS cash ledger row");
   assert.equal(localProof.posBundle.stockMovementIds.length,1,"the same durable fleet operation must contain the POS stock ledger row");
