@@ -71,6 +71,15 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     assert.ok(debtCollect >= 0 && debtPrepare > debtCollect && debtSave > debtPrepare &&
       debtDurable > debtSave && debtCommitClear > debtDurable && debtRollback > debtCommitClear,
       'built customer-debt handler must prepare fleet custody before its single saveDB, clear rollback only after durable ACK, and rollback in its catch path');
+    const debtSnapshot = debtCollect >= 0 ? erp.indexOf('const debtRollbackSnapshot = structuredClone(AppData);', debtCollect) : -1;
+    const debtGraphRestore = debtCollect >= 0 ? erp.indexOf('restoreDebtObjectGraph(AppData, debtRollbackSnapshot)', debtCollect) : -1;
+    assert.ok(debtSnapshot > debtCollect && debtSnapshot < debtPrepare &&
+      debtGraphRestore > debtCommitClear && debtGraphRestore < debtRollback,
+      'built customer-debt handler must snapshot before mutation and restore the complete graph after fleet rollback');
+    assert.match(erp, /const restoreDebtObjectGraph = \(target, snapshot\) => \{/,
+      'built customer-debt handler must restore nested records in place to preserve UI references');
+    assert.doesNotMatch(erp, /if \(hadDebt\) customer\.debt = oldDebtValue/,
+      'built customer-debt handler must not retain the shallow field-only rollback');
     assert.match(erp, /prepareDebtCommit\(m\)/, 'fleet runtime must expose atomic debt preparation');
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');

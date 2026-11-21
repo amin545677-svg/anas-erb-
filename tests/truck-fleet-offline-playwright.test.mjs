@@ -214,9 +214,13 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   const debtRollbackBefore=await page.evaluate(({pendingKey})=>{
     const q=window.ANASResilientStorage.getItem(pendingKey)||[];
     const d=AppData,t=d.anasFleetState.trips.find(x=>x.status==="ACTIVE");
-    return {debt:Number(d.customers.find(x=>String(x.id)==="C1")?.debt),cash:Number(d.caisseBalance),
+    const customer=d.customers.find(x=>String(x.id)==="C1");
+    const invoices=(d.invoices||[]).filter(inv=>String(inv.customerId??inv.customerObj?.id??"")==="C1");
+    if(!window.__ANAS_DEBT_ROLLBACK_REFS__) window.__ANAS_DEBT_ROLLBACK_REFS__={customer,invoices:d.invoices,invoiceObjects:invoices};
+    return {debt:Number(customer?.debt),cash:Number(d.caisseBalance),
      receipts:d.cashMovements.filter(x=>x.referenceType==="customer_debt").length,
      clientRows:d.clientMovements.length,allocations:d.settlementAllocations.length,
+     invoiceBalances:invoices.map(inv=>({id:String(inv.id),paid:inv.paid,remaining:inv.remaining,status:inv.status})),
      tripPayments:(t?.debtPayments||[]).length,queue:Array.isArray(q)?q.length:Object.keys(q||{}).length};
    },{pendingKey:MUTATION_KEYS.pending});
   await page.evaluate(()=>{
@@ -227,12 +231,22 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   const debtRollbackAfter=await page.evaluate(({pendingKey})=>{
     const q=window.ANASResilientStorage.getItem(pendingKey)||[];
     const d=AppData,t=d.anasFleetState.trips.find(x=>x.status==="ACTIVE");
-    return {debt:Number(d.customers.find(x=>String(x.id)==="C1")?.debt),cash:Number(d.caisseBalance),
+    const customer=d.customers.find(x=>String(x.id)==="C1");
+    const invoices=(d.invoices||[]).filter(inv=>String(inv.customerId??inv.customerObj?.id??"")==="C1");
+    return {debt:Number(customer?.debt),cash:Number(d.caisseBalance),
      receipts:d.cashMovements.filter(x=>x.referenceType==="customer_debt").length,
      clientRows:d.clientMovements.length,allocations:d.settlementAllocations.length,
+     invoiceBalances:invoices.map(inv=>({id:String(inv.id),paid:inv.paid,remaining:inv.remaining,status:inv.status})),
      tripPayments:(t?.debtPayments||[]).length,queue:Array.isArray(q)?q.length:Object.keys(q||{}).length};
    },{pendingKey:MUTATION_KEYS.pending});
   assert.deepEqual(debtRollbackAfter,debtRollbackBefore,"a rejected debt saveDB must rollback the public ledgers and truck custody without queueing a partial mutation");
+  const debtRollbackReferencesPreserved=await page.evaluate(()=>{
+    const refs=window.__ANAS_DEBT_ROLLBACK_REFS__;
+    const customer=AppData.customers.find(x=>String(x.id)==="C1");
+    return Boolean(refs&&refs.customer===customer&&refs.invoices===AppData.invoices&&
+      refs.invoiceObjects.every(invoice=>AppData.invoices.includes(invoice)));
+  });
+  assert.equal(debtRollbackReferencesPreserved,true,"deep rollback must preserve customer, invoice-array, and invoice-record references");
   const debtSaveCountsBefore=await page.evaluate(()=>({saveDB:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.saveDBCalls,durable:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.calls}));
   await page.evaluate(async()=>{await collectCustDebt("C1");});
   const debtSaveCountsAfter=await page.evaluate(()=>({saveDB:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.saveDBCalls,durable:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.calls}));
