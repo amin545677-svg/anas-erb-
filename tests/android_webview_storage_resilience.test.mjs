@@ -849,6 +849,27 @@ test('concurrent hydrate callers share one state transition and settle READY', a
 });
 
 
+test('successful hydration dispatches the exact readiness event after ready() becomes true', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(origin + '/');
+  await page.addScriptTag({ url: origin + '/storage/android-resilient-storage.js' });
+  const result = await page.evaluate(async () => {
+    const S = window.ANASResilientStorage;
+    const eventResult = new Promise(resolve => {
+      window.addEventListener('anas:storage-hydrated', event => resolve({
+        ready: S.ready(),
+        hydrated: event.detail?.hydrated,
+        hydrationState: event.detail?.hydrationState
+      }), { once: true });
+    });
+    await S.hydrate(null);
+    return await eventResult;
+  });
+  assert.deepEqual(result, { ready: true, hydrated: true, hydrationState: 'READY' });
+  await context.close();
+});
+
 test('cross-tab IndexedDB compare-and-set rejects a stale full-snapshot write and recovers by rehydrating', async () => {
   const context = await browser.newContext();
   const firstPage = await context.newPage();

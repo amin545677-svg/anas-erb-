@@ -730,6 +730,12 @@
     hydrationState = 'HYDRATING';
     hydrationPromise = performHydrate(localPayload).then(result => {
       hydrationState = 'READY';
+      // Publish the exact readiness signal consumed by the V42 bootstrap.
+      // Dispatch only after the durable hydration transaction and queued writes
+      // have completed and ready() can truthfully return true.
+      global.dispatchEvent(new global.CustomEvent('anas:storage-hydrated', {
+        detail: status()
+      }));
       return result;
     }, error => {
       hydrationState = 'UNHYDRATED';
