@@ -209,7 +209,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(committedSale.truckSales,1,"POS ACK must include the durable truck-invoice linkage");
   await page.waitForFunction(()=>AppData.invoices.some(x=>String(x.warehouse)==="شاحنة 12345-31"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState?.trips?.some(t=>t.sales?.some(s=>s.invoiceId)),null,{timeout:15000});
-  const customerDebtAfterPosSale=await page.evaluate(()=>Number(AppData.customers.find(x=>String(x.id)==="C1")?.debt));\n  assert.equal(customerDebtAfterPosSale,20,"a fully paid cash invoice without a selected customer must not change C1 debt");\n  await page.evaluate(async()=>{await collectCustDebt("C1");});
+  const customerDebtAfterPosSale=await page.evaluate(()=>Number(AppData.customers.find(x=>String(x.id)==="C1")?.debt));
+  assert.equal(customerDebtAfterPosSale,20,"a fully paid cash invoice without a selected customer must not change C1 debt");
+  await page.evaluate(async()=>{await collectCustDebt("C1");});
   await page.waitForFunction(()=>AppData.cashMovements.some(x=>x.referenceType==="customer_debt"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState.trips.some(t=>t.debtPayments?.length),null,{timeout:15000});
   await context.setOffline(true);
@@ -325,7 +327,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     cashReceipts:s.cashMovements.filter(x=>x.referenceType==="customer_debt").length,
     saleCashReceipts:s.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,
     saleStockMovements:s.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,
-    invoiceTotal:Number(invoice?.total),invoicePaid:Number(invoice?.paid),invoiceRemaining:Number(invoice?.remaining),\n    invoiceCustomerId:String(invoice?.customerId??invoice?.customerObj?.id??""),\n    customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
+    invoiceTotal:Number(invoice?.total),invoicePaid:Number(invoice?.paid),invoiceRemaining:Number(invoice?.remaining),
+    invoiceCustomerId:String(invoice?.customerId??invoice?.customerObj?.id??""),
+    customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
     truckWarehouseStock:Number(s.products.find(x=>String(x.id)==="TRUCK-P1")?.warehouseStock?.["شاحنة 12345-31"]),
     pendingTypes:q.map(x=>x.type),
     posBundle:bundle?{
@@ -354,7 +358,11 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(localProof.posBundle.stockMovementIds.length,1,"the same durable fleet operation must contain the POS stock ledger row");
   assert.equal(localProof.posBundle.fleetSaleIds.length,1,"the durable fleet operation must contain the linked truck sale");
   assert.equal(localProof.posBundle.auditIds.length,1,"the durable fleet operation must contain the invoice audit row");
-  assert.equal(localProof.posBundle.separateSaleOps,0,"the invoice must not be split into a second SALE_INVOICE queue operation");\n  assert.equal(localProof.invoiceTotal,10,"one truck POS item at retail price 10 must produce a total of 10");\n  assert.equal(localProof.invoicePaid,10,"the POS test pays the full invoice amount");\n  assert.equal(localProof.invoiceRemaining,0,"the POS test invoice must be fully settled");\n  assert.equal(localProof.invoiceCustomerId,"","the POS test uses the transient cash customer, not C1");
+  assert.equal(localProof.posBundle.separateSaleOps,0,"the invoice must not be split into a second SALE_INVOICE queue operation");
+  assert.equal(localProof.invoiceTotal,10,"one truck POS item at retail price 10 must produce a total of 10");
+  assert.equal(localProof.invoicePaid,10,"the POS test pays the full invoice amount");
+  assert.equal(localProof.invoiceRemaining,0,"the POS test invoice must be fully settled");
+  assert.equal(localProof.invoiceCustomerId,"","the POS test uses the transient cash customer, not C1");
   assert.equal(localProof.cashBalance,120,"local POS cash and debt receipt must update the cashbox exactly once");
   assert.equal(localProof.customerDebt,10,"collecting 10 from C1 old debt of 20 must leave a balance of 10; the cash POS invoice adds no debt");
   assert.equal(localProof.truckWarehouseStock,99,"local POS must deduct truck warehouse stock exactly once");
