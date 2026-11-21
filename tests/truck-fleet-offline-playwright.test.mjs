@@ -124,16 +124,38 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("#fleetPlate").fill("12345-31");
   await page.locator("#fleetDriver").fill("سائق الاختبار");
   await page.locator("[data-fleet='open']").click();
+  // Wait for the async open-trip action to finish durable persistence before continuing.
+  await page.waitForFunction(()=>document.getElementById("anasFleetMessage")?.textContent?.trim().startsWith("تم فتح الجولة وإنشاء مخزن شاحنة فعلي"));
   await page.locator("#fleetProduct").selectOption("TRUCK-P1");
   await page.locator("#fleetQty").fill("100");
   await page.locator("[data-fleet='add']").click();
   await page.locator("[data-fleet='load']").click();
-  await page.waitForFunction(()=>AppData.products[0].stock=== "100.000"||Number(AppData.products[0].stock)===100);
+  // Stock is mirrored synchronously before durable storage acknowledges the load.
+  // Wait for the completion message before starting another fleet action.
+  await page.waitForFunction(()=>
+    (AppData.products[0].stock=== "100.000"||Number(AppData.products[0].stock)===100) &&
+    document.getElementById("anasFleetMessage")?.textContent?.trim()==="تم تحويل الحمولة من المستودع إلى مخزن الشاحنة."
+  ,null,{timeout:15000});
   await page.locator("[data-fleet='pos']").click();
-  // The fleet click handler awaits durable warehouse persistence before calling
-  // openView("pos"); Playwright's click does not await that async handler.
-  // Wait for the actual POS view and its visible search control before typing.
-  await page.locator("#view-pos.page-view.active").waitFor({state:"visible",timeout:15000});
+  // Diagnose application state only if the POS navigation wait fails.
+  try {
+    await page.locator("#view-pos.page-view.active").waitFor({state:"visible",timeout:15000});
+  } catch(error) {
+    const navigationState=await page.evaluate(()=>{
+      const pos=document.getElementById("view-pos");
+      const active=document.querySelector(".page-view.active");
+      const notices=Array.from(document.querySelectorAll('[role="alert"],[role="status"],.toast,.toast-message,.notification'))
+        .map(node=>(node.textContent||"").trim()).filter(Boolean);
+      return {activeView:active?.id||null,posClassName:pos?.className||null,
+        posDisplay:pos?getComputedStyle(pos).display:null,
+        fleetMessage:document.getElementById("anasFleetMessage")?.textContent?.trim()||null,
+        notices};
+    });
+    console.error("[truck-offline] POS navigation diagnostics:",JSON.stringify({
+      ...navigationState,pageErrors:errors,consoleErrors
+    }));
+    throw error;
+  }
   await page.locator("#posSearchField").waitFor({state:"visible",timeout:15000});
   assert.equal(await page.locator("#posSearchField").isVisible(),true,
     "truck POS action must finish navigation and expose the cashier search field");
