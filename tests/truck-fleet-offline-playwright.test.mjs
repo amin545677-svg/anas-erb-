@@ -56,16 +56,18 @@ function staticServer(root){
 test("Staging fleet + POS + debt collection survive airplane hard reload, replay once, and expose 409 fleet conflict",async t=>{
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site");
- let server,browser;
+ let server,browser,context,page;
+ const errors=[],consoleErrors=[],dialogMessages=[];
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
   server=http.createServer(staticServer(out));
   await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve);});
   const port=server.address().port;
   browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*"]});
-  const context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
+  context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
   await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.__ANAS_ALLOW_V42_RUNTIME_ON_LOCALHOST__=true;window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
-  const page=await context.newPage(),errors=[],consoleErrors=[],local404s=[],externalScripts=[];
+  page=await context.newPage();
+  const local404s=[],externalScripts=[];
   const localOrigin="http://127.0.0.1:"+port;
   page.on("pageerror",e=>errors.push(e.stack||e.message));
   page.on("console",msg=>{if(msg.type()==="error")consoleErrors.push(msg.text());});
@@ -73,7 +75,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    if(response.status()===404&&response.url().startsWith(localOrigin+"/"))local404s.push(response.url());
   });
   let promptNumber=0;
-  page.on("dialog",async dialog=>{if(dialog.type()==="prompt"){promptNumber++;await dialog.accept(promptNumber===1?"10.00":JSON.stringify([{invoiceId:"OLD-DEBT-INV",amount:"10.00"}]));}else await dialog.accept();});
+  page.on("dialog",async dialog=>{dialogMessages.push({type:dialog.type(),message:dialog.message()});if(dialog.type()==="prompt"){promptNumber++;await dialog.accept(promptNumber===1?"10.00":JSON.stringify([{invoiceId:"OLD-DEBT-INV",amount:"10.00"}]));}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
   await page.route("**/*",async route=>{
@@ -101,6 +103,16 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   const runtimeReady=()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel");
   try{
    await page.waitForFunction(runtimeReady,null,{timeout:30000});
+   await page.evaluate(()=>{
+    const original=window.saveDBDurably;
+    const stats={calls:0,completed:0,rejected:0,lastState:"not-called",lastError:null};
+    window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__=stats;
+    window.saveDBDurably=async function(...args){
+     stats.calls++;stats.lastState="pending";stats.lastError=null;
+     try{const result=await original.apply(this,args);stats.completed++;stats.lastState="completed";return result;}
+     catch(error){stats.rejected++;stats.lastState="rejected";stats.lastError=String(error?.stack||error);throw error;}
+    };
+   });
   }catch(error){
    const conditionState=await page.evaluate(()=>({
     storageReady:window.ANASResilientStorage?.ready?.()===true,
@@ -226,6 +238,36 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(await page.locator("#fleetConflict [data-choice='local']").count(),1);
   assert.deepEqual(errors,[],"fleet conflict review must not produce uncaught browser exceptions");
   await context.close();
+ }catch(error){
+  if(page){
+   try{
+    const diagnostics=await page.evaluate(({pendingKey})=>{
+     const d=window.AppData||{},storage=window.ANASResilientStorage;
+     const pending=storage?.getItem?.(pendingKey)||[];
+     const trips=d.anasFleetState?.trips||[],trucks=d.anasFleetState?.trucks||[];
+     const notices=Array.from(document.querySelectorAll('[role="alert"],[role="status"],.toast,.toast-message,.notification,[aria-live]'))
+      .map(node=>(node.textContent||"").trim()).filter(Boolean);
+     return{
+      fleetMessage:document.getElementById("anasFleetMessage")?.textContent?.trim()||null,
+      notices,stock:(d.products||[]).map(p=>({id:p.id,stock:p.stock,warehouseStock:p.warehouseStock||{}})),
+      trucks,trips:trips.map(t=>({id:t.id,truckId:t.truckId,status:t.status,loadedUnits:t.loadedUnits})),
+      durableSave:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__||{state:"instrumentation-not-installed"},
+      syncQueueCount:Array.isArray(pending)?pending.length:(pending&&typeof pending==="object"?Object.keys(pending).length:0),
+      storageStatus:storage?.status?.()||null
+     };
+    },{pendingKey:MUTATION_KEYS.pending});
+    console.error("[truck-offline] GLOBAL FAILURE DIAGNOSTICS:",JSON.stringify({
+     error:error?.stack||String(error),...diagnostics,pageErrors:errors,consoleErrors,dialogs:dialogMessages,
+     local404s,externalScripts
+    }));
+   }catch(diagnosticError){
+    console.error("[truck-offline] GLOBAL DIAGNOSTICS COLLECTION FAILED:",diagnosticError?.stack||diagnosticError);
+   }
+  }
+  console.error("[truck-offline] captured page errors:",JSON.stringify(errors));
+  console.error("[truck-offline] captured console errors:",JSON.stringify(consoleErrors));
+  console.error("[truck-offline] captured dialogs:",JSON.stringify(dialogMessages));
+  throw error;
  }finally{
   if(browser)await browser.close();
   if(server)await new Promise(resolve=>server.close(resolve));
