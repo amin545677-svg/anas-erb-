@@ -9,6 +9,7 @@ import {chromium} from "playwright";
 import {MUTATION_KEYS} from "../sync/mutation_keys.mjs";
 
 const DB_KEY=MUTATION_KEYS.appData;
+function safeJson(value){try{return JSON.stringify(value);}catch(error){return JSON.stringify({serializationError:String(error?.stack||error)});}}
 function fixture(){const customer={id:"C1",name:"زبون قديم",phone:"0000000000",debt:20,credit_limit:100};return{
  appName:"ANAS ERP Truck Offline Acceptance",
  storeConfig:{name:"ANAS ERP",footer:"Offline staging acceptance"},
@@ -57,7 +58,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site");
  let server,browser,context,page;
- const errors=[],consoleErrors=[],dialogMessages=[];
+ const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[];
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
   server=http.createServer(staticServer(out));
@@ -67,7 +68,6 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
   await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.__ANAS_ALLOW_V42_RUNTIME_ON_LOCALHOST__=true;window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
   page=await context.newPage();
-  const local404s=[],externalScripts=[];
   const localOrigin="http://127.0.0.1:"+port;
   page.on("pageerror",e=>errors.push(e.stack||e.message));
   page.on("console",msg=>{if(msg.type()==="error")consoleErrors.push(msg.text());});
@@ -242,24 +242,44 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   if(page){
    try{
     const diagnostics=await page.evaluate(({pendingKey})=>{
-     const d=window.AppData||{},storage=window.ANASResilientStorage;
-     const pending=storage?.getItem?.(pendingKey)||[];
-     const trips=d.anasFleetState?.trips||[],trucks=d.anasFleetState?.trucks||[];
-     const notices=Array.from(document.querySelectorAll('[role="alert"],[role="status"],.toast,.toast-message,.notification,[aria-live]'))
-      .map(node=>(node.textContent||"").trim()).filter(Boolean);
+     const safe=(read,fallback=null)=>{try{return read();}catch(error){return fallback;}};
+     const d=safe(()=>window.AppData||{},{});
+     const storage=safe(()=>window.ANASResilientStorage,null);
+     const pending=safe(()=>storage?.getItem?.(pendingKey)||[],[]);
+     const trips=safe(()=>d.anasFleetState?.trips||[],[]);
+     const trucks=safe(()=>d.anasFleetState?.trucks||[],[]);
+     const fleetMessage=safe(()=>document.getElementById("anasFleetMessage")?.textContent??null,null);
+     const stockValue=safe(()=>window.AppData.products[0].stock,null);
+     const stockExact=safe(()=>window.AppData.products[0].stock=== "100.000",false);
+     const stockNumeric=safe(()=>Number(window.AppData.products[0].stock)===100,false);
+     const expectedMessage="تم تحويل الحمولة من المستودع إلى مخزن الشاحنة.";
+     const messageExact=safe(()=>document.getElementById("anasFleetMessage")?.textContent?.trim()===expectedMessage,false);
+     const loadCondition=safe(()=>(
+      (window.AppData.products[0].stock=== "100.000"||Number(window.AppData.products[0].stock)===100) &&
+      document.getElementById("anasFleetMessage")?.textContent?.trim()==="تم تحويل الحمولة من المستودع إلى مخزن الشاحنة."
+     ),false);
+     const notices=safe(()=>Array.from(document.querySelectorAll('[role="alert"],[role="status"],.toast,.toast-message,.notification,[aria-live]'))
+      .map(node=>(node.textContent||"").trim()).filter(Boolean),[]);
+     const stock=safe(()=>(d.products||[]).map(p=>({id:p.id,stock:p.stock,warehouseStock:p.warehouseStock||{}})),[]);
+     const durable=safe(()=>window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__||{state:"instrumentation-not-installed"},{state:"diagnostics-unavailable"});
+     const storageStatus=safe(()=>storage?.status?.()||null,null);
      return{
-      fleetMessage:document.getElementById("anasFleetMessage")?.textContent?.trim()||null,
-      notices,stock:(d.products||[]).map(p=>({id:p.id,stock:p.stock,warehouseStock:p.warehouseStock||{}})),
+      fleetMessage,expectedFleetMessage:expectedMessage,notices,stock,stockValue,
+      loadCompletionCondition:{
+       expression:'(AppData.products[0].stock=== "100.000"||Number(AppData.products[0].stock)===100) && document.getElementById("anasFleetMessage")?.textContent?.trim()==="تم تحويل الحمولة من المستودع إلى مخزن الشاحنة."',
+       stockExact,stockNumeric,messageExact,result:loadCondition
+      },
       trucks,trips:trips.map(t=>({id:t.id,truckId:t.truckId,status:t.status,loadedUnits:t.loadedUnits})),
-      durableSave:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__||{state:"instrumentation-not-installed"},
+      durableSave:{started:durable.calls||0,completed:durable.completed||0,rejected:durable.rejected||0,lastState:durable.lastState||durable.state||"unknown",lastError:durable.lastError||null},
       syncQueueCount:Array.isArray(pending)?pending.length:(pending&&typeof pending==="object"?Object.keys(pending).length:0),
-      storageStatus:storage?.status?.()||null
+      storageStatus
      };
     },{pendingKey:MUTATION_KEYS.pending});
-    console.error("[truck-offline] GLOBAL FAILURE DIAGNOSTICS:",JSON.stringify({
+    const diagnosticPayload={
      error:error?.stack||String(error),...diagnostics,pageErrors:errors,consoleErrors,dialogs:dialogMessages,
      local404s,externalScripts
-    }));
+    };
+    console.error("[truck-offline] GLOBAL FAILURE DIAGNOSTICS:",safeJson(diagnosticPayload));
    }catch(diagnosticError){
     console.error("[truck-offline] GLOBAL DIAGNOSTICS COLLECTION FAILED:",diagnosticError?.stack||diagnosticError);
    }
