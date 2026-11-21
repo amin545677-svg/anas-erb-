@@ -282,11 +282,36 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     };
     return {matches:Object.values(checks).every(Boolean),checks,fleetSales,auditRows};
    };
-   const pendingOperationDiagnostics=(Array.isArray(q)?q:[]).filter(item=>item?.status==="PENDING").map(item=>{
+   const pendingOperationDiagnostics=(Array.isArray(q)?q:[]).map(item=>{
     const inspection=inspectFleetOperation(item);
+    const deltas=item?.payload?.collectionDeltas||{};
+    const identityFields={clientMovements:"movementId",settlementAllocations:"allocationId"};
+    const collectionMetrics=Object.fromEntries(Object.entries(deltas).map(([key,delta])=>{
+     const before=Array.isArray(delta?.before)?delta.before:[];
+     const after=Array.isArray(delta?.after)?delta.after:[];
+     const field=identityFields[key]||"id";
+     const beforeById=new Map(before.map(row=>[String(row?.[field]??""),JSON.stringify(row)]));
+     const afterById=new Map(after.map(row=>[String(row?.[field]??""),JSON.stringify(row)]));
+     const addedLen=after.filter(row=>!beforeById.has(String(row?.[field]??""))).length;
+     const changedLen=after.filter(row=>{
+      const id=String(row?.[field]??"");
+      return beforeById.has(id)&&beforeById.get(id)!==JSON.stringify(row);
+     }).length;
+     return [key,{beforeLen:before.length,afterLen:after.length,addedLen,changedLen}];
+    }));
+    const fleetLengths=state=>{
+     const trips=state?.trips||[],trucks=state?.trucks||[];
+     return {
+      tripSalesLen:trips.reduce((n,trip)=>n+(Array.isArray(trip?.sales)?trip.sales.length:0),0),
+      truckStockLen:trucks.reduce((n,truck)=>n+Object.keys(truck?.stockUnits||{}).length,0)
+     };
+    };
     return {
      opType:String(item?.type??"unknown"),
-     collectionDeltaKeys:Object.keys(item?.payload?.collectionDeltas||{}).sort(),
+     status:String(item?.status??"unknown"),
+     collectionDeltas:collectionMetrics,
+     baseState:fleetLengths(item?.payload?.baseState),
+     nextState:fleetLengths(item?.payload?.nextState),
      failedConditions:Object.entries(inspection.checks).filter(([,passed])=>!passed).map(([name])=>name)
     };
    });
