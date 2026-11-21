@@ -222,8 +222,8 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Integrated fleet runtime source is incomplete');
   }
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\\n  <script src="./safe-update-ui.js" defer></script>\\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\\n  <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>\\n  <script>window.__ANAS_GET_APP_DATA__=function(){return AppData;};window.__ANAS_SET_APP_DATA__=function(value){AppData=value;};</script>\\n  ' +
-    '<script type="module" data-anas-fleet-runtime>\\n' + fleetRuntimeSource + '\\n</script>\\n  ');
+    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>\n  <script>window.__ANAS_GET_APP_DATA__=function(){return AppData;};window.__ANAS_SET_APP_DATA__=function(value){AppData=value;};</script>\n  <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>\n  ' +
+    '<script type="module" data-anas-fleet-runtime>\n' + fleetRuntimeSource + '\n</script>\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');
   }
@@ -257,12 +257,12 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = stagedHtml.replace(statusVersionBadge, '$1SW: r42 | Build SHA: ' + buildSha + '$2');
   const builtStatusBar = stagedHtml.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/);
   if (!builtStatusBar || !builtStatusBar[0].includes('data-build-version="r42"') || !builtStatusBar[0].includes('SW: r42 | Build SHA: ' + buildSha) || builtStatusBar[0].includes('r40')) throw new Error('Staging status bar and About-app build identity are not synchronized');
-  const fleetPosHookAnchor = "            finalizeSale();\\n            return true;";
+  const fleetPosHookAnchor = "            finalizeSale();\n            return true;";
   if (stagedHtml.split(fleetPosHookAnchor).length - 1 !== 1) {
     throw new Error('Expected exactly one durable POS finalize boundary for fleet invoice capture');
   }
   stagedHtml = stagedHtml.replace(fleetPosHookAnchor,
-    "            finalizeSale();\\n            if (window.ANASFleetPOS && typeof window.ANASFleetPOS.onInvoiceCommitted === 'function') {\\n              try { await window.ANASFleetPOS.onInvoiceCommitted(invObj); }\\n              catch (fleetError) { console.error('[ANAS Fleet] POS invoice committed but fleet ledger capture needs retry:', fleetError); window.dispatchEvent(new CustomEvent('anas:fleet-error', { detail: String(fleetError?.message || fleetError) })); }\\n            }\\n            return true;");
+    "            finalizeSale();\n            if (window.ANASFleetPOS && typeof window.ANASFleetPOS.onInvoiceCommitted === 'function') {\n              try { await window.ANASFleetPOS.onInvoiceCommitted(invObj); }\n              catch (fleetError) { console.error('[ANAS Fleet] POS invoice committed but fleet ledger capture needs retry:', fleetError); window.dispatchEvent(new CustomEvent('anas:fleet-error', { detail: String(fleetError?.message || fleetError) })); }\n            }\n            return true;");
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
