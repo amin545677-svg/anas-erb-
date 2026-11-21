@@ -48,7 +48,12 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     await fs.access(path.join(outDir, 'erp/fleet/truck-runtime.mjs'));
     assert.match(erp, /data-anas-fleet-runtime/, 'fleet runtime must be inlined into the service-worker-cached ERP shell');
     assert.match(erp, /__ANAS_GET_APP_DATA__/, 'fleet runtime must use the scoped AppData bridge');
-    assert.match(erp, /ANASFleetPOS\.onInvoiceCommitted/, 'POS must hand committed truck invoices to the fleet engine');
+    const fleetPrepareInvoiceCommit = erp.indexOf('window.ANASFleetPOS.prepareInvoiceCommit(invObj)');
+    const fleetSaveDB = erp.indexOf('saveDB() !== true');
+    assert.ok(fleetPrepareInvoiceCommit >= 0 && fleetSaveDB >= 0 && fleetPrepareInvoiceCommit < fleetSaveDB,
+      'built POS shell must prepare the fleet invoice atomically before the single saveDB boundary');
+    assert.match(erp, /const rollbackSale = \(e\) => \{\s*if \(typeof window\.__ANAS_FLEET_POS_ROLLBACK__ === 'function'\) \{\s*try \{ window\.__ANAS_FLEET_POS_ROLLBACK__\(\); \} finally \{ window\.__ANAS_FLEET_POS_ROLLBACK__ = null; \}/,
+      'built POS rollbackSale must invoke and clear the fleet rollback handler');
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');
