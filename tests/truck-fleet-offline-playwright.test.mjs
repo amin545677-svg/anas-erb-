@@ -64,10 +64,11 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   const port=server.address().port;
   browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*"]});
   const context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
-  await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
-  const page=await context.newPage(),errors=[],local404s=[],externalScripts=[];
+  await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.__ANAS_ALLOW_V42_RUNTIME_ON_LOCALHOST__=true;window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
+  const page=await context.newPage(),errors=[],consoleErrors=[],local404s=[],externalScripts=[];
   const localOrigin="http://127.0.0.1:"+port;
   page.on("pageerror",e=>errors.push(e.stack||e.message));
+  page.on("console",msg=>{if(msg.type()==="error")consoleErrors.push(msg.text());});
   page.on("response",response=>{
    if(response.status()===404&&response.url().startsWith(localOrigin+"/"))local404s.push(response.url());
   });
@@ -101,8 +102,15 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   try{
    await page.waitForFunction(runtimeReady,null,{timeout:30000});
   }catch(error){
+   const conditionState=await page.evaluate(()=>({
+    storageReady:window.ANASResilientStorage?.ready?.()===true,
+    mutationSyncInstalled:window.ANASMutationSync?.status==="installed",
+    fleetPanelPresent:!!document.getElementById("anasFleetEnginePanel")
+   }));
    console.error("[truck-offline] runtimeReady bootstrap failed:",error?.stack||error);
+   console.error("[truck-offline] runtime condition state:",JSON.stringify(conditionState));
    console.error("[truck-offline] page errors:",JSON.stringify(errors));
+   console.error("[truck-offline] console errors:",JSON.stringify(consoleErrors));
    console.error("[truck-offline] local 404 responses:",JSON.stringify(local404s));
    console.error("[truck-offline] optional external scripts stubbed:",JSON.stringify(externalScripts));
    throw error;

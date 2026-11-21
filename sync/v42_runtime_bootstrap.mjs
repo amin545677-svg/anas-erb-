@@ -20,6 +20,9 @@ const STAGING_HOSTS = new Set([
   "anas-erp-staging-a25e1.web.app",
   "anas-erp-staging-a25e1.firebaseapp.com"
 ]);
+// Localhost is permitted only for an explicit browser-test opt-in. Real
+// deployments remain restricted to the dedicated Staging Hosting origins.
+const LOCAL_TEST_HOSTS = new Set(["localhost", "127.0.0.1"]);
 const STAGING_WORKER = "https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev";
 
 function makeStorageAdapter(resilient) {
@@ -127,7 +130,10 @@ function statusMessage(status) {
 }
 
 export async function installANASV42Runtime(global = window) {
-  if (!STAGING_HOSTS.has(global.location?.hostname)) {
+  const hostname = String(global.location?.hostname || "").toLowerCase();
+  const explicitLocalTest = LOCAL_TEST_HOSTS.has(hostname) &&
+    global.__ANAS_ALLOW_V42_RUNTIME_ON_LOCALHOST__ === true;
+  if (!STAGING_HOSTS.has(hostname) && !explicitLocalTest) {
     return Object.freeze({ status: "skipped-non-staging-origin" });
   }
   if (global.__ANAS_DISABLE_V42_RUNTIME_BOOTSTRAP__ === true) {
