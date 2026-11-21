@@ -62,6 +62,16 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'built POS approval handler must prepare the fleet invoice before its own saveDB boundary');
     assert.match(erp, /const rollbackSale = \(e\) => \{\s*if \(typeof window\.__ANAS_FLEET_POS_ROLLBACK__ === 'function'\) \{\s*try \{ window\.__ANAS_FLEET_POS_ROLLBACK__\(\); \} finally \{ window\.__ANAS_FLEET_POS_ROLLBACK__ = null; \}/,
       'built POS rollbackSale must invoke and clear the fleet rollback handler');
+    const debtCollect = erp.indexOf('async function collectCustDebt');
+    const debtPrepare = debtCollect >= 0 ? erp.indexOf('window.ANASFleetPOS.prepareDebtCommit(debtMovement)', debtCollect) : -1;
+    const debtSave = debtPrepare >= 0 ? erp.indexOf("saveDB() !== true", debtPrepare) : -1;
+    const debtDurable = debtSave >= 0 ? erp.indexOf("saveDBDurably() !== true", debtSave) : -1;
+    const debtCommitClear = debtDurable >= 0 ? erp.indexOf("window.__ANAS_FLEET_DEBT_ROLLBACK__ = null;", debtDurable) : -1;
+    const debtRollback = debtCommitClear >= 0 ? erp.indexOf("window.__ANAS_FLEET_DEBT_ROLLBACK__()", debtCommitClear) : -1;
+    assert.ok(debtCollect >= 0 && debtPrepare > debtCollect && debtSave > debtPrepare &&
+      debtDurable > debtSave && debtCommitClear > debtDurable && debtRollback > debtCommitClear,
+      'built customer-debt handler must prepare fleet custody before its single saveDB, clear rollback only after durable ACK, and rollback in its catch path');
+    assert.match(erp, /prepareDebtCommit\(m\)/, 'fleet runtime must expose atomic debt preparation');
     const kernel = await fs.readFile(path.join(outDir, 'erp/core/sovereign-kernel.mjs'), 'utf8');
     assert.ok(kernel.startsWith('const SHA256_K = ['), 'deployed sovereign kernel must be the canonical JavaScript module, not an HTML fallback');
     assert.match(erp, /pos\/advanced-financial-engine\.mjs/, 'ERP shell must load the advanced financial domain engine');

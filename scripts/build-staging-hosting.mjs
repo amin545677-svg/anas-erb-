@@ -277,6 +277,17 @@ export async function buildStagingHosting(options = {}) {
     "                    window.__ANAS_FLEET_POS_ROLLBACK__ = window.ANASFleetPOS.prepareInvoiceCommit(invObj);\n" +
     "                }\n" + fleetPosSaveAnchor);
 
+  const fleetDebtSaveAnchor = "                // Preserve the V42 mutation-capture hook before waiting for the authoritative durable acknowledgement.\n" +
+    "                if (typeof saveDB !== 'function' || saveDB() !== true)";
+  if (stagedHtml.split(fleetDebtSaveAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one customer-debt saveDB boundary for fleet atomic capture');
+  }
+  stagedHtml = stagedHtml.replace(fleetDebtSaveAnchor,
+    "                if (window.ANASFleetPOS && typeof window.ANASFleetPOS.prepareDebtCommit === 'function') {\n" +
+    "                    const debtMovement = (AppData.cashMovements || []).find(row => String(row?.id) === String(movementId));\n" +
+    "                    window.__ANAS_FLEET_DEBT_ROLLBACK__ = window.ANASFleetPOS.prepareDebtCommit(debtMovement);\n" +
+    "                }\n" + fleetDebtSaveAnchor);
+
   const fleetPosDurableAnchor = "                if (await saveDBDurably() !== true)\n" +
     "                    throw new Error('لم يؤكد التخزين الدائم اعتماد الفاتورة.');";
   if (stagedHtml.split(fleetPosDurableAnchor).length - 1 !== 1) {
@@ -284,6 +295,23 @@ export async function buildStagingHosting(options = {}) {
   }
   stagedHtml = stagedHtml.replace(fleetPosDurableAnchor,
     fleetPosDurableAnchor + "\n                window.__ANAS_FLEET_POS_ROLLBACK__ = null;");
+
+  const fleetDebtDurableAnchor = "                if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند القبض.');";
+  if (stagedHtml.split(fleetDebtDurableAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one customer-debt durable-save boundary for fleet atomic capture');
+  }
+  stagedHtml = stagedHtml.replace(fleetDebtDurableAnchor,
+    fleetDebtDurableAnchor + "\n                window.__ANAS_FLEET_DEBT_ROLLBACK__ = null;");
+
+  const fleetDebtRollbackAnchor = "            } catch (error) {\n                collectionLocks.delete(collectionLockKey);";
+  if (stagedHtml.split(fleetDebtRollbackAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one customer-debt rollback catch boundary');
+  }
+  stagedHtml = stagedHtml.replace(fleetDebtRollbackAnchor,
+    "            } catch (error) {\n" +
+    "                if (typeof window.__ANAS_FLEET_DEBT_ROLLBACK__ === 'function') {\n" +
+    "                    try { window.__ANAS_FLEET_DEBT_ROLLBACK__(); } finally { window.__ANAS_FLEET_DEBT_ROLLBACK__ = null; }\n" +
+    "                }\n                collectionLocks.delete(collectionLockKey);");
 
   const fleetPosFinalizeAnchor = "            finalizeSale();\n            return true;";
   if (stagedHtml.split(fleetPosFinalizeAnchor).length - 1 !== 1) {

@@ -115,6 +115,29 @@ function recordInvoice(inv){
  // invoice, POS ledgers, stock and fleet linkage enter one mutation envelope.
  return prepareInvoiceCommit(inv);
 }
+function prepareDebtCommit(m){
+ const d=data();
+ if(!d||m?.type!=="add"||m?.referenceType!=="customer_debt"||m?.id==null||m?.referenceId==null)return null;
+ const s=state(),t=active(s);
+ if(!t||t.status!=="ACTIVE"||(t.debtPayments||[]).some(x=>String(x.referenceId)===String(m.id)))return null;
+ const before=structuredClone(d),previousLastPayment=lastPayment;
+ try{
+  const next=recordOldDebtPayment(s,t.id,{customerId:String(m.referenceId),referenceId:String(m.id),amount:String(m.amount)},key("TRUCK-DEBT-"+m.id),actor());
+  mirror(d,next.state);d.anasFleetState=encode(next.state);
+  const customer=d.customers?.find(x=>String(x.id)===String(m.referenceId));
+  lastPayment={id:m.id,date:m.date,customerName:customer?.name||"عميل",beforeMinor:minor(customer?.debt||0)+minor(m.amount),amountMinor:minor(m.amount)};
+  let rolledBack=false;
+  return ()=>{
+   if(rolledBack)return;rolledBack=true;
+   restoreFleetAppData(d,before);lastPayment=previousLastPayment;
+   try{render();}catch(_){}
+  };
+ }catch(error){
+  restoreFleetAppData(d,before);lastPayment=previousLastPayment;
+  try{render();}catch(_){}
+  throw error;
+ }
+}
 async function recoverInvoices(){
  const d=data();if(!d?.anasFleetState)return;const t=active();if(!t)return;
  for(const inv of (d.invoices||[]).filter(x=>String(x.warehouse||x.warehouseName||"")===String(t.warehouseName))){
@@ -232,6 +255,6 @@ function setupConflictCenter(){const truckReview=x=>String(x?.reason||"").starts
 function showConflict(item){const root=panel?.querySelector("#fleetConflict");if(!root)return;const isCas=item.reason==="TRUCK_FLEET_STATE_CONFLICT";const cloud=item.cloudState??item.cloudWarehouse??null,local=item.localState??item.operation?.payload?.nextState??item.localWarehouse??null;root.innerHTML="<div style='border:1px solid #d97706;padding:10px;border-radius:10px'><strong>"+(isCas?"تعارض شاحنة HTTP 409":"مراجعة عملية شاحنة")+"</strong><p>السبب: "+esc(item.reason)+"</p><p>نسخة الخادم ونسخة الجهاز محفوظتان؛ لا توجد كتابة صامتة.</p><pre style='white-space:pre-wrap;max-height:100px;overflow:auto'>"+esc(JSON.stringify(cloud,null,2))+"</pre><pre style='white-space:pre-wrap;max-height:100px;overflow:auto'>"+esc(JSON.stringify(local,null,2))+"</pre>"+(isCas?"<button data-choice='cloud'>الاحتفاظ بنسخة الخادم</button><button data-choice='local'>إعادة تطبيق نسخة الجهاز</button>":"")+"</div>";root.querySelectorAll("[data-choice]").forEach(b=>b.addEventListener("click",()=>resolveConflict(item,b.dataset.choice).catch(e=>message(String(e.message||e),true))));}
 async function resolveConflict(item,choice){const d=data(),op=item.operation;if(choice==="local"&&!actor().canApproveVariance)throw Error("إعادة تطبيق نسخة الجهاز تتطلب اعتماد مدير مخوّل");if(choice==="local"){d.anasFleetState=item.localState||op.payload.nextState;if(W.saveDB()!==true||await W.saveDBDurably()!==true)throw Error("تعذر حفظ نسخة الجهاز فوق أساس الخادم");}else if(item.cloudState==null)delete d.anasFleetState;else d.anasFleetState=item.cloudState;const storage=W.ANASResilientStorage,rows=storage.getItem(MUTATION_KEYS.quarantined)||[];await storage.setItem(MUTATION_KEYS.quarantined,rows.filter(x=>String(x.opId)!==String(op.opId)));await storage.flushDurableItems?.();render();message(choice==="local"?"أُنشئت عملية جديدة فوق نسخة الخادم؛ نفّذ المزامنة.":"تم الاحتفاظ بنسخة الخادم وإزالة التعارض.");}
 function wrapSyncRefresh(name){const original=W[name];if(typeof original!=="function"||original.__anasFleetWrapped)return;const wrapped=async function(){const result=await original.apply(this,arguments);try{const d=data();if(d)syncCurrentUserWarehouse(d,state());render();}catch(e){message("تعذر تحديث إسناد مخزن الشاحنة بعد المزامنة: "+String(e.message||e),true);}return result;};wrapped.__anasFleetWrapped=true;W[name]=wrapped;}
-function install(){if(!data()||!document.getElementById("view-trucks"))return false;setup();W.addEventListener("anas:fleet-error",e=>message(String(e.detail||"تعذر ربط العملية بعهدة الشاحنة"),true));hookDebt();hookPosCartDurability();hookInvoicePrint();wrapSyncRefresh("anasFirebaseSyncPush");wrapSyncRefresh("anasFirebaseSyncPull");W.ANASFleetPOS=Object.freeze({onInvoiceCommitted:recordInvoice,printInvoice,printPayment});recoverInvoices().catch(e=>message("استعادة فواتير الشاحنة: "+String(e.message||e),true));recoverDebtMovements().catch(e=>message("استعادة دفعات ديون الشاحنة: "+String(e.message||e),true));return true;}
+function install(){if(!data()||!document.getElementById("view-trucks"))return false;setup();W.addEventListener("anas:fleet-error",e=>message(String(e.detail||"تعذر ربط العملية بعهدة الشاحنة"),true));hookDebt();hookPosCartDurability();hookInvoicePrint();wrapSyncRefresh("anasFirebaseSyncPush");wrapSyncRefresh("anasFirebaseSyncPull");W.ANASFleetPOS=Object.freeze({onInvoiceCommitted:recordInvoice,prepareDebtCommit,printInvoice,printPayment});recoverInvoices().catch(e=>message("استعادة فواتير الشاحنة: "+String(e.message||e),true));recoverDebtMovements().catch(e=>message("استعادة دفعات ديون الشاحنة: "+String(e.message||e),true));return true;}
 function boot(attempt=0){const storage=W.ANASResilientStorage;if(!data()||!storage?.ready?.()||!W.ANASMutationSync||!W.ANASArabicEscPos){if(attempt<200){setTimeout(()=>boot(attempt+1),100);return;}console.warn("[ANAS Fleet] staging runtime deferred: storage/sync bootstrap not ready");return;}install();}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>boot(),{once:true});else boot();
