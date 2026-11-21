@@ -86,7 +86,38 @@ async function shareInvoice(inv){const e=W.ANASArabicEscPos,c=e.renderReceiptCan
 async function printPayment(p){const doc=W.ANASArabicEscPos.buildPaymentReceipt({businessName:"ANAS ERP",receiptNumber:p.id,date:p.date,customerName:p.customerName,debtBeforeMinor:p.beforeMinor,amountMinor:p.amountMinor,method:"نقداً"});await printDoc(doc,"PAYMENT-"+p.id);}
 async function printManifest(t,s){const items=Object.entries(t.loadedUnits||{}).map(([id,q])=>({productName:s.products.find(p=>p.id===id)?.name||id,quantity:fromQuantityUnits(q)}));const doc=W.ANASArabicEscPos.buildLoadManifest({businessName:"ANAS ERP",tripId:t.id,truckPlate:t.truckPlate,driverName:t.driverName,items,receiverName:"توقيع المستلم"});await printDoc(doc,"MANIFEST-"+t.id);}
 async function printSettlement(t){const s=t.settlement,inventory=Object.entries(s.inventory||{}).map(([id,x])=>({productName:data().products.find(p=>String(p.id)===id)?.name||id,productId:id,expected:fromQuantityUnits(x.expectedUnits),actual:fromQuantityUnits(x.actualUnits),variance:fromQuantityUnits(x.varianceUnits)}));const doc=W.ANASArabicEscPos.buildTripSettlement({businessName:"ANAS ERP",tripId:t.id,driverName:t.driverName,truckPlate:t.truckPlate,inventory,cashSalesMinor:s.cashSalesMinor,oldDebtPaymentsMinor:s.oldDebtPaymentsMinor,fieldExpensesMinor:s.fieldExpensesMinor,netDueMinor:s.expectedCashMinor,actualCashMinor:s.actualCashMinor,cashVarianceMinor:s.cashVarianceMinor,varianceNote:s.varianceNote});await printDoc(doc,"SETTLEMENT-"+t.id);}
-async function recordInvoice(inv){const d=data();if(!inv?.id)return false;lastInvoice=inv;let s=state(),t=s.trips.find(x=>x.status==="ACTIVE"&&String(x.warehouseName||"")===String(inv.warehouse||inv.warehouseName||""));if(!t)return false;let paid=minor(inv.paid||0),changed=false;for(let i=0;i<(inv.items||[]).length;i++){const row=inv.items[i],id=String(row.id??row.productId??"");if(!id)continue;const saleId=String(inv.id)+":"+i;if(t.sales.some(x=>String(x.id)===saleId))continue;const product=d.products.find(x=>String(x.id)===id);if(!product)throw Error("المنتج غير موجود في فاتورة الشاحنة");const qty=String(row.qty??row.quantity??0),price=String(row.price??0),line=minor(row.total??(Number(qty)*Number(price))),cash=paid>0n?(paid<line?paid:line):0n;paid-=cash;const next=recordTruckSale(s,t.id,{productId:id,quantity:qty,catalogPrice:String(product.price1??price),salePrice:price,minimumPrice:String(product.minimumPrice??product.minSalePrice??0),cashPaid:fromMoneyMinor(cash),invoiceId:String(inv.id),saleId},key("TRUCK-POS-"+inv.id+"-"+i),actor());s=next.state;t=s.trips.find(x=>x.id===t.id);changed=true;}if(changed){await persist(s);lastInvoice=inv;message("رُبطت فاتورة POS بعهدة الشاحنة وسجل السعر الفعلي.");}return changed;}
+function prepareInvoiceCommit(inv){
+ const d=data();if(!inv?.id||!d)return null;
+ const before=structuredClone(d),previousLastInvoice=lastInvoice;
+ try{
+  let s=state(),t=s.trips.find(x=>x.status==="ACTIVE"&&String(x.warehouseName||"")===String(inv.warehouse||inv.warehouseName||""));
+  if(!t)return null;
+  let paid=minor(inv.paid||0),changed=false;
+  for(let i=0;i<(inv.items||[]).length;i++){
+   const row=inv.items[i],id=String(row.id??row.productId??"");if(!id)continue;
+   const saleId=String(inv.id)+":"+i;if(t.sales.some(x=>String(x.id)===saleId))continue;
+   const product=d.products.find(x=>String(x.id)===id);if(!product)throw Error("المنتج غير موجود في فاتورة الشاحنة");
+   const qty=String(row.qty??row.quantity??0),price=String(row.price??0),line=minor(row.total??(Number(qty)*Number(price))),cash=paid>0n?(paid<line?paid:line):0n;paid-=cash;
+   const next=recordTruckSale(s,t.id,{productId:id,quantity:qty,catalogPrice:String(product.price1??price),salePrice:price,minimumPrice:String(product.minimumPrice??product.minSalePrice??0),cashPaid:fromMoneyMinor(cash),invoiceId:String(inv.id),saleId},key("TRUCK-POS-"+inv.id+"-"+i),actor());
+   s=next.state;t=s.trips.find(x=>x.id===t.id);changed=true;
+  }
+  if(!changed){lastInvoice=inv;return null;}
+  // POS already posted the cash/customer ledgers and deducted warehouse stock.
+  // Mirror only the matching fleet state; do not touch those ledgers or caisseBalance.
+  mirror(d,s);d.anasFleetState=encode(s);lastInvoice=inv;
+  return ()=>{restoreFleetAppData(d,before);lastInvoice=previousLastInvoice;try{render();}catch(_){}};
+ }catch(error){
+  restoreFleetAppData(d,before);lastInvoice=previousLastInvoice;throw error;
+ }
+}
+async function recordInvoice(inv){
+ const rollback=prepareInvoiceCommit(inv);if(typeof rollback!=="function")return false;
+ try{
+  if(typeof W.saveDB!=="function"||W.saveDB()!==true)throw Error("تعذر تجهيز ربط فاتورة الشاحنة لطابور المزامنة");
+  if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم لربط فاتورة الشاحنة");
+  render();message("رُبطت فاتورة POS بعهدة الشاحنة وسجل السعر الفعلي.");return true;
+ }catch(error){rollback();throw error;}
+}
 async function recoverInvoices(){const d=data();if(!d?.anasFleetState)return;const t=active();if(!t)return;for(const inv of (d.invoices||[]).filter(x=>String(x.warehouse||x.warehouseName||"")===String(t.warehouseName)))await recordInvoice(inv);}
 async function recoverDebtMovements(){const d=data();if(!d?.anasFleetState)return;const s=state(),t=active(s);if(!t)return;const known=new Set((t.debtPayments||[]).map(x=>String(x.referenceId)));for(const m of (d.cashMovements||[]).filter(x=>x?.type==="add"&&x?.referenceType==="customer_debt"&&!known.has(String(x.id))&&(!x.date||new Date(x.date).getTime()>=new Date(t.openedAt).getTime()))){const c=(d.customers||[]).find(x=>String(x.id)===String(m.referenceId));const before=minor(c?.debt||0)+minor(m.amount||0);await recordDebt(m,before);}}
 async function recordDebt(m,before){if(m?.referenceType!=="customer_debt")return;const customer=data()?.customers?.find(x=>String(x.id)===String(m.referenceId));lastPayment={id:m.id,date:m.date,customerName:customer?.name||"عميل",beforeMinor:before,amountMinor:minor(m.amount)};const s=state(),t=active(s);if(!t||t.status!=="ACTIVE"||t.debtPayments?.some(x=>String(x.referenceId)===String(m.id)))return;const next=recordOldDebtPayment(s,t.id,{customerId:String(m.referenceId),referenceId:String(m.id),amount:String(m.amount)},key("TRUCK-DEBT-"+m.id),actor());await persist(next.state);}
@@ -97,22 +128,11 @@ function hookPosCartDurability(){
   const wrappedConfirm=async function(){
    if(posCommitInFlight)return posCommitInFlight;
    const receiver=this,args=arguments;
-   let preflightFailed=false;
-   const acknowledgement=(async()=>{
-    try{
-     if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم لتعديل POS السابق");
-    }catch(error){preflightFailed=true;throw error;}
-    // The ACK covers invoice posting AND the awaited fleet invoice linkage,
-    // not merely the pre-checkout cart snapshot.
-    return await originalConfirm.apply(receiver,args);
-   })();
+   const acknowledgement=(async()=>await originalConfirm.apply(receiver,args))();
    posCommitInFlight=acknowledgement;
    W.__ANAS_POS_CART_DURABLE_SAVE__=acknowledgement;
    try{return await acknowledgement;}
-   catch(error){
-    if(preflightFailed){message("لم يبدأ اعتماد الفاتورة لأن الحفظ السابق في POS لم يكتمل: "+String(error?.message||error),true);return false;}
-    throw error;
-   }finally{if(posCommitInFlight===acknowledgement)posCommitInFlight=null;}
+   finally{if(posCommitInFlight===acknowledgement)posCommitInFlight=null;}
   };
   wrappedConfirm.__anasFleetDurableWrapped=true;
   W.confirmHasibPaymentDurable=wrappedConfirm;

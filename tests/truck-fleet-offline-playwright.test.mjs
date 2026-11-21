@@ -104,9 +104,10 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   try{
    await page.waitForFunction(runtimeReady,null,{timeout:30000});
    await page.evaluate(()=>{
-    const original=window.saveDBDurably;
-    const stats={calls:0,completed:0,rejected:0,lastState:"not-called",lastError:null};
+    const original=window.saveDBDurably,originalSaveDB=window.saveDB;
+    const stats={calls:0,completed:0,rejected:0,saveDBCalls:0,lastState:"not-called",lastError:null};
     window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__=stats;
+    window.saveDB=function(...args){stats.saveDBCalls++;return originalSaveDB.apply(this,args);};
     window.saveDBDurably=async function(...args){
      stats.calls++;stats.lastState="pending";stats.lastError=null;
      try{const result=await original.apply(this,args);stats.completed++;stats.lastState="completed";return result;}
@@ -180,12 +181,16 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("#anasPosFloatingCart [data-mini-action='checkout']").click();
   await page.locator("#hasibModal.active").waitFor({state:"visible"});
   await page.locator("#hasibPaidAmount").fill("10.00");
+  const posSaveCountsBefore=await page.evaluate(()=>({saveDB:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.saveDBCalls,durable:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.calls}));
   await page.locator("#hasibModal button[onclick='confirmHasibPaymentDurable()']").click();
   await page.evaluate(async()=>{
     const acknowledgement=window.__ANAS_POS_CART_DURABLE_SAVE__;
     if(!acknowledgement||typeof acknowledgement.then!=="function")throw new Error("POS confirmation did not expose its full durable acknowledgement");
     await acknowledgement;
   });
+  const posSaveCountsAfter=await page.evaluate(()=>({saveDB:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.saveDBCalls,durable:window.__ANAS_DURABLE_SAVE_DIAGNOSTICS__.calls}));
+  assert.equal(posSaveCountsAfter.saveDB-posSaveCountsBefore.saveDB,1,"truck POS invoice must call saveDB exactly once");
+  assert.equal(posSaveCountsAfter.durable-posSaveCountsBefore.durable,1,"truck POS invoice must perform exactly one durable save");
   const committedSale=await page.evaluate(()=>{
     const snapshot=window.ANASResilientStorage.getCommittedSnapshot();
     return {
@@ -203,7 +208,49 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await context.setOffline(true);
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel"),null,{timeout:30000});
-  const localProof=await page.evaluate(({pendingKey})=>{const storage=window.ANASResilientStorage,s=storage.getCommittedSnapshot(),q=storage.getItem(pendingKey)||[],invoice=s.invoices.find(x=>String(x.warehouse||"").startsWith("شاحنة "));const bundle=q.find(x=>x.type==="TRUCK_FLEET_OPERATION"&&x.status==="PENDING"&&(x.payload?.collectionDeltas?.invoices?.after||[]).some(row=>String(row.id)===String(invoice?.id)));const deltas=bundle?.payload?.collectionDeltas||{};return{invoiceCount:s.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,truckSales:s.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),debtPayments:s.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),cashReceipts:s.cashMovements.filter(x=>x.referenceType==="customer_debt").length,saleCashReceipts:s.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,saleStockMovements:s.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,pendingTypes:q.map(x=>x.type),posBundle:bundle?{type:bundle.type,status:bundle.status,invoiceIds:(deltas.invoices?.after||[]).filter(row=>String(row.id)===String(invoice?.id)).map(row=>row.id),cashMovementIds:(deltas.cashMovements?.after||[]).filter(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===String(invoice?.id)).map(row=>row.id),stockMovementIds:(deltas.stockMovements?.after||[]).filter(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===String(invoice?.id)).map(row=>row.id),fleetSaleIds:(bundle.payload.nextState?.trips||[]).flatMap(t=>t.sales||[]).filter(row=>String(row.invoiceId)===String(invoice?.id)).map(row=>row.id),auditIds:(deltas.auditTrail?.after||[]).filter(row=>String(row.referenceId)===String(invoice?.id)).map(row=>row.id)}:null,revision:storage.status().revision,db:storage.status().database,sequence:s.anasLocalMutationSequence};},{pendingKey:MUTATION_KEYS.pending});
+  const localProof=await page.evaluate(({pendingKey})=>{
+   const storage=window.ANASResilientStorage,s=storage.getCommittedSnapshot(),q=storage.getItem(pendingKey)||[];
+   const invoice=s.invoices.find(x=>String(x.warehouse||"").startsWith("شاحنة "));
+   const addedRows=(delta,field="id")=>{
+    const before=new Set((delta?.before||[]).map(row=>String(row?.[field]??"")));
+    return (delta?.after||[]).filter(row=>row&&!before.has(String(row?.[field]??"")));
+   };
+   const fleetSalesAdded=(operation,invoiceId)=>{
+    const baseTrips=operation?.payload?.baseState?.trips||[];
+    const prior=new Map(baseTrips.map(trip=>[String(trip.id),new Set((trip.sales||[]).map(row=>String(row.id)))]));
+    return (operation?.payload?.nextState?.trips||[]).flatMap(trip=>(trip.sales||[]).filter(row=>
+     !(prior.get(String(trip.id))||new Set()).has(String(row.id))&&String(row.invoiceId)===String(invoiceId)
+    ));
+   };
+   const bundle=Array.isArray(q)?q.find(item=>{
+    if(item?.type!=="TRUCK_FLEET_OPERATION"||item?.status!=="PENDING")return false;
+    const deltas=item.payload?.collectionDeltas||{};
+    return addedRows(deltas.invoices).some(row=>String(row.id)===String(invoice?.id))&&fleetSalesAdded(item,invoice?.id).length>0;
+   }):null;
+   const deltas=bundle?.payload?.collectionDeltas||{},invoiceId=String(invoice?.id??"");
+   const saleOps=(Array.isArray(q)?q:[]).filter(item=>item?.type==="SALE_INVOICE"&&String(item.payload?.invoice?.id??"")===invoiceId);
+   return{
+    invoiceCount:s.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,
+    truckSales:s.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),
+    debtPayments:s.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),
+    cashReceipts:s.cashMovements.filter(x=>x.referenceType==="customer_debt").length,
+    saleCashReceipts:s.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,
+    saleStockMovements:s.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,
+    customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
+    truckWarehouseStock:Number(s.products.find(x=>String(x.id)==="TRUCK-P1")?.warehouseStock?.["شاحنة 12345-31"]),
+    pendingTypes:q.map(x=>x.type),
+    posBundle:bundle?{
+     type:bundle.type,status:bundle.status,
+     invoiceIds:addedRows(deltas.invoices).filter(row=>String(row.id)===invoiceId).map(row=>row.id),
+     cashMovementIds:addedRows(deltas.cashMovements).filter(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId).map(row=>row.id),
+     stockMovementIds:addedRows(deltas.stockMovements).filter(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId).map(row=>row.id),
+     fleetSaleIds:fleetSalesAdded(bundle,invoiceId).map(row=>row.id),
+     auditIds:addedRows(deltas.auditTrail).filter(row=>String(row.referenceId)===invoiceId).map(row=>row.id),
+     separateSaleOps:saleOps.length
+    }:null,
+    revision:storage.status().revision,db:storage.status().database,sequence:s.anasLocalMutationSequence
+   };
+  },{pendingKey:MUTATION_KEYS.pending});
   assert.equal(localProof.invoiceCount,1,"truck POS invoice must survive a complete offline reload");
   assert.equal(localProof.truckSales,1,"truck sale event must survive offline reload exactly once");
   assert.equal(localProof.debtPayments,1,"old-debt collection linked to the active truck trip must survive offline reload");
@@ -217,8 +264,11 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(localProof.posBundle.stockMovementIds.length,1,"the same durable fleet operation must contain the POS stock ledger row");
   assert.equal(localProof.posBundle.fleetSaleIds.length,1,"the durable fleet operation must contain the linked truck sale");
   assert.equal(localProof.posBundle.auditIds.length,1,"the durable fleet operation must contain the invoice audit row");
+  assert.equal(localProof.posBundle.separateSaleOps,0,"the invoice must not be split into a second SALE_INVOICE queue operation");
+  assert.equal(localProof.cashBalance,120,"local POS cash and debt receipt must update the cashbox exactly once");
+  assert.equal(localProof.customerDebt,20,"local invoice debt and later receipt must net to the correct customer balance");
+  assert.equal(localProof.truckWarehouseStock,99,"local POS must deduct truck warehouse stock exactly once");
   assert.ok(localProof.pendingTypes.includes("DEBT_COLLECTION"),"customer debt payment must be durably queued");
-  assert.ok(Number(localProof.sequence)>=6,"local mutation sequence must persist across all truck, invoice and debt operations");
   assert.ok(Number(localProof.sequence)>=6,"local mutation sequence must persist across all truck, invoice and debt operations");
   assert.match(localProof.db,/anas_erp_v42_resilient_db/i);
   assert.deepEqual(errors,[],"offline hard reload must not produce uncaught browser exceptions");
@@ -232,6 +282,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(cloud.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,1);
   assert.equal(cloud.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,1);
   assert.equal(cloud.caisseBalance,120,"the POS sale and debt receipt must update the cashbox exactly once");
+  assert.equal(Number(cloud.customers.find(x=>String(x.id)==="C1")?.debt),20,"replay must apply invoice debt and debt receipt exactly once");
   assert.equal(cloud.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),1);
   assert.equal(cloud.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),1);
   assert.equal(cloud.products[0].stock,"100.000","main warehouse stock must reflect the atomic 100-unit truck load");
@@ -239,12 +290,17 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(cloud.currentUser.secondaryWarehouse,"شاحنة 12345-31","active truck warehouse assignment must survive CAS replay");
   assert.equal(cloud.warehouses.find(w=>w.name==="شاحنة 12345-31").assigned_user_id,"DRIVER-1");
   assert.ok(Number(cloud.anasLocalMutationSequence)>=Number(localProof.sequence),"CAS reconciliation must retain the durable local sequence watermark");
-  assert.ok(Number(cloud.anasLocalMutationSequence)>=Number(localProof.sequence),"CAS reconciliation must retain the durable local sequence watermark");
   const repeat=await page.evaluate(()=>window.anasFirebaseSyncPush());
   assert.ok(["pushed","synced","empty"].includes(repeat.status));
   const cloudAgain=JSON.parse(serverSnapshot);
   assert.equal(cloudAgain.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,1,"repeated sync must not duplicate truck invoices");
   assert.equal(cloudAgain.cashMovements.filter(x=>x.referenceType==="customer_debt").length,1,"repeated sync must not duplicate debt receipts");
+  assert.equal(cloudAgain.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,1,"repeated sync must not duplicate POS cash receipts");
+  assert.equal(cloudAgain.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,1,"repeated sync must not duplicate POS stock movements");
+  assert.equal(cloudAgain.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),1,"repeated sync must not duplicate linked truck sales");
+  assert.equal(cloudAgain.caisseBalance,120,"repeated sync must not double-count the cashbox");
+  assert.equal(Number(cloudAgain.customers.find(x=>String(x.id)==="C1")?.debt),20,"repeated sync must not double-count customer debt");
+  assert.equal(cloudAgain.products[0].warehouseStock["شاحنة 12345-31"],"99.000","repeated sync must not double-count truck inventory");
   await page.evaluate(()=>openView("trucks"));
   await page.locator("#view-trucks.page-view.active").waitFor({state:"visible",timeout:10000});
   await page.locator("#fleetExpense").waitFor({state:"visible",timeout:10000});

@@ -257,12 +257,38 @@ export async function buildStagingHosting(options = {}) {
   stagedHtml = stagedHtml.replace(statusVersionBadge, '$1SW: r42 | Build SHA: ' + buildSha + '$2');
   const builtStatusBar = stagedHtml.match(/<div id="anas-live-status-bar"[^>]*>[\s\S]*?<\/div>/);
   if (!builtStatusBar || !builtStatusBar[0].includes('data-build-version="r42"') || !builtStatusBar[0].includes('SW: r42 | Build SHA: ' + buildSha) || builtStatusBar[0].includes('r40')) throw new Error('Staging status bar and About-app build identity are not synchronized');
-  const fleetPosHookAnchor = "            finalizeSale();\n            return true;";
-  if (stagedHtml.split(fleetPosHookAnchor).length - 1 !== 1) {
-    throw new Error('Expected exactly one durable POS finalize boundary for fleet invoice capture');
+  const fleetPosRollbackAnchor = "            const rollbackSale = (e) => {";
+  if (stagedHtml.split(fleetPosRollbackAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one POS rollback boundary for fleet atomic capture');
   }
-  stagedHtml = stagedHtml.replace(fleetPosHookAnchor,
-    "            finalizeSale();\n            if (window.ANASFleetPOS && typeof window.ANASFleetPOS.onInvoiceCommitted === 'function') {\n              try { await window.ANASFleetPOS.onInvoiceCommitted(invObj); }\n              catch (fleetError) { console.error('[ANAS Fleet] POS invoice committed but fleet ledger capture needs retry:', fleetError); window.dispatchEvent(new CustomEvent('anas:fleet-error', { detail: String(fleetError?.message || fleetError) })); }\n            }\n            return true;");
+  stagedHtml = stagedHtml.replace(fleetPosRollbackAnchor,
+    fleetPosRollbackAnchor + "\n" +
+    "                if (typeof window.__ANAS_FLEET_POS_ROLLBACK__ === 'function') {\n" +
+    "                  try { window.__ANAS_FLEET_POS_ROLLBACK__(); } finally { window.__ANAS_FLEET_POS_ROLLBACK__ = null; }\n" +
+    "                }");
+
+  const fleetPosSaveAnchor = "                // The V42 capture hook must stage the sale mutation before the durable store acknowledges it.\n" +
+    "                if (typeof saveDB !== 'function' || saveDB() !== true)";
+  if (stagedHtml.split(fleetPosSaveAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one POS saveDB boundary for fleet atomic capture');
+  }
+  stagedHtml = stagedHtml.replace(fleetPosSaveAnchor,
+    "                if (window.ANASFleetPOS && typeof window.ANASFleetPOS.prepareInvoiceCommit === 'function') {\n" +
+    "                    window.__ANAS_FLEET_POS_ROLLBACK__ = window.ANASFleetPOS.prepareInvoiceCommit(invObj);\n" +
+    "                }\n" + fleetPosSaveAnchor);
+
+  const fleetPosDurableAnchor = "                if (await saveDBDurably() !== true)\n" +
+    "                    throw new Error('لم يؤكد التخزين الدائم اعتماد الفاتورة.');";
+  if (stagedHtml.split(fleetPosDurableAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one POS durable-save boundary for fleet atomic capture');
+  }
+  stagedHtml = stagedHtml.replace(fleetPosDurableAnchor,
+    fleetPosDurableAnchor + "\n                window.__ANAS_FLEET_POS_ROLLBACK__ = null;");
+
+  const fleetPosFinalizeAnchor = "            finalizeSale();\n            return true;";
+  if (stagedHtml.split(fleetPosFinalizeAnchor).length - 1 !== 1) {
+    throw new Error('Expected exactly one durable POS finalize boundary');
+  }
   // Parse the exact transformed staging shell before it can reach Chromium or Hosting.
   assertInlineClassicScriptsParse(stagedHtml);
   await fs.writeFile(erpIndexPath, stagedHtml, 'utf8');
