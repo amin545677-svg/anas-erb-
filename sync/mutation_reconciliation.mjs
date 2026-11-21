@@ -502,6 +502,7 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         if (targetSnapshot[key] === undefined) delete snapshot[key];
         else snapshot[key] = targetSnapshot[key];
       }
+      if(Object.prototype.hasOwnProperty.call(targetSnapshot,"caisseBalance"))snapshot.caisseBalance=targetSnapshot.caisseBalance;
       if(targetSnapshot.currentUser!==undefined)snapshot.currentUser=targetSnapshot.currentUser;
       snapshot.anasFleetState=rebased;
       markApplied();appliedNow.push({opId:op.opId,outcome:"applied"});continue;
