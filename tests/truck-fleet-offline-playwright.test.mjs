@@ -1,15 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import https from "node:https";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import {execFileSync} from "node:child_process";
 import {buildStagingHosting} from "../scripts/build-staging-hosting.mjs";
 import {chromium} from "playwright";
 import {MUTATION_KEYS} from "../sync/mutation_keys.mjs";
 
-const HOST="anas-erp-staging-a25e1.web.app";
 const DB_KEY=MUTATION_KEYS.appData;
 function fixture(){const customer={id:"C1",name:"زبون قديم",phone:"0000000000",debt:20,credit_limit:100};return{
  appName:"ANAS ERP Truck Offline Acceptance",
@@ -23,18 +21,40 @@ function fixture(){const customer={id:"C1",name:"زبون قديم",phone:"00000
  cashMovements:[],stockMovements:[],clientMovements:[],settlementAllocations:[],auditTrail:[],
  users:[],alerts:[],warehouseTransfers:[],warehouses:[],truckTrips:[],trucks:[],returns:[],stocktakeRecords:[],syncUrl:""
 };}
-function staticServer(root){return (req,res)=>{const pathname=decodeURIComponent(new URL(req.url,"http://localhost").pathname);const relative=pathname.startsWith("/")?pathname.slice(1):pathname;let target=path.resolve(root,relative||"index.html");if(!path.extname(target))target=path.join(target,"index.html");if(!target.startsWith(root+path.sep)&&target!==path.join(root,"index.html")){res.writeHead(403).end();return;}fs.readFile(target,(err,bytes)=>{if(err){res.writeHead(404).end("not found");return;}const ext=path.extname(target);const type=ext===".html"?"text/html; charset=utf-8":ext===".js"||ext===".mjs"?"text/javascript; charset=utf-8":ext===".css"?"text/css":ext===".json"||ext===".webmanifest"?"application/json":"application/octet-stream";res.writeHead(200,{"Content-Type":type,"Cache-Control":"no-store"});res.end(bytes);});};}
+function staticServer(root){
+ root=path.resolve(root);
+ return async(req,res)=>{
+  try{
+   let pathname;
+   try{pathname=decodeURIComponent(new URL(req.url,"http://127.0.0.1").pathname);}catch{res.writeHead(400);res.end("bad request");return;}
+   const relative=pathname.startsWith("/")?pathname.slice(1):pathname;
+   let target=path.resolve(root,relative||"index.html");
+   if(!path.extname(target))target=path.join(target,"index.html");
+   if(target!==root&&!target.startsWith(root+path.sep)){res.writeHead(403);res.end("forbidden");return;}
+   let bytes;
+   try{bytes=await fs.readFile(target);}catch{res.writeHead(404);res.end("not found");return;}
+   const ext=path.extname(target);
+   const type=ext===".html"?"text/html; charset=utf-8":ext===".js"||ext===".mjs"?"text/javascript; charset=utf-8":ext===".css"?"text/css":ext===".json"||ext===".webmanifest"?"application/json":"application/octet-stream";
+   res.writeHead(200,{"Content-Type":type,"Cache-Control":"no-store"});
+   res.end(bytes);
+  }catch{
+   if(!res.headersSent)res.writeHead(500);
+   if(!res.writableEnded)res.end("internal server error");
+  }finally{
+   if(!res.writableEnded&&!res.destroyed)res.end();
+  }
+ };
+}
 test("Staging fleet + POS + debt collection survive airplane hard reload, replay once, and expose 409 fleet conflict",async t=>{
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
- const out=path.join(temp,"site"),keyPath=path.join(temp,"key.pem"),certPath=path.join(temp,"cert.pem");
+ const out=path.join(temp,"site");
  let server,browser;
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
-  execFileSync("openssl",["req","-x509","-newkey","rsa:2048","-nodes","-keyout",keyPath,"-out",certPath,"-subj","/CN="+HOST,"-days","1"],{stdio:"ignore"});
-  server=https.createServer({key:await fs.readFile(keyPath),cert:await fs.readFile(certPath)},staticServer(out));
+  server=http.createServer(staticServer(out));
   await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve);});
   const port=server.address().port;
-  browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*","--host-resolver-rules=MAP "+HOST+" 127.0.0.1,EXCLUDE localhost"]});
+  browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*"]});
   const context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
   await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
   const page=await context.newPage(),errors=[];
@@ -42,7 +62,12 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   let promptNumber=0;
   page.on("dialog",async dialog=>{if(dialog.type()==="prompt"){promptNumber++;await dialog.accept(promptNumber===1?"10.00":JSON.stringify([{invoiceId:"OLD-DEBT-INV",amount:"10.00"}]));}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
-  const cors={"Access-Control-Allow-Origin":"https://"+HOST+":"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
+  const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
+  await page.route("**/*",async route=>{
+   const url=new URL(route.request().url());
+   if(url.protocol==="http:"&&url.hostname==="127.0.0.1"&&Number(url.port)===port){await route.continue();return;}
+   await route.abort();
+  });
   await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
    const req=route.request();
    if(req.method()==="OPTIONS"){await route.fulfill({status:204,headers:cors});return;}
@@ -51,7 +76,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    if(conflictBudget>0){conflictBudget--;await route.fulfill({status:409,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({error:"CAS_CONFLICT"})});return;}
    const body=req.postDataJSON();serverSnapshot=body.data;revision="rev-"+(postCount+1);await route.fulfill({status:200,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({saved:true,revision})});
   });
-  await page.goto("https://"+HOST+":"+port+"/erp/",{waitUntil:"domcontentloaded"});
+  await page.goto("http://127.0.0.1:"+port+"/erp/",{waitUntil:"domcontentloaded",timeout:30000});
   const runtimeReady=()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel");
   await page.waitForFunction(runtimeReady,null,{timeout:30000});
   await page.evaluate(async()=>{await navigator.serviceWorker.ready;});
