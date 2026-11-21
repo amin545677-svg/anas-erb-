@@ -209,7 +209,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(committedSale.truckSales,1,"POS ACK must include the durable truck-invoice linkage");
   await page.waitForFunction(()=>AppData.invoices.some(x=>String(x.warehouse)==="شاحنة 12345-31"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState?.trips?.some(t=>t.sales?.some(s=>s.invoiceId)),null,{timeout:15000});
-  await page.evaluate(async()=>{await collectCustDebt("C1");});
+  const customerDebtAfterPosSale=await page.evaluate(()=>Number(AppData.customers.find(x=>String(x.id)==="C1")?.debt));\n  assert.equal(customerDebtAfterPosSale,20,"a fully paid cash invoice without a selected customer must not change C1 debt");\n  await page.evaluate(async()=>{await collectCustDebt("C1");});
   await page.waitForFunction(()=>AppData.cashMovements.some(x=>x.referenceType==="customer_debt"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState.trips.some(t=>t.debtPayments?.length),null,{timeout:15000});
   await context.setOffline(true);
@@ -275,7 +275,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      invoice:addedInvoices.some(row=>String(row.id)===invoiceId),
      cashMovements:addedCash.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId),
      stockMovements:addedStock.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId),
-     customer:invoiceCustomerId==="C1"&&changedCustomers.every(row=>String(row.id)==="C1"),
+     customer:invoiceCustomerId===""&&changedCustomers.length===0,
      truckTripSale:fleetSales.length>0,
      truckStock:fleetStockMatchesSales(item,fleetSales),
      auditTrail:auditRows.length===fleetSales.length&&fleetSales.length>0
@@ -325,7 +325,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     cashReceipts:s.cashMovements.filter(x=>x.referenceType==="customer_debt").length,
     saleCashReceipts:s.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,
     saleStockMovements:s.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,
-    customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
+    invoiceTotal:Number(invoice?.total),invoicePaid:Number(invoice?.paid),invoiceRemaining:Number(invoice?.remaining),\n    invoiceCustomerId:String(invoice?.customerId??invoice?.customerObj?.id??""),\n    customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
     truckWarehouseStock:Number(s.products.find(x=>String(x.id)==="TRUCK-P1")?.warehouseStock?.["شاحنة 12345-31"]),
     pendingTypes:q.map(x=>x.type),
     posBundle:bundle?{
@@ -354,9 +354,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(localProof.posBundle.stockMovementIds.length,1,"the same durable fleet operation must contain the POS stock ledger row");
   assert.equal(localProof.posBundle.fleetSaleIds.length,1,"the durable fleet operation must contain the linked truck sale");
   assert.equal(localProof.posBundle.auditIds.length,1,"the durable fleet operation must contain the invoice audit row");
-  assert.equal(localProof.posBundle.separateSaleOps,0,"the invoice must not be split into a second SALE_INVOICE queue operation");
+  assert.equal(localProof.posBundle.separateSaleOps,0,"the invoice must not be split into a second SALE_INVOICE queue operation");\n  assert.equal(localProof.invoiceTotal,10,"one truck POS item at retail price 10 must produce a total of 10");\n  assert.equal(localProof.invoicePaid,10,"the POS test pays the full invoice amount");\n  assert.equal(localProof.invoiceRemaining,0,"the POS test invoice must be fully settled");\n  assert.equal(localProof.invoiceCustomerId,"","the POS test uses the transient cash customer, not C1");
   assert.equal(localProof.cashBalance,120,"local POS cash and debt receipt must update the cashbox exactly once");
-  assert.equal(localProof.customerDebt,20,"local invoice debt and later receipt must net to the correct customer balance");
+  assert.equal(localProof.customerDebt,10,"collecting 10 from C1 old debt of 20 must leave a balance of 10; the cash POS invoice adds no debt");
   assert.equal(localProof.truckWarehouseStock,99,"local POS must deduct truck warehouse stock exactly once");
   assert.ok(localProof.pendingTypes.includes("DEBT_COLLECTION"),"customer debt payment must be durably queued");
   assert.ok(Number(localProof.sequence)>=6,"local mutation sequence must persist across all truck, invoice and debt operations");
@@ -372,7 +372,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(cloud.cashMovements.filter(x=>x.referenceType==="sales_invoice").length,1);
   assert.equal(cloud.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,1);
   assert.equal(cloud.caisseBalance,120,"the POS sale and debt receipt must update the cashbox exactly once");
-  assert.equal(Number(cloud.customers.find(x=>String(x.id)==="C1")?.debt),20,"replay must apply invoice debt and debt receipt exactly once");
+  assert.equal(Number(cloud.customers.find(x=>String(x.id)==="C1")?.debt),10,"replay must collect 10 from the old C1 debt without adding cash-sale debt");
   assert.equal(cloud.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),1);
   assert.equal(cloud.anasFleetState.trips.reduce((n,t)=>n+(t.debtPayments||[]).length,0),1);
   assert.equal(cloud.products[0].stock,"100.000","main warehouse stock must reflect the atomic 100-unit truck load");
@@ -389,7 +389,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(cloudAgain.stockMovements.filter(x=>x.referenceType==="sales_invoice").length,1,"repeated sync must not duplicate POS stock movements");
   assert.equal(cloudAgain.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0),1,"repeated sync must not duplicate linked truck sales");
   assert.equal(cloudAgain.caisseBalance,120,"repeated sync must not double-count the cashbox");
-  assert.equal(Number(cloudAgain.customers.find(x=>String(x.id)==="C1")?.debt),20,"repeated sync must not double-count customer debt");
+  assert.equal(Number(cloudAgain.customers.find(x=>String(x.id)==="C1")?.debt),10,"repeated sync must not double-count customer debt");
   assert.equal(cloudAgain.products[0].warehouseStock["شاحنة 12345-31"],"99.000","repeated sync must not double-count truck inventory");
   await page.evaluate(()=>openView("trucks"));
   await page.locator("#view-trucks.page-view.active").waitFor({state:"visible",timeout:10000});
