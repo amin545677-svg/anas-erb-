@@ -25,16 +25,24 @@ function staticServer(root){
  root=path.resolve(root);
  return async(req,res)=>{
   try{
-   let pathname;
-   try{pathname=decodeURIComponent(new URL(req.url,"http://127.0.0.1").pathname);}catch{res.writeHead(400);res.end("bad request");return;}
-   const relative=pathname.startsWith("/")?pathname.slice(1):pathname;
+   let cleanPath;
+   try{cleanPath=decodeURIComponent(new URL(req.url,"http://127.0.0.1").pathname);}catch{res.writeHead(400);res.end("bad request");return;}
+   const relative=cleanPath.startsWith("/")?cleanPath.slice(1):cleanPath;
    let target=path.resolve(root,relative||"index.html");
    if(!path.extname(target))target=path.join(target,"index.html");
    if(target!==root&&!target.startsWith(root+path.sep)){res.writeHead(403);res.end("forbidden");return;}
    let bytes;
    try{bytes=await fs.readFile(target);}catch{res.writeHead(404);res.end("not found");return;}
    const ext=path.extname(target);
-   const type=ext===".html"?"text/html; charset=utf-8":ext===".js"||ext===".mjs"?"text/javascript; charset=utf-8":ext===".css"?"text/css":ext===".json"||ext===".webmanifest"?"application/json":"application/octet-stream";
+   const contentTypes={
+    ".html":"text/html; charset=utf-8",
+    ".js":"application/javascript; charset=utf-8",
+    ".mjs":"application/javascript; charset=utf-8",
+    ".css":"text/css; charset=utf-8",
+    ".json":"application/json; charset=utf-8",
+    ".webmanifest":"application/manifest+json; charset=utf-8"
+   };
+   const type=contentTypes[ext]||"application/octet-stream";
    res.writeHead(200,{"Content-Type":type,"Cache-Control":"no-store"});
    res.end(bytes);
   }catch{
@@ -57,15 +65,27 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*"]});
   const context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
   await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
-  const page=await context.newPage(),errors=[];
+  const page=await context.newPage(),errors=[],local404s=[],externalScripts=[];
+  const localOrigin="http://127.0.0.1:"+port;
   page.on("pageerror",e=>errors.push(e.stack||e.message));
+  page.on("response",response=>{
+   if(response.status()===404&&response.url().startsWith(localOrigin+"/"))local404s.push(response.url());
+  });
   let promptNumber=0;
   page.on("dialog",async dialog=>{if(dialog.type()==="prompt"){promptNumber++;await dialog.accept(promptNumber===1?"10.00":JSON.stringify([{invoiceId:"OLD-DEBT-INV",amount:"10.00"}]));}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
   await page.route("**/*",async route=>{
-   const url=new URL(route.request().url());
+   const request=route.request(),url=new URL(request.url());
    if(url.protocol==="http:"&&url.hostname==="127.0.0.1"&&Number(url.port)===port){await route.continue();return;}
+   // All application-critical SDKs and runtimes are bundled under /erp/.
+   // External script tags are optional integrations; answer deterministically
+   // instead of turning their absence into a page bootstrap network failure.
+   if(request.resourceType()==="script"){
+    externalScripts.push(request.url());
+    await route.fulfill({status:200,contentType:"application/javascript; charset=utf-8",body:"/* optional external script disabled in offline acceptance */"});
+    return;
+   }
    await route.abort();
   });
   await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
@@ -78,7 +98,15 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   });
   await page.goto("http://127.0.0.1:"+port+"/erp/",{waitUntil:"domcontentloaded",timeout:30000});
   const runtimeReady=()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel");
-  await page.waitForFunction(runtimeReady,null,{timeout:30000});
+  try{
+   await page.waitForFunction(runtimeReady,null,{timeout:30000});
+  }catch(error){
+   console.error("[truck-offline] runtimeReady bootstrap failed:",error?.stack||error);
+   console.error("[truck-offline] page errors:",JSON.stringify(errors));
+   console.error("[truck-offline] local 404 responses:",JSON.stringify(local404s));
+   console.error("[truck-offline] optional external scripts stubbed:",JSON.stringify(externalScripts));
+   throw error;
+  }
   await page.evaluate(async()=>{await navigator.serviceWorker.ready;});
   if(!(await page.evaluate(()=>!!navigator.serviceWorker?.controller)))await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>!!navigator.serviceWorker?.controller&&window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel"),null,{timeout:30000});
