@@ -130,6 +130,13 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("[data-fleet='load']").click();
   await page.waitForFunction(()=>AppData.products[0].stock=== "100.000"||Number(AppData.products[0].stock)===100);
   await page.locator("[data-fleet='pos']").click();
+  // The fleet click handler awaits durable warehouse persistence before calling
+  // openView("pos"); Playwright's click does not await that async handler.
+  // Wait for the actual POS view and its visible search control before typing.
+  await page.locator("#view-pos.page-view.active").waitFor({state:"visible",timeout:15000});
+  await page.locator("#posSearchField").waitFor({state:"visible",timeout:15000});
+  assert.equal(await page.locator("#posSearchField").isVisible(),true,
+    "truck POS action must finish navigation and expose the cashier search field");
   await page.locator("#posSearchField").fill("شاي اختبار الشاحنة");
   const result=page.locator("#posSearchResults .pos-search-result").filter({hasText:"شاي اختبار الشاحنة"});
   await result.waitFor({state:"visible",timeout:10000});
@@ -181,6 +188,8 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(cloudAgain.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,1,"repeated sync must not duplicate truck invoices");
   assert.equal(cloudAgain.cashMovements.filter(x=>x.referenceType==="customer_debt").length,1,"repeated sync must not duplicate debt receipts");
   await page.evaluate(()=>openView("trucks"));
+  await page.locator("#view-trucks.page-view.active").waitFor({state:"visible",timeout:10000});
+  await page.locator("#fleetExpense").waitFor({state:"visible",timeout:10000});
   await page.locator("#fleetExpense").fill("1.00");
   await page.locator("#fleetExpenseCategory").fill("وقود");
   await page.locator("#fleetExpenseRef").fill("FUEL-001");
