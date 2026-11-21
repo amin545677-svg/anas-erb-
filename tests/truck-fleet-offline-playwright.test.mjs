@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import http from "node:http";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
@@ -24,7 +23,7 @@ function fixture(){const customer={id:"C1",name:"زبون قديم",phone:"00000
  cashMovements:[],stockMovements:[],clientMovements:[],settlementAllocations:[],auditTrail:[],
  users:[],alerts:[],warehouseTransfers:[],warehouses:[],truckTrips:[],trucks:[],returns:[],stocktakeRecords:[],syncUrl:""
 };}
-function staticServer(root){return http.createServer((req,res)=>{const pathname=decodeURIComponent(new URL(req.url,"http://localhost").pathname);const relative=pathname.startsWith("/")?pathname.slice(1):pathname;let target=path.resolve(root,relative||"index.html");if(!path.extname(target))target=path.join(target,"index.html");if(!target.startsWith(root+path.sep)&&target!==path.join(root,"index.html")){res.writeHead(403).end();return;}fs.readFile(target,(err,bytes)=>{if(err){res.writeHead(404).end("not found");return;}const ext=path.extname(target);const type=ext===".html"?"text/html; charset=utf-8":ext===".js"||ext===".mjs"?"text/javascript; charset=utf-8":ext===".css"?"text/css":ext===".json"||ext===".webmanifest"?"application/json":"application/octet-stream";res.writeHead(200,{"Content-Type":type,"Cache-Control":"no-store"});res.end(bytes);});});}
+function staticServer(root){return (req,res)=>{const pathname=decodeURIComponent(new URL(req.url,"http://localhost").pathname);const relative=pathname.startsWith("/")?pathname.slice(1):pathname;let target=path.resolve(root,relative||"index.html");if(!path.extname(target))target=path.join(target,"index.html");if(!target.startsWith(root+path.sep)&&target!==path.join(root,"index.html")){res.writeHead(403).end();return;}fs.readFile(target,(err,bytes)=>{if(err){res.writeHead(404).end("not found");return;}const ext=path.extname(target);const type=ext===".html"?"text/html; charset=utf-8":ext===".js"||ext===".mjs"?"text/javascript; charset=utf-8":ext===".css"?"text/css":ext===".json"||ext===".webmanifest"?"application/json":"application/octet-stream";res.writeHead(200,{"Content-Type":type,"Cache-Control":"no-store"});res.end(bytes);});};}
 test("Staging fleet + POS + debt collection survive airplane hard reload, replay once, and expose 409 fleet conflict",async t=>{
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site"),keyPath=path.join(temp,"key.pem"),certPath=path.join(temp,"cert.pem");
