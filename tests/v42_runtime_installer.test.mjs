@@ -1071,3 +1071,109 @@ test("truck fleet mutation captures and atomically replays related operational c
   assert.deepEqual(storage.json(MUTATION_KEYS.pending), []);
   assert.equal(installer.uninstall(), true);
 });
+
+
+test("runtime wiring permits POS cart-only saves during a prepared write and never lets an older ACK release a newer lock", async () => {
+  const initial = fixture();
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: JSON.stringify(initial),
+    [MUTATION_KEYS.pending]: "[]",
+    [MUTATION_KEYS.rescue]: "null",
+    [MUTATION_KEYS.quarantined]: "[]",
+    [MUTATION_KEYS.revision]: "0"
+  });
+  let appData = structuredClone(initial);
+  const durableResolvers = [];
+  let operationSequence = 0;
+  const context = {
+    saveDB: () => {
+      storage.setItem(MUTATION_KEYS.appData, JSON.stringify(appData));
+      return true;
+    },
+    saveDBDurably: () => new Promise(resolve => durableResolvers.push(resolve))
+  };
+  const installer = installV42RuntimeWiring({
+    windowObject: {},
+    storage,
+    orchestrator: { pushCurrent: async () => ({ status: "empty" }), reconcileAndSync: async () => ({ status: "synced" }) },
+    getAppData: () => appData,
+    setAppData: value => { appData = value; },
+    getSaveDB: () => context.saveDB,
+    setSaveDB: fn => { context.saveDB = fn; },
+    getSaveDBDurably: () => context.saveDBDurably,
+    setSaveDBDurably: fn => { context.saveDBDurably = fn; },
+    mapMutation: ({ entity, kind }) => ({
+      type: "SALE_INVOICE",
+      payload: { kind, customerId: null, warehouse: entity.warehouse, invoice: structuredClone(entity) }
+    }),
+    uuid: () => "pos-lock-" + (++operationSequence),
+    now: () => new Date("2026-11-21T12:00:00.000Z")
+  });
+  const addSale = id => {
+    appData.invoices.push({
+      id, warehouse: "المخزن الرئيسي", total: "10.00", paid: "10.00", remaining: "0.00", items: []
+    });
+    appData.cashMovements.push({
+      id: "CASH-" + id, type: "add", amount: "10.00",
+      referenceType: "sales_invoice", referenceId: id
+    });
+    appData.stockMovements.push({
+      id: "STOCK-" + id, type: "SALE_OUT", qty: "-1",
+      referenceType: "sales_invoice", referenceId: id
+    });
+  };
+
+  installer.install();
+  addSale("INV-1");
+  assert.equal(context.saveDB(), true);
+  const first = storage.json(MUTATION_KEYS.pending)[0];
+  assert.equal(first.status, "PREPARED");
+
+  const afterFirst = structuredClone(appData);
+  addSale("INV-2");
+  assert.throws(() => context.saveDB(), /awaiting its durable save acknowledgement/);
+  assert.deepEqual(appData.auditTrail, afterFirst.auditTrail,
+    "a blocked second sale must not synthesize or leave audit data in memory");
+  appData = afterFirst;
+
+  appData.posScreensCarts = { 1: [] };
+  assert.equal(context.saveDB(), true, "cart-only persistence must not be rejected by a pending financial ACK");
+  assert.equal(storage.json(MUTATION_KEYS.pending)[0].status, "PREPARED",
+    "a no-op cart save must not release or promote the financial operation");
+
+  const firstAck = context.saveDBDurably();
+  const duplicateFirstAck = context.saveDBDurably();
+  await Promise.resolve();
+  assert.equal(durableResolvers.length, 1, "overlapping durable ACK calls must serialize rather than race");
+  durableResolvers[0](true);
+  assert.equal(await firstAck, true);
+  await Promise.resolve();
+  assert.equal(durableResolvers.length, 2, "the duplicate ACK must start only after the first has completed");
+  assert.equal(storage.json(MUTATION_KEYS.pending)[0].status, "PENDING");
+
+  addSale("INV-2");
+  assert.equal(context.saveDB(), true);
+  const second = storage.json(MUTATION_KEYS.pending).find(item => item.opId !== first.opId);
+  assert.ok(second);
+  assert.equal(second.status, "PREPARED");
+
+  durableResolvers[1](false);
+  assert.equal(await duplicateFirstAck, false);
+  assert.equal(storage.json(MUTATION_KEYS.pending).find(item => item.opId === first.opId).status, "PENDING",
+    "a late failed duplicate ACK must not delete an operation already durably acknowledged");
+  assert.equal(storage.json(MUTATION_KEYS.pending).find(item => item.opId === second.opId).status, "PREPARED",
+    "a late failed ACK for the first operation must not clear the second operation's lock");
+
+  const beforeRejectedThird = structuredClone(appData);
+  addSale("INV-3");
+  assert.throws(() => context.saveDB(), /awaiting its durable save acknowledgement/);
+  appData = beforeRejectedThird;
+
+  const secondAck = context.saveDBDurably();
+  await Promise.resolve();
+  assert.equal(durableResolvers.length, 3);
+  durableResolvers[2](true);
+  assert.equal(await secondAck, true);
+  assert.equal(storage.json(MUTATION_KEYS.pending).find(item => item.opId === second.opId).status, "PENDING");
+  assert.equal(installer.uninstall(), true);
+});

@@ -50,6 +50,7 @@ export function installV42RuntimeWiring({
   let isReconcilingWrite = false;
   let lastSnapshot = null;
   let pendingPrepared = null;
+  let durableSaveTail = Promise.resolve();
   let unsupportedLocalMutations = Boolean(storage.getItem(MUTATION_KEYS.unsupported));
 
   function readStoredAppData() {
@@ -406,7 +407,9 @@ export function installV42RuntimeWiring({
   }
 
   function discardPrepared(pending) {
-    if (!pending) return;
+    // A late/duplicate ACK no longer owns this lock. It must not roll back
+    // capture metadata or remove a PREPARED/PENDING row owned by a later state.
+    if (!pending || pendingPrepared !== pending) return;
     try { pending.restoreCaptureMetadata(); } catch (_) {}
     try {
       storage.setItem(MUTATION_KEYS.pending, JSON.stringify(
@@ -419,45 +422,58 @@ export function installV42RuntimeWiring({
     if (pendingPrepared === pending) pendingPrepared = null;
   }
 
-  async function wrappedSaveDBDurably(...args) {
-    if (!originalSaveDBDurably) throw new Error("V42 durable save binding is unavailable");
+  function wrappedSaveDBDurably(...args) {
+    if (!originalSaveDBDurably) return Promise.reject(new Error("V42 durable save binding is unavailable"));
     const pending = pendingPrepared;
-    try {
-      if (typeof storage.flush === "function") await storage.flush();
-      const result = await originalSaveDBDurably.apply(this, args);
-      if (!pending) return result;
-      if (result === true || hasCommittedOperationMarker(pending.operation.opId)) {
-        try {
-          promote(pending.operation.opId);
-          if (typeof storage.flush === "function") await storage.flush();
-        } catch (error) {
-          // The durable business snapshot is authoritative. Keep PREPARED so
-          // boot recovery can promote it from the persisted operation marker.
-          onStatus({ level: "warning", code: "V42_QUEUE_PROMOTION_DEFERRED", opId: pending.operation.opId, message: String(error?.message || error) });
+    const receiver = this;
+    const execute = async () => {
+      try {
+        if (typeof storage.flush === "function") await storage.flush();
+        const result = await originalSaveDBDurably.apply(receiver, args);
+        if (!pending) return result;
+        if (result === true || hasCommittedOperationMarker(pending.operation.opId)) {
+          try {
+            promote(pending.operation.opId);
+            if (typeof storage.flush === "function") await storage.flush();
+          } catch (error) {
+            // The durable business snapshot is authoritative. Keep PREPARED so
+            // boot recovery can promote it from the persisted operation marker.
+            onStatus({ level: "warning", code: "V42_QUEUE_PROMOTION_DEFERRED", opId: pending.operation.opId, message: String(error?.message || error) });
+          }
+          if (pendingPrepared === pending) {
+            pendingPrepared = null;
+            lastSnapshot = structuredClone(getAppData());
+          }
+          return true;
         }
-        pendingPrepared = null;
-        lastSnapshot = structuredClone(getAppData());
-        return true;
-      }
-      discardPrepared(pending);
-      if (typeof storage.flush === "function") await storage.flush();
-      return result;
-    } catch (error) {
-      if (pending && hasCommittedOperationMarker(pending.operation.opId)) {
-        try { promote(pending.operation.opId); }
-        catch (promotionError) {
-          onStatus({ level: "warning", code: "V42_QUEUE_PROMOTION_DEFERRED", opId: pending.operation.opId, message: String(promotionError?.message || promotionError) });
-        }
-        pendingPrepared = null;
-        lastSnapshot = structuredClone(getAppData());
-        return true;
-      }
-      if (pending) {
         discardPrepared(pending);
         if (typeof storage.flush === "function") await storage.flush();
+        return result;
+      } catch (error) {
+        if (pending && hasCommittedOperationMarker(pending.operation.opId)) {
+          try { promote(pending.operation.opId); }
+          catch (promotionError) {
+            onStatus({ level: "warning", code: "V42_QUEUE_PROMOTION_DEFERRED", opId: pending.operation.opId, message: String(promotionError?.message || promotionError) });
+          }
+          if (pendingPrepared === pending) {
+            pendingPrepared = null;
+            lastSnapshot = structuredClone(getAppData());
+          }
+          return true;
+        }
+        if (pending) {
+          discardPrepared(pending);
+          if (typeof storage.flush === "function") await storage.flush();
+        }
+        throw error;
       }
-      throw error;
-    }
+    };
+    // Durable writes are serialized even when legacy callers invoke the
+    // acknowledgement twice. Capture the prepared operation at call time so
+    // an older queued ACK can never release a newer operation's lock.
+    const run = durableSaveTail.then(execute, execute);
+    durableSaveTail = run.catch(() => {});
+    return run;
   }
 
   function wrappedSaveDB(...args) {
@@ -467,17 +483,24 @@ export function installV42RuntimeWiring({
       if (saved === true) lastSnapshot = structuredClone(getAppData());
       return saved;
     }
-    if (pendingPrepared) {
-      throw new Error("A previous V42 mutation is still awaiting its durable save acknowledgement");
-    }
     const current = getAppData();
     if (!current || typeof current !== "object" || Array.isArray(current)) {
+      if (pendingPrepared) {
+        throw new Error("A previous V42 mutation is still awaiting its durable save acknowledgement");
+      }
       return originalSaveDB.apply(this, args);
     }
     const previous = readStoredAppData() || lastSnapshot || {};
+    const hasBusinessDelta = hasUnsupportedBusinessDelta(current, previous);
+    // Check before makeOperation: sale capture may synthesize an audit row, so
+    // a blocked overlapping write must not leave even that mutation in memory.
+    // Cart/UI-only saves may continue while the prepared financial write waits.
+    if (pendingPrepared && hasBusinessDelta) {
+      throw new Error("A previous V42 mutation is still awaiting its durable save acknowledgement");
+    }
     const captured = makeOperation(current, previous);
     if (!captured) {
-      if (hasUnsupportedBusinessDelta(current, previous)) {
+      if (hasBusinessDelta) {
         const ok = originalSaveDB.apply(this, args);
         if (ok === true) {
           unsupportedLocalMutations = true;
@@ -497,7 +520,7 @@ export function installV42RuntimeWiring({
         return ok;
       }
       const ok = originalSaveDB.apply(this, args);
-      if (ok === true) lastSnapshot = structuredClone(getAppData());
+      if (ok === true && !pendingPrepared) lastSnapshot = structuredClone(getAppData());
       return ok;
     }
 

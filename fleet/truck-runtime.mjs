@@ -90,24 +90,42 @@ async function recordInvoice(inv){const d=data();if(!inv?.id)return false;lastIn
 async function recoverInvoices(){const d=data();if(!d?.anasFleetState)return;const t=active();if(!t)return;for(const inv of (d.invoices||[]).filter(x=>String(x.warehouse||x.warehouseName||"")===String(t.warehouseName)))await recordInvoice(inv);}
 async function recoverDebtMovements(){const d=data();if(!d?.anasFleetState)return;const s=state(),t=active(s);if(!t)return;const known=new Set((t.debtPayments||[]).map(x=>String(x.referenceId)));for(const m of (d.cashMovements||[]).filter(x=>x?.type==="add"&&x?.referenceType==="customer_debt"&&!known.has(String(x.id))&&(!x.date||new Date(x.date).getTime()>=new Date(t.openedAt).getTime()))){const c=(d.customers||[]).find(x=>String(x.id)===String(m.referenceId));const before=minor(c?.debt||0)+minor(m.amount||0);await recordDebt(m,before);}}
 async function recordDebt(m,before){if(m?.referenceType!=="customer_debt")return;const customer=data()?.customers?.find(x=>String(x.id)===String(m.referenceId));lastPayment={id:m.id,date:m.date,customerName:customer?.name||"عميل",beforeMinor:before,amountMinor:minor(m.amount)};const s=state(),t=active(s);if(!t||t.status!=="ACTIVE"||t.debtPayments?.some(x=>String(x.referenceId)===String(m.id)))return;const next=recordOldDebtPayment(s,t.id,{customerId:String(m.referenceId),referenceId:String(m.id),amount:String(m.amount)},key("TRUCK-DEBT-"+m.id),actor());await persist(next.state);}
+let posCommitInFlight=null;
 function hookPosCartDurability(){
  const originalConfirm=W.confirmHasibPaymentDurable;
  if(typeof originalConfirm==="function"&&!originalConfirm.__anasFleetDurableWrapped){
   const wrappedConfirm=async function(){
+   if(posCommitInFlight)return posCommitInFlight;
+   const receiver=this,args=arguments;
+   let preflightFailed=false;
    const acknowledgement=(async()=>{
-    if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم لتعديل POS السابق");
-    return true;
+    try{
+     if(typeof W.saveDBDurably!=="function"||await W.saveDBDurably()!==true)throw Error("لم يؤكد التخزين الدائم لتعديل POS السابق");
+    }catch(error){preflightFailed=true;throw error;}
+    // The ACK covers invoice posting AND the awaited fleet invoice linkage,
+    // not merely the pre-checkout cart snapshot.
+    return await originalConfirm.apply(receiver,args);
    })();
+   posCommitInFlight=acknowledgement;
    W.__ANAS_POS_CART_DURABLE_SAVE__=acknowledgement;
-   try{await acknowledgement;}
-   catch(error){message("لم يبدأ اعتماد الفاتورة لأن الحفظ السابق في POS لم يكتمل: "+String(error?.message||error),true);return false;}
-   return originalConfirm.apply(this,arguments);
+   try{return await acknowledgement;}
+   catch(error){
+    if(preflightFailed){message("لم يبدأ اعتماد الفاتورة لأن الحفظ السابق في POS لم يكتمل: "+String(error?.message||error),true);return false;}
+    throw error;
+   }finally{if(posCommitInFlight===acknowledgement)posCommitInFlight=null;}
   };
   wrappedConfirm.__anasFleetDurableWrapped=true;
   W.confirmHasibPaymentDurable=wrappedConfirm;
  }
 }
-function hookDebt(){const original=W.collectCustDebt;if(typeof original!=="function"||original.__anasFleetWrapped)return;const wrapped=async function(id){const d=data(),c=d?.customers?.find(x=>String(x.id)===String(id)),before=minor(c?.debt||0),ids=new Set((d?.cashMovements||[]).map(x=>String(x.id)));const result=await original.apply(this,arguments);const m=(data()?.cashMovements||[]).find(x=>!ids.has(String(x.id))&&x?.type==="add"&&x?.referenceType==="customer_debt");if(m)try{await recordDebt(m,before);}catch(e){message("تم حفظ قبض العميل لكن ربطه بالجولة يحتاج مراجعة: "+String(e.message||e),true);}return result;};wrapped.__anasFleetWrapped=true;W.collectCustDebt=wrapped;}
+function hookDebt(){const original=W.collectCustDebt;if(typeof original!=="function"||original.__anasFleetWrapped)return;const wrapped=async function(id){
+ if(posCommitInFlight){try{await posCommitInFlight;}catch(error){message("توقف قبض الدين حتى تُحسم عملية POS السابقة: "+String(error?.message||error),true);return false;}}
+ const d=data(),c=d?.customers?.find(x=>String(x.id)===String(id)),before=minor(c?.debt||0),ids=new Set((d?.cashMovements||[]).map(x=>String(x.id)));
+ const result=await original.apply(this,arguments);
+ const m=(data()?.cashMovements||[]).find(x=>!ids.has(String(x.id))&&x?.type==="add"&&x?.referenceType==="customer_debt");
+ if(m)try{await recordDebt(m,before);}catch(e){message("تم حفظ قبض العميل لكن ربطه بالجولة يحتاج مراجعة: "+String(e.message||e),true);}
+ return result;
+};wrapped.__anasFleetWrapped=true;W.collectCustDebt=wrapped;}
 function hookInvoicePrint(){const observer=new MutationObserver(()=>{const dialog=document.getElementById("anasInvoicePostSaveDialog");if(!dialog||dialog.querySelector("[data-anas-fleet-print]"))return;const b=document.createElement("button");b.type="button";b.dataset.anasFleetPrint="1";b.className="btn-pos-hasib";b.textContent="🖨️ طباعة حرارية عربية";b.addEventListener("click",()=>{const inv=(data()?.invoices||[]).find(x=>String(x.id)===String(lastInvoice?.id))||lastInvoice;if(inv)printInvoice(inv).catch(e=>message(String(e.message||e),true));});dialog.querySelector("div")?.appendChild(b);});observer.observe(document.body,{childList:true,subtree:true});}
 function setupConflictCenter(){const truckReview=x=>String(x?.reason||"").startsWith("TRUCK_FLEET_");W.addEventListener("anas:v42-sync-quarantine",e=>(e.detail||[]).filter(truckReview).forEach(showConflict));const rows=W.ANASResilientStorage?.getItem?.(MUTATION_KEYS.quarantined)||[];rows.filter(truckReview).forEach(showConflict);}
 function showConflict(item){const root=panel?.querySelector("#fleetConflict");if(!root)return;const isCas=item.reason==="TRUCK_FLEET_STATE_CONFLICT";const cloud=item.cloudState??item.cloudWarehouse??null,local=item.localState??item.operation?.payload?.nextState??item.localWarehouse??null;root.innerHTML="<div style='border:1px solid #d97706;padding:10px;border-radius:10px'><strong>"+(isCas?"تعارض شاحنة HTTP 409":"مراجعة عملية شاحنة")+"</strong><p>السبب: "+esc(item.reason)+"</p><p>نسخة الخادم ونسخة الجهاز محفوظتان؛ لا توجد كتابة صامتة.</p><pre style='white-space:pre-wrap;max-height:100px;overflow:auto'>"+esc(JSON.stringify(cloud,null,2))+"</pre><pre style='white-space:pre-wrap;max-height:100px;overflow:auto'>"+esc(JSON.stringify(local,null,2))+"</pre>"+(isCas?"<button data-choice='cloud'>الاحتفاظ بنسخة الخادم</button><button data-choice='local'>إعادة تطبيق نسخة الجهاز</button>":"")+"</div>";root.querySelectorAll("[data-choice]").forEach(b=>b.addEventListener("click",()=>resolveConflict(item,b.dataset.choice).catch(e=>message(String(e.message||e),true))));}

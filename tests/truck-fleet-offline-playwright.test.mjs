@@ -183,9 +183,18 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   await page.locator("#hasibModal button[onclick='confirmHasibPaymentDurable()']").click();
   await page.evaluate(async()=>{
     const acknowledgement=window.__ANAS_POS_CART_DURABLE_SAVE__;
-    if(!acknowledgement||typeof acknowledgement.then!=="function")throw new Error("POS confirmation did not acknowledge the preceding cart save");
+    if(!acknowledgement||typeof acknowledgement.then!=="function")throw new Error("POS confirmation did not expose its full durable acknowledgement");
     await acknowledgement;
   });
+  const committedSale=await page.evaluate(()=>{
+    const snapshot=window.ANASResilientStorage.getCommittedSnapshot();
+    return {
+      invoiceCount:snapshot.invoices.filter(x=>String(x.warehouse)==="شاحنة 12345-31").length,
+      truckSales:snapshot.anasFleetState.trips.reduce((n,t)=>n+(t.sales||[]).length,0)
+    };
+  });
+  assert.equal(committedSale.invoiceCount,1,"POS ACK must include the durable invoice");
+  assert.equal(committedSale.truckSales,1,"POS ACK must include the durable truck-invoice linkage");
   await page.waitForFunction(()=>AppData.invoices.some(x=>String(x.warehouse)==="شاحنة 12345-31"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState?.trips?.some(t=>t.sales?.some(s=>s.invoiceId)),null,{timeout:15000});
   await page.evaluate(async()=>{await collectCustDebt("C1");});
