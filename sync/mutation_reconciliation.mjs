@@ -199,29 +199,52 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         continue;
       }
       if (!Array.isArray(targetSnapshot.warehouses)) targetSnapshot.warehouses = [];
+      // The fleet engine stores warehouseName on the truck, not on the trip.
+      // Recover it from the actor's latest trip/truck when an older capture
+      // envelope contains a warehouse row whose name is absent.
+      const actorTrip = [...nextState.trips].reverse().find(trip =>
+        String(trip?.driverId ?? "") === String(payload.actorId ?? "")
+      );
+      const actorTruck = actorTrip
+        ? nextState.trucks.find(truck => String(truck?.id ?? "") === String(actorTrip.truckId ?? ""))
+        : null;
+      const baseActorTruck = actorTrip && Array.isArray(baseState?.trucks)
+        ? baseState.trucks.find(truck => String(truck?.id ?? "") === String(actorTrip.truckId ?? ""))
+        : null;
+      const derivedWarehouseName = String(
+        actorTruck?.warehouseName || baseActorTruck?.warehouseName || ""
+      ).trim();
       for (const warehouse of warehouseRows) {
-        const name = String(typeof warehouse === "string" ? warehouse : warehouse?.name || "").trim();
+        const suppliedName = String(
+          typeof warehouse === "string" ? warehouse : warehouse?.name || ""
+        ).trim();
+        const name = suppliedName || (
+          warehouse && typeof warehouse === "object" ? derivedWarehouseName : ""
+        );
         if (!name) {
           review.push({ opId: op.opId, reason: "TRUCK_FLEET_WAREHOUSE_INVALID", operation: op });
           continue;
         }
+        const normalizedWarehouse = warehouse && typeof warehouse === "object"
+          ? { ...warehouse, name }
+          : warehouse;
         const existing = targetSnapshot.warehouses.find(row =>
           String(typeof row === "string" ? row : row?.name || "").trim() === name
         );
-        if (!existing) targetSnapshot.warehouses.push(structuredClone(warehouse));
+        if (!existing) targetSnapshot.warehouses.push(structuredClone(normalizedWarehouse));
         else {
-          const sameIdentity = typeof existing === "object" && typeof warehouse === "object" &&
-            String(existing.id ?? "") === String(warehouse.id ?? "") &&
-            String(existing.name ?? "") === String(warehouse.name ?? "") &&
-            String(existing.type ?? "") === String(warehouse.type ?? "");
+          const sameIdentity = typeof existing === "object" && typeof normalizedWarehouse === "object" &&
+            String(existing.id ?? "") === String(normalizedWarehouse.id ?? "") &&
+            String(existing.name ?? "") === String(normalizedWarehouse.name ?? "") &&
+            String(existing.type ?? "") === String(normalizedWarehouse.type ?? "");
           const existingOwner = existing && typeof existing === "object" ? existing.assigned_user_id ?? null : null;
-          const requestedOwner = warehouse && typeof warehouse === "object" ? warehouse.assigned_user_id ?? null : null;
+          const requestedOwner = normalizedWarehouse && typeof normalizedWarehouse === "object" ? normalizedWarehouse.assigned_user_id ?? null : null;
           const allowedRelease = sameIdentity && String(existingOwner ?? "") === String(payload.actorId ?? "") && requestedOwner == null;
           const allowedClaim = sameIdentity && existingOwner == null && String(requestedOwner ?? "") === String(payload.actorId ?? "");
-          if (sameIdentity && (canonicalOperationHash(existing) === canonicalOperationHash(warehouse) || allowedRelease || allowedClaim)) {
+          if (sameIdentity && (canonicalOperationHash(existing) === canonicalOperationHash(normalizedWarehouse) || allowedRelease || allowedClaim)) {
             if (allowedRelease || allowedClaim) existing.assigned_user_id = requestedOwner;
           } else {
-            review.push({ opId: op.opId, reason: "TRUCK_FLEET_WAREHOUSE_CONFLICT", warehouseName: name, cloudWarehouse: structuredClone(existing), localWarehouse: structuredClone(warehouse), operation: op });
+            review.push({ opId: op.opId, reason: "TRUCK_FLEET_WAREHOUSE_CONFLICT", warehouseName: name, cloudWarehouse: structuredClone(existing), localWarehouse: structuredClone(normalizedWarehouse), operation: op });
           }
         }
       }
