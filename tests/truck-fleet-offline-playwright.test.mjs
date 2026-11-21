@@ -222,6 +222,15 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     const before=new Set((delta?.before||[]).map(row=>String(row?.[field]??"")));
     return (delta?.after||[]).filter(row=>row&&!before.has(String(row?.[field]??"")));
    };
+   const changedRows=(delta,field="id")=>{
+    const before=new Map((delta?.before||[]).map(row=>[
+     String(row?.[field]??""),JSON.stringify(row)
+    ]));
+    return (delta?.after||[]).filter(row=>row&&(
+     !before.has(String(row?.[field]??""))||
+     JSON.stringify(row)!==before.get(String(row?.[field]??""))
+    ));
+   };
    const fleetSalesAdded=(operation,invoiceId)=>{
     const baseTrips=operation?.payload?.baseState?.trips||[];
     const prior=new Map(baseTrips.map(trip=>[String(trip.id),new Set((trip.sales||[]).map(row=>String(row.id)))]));
@@ -236,11 +245,11 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     const addedInvoices=addedRows(deltas.invoices);
     const addedCash=addedRows(deltas.cashMovements);
     const addedStock=addedRows(deltas.stockMovements);
-    const addedCustomers=addedRows(deltas.customers);
+    const changedCustomers=changedRows(deltas.customers);
     return addedInvoices.some(row=>String(row.id)===invoiceId)&&
      addedCash.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId)&&
      addedStock.some(row=>row.referenceType==="sales_invoice"&&String(row.referenceId)===invoiceId)&&
-     addedCustomers.some(row=>String(row.id)==="C1")&&
+     changedCustomers.some(row=>String(row.id)==="C1")&&
      fleetSalesAdded(item,invoiceId).length>0;
    }):null;
    const deltas=bundle?.payload?.collectionDeltas||{},invoiceId=String(invoice?.id??"");
