@@ -9,10 +9,14 @@ const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
 const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer-centime helpers must be present and isolatable');
 const helperSource = html.slice(helperStart, helperEnd);
+const auditHelperStart = html.indexOf('function anasAppendAuditTrailEvent(event)');
+const auditHelperEnd = html.indexOf('function anasEnsurePosCartZeroPriceApproved', auditHelperStart);
+assert.ok(auditHelperStart >= 0 && auditHelperEnd > auditHelperStart, 'append-only audit writer must be isolatable');
+const auditHelperSource = html.slice(auditHelperStart, auditHelperEnd);
 const start = html.indexOf('async function collectCustDebt(cId) {');
 const end = html.indexOf('function openGoogleMaps(loc)', start);
 assert.ok(start >= 0 && end > start, 'collectCustDebt function must be present and isolatable');
-const source = helperSource + html.slice(start, end);
+const source = helperSource + auditHelperSource + html.slice(start, end);
 const fixedNow = 1234567890123;
 class FixedDate extends Date {
   static now() { return fixedNow; }
@@ -324,7 +328,7 @@ console.log('PASS: duplicate customer debt collection is blocked while durable p
 const cashOperationStart = html.indexOf('async function submitCashOperation() {');
 const cashOperationEnd = html.indexOf('async function submitExpenseOperation()', cashOperationStart);
 assert.ok(cashOperationStart >= 0 && cashOperationEnd > cashOperationStart, 'cash operation must be isolatable');
-const cashOperationSource = helperSource + html.slice(cashOperationStart, cashOperationEnd);
+const cashOperationSource = helperSource + auditHelperSource + html.slice(cashOperationStart, cashOperationEnd);
 async function runCashOperation({captureResults=[true],durableResults=[true]}={}) {
   const AppData={caisseBalance:100,cashMovements:[],currentUser:{id:'U-CASH',name:'Tester'}};
   const fields={

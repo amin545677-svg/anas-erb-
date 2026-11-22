@@ -7,6 +7,7 @@ import { createMutationQueueOrchestrator, MUTATION_KEYS } from "../sync/mutation
 
 const v42Source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledger.js", import.meta.url), "utf8");
+const auditTrailHelperSource = extractFunction("anasAppendAuditTrailEvent", "event");
 
 function extractFunction(name, signature) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -155,7 +156,7 @@ async function runV42WithCapture({ kind, initial, paid, amount, failSave = false
   const fn = kind === "sale"
     ? extractFunction("confirmHasibPayment", "")
     : extractFunction("collectCustDebt", "cId");
-  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", fn, kind === "sale" ? "globalThis.__run = confirmHasibPayment;" : "globalThis.__run = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, auditTrailHelperSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasToQtyUnits", "value"), extractFunction("anasCentsToCurrency", "cents"), extractFunction("anasQtyFromUnits", "units"), "const ANAS_QTY_SCALE = 1000000;", fn, kind === "sale" ? "globalThis.__run = confirmHasibPayment;" : "globalThis.__run = collectCustDebt;"].join("\n"), context);
 
   let threw = false;
   try {

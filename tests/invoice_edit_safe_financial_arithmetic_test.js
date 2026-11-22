@@ -7,10 +7,14 @@ const helperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
 const helperEnd = html.indexOf('function updatePaymentMethodFromAmount()', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'integer stock quantity helpers must be present and isolatable');
 const helperSource = html.slice(helperStart, helperEnd);
+const auditHelperStart = html.indexOf('function anasAppendAuditTrailEvent(event)');
+const auditHelperEnd = html.indexOf('function anasEnsurePosCartZeroPriceApproved', auditHelperStart);
+assert.ok(auditHelperStart >= 0 && auditHelperEnd > auditHelperStart, 'audit writer must be isolatable');
+const auditHelperSource = html.slice(auditHelperStart, auditHelperEnd);
 const start = html.indexOf('function editSalesInvoice(invoiceId) {');
 const end = html.indexOf('// ================= إدارة المخزون وحساب الأرباح =================', start);
 assert.ok(start >= 0 && end > start, 'editSalesInvoice must be present and isolatable');
-const source = helperSource + html.slice(start, end);
+const source = helperSource + auditHelperSource + html.slice(start, end);
 
 function run({qty = '2', price = '10', total = 10, paid = 0, remaining = 10, customerDebt = 0} = {}) {
   const invoice = {id:'INV-SAFE-1', items:[{id:'P1', name:'Test', qty:1, price:10}], total, paid, remaining, customer:'Customer'};

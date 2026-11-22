@@ -5021,7 +5021,17 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const cart = Array.isArray(posCart) ? posCart : [];
             // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
             if (!cart.length) return;
-            if (!anasEnsurePosCartZeroPriceApproved(cart)) return;
+            const zeroPriceApproved = typeof anasEnsurePosCartZeroPriceApproved === 'function'
+                ? anasEnsurePosCartZeroPriceApproved(cart)
+                : !cart.some(item => {
+                    let cents;
+                    try { cents = anasToCents(item && item.price); } catch (_) { return true; }
+                    if (cents !== 0) return false;
+                    return !(item && item.freeSample === true && item.freeSampleConfirmed === true &&
+                        typeof item.freeSampleReason === 'string' && item.freeSampleReason.trim().length >= 3 &&
+                        typeof item.freeSampleConfirmedAt === 'string' && item.freeSampleConfirmedAt.trim().length >= 10);
+                });
+            if (!zeroPriceApproved) return;
 
             // Quantities are represented as micro-units and money as integer centimes.
             const requiredUnits = new Map();
@@ -5459,7 +5469,17 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const cart = Array.isArray(posCart) ? posCart : [];
             // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
             if (!cart.length) return;
-            if (!anasEnsurePosCartZeroPriceApproved(cart)) return;
+            const zeroPriceApproved = typeof anasEnsurePosCartZeroPriceApproved === 'function'
+                ? anasEnsurePosCartZeroPriceApproved(cart)
+                : !cart.some(item => {
+                    let cents;
+                    try { cents = anasToCents(item && item.price); } catch (_) { return true; }
+                    if (cents !== 0) return false;
+                    return !(item && item.freeSample === true && item.freeSampleConfirmed === true &&
+                        typeof item.freeSampleReason === 'string' && item.freeSampleReason.trim().length >= 3 &&
+                        typeof item.freeSampleConfirmedAt === 'string' && item.freeSampleConfirmedAt.trim().length >= 10);
+                });
+            if (!zeroPriceApproved) return;
 
             // Quantities are represented as micro-units and money as integer centimes.
             const requiredUnits = new Map();
@@ -7595,7 +7615,7 @@ function renderPurchasesTable() {
                     allocationCount: invoiceRows.length
                 });
                 // Preserve the V42 mutation-capture hook before waiting for the authoritative durable acknowledgement.
-                if (typeof saveDB !== 'function' || saveDB() !== true
+                if (typeof saveDB !== 'function' || saveDB() !== true)
                     throw new Error('تعذر تجهيز سند القبض أو التقاطه للمزامنة.');
                 if (typeof saveDBDurably !== 'function') throw new Error('واجهة الحفظ الدائم غير متاحة؛ لم يتم اعتماد القبض.');
                 if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند القبض.');
@@ -8210,7 +8230,7 @@ function renderPurchasesTable() {
                     invoiceIds: invoiceRows.map(row => String(row.invoiceId))
                 });
                 globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
-                if (typeof saveDB !== 'function' || saveDB() !== true throw new Error('تعذر التقاط سند صرف المورد للمزامنة.');
+                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر التقاط سند صرف المورد للمزامنة.');
                 if (typeof saveDBDurably !== 'function') throw new Error('واجهة التخزين الدائم غير متاحة؛ لم يتم اعتماد التسديد.');
                 if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند صرف المورد.');
             } catch (error) {
@@ -10703,7 +10723,7 @@ function wtAuditTransfers(){
                     throw new Error('تحتوي قائمة ' + key + ' على سجل غير صالح.');
                 }
             }
-            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords'];
+            const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords', 'auditTrail'];
             for (const key of optionalArrays) {
                 if (!Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)
@@ -11493,7 +11513,13 @@ function wtAuditTransfers(){
                     const previousStartupIssues = anasStartupIntegrityIssues.slice();
                     const previousFatalLoadError = anasStartupFatalLoadError;
                     AppData = incoming;
-                    if (anasBackupInventorySignature(AppData) !== expectedInventorySignature) throw new Error('لم تتطابق أرصدة المخازن ومجموع مخزون المنتجات بعد فك النسخة؛ أُلغي الاسترجاع.');
+                    if (anasBackupInventorySignature(AppData) !== expectedInventorySignature) {
+                        AppData = previous;
+                        posCart = previousCart;
+                        anasStartupIntegrityIssues = previousStartupIssues;
+                        anasStartupFatalLoadError = previousFatalLoadError;
+                        throw new Error('لم تتطابق أرصدة المخازن ومجموع مخزون المنتجات بعد فك النسخة؛ أُلغي الاسترجاع وأُعيدت الحالة السابقة.');
+                    }
                     if (!AppData.posScreensCarts) AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
                     for (const key of ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','auditTrail']) if (!Array.isArray(AppData[key])) AppData[key] = [];
                     const activeTab = AppData.activePosScreenTab || 1;
