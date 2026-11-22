@@ -35,7 +35,58 @@ function canonicalOperationHash(value) {
 }
 
 const MERGE_MISSING = Symbol("MERGE_MISSING");
-function mergeFleetValue(base, local, cloud, path = "$") {
+function findConcurrentActiveTripOwnershipConflicts(baseState, localState, cloudState) {
+  const rows = state => Array.isArray(state?.trips) ? state.trips : [];
+  const byId = list => new Map(list.filter(row => row && row.id != null).map(row => [String(row.id), row]));
+  const baseTrips = byId(rows(baseState));
+  const localTrips = byId(rows(localState));
+  const cloudTrips = rows(cloudState);
+  const changedTruckIds = new Set();
+  const equal = (a, b) => a === undefined || b === undefined
+    ? a === b
+    : canonicalOperationHash(a) === canonicalOperationHash(b);
+  for (const id of new Set([...baseTrips.keys(), ...localTrips.keys()])) {
+    const before = baseTrips.get(id), after = localTrips.get(id);
+    if (!equal(before, after)) {
+      if (before?.truckId != null) changedTruckIds.add(String(before.truckId));
+      if (after?.truckId != null) changedTruckIds.add(String(after.truckId));
+    }
+  }
+  const baseTrucks = byId(Array.isArray(baseState?.trucks) ? baseState.trucks : []);
+  const localTrucks = byId(Array.isArray(localState?.trucks) ? localState.trucks : []);
+  for (const id of new Set([...baseTrucks.keys(), ...localTrucks.keys()])) {
+    const before = baseTrucks.get(id), after = localTrucks.get(id);
+    if (!equal(before, after)) changedTruckIds.add(String(id));
+  }
+  if (!changedTruckIds.size) return [];
+  const active = trip => ["OPEN", "ACTIVE"].includes(String(trip?.status || "").toUpperCase());
+  const conflicts = [];
+  for (const trip of cloudTrips) {
+    if (!active(trip) || trip?.truckId == null) continue;
+    const before = baseTrips.get(String(trip.id));
+    if (before && active(before)) continue;
+    const truckId = String(trip.truckId);
+    if (!changedTruckIds.has(truckId)) continue;
+    conflicts.push({
+      path: "$.trips",
+      reason: "REMOTE_ACTIVE_TRIP_OVERLAPS_LOCAL_TRUCK_MUTATION",
+      truckId,
+      remoteTripId: String(trip.id ?? ""),
+      localTripIds: [...localTrips.values()]
+        .filter(row => String(row?.truckId ?? "") === truckId)
+        .map(row => String(row.id ?? ""))
+    });
+  }
+  return conflicts;
+}
+
+function mergeFleetValue(base, local, cloud, path = "$", context = null) {
+  if (path === "$" && context) {
+    const ownershipConflicts = findConcurrentActiveTripOwnershipConflicts(
+      context.baseState, context.localState, context.cloudState
+    );
+    if (ownershipConflicts.length) return { ok: false, conflicts: ownershipConflicts };
+  }
   const same = (a, b) => a === MERGE_MISSING || b === MERGE_MISSING
     ? a === b
     : canonicalOperationHash(a) === canonicalOperationHash(b);
@@ -103,7 +154,7 @@ function mergeFleetValue(base, local, cloud, path = "$") {
   return { ok: false, conflicts: [{ path, reason: "OVERLAPPING_STATE_CHANGE" }] };
 }
 
-function validateMergedFleetState(state) {
+function validateMergedFleetState(state, context = null) {
   const activeByTruck = new Map();
   for (const trip of state?.trips || []) {
     if (!["OPEN", "ACTIVE"].includes(String(trip?.status || "").toUpperCase())) continue;
@@ -113,9 +164,13 @@ function validateMergedFleetState(state) {
     rows.push(String(trip?.id ?? ""));
     activeByTruck.set(truckId, rows);
   }
-  return [...activeByTruck.entries()]
+  const conflicts = [...activeByTruck.entries()]
     .filter(([, tripIds]) => tripIds.length > 1)
     .map(([truckId, tripIds]) => ({ path: "$.trips", reason: "MULTIPLE_ACTIVE_TRIPS_FOR_TRUCK", truckId, tripIds }));
+  if (context) conflicts.push(...findConcurrentActiveTripOwnershipConflicts(
+    context.baseState, context.localState, context.cloudState
+  ));
+  return conflicts;
 }
 
 /** Stable local queue ordering: sequence first, then normalized UTF-16 opId. */
@@ -263,8 +318,11 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         appliedNow.push({ opId: op.opId, outcome: "already-applied" });
         continue;
       }
-      const stateMerge = mergeFleetValue(baseState, nextState, cloudState);
-      const stateConflicts = stateMerge.ok ? validateMergedFleetState(stateMerge.value) : stateMerge.conflicts;
+      const fleetMergeContext = { baseState, localState: nextState, cloudState };
+      const stateMerge = mergeFleetValue(baseState, nextState, cloudState, "$", fleetMergeContext);
+      const stateConflicts = stateMerge.ok
+        ? validateMergedFleetState(stateMerge.value, fleetMergeContext)
+        : stateMerge.conflicts;
       if (!stateMerge.ok || stateConflicts.length) {
         review.push({opId:op.opId,reason:"TRUCK_FLEET_STATE_CONFLICT",conflicts:stateConflicts,
           operation:op,cloudState:structuredClone(cloudState),baseState:structuredClone(baseState),

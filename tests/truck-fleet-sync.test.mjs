@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {createFleetState,openTrip,loadTrip,recordTruckSale,settleTrip} from "../fleet/truck-settlement-engine.mjs";
+import {createFleetState,openTrip,loadTrip,recordTruckSale,recordFieldExpense,settleTrip} from "../fleet/truck-settlement-engine.mjs";
 import {createMutationEnvelope} from "../sync/mutation_capture.mjs";
 import {reconcilePendingMutations} from "../sync/mutation_reconciliation.mjs";
 
@@ -101,6 +101,31 @@ test("concurrent fleet changes are quarantined with both cloud and local snapsho
  assert.ok(result.review[0].localState);
  assert.equal(result.snapshot.anasFleetState.trips[0].id,"REMOTE-TRIP");
  assert.equal(result.snapshot.warehouses.length,0,"a quarantined local operation must not partially write its warehouse");
+});
+
+test("quarantines a local field expense when cloud opens a new active trip on the same truck",()=>{
+ let base=initial();
+ base=openTrip(base,{tripId:"BASE-TRIP",truckId:"T1",driverId:"driver-1"},"base-open").state;
+ const local=recordFieldExpense(base,"BASE-TRIP",{
+  amount:"1.00",category:"fuel",receiptReference:"FUEL-001"
+ },"local-field-expense",{id:"driver-1"}).state;
+ const remote=encode(base);
+ remote.trips.push({
+  id:"REMOTE-TRIP",status:"ACTIVE",driverId:"driver-2",truckId:"T1",
+  sales:[],debtPayments:[],expenses:[]
+ });
+ const operation=op(base,local,"local-expense-on-overlapped-truck");
+ const snapshot={...cloud(),anasFleetState:remote};
+ const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING",localSeq:1}]);
+ assert.equal(result.review.length,1);
+ assert.equal(result.review[0].reason,"TRUCK_FLEET_STATE_CONFLICT");
+ assert.ok(result.review[0].conflicts.some(item=>
+  item.reason==="REMOTE_ACTIVE_TRIP_OVERLAPS_LOCAL_TRUCK_MUTATION"&&item.truckId==="T1"
+ ));
+ assert.deepEqual(result.snapshot.anasFleetState,remote,
+  "the local expense must not be merged into the remote truck's active custody");
+ assert.equal(result.snapshot.warehouses.length,0,
+  "a quarantined local mutation must not partially apply its warehouse metadata");
 });
 
 test("fleet sale waits for its linked POS invoice instead of silently double-posting stock",()=>{
