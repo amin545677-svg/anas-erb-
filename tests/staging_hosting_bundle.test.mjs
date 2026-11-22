@@ -75,8 +75,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
     const debtFirstMutation = debtCollect >= 0 ? erp.indexOf('AppData.clientMovements = [];', debtCollect) : -1;
     const debtGraphRestore = debtCollect >= 0 ? erp.indexOf('restoreDebtObjectGraph(AppData, debtRollbackSnapshot)', debtCollect) : -1;
     assert.ok(debtSnapshot > debtCollect && debtSnapshot < debtFirstMutation &&
-      debtSnapshot < debtPrepare && debtGraphRestore > debtCommitClear &&
-      debtGraphRestore > debtRollback,
+      debtSnapshot < debtPrepare && debtGraphRestore > debtRollback &&
+      debtGraphRestore > debtCommitClear,
       'built customer-debt handler must snapshot before its first mutation and restore the complete graph after fleet rollback');
     assert.match(erp, /const restoreDebtObjectGraph = \(target, snapshot\) => \{/,
       'built customer-debt handler must restore nested records in place to preserve UI references');
