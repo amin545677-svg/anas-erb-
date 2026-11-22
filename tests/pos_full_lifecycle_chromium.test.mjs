@@ -608,6 +608,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       null, { timeout: 10000 });
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await expandHasibCartEditor(page);
     await page.locator('#hasibCartItems button').first().waitFor({ state: 'visible', timeout: 10000 });
     await commitQuantityEditor('0.25');
     await commitPriceEditor('100.00');
@@ -952,6 +953,7 @@ test('Chromium UAT: 0.75 kg sale, 400.00 initial payment, 200.00 receipt and rep
     await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await expandHasibCartEditor(page);
     await page.locator('#hasibCartItems button').first().click();
     const quantityEditor = page.locator('#anasPosQtyEditor input').first();
     await quantityEditor.waitFor({ state: 'visible', timeout: 5000 });
@@ -1080,8 +1082,6 @@ test('Chromium UAT: 200 x 1,570 DZD full payment preserves four-line debt summar
     const result = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
     await result.waitFor({ state: 'visible', timeout: 10000 });
     await result.click();
-    await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
-    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
     await page.waitForFunction(() => posCart.length === 1 && posCart[0].unit === 'كغ', null, { timeout: 10000 });
     const fractionalButtons = await page.locator('#anasPosFloatingCart .anas-weight-chip').allTextContents();
     assert.equal(fractionalButtons.includes('0.25'), false);
