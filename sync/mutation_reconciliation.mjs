@@ -34,6 +34,90 @@ function canonicalOperationHash(value) {
   return sha256Canonical(normalizeForCanonicalHash(value));
 }
 
+const MERGE_MISSING = Symbol("MERGE_MISSING");
+function mergeFleetValue(base, local, cloud, path = "$") {
+  const same = (a, b) => a === MERGE_MISSING || b === MERGE_MISSING
+    ? a === b
+    : canonicalOperationHash(a) === canonicalOperationHash(b);
+  if (same(local, base)) return { ok: true, value: cloud };
+  if (same(cloud, base) || same(local, cloud)) return { ok: true, value: local };
+  const isRecord = value => value !== MERGE_MISSING && value !== null &&
+    typeof value === "object" && !Array.isArray(value);
+  if (isRecord(base) && isRecord(local) && isRecord(cloud)) {
+    const out = {};
+    const keys = new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(cloud)]);
+    const conflicts = [];
+    for (const key of [...keys].sort()) {
+      const child = mergeFleetValue(
+        Object.prototype.hasOwnProperty.call(base, key) ? base[key] : MERGE_MISSING,
+        Object.prototype.hasOwnProperty.call(local, key) ? local[key] : MERGE_MISSING,
+        Object.prototype.hasOwnProperty.call(cloud, key) ? cloud[key] : MERGE_MISSING,
+        path + "." + key
+      );
+      if (!child.ok) conflicts.push(...child.conflicts);
+      else if (child.value !== MERGE_MISSING) out[key] = child.value;
+    }
+    return conflicts.length ? { ok: false, conflicts } : { ok: true, value: out };
+  }
+  if (Array.isArray(base) && Array.isArray(local) && Array.isArray(cloud)) {
+    const identityFields = ["id", "key", "allocationId", "movementId"];
+    const identityField = identityFields.find(field =>
+      [base, local, cloud].every(rows => rows.every(row =>
+        row && typeof row === "object" && row[field] != null && String(row[field]).trim() !== ""))
+    );
+    if (identityField) {
+      const toMap = rows => new Map(rows.map(row => [String(row[identityField]), row]));
+      const bm = toMap(base), lm = toMap(local), cm = toMap(cloud);
+      if (bm.size !== base.length || lm.size !== local.length || cm.size !== cloud.length) {
+        return { ok: false, conflicts: [{ path, reason: "DUPLICATE_ARRAY_IDENTITY", identityField }] };
+      }
+      const keys = [...new Set([...cloud.map(row => String(row[identityField])), ...local.map(row => String(row[identityField])), ...base.map(row => String(row[identityField]))])];
+      const out = [], conflicts = [];
+      for (const key of keys) {
+        const child = mergeFleetValue(
+          bm.has(key) ? bm.get(key) : MERGE_MISSING,
+          lm.has(key) ? lm.get(key) : MERGE_MISSING,
+          cm.has(key) ? cm.get(key) : MERGE_MISSING,
+          path + "[" + identityField + "=" + key + "]"
+        );
+        if (!child.ok) conflicts.push(...child.conflicts);
+        else if (child.value !== MERGE_MISSING) out.push(child.value);
+      }
+      return conflicts.length ? { ok: false, conflicts } : { ok: true, value: out };
+    }
+    // Unkeyed ledgers may only be merged as append-only histories. Editing or
+    // deleting a committed prefix is ambiguous and must remain quarantined.
+    const prefixMatches = (rows, prefix) => rows.length >= prefix.length &&
+      prefix.every((row, index) => same(row, rows[index]));
+    if (!prefixMatches(local, base) || !prefixMatches(cloud, base)) {
+      return { ok: false, conflicts: [{ path, reason: "UNKEYED_ARRAY_PREFIX_CHANGED" }] };
+    }
+    const out = cloud.slice();
+    const seen = new Set(cloud.map(row => canonicalOperationHash(row)));
+    for (const row of local.slice(base.length)) {
+      const key = canonicalOperationHash(row);
+      if (!seen.has(key)) { out.push(row); seen.add(key); }
+    }
+    return { ok: true, value: out };
+  }
+  return { ok: false, conflicts: [{ path, reason: "OVERLAPPING_STATE_CHANGE" }] };
+}
+
+function validateMergedFleetState(state) {
+  const activeByTruck = new Map();
+  for (const trip of state?.trips || []) {
+    if (!["OPEN", "ACTIVE"].includes(String(trip?.status || "").toUpperCase())) continue;
+    const truckId = String(trip?.truckId ?? "");
+    if (!truckId) continue;
+    const rows = activeByTruck.get(truckId) || [];
+    rows.push(String(trip?.id ?? ""));
+    activeByTruck.set(truckId, rows);
+  }
+  return [...activeByTruck.entries()]
+    .filter(([, tripIds]) => tripIds.length > 1)
+    .map(([truckId, tripIds]) => ({ path: "$.trips", reason: "MULTIPLE_ACTIVE_TRIPS_FOR_TRUCK", truckId, tripIds }));
+}
+
 /** Stable local queue ordering: sequence first, then normalized UTF-16 opId. */
 export function comparePendingMutationsDeterministically(a, b) {
   const hasA = a?.localSeq !== undefined && a?.localSeq !== null;
@@ -179,10 +263,15 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         appliedNow.push({ opId: op.opId, outcome: "already-applied" });
         continue;
       }
-      if (hash(cloudState) !== hash(baseState)) {
-        review.push({opId:op.opId,reason:"TRUCK_FLEET_STATE_CONFLICT",operation:op,cloudState:structuredClone(cloudState),localState:structuredClone(nextState)});
+      const stateMerge = mergeFleetValue(baseState, nextState, cloudState);
+      const stateConflicts = stateMerge.ok ? validateMergedFleetState(stateMerge.value) : stateMerge.conflicts;
+      if (!stateMerge.ok || stateConflicts.length) {
+        review.push({opId:op.opId,reason:"TRUCK_FLEET_STATE_CONFLICT",conflicts:stateConflicts,
+          operation:op,cloudState:structuredClone(cloudState),baseState:structuredClone(baseState),
+          localState:structuredClone(nextState)});
         continue;
       }
+      const mergedFleetState = stateMerge.value;
       const targetSnapshot = structuredClone(snapshot);
       const fleetCollectionKeys = new Set([
         "trucks", "truckTrips", "stockMovements", "expenses",
@@ -451,34 +540,40 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         return BigInt(m[1])*1000n+BigInt((m[2]||"").padEnd(3,"0")||"0");
       };
       const formatQuantity=value=>{const n=big(value);return(n/1000n).toString()+"."+String(n%1000n).padStart(3,"0");};
-      const rebased=structuredClone(nextState);
+      const rebased=structuredClone(mergedFleetState);
+      const localNextState=structuredClone(nextState);
       const baseProducts=new Map((Array.isArray(baseState?.products)?baseState.products:[]).map(row=>[String(row.id),row]));
-      const nextProducts=new Map(rebased.products.map(row=>[String(row.id),row]));
+      const nextProducts=new Map(localNextState.products.map(row=>[String(row.id),row]));
+      const mergedProducts=new Map(rebased.products.map(row=>[String(row.id),row]));
       const productRows=new Map();
-      for(const [id,nextProduct] of nextProducts){
+      for(const [id,localNextProduct] of nextProducts){
+        const mergedProduct=mergedProducts.get(id);
         const matches=(Array.isArray(targetSnapshot.products)?targetSnapshot.products:[]).filter(row=>row&&String(row.id)===id);
-        if(matches.length!==1){review.push({opId:op.opId,reason:"TRUCK_FLEET_PRODUCT_MISSING_OR_AMBIGUOUS",productId:id,operation:op});continue;}
+        if(!mergedProduct||matches.length!==1){review.push({opId:op.opId,reason:"TRUCK_FLEET_PRODUCT_MISSING_OR_AMBIGUOUS",productId:id,operation:op});continue;}
         productRows.set(id,matches[0]);
         let cloudMain,baseMain,nextMain;
-        try{cloudMain=quantity(matches[0].stock??0);baseMain=baseProducts.has(id)?big(baseProducts.get(id).mainStockUnits):cloudMain;nextMain=big(nextProduct.mainStockUnits);}
+        try{cloudMain=quantity(matches[0].stock??0);baseMain=baseProducts.has(id)?big(baseProducts.get(id).mainStockUnits):cloudMain;nextMain=big(localNextProduct.mainStockUnits);}
         catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_MAIN_STOCK",productId:id,operation:op});continue;}
         const rebasedMain=cloudMain+(nextMain-baseMain);
         if(rebasedMain<0n){review.push({opId:op.opId,reason:"TRUCK_FLEET_MAIN_STOCK_UNDERFLOW",productId:id,operation:op});continue;}
-        matches[0].stock=formatQuantity(rebasedMain);nextProduct.mainStockUnits=tagged(rebasedMain);
+        matches[0].stock=formatQuantity(rebasedMain);mergedProduct.mainStockUnits=tagged(rebasedMain);
       }
       if(review.some(item=>item.opId===op.opId))continue;
       const baseTrucks=new Map((Array.isArray(baseState?.trucks)?baseState.trucks:[]).map(row=>[String(row.id),row]));
       const baseTrips=new Map((Array.isArray(baseState?.trips)?baseState.trips:[]).map(row=>[String(row.id),row]));
       const newTripSales=[];
-      for(const trip of rebased.trips){
+      for(const trip of localNextState.trips){
         const oldTrip=baseTrips.get(String(trip.id)),oldSales=new Set((oldTrip?.sales||[]).map(row=>String(row.id)));
         for(const sale of trip.sales||[])if(!oldSales.has(String(sale.id))&&sale.invoiceId)newTripSales.push({invoiceId:String(sale.invoiceId),productId:String(sale.productId),quantityUnits:big(sale.quantityUnits)});
       }
-      const nextTrucks=new Map(rebased.trucks.map(row=>[String(row.id),row]));
-      for(const [truckId,nextTruck] of nextTrucks){
-        const baseTruck=baseTrucks.get(truckId),warehouseName=String(nextTruck.warehouseName||baseTruck?.warehouseName||"").trim();
+      const localNextTrucks=new Map(localNextState.trucks.map(row=>[String(row.id),row]));
+      const mergedTrucks=new Map(rebased.trucks.map(row=>[String(row.id),row]));
+      for(const [truckId,localNextTruck] of localNextTrucks){
+        const nextTruck=mergedTrucks.get(truckId);
+        if(!nextTruck){review.push({opId:op.opId,reason:"TRUCK_FLEET_TRUCK_MISSING_AFTER_MERGE",truckId,operation:op});continue;}
+        const baseTruck=baseTrucks.get(truckId),warehouseName=String(localNextTruck.warehouseName||baseTruck?.warehouseName||"").trim();
         if(!warehouseName)continue;
-        const baseStock=baseTruck?.stockUnits||{},nextStock=nextTruck.stockUnits||{};
+        const baseStock=baseTruck?.stockUnits||{},nextStock=localNextTruck.stockUnits||{};
         for(const [productId,product] of productRows){
           let delta;try{delta=big(nextStock[productId]??"0")-big(baseStock[productId]??"0");}catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_TRUCK_STOCK",truckId,productId,operation:op});continue;}
           if(product.warehouseStock!==undefined&&(!product.warehouseStock||typeof product.warehouseStock!=="object"||Array.isArray(product.warehouseStock))){review.push({opId:op.opId,reason:"TRUCK_FLEET_MALFORMED_WAREHOUSE_STOCK",truckId,productId,operation:op});continue;}

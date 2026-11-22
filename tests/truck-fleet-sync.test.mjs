@@ -69,6 +69,23 @@ test("POS sale invoice is not deducted twice when its linked fleet sale follows 
  assert.equal(result.snapshot.warehouses.length,1);
 });
 
+test("disjoint fleet changes from separate trucks merge without losing either trip",()=>{
+ const base=createFleetState({products:[{id:"P1",name:"Tea",mainStock:"250.000"},{id:"P2",name:"Coffee",mainStock:"300.000"}],
+  trucks:[{id:"T1",warehouseName:"Truck 1",stockUnits:{}},{id:"T2",warehouseName:"Truck 2",stockUnits:{}}]});
+ const local=openTrip(base,{tripId:"LOCAL-TRIP",truckId:"T1",driverId:"driver-1"},"local-open").state;
+ const remote=openTrip(base,{tripId:"REMOTE-TRIP",truckId:"T2",driverId:"driver-2"},"remote-open").state;
+ const operation=op(base,local,"local-open-operation","driver-1");
+ const snapshot={products:[{id:"P1",stock:"250.000",warehouseStock:{}},{id:"P2",stock:"300.000",warehouseStock:{}}],
+  warehouses:[{id:"remote-wh",name:"Truck 2",type:"mobile",status:"active",assigned_user_id:"driver-2"}],
+  invoices:[],anasFleetState:encode(remote),appliedOpIds:[]};
+ const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING",localSeq:1}]);
+ assert.deepEqual(result.review,[]);
+ assert.deepEqual(result.snapshot.anasFleetState.trips.map(row=>row.id).sort(),["LOCAL-TRIP","REMOTE-TRIP"]);
+ assert.deepEqual(result.snapshot.anasFleetState.trucks.map(row=>row.id).sort(),["T1","T2"]);
+ assert.equal(result.snapshot.warehouses.length,2);
+ assert.equal(result.snapshot.anasFleetState.trips.find(row=>row.id==="REMOTE-TRIP").driverId,"driver-2");
+});
+
 test("concurrent fleet changes are quarantined with both cloud and local snapshots for 409 review",()=>{
  let local=initial();
  local=openTrip(local,{tripId:"LOCAL-TRIP",truckId:"T1",driverId:"driver-1"},"open-local").state;
