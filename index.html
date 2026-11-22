@@ -5831,10 +5831,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const unitPrice = anasCentsToCurrency(anasToCents(it.price || 0));
                 const productName = anasEscapeHTML(it.name ?? '');
                 const packageText = Number.isFinite(Number(it.pack)) && Number(it.pack) > 0
-                    ? 'عبوة ' + formatPosDzd(it.pack) + ' ' + anasEscapeHTML(it.unit || '')
+                    ? 'عبوة ' + anasEscapeHTML(String(it.pack)) + ' ' + anasEscapeHTML(it.unit || '')
                     : anasEscapeHTML(it.unit || '');
                 const quantityText = anasEscapeHTML(String(it.qty ?? 0));
-                rows += `<tr><td colspan="3" style="padding:4px 1px 1px;border-bottom:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;"><strong>${productName}</strong> <small style="font-size:10px;font-weight:700;">— ${packageText}</small></td></tr><tr><td colspan="3" style="padding:1px 1px 5px;border-bottom:1px dotted #aaa;text-align:left;"><span class="anas-receipt-line-math" dir="ltr" style="display:block;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;font-size:10px;">${quantityText} × ${unitPrice.toFixed(2)} = ${itemTotal.toFixed(2)} د.ج</span></td></tr>`;
+                rows += `<tr><td colspan="3" style="padding:4px 1px 1px;border-bottom:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;"><strong>${productName}</strong> <small data-unit="${anasEscapeHTML(it.unit || '')}" style="font-size:10px;font-weight:700;">— ${packageText}</small></td></tr><tr><td colspan="3" style="padding:1px 1px 5px;border-bottom:1px dotted #aaa;text-align:left;"><span class="anas-receipt-line-math" dir="ltr" style="display:block;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;font-size:10px;">${quantityText} × ${unitPrice.toFixed(2)} = ${itemTotal.toFixed(2)} د.ج</span></td></tr>`;
             });
 
             const custInfo = inv.customerObj || {};
@@ -5857,11 +5857,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     <tbody>${rows}</tbody>
                 </table>
                 <div style="border-top:2px dashed #000; padding-top:7px; font-size:12px; line-height:1.7;">
-                    <div style="display:flex; justify-content:space-between;"><span>الدين السابق:</span><strong>${formatPosDzd(inv.oldDebt ?? 0)} د.ج</strong></div>
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>قيمة الفاتورة:</span><strong>${formatPosDzd(inv.total)} د.ج</strong></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المقبوض الآن:</span><strong>${formatPosDzd(inv.paid)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>الدين السابق:</span><strong>${anasEscapeHTML(inv.oldDebt ?? 0)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>قيمة الفاتورة:</span><strong data-invoice-total="${anasEscapeHTML(inv.total)}">${anasEscapeHTML(inv.total)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>المقبوض الآن:</span><strong>${anasEscapeHTML(inv.paid)} د.ج</strong></div>
                     <hr style="border:0; border-top:1px dashed #000; margin:3px 0;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الرصيد الجديد:</span><strong>${formatPosDzd(inv.newDebt ?? 0)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الرصيد الجديد:</span><strong>${anasEscapeHTML(inv.newDebt ?? 0)} د.ج</strong></div>
                 </div>
                 <div style="text-align:center; margin-top:8px; font-size:10px;">${anasEscapeHTML(sc.footer)}</div>
             `;
