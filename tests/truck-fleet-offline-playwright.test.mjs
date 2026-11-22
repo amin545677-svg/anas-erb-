@@ -66,7 +66,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   const port=server.address().port;
   browser=await chromium.launch({headless:true,args:["--no-proxy-server","--proxy-bypass-list=*"]});
   context=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:"allow",viewport:{width:1365,height:900},locale:"fr-DZ"});
-  await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.__ANAS_ALLOW_V42_RUNTIME_ON_LOCALHOST__=true;window.anasGetFirebaseIdToken=async()=>"offline-test-token";},{key:DB_KEY,data:fixture()});
+  await context.addInitScript(({key,data})=>{if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify(data));window.__ANAS_ALLOW_V42_RUNTIME_ON_LOCALHOST__=true;},{key:DB_KEY,data:fixture()});
   page=await context.newPage();
   const localOrigin="http://127.0.0.1:"+port;
   page.on("pageerror",e=>errors.push(e.stack||e.message));
@@ -79,6 +79,16 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
   const mockRequests=[];
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
+  const authCors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Client-Version, X-Firebase-Locale, X-Firebase-GMPID","Access-Control-Allow-Methods":"POST, OPTIONS"};
+  const firebaseUid="playwright-anonymous-user";
+  const authIssuedAt=Math.floor(Date.now()/1000);
+  const jwtPart=value=>Buffer.from(JSON.stringify(value)).toString("base64url");
+  const authIdToken=[
+   jwtPart({alg:"RS256",typ:"JWT"}),
+   jwtPart({iss:"https://securetoken.google.com/anas-erp-staging-a25e1",aud:"anas-erp-staging-a25e1",auth_time:authIssuedAt,user_id:firebaseUid,sub:firebaseUid,iat:authIssuedAt,exp:authIssuedAt+3600,firebase:{identities:{},sign_in_provider:"anonymous"}}),
+   "playwright-test-signature"
+  ].join(".");
+  const firebaseAuthRequests=[];
   await page.route("**/*",async route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.protocol==="http:"&&url.hostname==="127.0.0.1"&&Number(url.port)===port){await route.continue();return;}
@@ -91,6 +101,27 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     return;
    }
    await route.abort();
+  });
+  // Firebase Auth's anonymous sign-in is a real Identity Toolkit request.
+  // Mock only that SDK endpoint so the browser can persist a real Auth user
+  // through IndexedDB; application token/session checks remain enabled.
+  await page.route("https://identitytoolkit.googleapis.com/**",async route=>{
+   const req=route.request(),url=new URL(req.url());
+   if(url.pathname!=="/v1/accounts:signUp"){await route.abort();return;}
+   if(req.method()==="OPTIONS"){
+    await route.fulfill({status:204,headers:authCors});
+    return;
+   }
+   if(req.method()!=="POST"){await route.abort();return;}
+   firebaseAuthRequests.push({method:req.method(),url:req.url()});
+   await route.fulfill({status:200,headers:{...authCors,"Content-Type":"application/json"},body:JSON.stringify({
+    kind:"identitytoolkit#SignupNewUserResponse",
+    localId:firebaseUid,
+    idToken:authIdToken,
+    refreshToken:"playwright-anonymous-refresh-token",
+    expiresIn:"3600",
+    isNewUser:true
+   })});
   });
   await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
    const req=route.request(),method=req.method(),url=req.url();
@@ -259,9 +290,24 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.equal(debtSaveCountsAfter.durable-debtSaveCountsBefore.durable,1,"truck debt collection must perform exactly one durable save for the public and fleet ledgers");
   await page.waitForFunction(()=>AppData.cashMovements.some(x=>x.referenceType==="customer_debt"),null,{timeout:15000});
   await page.waitForFunction(()=>AppData.anasFleetState.trips.some(t=>t.debtPayments?.length),null,{timeout:15000});
+  const firebaseAuthBeforeReload=await page.evaluate(async()=>{
+   const token=await window.anasGetFirebaseIdToken(8000);
+   const auth=window.firebase?.auth?.();
+   return {uid:auth?.currentUser?.uid??null,tokenPresent:Boolean(token)};
+  });
+  assert.deepEqual(firebaseAuthBeforeReload,{uid:"playwright-anonymous-user",tokenPresent:true},
+   "Firebase anonymous auth must be established through the mocked Identity Toolkit endpoint before the offline hard reload");
+  assert.equal(firebaseAuthRequests.length,1,"the test must exercise exactly one Firebase anonymous sign-up request");
   await context.setOffline(true);
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel"),null,{timeout:30000});
+  const firebaseAuthAfterReload=await page.evaluate(async()=>{
+   const auth=window.firebase?.auth?.();
+   const token=await window.anasGetFirebaseIdToken(8000);
+   return {uid:auth?.currentUser?.uid??null,tokenPresent:Boolean(token)};
+  });
+  assert.deepEqual(firebaseAuthAfterReload,{uid:"playwright-anonymous-user",tokenPresent:true},
+   "Firebase LOCAL persistence must restore currentUser and its ID token after the offline hard reload without a network sign-in");
   const localProof=await page.evaluate(({pendingKey})=>{
    const storage=window.ANASResilientStorage,s=storage.getCommittedSnapshot(),q=storage.getItem(pendingKey)||[];
    const invoice=s.invoices.find(x=>String(x.warehouse||"").startsWith("شاحنة "));
@@ -499,6 +545,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    "offline operations must reconcile after the simulated 409 CAS response; diagnostics="+safeJson({
     syncResult:syncError??syncResult??null,
     mockRequests,
+    firebaseAuthRequests,
     ...syncFailureDiagnostics
    }));
   const cloud=JSON.parse(serverSnapshot);
