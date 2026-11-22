@@ -934,15 +934,12 @@ test('Chromium UAT: 0.75 kg sale, 400.00 initial payment, 200.00 receipt and rep
     await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
-    const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
-    const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
-    const commitEditor = async (selector, value) => {
-      const editor = page.locator(selector).first();
-      await editor.fill(value);
-      await editor.press('Tab');
-    };
-    await commitEditor(quantitySelector, '0.75');
-    await commitEditor(priceSelector, '1200.00');
+    await page.locator('#hasibCartItems button').first().click();
+    const quantityEditor = page.locator('#anasPosQtyEditor input').first();
+    await quantityEditor.waitFor({ state: 'visible', timeout: 5000 });
+    await quantityEditor.fill('0.75');
+    await page.locator('#anasPosQtyEditor button').filter({ hasText: 'حفظ الكمية' }).click();
+    await page.waitForFunction(() => Number(posCart[0]?.qty) === 0.75, null, { timeout: 10000 });
     await page.waitForFunction(() => {
       const raw = document.getElementById('hasibTotalText')?.textContent || '';
       const match = raw.match(/[0-9]+(?:[.,][0-9]+)?/);

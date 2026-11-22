@@ -4386,7 +4386,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const item = posCart[idx];
             if (!item) return false;
             const rawQtyText = String(rawValue ?? '').trim();
-            const qtyUnits = /^\\d+$/.test(rawQtyText) ? anasToQtyUnits(rawQtyText) : NaN;
+            const qtyUnits = /^\d+(?:[.,]\d{1,3})?$/.test(rawQtyText) ? anasToQtyUnits(rawQtyText) : NaN;
             if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) {
                 alert('أدخل كمية صحيحة أكبر من صفر.');
                 renderPosTable();
@@ -4415,10 +4415,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const title = document.createElement('strong'); title.textContent = 'تعديل كمية ' + String(item.name || 'المنتج');
             const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock((AppData.products || []).find(p => String(p.id) === String(item.id)) || {}, typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي') : '—';
             const hint = document.createElement('small'); hint.textContent = 'الكمية الحالية: ' + item.qty + ' | المتوفر: ' + stock;
-            const input = document.createElement('input'); input.type = 'number'; input.min = '1'; input.step = '1'; input.inputMode = 'numeric'; input.value = String(item.qty); input.style.cssText = 'width:100%;padding:12px;border:1px solid var(--mp-border);border-radius:8px;font-size:18px';
+            const input = document.createElement('input'); input.type = 'number'; input.min = '0.001'; input.step = '0.001'; input.inputMode = 'decimal'; input.value = String(item.qty); input.style.cssText = 'width:100%;padding:12px;border:1px solid var(--mp-border);border-radius:8px;font-size:18px';
             const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:8px';
             const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'إلغاء'; cancel.onclick = () => overlay.remove();
-            const save = document.createElement('button'); save.type = 'button'; save.textContent = 'حفظ الكمية'; save.onclick = () => { if (!/^\\d+$/.test(input.value) || Number(input.value) < 1 || !Number.isSafeInteger(Number(input.value))) { input.setCustomValidity('أدخل عدداً صحيحاً موجباً'); input.reportValidity(); return; } if (setPosQty(idx, input.value)) overlay.remove(); };
+            const save = document.createElement('button'); save.type = 'button'; save.textContent = 'حفظ الكمية'; save.onclick = () => { const raw=String(input.value??'').trim(); const units=/^\d+(?:[.,]\d{1,3})?$/.test(raw)?anasToQtyUnits(raw):NaN; if (!Number.isSafeInteger(units) || units <= 0) { input.setCustomValidity('أدخل كمية موجبة حتى ثلاث منازل عشرية'); input.reportValidity(); return; } if (setPosQty(idx, raw)) overlay.remove(); };
             actions.append(cancel, save); panel.append(title, hint, input, actions); overlay.appendChild(panel); overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); }); document.body.appendChild(overlay); input.focus(); input.select();
         }
 
