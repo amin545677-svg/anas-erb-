@@ -80,6 +80,80 @@ function findConcurrentActiveTripOwnershipConflicts(baseState, localState, cloud
   return conflicts;
 }
 
+function findConcurrentTruckMutationConflicts(baseState, localState, cloudState, collectionDeltas, cloudSnapshot) {
+  const equal = (a, b) => a === undefined || b === undefined
+    ? a === b
+    : canonicalOperationHash(a) === canonicalOperationHash(b);
+  const tripLookup = (...states) => {
+    const result = new Map();
+    for (const state of states) {
+      for (const trip of Array.isArray(state?.trips) ? state.trips : []) {
+        if (trip?.id != null && trip?.truckId != null) result.set(String(trip.id), String(trip.truckId));
+      }
+    }
+    return result;
+  };
+  const localTrips = tripLookup(baseState, localState);
+  const cloudTrips = tripLookup(baseState, cloudState);
+  const localChanges = new Map();
+  const cloudChanges = new Map();
+  const add = (target, truckId, source) => {
+    if (truckId == null || String(truckId).trim() === "") return;
+    const id = String(truckId);
+    if (!target.has(id)) target.set(id, new Set());
+    target.get(id).add(source);
+  };
+  const identityOf = (row, collection) => {
+    const field = ({ clientMovements: "movementId", settlementAllocations: "allocationId" })[collection] || "id";
+    return row?.[field];
+  };
+  const truckIdOf = (row, collection, trips) => {
+    if (!row) return null;
+    if (collection === "trucks") return row.id;
+    const direct = row.truckId ?? row.truck_id ?? row.truckID ?? row.truck?.id;
+    if (direct != null && String(direct).trim() !== "") return direct;
+    const tripId = row.tripId ?? row.trip_id;
+    return tripId == null ? null : (trips.get(String(tripId)) ?? null);
+  };
+  const collectChangedRows = (target, beforeRows, afterRows, collection, trips) => {
+    const toMap = rows => new Map((Array.isArray(rows) ? rows : [])
+      .filter(row => row && typeof row === "object" && !Array.isArray(row) && identityOf(row, collection) != null)
+      .map(row => [String(identityOf(row, collection)), row]));
+    const before = toMap(beforeRows), after = toMap(afterRows);
+    for (const id of new Set([...before.keys(), ...after.keys()])) {
+      const oldRow = before.get(id), newRow = after.get(id);
+      if (equal(oldRow, newRow)) continue;
+      const source = collection + ":" + id;
+      add(target, truckIdOf(oldRow, collection, trips), source);
+      add(target, truckIdOf(newRow, collection, trips), source);
+    }
+  };
+  const collectStateChanges = (target, before, after, trips) => {
+    for (const collection of ["trucks", "trips", "movements"]) {
+      collectChangedRows(target, before?.[collection], after?.[collection], collection, trips);
+    }
+  };
+  collectStateChanges(localChanges, baseState, localState, localTrips);
+  collectStateChanges(cloudChanges, baseState, cloudState, cloudTrips);
+  for (const [collection, delta] of Object.entries(collectionDeltas)) {
+    collectChangedRows(localChanges, delta.before, delta.after, collection, localTrips);
+    collectChangedRows(cloudChanges, delta.before, cloudSnapshot?.[collection], collection, cloudTrips);
+  }
+  const conflicts = [];
+  for (const [truckId, localSources] of localChanges) {
+    const cloudSources = cloudChanges.get(truckId);
+    if (!cloudSources) continue;
+    conflicts.push({
+      path: "$.trucks[" + truckId + "]",
+      reason: "CONCURRENT_LOCAL_AND_CLOUD_MUTATION_ON_SAME_TRUCK",
+      truckId,
+      localSources: [...localSources].sort(),
+      cloudSources: [...cloudSources].sort()
+    });
+  }
+  return conflicts;
+}
+
 function mergeFleetValue(base, local, cloud, path = "$", context = null) {
   if (path === "$" && context) {
     const ownershipConflicts = findConcurrentActiveTripOwnershipConflicts(
@@ -316,6 +390,20 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (hash(cloudState) === hash(nextState)) {
         markApplied();
         appliedNow.push({ opId: op.opId, outcome: "already-applied" });
+        continue;
+      }
+      const sameTruckConflicts = findConcurrentTruckMutationConflicts(baseState, nextState, cloudState, collectionDeltas, snapshot);
+      if (sameTruckConflicts.length) {
+        const ownershipConflicts = findConcurrentActiveTripOwnershipConflicts(baseState, nextState, cloudState);
+        review.push({
+          opId: op.opId,
+          reason: "TRUCK_FLEET_SAME_TRUCK_CONFLICT",
+          conflicts: [...sameTruckConflicts, ...ownershipConflicts],
+          operation: op,
+          cloudState: structuredClone(cloudState),
+          baseState: structuredClone(baseState),
+          localState: structuredClone(nextState)
+        });
         continue;
       }
       const fleetMergeContext = { baseState, localState: nextState, cloudState };

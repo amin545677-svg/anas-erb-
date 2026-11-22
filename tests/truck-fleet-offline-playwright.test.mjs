@@ -683,8 +683,18 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   });
   serverSnapshot=JSON.stringify(remote);
   conflictBudget=1;
+  await page.evaluate(()=>{
+   window.__ANAS_FLEET_QUARANTINE_EVENTS__=[];
+   window.addEventListener("anas:v42-sync-quarantine",event=>{
+    window.__ANAS_FLEET_QUARANTINE_EVENTS__.push(...(event.detail||[]).map(item=>({reason:item.reason,opId:item.opId})));
+   });
+  });
   await page.evaluate(()=>window.anasFirebaseSyncPush());
   await page.locator("#fleetConflict").getByText("تعارض شاحنة HTTP 409").waitFor({state:"visible",timeout:15000});
+  await page.locator("#fleetConflict").getByText("TRUCK_FLEET_SAME_TRUCK_CONFLICT").waitFor({state:"visible",timeout:5000});
+  const quarantineEventProof=await page.evaluate(()=>window.__ANAS_FLEET_QUARANTINE_EVENTS__||[]);
+  assert.ok(quarantineEventProof.some(item=>item.reason==="TRUCK_FLEET_SAME_TRUCK_CONFLICT"),
+   "same-truck quarantine must emit anas:v42-sync-quarantine and reach the fleet conflict center");
   assert.equal(await page.locator("#fleetConflict [data-choice='cloud']").count(),1);
   assert.equal(await page.locator("#fleetConflict [data-choice='local']").count(),1);
   assert.deepEqual(errors,[],"fleet conflict review must not produce uncaught browser exceptions");

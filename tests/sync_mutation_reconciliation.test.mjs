@@ -21,6 +21,42 @@ function collection(opId = "op-deviceB-collection-5000") {
   };
 }
 
+test("quarantines a trip-linked truck expense when cloud changed that same truck", () => {
+  const baseState = {
+    schemaVersion: 1, products: [],
+    trucks: [{ id: "truck-trip-1", status: "OPEN" }],
+    trips: [{ id: "trip-link-1", truckId: "truck-trip-1", status: "ACTIVE" }],
+    movements: []
+  };
+  const localState = { ...structuredClone(baseState), localCaptureMarker: "expense-captured" };
+  const cloudState = structuredClone(baseState);
+  const localExpense = { id: "local-expense-trip-link", tripId: "trip-link-1", amount: 500 };
+  const cloudExpense = { id: "cloud-expense-trip-link", tripId: "trip-link-1", amount: 700 };
+  const initial = cloud();
+  initial.anasFleetState = cloudState;
+  initial.expenses = [cloudExpense];
+  const operation = {
+    opId: "trip-linked-expense-same-truck-conflict",
+    type: "TRUCK_FLEET_OPERATION",
+    payload: { baseState, nextState: localState,
+      collectionDeltas: { expenses: { before: [], after: [localExpense] } } }
+  };
+  const result = reconcilePendingMutations(initial, [operation]);
+  assert.equal(result.review.length, 1);
+  assert.equal(result.review[0].reason, "TRUCK_FLEET_SAME_TRUCK_CONFLICT");
+  assert.ok(result.review[0].conflicts.some(item =>
+    item.reason === "CONCURRENT_LOCAL_AND_CLOUD_MUTATION_ON_SAME_TRUCK" &&
+    item.truckId === "truck-trip-1" &&
+    item.localSources.some(source => source.startsWith("expenses:")) &&
+    item.cloudSources.some(source => source.startsWith("expenses:"))
+  ));
+  assert.deepEqual(result.snapshot.expenses, [cloudExpense]);
+  assert.deepEqual(result.snapshot.anasFleetState, cloudState);
+  assert.equal(result.snapshot.appliedOpIds.includes(operation.opId), false);
+  assert.deepEqual(result.appliedNow, []);
+});
+
+
 test("replays an unacknowledged debt collection over cloud V1 without changing the source snapshot", () => {
   const original = cloud();
   const result = reconcilePendingMutations(original, [collection()]);

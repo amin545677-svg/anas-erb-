@@ -96,7 +96,7 @@ test("concurrent fleet changes are quarantined with both cloud and local snapsho
  const snapshot={products:[{id:"P1",stock:"250.000",warehouseStock:{}}],warehouses:[],invoices:[],anasFleetState:encode(remote),appliedOpIds:[]};
  const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING"}]);
  assert.equal(result.review.length,1);
- assert.equal(result.review[0].reason,"TRUCK_FLEET_STATE_CONFLICT");
+ assert.equal(result.review[0].reason,"TRUCK_FLEET_SAME_TRUCK_CONFLICT");
  assert.ok(result.review[0].cloudState);
  assert.ok(result.review[0].localState);
  assert.equal(result.snapshot.anasFleetState.trips[0].id,"REMOTE-TRIP");
@@ -119,7 +119,7 @@ test("quarantines a local field expense when cloud opens a new active trip on th
  const snapshot={...cloud(),anasFleetState:remote};
  const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING",localSeq:1}]);
  assert.equal(result.review.length,1);
- assert.equal(result.review[0].reason,"TRUCK_FLEET_STATE_CONFLICT");
+ assert.equal(result.review[0].reason,"TRUCK_FLEET_SAME_TRUCK_CONFLICT");
  assert.ok(result.review[0].conflicts.some(item=>
   item.reason==="REMOTE_ACTIVE_TRIP_OVERLAPS_LOCAL_TRUCK_MUTATION"&&item.truckId==="T1"
  ));
