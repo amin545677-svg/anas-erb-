@@ -106,6 +106,7 @@ test("concurrent fleet changes are quarantined with both cloud and local snapsho
 test("quarantines a local field expense when cloud opens a new active trip on the same truck",()=>{
  let base=initial();
  base=openTrip(base,{tripId:"BASE-TRIP",truckId:"T1",driverId:"driver-1"},"base-open").state;
+ base=loadTrip(base,"BASE-TRIP",[{productId:"P1",quantity:"1"}],"base-load",{id:"driver-1"}).state;
  const local=recordFieldExpense(base,"BASE-TRIP",{
   amount:"1.00",category:"fuel",receiptReference:"FUEL-001"
  },"local-field-expense",{id:"driver-1"}).state;
