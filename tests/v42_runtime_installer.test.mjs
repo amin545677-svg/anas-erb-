@@ -7,6 +7,7 @@ import { createMutationQueueOrchestrator, MUTATION_KEYS } from "../sync/mutation
 
 const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const reverseLedgerSource = readFileSync(new URL("../reverse-ledger/reverse-ledger.js", import.meta.url), "utf8");
+const auditTrailHelperSource = extractFunction("anasAppendAuditTrailEvent", "event");
 
 function extractFunction(name, signature = "") {
   const escaped = name;
@@ -226,7 +227,7 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
     saveDBDurably: async () => true
   };
   vm.createContext(context);
-  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
+  vm.runInContext([reverseLedgerSource, auditTrailHelperSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", extractFunction("collectCustDebt", "cId"), "globalThis.runActualV42Collection = collectCustDebt;"].join("\n"), context);
 
   let cloud = { data: collectionCloudV1(), revision: 1 };
   const eventOrder = [];

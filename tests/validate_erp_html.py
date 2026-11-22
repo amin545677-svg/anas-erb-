@@ -878,7 +878,7 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
     sync_validator_end = source.find("\n        async function syncPushNow()", sync_validator_start)
     sync_validator = source[sync_validator_start:sync_validator_end] if sync_validator_start >= 0 and sync_validator_end > sync_validator_start else ""
     sync_guards = [
-        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords']",
+        "const optionalArrays = ['purchases', 'expenses', 'users', 'trucks', 'returns', 'clientMovements', 'settlementAllocations', 'customerCreditMovements', 'warehouseTransfers', 'stockMovements', 'purchaseInvoices', 'supplierMovements', 'alerts', 'truckTrips', 'cashMovements', 'stocktakeRecords', 'auditTrail']",
 
         "Object.prototype.hasOwnProperty.call(incoming, key)",
         "if (typeof AppData !== 'undefined' && Array.isArray(AppData[key]) && AppData[key].length)",
@@ -1379,8 +1379,9 @@ console.log('PASS: saveDB runtime tests block writes for corrupt startup state a
             and "Number(raw) > Number.MAX_SAFE_INTEGER" in source,
         "backup import validates before replacing state and restores prior data on save failure":
             "anasValidateBackupData(JSON.parse(evt.target.result))" in backup_import
-            and "const previous = AppData" in backup_import and "try { restoreSaved = saveDB() === true; }" in backup_import
-            and "catch (saveErr) { restoreSaveError = saveErr; }" in backup_import
+            and "const previous = AppData" in backup_import and "try {\n                        restoreSaved = saveDB() === true;" in backup_import
+            and "catch (saveErr) { restoreSaveError = saveErr; }"
+            and "restoreSaved && anasBackupInventorySignature(AppData) !== expectedInventorySignature" in backup_import
             and "AppData = previous; posCart = previousCart" in backup_import,
         "cloud restore aborts if local data changes while the network request is pending":
             "localStateAtRequestStart = JSON.stringify(AppData)" in cloud_restore

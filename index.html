@@ -6942,6 +6942,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)) {
                     throw new Error('فشل شرط التطابق المالي الدقيق بين الفاتورة والصندوق والمورد.');
                 }
+                if (typeof anasAppendAuditTrailEvent !== 'function') throw new Error('سجل التدقيق غير متاح؛ أُوقفت العملية دون حفظ غير مكتمل.');
                 anasAppendAuditTrailEvent({
                     id: 'AUD-PURCHASE-' + String(purchaseId),
                     eventType: 'PURCHASE_COMMITTED',
@@ -7100,6 +7101,7 @@ function renderPurchasesTable() {
                     userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                     userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
                 });
+                if (typeof anasAppendAuditTrailEvent !== 'function') throw new Error('سجل التدقيق غير متاح؛ أُوقفت العملية دون حفظ غير مكتمل.');
                 anasAppendAuditTrailEvent({
                     id: 'AUD-CASH-' + String(cashMovementId),
                     eventType: 'CASH_MOVEMENT_COMMITTED',
@@ -7545,10 +7547,10 @@ function renderPurchasesTable() {
             const clientMovementsBefore = hadClientMovements ? (Array.isArray(AppData.clientMovements) ? AppData.clientMovements.slice() : AppData.clientMovements) : null;
             const hadSettlementAllocations = Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations');
             const settlementAllocationsBefore = hadSettlementAllocations ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
-            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
-            const auditTrailBefore = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
             const hadLedgerVersion = Object.prototype.hasOwnProperty.call(customer, 'ledgerVersion');
             const oldLedgerVersion = customer.ledgerVersion;
+            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
+            const auditTrailBefore = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
             const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
             let movementId = baseMovementId;
             let movementSuffix = 1;
@@ -7603,6 +7605,7 @@ function renderPurchasesTable() {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                if (typeof anasAppendAuditTrailEvent !== 'function') throw new Error('سجل التدقيق غير متاح؛ أُوقفت العملية دون حفظ غير مكتمل.');
                 anasAppendAuditTrailEvent({
                     id: 'AUD-CUSTOMER-RECEIPT-' + String(movementId),
                     eventType: 'CUSTOMER_DEBT_RECEIPT_COMMITTED',
@@ -8218,6 +8221,7 @@ function renderPurchasesTable() {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                if (typeof anasAppendAuditTrailEvent !== 'function') throw new Error('سجل التدقيق غير متاح؛ أُوقفت العملية دون حفظ غير مكتمل.');
                 anasAppendAuditTrailEvent({
                     id: 'AUD-SUPPLIER-PAY-' + String(movementId),
                     eventType: 'SUPPLIER_PAYMENT_COMMITTED',
@@ -8763,6 +8767,7 @@ function renderPurchasesTable() {
                 inv.remaining = newRemaining;
                 inv.paymentMethod = newPaid <= 0 ? 'credit' : (newRemaining > 0 ? 'partial' : 'cash');
                 inv.editedAt = new Date().toISOString();
+                if (typeof anasAppendAuditTrailEvent !== 'function') throw new Error('سجل التدقيق غير متاح؛ أُوقفت العملية دون حفظ غير مكتمل.');
                 anasAppendAuditTrailEvent({
                     id: 'AUD-INVOICE-EDIT-' + String(inv.id) + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
                     eventType: 'SALES_INVOICE_EDITED',
