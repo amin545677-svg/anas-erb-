@@ -13743,7 +13743,7 @@ function anasGetAiHubKpiMetrics(tabKey) {
 
 <script>
 // Hidden compatibility wrappers route legacy quick-sale callers to the single validated POS flow.
-function openQuickSale(){return typeof old_openQuickSale==='function'?old_openQuickSale():openView('pos');}
+function openQuickSale(){const quickSalePanel=document.getElementById('quickSalePanel');if(quickSalePanel)quickSalePanel.hidden=true;return typeof old_openQuickSale==='function'?old_openQuickSale():openView('pos');}
 function closeQuickSale(){return true;}
 function quickSalePrice(product){const tier=Number(AppData&&AppData.activePriceTier)||1;return Number(tier===2?(product?.price2||product?.price1):tier===3?(product?.price3||product?.price1):product?.price1)||0;}
 function renderQuickSaleResults(){const q=window.anasNormalizeQueryText(document.getElementById('qsSearch')?.value||'');const matches=(AppData.products||[]).filter(p=>window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q));const search=document.getElementById('posSearchField');if(search){search.value=String(document.getElementById('qsSearch')?.value||'');if(typeof handlePosSearch==='function')handlePosSearch(search.value);}return matches.length;}
