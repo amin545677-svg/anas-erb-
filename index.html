@@ -4855,13 +4855,18 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             renderPosTable();
             return true;
         }
-        function anasAddFreeCartItem(name, price, quantity, unit) {
+        function anasAddFreeCartItem(name, price, quantity, unit, freeApproval) {
             const cleanName = String(name ?? '').trim();
             const priceCents = anasToCents(price);
             const qtyUnits = anasToQtyUnits(quantity);
+            const freeReason = String(freeApproval && freeApproval.reason || '').trim();
+            const approvedFree = priceCents === 0 && !!freeApproval && freeApproval.confirmed === true &&
+                freeReason.length >= 3 && typeof freeApproval.confirmedAt === 'string' && freeApproval.confirmedAt.trim().length >= 10;
             if (!cleanName || cleanName.length > 180 || !Number.isSafeInteger(priceCents) || priceCents < 0 ||
-                !Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) {
-                alert('بيانات المنتج الحر غير صالحة؛ تحقق من الاسم والسعر والكمية.');
+                !Number.isSafeInteger(qtyUnits) || qtyUnits <= 0 || (priceCents === 0 && !approvedFree)) {
+                alert(priceCents === 0
+                    ? 'لا يمكن إضافة بند بسعر صفر دون تأكيد صريح بأنه منتج مجاني/هدية وذكر السبب.'
+                    : 'بيانات المنتج الحر غير صالحة؛ تحقق من الاسم والسعر والكمية.');
                 return false;
             }
             const before = snapshotPosCart();
@@ -4869,7 +4874,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             posCart.push({
                 id, name: cleanName, price: anasCentsToCurrency(priceCents),
                 qty: anasQtyFromUnits(qtyUnits), unit: String(unit || 'قطعة').trim() || 'قطعة',
-                isFreeItem: true, isFreeProduct: true, nonInventory: true
+                isFreeItem: true, isFreeProduct: true, nonInventory: true,
+                freeSample: approvedFree, freeSampleConfirmed: approvedFree,
+                freeSampleConfirmedAt: approvedFree ? freeApproval.confirmedAt : null,
+                freeSampleReason: approvedFree ? freeReason : ''
             });
             return savePosCartChange(() => { restorePosCart(before); });
         }
@@ -4948,12 +4956,72 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             renderHasibPaymentSummary();
         }
 
+        function anasAppendAuditTrailEvent(event) {
+            if (!AppData || typeof AppData !== 'object' || Array.isArray(AppData) ||
+                !event || typeof event !== 'object' || Array.isArray(event))
+                throw new Error('بيانات سجل التدقيق غير صالحة؛ أُوقفت العملية.');
+            const id = String(event.id ?? '').trim();
+            const eventType = String(event.eventType ?? '').trim();
+            const entityType = String(event.entityType ?? '').trim();
+            const entityId = String(event.entityId ?? '').trim();
+            if (!id || !eventType || !entityType || !entityId)
+                throw new Error('سجل التدقيق يفتقد المعرّف أو نوع العملية أو الكيان.');
+            if (!Array.isArray(AppData.auditTrail)) {
+                if (Object.prototype.hasOwnProperty.call(AppData, 'auditTrail'))
+                    throw new Error('سجل التدقيق تالف؛ أُوقفت العملية دون استبداله.');
+                AppData.auditTrail = [];
+            }
+            const seenAuditIds = new Set();
+            for (const row of AppData.auditTrail) {
+                const rowId = row && typeof row === 'object' && !Array.isArray(row) ? String(row.id ?? '').trim() : '';
+                if (!rowId || seenAuditIds.has(rowId))
+                    throw new Error('سجل التدقيق الحالي يحتوي على معرّف مفقود أو مكرر؛ أُوقفت العملية.');
+                seenAuditIds.add(rowId);
+            }
+            if (seenAuditIds.has(id)) throw new Error('معرّف سجل التدقيق مستخدم مسبقاً: ' + id);
+            for (const field of ['amountCentimes','paidCentimes','remainingCentimes','previousAmountCentimes']) {
+                if (Object.prototype.hasOwnProperty.call(event, field) &&
+                    (!Number.isSafeInteger(event[field]) || event[field] < 0))
+                    throw new Error('قيمة غير صالحة في سجل التدقيق (' + field + ').');
+            }
+            const actor = AppData.currentUser && typeof AppData.currentUser === 'object' ? AppData.currentUser : {};
+            const record = {
+                ...event, id, opId: event.opId ?? null, eventType, entityType, entityId,
+                actorId: event.actorId ?? (actor.id != null ? String(actor.id) : null),
+                actorName: event.actorName ?? (actor.name ? String(actor.name) : 'غير محدد'),
+                createdAt: event.createdAt ?? new Date().toISOString()
+            };
+            AppData.auditTrail.unshift(record);
+            return record;
+        }
+
+        function anasEnsurePosCartZeroPriceApproved(cart) {
+            if (!Array.isArray(cart)) return false;
+            for (const item of cart) {
+                if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+                let cents;
+                try { cents = anasToCents(item.price); } catch (_) { return false; }
+                if (cents === 0) {
+                    const reason = String(item.freeSampleReason ?? '').trim();
+                    const approved = item.freeSample === true && item.freeSampleConfirmed === true &&
+                        reason.length >= 3 && typeof item.freeSampleConfirmedAt === 'string' &&
+                        item.freeSampleConfirmedAt.trim().length >= 10;
+                    if (!approved) {
+                        alert('لا يمكن اعتماد البيع بسعر صفر دون تأكيد صريح بأنه منتج مجاني/هدية وذكر السبب.');
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
         // تأكيد البيع بشكل آمن: فحص الكميات المجمعة ثم التراجع الكامل عند فشل الحفظ.
         function confirmHasibPayment() {
             if (typeof wtTryEnsureData === 'function' && !wtTryEnsureData()) return;
             const cart = Array.isArray(posCart) ? posCart : [];
             // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
             if (!cart.length) return;
+            if (!anasEnsurePosCartZeroPriceApproved(cart)) return;
 
             // Quantities are represented as micro-units and money as integer centimes.
             const requiredUnits = new Map();
@@ -5327,6 +5395,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     amountCentimes: totalCents,
                     paidCentimes: paidCents,
                     remainingCentimes: remainingCents,
+                    freeSampleItems: normalizedItems.filter(item => item.freeSample === true && item.freeSampleConfirmed === true).map(item => ({productId:String(item.id ?? ''),name:String(item.name || ''),quantity:item.qty,reason:String(item.freeSampleReason || '')})),
                     actorId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                     actorName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد',
                     createdAt: new Date().toISOString()
@@ -5390,6 +5459,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const cart = Array.isArray(posCart) ? posCart : [];
             // The cart is cleared synchronously after a successful commit; a second click is therefore a no-op.
             if (!cart.length) return;
+            if (!anasEnsurePosCartZeroPriceApproved(cart)) return;
 
             // Quantities are represented as micro-units and money as integer centimes.
             const requiredUnits = new Map();
@@ -5829,6 +5899,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     amountCentimes: totalCents,
                     paidCentimes: paidCents,
                     remainingCentimes: remainingCents,
+                    freeSampleItems: normalizedItems.filter(item => item.freeSample === true && item.freeSampleConfirmed === true).map(item => ({productId:String(item.id ?? ''),name:String(item.name || ''),quantity:item.qty,reason:String(item.freeSampleReason || '')})),
                     actorId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                     actorName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد',
                     createdAt: new Date().toISOString()
@@ -6851,6 +6922,18 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     anasPurchaseToCents(purchase.paid) + anasPurchaseToCents(purchase.remaining) !== anasPurchaseToCents(purchase.total)) {
                     throw new Error('فشل شرط التطابق المالي الدقيق بين الفاتورة والصندوق والمورد.');
                 }
+                anasAppendAuditTrailEvent({
+                    id: 'AUD-PURCHASE-' + String(purchaseId),
+                    eventType: 'PURCHASE_COMMITTED',
+                    entityType: 'purchase_invoice',
+                    entityId: String(purchaseId),
+                    referenceType: 'purchase_invoice',
+                    referenceId: String(purchaseId),
+                    warehouse: 'المخزن الرئيسي',
+                    amountCentimes: totalCents,
+                    paidCentimes: paidCents,
+                    remainingCentimes: remainingCents
+                });
                 if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
             } catch (err) {
                 AppData = previous;
@@ -6972,6 +7055,9 @@ function renderPurchasesTable() {
             const hadMovements = Array.isArray(AppData.cashMovements);
             const movementArray = hadMovements ? AppData.cashMovements : null;
             const previousMovements = hadMovements ? movementArray.slice() : null;
+            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
+            const previousAuditTrail = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
+            const cashMovementId = 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
             const cashLocks = globalThis.__ANAS_CASH_OPERATION_LOCKS__ ||
                 (globalThis.__ANAS_CASH_OPERATION_LOCKS__ = new Set());
             const cashLockKey = 'cashbox';
@@ -6985,13 +7071,25 @@ function renderPurchasesTable() {
                 AppData.caisseBalance = anasCentsToCurrency(nextBalanceCents);
                 if (!hadMovements) AppData.cashMovements = [];
                 AppData.cashMovements.push({
-                    id: 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+                    id: cashMovementId,
+                    referenceType: 'cash_operation', referenceId: cashMovementId,
                     type: isAdd ? 'add' : 'subtract',
                     amount: amt,
                     description: desc,
                     date: new Date().toISOString(),
                     userId: AppData.currentUser && AppData.currentUser.id != null ? String(AppData.currentUser.id) : null,
                     userName: AppData.currentUser && AppData.currentUser.name ? String(AppData.currentUser.name) : 'غير محدد'
+                });
+                anasAppendAuditTrailEvent({
+                    id: 'AUD-CASH-' + String(cashMovementId),
+                    eventType: 'CASH_MOVEMENT_COMMITTED',
+                    entityType: 'cash_movement',
+                    entityId: String(cashMovementId),
+                    referenceType: 'cash_operation',
+                    referenceId: String(cashMovementId),
+                    amountCentimes: amountCents,
+                    direction: isAdd ? 'in' : 'out',
+                    description: desc
                 });
                 if (typeof saveDB !== 'function' || saveDB() !== true)
                     throw new Error('تعذر التقاط حركة الصندوق أو تجهيزها للمزامنة.');
@@ -7009,6 +7107,7 @@ function renderPurchasesTable() {
                     movementArray.splice(0, movementArray.length, ...previousMovements);
                     AppData.cashMovements = movementArray;
                 } else delete AppData.cashMovements;
+                if (hadAuditTrail) AppData.auditTrail = previousAuditTrail; else delete AppData.auditTrail;
                 let rollbackPersisted = false;
                 try {
                     if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر تجهيز استرجاع حركة الصندوق.');
@@ -7426,6 +7525,8 @@ function renderPurchasesTable() {
             const clientMovementsBefore = hadClientMovements ? (Array.isArray(AppData.clientMovements) ? AppData.clientMovements.slice() : AppData.clientMovements) : null;
             const hadSettlementAllocations = Object.prototype.hasOwnProperty.call(AppData, 'settlementAllocations');
             const settlementAllocationsBefore = hadSettlementAllocations ? (Array.isArray(AppData.settlementAllocations) ? AppData.settlementAllocations.slice() : AppData.settlementAllocations) : null;
+            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
+            const auditTrailBefore = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
             const hadLedgerVersion = Object.prototype.hasOwnProperty.call(customer, 'ledgerVersion');
             const oldLedgerVersion = customer.ledgerVersion;
             const baseMovementId = 'DEBT-IN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -7482,8 +7583,19 @@ function renderPurchasesTable() {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                anasAppendAuditTrailEvent({
+                    id: 'AUD-CUSTOMER-RECEIPT-' + String(movementId),
+                    eventType: 'CUSTOMER_DEBT_RECEIPT_COMMITTED',
+                    entityType: 'customer_debt_receipt',
+                    entityId: String(movementId),
+                    referenceType: 'customer_debt',
+                    referenceId: String(customer.id),
+                    customerId: String(customer.id),
+                    amountCentimes: amountCents,
+                    allocationCount: invoiceRows.length
+                });
                 // Preserve the V42 mutation-capture hook before waiting for the authoritative durable acknowledgement.
-                if (typeof saveDB !== 'function' || saveDB() !== true)
+                if (typeof saveDB !== 'function' || saveDB() !== true
                     throw new Error('تعذر تجهيز سند القبض أو التقاطه للمزامنة.');
                 if (typeof saveDBDurably !== 'function') throw new Error('واجهة الحفظ الدائم غير متاحة؛ لم يتم اعتماد القبض.');
                 if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند القبض.');
@@ -7495,6 +7607,7 @@ function renderPurchasesTable() {
                 if (hadCashMovements) AppData.cashMovements = cashMovementsBefore; else delete AppData.cashMovements;
                 if (hadClientMovements) AppData.clientMovements = clientMovementsBefore; else delete AppData.clientMovements;
                 if (hadSettlementAllocations) AppData.settlementAllocations = settlementAllocationsBefore; else delete AppData.settlementAllocations;
+                if (hadAuditTrail) AppData.auditTrail = auditTrailBefore; else delete AppData.auditTrail;
                 try { if (typeof updateCashUI === 'function') updateCashUI(); if (typeof renderCustomersDebts === 'function') renderCustomersDebts(); } catch (_) {}
                 alert('لم يتم اعتماد القبض: ' + (error?.message || 'فشل الحفظ') + '. أُعيدت الحالة والدفاتر إلى ما قبل العملية.');
                 return;
@@ -7899,7 +8012,7 @@ function renderPurchasesTable() {
                 !Number.isSafeInteger(cashCents) || cashCents < 0) {
                 alert('رصيد المورد أو الصندوق غير صالح؛ لم يتم تسجيل أي تسديد.'); return;
             }
-            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين'],['purchases','فواتير الشراء'],['settlementAllocations','دفتر تخصيص الدفعات']]) {
+            for (const [field,label] of [['cashMovements','حركات الصندوق'],['supplierMovements','دفتر الموردين'],['purchases','فواتير الشراء'],['settlementAllocations','دفتر تخصيص الدفعات'],['auditTrail','سجل التدقيق']]) {
                 if (Object.prototype.hasOwnProperty.call(AppData,field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(x => !x || typeof x !== 'object' || Array.isArray(x)))) {
                     alert('سجل ' + label + ' تالف؛ لم يتم تسجيل أي تسديد.'); return;
@@ -8029,7 +8142,7 @@ function renderPurchasesTable() {
             const hadCash = Object.prototype.hasOwnProperty.call(AppData,'caisseBalance');
             const oldCash = AppData.caisseBalance;
             const snapshots = {};
-            for (const key of ['supplierMovements','cashMovements','settlementAllocations']) {
+            for (const key of ['supplierMovements','cashMovements','settlementAllocations','auditTrail']) {
                 snapshots[key] = {
                     had: Object.prototype.hasOwnProperty.call(AppData,key),
                     array: Array.isArray(AppData[key]) ? AppData[key] : null,
@@ -8049,6 +8162,10 @@ function renderPurchasesTable() {
                 if (!Array.isArray(AppData.settlementAllocations)) {
                     if (Object.prototype.hasOwnProperty.call(AppData,'settlementAllocations')) throw new Error('دفتر تخصيص الدفعات تالف.');
                     AppData.settlementAllocations = [];
+                }
+                if (!Array.isArray(AppData.auditTrail)) {
+                    if (Object.prototype.hasOwnProperty.call(AppData,'auditTrail')) throw new Error('سجل التدقيق تالف.');
+                    AppData.auditTrail = [];
                 }
                 supplier.balance = anasPurchaseCentsToCurrency(nextSupplierCents);
                 AppData.caisseBalance = anasPurchaseCentsToCurrency(nextCashCents);
@@ -8081,8 +8198,19 @@ function renderPurchasesTable() {
                     });
                     AppData.settlementAllocations.push(allocation);
                 }
+                anasAppendAuditTrailEvent({
+                    id: 'AUD-SUPPLIER-PAY-' + String(movementId),
+                    eventType: 'SUPPLIER_PAYMENT_COMMITTED',
+                    entityType: 'supplier_payment',
+                    entityId: String(movementId),
+                    referenceType: 'supplier_payment',
+                    referenceId: String(movementId),
+                    supplierId: supplierIdText,
+                    amountCentimes: amountCents,
+                    invoiceIds: invoiceRows.map(row => String(row.invoiceId))
+                });
                 globalThis.ANASReverseLedger.validateReverseLedgerParity(AppData);
-                if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر التقاط سند صرف المورد للمزامنة.');
+                if (typeof saveDB !== 'function' || saveDB() !== true throw new Error('تعذر التقاط سند صرف المورد للمزامنة.');
                 if (typeof saveDBDurably !== 'function') throw new Error('واجهة التخزين الدائم غير متاحة؛ لم يتم اعتماد التسديد.');
                 if (await saveDBDurably() !== true) throw new Error('لم يؤكد التخزين الدائم اعتماد سند صرف المورد.');
             } catch (error) {
@@ -8570,7 +8698,9 @@ function renderPurchasesTable() {
                 hadCustomerDebt: !!customer && Object.prototype.hasOwnProperty.call(customer, 'debt'),
                 debt: customer ? customer.debt : undefined,
                 hadStockMovements: Array.isArray(AppData.stockMovements),
-                stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null
+                stockMovements: Array.isArray(AppData.stockMovements) ? AppData.stockMovements.slice() : null,
+                hadAuditTrail: Object.prototype.hasOwnProperty.call(AppData, 'auditTrail'),
+                auditTrail: Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail
             };
             try {
                 for (const [id, deltaUnits] of stockChanges) {
@@ -8613,6 +8743,17 @@ function renderPurchasesTable() {
                 inv.remaining = newRemaining;
                 inv.paymentMethod = newPaid <= 0 ? 'credit' : (newRemaining > 0 ? 'partial' : 'cash');
                 inv.editedAt = new Date().toISOString();
+                anasAppendAuditTrailEvent({
+                    id: 'AUD-INVOICE-EDIT-' + String(inv.id) + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+                    eventType: 'SALES_INVOICE_EDITED',
+                    entityType: 'sales_invoice',
+                    entityId: String(inv.id),
+                    referenceType: 'sales_invoice',
+                    referenceId: String(inv.id),
+                    amountCentimes: anasToCents(inv.total),
+                    paidCentimes: anasToCents(inv.paid),
+                    remainingCentimes: anasToCents(inv.remaining)
+                });
                 if (!saveDB()) throw new Error('تعذر حفظ البيانات');
                 // Persistence has committed. UI rendering errors must never roll back in-memory data after storage succeeded.
                 try {
@@ -8645,6 +8786,11 @@ function renderPurchasesTable() {
                 }
                 if (snapshot.hadStockMovements) AppData.stockMovements = snapshot.stockMovements || [];
                 else delete AppData.stockMovements;
+                if (snapshot.hadAuditTrail) {
+                    if (Array.isArray(snapshot.auditTrail) && Array.isArray(AppData.auditTrail))
+                        AppData.auditTrail.splice(0, AppData.auditTrail.length, ...snapshot.auditTrail);
+                    else AppData.auditTrail = snapshot.auditTrail;
+                } else delete AppData.auditTrail;
                 alert('لم يتم حفظ التعديل؛ أُعيدت القيم السابقة بما فيها سجل حركات المخزون. تحقق من مساحة التخزين ثم أعد المحاولة.');
             }
         }
@@ -10921,9 +11067,146 @@ function wtAuditTransfers(){
             }
         }
 
+        function anasBackupWarehouseDefinitions(data) {
+            const raw = data && data.warehouses;
+            if (raw === undefined) return [];
+            if (raw === null) throw new Error('قائمة المخازن لا يمكن تصديرها بصيغة سليمة.');
+            if (raw instanceof Map) return Array.from(raw.values()).map(row =>
+                row && typeof row === 'object' && !Array.isArray(row) ? { ...row } : row);
+            if (!Array.isArray(raw)) throw new Error('قائمة المخازن لا يمكن تصديرها بصيغة سليمة.');
+            return raw.map(row => row && typeof row === 'object' && !Array.isArray(row) ? { ...row } : row);
+        }
+
+        function anasBackupWarehouseStockEntries(product) {
+            if (!Object.prototype.hasOwnProperty.call(product, 'warehouseStock')) return [];
+            const raw = product.warehouseStock;
+            if (raw instanceof Map) return Array.from(raw.entries());
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+                throw new Error('خريطة warehouseStock غير صالحة للمنتج ' + String(product.id ?? 'بدون معرّف') + '.');
+            return Object.entries(raw);
+        }
+
+        function anasBackupQuantityUnits(value, label) {
+            if (value === null || value === undefined || String(value).trim() === '')
+                throw new Error('كمية المخزون مفقودة في ' + label + '.');
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric) || numeric < 0)
+                throw new Error('كمية المخزون سالبة أو غير صالحة في ' + label + '.');
+            const units = anasToQtyUnits(value);
+            if (!Number.isSafeInteger(units) || units < 0)
+                throw new Error('كمية المخزون خارج الدقة الرقمية الآمنة في ' + label + '.');
+            const normalized = anasQtyFromUnits(units);
+            if (Math.abs(numeric - normalized) > 1e-9)
+                throw new Error('كمية المخزون تتجاوز دقة الست منازل العشرية في ' + label + '.');
+            return BigInt(units);
+        }
+
+        function anasBackupInventorySignature(data) {
+            if (!data || !Array.isArray(data.products))
+                throw new Error('تعذر تدقيق مخزون النسخة: قائمة المنتجات غير صالحة.');
+            const warehouses = anasBackupWarehouseDefinitions(data);
+            let mainStockUnits = 0n;
+            let warehouseStockUnits = 0n;
+            const warehouseTotals = new Map();
+            const seenProductIds = new Set();
+            const products = data.products.map((product, index) => {
+                if (!product || typeof product !== 'object' || Array.isArray(product))
+                    throw new Error('سجل منتج غير صالح عند تدقيق النسخة: ' + index);
+                const productId = String(product.id ?? '').trim();
+                if (!productId || seenProductIds.has(productId))
+                    throw new Error('معرّف منتج مفقود أو مكرر عند تدقيق النسخة: ' + productId);
+                seenProductIds.add(productId);
+                const hasStock = Object.prototype.hasOwnProperty.call(product, 'stock');
+                const stockUnits = anasBackupQuantityUnits(hasStock ? product.stock : 0, 'products[' + index + '].stock');
+                mainStockUnits += stockUnits;
+                const warehouseStock = anasBackupWarehouseStockEntries(product).map(([rawName, rawValue]) => {
+                    const name = String(rawName ?? '').trim();
+                    if (!name) throw new Error('يوجد اسم مخزن فارغ داخل warehouseStock للمنتج ' + productId + '.');
+                    const units = anasBackupQuantityUnits(rawValue, 'warehouseStock.' + name);
+                    warehouseStockUnits += units;
+                    warehouseTotals.set(name, (warehouseTotals.get(name) || 0n) + units);
+                    return [name, units.toString()];
+                }).sort((a, b) => a[0].localeCompare(b[0]));
+                return { id: productId, stockUnits: hasStock ? stockUnits.toString() : null, warehouseStock };
+            });
+            const warehouseStockTotals = Array.from(warehouseTotals.entries())
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([name, units]) => [name, units.toString()]);
+            return JSON.stringify({
+                productCount: products.length,
+                mainStockUnits: mainStockUnits.toString(),
+                warehouseStockUnits: warehouseStockUnits.toString(),
+                allLocationsStockUnits: (mainStockUnits + warehouseStockUnits).toString(),
+                warehouseStockTotals,
+                warehouses,
+                products
+            });
+        }
+
+        function anasNormalizeBackupInventory(incoming) {
+            if (!incoming || !Array.isArray(incoming.products))
+                throw new Error('تعذر استعادة المخزون: قائمة المنتجات غير صالحة.');
+            if (!Array.isArray(incoming.warehouses)) {
+                if (Object.prototype.hasOwnProperty.call(incoming, 'warehouses'))
+                    throw new Error('قائمة المخازن في النسخة غير صالحة.');
+                if (Array.isArray(AppData.warehouses) && AppData.warehouses.length)
+                    throw new Error('النسخة تفتقد تعريفات المخازن الموجودة حاليًا؛ رُفض الاسترجاع.');
+                incoming.warehouses = [];
+            }
+            const currentProducts = new Map((Array.isArray(AppData.products) ? AppData.products : [])
+                .filter(product => product && product.id != null).map(product => [String(product.id), product]));
+            for (const product of incoming.products) {
+                if (!Object.prototype.hasOwnProperty.call(product, 'warehouseStock')) {
+                    const current = currentProducts.get(String(product.id ?? ''));
+                    if (current && anasBackupWarehouseStockEntries(current).length)
+                        throw new Error('النسخة تفتقد أرصدة المخازن الفرعية للمنتج ' + String(product.id) + '؛ رُفض الاسترجاع لمنع فقدان المخزون.');
+                    product.warehouseStock = {};
+                } else {
+                    product.warehouseStock = Object.fromEntries(
+                        anasBackupWarehouseStockEntries(product).map(([name, value]) => [String(name), value])
+                    );
+                }
+            }
+            if (!Array.isArray(incoming.auditTrail)) {
+                if (Object.prototype.hasOwnProperty.call(incoming, 'auditTrail'))
+                    throw new Error('سجل التدقيق في النسخة غير صالح.');
+                if (Array.isArray(AppData.auditTrail) && AppData.auditTrail.length)
+                    throw new Error('النسخة تفتقد سجل التدقيق الحالي؛ رُفض الاسترجاع لمنع فقدان السجلات.');
+                incoming.auditTrail = [];
+            }
+            return anasBackupInventorySignature(incoming);
+        }
+
+        function anasBuildBackupExportPayload() {
+            if (!AppData || !Array.isArray(AppData.products))
+                throw new Error('بيانات المنتجات غير جاهزة للتصدير.');
+            const expectedSignature = anasBackupInventorySignature(AppData);
+            const warehouses = anasBackupWarehouseDefinitions(AppData);
+            const products = AppData.products.map(product => {
+                if (!product || typeof product !== 'object' || Array.isArray(product))
+                    throw new Error('يوجد سجل منتج غير صالح؛ أُلغي التصدير.');
+                return {
+                    ...product,
+                    warehouseStock: Object.fromEntries(
+                        anasBackupWarehouseStockEntries(product).map(([name, value]) => [String(name), value])
+                    )
+                };
+            });
+            if (Object.prototype.hasOwnProperty.call(AppData, 'auditTrail') && !Array.isArray(AppData.auditTrail))
+                throw new Error('سجل التدقيق غير صالح؛ أُلغي التصدير لحمايته.');
+            const auditTrail = Array.isArray(AppData.auditTrail) ? AppData.auditTrail.map(row => ({ ...row })) : [];
+            const payload = { ...AppData, warehouses, products, auditTrail };
+            if (anasBackupInventorySignature(payload) !== expectedSignature)
+                throw new Error('تغيرت أرصدة المخزون أثناء تجهيز النسخة؛ أُلغي التصدير.');
+            const serialized = JSON.stringify(payload, null, 2);
+            if (anasBackupInventorySignature(JSON.parse(serialized)) !== expectedSignature)
+                throw new Error('فشل تحقق round-trip لأرصدة المخازن والمخزون؛ أُلغي التصدير.');
+            return serialized;
+        }
+
         function exportDataBackup() {
             let blob;
-            try { blob = new Blob([JSON.stringify(AppData, null, 2)], { type: 'application/json' }); }
+            try { blob = new Blob([anasBuildBackupExportPayload()], { type: 'application/json' }); }
             catch (err) { alert('تعذر تجهيز النسخة الاحتياطية: توجد بيانات لا يمكن تحويلها إلى JSON.'); console.error(err); return false; }
             const objectUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -10942,7 +11225,7 @@ function wtAuditTransfers(){
                 if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
                     throw new Error('قائمة ' + key + ' مفقودة أو غير صالحة أو تتجاوز 200000 سجل.');
             }
-            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','customerCreditMovements','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords'];
+            const optionalArrays = ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','customerCreditMovements','warehouseTransfers','stockMovements','purchaseInvoices','supplierMovements','alerts','truckTrips','cashMovements','stocktakeRecords','auditTrail'];
             for (const key of optionalArrays) {
                 if (Object.prototype.hasOwnProperty.call(incoming, key)) {
                     if (!Array.isArray(incoming[key]) || incoming[key].length > 200000 || incoming[key].some(x => !x || typeof x !== 'object' || Array.isArray(x)))
@@ -10970,7 +11253,8 @@ function wtAuditTransfers(){
                 ['supplierMovements', incoming.supplierMovements || [], true],
                 ['customerCreditMovements', incoming.customerCreditMovements || [], true],
                 ['purchases', incoming.purchases || [], false],
-                ['stocktakeRecords', incoming.stocktakeRecords || [], true]
+                ['stocktakeRecords', incoming.stocktakeRecords || [], true],
+                ['auditTrail', incoming.auditTrail || [], true]
             ];
             for (const [key, records, requireId] of idCollections) {
                 const seenIds = new Set();
@@ -10985,6 +11269,17 @@ function wtAuditTransfers(){
                     if (seenIds.has(recordId))
                         throw new Error('معرّف مكرر في قائمة ' + key + ': ' + recordId + '؛ رُفض الاسترجاع لمنع ربط العمليات بسجل خاطئ.');
                     seenIds.add(recordId);
+                }
+            }
+            for (const record of (incoming.auditTrail || [])) {
+                if (typeof record.eventType !== 'string' || !record.eventType.trim() ||
+                    typeof record.entityType !== 'string' || !record.entityType.trim() ||
+                    record.entityId === undefined || record.entityId === null || String(record.entityId).trim() === '')
+                    throw new Error('سجل تدقيق محفوظ يفتقد نوع العملية أو الكيان؛ أُلغي الاسترجاع لحماية السجل.');
+                for (const field of ['amountCentimes','paidCentimes','remainingCentimes','previousAmountCentimes']) {
+                    if (Object.prototype.hasOwnProperty.call(record, field) &&
+                        (!Number.isSafeInteger(record[field]) || record[field] < 0))
+                        throw new Error('قيمة مالية غير صالحة في سجل التدقيق؛ أُلغي الاسترجاع.');
                 }
             }
             // Approved stocktake history is an audit ledger: validate its item list before accepting a restore.
@@ -11178,6 +11473,7 @@ function wtAuditTransfers(){
                 Object.values(AppData.posScreensCarts).some(cart => Array.isArray(cart) && cart.length)) {
                 throw new Error('النسخة تفتقد سلال نقاط البيع التي تحتوي على أصناف؛ رُفض الاسترجاع لمنع فقدانها.');
             }
+            anasNormalizeBackupInventory(incoming);
             return incoming;
         }
 
@@ -11190,14 +11486,16 @@ function wtAuditTransfers(){
             reader.onload = function(evt) {
                 try {
                     const incoming = anasValidateBackupData(JSON.parse(evt.target.result));
+                    const expectedInventorySignature = anasBackupInventorySignature(incoming);
                     if (!confirm('سيتم استبدال بيانات التطبيق الحالية. تأكد من حفظ نسخة احتياطية قبل المتابعة. هل تريد الاستمرار؟')) return;
                     const previous = AppData;
                     const previousCart = posCart;
                     const previousStartupIssues = anasStartupIntegrityIssues.slice();
                     const previousFatalLoadError = anasStartupFatalLoadError;
                     AppData = incoming;
+                    if (anasBackupInventorySignature(AppData) !== expectedInventorySignature) throw new Error('لم تتطابق أرصدة المخازن ومجموع مخزون المنتجات بعد فك النسخة؛ أُلغي الاسترجاع.');
                     if (!AppData.posScreensCarts) AppData.posScreensCarts = {1:[],2:[],3:[],4:[]};
-                    for (const key of ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations']) if (!Array.isArray(AppData[key])) AppData[key] = [];
+                    for (const key of ['invoices','purchases','expenses','users','trucks','returns','clientMovements','settlementAllocations','auditTrail']) if (!Array.isArray(AppData[key])) AppData[key] = [];
                     const activeTab = AppData.activePosScreenTab || 1;
                     posCart = Array.isArray(AppData.posScreensCarts[activeTab]) ? AppData.posScreensCarts[activeTab] : [];
                     // A validated restore is the explicit repair path for a corrupt startup snapshot.
@@ -11205,8 +11503,13 @@ function wtAuditTransfers(){
                     anasStartupFatalLoadError = false;
                     let restoreSaved = false;
                     let restoreSaveError = null;
-                    try { restoreSaved = saveDB() === true; }
-                    catch (saveErr) { restoreSaveError = saveErr; }
+                    try {
+                        restoreSaved = saveDB() === true;
+                        if (restoreSaved && anasBackupInventorySignature(AppData) !== expectedInventorySignature) {
+                            restoreSaved = false;
+                            restoreSaveError = new Error('تغير مجموع stock أو warehouseStock أثناء الحفظ.');
+                        }
+                    } catch (saveErr) { restoreSaveError = saveErr; }
                     if (!restoreSaved) {
                         AppData = previous; posCart = previousCart;
                         anasStartupIntegrityIssues = previousStartupIssues;

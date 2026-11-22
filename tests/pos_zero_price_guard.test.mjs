@@ -21,7 +21,8 @@ test('POS rejects zero, negative, malformed and over-precision unit prices befor
 
 test('zero-price sample requires an explicit flag and a documented reason', () => {
   assert.equal(validateCartPricing([{ name: 'Sample', price: '0', freeSample: true }]).code, 'ZERO_PRICE');
-  assert.equal(validateCartPricing([{ name: 'Sample', price: '0', freeSample: true, freeSampleReason: 'عرض ترويجي' }]).ok, true);
+  assert.equal(validateCartPricing([{ name: 'Sample', price: '0', freeSample: true, freeSampleReason: 'عرض ترويجي' }]).code, 'ZERO_PRICE');
+  assert.equal(validateCartPricing([{ name: 'Sample', price: '0', freeSample: true, freeSampleConfirmed: true, freeSampleConfirmedAt: '2026-11-22T10:00:00.000Z', freeSampleReason: 'عرض ترويجي' }]).ok, true);
 });
 
 test('the actual checkout click is guarded in capture phase and zero-default free-entry price clears on focus', () => {
@@ -29,4 +30,7 @@ test('the actual checkout click is guarded in capture phase and zero-default fre
   assert.match(source, /preventDefault\(\);\s*event\.stopImmediatePropagation\(\)/);
   assert.match(source, /price\.addEventListener\('focus',[\s\S]*?price\.value=''/);
   assert.match(source, /data-anas-pricing-guard/);
+  assert.match(source, /window\.confirm\('تأكيد صريح/);
+  assert.match(source, /window\.prompt\('اكتب سبب المجانية/);
+  assert.match(source, /savePosCartChange\(\(\)=>restorePosCart\(before\)\)/);
 });
