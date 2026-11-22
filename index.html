@@ -2150,6 +2150,42 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             <div id="posQuickProductsProgress" hidden style="font-size:11px;color:var(--mp-text-muted);padding:2px 8px;" aria-live="polite">0</div>
             <div class="quick-products-grid" id="quickProductsContainer" hidden></div>
 
+            <style id="anas-pos-floating-cart-style">
+                #anasPosFloatingCart{position:fixed;z-index:10050;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:9px;max-height:min(42vh,340px);padding:12px;border:1px solid var(--mp-border,#cbd5e1);border-radius:16px;background:var(--mp-card,#fff);color:var(--mp-text,#0f172a);box-shadow:0 12px 36px #0f172a30;direction:rtl}
+                #anasPosFloatingCart[hidden]{display:none!important}
+                #anasPosFloatingCart .anas-pos-floating-cart__head,#anasPosFloatingCart .anas-pos-floating-cart__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+                #anasPosFloatingCart .anas-pos-floating-cart__items{display:flex;flex-direction:column;gap:6px;overflow:auto;min-height:0;max-height:130px}
+                #anasPosFloatingCart .anas-pos-cart-row{display:flex;align-items:center;gap:7px;min-width:0;padding:7px;border:1px solid var(--mp-border,#e2e8f0);border-radius:10px;background:var(--mp-bg,#f8fafc)}
+                #anasPosFloatingCart .anas-pos-cart-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+                #anasPosFloatingCart .anas-pos-cart-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:850}
+                #anasPosFloatingCart .anas-pos-cart-math{white-space:nowrap;font-size:11px;color:var(--mp-text-muted,#64748b);font-variant-numeric:tabular-nums}
+                #anasPosFloatingCart button{border:1px solid var(--mp-border,#cbd5e1);border-radius:8px;padding:7px 10px;background:var(--mp-bg,#f8fafc);color:var(--mp-text,#0f172a);font-weight:800}
+                #anasPosFloatingCart [data-mini-action="free"]{background:var(--mp-accent,#0f766e);border-color:var(--mp-accent,#0f766e);color:#fff}
+                #anasPosFloatingCart [data-mini-action="checkout"]{background:var(--mp-primary,#1d4ed8);border-color:var(--mp-primary,#1d4ed8);color:#fff;min-width:120px}
+                #anasPosFloatingCart .anas-pos-quick-qty{display:flex;gap:5px;align-items:center}
+                #anasPosFloatingCart .anas-weight-chip{min-width:34px;padding:6px 9px}
+                #anasPosFloatingCart button:disabled{opacity:.45;cursor:not-allowed}
+                @media(min-width:760px){#anasPosFloatingCart{left:auto;right:20px;width:min(520px,calc(100vw - 40px));bottom:18px}}
+            </style>
+            <div id="anasPosFloatingCart" class="anas-pos-floating-cart" hidden aria-live="polite" aria-label="سلة البيع العائمة">
+                <div class="anas-pos-floating-cart__head">
+                    <div><strong>سلة البيع</strong> <small id="anasPosFloatingCartCount">0 صنف</small></div>
+                    <button type="button" data-mini-action="free" onclick="addPosFreeItem()">بند حر</button>
+                </div>
+                <div id="anasPosFloatingCartItems" class="anas-pos-floating-cart__items"></div>
+                <div class="anas-pos-floating-cart__foot">
+                    <div class="anas-pos-quick-qty" role="group" aria-label="إضافة كمية سريعة إلى آخر صنف">
+                        <button type="button" class="anas-weight-chip" onclick="anasPosQuickQty(1)" title="إضافة وحدة واحدة">1</button>
+                        <button type="button" class="anas-weight-chip" onclick="anasPosQuickQty(2)" title="إضافة وحدتين">2</button>
+                        <button type="button" class="anas-weight-chip" onclick="anasPosQuickQty(5)" title="إضافة خمس وحدات">5</button>
+                        <button type="button" class="anas-weight-chip" onclick="anasPosQuickQty(10)" title="إضافة عشر وحدات">10</button>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:9px">
+                        <strong id="anasPosFloatingCartTotal">0.00 د.ج</strong>
+                        <button type="button" data-mini-action="checkout" onclick="openHasibModal()" disabled>إتمام البيع</button>
+                    </div>
+                </div>
+            </div>
             <!-- هدف توافق مخفي للعارض القديم فقط؛ السلة العائمة هي واجهة السلة الوحيدة المرئية. -->
             <div id="posItemsTableBody" hidden aria-hidden="true" style="display:none!important"></div>
 
@@ -4197,6 +4233,98 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             savePosCartChange(() => { restorePosCart(oldCart); });
         }
 
+        let anasFreePosItemSequence = 0;
+        function addPosFreeItem() {
+            const rawName = window.prompt('اسم البند الحر:', '');
+            if (rawName === null) return;
+            const name = String(rawName).trim();
+            if (!name || name.length > 180) { alert('أدخل اسماً صالحاً للبند الحر.'); return; }
+            const rawPrice = window.prompt('سعر البند الحر (د.ج):', '0');
+            if (rawPrice === null) return;
+            const priceCents = anasToCents(rawPrice);
+            if (!Number.isSafeInteger(priceCents) || priceCents < 0) { alert('أدخل سعراً صالحاً غير سالب.'); return; }
+            const oldCart = snapshotPosCart();
+            anasFreePosItemSequence += 1;
+            posCart.push({
+                id: 'ANAS-FREE-' + Date.now() + '-' + anasFreePosItemSequence,
+                name,
+                price: anasCentsToCurrency(priceCents),
+                qty: 1,
+                unit: 'بند',
+                isFreeItem: true,
+                nonInventory: true
+            });
+            savePosCartChange(() => { restorePosCart(oldCart); });
+        }
+
+        function anasPosQuickQty(amount) {
+            const step = Number(amount);
+            if (![1, 2, 5, 10].includes(step) || !posCart.length) return;
+            changePosQty(posCart.length - 1, step);
+        }
+
+        function renderAnasPosFloatingCart() {
+            const host = document.getElementById('anasPosFloatingCart');
+            const itemsHost = document.getElementById('anasPosFloatingCartItems');
+            if (!host || !itemsHost) return;
+            const count = document.getElementById('anasPosFloatingCartCount');
+            const total = document.getElementById('anasPosFloatingCartTotal');
+            const checkout = host.querySelector('[data-mini-action="checkout"]');
+            const quickButtons = host.querySelectorAll('.anas-weight-chip');
+            const hasItems = Array.isArray(posCart) && posCart.length > 0;
+            host.hidden = !hasItems;
+            if (count) count.textContent = String(posCart.length) + ' صنف';
+            if (!hasItems) {
+                itemsHost.replaceChildren();
+                if (total) total.textContent = '0.00 د.ج';
+                if (checkout) checkout.disabled = true;
+                quickButtons.forEach(button => { button.disabled = true; });
+                return;
+            }
+            const fragment = document.createDocumentFragment();
+            posCart.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = 'anas-pos-cart-row';
+                const info = document.createElement('div');
+                info.className = 'anas-pos-cart-info';
+                const name = document.createElement('strong');
+                name.className = 'anas-pos-cart-name';
+                name.textContent = String(item.name ?? 'منتج');
+                const math = document.createElement('small');
+                math.className = 'anas-pos-cart-math';
+                const lineCents = anasLineTotalCents(anasToQtyUnits(item.qty), anasToCents(item.price));
+                const lineText = Number.isSafeInteger(lineCents) ? anasCentsToCurrency(lineCents).toFixed(2) : '—';
+                const priceText = Number.isSafeInteger(anasToCents(item.price)) ? anasCentsToCurrency(anasToCents(item.price)).toFixed(2) : '—';
+                math.textContent = String(item.qty ?? '—') + ' ' + String(item.unit ?? '') + ' × ' + priceText + ' = ' + lineText + ' د.ج';
+                info.append(name, math);
+                const minus = document.createElement('button');
+                minus.type = 'button'; minus.textContent = '−'; minus.title = 'إنقاص وحدة';
+                minus.setAttribute('aria-label', 'إنقاص كمية ' + String(item.name ?? 'الصنف'));
+                minus.addEventListener('click', () => changePosQty(index, -1));
+                const quantity = document.createElement('button');
+                quantity.type = 'button'; quantity.textContent = String(item.qty ?? '—'); quantity.title = 'تعديل الكمية';
+                quantity.addEventListener('click', () => editPosQty(index));
+                const plus = document.createElement('button');
+                plus.type = 'button'; plus.textContent = '+'; plus.title = 'زيادة وحدة';
+                plus.setAttribute('aria-label', 'زيادة كمية ' + String(item.name ?? 'الصنف'));
+                plus.addEventListener('click', () => changePosQty(index, 1));
+                const price = document.createElement('button');
+                price.type = 'button'; price.textContent = 'السعر'; price.title = 'تعديل السعر';
+                price.addEventListener('click', () => editPosPrice(index));
+                const remove = document.createElement('button');
+                remove.type = 'button'; remove.textContent = '×'; remove.title = 'حذف الصنف';
+                remove.setAttribute('aria-label', 'حذف ' + String(item.name ?? 'الصنف'));
+                remove.addEventListener('click', () => removePosCartItem(index));
+                row.append(info, minus, quantity, plus, price, remove);
+                fragment.appendChild(row);
+            });
+            itemsHost.replaceChildren(fragment);
+            const totalCents = anasCartTotalCents(posCart);
+            if (total) total.textContent = Number.isSafeInteger(totalCents) ? anasCentsToCurrency(totalCents).toFixed(2) + ' د.ج' : 'إجمالي غير صالح';
+            if (checkout) checkout.disabled = !Number.isSafeInteger(totalCents) || totalCents <= 0;
+            quickButtons.forEach(button => { button.disabled = false; });
+        }
+
         function renderPosTable() {
             const tb = document.getElementById('posItemsTableBody');
             tb.innerHTML = '';
@@ -4206,6 +4334,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const checkout = document.getElementById('posCheckoutBtn');
                 if (checkout) { checkout.disabled = true; checkout.setAttribute('aria-disabled', 'true'); }
                 syncHasibInvoiceTotals();
+                renderAnasPosFloatingCart();
                 return;
             }
 
@@ -4250,6 +4379,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 checkout.setAttribute('aria-disabled', checkout.disabled ? 'true' : 'false');
             }
             syncHasibInvoiceTotals();
+            renderAnasPosFloatingCart();
         }
 
         function savePosCartChange(rollback) {
