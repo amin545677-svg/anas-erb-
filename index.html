@@ -2150,17 +2150,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             <div id="posQuickProductsProgress" hidden style="font-size:11px;color:var(--mp-text-muted);padding:2px 8px;" aria-live="polite">0</div>
             <div class="quick-products-grid" id="quickProductsContainer" hidden></div>
 
-            <!-- جدول بنود الفاتورة الأصلي -->
-            <div class="invoice-table-header">
-                <div>المنتج</div>
-                <div>السعر</div>
-                <div>الكمية والوحدة</div>
-                <div>الإجمالي</div>
-            </div>
-
-            <div class="invoice-items-body" id="posItemsTableBody">
-                <p style="text-align:center; color:#94a3b8; padding:35px; font-size:0.85rem;">اضف منتجات أولاً للمتابعة</p>
-            </div>
+            <!-- هدف توافق مخفي للعارض القديم فقط؛ السلة العائمة هي واجهة السلة الوحيدة المرئية. -->
+            <div id="posItemsTableBody" hidden aria-hidden="true" style="display:none!important"></div>
 
             <!-- إجمالي POS وزر المتابعة يظهران في السلة العائمة؛ تبقى المراجع التالية مخفية لتوافق تحديثات الحالة القديمة. -->
             <div id="posCheckoutCompat" hidden aria-hidden="true">
