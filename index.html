@@ -4202,6 +4202,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const firstRow = posCart.find(row => row && String(row.id) === String(product.id));
                 const firstUnits = anasToQtyUnits(firstRow.qty);
                 firstRow.qty = anasQtyFromUnits(firstUnits + ANAS_QTY_SCALE);
+                if (!(Number(firstRow.pack) > 0) && Number(product.pack) > 0) firstRow.pack = Number(product.pack);
             } else {
                 posCart.push({
                     id: product.id,
@@ -4209,6 +4210,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     price: anasCentsToCurrency(priceCents),
                     qty: 1,
                     unit: product.unit || 'قطعة',
+                    pack: Number(product.pack) > 0 ? Number(product.pack) : null,
                     image: product.image || ''
                 });
             }
@@ -5033,7 +5035,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     const costCents = anasToCents(product?.buyPrice ?? product?.cost_price);
                     if (Number.isSafeInteger(costCents) && costCents >= 0) costPrice = anasCentsToCurrency(costCents);
                 } catch (_) {}
-                const packValue = Number(product?.pack ?? it.pack ?? 1);
+                const productPack = Number(product?.pack);
+                const cartPack = Number(it.pack);
+                const packValue = Number.isFinite(productPack) && productPack > 0 ? productPack : cartPack;
                 const pack = Number.isFinite(packValue) && packValue > 0 ? packValue : null;
                 return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents),
                     unit:String(it.unit || product?.unit || 'قطعة'), pack, costPrice,
@@ -11684,7 +11688,7 @@ function anasGetAiHubKpiMetrics(tabKey) {
             const oldCart=posCart.map(item=>({...item})),oldCarts=AppData.posScreensCarts,oldActive=AppData.activePosScreenTab;
             const unitPrice=price===null?(AppData.activePriceTier===2?(product.price2||product.price1):(AppData.activePriceTier===3?(product.price3||product.price1):product.price1)):price;
             if(existing){existing.qty=nextQty;if(price!==null)existing.price=price;}
-            else posCart.push({id:product.id,name:product.name,price:unitPrice,qty:quantity,unit:product.unit||'قطعة',image:product.image||''});
+            else posCart.push({id:product.id,name:product.name,price:unitPrice,qty:quantity,unit:product.unit||'قطعة',pack:Number(product.pack)>0?Number(product.pack):null,image:product.image||''});
             AppData.posScreensCarts=Object.assign({},AppData.posScreensCarts||{});AppData.posScreensCarts[AppData.activePosScreenTab]=posCart;
             if(typeof saveDB!=='function'||saveDB()!==true){posCart.splice(0,posCart.length,...oldCart);AppData.posScreensCarts=oldCarts;AppData.activePosScreenTab=oldActive;return false;}
             window.__anasPendingSaleCustomerId=String(customer.id);window.__anasPendingSaleCustomerName=String(customer.name||'');

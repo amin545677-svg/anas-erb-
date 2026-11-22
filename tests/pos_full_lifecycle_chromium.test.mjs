@@ -1071,6 +1071,10 @@ test('Chromium UAT: 200 x 1,570 DZD full payment preserves four-line debt summar
     await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true &&
       Array.isArray(window.AppData?.products) && Array.isArray(window.AppData?.customers), null, { timeout: 15000 });
+    await page.evaluate(() => {
+      AppData.products[0].pack = 5;
+      if (saveDB() !== true) throw new Error('Could not persist package weight fixture');
+    });
     await page.evaluate(() => openView('pos'));
     assert.equal(await page.locator('#view-pos .anas-pos-checkout-bar').count(), 0,
       'the duplicate fixed bottom checkout panel must be absent');
