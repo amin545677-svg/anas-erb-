@@ -58,7 +58,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site");
  let server,browser,context,page;
- const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],firebaseAuthRequests=[];
+ const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],firebaseAuthRequests=[],requestFailures=[],blockedRequests=[];
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
   server=http.createServer(staticServer(out));
@@ -70,6 +70,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   page=await context.newPage();
   const localOrigin="http://127.0.0.1:"+port;
   page.on("pageerror",e=>errors.push(e.stack||e.message));
+  page.on("requestfailed",request=>requestFailures.push({
+   url:request.url(),method:request.method(),failureText:request.failure()?.errorText||"unknown request failure"
+  }));
   page.on("console",msg=>{if(msg.type()==="error")consoleErrors.push(msg.text());});
   page.on("response",response=>{
    if(response.status()===404&&response.url().startsWith(localOrigin+"/"))local404s.push(response.url());
@@ -78,37 +81,73 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   page.on("dialog",async dialog=>{dialogMessages.push({type:dialog.type(),message:dialog.message()});if(dialog.type()==="prompt"){promptNumber++;await dialog.accept("10.00");}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
-  const authCors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Client-Version, X-Firebase-Locale, X-Firebase-GMPID, X-Firebase-Client","Access-Control-Allow-Methods":"POST, OPTIONS"};
   const firebaseUid="playwright-anonymous-user";
   const authIssuedAt=Math.floor(Date.now()/1000);
   const jwtPart=value=>Buffer.from(JSON.stringify(value)).toString("base64url");
   const authIdToken=[
    jwtPart({alg:"RS256",typ:"JWT"}),
    jwtPart({iss:"https://securetoken.google.com/anas-erp-staging-a25e1",aud:"anas-erp-staging-a25e1",auth_time:authIssuedAt,user_id:firebaseUid,sub:firebaseUid,iat:authIssuedAt,exp:authIssuedAt+3600,firebase:{identities:{},sign_in_provider:"anonymous"}}),
-   "playwright-test-signature"
+   Buffer.from("playwright-test-signature").toString("base64url")
   ].join(".");
+  const authCorsFor=request=>{
+   const headers=request.headers(),origin=headers.origin||"*";
+   return {
+    "Access-Control-Allow-Origin":origin,
+    "Access-Control-Allow-Methods":"POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers":headers["access-control-request-headers"]||
+     "Content-Type, X-Client-Version, X-Firebase-Client, X-Firebase-GMPID, X-Firebase-Locale, X-Goog-Api-Key",
+    "Access-Control-Max-Age":"3600",
+    "Vary":"Origin"
+   };
+  };
+  const recordBlocked=(request,reason)=>{
+   blockedRequests.push({url:request.url(),method:request.method(),failureText:reason});
+  };
   await page.route("**/*",async route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.protocol==="http:"&&url.hostname==="127.0.0.1"&&Number(url.port)===port){await route.continue();return;}
-   // All application-critical SDKs and runtimes are bundled under /erp/.
-   // External script tags are optional integrations; answer deterministically
-   // instead of turning their absence into a page bootstrap network failure.
-   if(url.hostname==="identitytoolkit.googleapis.com"){
-    if(url.pathname!=="/v1/accounts:signUp"){await route.abort();return;}
+   const identityToolkit=url.hostname==="identitytoolkit.googleapis.com";
+   const secureToken=url.hostname==="securetoken.googleapis.com";
+   if(identityToolkit||secureToken){
+    const corsHeaders=authCorsFor(request);
     if(request.method()==="OPTIONS"){
-     await route.fulfill({status:204,headers:authCors});
+     firebaseAuthRequests.push({method:request.method(),url:request.url()});
+     await route.fulfill({status:204,headers:corsHeaders});
      return;
     }
-    if(request.method()!=="POST"){await route.abort();return;}
+    if(request.method()!=="POST"){
+     recordBlocked(request,"unsupported Firebase Auth mock method");
+     await route.abort();
+     return;
+    }
+    const isSignup=identityToolkit&&url.pathname==="/v1/accounts:signUp";
+    const isLookup=identityToolkit&&url.pathname==="/v1/accounts:lookup";
+    const isToken=secureToken&&url.pathname==="/v1/token";
+    if(!isSignup&&!isLookup&&!isToken){
+     recordBlocked(request,"unsupported Firebase Auth mock endpoint");
+     await route.abort();
+     return;
+    }
     firebaseAuthRequests.push({method:request.method(),url:request.url()});
-    await route.fulfill({status:200,headers:{...authCors,"Content-Type":"application/json"},body:JSON.stringify({
+    const body=isSignup?{
      kind:"identitytoolkit#SignupNewUserResponse",
-     localId:firebaseUid,
-     idToken:authIdToken,
+     localId:firebaseUid,idToken:authIdToken,
      refreshToken:"playwright-anonymous-refresh-token",
-     expiresIn:"3600",
-     isNewUser:true
-    })});
+     expiresIn:"3600",isNewUser:true
+    }:isLookup?{
+     kind:"identitytoolkit#GetAccountInfoResponse",
+     users:[{localId:firebaseUid,createdAt:String(authIssuedAt*1000),
+      lastLoginAt:String(authIssuedAt*1000),lastRefreshAt:new Date(authIssuedAt*1000).toISOString()}]
+    }:{
+     access_token:"playwright-anonymous-access-token",
+     id_token:authIdToken,
+     refresh_token:"playwright-anonymous-refresh-token",
+     expires_in:"3600",
+     token_type:"Bearer",
+     user_id:firebaseUid
+    };
+    await route.fulfill({status:200,headers:{...corsHeaders,"Content-Type":"application/json"},
+     contentType:"application/json",body:JSON.stringify(body)});
     return;
    }
    if(request.resourceType()==="script"){
@@ -116,6 +155,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     await route.fulfill({status:200,contentType:"application/javascript; charset=utf-8",body:"/* optional external script disabled in offline acceptance */"});
     return;
    }
+   recordBlocked(request,"blocked by offline acceptance catch-all");
    await route.abort();
   });
   await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
@@ -541,6 +581,8 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     syncResult:syncError??syncResult??null,
     mockRequests,
     firebaseAuthRequests,
+    requestFailures,
+    blockedRequests,
     ...syncFailureDiagnostics
    }));
   const cloud=JSON.parse(serverSnapshot);
@@ -626,7 +668,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     },{pendingKey:MUTATION_KEYS.pending});
     const diagnosticPayload={
      error:error?.stack||String(error),...diagnostics,pageErrors:errors,consoleErrors,dialogs:dialogMessages,
-     local404s,externalScripts,mockRequests,firebaseAuthRequests,syncResult:null
+     local404s,externalScripts,mockRequests,firebaseAuthRequests,requestFailures,blockedRequests,syncResult:null
     };
     console.error("[truck-offline] GLOBAL FAILURE DIAGNOSTICS:",safeJson(diagnosticPayload));
    }catch(diagnosticError){
