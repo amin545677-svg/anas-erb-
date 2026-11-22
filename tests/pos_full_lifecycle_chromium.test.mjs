@@ -1180,3 +1180,84 @@ test('Chromium UAT: 200 x 1,570 DZD full payment preserves four-line debt summar
   }
 });
 
+
+
+test('POS unified-cart and checkout UI contract: no duplicate lower panel or fraction chips', async () => {
+  const server = await startServer();
+  let browser;
+  const pageErrors = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    const data = initialData();
+    data.products[0].unit = 'كغ';
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data });
+    const page = await context.newPage();
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true &&
+      Array.isArray(window.AppData?.products), null, { timeout: 15000 });
+    await page.evaluate(() => openView('pos'));
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    await page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME }).click();
+    await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1 &&
+      document.getElementById('anasPosFloatingCart') && !document.getElementById('anasPosFloatingCart').hidden,
+      null, { timeout: 10000 });
+    const cartUi = await page.evaluate(() => {
+      const host = document.getElementById('anasPosFloatingCart');
+      return {
+        freeButtonText: host.querySelector('[data-mini-action="free"]')?.textContent.trim(),
+        expandButtons: host.querySelectorAll('[data-mini-action="expand"]').length,
+        quickWeights: Array.from(host.querySelectorAll('.anas-weight-chip')).map(button => button.textContent.trim()),
+        duplicateHeader: !!document.querySelector('#view-pos .invoice-table-header'),
+        legacyTargetHidden: document.getElementById('posItemsTableBody')?.hidden === true
+      };
+    });
+    assert.equal(cartUi.freeButtonText, 'بند حر');
+    assert.equal(cartUi.expandButtons, 0);
+    assert.deepEqual(cartUi.quickWeights.filter(value => ['0.25', '0.5', '0.50'].includes(value)), []);
+    assert.deepEqual(cartUi.quickWeights, ['1', '2', '5', '10']);
+    assert.equal(cartUi.duplicateHeader, false);
+    assert.equal(cartUi.legacyTargetHidden, true);
+
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    const checkoutUi = await page.evaluate(() => {
+      const method = document.getElementById('hasibPaymentMethod');
+      const modes = Array.from(document.querySelectorAll('#hasibModal [data-payment-mode]'));
+      const summary = document.querySelector('#hasibModal .anas-payment-summary');
+      const ids = ['hasibPreviousDebt', 'hasibSummaryTotal', 'hasibSummaryPaid', 'hasibRemainingText'];
+      return {
+        productListExpanded: document.getElementById('hasibCartEditor')?.open === true,
+        methodInputType: method?.type,
+        duplicateMethodSelect: !!document.querySelector('#hasibModal select#hasibPaymentMethod, #hasibModal select[name="paymentMethod"]'),
+        channelSelect: !!document.getElementById('hasibPaymentChannel'),
+        paymentModeLabels: modes.map(button => button.textContent.trim()),
+        summaryVisible: !!summary && getComputedStyle(summary).display !== 'none',
+        summaryLineCount: summary?.children.length ?? 0,
+        financialElementsPresent: ids.map(id => !!document.getElementById(id))
+      };
+    });
+    assert.equal(checkoutUi.productListExpanded, false);
+    assert.equal(checkoutUi.methodInputType, 'hidden');
+    assert.equal(checkoutUi.duplicateMethodSelect, false);
+    assert.equal(checkoutUi.channelSelect, true);
+    assert.deepEqual(checkoutUi.paymentModeLabels, ['دفع كامل', 'دفع جزئي', 'دين كامل']);
+    assert.equal(checkoutUi.summaryVisible, true);
+    assert.equal(checkoutUi.summaryLineCount, 4);
+    assert.ok(checkoutUi.financialElementsPresent.every(Boolean));
+
+    const thermalReceiptSource = await page.evaluate(() => String(printThermalReceipt));
+    for (const label of ['الدين السابق', 'قيمة الفاتورة', 'المقبوض الآن', 'الرصيد الجديد'])
+      assert.ok(thermalReceiptSource.includes(label), 'thermal receipt must include ' + label);
+    assert.ok(thermalReceiptSource.includes('white-space:nowrap'));
+    assert.ok(thermalReceiptSource.includes('×'));
+    assert.deepEqual(pageErrors, []);
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
