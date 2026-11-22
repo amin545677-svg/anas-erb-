@@ -46,6 +46,7 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
       formatted:q.formatMillisToQtyString(250n),
       line:q.computeLineTotalCentimesBigInt(12550n,250n).toString(),
       chips:host.querySelectorAll('.anas-weight-chip').length,
+      quickLabels:Array.from(host.querySelectorAll('.anas-weight-chip'),node=>node.textContent),
       sticky:document.getElementById('anas-sticky-checkout-bar'),
       unified:host.classList.contains('anas-pos-unified-checkout')
     };
@@ -53,7 +54,8 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
   assert.deepEqual(exact.weights,['250','500','1000','2000','5000','10000']);
   assert.equal(exact.formatted,'0.25');
   assert.equal(exact.line,'3138');
-  assert.equal(exact.chips,6);
+  assert.equal(exact.chips,4);
+  assert.deepEqual(exact.quickLabels,['1','2','5','10']);
   assert.equal(exact.sticky,null,'legacy duplicate sticky checkout must not be mounted');
   assert.equal(exact.unified,true);
   for(const width of [320,360,390]){
@@ -77,8 +79,9 @@ test('r40 unified mobile cart, exact fractional weights, tabular numerals and li
     assert.equal(box.count,'1');
     assert.ok(box.total.includes('د.ج'));
   }
-  await page.locator('#anasPosFloatingCart .anas-weight-chip').filter({hasText:'0.25'}).click();
-  assert.equal(await page.evaluate(()=>window.posCart[0].qty),'0.25');
+  await page.evaluate(()=>window.setPosQty(0,'0.25'));
+  assert.equal(await page.evaluate(()=>window.posCart[0].qty),'0.25',
+    'manual quantity editing must continue to accept exact fractional weights after quick fraction chips are removed');
   await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
   assert.equal(await page.evaluate(()=>window.__checkout),true);
   await page.waitForFunction(()=>document.getElementById('anasPosFloatingCart').hidden===true);
