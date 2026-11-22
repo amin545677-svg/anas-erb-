@@ -441,6 +441,22 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     };
     return {matches:Object.values(checks).every(Boolean),checks,fleetSales,auditRows};
    };
+    const fleetLengths=state=>{
+     const trips=state?.trips||[],trucks=state?.trucks||[];
+     return {
+      schemaVersion:state?.schemaVersion??null,
+      products:(state?.products||[]).map(row=>({id:row?.id,mainStockUnits:row?.mainStockUnits})),
+      trucks:trucks.map(row=>({id:row?.id,warehouseName:row?.warehouseName,stockUnits:row?.stockUnits})),
+      trips:trips.map(row=>({id:row?.id,status:row?.status,driverId:row?.driverId,truckId:row?.truckId,sales:(row?.sales||[]).map(x=>x?.id),debtPayments:(row?.debtPayments||[]).map(x=>x?.referenceId)})),
+      tripSalesLen:trips.reduce((n,trip)=>n+(Array.isArray(trip?.sales)?trip.sales.length:0),0),
+      truckStockLen:trucks.reduce((n,truck)=>n+Object.keys(truck?.stockUnits||{}).length,0)
+     };
+    };
+    const operationChain=(Array.isArray(q)?q:[]).filter(item=>item?.type==="TRUCK_FLEET_OPERATION").map((item,index,all)=>({
+     opId:item.opId,localSeq:item.localSeq??null,status:item.status,
+     base:fleetLengths(item.payload?.baseState),next:fleetLengths(item.payload?.nextState),
+     previousNextMatchesBase:index===0?null:JSON.stringify(all[index-1]?.payload?.nextState??null)===JSON.stringify(item.payload?.baseState??null)
+    }));
    const pendingOperationDiagnostics=(Array.isArray(q)?q:[]).map(item=>{
     const inspection=inspectFleetOperation(item);
     const deltas=item?.payload?.collectionDeltas||{};
@@ -457,22 +473,6 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
       return beforeById.has(id)&&beforeById.get(id)!==JSON.stringify(row);
      }).length;
      return [key,{beforeLen:before.length,afterLen:after.length,addedLen,changedLen}];
-    }));
-    const fleetLengths=state=>{
-     const trips=state?.trips||[],trucks=state?.trucks||[];
-     return {
-      schemaVersion:state?.schemaVersion??null,
-      products:(state?.products||[]).map(row=>({id:row?.id,mainStockUnits:row?.mainStockUnits})),
-      trucks:trucks.map(row=>({id:row?.id,warehouseName:row?.warehouseName,stockUnits:row?.stockUnits})),
-      trips:trips.map(row=>({id:row?.id,status:row?.status,driverId:row?.driverId,truckId:row?.truckId,sales:(row?.sales||[]).map(x=>x?.id),debtPayments:(row?.debtPayments||[]).map(x=>x?.referenceId)})),
-      tripSalesLen:trips.reduce((n,trip)=>n+(Array.isArray(trip?.sales)?trip.sales.length:0),0),
-      truckStockLen:trucks.reduce((n,truck)=>n+Object.keys(truck?.stockUnits||{}).length,0)
-     };
-    };
-    const operationChain=(Array.isArray(q)?q:[]).filter(item=>item?.type==="TRUCK_FLEET_OPERATION").map((item,index,all)=>({
-     opId:item.opId,localSeq:item.localSeq??null,status:item.status,
-     base:fleetLengths(item.payload?.baseState),next:fleetLengths(item.payload?.nextState),
-     previousNextMatchesBase:index===0?null:JSON.stringify(all[index-1]?.payload?.nextState??null)===JSON.stringify(item.payload?.baseState??null)
     }));
     return {
      opType:String(item?.type??"unknown"),
@@ -599,6 +599,10 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    const firebaseAuth=safe(()=>typeof window.firebase?.auth==="function"?window.firebase.auth():null,null);
    const authUser=firebaseAuth?.currentUser||window.auth?.currentUser||window.ANASFirebaseAuth?.currentUser||null;
    const sessionUser=window.currentUser||window.AppData?.currentUser||null;
+   const fleetLengths=state=>{
+    const trips=state?.trips||[],trucks=state?.trucks||[];
+    return {schemaVersion:state?.schemaVersion??null,truckIds:trucks.map(row=>row?.id),tripIds:trips.map(row=>row?.id),tripSalesLen:trips.reduce((n,trip)=>n+(trip?.sales||[]).length,0),tripDebtPaymentsLen:trips.reduce((n,trip)=>n+(trip?.debtPayments||[]).length,0)};
+   };
    const lastError=status.lastError??window.ANASMutationSync?.lastError??window.ANASMutationSync?.error??window.__ANAS_SYNC_LAST_ERROR__??null;
    return {
     runtimeFlags:{
