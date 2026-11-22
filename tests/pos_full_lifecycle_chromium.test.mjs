@@ -60,6 +60,10 @@ function startServer() {
   });
 }
 
+async function expandHasibCartEditor(page) {
+  await page.locator('#hasibCartEditor').evaluate(node => { node.open = true; });
+}
+
 async function readCommittedSale(page, invoiceId) {
   return page.evaluate(({ id, productId }) => {
     const storage = window.ANASResilientStorage;
@@ -204,6 +208,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // Open the original Hasib modal through its actual toolbar control.
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await expandHasibCartEditor(page);
     await page.waitForFunction(() => document.getElementById('anasPosFloatingCart')?.hidden === true);
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isVisible(), true,
       'the payment confirmation action must remain reachable while the checkout modal is open');
@@ -244,11 +249,11 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       if (saveDB() !== true) throw new Error('Could not restore credit-limit test fixture');
     });
     await page.locator('#hasibCustomerSelect').selectOption('');
-    await page.locator('#hasibModal button').filter({ hasText: /^½ الآن$/ }).click();
+    await page.locator('#hasibModal [data-payment-mode="partial"]').click();
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
     assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 12.5) < 0.01,
       'quick half-payment action must calculate half the current invoice in centimes');
-    await page.locator('#hasibModal button').filter({ hasText: /^كامل$/ }).click();
+    await page.locator('#hasibModal [data-payment-mode="full"]').click();
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'cash');
     assert.ok(Math.abs(Number(await page.locator('#hasibPaidAmount').inputValue()) - 25) < 0.01,
       'quick full-payment action must settle the exact invoice total');
@@ -313,6 +318,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       renderPosTable();
     });
     const commitQuantityEditor = async value => {
+      await expandHasibCartEditor(page);
       const overlay = page.locator('#anasPosQtyEditor');
       if (!(await overlay.count())) await page.locator('#hasibCartItems button').first().click();
       const editor = overlay.locator('input').first();
@@ -320,6 +326,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       await overlay.locator('button').filter({ hasText: 'حفظ الكمية' }).click();
     };
     const commitPriceEditor = async value => {
+      await expandHasibCartEditor(page);
       const overlay = page.locator('#anasPosQtyEditor');
       if (await overlay.count()) await overlay.evaluate(node => node.remove());
       promptResponses.push(value);
@@ -609,7 +616,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'weighted POS sale must retain an exact 0.25 kg quantity');
     assert.equal(await page.evaluate(() => posCart[0].price), 100,
       'weighted POS sale must retain the per-kilogram price');
-    await page.locator('#hasibPaymentMethod').selectOption('partial');
+    await page.locator('#hasibModal [data-payment-mode="partial"]').click();
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '12.50');
     assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25 د.ج',
       'whole-DZD invoice totals omit redundant decimal zeros');
@@ -659,7 +666,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.waitForFunction(() => Array.isArray(posCart) && posCart.length === 1, null, { timeout: 10000 });
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
-    await page.locator('#hasibPaymentMethod').selectOption('credit');
+    await page.locator('#hasibModal [data-payment-mode="debt"]').click();
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
     assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0 د.ج');
     assert.equal(await page.locator('#hasibRemainingText').textContent(), '25 د.ج',
@@ -958,7 +965,7 @@ test('Chromium UAT: 0.75 kg sale, 400.00 initial payment, 200.00 receipt and rep
     }, null, { timeout: 10000 });
     assert.equal(await page.evaluate(() => posCart[0].qty), 0.75);
     assert.equal(await page.evaluate(() => posCart[0].price), 1200);
-    await page.locator('#hasibPaymentMethod').selectOption('partial');
+    await page.locator('#hasibModal [data-payment-mode="partial"]').click();
     await page.locator('#hasibPaidAmount').fill('400.00');
     await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true);
@@ -1035,3 +1042,137 @@ test('Chromium UAT: 0.75 kg sale, 400.00 initial payment, 200.00 receipt and rep
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('Chromium UAT: 200 x 1,570 DZD full payment preserves four-line debt summary and atomic receipt', async () => {
+  const server = await startServer();
+  let browser;
+  const pageErrors = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    const data = initialData();
+    data.products[0].stock = 500;
+    data.products[0].unit = 'كغ';
+    data.products[0].pack = 5;
+    data.products[0].price1 = 1570;
+    data.products[0].price2 = 1570;
+    data.products[0].price3 = 1570;
+    data.customers[0].debt = 10000;
+    data.customers[0].credit_limit = 1000000;
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data });
+
+    const page = await context.newPage();
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+    page.on('dialog', async dialog => { await dialog.accept(); });
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true &&
+      Array.isArray(window.AppData?.products) && Array.isArray(window.AppData?.customers), null, { timeout: 15000 });
+    await page.evaluate(() => openView('pos'));
+    assert.equal(await page.locator('#view-pos .anas-pos-checkout-bar').count(), 0,
+      'the duplicate fixed bottom checkout panel must be absent');
+    assert.equal(await page.locator('#posCheckoutCompat').isHidden(), true,
+      'legacy POS status targets must remain hidden, not render a duplicate panel');
+    assert.equal(await page.locator('#anasPosFloatingCart [data-mini-action="free"]').textContent(), 'بند حر');
+
+    await page.locator('#posSearchField').fill(PRODUCT_NAME);
+    const result = page.locator('#posSearchResults .pos-search-result').filter({ hasText: PRODUCT_NAME });
+    await result.waitFor({ state: 'visible', timeout: 10000 });
+    await result.click();
+    await page.locator('#anasPosPriceTierModal[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#anasPosPriceTierModal button').filter({ hasText: 'سعر التجزئة (الدفعة)' }).click();
+    await page.waitForFunction(() => posCart.length === 1 && posCart[0].unit === 'كغ', null, { timeout: 10000 });
+    const fractionalButtons = await page.locator('#anasPosFloatingCart .anas-weight-chip').allTextContents();
+    assert.equal(fractionalButtons.includes('0.25'), false);
+    assert.equal(fractionalButtons.includes('0.5'), false);
+
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.locator('#hasibCartEditor').evaluate(node => node.open), false,
+      'the product list must be collapsed by default on checkout');
+    assert.equal(await page.locator('#hasibPaymentMethod').getAttribute('type'), 'hidden',
+      'payment mode must not be presented as a duplicate dropdown');
+    assert.equal(await page.locator('#hasibModal [data-payment-mode]').count(), 3);
+    assert.equal(await page.locator('#hasibPreviousDebt').count(), 1);
+    assert.equal(await page.locator('#hasibModal .anas-payment-summary > div').count(), 4);
+    await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
+    assert.match(await page.locator('#hasibPreviousDebt').textContent(), /10[\s\u00a0,]?000/);
+    await expandHasibCartEditor(page);
+    await page.locator('#hasibCartItems button').first().click();
+    const quantityEditor = page.locator('#anasPosQtyEditor input').first();
+    await quantityEditor.waitFor({ state: 'visible', timeout: 5000 });
+    await quantityEditor.fill('200');
+    await page.locator('#anasPosQtyEditor button').filter({ hasText: 'حفظ الكمية' }).click();
+    await page.waitForFunction(() => Number(posCart[0]?.qty) === 200, null, { timeout: 10000 });
+
+    await page.locator('#hasibModal [data-payment-mode="full"]').click();
+    assert.match(await page.locator('#hasibSummaryTotal').textContent(), /314[\s\u00a0,]?000/);
+    assert.match(await page.locator('#hasibSummaryPaid').textContent(), /314[\s\u00a0,]?000/);
+    assert.match(await page.locator('#hasibRemainingText').textContent(), /10[\s\u00a0,]?000/,
+      'full payment clears this invoice balance while preserving the prior customer debt');
+    assert.equal(await page.locator('#hasibConfirmSaleBtn').isEnabled(), true);
+
+    const beforeRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#hasibConfirmSaleBtn').click();
+    await page.waitForFunction(({ beforeRevision }) => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      return ANASResilientStorage.status().revision > beforeRevision &&
+        s.invoices.some(row => row && row.total === 314000 && row.paid === 314000 && row.remaining === 0);
+    }, { beforeRevision }, { timeout: 20000 });
+
+    const proof = await page.evaluate(() => {
+      const s = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = s.invoices.find(row => row && row.total === 314000 && row.paid === 314000);
+      const saleCash = s.cashMovements.filter(row => row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      const saleStock = s.stockMovements.filter(row => row.referenceType === 'sales_invoice' && String(row.referenceId) === String(invoice.id));
+      const product = s.products.find(row => String(row.id) === 'STG-POS-LIFECYCLE-001');
+      const customer = s.customers.find(row => String(row.id) === 'STG-CUSTOMER-001');
+      return {
+        invoiceCount: s.invoices.filter(row => row.total === 314000 && row.paid === 314000).length,
+        total: invoice.total, paid: invoice.paid, remaining: invoice.remaining,
+        oldDebt: invoice.oldDebt, newDebt: invoice.newDebt,
+        cashRows: saleCash.length, cashAmount: saleCash[0]?.amount,
+        stockRows: saleStock.length, stockQuantity: saleStock[0]?.qty ?? saleStock[0]?.quantity,
+        stock: product.stock, customerDebt: customer.debt
+      };
+    });
+    assert.equal(proof.invoiceCount, 1);
+    assert.equal(proof.total, 314000);
+    assert.equal(proof.paid, 314000);
+    assert.equal(proof.remaining, 0);
+    assert.equal(proof.oldDebt, 10000);
+    assert.equal(proof.newDebt, 10000);
+    assert.equal(proof.cashRows, 1);
+    assert.equal(proof.cashAmount, 314000);
+    assert.equal(proof.stockRows, 1);
+    assert.equal(proof.stockQuantity, -200);
+    assert.equal(proof.stock, 300);
+    assert.equal(proof.customerDebt, 10000);
+
+    const receipt = await page.evaluate(invoice => {
+      window.print = () => {};
+      printThermalReceipt(invoice);
+      const area = document.getElementById('receiptPrintArea');
+      return {
+        text: area.innerText,
+        mathWhiteSpace: area.querySelector('.anas-receipt-line-math')?.style.whiteSpace || '',
+        hasNonBreakingMath: Boolean(area.querySelector('.anas-receipt-line-math'))
+      };
+    }, await page.evaluate(() => ANASResilientStorage.getCommittedSnapshot().invoices.find(row => row.total === 314000)));
+    assert.match(receipt.text, /الدين السابق/);
+    assert.match(receipt.text, /قيمة الفاتورة/);
+    assert.match(receipt.text, /المقبوض الآن/);
+    assert.match(receipt.text, /الرصيد الجديد/);
+    assert.match(receipt.text, /عبوة 5 كغ/);
+    assert.match(receipt.text, /200 × 1570\.00 = 314000\.00/);
+    assert.equal(receipt.mathWhiteSpace, 'nowrap');
+    assert.deepEqual(pageErrors, [], 'full-payment UAT must not produce browser errors');
+    console.log('POS_314000_FULL_PAYMENT_UAT ' + JSON.stringify(proof));
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+

@@ -2177,15 +2177,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 <p style="text-align:center; color:#94a3b8; padding:35px; font-size:0.85rem;">اضف منتجات أولاً للمتابعة</p>
             </div>
 
-            <!-- شريط الإجمالي السفلي -->
-            <div class="bottom-totals-bar anas-pos-checkout-bar">
-                <div class="anas-pos-total-wrap">
-                    <span class="anas-pos-total-label">إجمالي الفاتورة</span>
-                    <div class="box-total-green" id="posTotalDisplay">0.00 د.ج</div>
-                </div>
-                <button type="button" id="posCheckoutBtn" class="anas-pos-checkout-btn" onclick="openHasibModal()" disabled>
-                    <span aria-hidden="true">✓</span> متابعة للدفع
-                </button>
+            <!-- إجمالي POS وزر المتابعة يظهران في السلة العائمة؛ تبقى المراجع التالية مخفية لتوافق تحديثات الحالة القديمة. -->
+            <div id="posCheckoutCompat" hidden aria-hidden="true">
+                <span id="posTotalDisplay">0.00 د.ج</span>
+                <button type="button" id="posCheckoutBtn" onclick="openHasibModal()" disabled></button>
             </div>
         </section>
 
@@ -3026,27 +3021,23 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 <span style="font-size:0.85rem; color:var(--mp-text-muted); font-weight:700;">إجمالي الفاتورة:</span>
                 <div style="font-size:1.7rem; font-weight:900; color:var(--mp-green);" id="hasibTotalText">0.00 د.ج</div>
             </div>
-            <div id="hasibCartEditor" style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;margin:0 0 14px;background:#fff;">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;">
-                    <strong style="color:#0f172a;">🧾 منتجات الفاتورة (يمكن تعديلها هنا)</strong>
+            <details id="hasibCartEditor" style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;margin:0 0 14px;background:#fff;">
+                <summary style="cursor:pointer;font-weight:900;color:var(--mp-text-dark,#0f172a);padding:3px 2px;">🧾 منتجات الفاتورة — اضغط لعرضها وتعديلها</summary>
+                <div style="display:flex;justify-content:flex-start;margin:10px 0 9px;">
                     <button type="button" onclick="openProductPickerModalFromHasib()" style="border:0;border-radius:8px;background:#0f766e;color:white;padding:8px 10px;font-weight:800;">＋ إضافة منتجات</button>
                 </div>
                 <div id="hasibCartItems" style="display:flex;flex-direction:column;gap:8px;"></div>
                 <small style="display:block;margin-top:8px;color:#64748b;">اضغط على السعر لتعديله، واكتب الكمية مباشرة أو استعمل − و＋. يتحدث الإجمالي تلقائياً.</small>
-            </div>
+            </details>
             <div class="anas-payment-section">
                 <div class="field-group">
                     <label for="hasibCustomerSelect">الزبون</label>
-                    <select id="hasibCustomerSelect" class="field-input" onchange="refreshHasibPaymentGuidance()"></select>
+                    <select id="hasibCustomerSelect" class="field-input" onchange="renderHasibPaymentSummary()"></select>
                     <small id="hasibCustomerHint" class="anas-payment-hint">البيع النقدي لا يحتاج إلى تسجيل زبون. عند وجود دين، اختر زبوناً مسجلاً.</small>
                 </div>
                 <div class="field-group">
-                    <label for="hasibPaymentMethod">كيف سيدفع الزبون؟</label>
-                    <select id="hasibPaymentMethod" class="field-input" onchange="setHasibPaymentMode(this.value)">
-                        <option value="cash">💵 دفع كامل الآن</option>
-                        <option value="partial">💳 دفع جزء الآن والباقي دين</option>
-                        <option value="credit">📝 تسجيل كامل المبلغ كدين</option>
-                    </select>
+                    <label>طريقة الدفع</label>
+                    <input type="hidden" id="hasibPaymentMethod" value="cash">
                     <label for="hasibPaymentChannel" style="display:block;margin-top:9px;font-weight:800">قناة التحصيل</label>
                     <select id="hasibPaymentChannel" class="field-input">
                         <option value="cash">💵 نقدي — يدخل الصندوق</option>
@@ -3056,8 +3047,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                         <option value="other">📌 أخرى — تحصيل غير نقدي</option>
                     </select>
                     <div class="anas-quick-payment-actions" role="group" aria-label="اختصارات الدفع السريع" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px">
-                        <button type="button" data-payment-mode="full" onclick="setHasibPaymentMode('cash')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">كامل</button>
-                        <button type="button" data-payment-mode="partial" onclick="setHasibPaymentMode('partial')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">½ الآن</button>
+                        <button type="button" data-payment-mode="full" onclick="setHasibPaymentMode('cash')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">دفع كامل</button>
+                        <button type="button" data-payment-mode="partial" onclick="setHasibPaymentMode('partial')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">دفع جزئي</button>
                         <button type="button" data-payment-mode="debt" onclick="setHasibPaymentMode('credit')" style="min-height:40px;border:1px solid var(--mp-border);border-radius:9px;background:var(--mp-card,#fff);color:var(--mp-text);font-weight:800">دين كامل</button>
                     </div>
                 </div>
@@ -3067,9 +3058,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     <small class="anas-payment-hint">أدخل ما استلمته فعلياً فقط. سيُحسب الدين تلقائياً.</small>
                 </div>
                 <div class="anas-payment-summary" aria-live="polite">
+                    <div><span>الدين السابق</span><strong id="hasibPreviousDebt">0.00 د.ج</strong></div>
                     <div><span>قيمة الفاتورة</span><strong id="hasibSummaryTotal">0.00 د.ج</strong></div>
                     <div><span>المقبوض الآن</span><strong id="hasibSummaryPaid">0.00 د.ج</strong></div>
-                    <div class="anas-payment-debt"><span>المتبقي على الزبون</span><strong id="hasibRemainingText">0.00 د.ج</strong></div>
+                    <div class="anas-payment-debt"><span>الرصيد الجديد</span><strong id="hasibRemainingText">0.00 د.ج</strong></div>
                 </div>
             </div>
 
@@ -4569,9 +4561,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const summaryTotal = document.getElementById('hasibSummaryTotal');
                 const summaryPaid = document.getElementById('hasibSummaryPaid');
                 const remaining = document.getElementById('hasibRemainingText');
+                const previousDebt = document.getElementById('hasibPreviousDebt');
                 if (summaryTotal) summaryTotal.textContent = '—';
                 if (summaryPaid) summaryPaid.textContent = '—';
                 if (remaining) remaining.textContent = '—';
+                if (previousDebt) previousDebt.textContent = '—';
                 if (confirm) { confirm.disabled = true; confirm.setAttribute('aria-disabled', 'true'); }
                 return;
             }
@@ -4610,6 +4604,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             AppData.customers.forEach(c => { sel.innerHTML += `<option value="${anasEscapeHTML(c.id)}">${anasEscapeHTML(c.name)} (دين: ${c.debt} د.ج)</option>`; });
             if(window.__anasPendingSaleCustomerId && AppData.customers.some(c=>String(c.id)===String(window.__anasPendingSaleCustomerId))) sel.value=String(window.__anasPendingSaleCustomerId);
             updatePaymentMethodFromAmount();
+            const cartEditor = document.getElementById('hasibCartEditor');
+            if (cartEditor) cartEditor.open = false;
             document.getElementById('hasibModal').classList.add('active');
             renderHasibCartEditor();
             syncHasibInvoiceTotals();
@@ -4738,13 +4734,20 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const parsed = anasToCents(input ? input.value : 0);
             const paidCents = Number.isSafeInteger(parsed) ? Math.max(0, Math.min(totalCents, parsed)) : 0;
             const safeTotal = Number.isSafeInteger(totalCents) && totalCents >= 0 ? totalCents : 0;
+            const customer = document.getElementById('hasibCustomerSelect');
+            const selected = (AppData.customers || []).find(c => customer && String(c.id) === String(customer.value));
+            const previousDebtCents = selected ? anasToCents(selected.debt ?? 0) : 0;
+            const previousDebtValid = Number.isSafeInteger(previousDebtCents) && previousDebtCents >= 0;
+            const invoiceRemainingCents = Math.max(0, safeTotal - paidCents);
+            const newBalanceCents = previousDebtValid ? previousDebtCents + invoiceRemainingCents : NaN;
             const totalEl = document.getElementById('hasibSummaryTotal');
             const paidEl = document.getElementById('hasibSummaryPaid');
+            const previousEl = document.getElementById('hasibPreviousDebt');
             const remainingEl = document.getElementById('hasibRemainingText');
             if (totalEl) totalEl.textContent = formatPosDzd(anasCentsToCurrency(safeTotal)) + ' د.ج';
             if (paidEl) paidEl.textContent = formatPosDzd(anasCentsToCurrency(paidCents)) + ' د.ج';
-            if (remainingEl) remainingEl.textContent = formatPosDzd(anasCentsToCurrency(Math.max(0, safeTotal - paidCents))) + ' د.ج';
-            const customer=document.getElementById('hasibCustomerSelect'); const selected=(AppData.customers||[]).find(c=>customer && String(c.id)===String(customer.value)); const previous=document.getElementById('hasibPreviousDebt'); if(previous) previous.textContent=formatPosDzd(selected ? Number(selected.debt)||0 : 0)+' د.ج';
+            if (previousEl) previousEl.textContent = previousDebtValid ? formatPosDzd(anasCentsToCurrency(previousDebtCents)) + ' د.ج' : '—';
+            if (remainingEl) remainingEl.textContent = Number.isSafeInteger(newBalanceCents) ? formatPosDzd(anasCentsToCurrency(newBalanceCents)) + ' د.ج' : '—';
             refreshHasibPaymentGuidance();
         }
 
@@ -5023,13 +5026,17 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const normalizedItems = cart.map(it => {
                 const qtyUnits = anasToQtyUnits(it.qty);
                 const priceCents = anasToCents(it.price);
-                const product = saleProducts.get(String(it.id));
+                const product = saleProducts.get(String(it.id)) ||
+                    (AppData.products || []).find(row => String(row?.id) === String(it.id));
                 let costPrice = null;
                 try {
                     const costCents = anasToCents(product?.buyPrice ?? product?.cost_price);
                     if (Number.isSafeInteger(costCents) && costCents >= 0) costPrice = anasCentsToCurrency(costCents);
                 } catch (_) {}
-                return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents), costPrice,
+                const packValue = Number(product?.pack ?? it.pack ?? 1);
+                const pack = Number.isFinite(packValue) && packValue > 0 ? packValue : null;
+                return {...it, qty:anasQtyFromUnits(qtyUnits), price:anasCentsToCurrency(priceCents),
+                    unit:String(it.unit || product?.unit || 'قطعة'), pack, costPrice,
                     total:anasCentsToCurrency(anasLineTotalCents(qtyUnits, priceCents))};
             });
             const invObj = {
@@ -5821,7 +5828,13 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const storedItemCents = (typeof it.total === 'number' || typeof it.total === 'string') && String(it.total).trim() !== '' ? anasToCents(it.total) : NaN;
                 const itemTotalCents = Number.isSafeInteger(storedItemCents) ? storedItemCents : anasLineTotalCents(anasToQtyUnits(it.qty || 0), anasToCents(it.price || 0));
                 const itemTotal = anasCentsToCurrency(itemTotalCents);
-                rows += `<tr><td style="text-align:right;padding:4px 1px;border-bottom:1px dotted #aaa;overflow-wrap:anywhere;">${String(it.name ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td style="text-align:center;padding:4px 1px;border-bottom:1px dotted #aaa;">${Number(it.qty||0)} ${anasEscapeHTML(it.unit || '')}</td><td style="text-align:left;padding:4px 1px;border-bottom:1px dotted #aaa;">${itemTotal.toFixed(2)}</td></tr>`;
+                const unitPrice = anasCentsToCurrency(anasToCents(it.price || 0));
+                const productName = anasEscapeHTML(it.name ?? '');
+                const packageText = Number.isFinite(Number(it.pack)) && Number(it.pack) > 0
+                    ? 'عبوة ' + formatPosDzd(it.pack) + ' ' + anasEscapeHTML(it.unit || '')
+                    : anasEscapeHTML(it.unit || '');
+                const quantityText = anasEscapeHTML(String(it.qty ?? 0));
+                rows += `<tr><td colspan="3" style="padding:4px 1px 1px;border-bottom:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;"><strong>${productName}</strong> <small style="font-size:10px;font-weight:700;">— ${packageText}</small></td></tr><tr><td colspan="3" style="padding:1px 1px 5px;border-bottom:1px dotted #aaa;text-align:left;"><span class="anas-receipt-line-math" dir="ltr" style="display:block;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;font-size:10px;">${quantityText} × ${unitPrice.toFixed(2)} = ${itemTotal.toFixed(2)} د.ج</span></td></tr>`;
             });
 
             const custInfo = inv.customerObj || {};
@@ -5840,15 +5853,15 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     ${custInfo.nif ? `<p style="margin:1px 0; font-size:10px;">NIF العميل: ${anasEscapeHTML(custInfo.nif)} | RC: ${anasEscapeHTML(custInfo.rc || '-')}</p>` : ''}
                 </div>
                 <table style="width:100%; table-layout:fixed; font-size:11px; line-height:1.45; border-collapse:collapse; margin-bottom:8px;">
-                    <thead><tr style="border-bottom:1px solid #000;"><th style="text-align:right;">السلعة</th><th style="text-align:center;">الكمية</th><th style="text-align:left;">المجموع</th></tr></thead>
+                    <thead><tr style="border-bottom:1px solid #000;"><th colspan="3" style="text-align:right;">تفاصيل السلعة</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 <div style="border-top:2px dashed #000; padding-top:7px; font-size:12px; line-height:1.7;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الإجمالي:</span><span>${anasEscapeHTML(inv.total)} د.ج</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المدفوع:</span><span>${anasEscapeHTML(inv.paid)} د.ج</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>المتبقي:</span><span>${anasEscapeHTML(inv.remaining)} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span>الدين السابق:</span><strong>${formatPosDzd(inv.oldDebt ?? 0)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>قيمة الفاتورة:</span><strong>${formatPosDzd(inv.total)} د.ج</strong></div>
+                    <div style="display:flex; justify-content:space-between;"><span>المقبوض الآن:</span><strong>${formatPosDzd(inv.paid)} د.ج</strong></div>
                     <hr style="border:0; border-top:1px dashed #000; margin:3px 0;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>دين العميل الكلي:</span><span>${anasEscapeHTML(inv.newDebt)} د.ج</span></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>الرصيد الجديد:</span><strong>${formatPosDzd(inv.newDebt ?? 0)} د.ج</strong></div>
                 </div>
                 <div style="text-align:center; margin-top:8px; font-size:10px;">${anasEscapeHTML(sc.footer)}</div>
             `;
