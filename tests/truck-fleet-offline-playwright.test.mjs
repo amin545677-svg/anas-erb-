@@ -690,6 +690,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      const d=safe(()=>window.AppData||{},{});
      const storage=safe(()=>window.ANASResilientStorage,null);
      const pending=safe(()=>storage?.getItem?.(pendingKey)||[],[]);
+     const quarantined=safe(()=>storage?.getItem?.(MUTATION_KEYS.quarantined)||[],[]);
+     const lastSyncStatus=safe(()=>window.__ANAS_V42_LAST_SYNC_STATUS__||null,null);
+     const fleetConflictHtml=safe(()=>document.getElementById("fleetConflict")?.innerHTML||"", "");
      const trips=safe(()=>d.anasFleetState?.trips||[],[]);
      const trucks=safe(()=>d.anasFleetState?.trucks||[],[]);
      const fleetMessage=safe(()=>document.getElementById("anasFleetMessage")?.textContent??null,null);
@@ -717,6 +720,8 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
       durableSave:{started:durable.calls||0,completed:durable.completed||0,rejected:durable.rejected||0,lastState:durable.lastState||durable.state||"unknown",lastError:durable.lastError||null},
       syncQueueCount:Array.isArray(pending)?pending.length:(pending&&typeof pending==="object"?Object.keys(pending).length:0),
       pendingOps:(Array.isArray(pending)?pending:[]).map(item=>({opType:String(item?.type??item?.operationType??"unknown"),status:String(item?.status??"unknown"),retryCount:item?.retryCount??item?.retries??item?.attempts??null,lastError:item?.lastError??item?.error??null})),
+      quarantined:(Array.isArray(quarantined)?quarantined:[]).map(item=>({opId:item?.opId,reason:item?.reason,status:item?.status,operationType:item?.operation?.type})),
+      lastSyncStatus,fleetConflictHtml,
       storageStatus
      };
     },{pendingKey:MUTATION_KEYS.pending});
