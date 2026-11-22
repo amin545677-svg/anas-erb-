@@ -58,7 +58,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site");
  let server,browser,context,page;
- const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[];
+ const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],firebaseAuthRequests=[];
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
   server=http.createServer(staticServer(out));
@@ -77,7 +77,6 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   let promptNumber=0;
   page.on("dialog",async dialog=>{dialogMessages.push({type:dialog.type(),message:dialog.message()});if(dialog.type()==="prompt"){promptNumber++;await dialog.accept("10.00");}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
-  const mockRequests=[];
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
   const authCors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Client-Version, X-Firebase-Locale, X-Firebase-GMPID","Access-Control-Allow-Methods":"POST, OPTIONS"};
   const firebaseUid="playwright-anonymous-user";
@@ -88,40 +87,36 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    jwtPart({iss:"https://securetoken.google.com/anas-erp-staging-a25e1",aud:"anas-erp-staging-a25e1",auth_time:authIssuedAt,user_id:firebaseUid,sub:firebaseUid,iat:authIssuedAt,exp:authIssuedAt+3600,firebase:{identities:{},sign_in_provider:"anonymous"}}),
    "playwright-test-signature"
   ].join(".");
-  const firebaseAuthRequests=[];
   await page.route("**/*",async route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.protocol==="http:"&&url.hostname==="127.0.0.1"&&Number(url.port)===port){await route.continue();return;}
    // All application-critical SDKs and runtimes are bundled under /erp/.
    // External script tags are optional integrations; answer deterministically
    // instead of turning their absence into a page bootstrap network failure.
+   if(url.hostname==="identitytoolkit.googleapis.com"){
+    if(url.pathname!=="/v1/accounts:signUp"){await route.abort();return;}
+    if(request.method()==="OPTIONS"){
+     await route.fulfill({status:204,headers:authCors});
+     return;
+    }
+    if(request.method()!=="POST"){await route.abort();return;}
+    firebaseAuthRequests.push({method:request.method(),url:request.url()});
+    await route.fulfill({status:200,headers:{...authCors,"Content-Type":"application/json"},body:JSON.stringify({
+     kind:"identitytoolkit#SignupNewUserResponse",
+     localId:firebaseUid,
+     idToken:authIdToken,
+     refreshToken:"playwright-anonymous-refresh-token",
+     expiresIn:"3600",
+     isNewUser:true
+    })});
+    return;
+   }
    if(request.resourceType()==="script"){
     externalScripts.push(request.url());
     await route.fulfill({status:200,contentType:"application/javascript; charset=utf-8",body:"/* optional external script disabled in offline acceptance */"});
     return;
    }
    await route.abort();
-  });
-  // Firebase Auth's anonymous sign-in is a real Identity Toolkit request.
-  // Mock only that SDK endpoint so the browser can persist a real Auth user
-  // through IndexedDB; application token/session checks remain enabled.
-  await page.route("https://identitytoolkit.googleapis.com/**",async route=>{
-   const req=route.request(),url=new URL(req.url());
-   if(url.pathname!=="/v1/accounts:signUp"){await route.abort();return;}
-   if(req.method()==="OPTIONS"){
-    await route.fulfill({status:204,headers:authCors});
-    return;
-   }
-   if(req.method()!=="POST"){await route.abort();return;}
-   firebaseAuthRequests.push({method:req.method(),url:req.url()});
-   await route.fulfill({status:200,headers:{...authCors,"Content-Type":"application/json"},body:JSON.stringify({
-    kind:"identitytoolkit#SignupNewUserResponse",
-    localId:firebaseUid,
-    idToken:authIdToken,
-    refreshToken:"playwright-anonymous-refresh-token",
-    expiresIn:"3600",
-    isNewUser:true
-   })});
   });
   await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
    const req=route.request(),method=req.method(),url=req.url();
@@ -625,12 +620,13 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
       trucks,trips:trips.map(t=>({id:t.id,truckId:t.truckId,status:t.status,loadedUnits:t.loadedUnits})),
       durableSave:{started:durable.calls||0,completed:durable.completed||0,rejected:durable.rejected||0,lastState:durable.lastState||durable.state||"unknown",lastError:durable.lastError||null},
       syncQueueCount:Array.isArray(pending)?pending.length:(pending&&typeof pending==="object"?Object.keys(pending).length:0),
+      pendingOps:(Array.isArray(pending)?pending:[]).map(item=>({opType:String(item?.type??item?.operationType??"unknown"),status:String(item?.status??"unknown"),retryCount:item?.retryCount??item?.retries??item?.attempts??null,lastError:item?.lastError??item?.error??null})),
       storageStatus
      };
     },{pendingKey:MUTATION_KEYS.pending});
     const diagnosticPayload={
      error:error?.stack||String(error),...diagnostics,pageErrors:errors,consoleErrors,dialogs:dialogMessages,
-     local404s,externalScripts
+     local404s,externalScripts,mockRequests,firebaseAuthRequests,syncResult:null
     };
     console.error("[truck-offline] GLOBAL FAILURE DIAGNOSTICS:",safeJson(diagnosticPayload));
    }catch(diagnosticError){
