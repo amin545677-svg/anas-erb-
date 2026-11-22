@@ -4250,7 +4250,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     image: product.image || ''
                 });
             }
-            return savePosCartChange(() => { restorePosCart(oldCart); }) === true;
+            const saved = savePosCartChange(() => { restorePosCart(oldCart); });
+            return saved === true;
         }
         function setPosCartItemPrice(index, rawPrice) {
             if (!Number.isInteger(index) || index < 0 || index >= posCart.length) return false;
