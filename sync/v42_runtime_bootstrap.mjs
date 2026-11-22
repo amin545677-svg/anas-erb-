@@ -34,7 +34,18 @@ function makeStorageAdapter(resilient) {
     getItem(key) {
       const value = resilient.getItem(key);
       if (value == null) return null;
-      return typeof value === "string" ? value : JSON.stringify(value);
+      if (typeof value === "string") {
+        // The revision is an opaque string, not raw JSON. The resilient store
+        // returns decoded primitives, so re-encode it for readJson while still
+        // accepting a legacy already-JSON-encoded string value.
+        if (key === MUTATION_KEYS.revision) {
+          try { if (typeof JSON.parse(value) === "string") return value; }
+          catch (_) {}
+          return JSON.stringify(value);
+        }
+        return value;
+      }
+      return JSON.stringify(value);
     },
     setItem(key, value) {
       let decoded;
