@@ -4049,7 +4049,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             // Preserve the cashier's query while dismissing stale suggestions before
             // the price picker or direct cart insertion takes focus.
             // Cart-only rendering must never reset search text or catalogue scroll position.
-            openPosPriceTierPicker(product.id);
+            // Search-result selection commits the active price tier immediately; the pricing controls remain available for explicit tier changes.
+            addItemToPosCart(product.id, AppData.activePriceTier || 1);
             closePosSearchResults(false);
             if (input) input.focus({preventScroll:true});
             posSearchActiveIndex = -1;
