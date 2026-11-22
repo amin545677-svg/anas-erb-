@@ -392,6 +392,11 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         appliedNow.push({ opId: op.opId, outcome: "already-applied" });
         continue;
       }
+      const collectionDeltas = payload.collectionDeltas ?? {};
+      if (!collectionDeltas || typeof collectionDeltas !== "object" || Array.isArray(collectionDeltas)) {
+        review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTAS_INVALID",operation:op});
+        continue;
+      }
       const sameTruckConflicts = findConcurrentTruckMutationConflicts(baseState, nextState, cloudState, collectionDeltas, snapshot);
       if (sameTruckConflicts.length) {
         const ownershipConflicts = findConcurrentActiveTripOwnershipConflicts(baseState, nextState, cloudState);
@@ -434,11 +439,6 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         invoices: "id", cashMovements: "id", bankMovements: "id",
         clientMovements: "movementId", settlementAllocations: "allocationId"
       };
-      const collectionDeltas = payload.collectionDeltas ?? {};
-      if (!collectionDeltas || typeof collectionDeltas !== "object" || Array.isArray(collectionDeltas)) {
-        review.push({opId:op.opId,reason:"TRUCK_FLEET_COLLECTION_DELTAS_INVALID",operation:op});
-        continue;
-      }
       for (const [key, delta] of Object.entries(collectionDeltas)) {
         if (!fleetCollectionKeys.has(key) || !delta || typeof delta !== "object" ||
             !(delta.before === null || Array.isArray(delta.before)) ||
