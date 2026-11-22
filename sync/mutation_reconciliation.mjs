@@ -469,11 +469,6 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if(review.some(item=>item.opId===op.opId))continue;
       const baseTrucks=new Map((Array.isArray(baseState?.trucks)?baseState.trucks:[]).map(row=>[String(row.id),row]));
       const baseTrips=new Map((Array.isArray(baseState?.trips)?baseState.trips:[]).map(row=>[String(row.id),row]));
-      // An invoice newly captured in this same atomic fleet operation has not
-      // already reduced cloud truck stock. Only compensate when the invoice
-      // existed in the cloud snapshot before replay (legacy/separate invoice).
-      const cloudInvoiceIdsBeforeReplay=new Set((Array.isArray(snapshot.invoices)?snapshot.invoices:[])
-        .map(row=>String(row?.id??"")).filter(Boolean));
       const newTripSales=[];
       for(const trip of rebased.trips){
         const oldTrip=baseTrips.get(String(trip.id)),oldSales=new Set((oldTrip?.sales||[]).map(row=>String(row.id)));
@@ -486,13 +481,18 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         const baseStock=baseTruck?.stockUnits||{},nextStock=nextTruck.stockUnits||{};
         for(const [productId,product] of productRows){
           let delta;try{delta=big(nextStock[productId]??"0")-big(baseStock[productId]??"0");}catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_TRUCK_STOCK",truckId,productId,operation:op});continue;}
-          for(const sale of newTripSales)if(sale.productId===productId&&cloudInvoiceIdsBeforeReplay.has(sale.invoiceId)){
-            const invoice=targetSnapshot.invoices.find(row=>String(row?.id??"")===sale.invoiceId);
-            if(invoice&&String(invoice.warehouse||invoice.warehouseName||"")===warehouseName)delta+=sale.quantityUnits;
-          }
           if(product.warehouseStock!==undefined&&(!product.warehouseStock||typeof product.warehouseStock!=="object"||Array.isArray(product.warehouseStock))){review.push({opId:op.opId,reason:"TRUCK_FLEET_MALFORMED_WAREHOUSE_STOCK",truckId,productId,operation:op});continue;}
           const map=product.warehouseStock||(product.warehouseStock={});
           let current;try{current=quantity(map[warehouseName]??0);}catch(_){review.push({opId:op.opId,reason:"TRUCK_FLEET_INVALID_WAREHOUSE_STOCK",truckId,productId,operation:op});continue;}
+          // POS may have reduced this warehouse stock before the fleet mutation
+          // reached the cloud. Compensate only when the cloud balance already
+          // equals the post-sale truck balance; a newly bundled invoice must
+          // still apply the sale delta exactly once.
+          for(const sale of newTripSales)if(sale.productId===productId){
+            const invoice=targetSnapshot.invoices.find(row=>String(row?.id??"")===sale.invoiceId);
+            if(invoice&&String(invoice.warehouse||invoice.warehouseName||"")===warehouseName&&
+               current===big(nextStock[productId]??"0"))delta+=sale.quantityUnits;
+          }
           const updated=current+delta;
           if(updated<0n){review.push({opId:op.opId,reason:"TRUCK_FLEET_TRUCK_STOCK_UNDERFLOW",truckId,productId,operation:op});continue;}
           map[warehouseName]=formatQuantity(updated);
