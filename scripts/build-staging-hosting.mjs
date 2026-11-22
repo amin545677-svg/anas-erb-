@@ -222,7 +222,7 @@ export async function buildStagingHosting(options = {}) {
     throw new Error('Integrated fleet runtime source is incomplete');
   }
   stagedHtml = insertBeforeLastDocumentTag(stagedHtml, '</body>',
-    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>\n  <script>window.__ANAS_GET_APP_DATA__=function(){return AppData;};window.__ANAS_SET_APP_DATA__=function(value){AppData=value;};</script>\n  <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>\n  ' +
+    '  <script src="./ai-excel-import-ui.js" defer></script>\n  <script src="./safe-update-ui.js" defer></script>\n  <script type="module" src="./sync/v42-prepared-recovery-runtime.mjs"></script>\n  <script type="module" src="./sync/v42_runtime_bootstrap.mjs"></script>\n  <script>window.__ANAS_GET_APP_DATA__=function(){return AppData;};window.__ANAS_SET_APP_DATA__=function(value){AppData=value;};if(typeof setPosQty==="function")window.__ANAS_SET_POS_QTY__=function(index,quantity){return setPosQty(index,quantity);};</script>\n  <script src="./core/pos-quick-sale-transaction-bridge.js" defer></script>\n  ' +
     '<script type="module" data-anas-fleet-runtime>\n' + fleetRuntimeSource + '\n</script>\n  ');
   if (stagedHtml.includes('projectId:"anas-erb"') || !stagedHtml.includes('"projectId":"' + PROJECT_ID + '"')) {
     throw new Error('Staging ERP shell did not receive the isolated Firebase project configuration');

@@ -319,6 +319,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       const match = text.match(/[0-9]+(?:[.,][0-9]+)?/);
       return !!match && Math.abs(Number(match[0].replace(',', '.')) - value) < 1e-9;
     }, expected);
+    const cartEditorProof = await page.locator('#hasibCartItems input').evaluateAll(nodes => nodes.map(node => ({type:node.type,ariaLabel:node.getAttribute('aria-label'),name:node.name,value:node.value,outerHTML:node.outerHTML.slice(0,240)})));
+    console.log('[POS UAT] cart editor controls:', JSON.stringify(cartEditorProof));
     const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
     const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
     await commitNumberEditor(quantitySelector, '1.5');
@@ -852,7 +854,10 @@ test('free POS item is billed with discount and bank channel without changing in
       openHasibModal();
     });
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
-    assert.equal(await page.locator('#hasibTotalText').textContent(), '7.50 د.ج');
+    const displayedTotal = await page.locator('#hasibTotalText').textContent();
+    const displayedAmount = String(displayedTotal).match(/[0-9]+(?:[.,][0-9]+)?/);
+    assert.ok(displayedAmount && Math.abs(Number(displayedAmount[0].replace(',', '.')) - 7.5) < 1e-9,
+      'free POS item total must remain 7.50 DZD across locale-specific decimal separators');
     await page.locator('#hasibPaymentChannel').selectOption('card');
     await page.locator('#hasibConfirmSaleBtn').click();
     await page.waitForFunction(() => {
