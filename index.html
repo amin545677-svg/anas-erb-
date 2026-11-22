@@ -4046,13 +4046,15 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
             const saleStock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : Number(product.stock || 0);
             if (!Number.isFinite(Number(saleStock)) || Number(saleStock) <= 0) { if (results) results.hidden = true; return; }
-            // Preserve the cashier's query while dismissing stale suggestions before
-            // the price picker or direct cart insertion takes focus.
-            // Cart-only rendering must never reset search text or catalogue scroll position.
-            // Search-result selection commits the active price tier immediately; the pricing controls remain available for explicit tier changes.
-            addItemToPosCart(product.id, AppData.activePriceTier || 1);
+            // Preserve the search query, add at the active tier, then let the picker adjust this same cart row.
             closePosSearchResults(false);
-            if (input) input.focus({preventScroll:true});
+            let activeTier = [1, 2, 3].includes(Number(AppData.activePriceTier)) ? Number(AppData.activePriceTier) : 1;
+            if (activeTier === 2 && Number(product.price2) === 0) activeTier = 1;
+            const cartIndex = addItemToPosCart(product.id, activeTier);
+            if (cartIndex >= 0) {
+                openPosPriceTierPicker(product.id, cartIndex);
+                if (!document.getElementById('anasPosPriceTierModal') && input) input.focus({preventScroll:true});
+            }
             posSearchActiveIndex = -1;
         }
         // إغلاق قائمة اقتراحات البيع عند التفاعل مع أي عنصر آخر، حتى لو كان زرًا داخل شاشة المبيعات.
@@ -4104,11 +4106,14 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             posCart.splice(0, posCart.length, ...restoredRows);
         }
 
-        function openPosPriceTierPicker(productId) {
+        function openPosPriceTierPicker(productId, cartIndex) {
             const product = (Array.isArray(AppData.products) ? AppData.products : []).find(p => p && String(p.id) === String(productId));
             if (!product) return;
             const wholesale = Number(product.price2);
-            if (product.price2 !== undefined && product.price2 !== null && product.price2 !== '' && Number.isFinite(wholesale) && wholesale === 0) { addItemToPosCart(productId, 1); return; }
+            if (product.price2 !== undefined && product.price2 !== null && product.price2 !== '' && Number.isFinite(wholesale) && wholesale === 0) {
+                if (!Number.isInteger(cartIndex)) return addItemToPosCart(productId, 1);
+                return;
+            }
             const tiers = [
                 { tier: 1, label: 'سعر التجزئة (الدفعة)', value: product.price1 },
                 { tier: 2, label: 'جملة', value: product.price2 },
@@ -4116,15 +4121,18 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             ].filter((item, index, list) => item.value !== undefined && item.value !== null && item.value !== '' &&
                 Number.isFinite(Number(item.value)) && Number(item.value) >= 0 &&
                 list.findIndex(other => Number(other.value) === Number(item.value)) === index);
-            if (tiers.length < 2) { addItemToPosCart(productId, AppData.activePriceTier || 1); return; }
+            if (tiers.length < 2) {
+                if (!Number.isInteger(cartIndex)) return addItemToPosCart(productId, AppData.activePriceTier || 1);
+                return;
+            }
             const previous = document.getElementById('anasPosPriceTierModal');
             if (previous) previous.remove();
             const overlay = document.createElement('div');
             overlay.id = 'anasPosPriceTierModal';
             overlay.setAttribute('role', 'dialog');
-            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-modal', 'false');
             overlay.setAttribute('aria-label', 'اختيار سعر المنتج');
-            overlay.style.cssText = 'position:fixed;inset:0;z-index:100050;background:#020617aa;display:flex;align-items:center;justify-content:center;padding:16px';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:10040;background:#02061755;display:flex;align-items:center;justify-content:center;padding:16px';
             const panel = document.createElement('div');
             panel.style.cssText = 'width:min(420px,100%);background:var(--mp-card,#fff);color:var(--mp-text,#172033);border:1px solid var(--mp-border,#dbe2ea);border-radius:16px;padding:16px;box-shadow:0 18px 50px #0004';
             const heading = document.createElement('h3');
@@ -4132,6 +4140,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const name = document.createElement('p');
             name.textContent = String(product.name || 'المنتج');
             panel.append(heading, name);
+            const focusSearch = () => {
+                const searchInput = document.getElementById('posSearchField');
+                if (searchInput) searchInput.focus({preventScroll:true});
+            };
             tiers.forEach(item => {
                 const choice = document.createElement('button');
                 choice.type = 'button';
@@ -4141,22 +4153,28 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const price = document.createElement('span');
                 price.textContent = Number(item.value).toLocaleString('fr-DZ') + ' د.ج';
                 choice.append(label, price);
-                choice.addEventListener('click', () => { overlay.remove(); addItemToPosCart(productId, item.tier); const searchInput = document.getElementById('posSearchField'); if (searchInput) searchInput.focus({preventScroll:true}); });
+                choice.addEventListener('click', () => {
+                    const saved = Number.isInteger(cartIndex)
+                        ? setPosCartItemPrice(cartIndex, item.value)
+                        : addItemToPosCart(productId, item.tier) >= 0;
+                    if (!saved) return;
+                    overlay.remove();
+                    focusSearch();
+                });
                 panel.appendChild(choice);
             });
             const cancel = document.createElement('button');
             cancel.type = 'button';
             cancel.textContent = 'إلغاء';
             cancel.style.cssText = 'width:100%;padding:10px;border:0;border-radius:9px;background:#64748b;color:#fff';
-            cancel.addEventListener('click', () => overlay.remove());
-            overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+            cancel.addEventListener('click', () => { overlay.remove(); focusSearch(); });
+            overlay.addEventListener('click', event => { if (event.target === overlay) { overlay.remove(); focusSearch(); } });
             panel.appendChild(cancel);
             overlay.appendChild(panel);
             document.body.appendChild(overlay);
             const first = panel.querySelector('button');
             if (first) first.focus();
         }
-
         function addItemToPosCart(pId, selectedTier) {
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const matches = products.filter(x => x && String(x.id) === String(pId));
@@ -4209,11 +4227,13 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 return;
             }
             const oldCart = snapshotPosCart();
+            let cartIndex = -1;
             if (existingRows.length) {
-                const firstRow = posCart.find(row => row && String(row.id) === String(product.id));
+                const firstRow = existingRows[0];
                 const firstUnits = anasToQtyUnits(firstRow.qty);
                 firstRow.qty = anasQtyFromUnits(firstUnits + ANAS_QTY_SCALE);
                 if (!(Number(firstRow.pack) > 0) && Number(product.pack) > 0) firstRow.pack = Number(product.pack);
+                cartIndex = posCart.indexOf(firstRow);
             } else {
                 posCart.push({
                     id: product.id,
@@ -4224,8 +4244,20 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     pack: Number(product.pack) > 0 ? Number(product.pack) : null,
                     image: product.image || ''
                 });
+                cartIndex = posCart.length - 1;
             }
-            savePosCartChange(() => { restorePosCart(oldCart); });
+            return savePosCartChange(() => { restorePosCart(oldCart); }) === true ? cartIndex : -1;
+        }
+        function setPosCartItemPrice(index, rawPrice) {
+            if (!Number.isInteger(index) || index < 0 || index >= posCart.length) return false;
+            const priceCents = anasToCents(rawPrice);
+            if (!Number.isSafeInteger(priceCents) || priceCents < 0) {
+                alert('تعذر تعديل سعر السطر: السعر غير صالح.');
+                return false;
+            }
+            const oldCart = snapshotPosCart();
+            posCart[index].price = anasCentsToCurrency(priceCents);
+            return savePosCartChange(() => { restorePosCart(oldCart); }) === true;
         }
         function removePosCartItem(idx) {
             if (!Number.isInteger(idx) || idx < 0 || idx >= posCart.length) return;
@@ -4693,6 +4725,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         let hasibPaymentInFlight = false;
 
         function openHasibModal() {
+            const pendingPricePicker = document.getElementById('anasPosPriceTierModal');
+            if (pendingPricePicker) pendingPricePicker.remove();
             if (hasibPaymentInFlight) return;
             if(posCart.length === 0) { alert('السلة فارغة!'); return; }
             const totalCents = anasCartTotalCents(posCart);
