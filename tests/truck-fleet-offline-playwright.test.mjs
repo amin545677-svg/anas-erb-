@@ -58,7 +58,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site");
  let server,browser,context,page;
- const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],firebaseAuthRequests=[],requestFailures=[],blockedRequests=[];
+ const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],snapshotTrace=[],firebaseAuthRequests=[],requestFailures=[],blockedRequests=[];
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
   server=http.createServer(staticServer(out));
@@ -172,7 +172,9 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     "Access-Control-Max-Age":"86400",
     "Vary":"Origin"
    };
-   let status,body;
+   let status,body,postedPayload=null,postedSnapshot=null;
+   const cloudBeforeRequest=(()=>{try{return JSON.parse(serverSnapshot);}catch{return null;}})();
+   const revisionBeforeRequest=revision;
    if(method==="OPTIONS"){status=204;await route.fulfill({status,headers:corsHeaders});}
    else if(method==="GET"){
     status=200;
@@ -181,19 +183,22 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
    }else if(method==="POST"||method==="PUT"){
     postCount++;
+    postedPayload=req.postDataJSON();
+    try { postedSnapshot=typeof postedPayload?.data==="string"?JSON.parse(postedPayload.data):null; } catch {}
     if(conflictBudget>0){
      conflictBudget--;revision="rev-"+(postCount+1);status=409;
      body={error:"Snapshot conflict: the cloud copy changed after it was read. Download the latest copy and retry.",conflict:true};
     }else{
-     const payload=req.postDataJSON();
-     if(!payload||typeof payload.data!=="string"||!payload.data){status=400;body={error:"Expected serialized application JSON in the data field"};}
-     else{serverSnapshot=payload.data;revision="rev-"+(postCount+1);status=200;body={ok:true,saved:true,uid:"playwright-anonymous-user",parts:1,revision};}
+     if(!postedPayload||typeof postedPayload.data!=="string"||!postedPayload.data){status=400;body={error:"Expected serialized application JSON in the data field"};}
+     else{serverSnapshot=postedPayload.data;revision="rev-"+(postCount+1);status=200;body={ok:true,saved:true,uid:"playwright-anonymous-user",parts:1,revision};}
     }
     await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
    }else{
     status=405;body={error:"Method not allowed"};
     await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
    }
+   const traceDebtRows=value=>(Array.isArray(value?.cashMovements)?value.cashMovements:[]).filter(row=>row?.referenceType==="customer_debt").map(row=>({id:row.id,type:row.type,amount:row.amount,referenceId:row.referenceId}));
+   snapshotTrace.push({method,status,revisionBefore:revisionBeforeRequest,requestDebtRows:traceDebtRows(postedSnapshot),requestCashMovementCount:Array.isArray(postedSnapshot?.cashMovements)?postedSnapshot.cashMovements.length:null,requestCaisseBalance:postedSnapshot?.caisseBalance??null,requestFleetDebtPayments:(postedSnapshot?.anasFleetState?.trips||[]).reduce((n,trip)=>n+(trip.debtPayments||[]).length,0),cloudDebtRowsBefore:traceDebtRows(cloudBeforeRequest),cloudCashMovementCountBefore:Array.isArray(cloudBeforeRequest?.cashMovements)?cloudBeforeRequest.cashMovements.length:null});
    mockRequests.push({method,url,status});
   });
   await page.goto("http://127.0.0.1:"+port+"/erp/",{waitUntil:"domcontentloaded",timeout:30000});
@@ -575,7 +580,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   let syncResult,syncError=null;
   try { syncResult=await page.evaluate(()=>window.anasFirebaseSyncPush()); }
   catch(error) { syncError=String(error?.stack||error); }
-  const syncFailureDiagnostics=await page.evaluate(({pendingKey})=>{
+  const syncFailureDiagnostics=await page.evaluate(({pendingKey,quarantinedKey})=>{
    const safe=(read,fallback=null)=>{try{return read();}catch(error){return fallback;}};
    const storage=window.ANASResilientStorage;
    let pending=safe(()=>storage?.getItem?.(pendingKey)||[],[]);
@@ -595,13 +600,15 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      lastError:lastError==null?null:String(lastError?.message||lastError)
     },
     pendingOps:pending.map(item=>({
-     opType:String(item?.type??item?.operationType??"unknown"),
+     opId:item?.opId??null,opType:String(item?.type??item?.operationType??"unknown"),
      status:String(item?.status??"unknown"),
      retryCount:item?.retryCount??item?.retries??item?.attempts??null,
      lastError:item?.lastError??item?.error??null
-    }))
+    })),
+    quarantinedOps:(()=>{let value=safe(()=>storage?.getItem?.(quarantinedKey)||[],[]);if(typeof value==="string"){try{value=JSON.parse(value);}catch{value=[];}}return Array.isArray(value)?value.map(item=>({opId:item?.opId??null,reason:item?.reason??null,collection:item?.collection??null,status:item?.status??null,operationType:item?.operation?.type??null})):[];})()
    };
-  },{pendingKey:MUTATION_KEYS.pending});
+  },{pendingKey:MUTATION_KEYS.pending,quarantinedKey:MUTATION_KEYS.quarantined});
+  console.log("[truck-offline] CAS replay proof:",safeJson({snapshotTrace,serverDebtRows:(JSON.parse(serverSnapshot).cashMovements||[]).filter(row=>row?.referenceType==="customer_debt"),syncFailureDiagnostics}));
   assert.ok(["synced","pushed"].includes(syncResult?.status),
    "offline operations must reconcile after the simulated 409 CAS response; diagnostics="+safeJson({
     syncResult:syncError??syncResult??null,
