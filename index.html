@@ -978,21 +978,6 @@
         @media print { :root[data-anas-theme="dark"] { color-scheme:light; } }
 
     
-/* Anas ERP - rapid POS workflow */
-#quickSalePanel{position:fixed;inset:0;z-index:99999;background:rgba(7,15,30,.72);display:none;align-items:center;justify-content:center;padding:12px;}
-#quickSalePanel.active{display:flex}
-#quickSalePanel .qs-card{width:min(760px,100%);max-height:94vh;overflow:auto;background:var(--anas-surface,#fff);color:var(--anas-text,#172033);border:1px solid var(--anas-border,#dbe2ea);border-radius:20px;box-shadow:0 25px 80px #0005;padding:16px}
-#quickSalePanel .qs-search{width:100%;font-size:18px;padding:14px;border:2px solid #94a3b8;border-radius:12px;background:var(--anas-bg,#fff);color:var(--anas-text,#111827);box-sizing:border-box}
-#quickSalePanel .qs-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin:12px 0}
-#quickSalePanel .qs-product{border:1px solid var(--anas-border,#cbd5e1);border-radius:12px;padding:12px;text-align:right;background:var(--anas-bg,#f8fafc);color:var(--anas-text,#111827);min-height:76px}
-#quickSalePanel .qs-product strong{display:block;margin-bottom:6px} #quickSalePanel .qs-muted{color:var(--anas-text-muted,#64748b);font-size:12px}
-#quickSalePanel .qs-cartrow{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--anas-border,#ddd)}
-#quickSalePanel .qs-total{font-size:24px;font-weight:900;color:#16a34a} #quickSalePanel button{cursor:pointer}
-@media(max-width:480px){#quickSalePanel .qs-card{padding:11px;border-radius:15px}#quickSalePanel .qs-cartrow{grid-template-columns:1fr auto auto;font-size:13px}#quickSalePanel .qs-cartrow .qs-line-total{display:none}}
-:root[data-anas-theme="dark"] #quickSalePanel .qs-card{background:#111c2e;color:#f1f5f9;border-color:#334155}
-:root[data-anas-theme="dark"] #quickSalePanel .qs-search{background:#0b1424;color:#f8fafc;border-color:#64748b}
-:root[data-anas-theme="dark"] #quickSalePanel .qs-product{background:#172338;color:#f8fafc;border-color:#475569}
-
 /* تحسين واجهة البيع العادي */
 #view-pos .sales-toolbar{gap:8px;align-items:center;padding:10px;flex-wrap:wrap}
 #view-pos .search-field-box{min-width:180px;flex:1}
@@ -2125,7 +2110,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
 
             <!-- شريط أدوات الفاتورة العلوي -->
             <div class="sales-toolbar">
-                <button type="button" class="btn-pos-hasib" style="background:#16a34a;border-color:#15803d;color:#fff;white-space:nowrap;" onclick="openQuickSale()" title="البيع السريع">⚡ بيع سريع</button>
+                
                 <button class="btn-pos-hasib" onclick="openHasibModal()">
                     <span>📟</span> حاسب
                 </button>
@@ -3767,8 +3752,6 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             // Close an open modal first; otherwise leave the current section safely.
             const activeModal = Array.from(document.querySelectorAll('.modal-bg-backdrop.active')).pop();
             if (activeModal) { activeModal.classList.remove('active'); return; }
-            const quick = document.getElementById('quickSalePanel');
-            if (quick && quick.classList.contains('active')) { closeQuickSale(); return; }
             if (anasCurrentView !== 'dashboard') { openView('dashboard', true); return; }
             promptExitToHome();
         }
@@ -13752,45 +13735,7 @@ function anasGetAiHubKpiMetrics(tabKey) {
 
 </script>
 
-<div id="quickSalePanel" role="dialog" aria-modal="true" aria-label="البيع السريع">
- <div class="qs-card">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px"><div><div style="font-size:22px;font-weight:900">⚡ البيع السريع</div><div class="qs-muted">ابحث بالاسم أو الباركود، أضف المنتجات، ثم أكمل الدفع.</div></div><button onclick="closeQuickSale()" style="border:0;border-radius:10px;padding:10px 13px;font-size:18px">✕</button></div>
-  <input id="qsSearch" class="qs-search" autocomplete="off" placeholder="🔎 اسم المنتج أو الباركود…" oninput="renderQuickSaleResults()" onkeydown="quickSaleSearchKey(event)">
-  <div id="qsResults" class="qs-results"></div>
-  <div style="font-weight:900;margin:10px 0">سلة البيع <span id="qsCount" class="qs-muted"></span></div>
-  <div id="qsCart"></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-top:14px"><div>الإجمالي <div id="qsTotal" class="qs-total">0.00 د.ج</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="quickSaleClear()" style="padding:12px;border-radius:10px;border:1px solid #ef4444;color:#dc2626;background:transparent">تفريغ السلة</button><button onclick="quickSaleCheckout()" style="padding:12px 18px;border-radius:10px;border:0;background:#16a34a;color:white;font-weight:900">متابعة للدفع ←</button></div></div>
- </div>
-</div>
 <script>
-function openQuickSale(){
-  if(!openView('pos')) return;
-  const panel=document.getElementById('quickSalePanel'); if(!panel)return;
-  panel.classList.add('active'); renderQuickSaleResults(); renderQuickSaleCart();
-  setTimeout(()=>{const i=document.getElementById('qsSearch');if(i){i.value='';i.focus();}},80);
-}
-function closeQuickSale(){const p=document.getElementById('quickSalePanel');if(p)p.classList.remove('active');}
-function quickSalePrice(p){return Number(AppData.activePriceTier===2?(p.price2||p.price1):AppData.activePriceTier===3?(p.price3||p.price1):p.price1)||0;}
-function renderQuickSaleResults(){
- const box=document.getElementById('qsResults'); if(!box)return;
- const q=window.anasNormalizeQueryText(document.getElementById('qsSearch')?.value||'');
- let list=(AppData.products||[]).map((p,index)=>({p,index,score:window.anasQueryScore([p.name,p.barcode,p.sku,p.code],q)}))
-  .filter(x=>window.anasQueryMatches([x.p.name,x.p.barcode,x.p.sku,x.p.code],q))
-  .sort((a,b)=>b.score-a.score||a.index-b.index).map(x=>x.p);
- if(q && list.length===1 && window.anasNormalizeQueryText(list[0].barcode||'')===q){quickSaleAdd(list[0].id);document.getElementById('qsSearch').value='';list=(AppData.products||[]).filter(p=>!p.stock||Number(p.stock)>0).slice(0,12);}
- list=list.slice(0,24);
- box.innerHTML=list.length?list.map(p=>`<button class="qs-product" onclick="quickSaleAdd(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><strong>${escapeQuickText(p.name||'منتج')}</strong><span>${quickSalePrice(p).toLocaleString('fr-DZ')} د.ج</span><div class="qs-muted">المخزون: ${Number(p.stock)||0} ${escapeQuickText(p.unit||'')}</div></button>`).join(''):'<div class="qs-muted">لا توجد منتجات مطابقة. جرّب اسمًا آخر أو الباركود.</div>';
-}
-function escapeQuickText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function quickSaleAdd(id){const p=(AppData.products||[]).find(x=>String(x.id)===String(id));if(!p)return;if(Number(p.stock)<=0){alert('هذا المنتج غير متوفر في المخزون.');return;}const old=posCart.find(x=>String(x.id)===String(id));if(old){if(Number(old.qty)>=Number(p.stock)){alert('الكمية المطلوبة تتجاوز المخزون المتاح.');return;}old.qty++;}else{posCart.push({id:p.id,name:p.name,price:quickSalePrice(p),qty:1,unit:p.unit||'قطعة',image:p.image||''});}renderPosTable();renderQuickSaleCart();}
-function renderQuickSaleCart(){const box=document.getElementById('qsCart');if(!box)return;let count=0;const totalCents=anasCartTotalCents(posCart);box.innerHTML=posCart.length?posCart.map((it,i)=>{const lineCents=anasLineTotalCents(anasToQtyUnits(it.qty),anasToCents(it.price));const sub=anasCentsToCurrency(lineCents);count+=Number(it.qty)||0;return `<div class="qs-cartrow"><div><strong>${escapeQuickText(it.name)}</strong><div class="qs-muted">${Number(it.price).toLocaleString('fr-DZ')} د.ج / ${escapeQuickText(it.unit||'')}</div></div><button aria-label="تقليل الكمية" onclick="quickSaleChangeQty(${i},-1)" style="padding:5px 10px">−</button><strong>${it.qty}</strong><button aria-label="زيادة الكمية" onclick="quickSaleChangeQty(${i},1)" style="padding:5px 10px">+</button><span class="qs-line-total">${Number.isFinite(sub)?sub.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'} د.ج</span><button onclick="posCart.splice(${i},1);renderPosTable();renderQuickSaleCart()" style="color:#dc2626;border:0;background:transparent">حذف</button></div>`}).join(''):'<div class="qs-muted" style="padding:16px;text-align:center">السلة فارغة — اختر منتجًا للبدء.</div>';const total=posCart.length?anasCentsToCurrency(totalCents):0;document.getElementById('qsTotal').textContent=(Number.isFinite(total)?total.toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+' د.ج';document.getElementById('qsCount').textContent=`(${count} وحدة)`;}
-function quickSaleChangeQty(i,delta){const it=posCart[i];if(!it)return;const p=(AppData.products||[]).find(x=>String(x.id)===String(it.id));const next=Number(it.qty)+delta;if(next<=0){posCart.splice(i,1)}else if(p&&next>Number(p.stock)){alert('لا توجد كمية كافية في المخزون.');return;}else it.qty=next;renderPosTable();renderQuickSaleCart();}
-function quickSaleClear(){if(!posCart.length)return;if(confirm('تفريغ سلة البيع السريع؟')){posCart=[];renderPosTable();renderQuickSaleCart();}}
-function quickSaleCheckout(){if(!posCart.length){alert('أضف منتجًا واحدًا على الأقل أولًا.');return;}closeQuickSale();openHasibModal();}
-function quickSaleSearchKey(e){if(e.key==='Enter'){e.preventDefault();const q=window.anasNormalizeQueryText(e.target.value||'');const matches=(AppData.products||[]).filter(p=>window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q));if(matches.length===1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}else if(matches.length>1){quickSaleAdd(matches[0].id);e.target.value='';renderQuickSaleResults();}}if(e.key==='Escape')closeQuickSale();}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQuickSale()});
-
-
 /* ANAS ERP — stocktake sessions, draft, variance approval and audit movements */
 (function(){
   const DRAFT_KEY = 'ANAS_ERP_STOCKTAKE_DRAFTS_V1';
