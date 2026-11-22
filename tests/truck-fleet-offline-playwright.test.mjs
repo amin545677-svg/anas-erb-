@@ -78,7 +78,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   page.on("dialog",async dialog=>{dialogMessages.push({type:dialog.type(),message:dialog.message()});if(dialog.type()==="prompt"){promptNumber++;await dialog.accept("10.00");}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
-  const authCors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Client-Version, X-Firebase-Locale, X-Firebase-GMPID","Access-Control-Allow-Methods":"POST, OPTIONS"};
+  const authCors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Client-Version, X-Firebase-Locale, X-Firebase-GMPID, X-Firebase-Client","Access-Control-Allow-Methods":"POST, OPTIONS"};
   const firebaseUid="playwright-anonymous-user";
   const authIssuedAt=Math.floor(Date.now()/1000);
   const jwtPart=value=>Buffer.from(JSON.stringify(value)).toString("base64url");
