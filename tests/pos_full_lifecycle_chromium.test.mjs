@@ -110,7 +110,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     const page = await context.newPage();
     page.on('pageerror', error => pageErrors.push(error.stack || error.message));
     const dialogMessages = [];
-    page.on('dialog', async dialog => { dialogMessages.push(dialog.message()); await dialog.accept(); });
+    const promptResponses = [];
+    page.on('dialog', async dialog => {
+      dialogMessages.push(dialog.message());
+      if (dialog.type() === 'prompt') await dialog.accept(promptResponses.shift() ?? '');
+      else await dialog.accept();
+    });
 
     await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
@@ -307,10 +312,18 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       if (saveDB() !== true) throw new Error('Could not restore stock fixture');
       renderPosTable();
     });
-    const commitNumberEditor = async (selector, value) => {
-      const editor = page.locator(selector).first(); // target the first cart row when duplicate-row guards are under test
+    const commitQuantityEditor = async value => {
+      const overlay = page.locator('#anasPosQtyEditor');
+      if (!(await overlay.count())) await page.locator('#hasibCartItems button').first().click();
+      const editor = overlay.locator('input').first();
       await editor.fill(value);
-      await editor.press('Tab'); // commit the native change event used by the editor
+      await overlay.locator('button').filter({ hasText: 'حفظ الكمية' }).click();
+    };
+    const commitPriceEditor = async value => {
+      const overlay = page.locator('#anasPosQtyEditor');
+      if (await overlay.count()) await overlay.evaluate(node => node.remove());
+      promptResponses.push(value);
+      await page.locator('#hasibCartItems button').nth(1).click();
     };
     // fr-DZ may render decimal commas while other Chromium locales render dots.
     // Compare the numeric amount, not a locale-specific currency label.
@@ -319,52 +332,48 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       const match = text.match(/[0-9]+(?:[.,][0-9]+)?/);
       return !!match && Math.abs(Number(match[0].replace(',', '.')) - value) < 1e-9;
     }, expected);
-    const cartEditorProof = await page.locator('#hasibCartItems input').evaluateAll(nodes => nodes.map(node => ({type:node.type,ariaLabel:node.getAttribute('aria-label'),name:node.name,value:node.value,outerHTML:node.outerHTML.slice(0,240)})));
-    console.log('[POS UAT] cart editor controls:', JSON.stringify(cartEditorProof));
-    const quantitySelector = '#hasibCartItems input[aria-label^="كمية"]';
-    const priceSelector = '#hasibCartItems input[aria-label^="سعر الوحدة"]';
-    await commitNumberEditor(quantitySelector, '1.5');
+    await commitQuantityEditor('1.5');
     await waitForDisplayedTotal(37.5);
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5);
-    await commitNumberEditor(quantitySelector, '0');
+    await commitQuantityEditor('0');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
       'zero quantity must be rejected and the last valid fractional quantity restored');
-    await commitNumberEditor(quantitySelector, '11');
+    await commitQuantityEditor('11');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
       'quantity above available stock must be rejected without changing the last valid quantity');
     await page.evaluate(() => {
       posCart.push({ ...posCart[0], qty: 9 });
       renderPosTable();
     });
-    await commitNumberEditor(quantitySelector, '2');
+    await commitQuantityEditor('2');
     assert.equal(await page.evaluate(() => posCart[0].qty), 1.5,
       'quantity editing must include legacy duplicate rows for the same product and preserve the last valid quantity');
     await page.evaluate(() => { posCart.splice(1, 1); renderPosTable(); });
-    await commitNumberEditor(priceSelector, '30.00');
+    await commitPriceEditor('30.00');
     await waitForDisplayedTotal(45); // 1.5 units × 30.00 DZD
     assert.equal(await page.evaluate(() => posCart[0].price), 30);
-    await commitNumberEditor(priceSelector, '-1');
+    await commitPriceEditor('-1');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'negative unit price must be rejected and restored');
-    await commitNumberEditor(priceSelector, '30.005');
+    await commitPriceEditor('30.005');
     assert.equal(await page.evaluate(() => posCart[0].price), 30,
       'prices with more than two decimal places must be rejected, not silently rounded');
-    await commitNumberEditor(priceSelector, '25.00');
+    await commitPriceEditor('25.00');
     await waitForDisplayedTotal(37.5); // 1.5 units × 25.00 DZD
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
-    await commitNumberEditor(priceSelector, '0.10');
-    await commitNumberEditor(quantitySelector, '0.15');
+    await commitPriceEditor('0.10');
+    await commitQuantityEditor('0.15');
     await waitForDisplayedTotal(0.02);
     assert.equal(await page.locator('#posTotalDisplay').textContent(), '0.02 د.ج',
       'main POS and checkout totals must use identical centime rounding');
-    await commitNumberEditor(quantitySelector, '1');
-    await commitNumberEditor(priceSelector, '25.00');
+    await commitQuantityEditor('1');
+    await commitPriceEditor('25.00');
     await waitForDisplayedTotal(25);
     await page.evaluate(() => {
       window.__posOriginalSaveDBForTest = window.saveDB;
       window.saveDB = () => false;
     });
-    await commitNumberEditor(priceSelector, '26.00');
+    await commitPriceEditor('26.00');
     assert.equal(await page.evaluate(() => posCart[0].price), 25,
       'failed persistence must roll back the edited unit price');
     assert.equal(await page.evaluate(() => AppData.posScreensCarts[AppData.activePosScreenTab][0].price), 25,
@@ -592,9 +601,9 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       null, { timeout: 10000 });
     await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
-    await page.locator('#hasibCartItems input[aria-label^="كمية"]').first().waitFor({ state: 'visible', timeout: 10000 });
-    await commitNumberEditor(quantitySelector, '0.25');
-    await commitNumberEditor(priceSelector, '100.00');
+    await page.locator('#hasibCartItems button').first().waitFor({ state: 'visible', timeout: 10000 });
+    await commitQuantityEditor('0.25');
+    await commitPriceEditor('100.00');
     await waitForDisplayedTotal(25);
     assert.equal(await page.evaluate(() => posCart[0].qty), 0.25,
       'weighted POS sale must retain an exact 0.25 kg quantity');
