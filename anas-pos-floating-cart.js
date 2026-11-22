@@ -59,8 +59,6 @@ host.innerHTML='<div class="anas-pos-mini-head"><strong>🛒 السلة <span da
 }
 host.querySelectorAll('.anas-weight-chip').forEach(button=>{if(!button.closest('[data-mini-cart-lines]'))button.remove();});
 if(host.parentElement!==view)view.appendChild(host);
-return true;
-}
 const sticky=null;
 host.addEventListener('click',e=>{const chip=e.target.closest('[data-action="set-quick-weight"]');if(chip){const raw=String(chip.dataset.cartIndex||''),w=String(chip.dataset.weight||''),items=currentCart();if(/^(0|[1-9]\d*)$/.test(raw)&&QUICK_WEIGHT_MILLIS_MAP[w]!==undefined){const bi=BigInt(raw);if(bi<BigInt(items.length)&&updatePosCartQuantity(Number(bi),formatMillisToQtyString(QUICK_WEIGHT_MILLIS_MAP[w]))){if(typeof window.renderPosTable==='function')window.renderPosTable();render();}}return;}const b=e.target.closest('[data-mini-action]');if(!b)return;const a=b.dataset.miniAction;if(a==='free'){openQuickEntryDialog('free');}else if(a==='discount'){openQuickEntryDialog('discount');}else if(a==='quote'){if(typeof switchPosScreen==='function')switchPosScreen('quote');}else if(a==='checkout'){if(typeof openHasibModal==='function')openHasibModal();}});return true;}
 function hookSearchFirst(){const original=window.renderQuickProducts;if(typeof original!=='function'||original.__anasSearchFirst)return;const wrapped=function(){const host=document.getElementById('quickProductsContainer');if(host){host.replaceChildren();host.hidden=true;}['posCategoryTabs','posStockFilterChips','anasPosProductViewToggle','posQuickProductsProgress','posQuickProductsEmpty'].forEach(id=>{const node=document.getElementById(id);if(node)node.hidden=true;});};wrapped.__anasSearchFirst=true;window.renderQuickProducts=wrapped;wrapped();}
