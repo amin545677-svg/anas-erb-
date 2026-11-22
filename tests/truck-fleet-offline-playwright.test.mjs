@@ -77,6 +77,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   let promptNumber=0;
   page.on("dialog",async dialog=>{dialogMessages.push({type:dialog.type(),message:dialog.message()});if(dialog.type()==="prompt"){promptNumber++;await dialog.accept("10.00");}else await dialog.accept();});
   let serverSnapshot=JSON.stringify(fixture()),revision="rev-1",conflictBudget=0,postCount=0;
+  const mockRequests=[];
   const cors={"Access-Control-Allow-Origin":"http://127.0.0.1:"+port,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"};
   await page.route("**/*",async route=>{
    const request=route.request(),url=new URL(request.url());
@@ -92,12 +93,16 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    await route.abort();
   });
   await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
-   const req=route.request();
-   if(req.method()==="OPTIONS"){await route.fulfill({status:204,headers:cors});return;}
-   if(req.method()==="GET"){await route.fulfill({status:200,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({exists:true,data:serverSnapshot,revision})});return;}
-   postCount++;
-   if(conflictBudget>0){conflictBudget--;await route.fulfill({status:409,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({error:"CAS_CONFLICT"})});return;}
-   const body=req.postDataJSON();serverSnapshot=body.data;revision="rev-"+(postCount+1);await route.fulfill({status:200,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({saved:true,revision})});
+   const req=route.request(),method=req.method(),url=req.url();
+   let status;
+   if(method==="OPTIONS"){status=204;await route.fulfill({status,headers:cors});}
+   else if(method==="GET"){status=200;await route.fulfill({status,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({exists:true,data:serverSnapshot,revision})});}
+   else {
+    postCount++;
+    if(conflictBudget>0){conflictBudget--;status=409;await route.fulfill({status,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({error:"CAS_CONFLICT"})});}
+    else {const body=req.postDataJSON();serverSnapshot=body.data;revision="rev-"+(postCount+1);status=200;await route.fulfill({status,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({saved:true,revision})});}
+   }
+   mockRequests.push({method,url,status});
   });
   await page.goto("http://127.0.0.1:"+port+"/erp/",{waitUntil:"domcontentloaded",timeout:30000});
   const runtimeReady=()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel");
@@ -460,8 +465,42 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   assert.deepEqual(errors,[],"offline hard reload must not produce uncaught browser exceptions");
   await context.setOffline(false);
   conflictBudget=1;
-  const sync=await page.evaluate(()=>window.anasFirebaseSyncPush());
-  assert.ok(["synced","pushed"].includes(sync.status),"offline operations must reconcile after the simulated 409 CAS response");
+  let syncResult,syncError=null;
+  try { syncResult=await page.evaluate(()=>window.anasFirebaseSyncPush()); }
+  catch(error) { syncError=String(error?.stack||error); }
+  const syncFailureDiagnostics=await page.evaluate(({pendingKey})=>{
+   const safe=(read,fallback=null)=>{try{return read();}catch(error){return fallback;}};
+   const storage=window.ANASResilientStorage;
+   let pending=safe(()=>storage?.getItem?.(pendingKey)||[],[]);
+   if(typeof pending==="string")pending=safe(()=>JSON.parse(pending),[]);
+   if(!Array.isArray(pending))pending=[];
+   const status=safe(()=>storage?.status?.()||{}, {})||{};
+   const firebaseAuth=safe(()=>typeof window.firebase?.auth==="function"?window.firebase.auth():null,null);
+   const authUser=firebaseAuth?.currentUser||window.auth?.currentUser||window.ANASFirebaseAuth?.currentUser||null;
+   const sessionUser=window.currentUser||window.AppData?.currentUser||null;
+   const lastError=status.lastError??window.ANASMutationSync?.lastError??window.ANASMutationSync?.error??window.__ANAS_SYNC_LAST_ERROR__??null;
+   return {
+    runtimeFlags:{
+     onLine:navigator.onLine,
+     session:{present:Boolean(sessionUser||authUser),appUserId:sessionUser?.id??null,firebaseUid:authUser?.uid??null},
+     auth:{firebaseCurrentUser:Boolean(authUser),tokenProviderAvailable:typeof window.anasGetFirebaseIdToken==="function",authState:firebaseAuth?.currentUser?"authenticated":(firebaseAuth?"no-current-user":"not-exposed")},
+     revision:{storageRevision:status.revision??null,cloudRevision:safe(()=>storage?.getItem?.("ANAS_CLOUD_REVISION_V1"),null)},
+     lastError:lastError==null?null:String(lastError?.message||lastError)
+    },
+    pendingOps:pending.map(item=>({
+     opType:String(item?.type??item?.operationType??"unknown"),
+     status:String(item?.status??"unknown"),
+     retryCount:item?.retryCount??item?.retries??item?.attempts??null,
+     lastError:item?.lastError??item?.error??null
+    }))
+   };
+  },{pendingKey:MUTATION_KEYS.pending});
+  assert.ok(["synced","pushed"].includes(syncResult?.status),
+   "offline operations must reconcile after the simulated 409 CAS response; diagnostics="+safeJson({
+    syncResult:syncError??syncResult??null,
+    mockRequests,
+    ...syncFailureDiagnostics
+   }));
   const cloud=JSON.parse(serverSnapshot);
   assert.equal(cloud.invoices.filter(x=>String(x.warehouse||"").startsWith("شاحنة ")).length,1);
   assert.equal(cloud.cashMovements.filter(x=>x.referenceType==="customer_debt").length,1);
