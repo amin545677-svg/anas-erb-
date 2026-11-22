@@ -332,7 +332,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   });
   assert.deepEqual(firebaseAuthBeforeReload,{uid:"playwright-anonymous-user",tokenPresent:true},
    "Firebase anonymous auth must be established through the mocked Identity Toolkit endpoint before the offline hard reload");
-  assert.equal(firebaseAuthRequests.length,1,"the test must exercise exactly one Firebase anonymous sign-up request");
+  assert.equal(firebaseAuthRequests.filter(request=>new URL(request.url).pathname==="/v1/accounts:signUp").length,1,"the test must exercise exactly one Firebase anonymous sign-up request");
   await context.setOffline(true);
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>window.ANASResilientStorage?.ready()===true&&window.ANASMutationSync?.status==="installed"&&document.getElementById("anasFleetEnginePanel"),null,{timeout:30000});
