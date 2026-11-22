@@ -4547,51 +4547,12 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             });
             document.getElementById('productPickerModal')?.classList.add('active');
         }
+        function formatPosDzd(value) { const n=Number(value); return Number.isFinite(n) ? n.toLocaleString('fr-DZ',{maximumFractionDigits:2,minimumFractionDigits:0}) : '—'; }
+
         function renderHasibCartEditor() {
-            const host = document.getElementById('hasibCartItems');
-            if (!host) return;
-            host.innerHTML = '';
-            if (!posCart.length) { host.textContent = 'لا توجد منتجات في الفاتورة حالياً.'; return; }
-            posCart.forEach((item, idx) => {
-                const row = document.createElement('div');
-                row.style.cssText = 'display:flex;align-items:center;gap:7px;flex-wrap:wrap;border:1px solid #e2e8f0;border-radius:8px;padding:8px;color:#0f172a;';
-                const info = document.createElement('div');
-                info.style.cssText = 'flex:1;min-width:110px;font-weight:800;';
-                info.textContent = item.name || 'منتج';
-                const sub = document.createElement('small');
-                sub.style.cssText = 'display:block;color:#64748b;font-weight:500;';
-                const lineCents = anasLineTotalCents(anasToQtyUnits(item.qty), anasToCents(item.price));
-                sub.textContent = Number.isSafeInteger(lineCents)
-                    ? 'الإجمالي: ' + anasCentsToCurrency(lineCents).toFixed(2) + ' د.ج'
-                    : 'الإجمالي غير صالح';
-                info.appendChild(sub);
-                const price = document.createElement('input');
-                price.type = 'number'; price.min = '0'; price.step = '0.01'; price.inputMode = 'decimal';
-                price.value = String(item.price); price.setAttribute('aria-label', 'سعر الوحدة ' + String(item.name || 'المنتج'));
-                price.title = 'أدخل سعر الوحدة بالدينار';
-                price.style.cssText = 'width:104px;min-height:38px;border:1px solid #bae6fd;border-radius:8px;background:#f0f9ff;color:#0369a1;padding:6px;text-align:center;font-weight:800;';
-                price.addEventListener('change', () => setPosPrice(idx, price.value));
-                const minus = document.createElement('button');
-                minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label','إنقاص الكمية');
-                minus.style.cssText = 'border:0;border-radius:7px;background:#e2e8f0;padding:7px 11px;font-size:18px;font-weight:900;';
-                minus.onclick = () => changePosQty(idx, -1);
-                const qty = document.createElement('input');
-                qty.type = 'number'; qty.min = '0.000001'; qty.step = 'any'; qty.inputMode = 'decimal';
-                qty.value = String(item.qty); qty.setAttribute('aria-label', 'كمية ' + String(item.name || 'المنتج'));
-                qty.title = 'أدخل الكمية المطلوبة مباشرة';
-                qty.style.cssText = 'width:82px;min-height:38px;border:1px solid #cbd5e1;border-radius:8px;padding:5px;text-align:center;font-weight:800;color:#0f172a;';
-                qty.addEventListener('change', () => setPosQty(idx, qty.value));
-                const plus = document.createElement('button');
-                plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label','زيادة الكمية');
-                plus.style.cssText = 'border:0;border-radius:7px;background:#dcfce7;color:#166534;padding:7px 11px;font-size:18px;font-weight:900;';
-                plus.onclick = () => changePosQty(idx, 1);
-                const remove = document.createElement('button');
-                remove.type = 'button'; remove.textContent = 'حذف';
-                remove.style.cssText = 'border:0;border-radius:7px;background:#fee2e2;color:#b91c1c;padding:8px;font-weight:800;';
-                remove.onclick = () => removePosCartItem(idx);
-                row.append(info, price, minus, qty, plus, remove);
-                host.appendChild(row);
-            });
+            const host=document.getElementById('hasibCartItems'); if(!host)return; host.replaceChildren();
+            if(!posCart.length){host.textContent='لا توجد منتجات في الفاتورة حالياً.';return;}
+            posCart.forEach((item,idx)=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:nowrap;border:1px solid var(--mp-border);border-radius:8px;padding:8px;min-width:0';const info=document.createElement('div');info.style.cssText='flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800';info.textContent=item.name||'منتج';const cents=anasLineTotalCents(anasToQtyUnits(item.qty),anasToCents(item.price));const sub=document.createElement('small');sub.style.cssText='display:block;white-space:nowrap;font-weight:500';sub.textContent='الكمية '+item.qty+' × '+formatPosDzd(item.price)+' = '+(Number.isSafeInteger(cents)?formatPosDzd(anasCentsToCurrency(cents)):'—')+' د.ج';info.appendChild(sub);const qty=document.createElement('button');qty.type='button';qty.textContent=String(item.qty);qty.onclick=()=>editPosQty(idx);qty.title='تعديل الكمية';qty.style.cssText='padding:8px;border:1px solid var(--mp-border);border-radius:7px;background:var(--mp-card);color:var(--mp-text)';const price=document.createElement('button');price.type='button';price.textContent=formatPosDzd(item.price);price.onclick=()=>editPosPrice(idx);price.title='تعديل السعر';price.style.cssText=qty.style.cssText;const del=document.createElement('button');del.type='button';del.textContent='حذف';del.onclick=()=>removePosCartItem(idx);del.style.cssText='padding:8px;border:0;border-radius:7px;background:#fee2e2;color:#b91c1c';row.append(info,qty,price,del);host.appendChild(row);});
         }
 
         function syncHasibInvoiceTotals() {
@@ -4602,7 +4563,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const totalEl = document.getElementById('hasibTotalText');
             const invalidCart = !posCart.length || !Number.isSafeInteger(totalCents) || totalCents <= 0;
             const confirm = document.getElementById('hasibConfirmSaleBtn');
-            if (totalEl) totalEl.textContent = invalidCart ? (posCart.length ? 'راجع بيانات المنتجات' : 'أضف منتجاً للمتابعة') : total.toFixed(2) + ' د.ج';
+            if (totalEl) totalEl.textContent = invalidCart ? (posCart.length ? 'راجع بيانات المنتجات' : 'أضف منتجاً للمتابعة') : formatPosDzd(total) + ' د.ج';
             if (invalidCart) {
                 renderHasibCartEditor();
                 const summaryTotal = document.getElementById('hasibSummaryTotal');
@@ -4780,9 +4741,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const totalEl = document.getElementById('hasibSummaryTotal');
             const paidEl = document.getElementById('hasibSummaryPaid');
             const remainingEl = document.getElementById('hasibRemainingText');
-            if (totalEl) totalEl.textContent = anasCentsToCurrency(safeTotal).toFixed(2) + ' د.ج';
-            if (paidEl) paidEl.textContent = anasCentsToCurrency(paidCents).toFixed(2) + ' د.ج';
-            if (remainingEl) remainingEl.textContent = anasCentsToCurrency(Math.max(0, safeTotal - paidCents)).toFixed(2) + ' د.ج';
+            if (totalEl) totalEl.textContent = formatPosDzd(anasCentsToCurrency(safeTotal)) + ' د.ج';
+            if (paidEl) paidEl.textContent = formatPosDzd(anasCentsToCurrency(paidCents)) + ' د.ج';
+            if (remainingEl) remainingEl.textContent = formatPosDzd(anasCentsToCurrency(Math.max(0, safeTotal - paidCents))) + ' د.ج';
+            const customer=document.getElementById('hasibCustomerSelect'); const selected=(AppData.customers||[]).find(c=>customer && String(c.id)===String(customer.value)); const previous=document.getElementById('hasibPreviousDebt'); if(previous) previous.textContent=formatPosDzd(selected ? Number(selected.debt)||0 : 0)+' د.ج';
             refreshHasibPaymentGuidance();
         }
 
@@ -4825,7 +4787,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             if (!method || !input || !Number.isSafeInteger(totalCents) || totalCents < 0) return;
             if (!['cash', 'partial', 'credit'].includes(mode)) return;
             method.value = mode;
-            if (mode === 'cash') input.value = anasCentsToCurrency(totalCents).toFixed(2);
+            if (mode === 'cash') input.value = String(anasCentsToCurrency(totalCents));
             else if (mode === 'credit') input.value = '0.00';
             else input.value = anasCentsToCurrency(Math.floor(totalCents / 2)).toFixed(2);
             renderHasibPaymentSummary();
