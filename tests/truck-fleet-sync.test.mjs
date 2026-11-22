@@ -133,6 +133,30 @@ test("fleet POS bundle replays cash, stock and centime ledgers atomically after 
  assert.equal(rejected.snapshot.caisseBalance,0);
  assert.equal(rejected.snapshot.cashMovements.length,0);
 });
+test("atomic fleet POS bundle deducts truck warehouse stock once when invoice and stock ledger are new in the same operation",()=>{
+ let state=initial();
+ state=openTrip(state,{tripId:"TRIP-BUNDLED-POS",truckId:"T1",driverId:"driver-1"},"open-bundled-pos").state;
+ state=loadTrip(state,"TRIP-BUNDLED-POS",[{productId:"P1",quantity:"100"}],"load-bundled-pos").state;
+ const base=state;
+ state=recordTruckSale(state,"TRIP-BUNDLED-POS",{productId:"P1",quantity:"1",catalogPrice:"10",salePrice:"10",cashPaid:"10",invoiceId:"INV-BUNDLED-POS",saleId:"INV-BUNDLED-POS:0"},"sale-bundled-pos",{id:"driver-1"}).state;
+ const invoice={id:"INV-BUNDLED-POS",total:10,paid:10,remaining:0,paymentChannel:"cash",warehouse:"شاحنة 123",items:[{id:"P1",qty:1,price:10}]};
+ const cash={id:"CASH-INV-BUNDLED-POS",type:"add",amount:10,referenceType:"sales_invoice",referenceId:"INV-BUNDLED-POS"};
+ const stock={id:"STOCK-INV-BUNDLED-POS",productId:"P1",qty:-1,type:"SALE_OUT",referenceType:"sales_invoice",referenceId:"INV-BUNDLED-POS",warehouse:"شاحنة 123"};
+ const collectionDeltas={invoices:{before:[],after:[invoice]},cashMovements:{before:[],after:[cash]},stockMovements:{before:[],after:[stock]}};
+ const operation=op(base,state,"fleet-bundled-pos","driver-1",{collectionDeltas,caisseBalanceDelta:{before:0,after:10}});
+ const snapshot={...cloud(),products:[{id:"P1",stock:"150.000",warehouseStock:{"شاحنة 123":"100.000"}}],warehouses:[],invoices:[],cashMovements:[],stockMovements:[],anasFleetState:encode(base),caisseBalance:0};
+ const result=reconcilePendingMutations(snapshot,[{...operation,status:"PENDING",localSeq:1}]);
+ assert.deepEqual(result.review,[]);
+ assert.equal(result.snapshot.products[0].stock,"150.000");
+ assert.equal(result.snapshot.products[0].warehouseStock["شاحنة 123"],"99.000");
+ assert.equal(result.snapshot.anasFleetState.trucks[0].stockUnits.P1.__anasFleetBigInt,"99000");
+ assert.equal(result.snapshot.anasFleetState.trips[0].sales.length,1);
+ assert.equal(result.snapshot.invoices.length,1);
+ assert.equal(result.snapshot.cashMovements.length,1);
+ assert.equal(result.snapshot.stockMovements.length,1);
+ assert.equal(result.snapshot.caisseBalance,10);
+});
+
 test("fleet POS bank settlement replays bank ledger without touching the cashbox",()=>{
  let state=initial();
  state=openTrip(state,{tripId:"TRIP-BANK",truckId:"T1",driverId:"driver-1"},"open-bank").state;
