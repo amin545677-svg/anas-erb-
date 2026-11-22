@@ -13746,7 +13746,7 @@ function anasGetAiHubKpiMetrics(tabKey) {
 function openQuickSale(){return typeof old_openQuickSale==='function'?old_openQuickSale():openView('pos');}
 function closeQuickSale(){return true;}
 function quickSalePrice(product){const tier=Number(AppData&&AppData.activePriceTier)||1;return Number(tier===2?(product?.price2||product?.price1):tier===3?(product?.price3||product?.price1):product?.price1)||0;}
-function renderQuickSaleResults(){const query=String(document.getElementById('qsSearch')?.value||'');const search=document.getElementById('posSearchField');if(search){search.value=query;if(typeof handlePosSearch==='function')handlePosSearch(query);}}
+function renderQuickSaleResults(){const q=window.anasNormalizeQueryText(document.getElementById('qsSearch')?.value||'');const matches=(AppData.products||[]).filter(p=>window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q));const search=document.getElementById('posSearchField');if(search){search.value=String(document.getElementById('qsSearch')?.value||'');if(typeof handlePosSearch==='function')handlePosSearch(search.value);}return matches.length;}
 function escapeQuickText(value){return typeof anasEscapeHTML==='function'?anasEscapeHTML(value):String(value??'');}
 function quickSaleAdd(productId){if(typeof addItemToPosCart!=='function')return false;addItemToPosCart(productId,Number(AppData&&AppData.activePriceTier)||1);if(typeof renderPosTable==='function')renderPosTable();return true;}
 function renderQuickSaleCart(){if(typeof renderPosTable==='function')renderPosTable();return true;}
