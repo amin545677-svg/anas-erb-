@@ -461,10 +461,19 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     const fleetLengths=state=>{
      const trips=state?.trips||[],trucks=state?.trucks||[];
      return {
+      schemaVersion:state?.schemaVersion??null,
+      products:(state?.products||[]).map(row=>({id:row?.id,mainStockUnits:row?.mainStockUnits})),
+      trucks:trucks.map(row=>({id:row?.id,warehouseName:row?.warehouseName,stockUnits:row?.stockUnits})),
+      trips:trips.map(row=>({id:row?.id,status:row?.status,driverId:row?.driverId,truckId:row?.truckId,sales:(row?.sales||[]).map(x=>x?.id),debtPayments:(row?.debtPayments||[]).map(x=>x?.referenceId)})),
       tripSalesLen:trips.reduce((n,trip)=>n+(Array.isArray(trip?.sales)?trip.sales.length:0),0),
       truckStockLen:trucks.reduce((n,truck)=>n+Object.keys(truck?.stockUnits||{}).length,0)
      };
     };
+    const operationChain=(Array.isArray(q)?q:[]).filter(item=>item?.type==="TRUCK_FLEET_OPERATION").map((item,index,all)=>({
+     opId:item.opId,localSeq:item.localSeq??null,status:item.status,
+     base:fleetLengths(item.payload?.baseState),next:fleetLengths(item.payload?.nextState),
+     previousNextMatchesBase:index===0?null:JSON.stringify(all[index-1]?.payload?.nextState??null)===JSON.stringify(item.payload?.baseState??null)
+    }));
     return {
      opType:String(item?.type??"unknown"),
      status:String(item?.status??"unknown"),
@@ -529,7 +538,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     invoiceCustomerId:String(invoice?.customerId??invoice?.customerObj?.id??""),
     customerDebt:Number(s.customers.find(x=>String(x.id)==="C1")?.debt),cashBalance:Number(s.caisseBalance),
     truckWarehouseStock:Number(s.products.find(x=>String(x.id)==="TRUCK-P1")?.warehouseStock?.["شاحنة 12345-31"]),
-    pendingTypes:q.map(x=>x.type),
+    pendingTypes:q.map(x=>x.type),operationChain,
     debtBundle:debtBundleProof,
     debtOperationDiagnostics,
     posBundle:bundle?{
@@ -605,7 +614,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      retryCount:item?.retryCount??item?.retries??item?.attempts??null,
      lastError:item?.lastError??item?.error??null
     })),
-    quarantinedOps:(()=>{let value=safe(()=>storage?.getItem?.(quarantinedKey)||[],[]);if(typeof value==="string"){try{value=JSON.parse(value);}catch{value=[];}}return Array.isArray(value)?value.map(item=>({opId:item?.opId??null,reason:item?.reason??null,collection:item?.collection??null,status:item?.status??null,operationType:item?.operation?.type??null})):[];})()
+    quarantinedOps:(()=>{let value=safe(()=>storage?.getItem?.(quarantinedKey)||[],[]);if(typeof value==="string"){try{value=JSON.parse(value);}catch{value=[];}}return Array.isArray(value)?value.map(item=>({opId:item?.opId??null,reason:item?.reason??null,collection:item?.collection??null,status:item?.status??null,operationType:item?.operation?.type??null,baseState:fleetLengths(item?.operation?.payload?.baseState),nextState:fleetLengths(item?.operation?.payload?.nextState),cloudState:fleetLengths(item?.cloudState)})):[];})()
    };
   },{pendingKey:MUTATION_KEYS.pending,quarantinedKey:MUTATION_KEYS.quarantined});
   console.log("[truck-offline] CAS replay proof:",safeJson({snapshotTrace,serverDebtRows:(JSON.parse(serverSnapshot).cashMovements||[]).filter(row=>row?.referenceType==="customer_debt"),syncFailureDiagnostics}));
