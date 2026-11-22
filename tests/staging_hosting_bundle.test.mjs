@@ -72,10 +72,12 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       debtDurable > debtSave && debtCommitClear > debtDurable && debtRollback > debtCommitClear,
       'built customer-debt handler must prepare fleet custody before its single saveDB, clear rollback only after durable ACK, and rollback in its catch path');
     const debtSnapshot = debtCollect >= 0 ? erp.indexOf('const debtRollbackSnapshot = structuredClone(AppData);', debtCollect) : -1;
+    const debtFirstMutation = debtCollect >= 0 ? erp.indexOf('AppData.clientMovements = [];', debtCollect) : -1;
     const debtGraphRestore = debtCollect >= 0 ? erp.indexOf('restoreDebtObjectGraph(AppData, debtRollbackSnapshot)', debtCollect) : -1;
-    assert.ok(debtSnapshot > debtCollect && debtSnapshot < debtPrepare &&
-      debtGraphRestore > debtCommitClear && debtGraphRestore < debtRollback,
-      'built customer-debt handler must snapshot before mutation and restore the complete graph after fleet rollback');
+    assert.ok(debtSnapshot > debtCollect && debtSnapshot < debtFirstMutation &&
+      debtSnapshot < debtPrepare && debtGraphRestore > debtCommitClear &&
+      debtGraphRestore > debtRollback,
+      'built customer-debt handler must snapshot before its first mutation and restore the complete graph after fleet rollback');
     assert.match(erp, /const restoreDebtObjectGraph = \(target, snapshot\) => \{/,
       'built customer-debt handler must restore nested records in place to preserve UI references');
     assert.doesNotMatch(erp, /if \(hadDebt\) customer\.debt = oldDebtValue/,
