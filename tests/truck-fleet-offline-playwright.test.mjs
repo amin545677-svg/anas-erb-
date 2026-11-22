@@ -150,6 +150,10 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      contentType:"application/json",body:JSON.stringify(body)});
     return;
    }
+      if(url.hostname==="anas-erp-firebase-snapshot.amin545677.workers.dev"&&url.pathname==="/snapshot"){
+    await route.fallback();
+    return;
+   }
    if(request.resourceType()==="script"){
     externalScripts.push(request.url());
     await route.fulfill({status:200,contentType:"application/javascript; charset=utf-8",body:"/* optional external script disabled in offline acceptance */"});
@@ -158,15 +162,37 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
    recordBlocked(request,"blocked by offline acceptance catch-all");
    await route.abort();
   });
-  await page.route("https://anas-erp-firebase-snapshot-staging.amin545677.workers.dev/snapshot**",async route=>{
-   const req=route.request(),method=req.method(),url=req.url();
-   let status;
-   if(method==="OPTIONS"){status=204;await route.fulfill({status,headers:cors});}
-   else if(method==="GET"){status=200;await route.fulfill({status,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({exists:true,data:serverSnapshot,revision})});}
-   else {
+  await page.route("https://anas-erp-firebase-snapshot.amin545677.workers.dev/snapshot**",async route=>{
+   const req=route.request(),method=req.method(),url=req.url(),requestHeaders=req.headers();
+   const origin=requestHeaders.origin||"*";
+   const corsHeaders={
+    "Access-Control-Allow-Origin":origin,
+    "Access-Control-Allow-Methods":"GET, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Headers":requestHeaders["access-control-request-headers"]||"Authorization, Content-Type, Accept",
+    "Access-Control-Max-Age":"86400",
+    "Vary":"Origin"
+   };
+   let status,body;
+   if(method==="OPTIONS"){status=204;await route.fulfill({status,headers:corsHeaders});}
+   else if(method==="GET"){
+    status=200;
+    const metadata=new URL(url).searchParams.get("metadata")==="1";
+    body=metadata?{ok:true,exists:true,revision}:{ok:true,exists:true,data:serverSnapshot,parts:1,revision};
+    await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
+   }else if(method==="POST"||method==="PUT"){
     postCount++;
-    if(conflictBudget>0){conflictBudget--;status=409;await route.fulfill({status,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({error:"CAS_CONFLICT"})});}
-    else {const body=req.postDataJSON();serverSnapshot=body.data;revision="rev-"+(postCount+1);status=200;await route.fulfill({status,headers:{...cors,"Content-Type":"application/json"},body:JSON.stringify({saved:true,revision})});}
+    if(conflictBudget>0){
+     conflictBudget--;revision="rev-"+(postCount+1);status=409;
+     body={error:"Snapshot conflict: the cloud copy changed after it was read. Download the latest copy and retry.",conflict:true};
+    }else{
+     const payload=req.postDataJSON();
+     if(!payload||typeof payload.data!=="string"||!payload.data){status=400;body={error:"Expected serialized application JSON in the data field"};}
+     else{serverSnapshot=payload.data;revision="rev-"+(postCount+1);status=200;body={ok:true,saved:true,uid:"playwright-anonymous-user",parts:1,revision};}
+    }
+    await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
+   }else{
+    status=405;body={error:"Method not allowed"};
+    await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
    }
    mockRequests.push({method,url,status});
   });
