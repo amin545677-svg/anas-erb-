@@ -613,12 +613,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '12.50');
     assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25 د.ج',
       'whole-DZD invoice totals omit redundant decimal zeros');
-    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '12.50 د.ج');
-    assert.equal(await page.locator('#hasibRemainingText').textContent(), '12.50 د.ج');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '12,5 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '12,5 د.ج');
     await page.locator('#hasibPaidAmount').fill('7.50');
     assert.equal(await page.locator('#hasibPaymentMethod').inputValue(), 'partial');
-    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '7.50 د.ج');
-    assert.equal(await page.locator('#hasibRemainingText').textContent(), '17.50 د.ج');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '7,5 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '17,5 د.ج');
     await page.locator('#hasibPaidAmount').fill('12.50');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
       'partial payment must require a registered customer before confirmation');
@@ -661,7 +661,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#hasibPaymentMethod').selectOption('credit');
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
-    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0.00 د.ج');
+    assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0 د.ج');
     assert.equal(await page.locator('#hasibRemainingText').textContent(), '25 د.ج',
       'whole-DZD remaining balances are formatted without redundant decimal zeros');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
