@@ -740,7 +740,28 @@ export function installV42RuntimeWiring({
     return true;
   }
 
+  async function waitForDurableMutationBeforeSync() {
+    // saveDB prepares the operation synchronously; saveDBDurably serializes its
+    // durable acknowledgement through durableSaveTail. A concurrent push/pull
+    // must not snapshot AppData in the gap between those two stages.
+    await durableSaveTail;
+    if (!pendingPrepared) return null;
+    const result = {
+      status: "blocked-pending-durable-save",
+      opId: String(pendingPrepared.operation?.opId || "")
+    };
+    onStatus({
+      level: "warning",
+      code: "V42_SYNC_BLOCKED_PENDING_DURABLE_SAVE",
+      result,
+      message: "Sync was not started because a local V42 mutation has not received its durable save acknowledgement."
+    });
+    return result;
+  }
+
   async function wrappedPush() {
+    const pendingDurable = await waitForDurableMutationBeforeSync();
+    if (pendingDurable) return pendingDurable;
     if (typeof storage.flush === "function") await storage.flush();
     const blocked = unsupportedBlockResult();
     if (blocked) return blocked;
@@ -762,6 +783,8 @@ export function installV42RuntimeWiring({
   async function wrappedPull() {
     // This is an operational reconciliation pull, intentionally distinct from the
     // legacy destructive full-snapshot restore function.
+    const pendingDurable = await waitForDurableMutationBeforeSync();
+    if (pendingDurable) return pendingDurable;
     if (typeof storage.flush === "function") await storage.flush();
     const blocked = unsupportedBlockResult();
     if (blocked) return blocked;
