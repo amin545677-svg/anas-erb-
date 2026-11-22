@@ -146,6 +146,41 @@ test("pushCurrent restores PREPARED intent then blocks all five server-owned fin
 });
 
 
+test("remote fleet divergence is quarantined for review even when the local mutation queue is empty", async () => {
+  const localFleetState = { schemaVersion: 1, remoteDeviceMarker: "local-device", trips: [] };
+  const cloudFleetState = { schemaVersion: 1, remoteDeviceMarker: "remote-device", trips: [] };
+  const storage = new MemoryStorage({
+    [MUTATION_KEYS.appData]: json({ anasFleetState: localFleetState, appliedOpIds: [] }),
+    [MUTATION_KEYS.pending]: json([]),
+    [MUTATION_KEYS.revision]: json("rev-local"),
+    [MUTATION_KEYS.quarantined]: json([])
+  });
+  const orchestrator = createMutationQueueOrchestrator({
+    storage,
+    pullCloud: async () => ({
+      data: { anasFleetState: cloudFleetState, appliedOpIds: [] },
+      revision: "rev-remote"
+    }),
+    pushCloud: async () => ({ status: 200, revision: "rev-remote-2" }),
+    reconcile: snapshot => ({
+      snapshot: structuredClone(snapshot),
+      review: [],
+      appliedNow: []
+    })
+  });
+
+  const result = await orchestrator.reconcileAndSync();
+  assert.equal(result.status, "synced");
+  assert.equal(result.quarantined.length, 1);
+  assert.equal(result.quarantined[0].reason, "TRUCK_FLEET_STATE_CONFLICT");
+  const quarantine = read(storage, MUTATION_KEYS.quarantined);
+  assert.equal(quarantine.length, 1);
+  assert.equal(quarantine[0].opId, "REMOTE_FLEET_STATE_CONFLICT:rev-remote");
+  assert.deepEqual(quarantine[0].localState, localFleetState);
+  assert.deepEqual(quarantine[0].cloudState, cloudFleetState);
+  assert.deepEqual(quarantine[0].operation.payload.nextState, localFleetState);
+});
+
 test("409 rollback preserves operations queued while the cloud request is in flight", async () => {
   const originalAppData = { customers: [{ id: "c1", debt: 500 }], cashMovements: [], appliedOpIds: [] };
   const originalPending = [{ opId: "op-before", type: "DEBT_COLLECTION", status: "PENDING", payload: {} }];

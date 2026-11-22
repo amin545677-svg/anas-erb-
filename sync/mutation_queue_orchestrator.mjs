@@ -214,6 +214,33 @@ export function createMutationQueueOrchestrator({
           cloudRevision: cloud.revision, createdAt: new Date().toISOString()
         });
         const result = reconcile(cloud.data, replayable);
+        // A cloud fleet-state change can race a device even when its local queue
+        // is empty. Surface divergent fleet state for explicit review, never
+        // silently replace the device's fleet view with a remote snapshot.
+        const localSnapshotBeforePull = readJson(storage, MUTATION_KEYS.appData, null);
+        const localFleetState = localSnapshotBeforePull?.anasFleetState;
+        const cloudFleetState = cloud.data?.anasFleetState;
+        const hasPendingFleetMutation = pendingAtStart.some(operation =>
+          mutationTypeOf(operation) === "TRUCK_FLEET_OPERATION"
+        );
+        const hasComparableFleetStates = localFleetState && typeof localFleetState === "object" &&
+          !Array.isArray(localFleetState) && cloudFleetState && typeof cloudFleetState === "object" &&
+          !Array.isArray(cloudFleetState);
+        if (!hasPendingFleetMutation && hasComparableFleetStates &&
+            JSON.stringify(localFleetState) !== JSON.stringify(cloudFleetState)) {
+          const opId = "REMOTE_FLEET_STATE_CONFLICT:" + String(cloud.revision ?? "unknown");
+          result.review.push({
+            opId,
+            reason: "TRUCK_FLEET_STATE_CONFLICT",
+            operation: {
+              opId,
+              type: "TRUCK_FLEET_OPERATION",
+              payload: { baseState: structuredClone(localFleetState), nextState: structuredClone(localFleetState) }
+            },
+            cloudState: structuredClone(cloudFleetState),
+            localState: structuredClone(localFleetState)
+          });
+        }
         const durableLocalSequence = Math.max(
           Number(cloud.data.anasLocalMutationSequence) || 0,
           ...pendingAtStart.map(item => Number(item?.localSeq) || 0)

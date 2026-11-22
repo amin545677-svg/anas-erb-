@@ -690,9 +690,6 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      const d=safe(()=>window.AppData||{},{});
      const storage=safe(()=>window.ANASResilientStorage,null);
      const pending=safe(()=>storage?.getItem?.(pendingKey)||[],[]);
-     const quarantined=safe(()=>storage?.getItem?.(MUTATION_KEYS.quarantined)||[],[]);
-     const lastSyncStatus=safe(()=>window.__ANAS_V42_LAST_SYNC_STATUS__||null,null);
-     const fleetConflictHtml=safe(()=>document.getElementById("fleetConflict")?.innerHTML||"", "");
      const trips=safe(()=>d.anasFleetState?.trips||[],[]);
      const trucks=safe(()=>d.anasFleetState?.trucks||[],[]);
      const fleetMessage=safe(()=>document.getElementById("anasFleetMessage")?.textContent??null,null);
