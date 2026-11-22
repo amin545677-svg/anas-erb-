@@ -661,7 +661,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.locator('#hasibPaymentMethod').selectOption('credit');
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '0.00');
     assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '0.00 د.ج');
-    assert.equal(await page.locator('#hasibRemainingText').textContent(), '25.00 د.ج');
+    assert.equal(await page.locator('#hasibRemainingText').textContent(), '25 د.ج',
+      'whole-DZD remaining balances are formatted without redundant decimal zeros');
     assert.equal(await page.locator('#hasibConfirmSaleBtn').isDisabled(), true,
       'full credit must require a registered customer before confirmation');
     await page.locator('#hasibCustomerSelect').selectOption('STG-CUSTOMER-001');
