@@ -3995,7 +3995,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 const price = AppData.activePriceTier === 2 ? (p.price2 || p.price1) : (AppData.activePriceTier === 3 ? (p.price3 || p.price1) : p.price1);
                 const wh=typeof wtCurrentSaleWarehouse==='function'?wtCurrentSaleWarehouse():'المخزن الرئيسي';
                 const available=typeof wtAvailableStock==='function'?wtAvailableStock(p,wh):(Number(p.stock)||0);
-                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" onclick="selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
+                return `<button type="button" class="pos-search-result" role="option" data-index="${i}" ${Number(available) <= 0 ? 'disabled aria-disabled="true"' : ''} onclick="selectPosSearchProduct(decodeURIComponent('${encodeURIComponent(String(p.id)).replace(/'/g,'%27')}'))"><span class="pos-search-result-name">${esc(p.name)}</span><span class="pos-search-result-meta">${esc(p.barcode || 'بدون باركود')} · ${Number(price || 0).toLocaleString('fr-DZ')} د.ج · رصيد ${esc(wh)}: ${available}</span></button>`;
             }).join('');
             results.hidden = false;
         }
@@ -4041,6 +4041,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             const input = document.getElementById('posSearchField');
             const results = document.getElementById('posSearchResults');
             if (!product) { if (results) results.hidden = true; return; }
+            const saleWarehouse = typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي';
+            const saleStock = typeof wtAvailableStock === 'function' ? wtAvailableStock(product, saleWarehouse) : Number(product.stock || 0);
+            if (!Number.isFinite(Number(saleStock)) || Number(saleStock) <= 0) { if (results) results.hidden = true; return; }
             // Preserve the cashier's query while dismissing stale suggestions before
             // the price picker or direct cart insertion takes focus.
             // Cart-only rendering must never reset search text or catalogue scroll position.
@@ -4101,6 +4104,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         function openPosPriceTierPicker(productId) {
             const product = (Array.isArray(AppData.products) ? AppData.products : []).find(p => p && String(p.id) === String(productId));
             if (!product) return;
+            const wholesale = Number(product.price2);
+            if (product.price2 !== undefined && product.price2 !== null && product.price2 !== '' && Number.isFinite(wholesale) && wholesale === 0) { addItemToPosCart(productId, 1); return; }
             const tiers = [
                 { tier: 1, label: 'سعر التجزئة (الدفعة)', value: product.price1 },
                 { tier: 2, label: 'جملة', value: product.price2 },
@@ -4380,7 +4385,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         function setPosQty(idx, rawValue) {
             const item = posCart[idx];
             if (!item) return false;
-            const qtyUnits = anasToQtyUnits(rawValue);
+            const rawQtyText = String(rawValue ?? '').trim();
+            const qtyUnits = /^\\d+$/.test(rawQtyText) ? anasToQtyUnits(rawQtyText) : NaN;
             if (!Number.isSafeInteger(qtyUnits) || qtyUnits <= 0) {
                 alert('أدخل كمية صحيحة أكبر من صفر.');
                 renderPosTable();
@@ -4399,9 +4405,21 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         function editPosQty(idx) {
             const item = posCart[idx];
             if (!item) return;
-            const raw = prompt('تعديل الكمية:', item.qty);
-            if (raw === null || String(raw).trim() === '') return;
-            setPosQty(idx, raw);
+            let overlay = document.getElementById('anasPosQtyEditor');
+            if (overlay) overlay.remove();
+            overlay = document.createElement('div');
+            overlay.id = 'anasPosQtyEditor';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:100060;background:#020617aa;display:flex;align-items:center;justify-content:center;padding:16px';
+            const panel = document.createElement('div');
+            panel.style.cssText = 'width:min(360px,100%);background:var(--mp-card,#fff);color:var(--mp-text,#172033);padding:18px;border-radius:14px;display:grid;gap:12px';
+            const title = document.createElement('strong'); title.textContent = 'تعديل كمية ' + String(item.name || 'المنتج');
+            const stock = typeof wtAvailableStock === 'function' ? wtAvailableStock((AppData.products || []).find(p => String(p.id) === String(item.id)) || {}, typeof wtCurrentSaleWarehouse === 'function' ? wtCurrentSaleWarehouse() : 'المخزن الرئيسي') : '—';
+            const hint = document.createElement('small'); hint.textContent = 'الكمية الحالية: ' + item.qty + ' | المتوفر: ' + stock;
+            const input = document.createElement('input'); input.type = 'number'; input.min = '1'; input.step = '1'; input.inputMode = 'numeric'; input.value = String(item.qty); input.style.cssText = 'width:100%;padding:12px;border:1px solid var(--mp-border);border-radius:8px;font-size:18px';
+            const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:8px';
+            const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'إلغاء'; cancel.onclick = () => overlay.remove();
+            const save = document.createElement('button'); save.type = 'button'; save.textContent = 'حفظ الكمية'; save.onclick = () => { if (!/^\\d+$/.test(input.value) || Number(input.value) < 1 || !Number.isSafeInteger(Number(input.value))) { input.setCustomValidity('أدخل عدداً صحيحاً موجباً'); input.reportValidity(); return; } if (setPosQty(idx, input.value)) overlay.remove(); };
+            actions.append(cancel, save); panel.append(title, hint, input, actions); overlay.appendChild(panel); overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); }); document.body.appendChild(overlay); input.focus(); input.select();
         }
 
         function setPosPrice(idx, rawValue) {
