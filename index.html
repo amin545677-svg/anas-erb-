@@ -13608,7 +13608,13 @@ function anasGetAiHubKpiMetrics(tabKey) {
   });
 })();
 </script>
-
+<div id="quickSalePanel" hidden aria-hidden="true" data-legacy-dom-compat="true">
+  <input id="qsSearch" type="search" hidden>
+  <div id="qsResults" hidden></div>
+  <span id="qsCount" hidden></span>
+  <div id="qsCart" hidden></div>
+  <span id="qsTotal" hidden></span>
+</div>
 <script>
         // مسح الفاتورة من صورة: OCR للقراءة والمعاينة فقط، لا يرحّل المخزون أو الحسابات تلقائياً.
         function openInvoiceOcr(defaultCategory) {
@@ -13736,6 +13742,19 @@ function anasGetAiHubKpiMetrics(tabKey) {
 </script>
 
 <script>
+// Hidden compatibility wrappers route legacy quick-sale callers to the single validated POS flow.
+function openQuickSale(){return typeof old_openQuickSale==='function'?old_openQuickSale():openView('pos');}
+function closeQuickSale(){return true;}
+function quickSalePrice(product){const tier=Number(AppData&&AppData.activePriceTier)||1;return Number(tier===2?(product?.price2||product?.price1):tier===3?(product?.price3||product?.price1):product?.price1)||0;}
+function renderQuickSaleResults(){const query=String(document.getElementById('qsSearch')?.value||'');const search=document.getElementById('posSearchField');if(search){search.value=query;if(typeof handlePosSearch==='function')handlePosSearch(query);}}
+function escapeQuickText(value){return typeof anasEscapeHTML==='function'?anasEscapeHTML(value):String(value??'');}
+function quickSaleAdd(productId){if(typeof addItemToPosCart!=='function')return false;addItemToPosCart(productId,Number(AppData&&AppData.activePriceTier)||1);if(typeof renderPosTable==='function')renderPosTable();return true;}
+function renderQuickSaleCart(){if(typeof renderPosTable==='function')renderPosTable();return true;}
+function quickSaleChangeQty(index,delta){if(typeof changePosQty!=='function')return false;changePosQty(index,delta);return true;}
+function quickSaleClear(){if(typeof clearPosCart!=='function')return false;clearPosCart();return true;}
+function quickSaleCheckout(){if(typeof openHasibModal!=='function')return false;openHasibModal();return true;}
+function quickSaleSearchKey(event){if(typeof handlePosSearchKeydown==='function')return handlePosSearchKeydown(event);}
+
 /* ANAS ERP — stocktake sessions, draft, variance approval and audit movements */
 (function(){
   const DRAFT_KEY = 'ANAS_ERP_STOCKTAKE_DRAFTS_V1';
