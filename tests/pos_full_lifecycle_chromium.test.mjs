@@ -611,7 +611,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'weighted POS sale must retain the per-kilogram price');
     await page.locator('#hasibPaymentMethod').selectOption('partial');
     assert.equal(await page.locator('#hasibPaidAmount').inputValue(), '12.50');
-    assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25.00 د.ج');
+    assert.equal(await page.locator('#hasibSummaryTotal').textContent(), '25 د.ج',
+      'whole-DZD invoice totals omit redundant decimal zeros');
     assert.equal(await page.locator('#hasibSummaryPaid').textContent(), '12.50 د.ج');
     assert.equal(await page.locator('#hasibRemainingText').textContent(), '12.50 د.ج');
     await page.locator('#hasibPaidAmount').fill('7.50');
