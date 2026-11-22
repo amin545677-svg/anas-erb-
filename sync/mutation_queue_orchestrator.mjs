@@ -214,37 +214,6 @@ export function createMutationQueueOrchestrator({
           cloudRevision: cloud.revision, createdAt: new Date().toISOString()
         });
         const result = reconcile(cloud.data, replayable);
-        console.info("[ANAS_SYNC_409_SCOPE_DIAG]", JSON.stringify({phase:"reconcile-input",serverOwned:serverOwned.map(item=>({opId:item?.opId??null,type:mutationTypeOf(item)})),replayable:replayable.map(item=>({opId:item?.opId??null,type:mutationTypeOf(item),collectionDeltaKeys:Object.keys(item?.payload?.collectionDeltas??{})}))}));
-        // Temporary, value-minimized diagnostics for the staging 409 replay investigation.
-        // Never emit customer identifiers, descriptions, invoice data, or full payloads.
-        const diagnosticOperations = replayable.map(operation => {
-          const delta = operation?.payload?.collectionDeltas?.cashMovements;
-          const before = Array.isArray(delta?.before) ? delta.before : [];
-          const after = Array.isArray(delta?.after) ? delta.after : [];
-          const beforeIds = new Set(before.map(row => String(row?.id ?? "")));
-          const addedAmounts = after
-            .filter(row => !beforeIds.has(String(row?.id ?? "")))
-            .map(row => row?.amount ?? null);
-          return {
-            opId: operation?.opId ?? null,
-            type: mutationTypeOf(operation),
-            collectionDeltaKeys: Object.keys(operation?.payload?.collectionDeltas ?? {}),
-            addedCashMovementAmounts: addedAmounts
-          };
-        });
-        console.info("[ANAS_SYNC_409_DIAG]", JSON.stringify({
-          phase: "reconciled",
-          operations: diagnosticOperations,
-          review: (result.review || []).map(item => ({
-            opId: item?.opId ?? null,
-            status: "review",
-            reason: item?.reason ?? "unspecified"
-          })),
-          applied: (result.appliedNow || []).map(item => ({
-            opId: item?.opId ?? null,
-            outcome: item?.outcome ?? "unspecified"
-          }))
-        }));
         const durableLocalSequence = Math.max(
           Number(cloud.data.anasLocalMutationSequence) || 0,
           ...pendingAtStart.map(item => Number(item?.localSeq) || 0)
@@ -285,21 +254,7 @@ export function createMutationQueueOrchestrator({
         writeJson(storage, MUTATION_KEYS.appData, result.snapshot);
         writeJson(storage, MUTATION_KEYS.revision, cloud.revision);
         const response = await pushCloud({ data: structuredClone(result.snapshot), baseRevision: cloud.revision });
-        console.info("[ANAS_SYNC_409_POST_DIAG]", JSON.stringify({attempt,status:statusOf(response),baseRevision:cloud.revision,customerDebtReceipts:(result.snapshot.cashMovements||[]).filter(row=>row?.referenceType==="customer_debt").length,applied:(result.appliedNow||[]).map(row=>({opId:row?.opId??null,outcome:row?.outcome??null})),review:(result.review||[]).map(row=>({opId:row?.opId??null,reason:row?.reason??null}))}));
         if (statusOf(response) === 409) {
-          console.info("[ANAS_SYNC_409_DIAG]", JSON.stringify({
-            phase: "conflict",
-            attempt,
-            operations: diagnosticOperations.map(item => ({
-              opId: item.opId, type: item.type,
-              collectionDeltaKeys: item.collectionDeltaKeys,
-              addedCashMovementAmounts: item.addedCashMovementAmounts
-            })),
-            review: (result.review || []).map(item => ({
-              opId: item?.opId ?? null, status: "review",
-              reason: item?.reason ?? "unspecified"
-            }))
-          }));
           lastConflict = { attempt, revision: cloud.revision };
           restoreAttemptStorage(storage, before);
           storage.removeItem(MUTATION_KEYS.rescue);
