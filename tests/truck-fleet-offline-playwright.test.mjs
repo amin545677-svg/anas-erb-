@@ -603,6 +603,14 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     const trips=state?.trips||[],trucks=state?.trucks||[];
     return {schemaVersion:state?.schemaVersion??null,truckIds:trucks.map(row=>row?.id),tripIds:trips.map(row=>row?.id),tripSalesLen:trips.reduce((n,trip)=>n+(trip?.sales||[]).length,0),tripDebtPaymentsLen:trips.reduce((n,trip)=>n+(trip?.debtPayments||[]).length,0)};
    };
+   const diffPaths=(a,b,path="$",out=[])=>{
+    if(out.length>=40)return out;
+    if(Object.is(a,b))return out;
+    if(a===null||b===null||typeof a!=="object"||typeof b!=="object"||Array.isArray(a)!==Array.isArray(b)){out.push({path,a,b});return out;}
+    const keys=[...new Set([...Object.keys(a),...Object.keys(b)])].sort();
+    for(const key of keys){if(out.length>=40)break;diffPaths(a[key],b[key],Array.isArray(a)?`${path}[${key}]`:`${path}.${key}`,out);}
+    return out;
+   };
    const lastError=status.lastError??window.ANASMutationSync?.lastError??window.ANASMutationSync?.error??window.__ANAS_SYNC_LAST_ERROR__??null;
    return {
     runtimeFlags:{
@@ -618,10 +626,10 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
      retryCount:item?.retryCount??item?.retries??item?.attempts??null,
      lastError:item?.lastError??item?.error??null
     })),
-    quarantinedOps:(()=>{let value=safe(()=>storage?.getItem?.(quarantinedKey)||[],[]);if(typeof value==="string"){try{value=JSON.parse(value);}catch{value=[];}}return Array.isArray(value)?value.map(item=>({opId:item?.opId??null,reason:item?.reason??null,collection:item?.collection??null,status:item?.status??null,operationType:item?.operation?.type??null,baseState:fleetLengths(item?.operation?.payload?.baseState),nextState:fleetLengths(item?.operation?.payload?.nextState),cloudState:fleetLengths(item?.cloudState)})):[];})()
+    quarantinedOps:(()=>{let value=safe(()=>storage?.getItem?.(quarantinedKey)||[],[]);if(typeof value==="string"){try{value=JSON.parse(value);}catch{value=[];}}return Array.isArray(value)?value.map(item=>({opId:item?.opId??null,reason:item?.reason??null,collection:item?.collection??null,status:item?.status??null,operationType:item?.operation?.type??null,baseState:fleetLengths(item?.operation?.payload?.baseState),nextState:fleetLengths(item?.operation?.payload?.nextState),cloudState:fleetLengths(item?.cloudState),baseCloudDiff:diffPaths(item?.operation?.payload?.baseState,item?.cloudState)})):[];})()
    };
   },{pendingKey:MUTATION_KEYS.pending,quarantinedKey:MUTATION_KEYS.quarantined});
-  console.log("[truck-offline] CAS replay proof:",safeJson({snapshotTrace,serverDebtRows:(JSON.parse(serverSnapshot).cashMovements||[]).filter(row=>row?.referenceType==="customer_debt"),syncFailureDiagnostics}));
+  console.log("[truck-offline] CAS replay proof:",safeJson({operationChain:localProof.operationChain,pendingOperationDiagnostics:localProof.pendingOperationDiagnostics,snapshotTrace,serverDebtRows:(JSON.parse(serverSnapshot).cashMovements||[]).filter(row=>row?.referenceType==="customer_debt"),syncFailureDiagnostics}));
   assert.ok(["synced","pushed"].includes(syncResult?.status),
    "offline operations must reconcile after the simulated 409 CAS response; diagnostics="+safeJson({
     syncResult:syncError??syncResult??null,
