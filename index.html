@@ -4050,11 +4050,18 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             closePosSearchResults(false);
             let activeTier = [1, 2, 3].includes(Number(AppData.activePriceTier)) ? Number(AppData.activePriceTier) : 1;
             if (activeTier === 2 && Number(product.price2) === 0) activeTier = 1;
-            const cartIndex = addItemToPosCart(product.id, activeTier);
-            if (cartIndex >= 0) {
-                openPosPriceTierPicker(product.id, cartIndex);
-                if (!document.getElementById('anasPosPriceTierModal') && input) input.focus({preventScroll:true});
+            const posEngine = typeof window !== 'undefined' ? window.ANASMicroPOSEngine : null;
+            const selectedPrice = posEngine && typeof posEngine.resolveProductPrice === 'function'
+                ? posEngine.resolveProductPrice(product, activeTier)
+                : (activeTier === 2 ? (product.price2 ?? product.price1)
+                    : (activeTier === 3 ? (product.price3 ?? product.price1) : product.price1));
+            const selectedPriceCents = anasToCents(selectedPrice);
+            const added = addItemToPosCart(product.id, activeTier);
+            if (added === true && Number.isSafeInteger(selectedPriceCents)) {
+                const cartIndex = posCart.findIndex(row => row && String(row.id) === String(product.id) && anasToCents(row.price) === selectedPriceCents);
+                if (cartIndex >= 0) openPosPriceTierPicker(product.id, cartIndex);
             }
+            if (!document.getElementById('anasPosPriceTierModal') && input) input.focus({preventScroll:true});
             posSearchActiveIndex = -1;
         }
         // إغلاق قائمة اقتراحات البيع عند التفاعل مع أي عنصر آخر، حتى لو كان زرًا داخل شاشة المبيعات.
@@ -4156,7 +4163,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 choice.addEventListener('click', () => {
                     const saved = Number.isInteger(cartIndex)
                         ? setPosCartItemPrice(cartIndex, item.value)
-                        : addItemToPosCart(productId, item.tier) >= 0;
+                        : addItemToPosCart(productId, item.tier) === true;
                     if (!saved) return;
                     overlay.remove();
                     focusSearch();
@@ -4227,13 +4234,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 return;
             }
             const oldCart = snapshotPosCart();
-            let cartIndex = -1;
             if (existingRows.length) {
                 const firstRow = existingRows[0];
                 const firstUnits = anasToQtyUnits(firstRow.qty);
                 firstRow.qty = anasQtyFromUnits(firstUnits + ANAS_QTY_SCALE);
                 if (!(Number(firstRow.pack) > 0) && Number(product.pack) > 0) firstRow.pack = Number(product.pack);
-                cartIndex = posCart.indexOf(firstRow);
             } else {
                 posCart.push({
                     id: product.id,
@@ -4244,9 +4249,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     pack: Number(product.pack) > 0 ? Number(product.pack) : null,
                     image: product.image || ''
                 });
-                cartIndex = posCart.length - 1;
             }
-            return savePosCartChange(() => { restorePosCart(oldCart); }) === true ? cartIndex : -1;
+            return savePosCartChange(() => { restorePosCart(oldCart); }) === true;
         }
         function setPosCartItemPrice(index, rawPrice) {
             if (!Number.isInteger(index) || index < 0 || index >= posCart.length) return false;
