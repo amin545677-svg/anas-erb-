@@ -214,6 +214,7 @@ export function createMutationQueueOrchestrator({
           cloudRevision: cloud.revision, createdAt: new Date().toISOString()
         });
         const result = reconcile(cloud.data, replayable);
+        console.info("[ANAS_SYNC_409_SCOPE_DIAG]", JSON.stringify({phase:"reconcile-input",serverOwned:serverOwned.map(item=>({opId:item?.opId??null,type:mutationTypeOf(item)})),replayable:replayable.map(item=>({opId:item?.opId??null,type:mutationTypeOf(item),collectionDeltaKeys:Object.keys(item?.payload?.collectionDeltas??{})}))}));
         // Temporary, value-minimized diagnostics for the staging 409 replay investigation.
         // Never emit customer identifiers, descriptions, invoice data, or full payloads.
         const diagnosticOperations = replayable.map(operation => {
@@ -284,6 +285,7 @@ export function createMutationQueueOrchestrator({
         writeJson(storage, MUTATION_KEYS.appData, result.snapshot);
         writeJson(storage, MUTATION_KEYS.revision, cloud.revision);
         const response = await pushCloud({ data: structuredClone(result.snapshot), baseRevision: cloud.revision });
+        console.info("[ANAS_SYNC_409_POST_DIAG]", JSON.stringify({attempt,status:statusOf(response),baseRevision:cloud.revision,customerDebtReceipts:(result.snapshot.cashMovements||[]).filter(row=>row?.referenceType==="customer_debt").length,applied:(result.appliedNow||[]).map(row=>({opId:row?.opId??null,outcome:row?.outcome??null})),review:(result.review||[]).map(row=>({opId:row?.opId??null,reason:row?.reason??null}))}));
         if (statusOf(response) === 409) {
           console.info("[ANAS_SYNC_409_DIAG]", JSON.stringify({
             phase: "conflict",

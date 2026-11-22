@@ -531,6 +531,14 @@ export function installV42RuntimeWiring({
       );
     }
     const captured = makeOperation(current, previous);
+    if (captured?.operation) {
+      const deltas = captured.operation.payload?.collectionDeltas || {};
+      const cashDelta = deltas.cashMovements || {};
+      const beforeRows = Array.isArray(cashDelta.before) ? cashDelta.before : [];
+      const afterRows = Array.isArray(cashDelta.after) ? cashDelta.after : [];
+      const beforeIds = new Set(beforeRows.map(row => String(row?.id ?? "")));
+      console.info("[ANAS_DEBT_CAPTURE_DIAG]", JSON.stringify({phase:"makeOperation",opId:captured.operation.opId,type:captured.operation.type,classification:["SALE_RETURN","PURCHASE_RETURN","INVOICE_CANCEL","CUSTOMER_SETTLEMENT_ALLOCATION","SUPPLIER_SETTLEMENT_ALLOCATION"].includes(captured.operation.type)?"serverOwned":"replayable",collectionDeltaKeys:Object.keys(deltas),addedCashMovements:afterRows.filter(row=>!beforeIds.has(String(row?.id??""))).map(row=>({amount:row?.amount??null,type:row?.type??null,referenceType:row?.referenceType??null}))}));
+    }
     if (!captured) {
       if (hasBusinessDelta) {
         const ok = originalSaveDB.apply(this, args);
@@ -647,6 +655,7 @@ export function installV42RuntimeWiring({
     }
 
     if (saved !== true) {
+      console.info("[ANAS_DEBT_CAPTURE_DIAG]", JSON.stringify({phase:"saveDB-rejected",opId:captured.operation.opId,type:captured.operation.type,result:saved}));
       restoreCaptureMetadata();
       storage.setItem(MUTATION_KEYS.pending, JSON.stringify(
         JSON.parse(storage.getItem(MUTATION_KEYS.pending) || "[]").filter(item => item?.opId !== captured.operation.opId)
@@ -655,6 +664,7 @@ export function installV42RuntimeWiring({
     }
 
     if (originalSaveDBDurably) {
+      console.info("[ANAS_DEBT_CAPTURE_DIAG]", JSON.stringify({phase:"saveDB-accepted-awaiting-durable",opId:captured.operation.opId,type:captured.operation.type}));
       pendingPrepared = {
         operation: captured.operation,
         restoreCaptureMetadata,

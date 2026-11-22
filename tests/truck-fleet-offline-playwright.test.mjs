@@ -58,7 +58,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),"anas-truck-offline-"));
  const out=path.join(temp,"site");
  let server,browser,context,page;
- const errors=[],consoleErrors=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],firebaseAuthRequests=[],requestFailures=[],blockedRequests=[];
+ const errors=[],consoleErrors=[],diagConsole=[],dialogMessages=[],local404s=[],externalScripts=[],mockRequests=[],firebaseAuthRequests=[],requestFailures=[],blockedRequests=[];
  try{
   await buildStagingHosting({rootDir:process.cwd(),outDir:out,env:{FIREBASE_STAGING_WEB_API_KEY:"STAGING_PUBLIC_API_KEY",FIREBASE_STAGING_WEB_APP_ID:"1:123456:web:staging",GITHUB_SHA:"truck-offline-test",ANAS_BUILD_SHA:"truck-offline-test"}});
   server=http.createServer(staticServer(out));
@@ -73,7 +73,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   page.on("requestfailed",request=>requestFailures.push({
    url:request.url(),method:request.method(),failureText:request.failure()?.errorText||"unknown request failure"
   }));
-  page.on("console",msg=>{if(msg.type()==="error")consoleErrors.push(msg.text());});
+  page.on("console",msg=>{if(msg.type()==="error")consoleErrors.push(msg.text()); if(msg.text().includes("[ANAS_DEBT_CAPTURE_DIAG]")||msg.text().includes("[ANAS_SYNC_409_"))diagConsole.push(msg.text());});
   page.on("response",response=>{
    if(response.status()===404&&response.url().startsWith(localOrigin+"/"))local404s.push(response.url());
   });
@@ -181,14 +181,16 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
     await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
    }else if(method==="POST"||method==="PUT"){
     postCount++;
+    const payload=req.postDataJSON();
+    const postedSnapshot=payload&&typeof payload.data==="string"?JSON.parse(payload.data):null;
     if(conflictBudget>0){
      conflictBudget--;revision="rev-"+(postCount+1);status=409;
      body={error:"Snapshot conflict: the cloud copy changed after it was read. Download the latest copy and retry.",conflict:true};
     }else{
-     const payload=req.postDataJSON();
      if(!payload||typeof payload.data!=="string"||!payload.data){status=400;body={error:"Expected serialized application JSON in the data field"};}
      else{serverSnapshot=payload.data;revision="rev-"+(postCount+1);status=200;body={ok:true,saved:true,uid:"playwright-anonymous-user",parts:1,revision};}
     }
+    mockRequests.push({method,url,status,baseRevision:payload?.baseRevision??null,customerDebtReceipts:(postedSnapshot?.cashMovements||[]).filter(row=>row?.referenceType==="customer_debt").length,postedFleetTripCount:(postedSnapshot?.anasFleetState?.trips||[]).length});
     await route.fulfill({status,headers:{...corsHeaders,"Content-Type":"application/json; charset=utf-8"},body:JSON.stringify(body)});
    }else{
     status=405;body={error:"Method not allowed"};
@@ -704,6 +706,7 @@ test("Staging fleet + POS + debt collection survive airplane hard reload, replay
   console.error("[truck-offline] captured page errors:",JSON.stringify(errors));
   console.error("[truck-offline] captured console errors:",JSON.stringify(consoleErrors));
   console.error("[truck-offline] captured dialogs:",JSON.stringify(dialogMessages));
+  console.error("[truck-offline] capture and 409 diagnostics:",JSON.stringify({diagConsole,mockRequests}));
   throw error;
  }finally{
   if(browser)await browser.close();
