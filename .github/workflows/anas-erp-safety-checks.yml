@@ -547,8 +547,9 @@ jobs:
           end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
-          assert "try { restoreSaved = saveDB() === true; }" in fn, "Restore must catch persistence exceptions"
-          assert "AppData = previous; posCart = previousCart;" in fn, "Restore must roll back in-memory state"
+          normalized_fn = " ".join(fn.split())
+          assert "try { restoreSaved = saveDB() === true; }" in normalized_fn, "Restore must catch persistence exceptions"
+          assert "AppData = previous; posCart = previousCart;" in normalized_fn, "Restore must roll back in-memory state"
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
