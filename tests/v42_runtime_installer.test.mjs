@@ -580,7 +580,7 @@ test("runtime wiring rejects unrelated business writes bundled with a supported 
       amount: 50
     });
     current.clientMovements = [{
-      id: "collection-receipt-with-extra-stock-change",
+      movementId: "collection-receipt-with-extra-stock-change",
       type: "receipt",
       direction: "credit",
       clientId: "cust_1",
@@ -589,7 +589,7 @@ test("runtime wiring rejects unrelated business writes bundled with a supported 
       amountCentimes: 5000
     }];
     current.settlementAllocations = [{
-      id: "collection-allocation-with-extra-stock-change",
+      allocationId: "collection-allocation-with-extra-stock-change",
       partyType: "customer",
       partyId: "cust_1",
       invoiceType: "sales_invoice",
