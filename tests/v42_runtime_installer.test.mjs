@@ -579,6 +579,37 @@ test("runtime wiring rejects unrelated business writes bundled with a supported 
       referenceId: "cust_1",
       amount: 50
     });
+    current.clientMovements = [{
+      id: "collection-receipt-with-extra-stock-change",
+      type: "receipt",
+      direction: "credit",
+      clientId: "cust_1",
+      referenceType: "customer_debt",
+      referenceId: "cust_1",
+      amountCentimes: 5000
+    }];
+    current.settlementAllocations = [{
+      id: "collection-allocation-with-extra-stock-change",
+      partyType: "customer",
+      partyId: "cust_1",
+      invoiceType: "sales_invoice",
+      invoiceId: "inv_1",
+      sourceMovementId: "collection-with-extra-stock-change",
+      sourceMovementType: "customer_debt",
+      amountCentimes: 5000
+    }];
+    current.auditTrail = [{
+      id: "collection-audit-with-extra-stock-change",
+      eventType: "CUSTOMER_DEBT_RECEIPT_COMMITTED",
+      entityType: "customer_debt_receipt",
+      entityId: "collection-with-extra-stock-change",
+      referenceType: "customer_debt",
+      referenceId: "cust_1",
+      customerId: "cust_1",
+      amountCentimes: 5000,
+      allocationCount: 1,
+      createdAt: "2026-11-23T00:00:00.000Z"
+    }];
     current.products[0].warehouseStock = { "مخزن ثانوي": 4 };
     const storage = new MemoryStorage({
       [MUTATION_KEYS.appData]: JSON.stringify(initial),
