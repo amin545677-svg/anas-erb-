@@ -199,6 +199,12 @@ async function runSupplierCreate({debt='12.345',saveResult=true,durableResult=tr
  console.log('PASS: purchase reports and inventory valuation aggregate in exact centimes');
 }
 {
+ const quantityHelperStart=html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+ const quantityHelperEnd=html.indexOf('function anasRoundCurrency(value)',quantityHelperStart);
+ const backupInventoryHelperStart=html.indexOf('function anasBackupWarehouseDefinitions(data)');
+ const backupInventoryHelperEnd=html.indexOf('function anasBuildBackupExportPayload()',backupInventoryHelperStart);
+ assert.ok(quantityHelperStart>=0&&quantityHelperEnd>quantityHelperStart&&backupInventoryHelperStart>=0&&backupInventoryHelperEnd>backupInventoryHelperStart,'backup inventory helpers must be isolatable');
+ const backupInventoryHelperSource=html.slice(quantityHelperStart,quantityHelperEnd)+'\n'+html.slice(backupInventoryHelperStart,backupInventoryHelperEnd);
  const backupStart=html.indexOf('function anasValidateBackupData(incoming)');
  const backupEnd=html.indexOf('function importDataBackup(e)',backupStart);
  const cloudStart=html.indexOf('function anasValidateIncomingSyncData(incoming)');
@@ -221,7 +227,7 @@ async function runSupplierCreate({debt='12.345',saveResult=true,durableResult=tr
   const ctx={AppData:{products:[],customers:[],suppliers:[],invoices:[],purchases:[],expenses:[],users:[],trucks:[],returns:[],warehouseTransfers:[],stockMovements:[],purchaseInvoices:[],supplierMovements:[],alerts:[],truckTrips:[],cashMovements:[],stocktakeRecords:[],warehouses:[],caisseBalance:0,...current},
    anasValidateTruckExpenseLinks(){},console};
   vm.createContext(ctx);
-  vm.runInContext(moneyHelperSource+'\n'+html.slice(start,end)+'\nthis.__validate='+fn+';',ctx,{timeout:1500});
+  vm.runInContext(moneyHelperSource+'\n'+backupInventoryHelperSource+'\n'+html.slice(start,end)+'\nthis.__validate='+fn+';',ctx,{timeout:1500});
   return ctx.__validate(JSON.parse(JSON.stringify(incoming)));
  }
  for(const kind of ['backup','cloud']) {

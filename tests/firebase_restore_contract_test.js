@@ -16,6 +16,17 @@ const truckExpenseValidator = extractFunctionBlock(
   'function anasValidateIncomingSyncData(incoming)',
   'truck expense restore validator'
 );
+const quantityHelperStart = html.indexOf('const ANAS_QTY_SCALE = 1000000;');
+const quantityHelperEnd = html.indexOf('function anasRoundCurrency(value)', quantityHelperStart);
+const backupInventoryHelperStart = html.indexOf('function anasBackupWarehouseDefinitions(data)');
+const backupInventoryHelperEnd = html.indexOf('function anasBuildBackupExportPayload()', backupInventoryHelperStart);
+assert.ok(quantityHelperStart >= 0 && quantityHelperEnd > quantityHelperStart &&
+  backupInventoryHelperStart >= 0 && backupInventoryHelperEnd > backupInventoryHelperStart,
+  'backup inventory helpers must exist and be isolatable');
+const backupInventoryHelperSource =
+  html.slice(quantityHelperStart, quantityHelperEnd) + '\n' +
+  html.slice(backupInventoryHelperStart, backupInventoryHelperEnd);
+
 const backupValidator = extractFunctionBlock(
   'function anasValidateBackupData(incoming)',
   'function importDataBackup(e)',
@@ -30,7 +41,7 @@ function validate(incoming, current = {}) {
   };
   vm.createContext(context);
   vm.runInContext(
-    truckExpenseValidator + '\n' + backupValidator + '\nresult = anasValidateBackupData(candidate);',
+    backupInventoryHelperSource + '\n' + truckExpenseValidator + '\n' + backupValidator + '\nresult = anasValidateBackupData(candidate);',
     context,
     { timeout: 1000 }
   );

@@ -564,7 +564,7 @@ export function installV42RuntimeWiring({
             "stockMovements", "expenses", "returns", "warehouseTransfers", "auditTrail",
             "customers", "invoices", "cashMovements", "bankMovements", "clientMovements",
             "settlementAllocations"])
-        : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations"]);
+        : new Set(["customers", "cashMovements", "clientMovements", "settlementAllocations", "auditTrail"]);
     const unsupportedCollections = hasAdditionalBusinessCollectionDelta(current, previous, allowedCollections);
     if (unsupportedCollections.length) {
       throw new Error("Unsupported additional business collection change; no local persistence was performed: " +
