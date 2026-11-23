@@ -2213,3 +2213,55 @@ html:root[data-anas-theme="dark"] body #view-reports .anas-query-toggle input:ch
   opacity:1!important;
   visibility:visible!important;
 }
+
+
+/* r51 — executive metrics contrast repair.
+   The KPI values are rendered dynamically with legacy --mp-* tokens. Those tokens
+   can resolve to near-white in light mode, leaving pale text on white metric tiles.
+   Scope explicit foreground and surface colors to this dashboard only. */
+:root:not([data-anas-theme="dark"]) #aiHubTabContent #anasAiExecutiveMetrics > div > div {
+  background:#f8fafc!important;
+  color:#0f172a!important;
+  border-color:#cbd5e1!important;
+  opacity:1!important;
+}
+:root:not([data-anas-theme="dark"]) #aiHubTabContent #anasAiExecutiveMetrics > div > div > div {
+  color:#334155!important;
+  -webkit-text-fill-color:#334155!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root:not([data-anas-theme="dark"]) #aiHubTabContent #anasAiExecutiveMetrics > div > div > strong {
+  color:#0f172a!important;
+  -webkit-text-fill-color:#0f172a!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root:not([data-anas-theme="dark"]) #aiHubTabContent #anasAiExecutiveMetrics > div:last-child {
+  color:#475569!important;
+  -webkit-text-fill-color:#475569!important;
+  opacity:1!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent #anasAiExecutiveMetrics > div > div {
+  background:#1e293b!important;
+  color:#f8fafc!important;
+  border-color:#475569!important;
+  opacity:1!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent #anasAiExecutiveMetrics > div > div > div {
+  color:#cbd5e1!important;
+  -webkit-text-fill-color:#cbd5e1!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent #anasAiExecutiveMetrics > div > div > strong {
+  color:#f8fafc!important;
+  -webkit-text-fill-color:#f8fafc!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+:root[data-anas-theme="dark"] #aiHubTabContent #anasAiExecutiveMetrics > div:last-child {
+  color:#cbd5e1!important;
+  -webkit-text-fill-color:#cbd5e1!important;
+  opacity:1!important;
+}

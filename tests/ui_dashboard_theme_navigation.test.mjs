@@ -181,3 +181,13 @@ test('report query switches illuminate green when enabled in light and dark them
   assert.match(css, /0 0 9px rgba\(22,163,74,\.38\)/);
   assert.match(css, /#view-reports \.anas-query-toggle input:focus-visible[\s\S]*?outline:2px solid #22c55e!important/);
 });
+
+
+test('executive metrics cards have explicit readable foreground and surface colors in both themes', () => {
+  assert.match(css, /#aiHubTabContent #anasAiExecutiveMetrics > div > div/);
+  assert.match(css, /#aiHubTabContent #anasAiExecutiveMetrics > div > div > strong/);
+  assert.match(css, /:root:not\(\[data-anas-theme="dark"\]\) #aiHubTabContent #anasAiExecutiveMetrics/);
+  assert.match(css, /:root\[data-anas-theme="dark"\] #aiHubTabContent #anasAiExecutiveMetrics/);
+  assert.match(css, /-webkit-text-fill-color:#0f172a!important/);
+  assert.match(css, /-webkit-text-fill-color:#f8fafc!important/);
+});
