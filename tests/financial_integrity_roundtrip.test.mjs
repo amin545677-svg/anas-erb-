@@ -86,8 +86,14 @@ test('backup import normalizes a legacy absent warehouseStock map only when no c
   const incoming = { products: [{ id: 'P-1', stock: 5 }], auditTrail: [] };
   const signature = ctx.anasNormalizeBackupInventory(incoming);
   assert.equal(typeof signature, 'string');
-  assert.deepEqual(incoming.warehouses, []);
-  assert.deepEqual(incoming.products[0].warehouseStock, {});
+  assert.equal(Array.isArray(incoming.warehouses), true);
+  assert.equal(JSON.stringify(incoming.warehouses), '[]',
+    'legacy normalization must produce an empty warehouse array with no entries');
+  assert.equal(incoming.products[0].warehouseStock !== null &&
+    typeof incoming.products[0].warehouseStock === 'object' &&
+    !Array.isArray(incoming.products[0].warehouseStock), true);
+  assert.equal(JSON.stringify(incoming.products[0].warehouseStock), '{}',
+    'legacy normalization must produce an empty warehouseStock object with no entries');
 });
 
 test('new audit events are append-only, attributed, and reject duplicate IDs or malformed ledgers', () => {
@@ -107,6 +113,12 @@ test('all new invoice, receipt, supplier-payment, edit and cashbox save paths ap
     const body = topLevelFunction(indexSource, name);
     assert.match(body, /anasAppendAuditTrailEvent\(/, name + ' must append auditTrail before save');
     assert.match(body, /auditTrail/, name + ' must include auditTrail in its rollback protection');
+    if (name === 'savePurchaseItem') {
+      assert.match(body, /typeof anasAppendAuditTrailEvent !== 'function'/,
+        'purchase must fail closed when the audit writer is unavailable');
+      assert.match(body, /if \(hadAuditTrail\) AppData\.auditTrail = auditTrailBefore/,
+        'purchase rollback must restore the exact prior auditTrail collection');
+    }
   }
   for (const name of ['confirmHasibPayment', 'confirmHasibPaymentDurable']) {
     const body = topLevelFunction(indexSource, name);

@@ -6735,7 +6735,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             for (const [field, label] of [
                 ['products', 'المنتجات'], ['purchases', 'المشتريات'], ['suppliers', 'الموردين'],
                 ['cashMovements', 'حركات الصندوق'], ['stockMovements', 'حركات المخزون'],
-                ['supplierMovements', 'دفتر الموردين']
+                ['supplierMovements', 'دفتر الموردين'], ['auditTrail', 'سجل التدقيق']
             ]) {
                 if (Object.prototype.hasOwnProperty.call(AppData, field) &&
                     (!Array.isArray(AppData[field]) || AppData[field].some(row => !row || typeof row !== 'object' || Array.isArray(row)))) {
@@ -6860,6 +6860,10 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             let previous;
             try { previous = JSON.parse(JSON.stringify(AppData)); }
             catch (_) { alert('تعذر تجهيز لقطة التراجع؛ لم يتم تغيير البيانات.'); return; }
+            const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
+            const auditTrailBefore = hadAuditTrail
+                ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail)
+                : null;
 
             try {
                 AppData.purchases = purchases;
@@ -6958,6 +6962,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                 if (typeof saveDB !== 'function' || saveDB() !== true) throw new Error('تعذر حفظ البيانات');
             } catch (err) {
                 AppData = previous;
+                if (hadAuditTrail) AppData.auditTrail = auditTrailBefore;
+                else delete AppData.auditTrail;
                 try { updateUIState(); updateDashboardStats(); renderPurchasesTable(); if (typeof renderSuppliersDebts === 'function') renderSuppliersDebts(); if (typeof updateCashUI === 'function') updateCashUI(); } catch (_) {}
                 console.error('ANAS ERP purchase ledger transaction failed:', err);
                 alert('لم يتم اعتماد فاتورة الشراء: ' + (err?.message || 'فشل الحفظ') + '. أُعيدت البيانات السابقة بالكامل.');

@@ -290,39 +290,62 @@ export function installV42RuntimeWiring({
     }
     const payload = structuredClone(mapped.payload);
     const customerId = String(movement.referenceId);
-    if (deltas.clientMovements.length || deltas.settlementAllocations.length) {
-      const receipts = deltas.clientMovements.filter(row =>
-        row?.type === "receipt" &&
-        String(row?.referenceType || "").toLowerCase() === "customer_debt" &&
-        String(row?.referenceId ?? "") === customerId &&
-        String(row?.clientId ?? "") === customerId
-      );
-      const openingRows = deltas.clientMovements.filter(row => row?.type === "opening_balance");
-      if (deltas.clientMovements.some(row =>
-          !row || String(row.clientId ?? "") !== customerId ||
-          !["receipt", "opening_balance"].includes(row.type)) ||
-          receipts.length !== 1 ||
-          receipts[0].direction !== "credit" ||
-          openingRows.length > 1 ||
-          openingRows.some(row =>
-            String(row.referenceType || "").toLowerCase() !== "opening_balance" ||
-            String(row.referenceId ?? "") !== customerId ||
-            row.direction !== "debit") ||
-          deltas.settlementAllocations.some(row =>
-            !row || row.partyType !== "customer" ||
-            String(row.partyId) !== customerId ||
-            row.invoiceType !== "sales_invoice" ||
-            String(row.sourceMovementId) !== String(movement.id) ||
-            row.sourceMovementType !== "customer_debt")) {
-        throw new Error("V42 customer collection ledger bundle is incomplete or unrelated");
-      }
-      payload.v42Ledger = {
-        clientMovements: structuredClone(deltas.clientMovements),
-        settlementAllocations: structuredClone(deltas.settlementAllocations)
-      };
+    const receipts = deltas.clientMovements.filter(row =>
+      row?.type === "receipt" &&
+      String(row?.referenceType || "").toLowerCase() === "customer_debt" &&
+      String(row?.referenceId ?? "") === customerId &&
+      String(row?.clientId ?? "") === customerId
+    );
+    const openingRows = deltas.clientMovements.filter(row => row?.type === "opening_balance");
+    const amountMatch = String(movement.amount ?? "").trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
+    const amountCentimesBig = amountMatch
+      ? BigInt(amountMatch[1]) * 100n + BigInt((amountMatch[2] || "").padEnd(2, "0")) : null;
+    const amountCentimes = amountCentimesBig !== null && amountCentimesBig <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(amountCentimesBig) : null;
+    const auditRows = deltas.auditTrail;
+    if (deltas.clientMovements.some(row =>
+        !row || String(row.clientId ?? "") !== customerId ||
+        !["receipt", "opening_balance"].includes(row.type)) ||
+        receipts.length !== 1 ||
+        receipts[0].direction !== "credit" ||
+        receipts[0].amountCentimes !== amountCentimes ||
+        openingRows.length > 1 ||
+        openingRows.some(row =>
+          String(row.referenceType || "").toLowerCase() !== "opening_balance" ||
+          String(row.referenceId ?? "") !== customerId ||
+          row.direction !== "debit") ||
+        !deltas.settlementAllocations.length ||
+        deltas.settlementAllocations.some(row =>
+          !row || row.partyType !== "customer" ||
+          String(row.partyId) !== customerId ||
+          row.invoiceType !== "sales_invoice" ||
+          String(row.sourceMovementId) !== String(movement.id) ||
+          row.sourceMovementType !== "customer_debt") ||
+        amountCentimes === null ||
+        auditRows.length !== 1 ||
+        auditRows.some(row =>
+          row?.eventType !== "CUSTOMER_DEBT_RECEIPT_COMMITTED" ||
+          row?.entityType !== "customer_debt_receipt" ||
+          String(row?.entityId ?? "") !== String(movement.id) ||
+          String(row?.referenceType ?? "").toLowerCase() !== "customer_debt" ||
+          String(row?.referenceId ?? "") !== customerId ||
+          String(row?.customerId ?? "") !== customerId ||
+          row?.amountCentimes !== amountCentimes ||
+          row?.allocationCount !== deltas.settlementAllocations.length ||
+          typeof row?.createdAt !== "string" || !Number.isFinite(Date.parse(row.createdAt)))) {
+      throw new Error("V42 customer collection ledger bundle is incomplete or unrelated");
     }
+    payload.v42Ledger = {
+      clientMovements: structuredClone(deltas.clientMovements),
+      settlementAllocations: structuredClone(deltas.settlementAllocations),
+      auditTrail: structuredClone(auditRows)
+    };
     const operation = createMutationEnvelope({ type: mapped.type, payload, now, uuid });
-    return { entity: movement, operation };
+    return {
+      entity: movement, operation,
+      auditRows,
+      auditOpIdsBefore: auditRows.map(row => row.opId)
+    };
   }
 
   function hasUnsupportedBusinessDelta(current, previous) {

@@ -50,7 +50,8 @@ async function runV42Collection(initial, amount) {
   };
   vm.createContext(context);
   const source = extractFunction("collectCustDebt", "cId");
-  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
+  const auditHelper = extractFunction("anasAppendAuditTrailEvent", "event");
+  vm.runInContext([reverseLedgerSource, extractFunction("anasDecimalToScaledInteger", "value, decimalPlaces"), extractFunction("anasToCents", "value"), extractFunction("anasCentsToCurrency", "cents"), "const ANAS_QTY_SCALE = 1000000;", auditHelper, source, "globalThis.__run = collectCustDebt;"].join("\n"), context);
   await context.__run("cust_1");
   return { snapshot: context.AppData, alerts };
 }
@@ -81,6 +82,7 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 26000 }],
     invoices: [{ id: "INV-DEBT-1", customerId: "cust_1", total: 26000, paid: 0, remaining: 26000, invoiceLedgerVersion: 2 }],
     cashMovements: [],
+    auditTrail: [],
     currentUser: { id: "user_1", name: "مدير" }
   };
   const original = await runV42Collection(initial, 5000);
@@ -97,9 +99,15 @@ test("DEBT_COLLECTION matches the actual V42 collectCustDebt ledger for a whole-
       customerId: "cust_1",
       amount: 5000,
       cashMovementId: v42Movement.id,
-      cashMovement: structuredClone(v42Movement)
+      cashMovement: structuredClone(v42Movement),
+      v42Ledger: {
+        clientMovements: structuredClone(original.snapshot.clientMovements),
+        settlementAllocations: structuredClone(original.snapshot.settlementAllocations),
+        auditTrail: original.snapshot.auditTrail.map(row => ({ ...row, opId: "parity-collection-5000" }))
+      }
     }
   };
+  original.snapshot.auditTrail = structuredClone(operation.payload.v42Ledger.auditTrail);
   const reconciled = reconcilePendingMutations(structuredClone(initial), [operation]);
   assert.deepEqual(reconciled.review, []);
   assert.deepEqual(
@@ -115,6 +123,7 @@ test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", async () => {
     customers: [{ id: "cust_1", name: "عميل اختبار", debt: 2000 }],
     invoices: [{ id: "INV-DEBT-1", customerId: "cust_1", total: 2000, paid: 0, remaining: 2000, invoiceLedgerVersion: 2 }],
     cashMovements: [],
+    auditTrail: [],
     currentUser: null
   };
   const original = await runV42Collection(initial, "500,50");
@@ -129,9 +138,15 @@ test("DEBT_COLLECTION matches V42 for a two-decimal DZD amount", async () => {
       customerId: "cust_1",
       amount: movement.amount,
       cashMovementId: movement.id,
-      cashMovement: movement
+      cashMovement: movement,
+      v42Ledger: {
+        clientMovements: structuredClone(original.snapshot.clientMovements),
+        settlementAllocations: structuredClone(original.snapshot.settlementAllocations),
+        auditTrail: original.snapshot.auditTrail.map(row => ({ ...row, opId: "parity-decimal-collection" }))
+      }
     }
   }]);
+  original.snapshot.auditTrail = structuredClone(result.snapshot.auditTrail);
   assert.deepEqual(result.review, []);
   assert.equal(result.snapshot.caisseBalance, original.snapshot.caisseBalance);
   assert.equal(result.snapshot.customers[0].debt, original.snapshot.customers[0].debt);

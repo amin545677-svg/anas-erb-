@@ -295,6 +295,9 @@ test("runtime wiring: actual V42 collectCustDebt captures exact 500.50 DZD movem
   assert.equal(pending[0].payload.amount, 500.5);
   assert.equal(pending[0].payload.v42Ledger.clientMovements.length, 2);
   assert.equal(pending[0].payload.v42Ledger.settlementAllocations.length, 1);
+  assert.equal(pending[0].payload.v42Ledger.auditTrail.length, 1);
+  assert.equal(pending[0].payload.v42Ledger.auditTrail[0].eventType, "CUSTOMER_DEBT_RECEIPT_COMMITTED");
+  assert.equal(pending[0].payload.v42Ledger.auditTrail[0].opId, pending[0].opId);
   assert.equal(pending[0].payload.cashMovementId, context.AppData.cashMovements[0].id);
   assert.equal(context.AppData.cashMovements[0].opId, pending[0].opId);
   assert.equal(mapped.length, 1);

@@ -778,7 +778,9 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         let completeBundle = true;
         if (v42Ledger !== undefined) {
           if (!v42Ledger || !Array.isArray(v42Ledger.clientMovements) ||
-              !Array.isArray(v42Ledger.settlementAllocations)) {
+              !Array.isArray(v42Ledger.settlementAllocations) ||
+              (v42Ledger.auditTrail !== undefined &&
+                (!Array.isArray(v42Ledger.auditTrail) || v42Ledger.auditTrail.length !== 1))) {
             completeBundle = false;
           } else {
             const existingCustomer = findById(snapshot.customers, payload.customerId);
@@ -795,7 +797,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
               }) &&
               v42Ledger.settlementAllocations.every(row =>
                 (Array.isArray(snapshot.settlementAllocations) ? snapshot.settlementAllocations : [])
-                  .some(existing => JSON.stringify(existing) === JSON.stringify(row)));
+                  .some(existing => JSON.stringify(existing) === JSON.stringify(row))) &&
+              (v42Ledger.auditTrail === undefined || v42Ledger.auditTrail.every(row =>
+                (Array.isArray(snapshot.auditTrail) ? snapshot.auditTrail : [])
+                  .some(existing => JSON.stringify(existing) === JSON.stringify(row))));
           }
         }
         if (existingAmountCents === amountCents && customerMatches && operationMatches && completeBundle) {
@@ -841,9 +846,29 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
       if (v42Ledger !== undefined) {
         clientRows = v42Ledger?.clientMovements;
         allocationRows = v42Ledger?.settlementAllocations;
-        if (!Array.isArray(clientRows) || !Array.isArray(allocationRows)) {
+        const auditRows = v42Ledger?.auditTrail;
+        if (!Array.isArray(clientRows) || !Array.isArray(allocationRows) ||
+            (auditRows !== undefined && (!Array.isArray(auditRows) || auditRows.length !== 1))) {
           review.push({ opId: op.opId, reason: "INCOMPLETE_V42_COLLECTION_LEDGER_BUNDLE", operation: op });
           continue;
+        }
+        if (auditRows !== undefined) {
+          const audit = auditRows[0];
+          if (!audit || !audit.id || audit.opId !== op.opId ||
+              audit.eventType !== "CUSTOMER_DEBT_RECEIPT_COMMITTED" ||
+              audit.entityType !== "customer_debt_receipt" ||
+              String(audit.entityId ?? "") !== movementId ||
+              String(audit.referenceType ?? "").toLowerCase() !== "customer_debt" ||
+              String(audit.referenceId ?? "") !== String(customer.id) ||
+              String(audit.customerId ?? "") !== String(customer.id) ||
+              audit.amountCentimes !== amountCents ||
+              audit.allocationCount !== allocationRows.length ||
+              typeof audit.createdAt !== "string" || !Number.isFinite(Date.parse(audit.createdAt)) ||
+              (Array.isArray(snapshot.auditTrail) ? snapshot.auditTrail : []).some(row =>
+                String(row?.id ?? "") === String(audit.id))) {
+            review.push({ opId: op.opId, reason: "V42_COLLECTION_AUDIT_TRAIL_MISMATCH", operation: op });
+            continue;
+          }
         }
         const receipts = clientRows.filter(row => row?.type === "receipt");
         const openings = clientRows.filter(row => row?.type === "opening_balance");
@@ -1015,6 +1040,10 @@ export function reconcilePendingMutations(cloudSnapshot, pendingMutations) {
         if (!Array.isArray(snapshot.settlementAllocations)) snapshot.settlementAllocations = [];
         snapshot.clientMovements.push(...normalizedClientRows);
         snapshot.settlementAllocations.push(...structuredClone(allocationRows));
+        if (Array.isArray(v42Ledger.auditTrail)) {
+          if (!Array.isArray(snapshot.auditTrail)) snapshot.auditTrail = [];
+          snapshot.auditTrail.push(...structuredClone(v42Ledger.auditTrail));
+        }
       }
       markApplied();
       appliedNow.push({ opId: op.opId, outcome: "applied" });
