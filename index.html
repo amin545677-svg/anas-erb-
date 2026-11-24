@@ -8972,12 +8972,11 @@ function renderPurchasesTable() {
                 if(Object.prototype.hasOwnProperty.call(p,'warehouseStock')&&(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock)))throw Error('خريطة أرصدة المخازن الفرعية تالفة.');
                 const knownWarehouses=new Set(['المخزن الرئيسي']);(AppData.users||[]).forEach(u=>{[u.warehouse,u.secondaryWarehouse].forEach(n=>{n=String(n||'').trim();if(n)knownWarehouses.add(n);});});(AppData.warehouses||[]).forEach(w=>{const n=typeof w==='string'?w:w&&w.name;if(n)knownWarehouses.add(String(n));});(AppData.products||[]).forEach(x=>{if(x&&x.warehouseStock&&typeof x.warehouseStock==='object'&&!Array.isArray(x.warehouseStock))Object.keys(x.warehouseStock).forEach(n=>{if(n)knownWarehouses.add(n);});});if(!from||!to||from===to||!Number.isFinite(qty)||qty<=0)throw Error('اختر مخزنين مختلفين وأدخل كمية صحيحة.');if(!knownWarehouses.has(from))throw Error('مخزن المصدر غير موجود.');
                 if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0)))throw Error('أدخل سعراً صحيحاً.');
-                if((buyPrice!==null&&(!Number.isFinite(buyPrice*qty)||buyPrice*qty>Number.MAX_SAFE_INTEGER))||(salePrice!==null&&(!Number.isFinite(salePrice*qty)||salePrice*qty>Number.MAX_SAFE_INTEGER)))throw Error('إجمالي قيمة التحويل يتجاوز المجال الرقمي الآمن.');
                 const available=wtBalance(p,from),destinationBalance=wtBalance(p,to);
                 if(!Number.isFinite(available))throw Error('رصيد المخزن المصدر غير صالح.');
                 if(available>Number.MAX_SAFE_INTEGER)throw Error('رصيد المخزن المصدر يتجاوز المجال الرقمي الآمن.');
                 if(!Number.isFinite(destinationBalance))throw Error('رصيد المخزن الوجهة غير صالح.');
-                if(qty>available)throw Error('الكمية غير كافية في '+from);if(!knownWarehouses.has(to))throw Error('مخزن الوجهة غير موجود.');
+                if(qty>available)throw Error('الكمية غير كافية في '+from);if((buyPrice!==null&&(!Number.isFinite(buyPrice*qty)||buyPrice*qty>Number.MAX_SAFE_INTEGER))||(salePrice!==null&&(!Number.isFinite(salePrice*qty)||salePrice*qty>Number.MAX_SAFE_INTEGER)))throw Error('إجمالي قيمة التحويل يتجاوز المجال الرقمي الآمن.');if(!knownWarehouses.has(to))throw Error('مخزن الوجهة غير موجود.');
                 if(!Number.isFinite(destinationBalance+qty)||destinationBalance+qty>Number.MAX_SAFE_INTEGER)throw Error('الرصيد الناتج في مخزن الوجهة يتجاوز المجال الرقمي الآمن.');
                 if(!confirm('تأكيد تحويل '+qty+' '+(p.unit||'')+' من «'+from+'» إلى «'+to+'»؟ سيتم حفظ السند والحركات والتدقيق.'))return;wtTransferInFlight=true;
                 const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');if(!hadStockMovements)AppData.stockMovements=[];const hadWarehouseTransfers=Object.prototype.hasOwnProperty.call(AppData,'warehouseTransfers');const hadAuditTrail=Object.prototype.hasOwnProperty.call(AppData,'auditTrail');
@@ -8998,7 +8997,7 @@ function renderPurchasesTable() {
                     if(to==='المخزن الرئيسي')p.stock=(Number(p.stock)||0)+qty;else p.warehouseStock[to]=destinationBalance+qty;
                     if(!Array.isArray(AppData.warehouseTransfers))AppData.warehouseTransfers=[];
                     AppData.warehouseTransfers.unshift(doc);
-                    AppData.stockMovements.unshift({id:id+'-OUT',productId:p.id,qty:-qty,type:movementTypes.out,referenceId:id,warehouse:from,date:doc.date},{id:id+'-IN',productId:p.id,qty,type:movementTypes.in,referenceId:id,warehouse:to,date:doc.date});
+                    AppData.stockMovements.unshift({id:id+'-OUT',productId:p.id,qty:-qty,type:movementTypes.out,referenceType:'warehouse_transfer',referenceId:id,warehouse:from,fromWarehouse:from,toWarehouse:to,date:doc.date},{id:id+'-IN',productId:p.id,qty,type:movementTypes.in,referenceType:'warehouse_transfer',referenceId:id,warehouse:to,fromWarehouse:from,toWarehouse:to,date:doc.date});
                     if(!Array.isArray(AppData.auditTrail))AppData.auditTrail=[];
                     AppData.auditTrail.unshift({id:id+'-AUDIT',eventType:'WAREHOUSE_TRANSFER_COMMITTED',entityId:id,fromWarehouse:from,toWarehouse:to,productId:String(p.id),quantity:qty,createdAt:doc.date});
                     if(!saveDB())throw Error('تعذر الحفظ');
