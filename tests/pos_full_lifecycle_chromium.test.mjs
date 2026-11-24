@@ -368,6 +368,34 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await commitPriceEditor('25.00');
     await waitForDisplayedTotal(37.5); // 1.5 units × 25.00 DZD
     assert.equal(await page.evaluate(() => posCart[0].price), 25);
+
+    // A manually entered centime price must survive real persistence hydration.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.page-view.active', { timeout: 15000 });
+    await page.waitForFunction(() =>
+      window.ANASResilientStorage?.ready() === true &&
+      Array.isArray(posCart) && posCart.length === 1 &&
+      posCart[0].price === 25 && posCart[0].qty === 1.5 &&
+      document.getElementById('anasPosFloatingCart')?.hidden === false,
+      null, { timeout: 15000 }
+    );
+    const restoredFloatingCart = await page.evaluate(() => ({
+      count: document.getElementById('anasPosFloatingCartCount')?.textContent?.trim(),
+      total: document.getElementById('anasPosFloatingCartTotal')?.textContent,
+      price: posCart[0]?.price,
+      quantity: posCart[0]?.qty
+    }));
+    assert.match(restoredFloatingCart.count, /1/);
+    assert.equal(Number((restoredFloatingCart.total.match(/[0-9]+(?:[.,][0-9]+)?/) || [])[0]?.replace(',', '.')), 37.5,
+      'floating-cart total must reconcile with the restored manual centime price and quantity');
+    assert.equal(restoredFloatingCart.price, 25,
+      'manual unit price must survive a full page reload exactly to the centime');
+    assert.equal(restoredFloatingCart.quantity, 1.5);
+    await page.locator('#anasPosFloatingCart [data-mini-action="checkout"]').click();
+    await page.locator('#hasibModal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDisplayedTotal(37.5);
+    assert.equal(await page.evaluate(() => posCart[0].price), 25,
+      'checkout must use the same restored manual unit price as the floating cart');
     await commitPriceEditor('0.10');
     await commitQuantityEditor('0.15');
     await waitForDisplayedTotal(0.02);
@@ -557,6 +585,43 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     );
 
     // Local return acceptance: use the real POS invoice created above and the actual drawer entry.
+    const beforeFailedReturn = await page.evaluate(() => ({
+      app: JSON.stringify(AppData),
+      committed: JSON.stringify(ANASResilientStorage.getCommittedSnapshot())
+    }));
+    const failedReturn = await page.evaluate(async ({ id, productId }) => {
+      const originalSave = window.saveDBDurably;
+      let attempts = 0;
+      window.saveDBDurably = async function (...args) {
+        attempts += 1;
+        if (attempts === 1) throw new Error('simulated return durable failure');
+        return originalSave.apply(this, args);
+      };
+      try {
+        const result = await anasExecuteReversePosting({
+          originalInvoiceType: 'sales_invoice', returnType: 'SALE_RETURN',
+          invoiceId: id, items: [{ productId, quantity: '1' }],
+          settlementMode: 'cash', reason: 'اختبار تراجع المرتجع عند فشل الحفظ'
+        });
+        return {
+          rejected: result === null,
+          attempts,
+          app: JSON.stringify(AppData),
+          committed: JSON.stringify(ANASResilientStorage.getCommittedSnapshot())
+        };
+      } finally {
+        window.saveDBDurably = originalSave;
+      }
+    }, { id: invoiceId, productId: PRODUCT_ID });
+    assert.equal(failedReturn.rejected, true,
+      'a rejected durable return write must not be reported as a successful return');
+    assert.equal(failedReturn.attempts, 2,
+      'failed return persistence must perform one rollback snapshot persistence attempt');
+    assert.equal(failedReturn.app, beforeFailedReturn.app,
+      'failed return must restore the complete in-memory AppData snapshot including auditTrail');
+    assert.equal(failedReturn.committed, beforeFailedReturn.committed,
+      'failed return must leave the committed storage snapshot unchanged');
+
     const returnRevisionBefore = await page.evaluate(() => ANASResilientStorage.status().revision);
     await page.evaluate(() => openDrawer());
     await page.locator('.drawer-nav-row').filter({ hasText: 'ارجاع فاتورة مبيعات' }).click();
@@ -583,6 +648,8 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       return {
         returnId: document && document.returnId, returnStatus: document && document.status,
         productStock: product && product.stock, caisseBalance: snapshot.caisseBalance,
+        auditEvents: snapshot.auditTrail.filter(row => row && row.eventType === 'REVERSE_TRANSACTION_POSTED' &&
+          String(row.entityId) === String(document && document.returnId)).length,
         saleReturnMovements: snapshot.stockMovements.filter(row => row && row.referenceType === 'sales_return' &&
           String(row.referenceId) === String(document && document.returnId)).length
       };
@@ -590,6 +657,7 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     assert.equal(localReturnProof.returnStatus, 'POSTED');
     assert.equal(localReturnProof.productStock, 10, 'sales return must restore the sold unit to inventory');
     assert.equal(localReturnProof.caisseBalance, 100000, 'cash refund must reverse the original receipt');
+    assert.equal(localReturnProof.auditEvents, 1, 'a successful return must persist exactly one linked auditTrail event');
     assert.ok(localReturnProof.saleReturnMovements >= 1, 'local return must write a linked reverse stock movement');
 
     // Partial payment must collect only the entered amount and allocate the balance to the selected customer.
