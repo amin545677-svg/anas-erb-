@@ -103,7 +103,7 @@ test('cash operation retry reuses one idempotency key and daily Z close reconcil
  };
  const store=new Map(),localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)};
  const ctx={AppData:{caisseBalance:100,cashMovements:[],auditTrail:[],currentUser:{id:'U1',name:'Tester'}},
-  document:{getElementById:id=>fields[id]||null},localStorage,alert(){},updateCashUI(){},
+  document:{getElementById:id=>fields[id]||null,querySelector:()=>null},localStorage,alert(){},updateCashUI(){},
   anasToCents:v=>Math.round(Number(v)*100),anasCentsToCurrency:v=>v/100,saveDB:()=>true,saveDBDurably:async()=>true,
   anasAppendAuditTrailEvent:event=>ctx.AppData.auditTrail.push(event),console:{error(){}}};
  ctx.window=ctx;
