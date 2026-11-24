@@ -379,12 +379,12 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       Array.isArray(posCart) && posCart.length === 1 &&
       posCart[0].price === 25 && posCart[0].qty === 1.5 &&
       document.getElementById('anasPosFloatingCart')?.hidden === false &&
-      document.querySelectorAll('#anasPosFloatingCartItems .anas-pos-cart-row').length === 1,
+      document.querySelectorAll('#anasPosFloatingCart [data-mini-cart-lines] .anas-pos-mini-line').length === 1,
       null, { timeout: 15000 }
     );
     const restoredFloatingCart = await page.evaluate(() => ({
-      renderedRows: document.querySelectorAll('#anasPosFloatingCartItems .anas-pos-cart-row').length,
-      total: document.getElementById('anasPosFloatingCartTotal')?.textContent,
+      renderedRows: document.querySelectorAll('#anasPosFloatingCart [data-mini-cart-lines] .anas-pos-mini-line').length,
+      total: document.querySelector('#anasPosFloatingCart [data-mini-cart-total]')?.textContent,
       price: posCart[0]?.price,
       quantity: posCart[0]?.qty
     }));

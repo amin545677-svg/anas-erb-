@@ -102,7 +102,7 @@ test('Chromium posts sales and purchase returns through the local ledger and dur
       auditEvents:AppData.auditTrail.filter(row=>row.eventType==='REVERSE_TRANSACTION_POSTED').length,
       persisted:window.__persisted === JSON.stringify(AppData)
     }));
-    assert.deepEqual(purchase, {stock:0,supplierBalance:0,returnStatus:'POSTED',cash:110,auditEvents:1,persisted:true});
+    assert.deepEqual(purchase, {stock:0,supplierBalance:0,returnStatus:'POSTED',cash:110,saves:1,auditEvents:1,persisted:true});
   } finally { await browser.close(); }
 });
 
