@@ -584,52 +584,48 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
       'invoice, cash ledger, stock ledger and balances must survive reload unchanged'
     );
 
-    // Local return acceptance: use the real POS invoice created above and the actual drawer entry.
-    const beforeFailedReturn = await page.evaluate(() => ({
-      app: JSON.stringify(AppData),
-      committed: JSON.stringify(ANASResilientStorage.getCommittedSnapshot())
-    }));
-    const failedReturn = await page.evaluate(async ({ id, productId }) => {
-      const originalSave = window.saveDBDurably;
-      let attempts = 0;
-      window.saveDBDurably = async function (...args) {
-        attempts += 1;
-        if (attempts === 1) throw new Error('simulated return durable failure');
-        return originalSave.apply(this, args);
-      };
-      try {
-        const result = await anasExecuteReversePosting({
-          originalInvoiceType: 'sales_invoice', returnType: 'SALE_RETURN',
-          invoiceId: id, items: [{ productId, quantity: '1' }],
-          settlementMode: 'cash', reason: 'اختبار تراجع المرتجع عند فشل الحفظ'
-        });
-        return {
-          rejected: result === null,
-          attempts,
-          app: JSON.stringify(AppData),
-          committed: JSON.stringify(ANASResilientStorage.getCommittedSnapshot())
-        };
-      } finally {
-        window.saveDBDurably = originalSave;
-      }
-    }, { id: invoiceId, productId: PRODUCT_ID });
-    assert.equal(failedReturn.rejected, true,
-      'a rejected durable return write must not be reported as a successful return');
-    assert.equal(failedReturn.attempts, 2,
-      'failed return persistence must perform one rollback snapshot persistence attempt');
-    assert.equal(failedReturn.app, beforeFailedReturn.app,
-      'failed return must restore the complete in-memory AppData snapshot including auditTrail');
-    assert.equal(failedReturn.committed, beforeFailedReturn.committed,
-      'failed return must leave the committed storage snapshot unchanged');
-
-    const returnRevisionBefore = await page.evaluate(() => ANASResilientStorage.status().revision);
+    // Exercise failure and retry through the actual reverse-ledger modal used by the cashier.
     await page.evaluate(() => openDrawer());
     await page.locator('.drawer-nav-row').filter({ hasText: 'ارجاع فاتورة مبيعات' }).click();
     await page.locator('#rev-invoice-select').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#rev-invoice-select').selectOption('0');
     await page.locator('#rev-items-body input[data-line-index="0"]').fill('1');
-    await page.locator('#rev-reason-input').fill('اختبار مرتجع محلي من فاتورة POS');
-    assert.equal(await page.locator('#rev-submit-btn').isEnabled(), true, 'local return must enable after a valid preview and reason');
+    await page.locator('#rev-reason-input').fill('اختبار تراجع المرتجع عند فشل الحفظ');
+    assert.equal(await page.locator('#rev-submit-btn').isEnabled(), true);
+    const beforeFailedReturn = await page.evaluate(() => ({
+      app: JSON.stringify(AppData),
+      committed: JSON.stringify(ANASResilientStorage.getCommittedSnapshot())
+    }));
+    await page.evaluate(() => {
+      window.__anasOriginalSaveDBDurably = window.saveDBDurably;
+      window.__anasDurableSaveAttempts = 0;
+      window.saveDBDurably = async function (...args) {
+        window.__anasDurableSaveAttempts += 1;
+        if (window.__anasDurableSaveAttempts === 1) throw new Error('simulated return durable failure');
+        return window.__anasOriginalSaveDBDurably.apply(this, args);
+      };
+    });
+    await page.locator('#rev-submit-btn').click();
+    await page.waitForFunction(() => window.__anasDurableSaveAttempts >= 2 &&
+      /simulated return durable failure/.test(document.getElementById('rev-eligibility-status')?.textContent || ''),
+      null, { timeout: 15000 });
+    const failedReturn = await page.evaluate(() => ({
+      attempts: window.__anasDurableSaveAttempts,
+      app: JSON.stringify(AppData),
+      committed: JSON.stringify(ANASResilientStorage.getCommittedSnapshot())
+    }));
+    assert.equal(failedReturn.attempts, 2,
+      'failed modal return must attempt one rollback persistence');
+    assert.equal(failedReturn.app, beforeFailedReturn.app,
+      'failed modal return must restore the complete in-memory snapshot including auditTrail');
+    assert.equal(failedReturn.committed, beforeFailedReturn.committed,
+      'failed modal return must leave committed storage unchanged');
+    await page.evaluate(() => {
+      window.saveDBDurably = window.__anasOriginalSaveDBDurably;
+      delete window.__anasOriginalSaveDBDurably;
+      delete window.__anasDurableSaveAttempts;
+    });
+    const returnRevisionBefore = await page.evaluate(() => ANASResilientStorage.status().revision);
     await page.locator('#rev-submit-btn').click();
     await page.waitForFunction(({ beforeRevision, id, productId }) => {
       const storage = window.ANASResilientStorage;
@@ -1324,6 +1320,124 @@ test('POS unified-cart and checkout UI contract: no duplicate lower panel or fra
     assert.ok(thermalReceiptSource.includes('×'));
     assert.deepEqual(pageErrors, []);
     await context.close();
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+
+function reversePostingFixture() {
+  const data = initialData();
+  const invoiceId = 'STG-ATOMIC-CANCEL-001';
+  data.products[0].warehouseStock = { 'فرع 1': 0, 'فرع 2': 5 };
+  data.customers[0].debt = 20;
+  data.customers[0].credit_limit = 1000;
+  data.caisseBalance = 100010;
+  data.invoices = [{
+    id: invoiceId, invoiceNumber: invoiceId, status: 'POSTED', invoiceLedgerVersion: 2,
+    customerId: 'STG-CUSTOMER-001',
+    customerObj: { id: 'STG-CUSTOMER-001', name: 'زبون اختبار الإلغاء' },
+    total: 30, paid: 10, remaining: 20, warehouse: 'فرع 1',
+    items: [{ id: PRODUCT_ID, name: PRODUCT_NAME, qty: 3, price: 10, total: 30 }]
+  }];
+  data.cashMovements = [{
+    id: 'SALE-CASH-CANCEL-001', type: 'add', amount: 10,
+    referenceType: 'sales_invoice', referenceId: invoiceId
+  }];
+  data.stockMovements = [{
+    id: 'SALE-STOCK-CANCEL-001', productId: PRODUCT_ID, qty: -3, type: 'SALE_OUT',
+    referenceType: 'sales_invoice', referenceId: invoiceId, warehouse: 'فرع 1',
+    originalSaleQuantityMicroUnits: 3000000, originalSaleCostCentimes: 3000
+  }];
+  data.auditTrail = [];
+  return data;
+}
+
+test('POS invoice cancellation rolls back audit and all ledgers on failed durable write, then commits once', async () => {
+  const server = await startServer();
+  let browser;
+  const pageErrors = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ locale: 'fr-DZ', viewport: { width: 1365, height: 900 } });
+    await context.addInitScript(({ key, data }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(data));
+    }, { key: DB_KEY, data: reversePostingFixture() });
+    const page = await context.newPage();
+    page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+    await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true &&
+      typeof AppData !== 'undefined' && Array.isArray(AppData.invoices), null, { timeout: 15000 });
+    await page.evaluate(() => cancelInvoicePrompt());
+    await page.locator('#rev-invoice-select').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#rev-invoice-select').selectOption('0');
+    await page.locator('#rev-reason-input').fill('اختبار استعادة الإلغاء عند فشل التخزين');
+    assert.equal(await page.locator('#rev-submit-btn').isEnabled(), true);
+    await page.evaluate(() => {
+      window.__anasOriginalSaveDBDurably = window.saveDBDurably;
+      window.__anasDurableSaveAttempts = 0;
+      window.saveDBDurably = async function (...args) {
+        window.__anasDurableSaveAttempts += 1;
+        if (window.__anasDurableSaveAttempts === 1) throw new Error('INJECTED_DURABLE_WRITE_FAILURE');
+        return window.__anasOriginalSaveDBDurably.apply(this, args);
+      };
+    });
+    await page.locator('#rev-submit-btn').click();
+    await page.waitForFunction(() => window.__anasDurableSaveAttempts >= 2 &&
+      /INJECTED_DURABLE_WRITE_FAILURE/.test(document.getElementById('rev-eligibility-status')?.textContent || ''),
+      null, { timeout: 15000 });
+    const rolledBack = await page.evaluate(() => {
+      const snapshot = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = snapshot.invoices.find(row => row.id === 'STG-ATOMIC-CANCEL-001');
+      const product = snapshot.products.find(row => row.id === 'STG-POS-LIFECYCLE-001');
+      const customer = snapshot.customers.find(row => row.id === 'STG-CUSTOMER-001');
+      return {
+        attempts: window.__anasDurableSaveAttempts, invoiceStatus: invoice?.status,
+        branchStock: product?.warehouseStock?.['فرع 1'], mainStock: product?.stock,
+        customerDebt: customer?.debt, cashbox: snapshot.caisseBalance,
+        returns: snapshot.returns.length, auditTrail: snapshot.auditTrail.length,
+        cashMovements: snapshot.cashMovements.length, stockMovements: snapshot.stockMovements.length
+      };
+    });
+    assert.deepEqual(rolledBack, {
+      attempts: 2, invoiceStatus: 'POSTED', branchStock: 0, mainStock: 10,
+      customerDebt: 20, cashbox: 100010, returns: 0, auditTrail: 0,
+      cashMovements: 1, stockMovements: 1
+    }, 'failed cancellation must restore invoice, warehouse, customer, cashbox, financial ledgers and auditTrail');
+    await page.evaluate(() => {
+      window.saveDBDurably = window.__anasOriginalSaveDBDurably;
+      delete window.__anasOriginalSaveDBDurably;
+      delete window.__anasDurableSaveAttempts;
+    });
+    const retryRevision = await page.evaluate(() => ANASResilientStorage.status().revision);
+    await page.locator('#rev-submit-btn').click();
+    await page.waitForFunction(revision => {
+      const storage = window.ANASResilientStorage;
+      const snapshot = storage?.getCommittedSnapshot();
+      return storage?.status().revision > revision &&
+        !document.getElementById('modal-reverse-ledger')?.classList.contains('active') &&
+        snapshot?.returns?.some(row => row?.returnType === 'INVOICE_CANCEL' && row.status === 'POSTED');
+    }, retryRevision, { timeout: 20000 });
+    const committed = await page.evaluate(() => {
+      const snapshot = ANASResilientStorage.getCommittedSnapshot();
+      const invoice = snapshot.invoices.find(row => row.id === 'STG-ATOMIC-CANCEL-001');
+      const product = snapshot.products.find(row => row.id === 'STG-POS-LIFECYCLE-001');
+      const customer = snapshot.customers.find(row => row.id === 'STG-CUSTOMER-001');
+      const audit = snapshot.auditTrail.find(row => row.eventType === 'REVERSE_TRANSACTION_POSTED');
+      return {
+        invoiceStatus: invoice?.status, branchStock: product?.warehouseStock?.['فرع 1'],
+        customerDebt: customer?.debt, cashbox: snapshot.caisseBalance,
+        auditCount: snapshot.auditTrail.length, auditType: audit?.eventType,
+        returnCount: snapshot.returns.length
+      };
+    });
+    assert.deepEqual(committed, {
+      invoiceStatus: 'CANCELLED', branchStock: 3, customerDebt: 0,
+      cashbox: 100000, auditCount: 1,
+      auditType: 'REVERSE_TRANSACTION_POSTED', returnCount: 1
+    });
+    assert.deepEqual(pageErrors, [], 'invoice cancellation rollback and retry must not introduce browser errors');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));

@@ -388,6 +388,27 @@ async function submit() {
       persist: () => true
     });
     if (!document || document.status !== 'POSTED') throw new Error('لم يُنشأ قيد مرتجع محلي مؤكد.');
+    const sourceCollection = request.originalInvoiceType === 'purchase_invoice' ? appData().purchases : appData().invoices;
+    const originalInvoice = (Array.isArray(sourceCollection) ? sourceCollection : [])
+      .find(row => row && String(row.id) === String(request.invoiceId));
+    const appendAudit = typeof anasAppendAuditTrailEvent === 'function'
+      ? anasAppendAuditTrailEvent : window.anasAppendAuditTrailEvent;
+    if (typeof appendAudit !== 'function')
+      throw new Error('سجل تدقيق المرتجع غير متاح؛ أُوقفت العملية دون حفظ.');
+    appendAudit({
+      id: 'AUD-REVERSE-' + String(document.returnId),
+      eventType: 'REVERSE_TRANSACTION_POSTED',
+      entityType: 'return_document',
+      entityId: String(document.returnId),
+      referenceType: 'reverse_transaction',
+      referenceId: String(document.returnId),
+      originalInvoiceType: String(document.originalInvoiceType),
+      returnType: String(document.returnType),
+      originalInvoiceId: String(document.originalInvoiceId),
+      warehouse: String(originalInvoice?.warehouseName || originalInvoice?.warehouse || 'المخزن الرئيسي'),
+      amountCentimes: Number(document.totalCentimes),
+      reason: String(document.reason || request.reason || '')
+    });
     if (typeof saveDBDurably === 'function') {
       await saveDBDurably();
     } else if (typeof saveDB === 'function' && saveDB() === true) {
