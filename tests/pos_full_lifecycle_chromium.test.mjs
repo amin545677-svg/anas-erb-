@@ -1518,3 +1518,24 @@ test('thermal print router sends one browser print without a paired printer and 
   const androidBridge = await exercise({ transport:'android' }, {}, { printEscPosBase64:async()=>true });
   assert.deepEqual(androidBridge, { browserPrints:0, escposCalls:1, result:'ESC_POS' });
 });
+
+test('thermal print queue is idempotent after success and coalesces concurrent retries across queue instances', async () => {
+  const engineSource = fs.readFileSync(path.join(ROOT, 'printing/arabic-escpos-engine.js'), 'utf8');
+  const windowObject = { localStorage:{ getItem:()=>null, setItem:()=>{} }, navigator:{} };
+  const moduleObject = { exports:{} }; new Function('window', 'module', engineSource)(windowObject, moduleObject);
+  const thermal = moduleObject.exports;
+  let persisted = [], sendCalls = 0;
+  const storage = { async getItem(){ return persisted; }, async setItem(_key, value){ persisted = value; } };
+  const send = async () => { sendCalls++; await new Promise(resolve=>setTimeout(resolve,10)); };
+  const firstQueue = thermal.createPrintQueue({ storage, send });
+  const secondQueue = thermal.createPrintQueue({ storage, send });
+  const first = await firstQueue.enqueue(new Uint8Array([1,2,3]), { idempotencyKey:'ANAS-SALE-QUEUE-1-58mm' });
+  const concurrent = await Promise.all([firstQueue.retry(first.id), secondQueue.retry(first.id)]);
+  assert.equal(sendCalls, 1, 'concurrent retry requests for one receipt must share a single physical send');
+  assert.equal(concurrent[0].status, 'PRINTED'); assert.equal(concurrent[1].status, 'PRINTED');
+  const duplicate = await secondQueue.enqueue(new Uint8Array([9,9,9]), { idempotencyKey:'ANAS-SALE-QUEUE-1-58mm' });
+  assert.equal(duplicate.duplicate, true); assert.equal(duplicate.status, 'PRINTED');
+  const duplicateRetry = await secondQueue.retry(duplicate.id);
+  assert.equal(duplicateRetry.duplicate, true); assert.equal(duplicateRetry.status, 'PRINTED');
+  assert.equal(sendCalls, 1, 'a successfully printed idempotency key must never be sent again');
+});

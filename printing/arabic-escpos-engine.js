@@ -37,11 +37,40 @@ function raster(canvas,opts={}){const ctx=canvas.getContext("2d"),r=mono(ctx.get
 function b64(bytes){let s="";for(let i=0;i<bytes.length;i+=32768)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+32768));return root.btoa?root.btoa(s):Buffer.from(bytes).toString("base64");}
 function un64(s){if(root.atob){const b=root.atob(s);return Uint8Array.from(b,c=>c.charCodeAt(0));}return Uint8Array.from(Buffer.from(s,"base64"));}
 async function saveQueue(storage,q){if(!storage||typeof storage.setItem!=="function")throw Error("INDEXEDDB_BACKED_STORAGE_REQUIRED");await storage.setItem(QUEUE,q);if(storage.flushDurableItems)await storage.flushDurableItems();}
-function createQueue({storage,send,now=()=>new Date().toISOString()}={}){if(!storage||typeof send!=="function")throw Error("STORAGE_AND_SEND_REQUIRED");const read=async()=>{const v=await storage.getItem(QUEUE);return Array.isArray(v)?v:[];};return Object.freeze({
- async enqueue(bytes,meta={}){const q=await read(),id=String(meta.idempotencyKey||("print-"+Date.now()+"-"+q.length));if(q.some(x=>x.id===id))return{id,duplicate:true};q.push({id,payloadBase64:b64(bytes),metadata:meta,status:"PENDING",createdAt:now(),attempts:0});await saveQueue(storage,q);return{id,duplicate:false};},
- async retry(id){const q=await read(),x=q.find(v=>v.id===String(id));if(!x)throw Error("PRINT_JOB_NOT_FOUND");x.attempts++;try{await send(un64(x.payloadBase64),x.metadata);x.status="PRINTED";x.printedAt=now();await saveQueue(storage,q);return{id:x.id,status:x.status};}catch(e){x.status="PENDING";x.lastError=String(e?.message||e);await saveQueue(storage,q);throw e;}},
- async list(){return(await read()).map(x=>({id:x.id,status:x.status,attempts:x.attempts,metadata:x.metadata,lastError:x.lastError||null}));}
-});}
+const activePrintJobs=new Map();
+function createQueue({storage,send,now=()=>new Date().toISOString()}={}){
+ if(!storage||typeof send!=="function")throw Error("STORAGE_AND_SEND_REQUIRED");
+ const read=async()=>{const value=await storage.getItem(QUEUE);return Array.isArray(value)?value:[];};
+ return Object.freeze({
+  async enqueue(bytes,meta={}){
+   const q=await read(),id=String(meta.idempotencyKey||("print-"+Date.now()+"-"+q.length));
+   const existing=q.find(item=>item.id===id);
+   if(existing)return{id,duplicate:true,status:existing.status};
+   q.push({id,payloadBase64:b64(bytes),metadata:meta,status:"PENDING",createdAt:now(),attempts:0});
+   await saveQueue(storage,q);return{id,duplicate:false,status:"PENDING"};
+  },
+  async retry(id){
+   const key=String(id);
+   if(activePrintJobs.has(key))return activePrintJobs.get(key);
+   const task=(async()=>{
+    const q=await read(),item=q.find(value=>value.id===key);
+    if(!item)throw Error("PRINT_JOB_NOT_FOUND");
+    if(item.status==="PRINTED")return{id:item.id,status:"PRINTED",duplicate:true};
+    item.attempts++;
+    try{
+     await send(un64(item.payloadBase64),item.metadata);
+     item.status="PRINTED";item.printedAt=now();await saveQueue(storage,q);
+     return{id:item.id,status:item.status};
+    }catch(error){
+     item.status="PENDING";item.lastError=String(error?.message||error);await saveQueue(storage,q);throw error;
+    }
+   })();
+   activePrintJobs.set(key,task);
+   try{return await task;}finally{if(activePrintJobs.get(key)===task)activePrintJobs.delete(key);}
+  },
+  async list(){return(await read()).map(item=>({id:item.id,status:item.status,attempts:item.attempts,metadata:item.metadata,lastError:item.lastError||null}));}
+ });
+}
 async function bluetooth(bytes,settings={}){const api=root.navigator?.bluetooth;if(!api)throw Error("WEB_BLUETOOTH_UNAVAILABLE");let device=null;if(settings.deviceId&&api.getDevices){const devices=await api.getDevices();device=devices.find(d=>d.id===settings.deviceId)||null;}if(!device){const opts=settings.filters?.length?{filters:settings.filters,optionalServices:settings.optionalServices||[]}:{acceptAllDevices:true,optionalServices:settings.optionalServices||[]};device=await api.requestDevice(opts);}const server=await device.gatt.connect(),service=await server.getPrimaryService(settings.serviceUuid),ch=await service.getCharacteristic(settings.characteristicUuid),size=settings.chunkSize||180;for(let i=0;i<bytes.length;i+=size){const part=bytes.slice(i,i+size);if(ch.writeValueWithoutResponse)await ch.writeValueWithoutResponse(part);else await ch.writeValue(part);}try{saveSettings({...getSettings(),...settings,deviceId:device.id,deviceName:device.name||"Bluetooth printer",transport:"auto"});}catch(_){}return{deviceId:device.id,deviceName:device.name||"Bluetooth printer",bytesSent:bytes.length};}
 async function android(bytes){const bridge=root.Android||root.AnasPrinterBridge;if(!bridge||typeof bridge.printEscPosBase64!=="function")throw Error("ANDROID_RAW_PRINT_BRIDGE_UNAVAILABLE");return bridge.printEscPosBase64(b64(bytes));}
 function rawbt(bytes){if(!root.location)throw Error("RAWBT_UNAVAILABLE");root.location.href="rawbt:base64,"+encodeURIComponent(b64(bytes));return{status:"RAWBT_HANDOFF_REQUESTED"};}
