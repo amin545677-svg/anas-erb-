@@ -542,14 +542,23 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import json
+          import re
           s = Path("index.html").read_text(encoding="utf-8")
           start = s.find("function importDataBackup(e)")
           end = s.find("\n        function ", start + 10)
           assert start >= 0 and end > start, "Could not isolate backup restore function"
           fn = s[start:end]
-          normalized_fn = " ".join(fn.split())
-          assert "try { restoreSaved = saveDB() === true; }" in normalized_fn, "Restore must catch persistence exceptions"
-          assert "AppData = previous; posCart = previousCart;" in normalized_fn, "Restore must roll back in-memory state"
+          save_call = re.search(r"\brestoreSaved\s*=\s*saveDB\(\)\s*===\s*true\s*;", fn)
+          assert save_call, "Restore must attempt durable persistence"
+          save_try_open = re.search(r"\btry\s*\{\s*$", fn[:save_call.start()])
+          assert save_try_open, "Restore persistence call must be inside a try block"
+          save_catch = re.search(r"\}\s*catch\s*\(\s*saveErr\s*\)\s*\{\s*restoreSaveError\s*=\s*saveErr\s*;", fn[save_call.end():])
+          assert save_catch, "Restore persistence exceptions must be caught and retained"
+          rollback = re.search(r"if\s*\(\s*!restoreSaved\s*\)\s*\{\s*AppData\s*=\s*previous\s*;\s*posCart\s*=\s*previousCart\s*;", fn)
+          assert rollback, "Restore failure must roll back the original data and POS cart"
+          rollback_fn = fn[rollback.start():]
+          assert re.search(r"anasStartupIntegrityIssues\s*=\s*previousStartupIssues\s*;", rollback_fn), "Restore failure must reinstate startup diagnostics"
+          assert re.search(r"anasStartupFatalLoadError\s*=\s*previousFatalLoadError\s*;", rollback_fn), "Restore failure must reinstate fatal startup state"
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
