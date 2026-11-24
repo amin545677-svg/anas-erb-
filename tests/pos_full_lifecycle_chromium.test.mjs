@@ -1493,3 +1493,28 @@ test('ESC/POS invoice, payment and statement receipts reconcile exact balances, 
   assert.ok(rendered.some(line=>line.includes('200.00 - 50.00 = 150.00')));
   assert.ok(rendered.some(line=>line.includes('100.00 + 250.00 + 0.00 - 150.00 - 0.00 - 0.00 = 200.00')));
 });
+
+test('thermal print router sends one browser print without a paired printer and ESC/POS only with a paired device', async () => {
+  const engineSource = fs.readFileSync(path.join(ROOT, 'printing/arabic-escpos-engine.js'), 'utf8');
+  const exercise = async (settings, navigator, bridge) => {
+    let browserPrints = 0, escposCalls = 0;
+    const windowObject = {
+      localStorage:{ getItem:()=>JSON.stringify(settings), setItem:()=>{} },
+      navigator, Android:bridge,
+      printLastConfirmedInvoice(type) {
+        assert.equal(type, 'thermal58');
+        if (windowObject.ANASArabicEscPos) { escposCalls++; return 'ESC_POS'; }
+        browserPrints++; return 'BROWSER_PRINT';
+      }
+    };
+    new Function('window', 'module', engineSource)(windowObject, { exports:{} });
+    const result = await windowObject.printLastConfirmedInvoice('thermal58');
+    return { browserPrints, escposCalls, result };
+  };
+  const noPrinter = await exercise({ transport:'auto' }, {});
+  assert.deepEqual(noPrinter, { browserPrints:1, escposCalls:0, result:'BROWSER_PRINT' });
+  const paired = await exercise({ transport:'bluetooth', deviceId:'paired-1' }, { bluetooth:{ getDevices:async()=>[{ id:'paired-1', gatt:{ connect(){} } }] } });
+  assert.deepEqual(paired, { browserPrints:0, escposCalls:1, result:'ESC_POS' });
+  const androidBridge = await exercise({ transport:'android' }, {}, { printEscPosBase64:async()=>true });
+  assert.deepEqual(androidBridge, { browserPrints:0, escposCalls:1, result:'ESC_POS' });
+});
