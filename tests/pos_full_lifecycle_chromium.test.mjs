@@ -372,8 +372,10 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     // A manually entered centime price must survive real persistence hydration.
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.page-view.active', { timeout: 15000 });
+    await page.waitForFunction(() => window.ANASResilientStorage?.ready() === true,
+      null, { timeout: 15000 });
+    await page.evaluate(() => openView('pos'));
     await page.waitForFunction(() =>
-      window.ANASResilientStorage?.ready() === true &&
       Array.isArray(posCart) && posCart.length === 1 &&
       posCart[0].price === 25 && posCart[0].qty === 1.5 &&
       document.getElementById('anasPosFloatingCart')?.hidden === false,
