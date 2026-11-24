@@ -378,16 +378,18 @@ test('ANAS ERP real POS checkout commits invoice and ledgers and survives page r
     await page.waitForFunction(() =>
       Array.isArray(posCart) && posCart.length === 1 &&
       posCart[0].price === 25 && posCart[0].qty === 1.5 &&
-      document.getElementById('anasPosFloatingCart')?.hidden === false,
+      document.getElementById('anasPosFloatingCart')?.hidden === false &&
+      document.querySelectorAll('#anasPosFloatingCartItems .anas-pos-cart-row').length === 1,
       null, { timeout: 15000 }
     );
     const restoredFloatingCart = await page.evaluate(() => ({
-      count: document.getElementById('anasPosFloatingCartCount')?.textContent?.trim(),
+      renderedRows: document.querySelectorAll('#anasPosFloatingCartItems .anas-pos-cart-row').length,
       total: document.getElementById('anasPosFloatingCartTotal')?.textContent,
       price: posCart[0]?.price,
       quantity: posCart[0]?.qty
     }));
-    assert.match(restoredFloatingCart.count, /1/);
+    assert.equal(restoredFloatingCart.renderedRows, 1,
+      'the restored floating cart must render exactly one persisted item row');
     assert.equal(Number((restoredFloatingCart.total.match(/[0-9]+(?:[.,][0-9]+)?/) || [])[0]?.replace(',', '.')), 37.5,
       'floating-cart total must reconcile with the restored manual centime price and quantity');
     assert.equal(restoredFloatingCart.price, 25,

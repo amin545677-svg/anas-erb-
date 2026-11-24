@@ -45,6 +45,12 @@ async function mountLocalReturnUi(page, initialState, saveBehavior) {
   await page.setContent('<!doctype html><html><body><main>local return acceptance</main></body></html>');
   await page.addScriptTag({ content:
     'let AppData = ' + JSON.stringify(initialState) + ';' +
+    'function anasAppendAuditTrailEvent(event){' +
+      'if(!event||typeof event!=="object"||!String(event.id||"").trim())throw new Error("invalid audit event");' +
+      'if(!Array.isArray(AppData.auditTrail)){if(Object.prototype.hasOwnProperty.call(AppData,"auditTrail"))throw new Error("invalid audit trail");AppData.auditTrail=[];}' +
+      'if(AppData.auditTrail.some(row=>row&&String(row.id)===String(event.id)))throw new Error("duplicate audit event");' +
+      'const record={...event};AppData.auditTrail.unshift(record);return record;' +
+    '}' +
     'window.__saveCalls=0; window.__persisted=null;' +
     'window.saveDBDurably=async function(){window.__saveCalls++;' + saveBehavior + '};'
   });
@@ -78,9 +84,10 @@ test('Chromium posts sales and purchase returns through the local ledger and dur
       returnStatus:AppData.returns[0]?.status,
       cash:AppData.caisseBalance,
       saves:window.__saveCalls,
+      auditEvents:AppData.auditTrail.filter(row=>row.eventType==='REVERSE_TRANSACTION_POSTED').length,
       persisted:window.__persisted === JSON.stringify(AppData)
     }));
-    assert.deepEqual(sale, {stock:3,customerDebt:0,returnStatus:'POSTED',cash:90,saves:1,persisted:true});
+    assert.deepEqual(sale, {stock:3,customerDebt:0,returnStatus:'POSTED',cash:90,saves:1,auditEvents:1,persisted:true});
 
     await page.evaluate(purchaseJson => { AppData = JSON.parse(purchaseJson); window.__saveCalls=0; window.__persisted=null; }, JSON.stringify(purchaseState()));
     await openAndFillReturn(page, 'returnPurchasePrompt');
@@ -92,9 +99,10 @@ test('Chromium posts sales and purchase returns through the local ledger and dur
       returnStatus:AppData.returns[0]?.status,
       cash:AppData.caisseBalance,
       saves:window.__saveCalls,
+      auditEvents:AppData.auditTrail.filter(row=>row.eventType==='REVERSE_TRANSACTION_POSTED').length,
       persisted:window.__persisted === JSON.stringify(AppData)
     }));
-    assert.deepEqual(purchase, {stock:0,supplierBalance:0,returnStatus:'POSTED',cash:110,saves:1,persisted:true});
+    assert.deepEqual(purchase, {stock:0,supplierBalance:0,returnStatus:'POSTED',cash:110,auditEvents:1,persisted:true});
   } finally { await browser.close(); }
 });
 
