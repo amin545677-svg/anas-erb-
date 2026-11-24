@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const root = new URL('..', import.meta.url);
 const read = path => fs.readFileSync(new URL(path, root), 'utf8');
 const html = read('index.html');
+const builder = read('scripts/build-staging-hosting.mjs');
 const cartJs = read('anas-pos-floating-cart.js');
 const cartCss = read('anas-pos-floating-cart.css');
 const safeCss = read('anas-erp-ui-safe-enhancements.css');
@@ -286,18 +287,19 @@ test('net profitability reconciles approved sales, posted returns, restored COGS
     invoices:[
       {id:'OK-1',status:'POSTED',date:'2026-11-10',total:'100.01',items:[{qty:'2',price:'50.01',total:'100.01',buyPrice:'20.00'}]},
       {id:'CANCEL-1',status:'CANCELLED',date:'2026-11-10',total:'999.99',items:[]},
-      {id:'DRAFT-1',status:'DRAFT',date:'2026-11-10',total:'50.00',items:[]}
+      {id:'DRAFT-1',status:'DRAFT',date:'2026-11-10',total:'50.00',items:[]},
+      {id:'PENDING-1',status:'PENDING',date:'2026-11-10',total:'20.00',items:[]}
     ],
     returns:[{returnId:'RET-1',status:'POSTED',returnType:'SALE_RETURN',originalInvoiceType:'sales_invoice',date:'2026-11-12',totalCentimes:1001,items:[{restoredInventoryCostCentimes:400}]},{returnId:'RET-DRAFT',status:'DRAFT',returnType:'SALE_RETURN',originalInvoiceType:'sales_invoice',date:'2026-11-12',totalCentimes:9999}],
     fleetState:{trips:[{openedAt:'2026-11-01',expenses:[{createdAt:'2026-11-11',amountMinor:{__anasFleetBigInt:'350'}}]}]},
-    expenses:[{account:'نقل وتوزيع',amt:'2.25',date:'2026-11-11',settlementStatus:'settled'},{account:'مصاريف عامة',amt:'50.00',date:'2026-11-11',settlementStatus:'settled'},{account:'نقل',amt:'10.00',date:'2026-11-11',paymentMethod:'driver_advance',settlementStatus:'pending'}],
+    expenses:[{account:'نقل وتوزيع',amt:'2.25',date:'2026-11-11',settlementStatus:'settled'},{account:'مصاريف عامة',amt:'50.00',date:'2026-11-11',settlementStatus:'settled'},{account:'نقل',amt:'10.00',date:'2026-11-11',paymentMethod:'driver_advance',settlementStatus:'pending'},{account:'نقل',amt:'1.00',date:'2026-11-11',paymentMethod:'driver_advance',settlementStatus:'settled'}],
     inRange:()=>true
   });
-  assert.equal(result.approvedInvoices.length,1);assert.equal(result.excludedInvoiceCount,2);
+  assert.equal(result.approvedInvoices.length,1);assert.equal(result.excludedInvoiceCount,3);
   assert.equal(result.salesCents,10001n);assert.equal(result.returnsCents,1001n);
   assert.equal(result.cogsCents,4000n);assert.equal(result.restoredCostCents,400n);
-  assert.equal(result.truckExpenseCents,575n);
-  assert.equal(result.netProfitCents,4825n);
+  assert.equal(result.truckExpenseCents,675n);
+  assert.equal(result.netProfitCents,4725n);
   assert.equal(result.invalidRows,0);
 });
 test('profit report wires the exact-centime net formula and distribution-expense deduction',()=>{
