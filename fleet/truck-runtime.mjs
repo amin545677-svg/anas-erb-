@@ -1,5 +1,6 @@
 import {createFleetState,openTrip,loadTrip,recordTruckSale,recordCustomerReturn,returnToMainWarehouse,recordDamagedGoods,recordOldDebtPayment,recordFieldExpense,calculateTripInventory,settleTrip,fromQuantityUnits,fromMoneyMinor,toQuantityUnits,restoreFleetAppData} from "./truck-settlement-engine.mjs";
 import {MUTATION_KEYS} from "../sync/mutation_keys.mjs";
+import {mergeFleetAuditTrail} from "./fleet-audit-bridge.mjs";
 const W=window,TAG="__anasFleetBigInt";
 const encode=v=>JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==="bigint"?{[TAG]:x.toString()}:x));
 const decode=v=>{if(Array.isArray(v))return v.map(decode);if(v&&typeof v==="object"){const k=Object.keys(v);if(k.length===1&&k[0]===TAG&&/^-?(0|[1-9]\d*)$/.test(v[TAG]))return BigInt(v[TAG]);return Object.fromEntries(k.map(x=>[x,decode(v[x])]));}return v;};
@@ -12,7 +13,7 @@ function active(s=state()){return s.trips.find(t=>t.status==="ACTIVE"||t.status=
 function tripWarehouse(t){return String(t?.warehouseName||"شاحنة "+String(t?.truckPlate||t?.truckId||""));}
 function syncCurrentUserWarehouse(d,s){const uid=String(d.currentUser?.id??"");if(!uid)return;const own=[...s.trips].reverse().find(t=>String(t.driverId)===uid);if(!own)return;if(own.status==="ACTIVE"||own.status==="OPEN")d.currentUser.secondaryWarehouse=tripWarehouse(own);else if(own.status==="CLOSED"||own.status==="CANCELLED")d.currentUser.secondaryWarehouse=String(own.previousUserWarehouse||"");}
 function message(s,bad=false){const n=document.getElementById("anasFleetMessage");if(n){n.textContent=s;n.style.color=bad?"#b91c1c":"#166534";}}
-function mirror(d,s){for(const fp of s.products){const p=d.products.find(x=>String(x.id)===String(fp.id));if(!p)throw Error("المنتج غير موجود: "+fp.id);p.stock=fromQuantityUnits(fp.mainStockUnits);if(!p.warehouseStock||typeof p.warehouseStock!=="object"||Array.isArray(p.warehouseStock))p.warehouseStock={};for(const t of s.trucks)if(t.warehouseName)p.warehouseStock[t.warehouseName]=fromQuantityUnits(t.stockUnits[fp.id]||0n);}}
+function mirror(d,s){for(const fp of s.products){const p=d.products.find(x=>String(x.id)===String(fp.id));if(!p)throw Error("المنتج غير موجود: "+fp.id);p.stock=fromQuantityUnits(fp.mainStockUnits);if(!p.warehouseStock||typeof p.warehouseStock!=="object"||Array.isArray(p.warehouseStock))p.warehouseStock={};for(const t of s.trucks)if(t.warehouseName)p.warehouseStock[t.warehouseName]=fromQuantityUnits(t.stockUnits[fp.id]||0n);}if(!Array.isArray(d.auditTrail))d.auditTrail=[];mergeFleetAuditTrail(d.auditTrail,s.auditTrail||[]);}
 async function persist(s){
  const d=data();
  if(!d||typeof d!=="object")throw Error("بيانات التطبيق غير جاهزة للحفظ");

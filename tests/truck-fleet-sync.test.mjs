@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {createFleetState,openTrip,loadTrip,recordTruckSale,recordFieldExpense,settleTrip} from "../fleet/truck-settlement-engine.mjs";
+import {readFileSync} from "node:fs";
+import {createFleetState,openTrip,loadTrip,recordTruckSale,recordCustomerReturn,recordFieldExpense,settleTrip} from "../fleet/truck-settlement-engine.mjs";
+import {mergeFleetAuditTrail} from "../fleet/fleet-audit-bridge.mjs";
 import {createMutationEnvelope} from "../sync/mutation_capture.mjs";
 import {reconcilePendingMutations} from "../sync/mutation_reconciliation.mjs";
 
@@ -216,4 +218,41 @@ test("fleet POS bank settlement replays bank ledger without touching the cashbox
  assert.deepEqual(result.review,[]);
  assert.equal(result.snapshot.bankMovements.length,1);
  assert.equal(result.snapshot.caisseBalance,0);
+});
+test("two truck warehouses remain isolated; empty truck cannot borrow main or peer stock; customer return restores only its truck",()=>{
+ let state=createFleetState({products:[{id:"P1",name:"Tea",mainStock:"50.000"}],trucks:[{id:"T1",warehouseName:"Truck 1",stockUnits:{}},{id:"T2",warehouseName:"Truck 2",stockUnits:{}}]});
+ state=openTrip(state,{tripId:"TRIP-T1",truckId:"T1",driverId:"D1"},"open-T1").state;
+ state=openTrip(state,{tripId:"TRIP-T2",truckId:"T2",driverId:"D2"},"open-T2").state;
+ state=loadTrip(state,"TRIP-T1",[{productId:"P1",quantity:"5"}],"load-T1").state;
+ state=loadTrip(state,"TRIP-T2",[{productId:"P1",quantity:"7"}],"load-T2").state;
+ state=recordTruckSale(state,"TRIP-T1",{productId:"P1",quantity:"5",catalogPrice:"10",salePrice:"10",cashPaid:"50",invoiceId:"INV-T1",saleId:"INV-T1:0"},"sale-T1",{id:"D1"}).state;
+ state=recordTruckSale(state,"TRIP-T2",{productId:"P1",quantity:"2",catalogPrice:"10",salePrice:"10",cashPaid:"20",invoiceId:"INV-T2",saleId:"INV-T2:0"},"sale-T2",{id:"D2"}).state;
+ assert.throws(()=>recordTruckSale(state,"TRIP-T1",{productId:"P1",quantity:"1",catalogPrice:"10",salePrice:"10",cashPaid:"10",invoiceId:"INV-T1","saleId":"INV-T1:1"},"oversell-T1",{id:"D1"}),/INSUFFICIENT_TRUCK_STOCK/);
+ state=recordCustomerReturn(state,"TRIP-T2",{productId:"P1",quantity:"1",invoiceId:"INV-T2",reason:"sealed return"},"return-T2",{id:"D2"}).state;
+ assert.equal(state.trucks.find(x=>x.id==="T1").stockUnits.P1,0n);
+ assert.equal(state.trucks.find(x=>x.id==="T2").stockUnits.P1,6000n);
+ assert.equal(state.products[0].mainStockUnits,38000n);
+});
+test("fleet audit bridge assigns backup-valid identity and merges every event exactly once",()=>{
+ const state=createFleetState({products:[{id:"P1",mainStock:"10"}],trucks:[{id:"T1",warehouseName:"Truck 1",stockUnits:{}}]});
+ let next=openTrip(state,{tripId:"TRIP-AUDIT",truckId:"T1",driverId:"D1"},"open-audit").state;
+ next=loadTrip(next,"TRIP-AUDIT",[{productId:"P1",quantity:"2"}],"load-audit").state;
+ next=recordTruckSale(next,"TRIP-AUDIT",{productId:"P1",quantity:"1",catalogPrice:"10",salePrice:"10",cashPaid:"10",invoiceId:"INV-AUDIT",saleId:"INV-AUDIT:0"},"sale-audit",{id:"D1"}).state;
+ const appAudit=[];
+ const first=mergeFleetAuditTrail(appAudit,next.auditTrail);
+ const stableIds=appAudit.map(row=>row.id);
+ assert.ok(first>0);
+ assert.ok(appAudit.every(row=>row.entityType==="truck_trip"&&row.entityId==="TRIP-AUDIT"&&row.eventType));
+ assert.equal(mergeFleetAuditTrail(appAudit,next.auditTrail),0);
+ const saleAudit=next.auditTrail.find(row=>row.saleId==="INV-AUDIT:0");
+ assert.ok(saleAudit);
+ assert.equal(mergeFleetAuditTrail(appAudit,[{...saleAudit,diagnosticOnly:"changed"}]),0,"audit identity must not depend on mutable diagnostics");
+ assert.deepEqual(appAudit.map(row=>row.id),stableIds);
+ const restored=structuredClone(appAudit);
+ assert.equal(mergeFleetAuditTrail(restored,next.auditTrail),0);
+});
+
+test("fleet stock and mirrored audit rows share one rollback-protected durable save",()=>{
+ const source=readFileSync(new URL("../fleet/truck-runtime.mjs",import.meta.url),"utf8");
+ assert.match(source,/const before=structuredClone\(d\);[\s\S]*?mirror\(d,s\);[\s\S]*?W\.saveDB\(\)!==true[\s\S]*?W\.saveDBDurably\(\)!==true[\s\S]*?restoreFleetAppData\(d,before\)/);
 });
