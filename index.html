@@ -9484,14 +9484,119 @@ function wtAuditTransfers(){
             return Number(raw);
         }
 
+        
+function anasProfitMoneyToCents(value) {
+    if (typeof value === 'bigint') return value;
+    if (typeof value !== 'number' && typeof value !== 'string') return null;
+    const raw=String(value).trim().replace(',','.');
+    const match=/^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(raw);
+    if(!match)return null;
+    const cents=BigInt(match[2])*100n+BigInt((match[3]||'').padEnd(2,'0')||'0');
+    return match[1]==='-'?-cents:cents;
+}
+function anasProfitMinorToBigInt(value) {
+    if(typeof value==='bigint')return value;
+    if(typeof value==='number'&&Number.isSafeInteger(value))return BigInt(value);
+    if(typeof value==='string'&&/^-?\d+$/.test(value.trim()))return BigInt(value.trim());
+    if(value&&typeof value==='object'){
+        const raw=value.__anasFleetBigInt??value.__fleetBigInt;
+        if(typeof raw==='string'&&/^-?\d+$/.test(raw))return BigInt(raw);
+    }
+    return null;
+}
+function anasProfitQuantityToMillis(value) {
+    if(typeof value!=='number'&&typeof value!=='string')return null;
+    const raw=String(value).trim();
+    const match=/^(\d+)(?:\.(\d{1,3}))?$/.exec(raw);
+    if(!match)return null;
+    return BigInt(match[1])*1000n+BigInt((match[2]||'').padEnd(3,'0')||'0');
+}
+function anasProfitInvoiceIsApproved(invoice) {
+    if(!invoice||typeof invoice!=='object'||Array.isArray(invoice))return false;
+    const status=String(invoice.status||'').trim().toUpperCase();
+    const excluded=new Set(['CANCELLED','CANCELED','VOID','VOIDED','DRAFT','REJECTED','REVERSED','DELETED','PENDING_APPROVAL','UNAPPROVED']);
+    return invoice.cancelled!==true&&invoice.isCancelled!==true&&invoice.reversed!==true&&
+        invoice.approved!==false&&invoice.isApproved!==false&&invoice.posted!==false&&!excluded.has(status);
+}
+function anasCalculateNetProfitCents({invoices=[],returns=[],fleetState=null,expenses=[],inRange=()=>true}={}) {
+    const approvedInvoices=(Array.isArray(invoices)?invoices:[]).filter(invoice=>anasProfitInvoiceIsApproved(invoice)&&inRange(invoice,['date','invoiceDate','createdAt','timestamp']));
+    let salesCents=0n,cogsCents=0n,incompleteCostLines=0,incompleteCostRevenueCents=0n,invalidRows=0;
+    for(const invoice of approvedInvoices){
+        const items=Array.isArray(invoice.items)?invoice.items:[];
+        let itemRevenueCents=0n,itemRevenueValid=true;
+        if(!items.length){incompleteCostLines++;const raw=invoice.total??invoice.grandTotal??invoice.amount;const amount=anasProfitMoneyToCents(raw);if(amount!==null)incompleteCostRevenueCents+=amount;}
+        for(const item of items){
+            const qty=anasProfitQuantityToMillis(item?.qty??item?.quantity??0);
+            const revenueRaw=item?.total??item?.subtotal;
+            let revenue=revenueRaw!==undefined&&revenueRaw!==null?anasProfitMoneyToCents(revenueRaw):null;
+            if(revenue===null&&revenueRaw==null){
+                const price=anasProfitMoneyToCents(item?.price??item?.salePrice??item?.sellingPrice);
+                if(price!==null&&qty!==null)revenue=(price*qty+500n)/1000n;
+            }
+            if(qty===null||revenue===null){invalidRows++;itemRevenueValid=false;continue;}
+            itemRevenueCents+=revenue;
+            const rawCost=item?.buyPrice??item?.costPrice??item?.purchasePrice;
+            const unitCost=rawCost===undefined||rawCost===null||String(rawCost).trim()===''?null:anasProfitMoneyToCents(rawCost);
+            if(unitCost===null||unitCost<0n){
+                incompleteCostLines++;incompleteCostRevenueCents+=revenue;
+                if(rawCost!==undefined&&rawCost!==null&&String(rawCost).trim()!=='')invalidRows++;
+                continue;
+            }
+            cogsCents+=(unitCost*qty+500n)/1000n;
+        }
+        const invoiceRaw=invoice.total??invoice.grandTotal??invoice.amount;
+        const invoiceCents=invoiceRaw!==undefined&&invoiceRaw!==null?anasProfitMoneyToCents(invoiceRaw):(itemRevenueValid?itemRevenueCents:null);
+        if(invoiceCents===null){invalidRows++;continue;}
+        salesCents+=invoiceCents;
+    }
+    const postedReturns=(Array.isArray(returns)?returns:[]).filter(row=>row&&row.status==='POSTED'&&row.returnType==='SALE_RETURN'&&row.originalInvoiceType==='sales_invoice'&&inRange(row,['createdAt','date','timestamp']));
+    let returnCents=0n,restoredCostCents=0n;
+    for(const row of postedReturns){
+        const total=anasProfitMinorToBigInt(row.totalCentimes)??anasProfitMoneyToCents(row.total);
+        if(total===null||total<0n){invalidRows++;continue;}
+        returnCents+=total;
+        for(const item of Array.isArray(row.items)?row.items:[]){
+            const restored=anasProfitMinorToBigInt(item?.restoredInventoryCostCentimes);
+            if(restored===null){if(item?.restoredInventoryCostCentimes!==undefined&&item?.restoredInventoryCostCentimes!==null)invalidRows++;continue;}
+            if(restored<0n){invalidRows++;continue;}
+            restoredCostCents+=restored;
+        }
+    }
+    let truckExpenseCents=0n,truckExpenseCount=0;
+    const trips=Array.isArray(fleetState?.trips)?fleetState.trips:[];
+    for(const trip of trips)for(const expense of Array.isArray(trip?.expenses)?trip.expenses:[]){
+        const dated={...expense,date:expense.createdAt??expense.date??trip.openedAt??trip.startAt};
+        if(!inRange(dated,['createdAt','date','timestamp']))continue;
+        const amount=anasProfitMinorToBigInt(expense.amountMinor??expense.amountCentimes)??anasProfitMoneyToCents(expense.amount??expense.amt);
+        if(amount===null||amount<0n){invalidRows++;continue;}
+        truckExpenseCents+=amount;truckExpenseCount++;
+    }
+    const distributionPattern=/(شاحن|نقل|توزيع|وقود|بنزين|ديزل|توصيل|لوجست|truck|transport|distribution|fuel|delivery)/i;
+    for(const expense of Array.isArray(expenses)?expenses:[]){
+        if(!expense||typeof expense!=='object'||Array.isArray(expense))continue;
+        const label=[expense.account,expense.desc,expense.category,expense.type,expense.expenseType].filter(Boolean).join(' ');
+        if(!distributionPattern.test(label))continue;
+        if(expense.paymentMethod==='driver_advance'||expense.settlementStatus==='pending'||String(expense.status||'').toUpperCase()==='PENDING')continue;
+        if(!inRange(expense,['date','createdAt','timestamp']))continue;
+        const amount=anasProfitMoneyToCents(expense.amt??expense.amount);
+        if(amount===null||amount<0n){invalidRows++;continue;}
+        truckExpenseCents+=amount;truckExpenseCount++;
+    }
+    const netProfitCents=salesCents-returnCents-(cogsCents-restoredCostCents)-truckExpenseCents;
+    return{approvedInvoices,excludedInvoiceCount:(Array.isArray(invoices)?invoices.length:0)-approvedInvoices.length,
+        salesCents,returnsCents:returnCents,cogsCents,restoredCostCents,truckExpenseCents,truckExpenseCount,
+        netProfitCents,incompleteCostLines,incompleteCostRevenueCents,invalidRows,postedReturns};
+}
+
         function showProfitsReportModal() {
             const allProfitInvoices=(typeof getReportInvoices==='function'?getReportInvoices():(Array.isArray(AppData.invoices)?AppData.invoices:[]));
-            const cancelledProfitInvoices=allProfitInvoices.filter(inv=>inv&&(inv.cancelled===true||inv.isCancelled===true||['cancelled','CANCELLED','void','VOID'].includes(inv.status)||inv.reversed===true));
-            const invoices=allProfitInvoices.filter(inv=>!cancelledProfitInvoices.includes(inv));
+            const profitSummary=anasCalculateNetProfitCents({invoices:allProfitInvoices,returns:AppData.returns,fleetState:AppData.anasFleetState,expenses:AppData.expenses,inRange:(row,keys)=>reportItemInRange(row,keys)});
+            const cancelledProfitInvoices=profitSummary.excludedInvoiceCount;
+            const invoices=profitSummary.approvedInvoices;
             const products = Array.isArray(AppData.products) ? AppData.products : [];
             const invalidProfitNumber = value => !((typeof value === 'number') || (typeof value === 'string')) || String(value).trim() === '' || !Number.isFinite(Number(value));
             const invalidPresentNumber = (record, keys) => { const key=keys.find(k=>Object.prototype.hasOwnProperty.call(record,k)&&record[k]!==undefined&&record[k]!==null); return key!==undefined&&invalidProfitNumber(record[key]); };
-            const invalidProfitData = invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv) || (Object.prototype.hasOwnProperty.call(inv,'items')&&!Array.isArray(inv.items)) || invalidPresentNumber(inv,['total','grandTotal','amount']) || (Array.isArray(inv.items)&&inv.items.some(it => !it || typeof it !== 'object' || Array.isArray(it) || invalidPresentNumber(it,['qty','quantity']) || invalidPresentNumber(it,['price','salePrice','sellingPrice']) || invalidPresentNumber(it,['total','subtotal']) || invalidPresentNumber(it,['buyPrice','costPrice','purchasePrice']))));
+            const invalidProfitData = profitSummary.invalidRows>0 || invoices.some(inv => !inv || typeof inv !== 'object' || Array.isArray(inv) || (Object.prototype.hasOwnProperty.call(inv,'items')&&!Array.isArray(inv.items)) || invalidPresentNumber(inv,['total','grandTotal','amount']) || (Array.isArray(inv.items)&&inv.items.some(it => !it || typeof it !== 'object' || Array.isArray(it) || invalidPresentNumber(it,['qty','quantity']) || invalidPresentNumber(it,['price','salePrice','sellingPrice']) || invalidPresentNumber(it,['total','subtotal']) || invalidPresentNumber(it,['buyPrice','costPrice','purchasePrice']))));
             if (invalidProfitData) {
                 const body=document.getElementById('profitsReportBody');
                 if(body)body.innerHTML='<div class="profit-empty" role="alert">تعذر حساب الأرباح بدقة: توجد قيمة مالية أو كمية غير صالحة في بيانات الفواتير أو تفاصيل المنتجات. صحّح السجلات أو استعد نسخة سليمة ثم أعد المحاولة.</div>';
@@ -9574,13 +9679,18 @@ function wtAuditTransfers(){
                 const userMode = type === 'user';
                 return `<div class="profit-table-wrap"><table class="profit-table"><thead><tr><th>${customerMode?'اسم العميل':userMode?'اسم المستخدم':'الاسم'}</th>${(customerMode||userMode)?'<th>عدد الفواتير</th>':''}${userMode?'<th>الصلاحية</th>':''}<th>الكمية</th><th>المبيعات</th><th>التكلفة</th><th>الربح</th><th>هامش الربح</th></tr></thead><tbody>${rows.map(([key,v])=>{const margin=v.revenue>0?(v.profit/v.revenue*100):0;const name=(customerMode||userMode)?v.name:key;return `<tr><td>${esc(name)}</td>${(customerMode||userMode)?`<td>${Number(v.invoices||0).toLocaleString('fr-DZ')}</td>`:''}${userMode?`<td>${esc(v.role||'—')}</td>`:''}<td>${Number(v.qty||0).toLocaleString('fr-DZ')}</td><td>${moneyFmt(v.revenue)}</td><td>${moneyFmt(v.cost)}</td><td class="${v.profit<0?'profit-negative':'profit-positive'}">${moneyFmt(v.profit)}</td><td class="${margin<0?'profit-negative':'profit-positive'}">${margin.toLocaleString('fr-DZ',{maximumFractionDigits:1})}%</td></tr>`}).join('')}</tbody></table></div>`;
             };
-            const postedSaleReturns=(Array.isArray(AppData.returns)?AppData.returns:[]).filter(r=>r&&r.status==='POSTED'&&r.returnType==='SALE_RETURN'&&r.originalInvoiceType==='sales_invoice'&&reportItemInRange(r,['createdAt','date','timestamp']));
-            const returnCents=postedSaleReturns.reduce((n,r)=>n+BigInt(Number.isSafeInteger(r.totalCentimes)?r.totalCentimes:0),0n);
-            const restoredCostCents=postedSaleReturns.reduce((n,r)=>n+(Array.isArray(r.items)?r.items.reduce((a,it)=>a+BigInt(Number.isSafeInteger(it.restoredInventoryCostCentimes)?it.restoredInventoryCostCentimes:0),0n):0n),0n);
-            totalRevenue=Math.max(0,totalRevenue-Number(returnCents)/100);
-            totalCost=Math.max(0,totalCost-Number(restoredCostCents)/100);
-            lineProfit-=Number(returnCents-restoredCostCents)/100;
+            const postedSaleReturns=profitSummary.postedReturns;
+            const returnCents=profitSummary.returnsCents;
+            const restoredCostCents=profitSummary.restoredCostCents;
+            const totalRevenueCents=profitSummary.salesCents-returnCents;
+            const totalCostCents=profitSummary.cogsCents-restoredCostCents;
+            totalRevenue=Number(totalRevenueCents)/100;
+            totalCost=Number(totalCostCents)/100;
+            lineProfit=Number(profitSummary.netProfitCents)/100;
+            incompleteCostLines=profitSummary.incompleteCostLines;
+            incompleteCostRevenue=Number(profitSummary.incompleteCostRevenueCents)/100;
             const netProfit = lineProfit;
+            const moneyFmtCents=cents=>{let n=BigInt(cents),negative=n<0n;if(negative)n=-n;return(negative?'−':'')+(n/100n).toLocaleString('fr-DZ')+','+(n%100n).toString().padStart(2,'0')+' د.ج';};
             const range = typeof getReportRange==='function' ? getReportRange() : {from:'',to:''};
             document.getElementById('profitsReportBody').innerHTML = `
               <style>
@@ -9697,11 +9807,11 @@ function wtAuditTransfers(){
 
 </style>
               <div class="profit-note">الفترة: ${esc(range.from||'كل الفترات')} — ${esc(range.to||'حتى اليوم')} | عدد الفواتير: ${invoices.length}</div>
-              <div class="profit-note" role="status">تنبيه محاسبي: ${incompleteCostLines} بنداً غير مكتمل التكلفة ولم يُحتسب ربحه. خُصم ${postedSaleReturns.length} مرتجع بيع مرحّل بقيمة ${(Number(returnCents)/100).toFixed(2)} د.ج، واستُبعد ${cancelledProfitInvoices.length} فاتورة ملغاة.</div>
+              <div class="profit-note" role="status">تنبيه محاسبي: ${incompleteCostLines} بنداً غير مكتمل التكلفة ولم يُحتسب ربحه. خُصم ${postedSaleReturns.length} مرتجع بيع مرحّل بقيمة ${moneyFmtCents(returnCents)}، واستُبعد ${cancelledProfitInvoices} فاتورة ملغاة أو غير معتمدة.</div>
               <div class="profit-summary">
-                <div class="profit-stat main"><span>💰 إجمالي الأرباح المحسوبة</span><strong>${moneyFmt(netProfit)}</strong></div>
-                <div class="profit-stat"><span>🛒 إجمالي المبيعات</span><strong>${moneyFmt(totalRevenue)}</strong></div>
-                <div class="profit-stat"><span>📦 تكلفة الأصناف المباعة</span><strong>${moneyFmt(totalCost)}</strong></div>
+                <div class="profit-stat main"><span>💰 إجمالي الأرباح المحسوبة</span><strong>${moneyFmtCents(profitSummary.netProfitCents)}</strong></div>
+                <div class="profit-stat"><span>🛒 إجمالي المبيعات</span><strong>${moneyFmtCents(totalRevenueCents)}</strong></div>
+                <div class="profit-stat"><span>📦 تكلفة الأصناف المباعة</span><strong>${moneyFmtCents(totalCostCents)}</strong></div><div class="profit-stat"><span>🚚 مصاريف الشاحنات والتوزيع</span><strong>${moneyFmtCents(profitSummary.truckExpenseCents)}</strong></div>
                 <div class="profit-stat"><span>🧾 عدد الفواتير</span><strong>${invoices.length}</strong></div>
                 <div class="profit-stat"><span>🔢 الكمية المباعة</span><strong>${itemCount.toLocaleString('fr-DZ')}</strong></div>
               </div>
@@ -9717,6 +9827,7 @@ function wtAuditTransfers(){
               <div class="profit-section" data-profit-panel="customer" hidden><h4>👥 تقارير الأرباح حسب العميل</h4>${renderRows(byCustomer,'لا توجد فواتير عملاء ضمن الفترة المحددة.','customer')}</div>
               <div class="profit-section" data-profit-panel="product" hidden><h4>🏷️ تقارير الأرباح حسب المنتج</h4>${renderRows(byProduct,'لا توجد منتجات مباعة ضمن الفترة المحددة.')}</div>
               <div class="profit-section" data-profit-panel="user" hidden><h4>👤 تقارير المبيعات والأرباح حسب المستخدم</h4>${renderRows(byUser,'لا توجد فواتير مرتبطة بالمستخدمين ضمن الفترة المحددة.','user')}<p class="profit-note">الفواتير القديمة التي لا تحتوي على بيانات المستخدم ستظهر باسم «غير محدد». تُسجَّل هوية المستخدم تلقائيًا في الفواتير الجديدة.</p></div>
+              <p class="profit-note" role="status">المعادلة المعتمدة: المبيعات المعتمدة − المرتجعات المرحّلة − تكلفة البضاعة المباعة + تكلفة المخزون المسترجع − مصاريف الشاحنات والتوزيع (${moneyFmtCents(profitSummary.truckExpenseCents)}). لا تُحتسب المصروفات العامة غير المرتبطة بالنقل والتوزيع ولا العهد غير المسوّاة.</p>
               <p class="profit-note" role="status">تنبيه محاسبي: الربح المعروض يقتصر على البنود التي تتوفر لها تكلفة تاريخية محفوظة في سطر الفاتورة؛ لا يُستخدم سعر الشراء الحالي للمنتج بديلاً عن التكلفة التاريخية. لم تُسجّل البنود الناقصة التكلفة كتكلفة صفر؛ عددها ${incompleteCostLines} وقيمة مبيعاتها ${moneyFmt(incompleteCostRevenue)}، وهي مستبعدة من الربح المؤكد حتى استكمال التكلفة.</p>
               <button type="button" class="btn-full-submit" style="margin:10px 0;background:#1d4ed8" onclick="showProfitsReportModal()">↻ تحديث التقرير</button>`;
             document.getElementById('profitsModal').classList.add('active');
