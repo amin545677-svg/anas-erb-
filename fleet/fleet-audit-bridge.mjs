@@ -42,8 +42,9 @@ export function mergeFleetAuditTrail(target, source) {
     const id = "FLEET-AUDIT-" + fingerprint(hasMovementIdentity ? identity : row);
     if (known.has(id)) continue;
     const entityId = row.tripId ?? row.entityId ?? row.saleId ?? row.settlementId ?? id;
+    const safeRow = canonical(row);
     target.push({
-      ...row,
+      ...safeRow,
       id,
       eventType: String(row.eventType || row.type || "TRUCK_FLEET_EVENT"),
       entityType: "truck_trip",

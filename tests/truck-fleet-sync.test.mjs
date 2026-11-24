@@ -246,6 +246,8 @@ test("fleet audit bridge assigns backup-valid identity and merges every event ex
  assert.equal(mergeFleetAuditTrail(appAudit,next.auditTrail),0);
  const saleAudit=next.auditTrail.find(row=>row.saleId==="INV-AUDIT:0");
  assert.ok(saleAudit);
+ assert.deepEqual(saleAudit.actualPriceMinor,{__fleetBigInt:"1000"},"mirrored audit money must be JSON-safe and retain exact centimes");
+ assert.doesNotThrow(()=>JSON.stringify(appAudit),"mirrored fleet audit rows must not poison the V42 mutation journal");
  assert.equal(mergeFleetAuditTrail(appAudit,[{...saleAudit,diagnosticOnly:"changed"}]),0,"audit identity must not depend on mutable diagnostics");
  assert.deepEqual(appAudit.map(row=>row.id),stableIds);
  const restored=structuredClone(appAudit);
