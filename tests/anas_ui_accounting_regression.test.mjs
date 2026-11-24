@@ -167,9 +167,10 @@ test('dark AI quick actions and invoice/settings actions have explicit dark surf
   assert.ok(contrastRatio('#f8fafc','#0f172a')>=4.5);
 });
 
-test('sale return inventory restoration reduces reported net cost as well as net profit', () => {
-  assert.ok(html.includes("totalCost=Math.max(0,totalCost-Number(restoredCostCents)/100);"));
-  assert.ok(html.includes("lineProfit-=Number(returnCents-restoredCostCents)/100;"));
+test('sale return inventory restoration reduces exact reported COGS and net profit', () => {
+  assert.ok(html.includes("const totalCostCents=profitSummary.cogsCents-restoredCostCents;"));
+  assert.ok(html.includes("const netProfitCents=salesCents-returnCents-(cogsCents-restoredCostCents)-truckExpenseCents;"));
+  assert.ok(html.includes("const totalRevenueCents=profitSummary.salesCents-returnCents;"));
 });
 
 test('AI executive dashboard shares the same centime-exact BigInt inventory valuation engine', () => {

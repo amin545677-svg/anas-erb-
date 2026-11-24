@@ -6053,10 +6053,12 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
         async function printLastConfirmedInvoice(type) {
             if (!lastConfirmedInvoice) { alert('أكد الفاتورة أولًا. للطباعة لاحقًا بعد إغلاق النافذة، افتح سجل الفواتير واختر الفاتورة.'); return; }
             if (type === 'legalA4') return printLegalA4Invoice(lastConfirmedInvoice);
-            return printThermalReceipt(lastConfirmedInvoice,type==='thermal80'?'80mm':'58mm');
+            const paper=type==='thermal80'?'80mm':'58mm';
+            if(window.ANASArabicEscPos&&window.ANASResilientStorage)return printThermalReceiptWithEngine(lastConfirmedInvoice,paper);
+            return printThermalReceipt(lastConfirmedInvoice);
         }
 
-        async function printThermalReceipt(inv,paper='58mm') {
+        async function printThermalReceiptWithEngine(inv,paper='58mm') {
             const thermal=window.ANASArabicEscPos;
             if(thermal&&typeof thermal.buildInvoiceReceipt==='function'&&typeof thermal.printDocument==='function'&&window.ANASResilientStorage){
                 try{
@@ -6071,6 +6073,9 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
                     return result;
                 }catch(error){alert('تعذرت الطباعة الحرارية: '+String(error?.message||error));return null;}
             }
+        }
+
+        function printThermalReceipt(inv) {
             const area = document.getElementById('receiptPrintArea');
             const a4Area = document.getElementById('legalInvoiceA4Area');
             a4Area.classList.remove('printable');
@@ -6122,7 +6127,7 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             window.print();
         }
 
-        function printLegalA4Invoice(inv, previewOnly = false) {
+                function printLegalA4Invoice(inv, previewOnly = false) {
             const area = document.getElementById('receiptPrintArea');
             const a4Area = document.getElementById('legalInvoiceA4Area');
             area.classList.remove('printable');
@@ -7674,9 +7679,11 @@ function renderPurchasesTable() {
             collectionLocks.delete(collectionLockKey);
             if (typeof updateCashUI === 'function') updateCashUI();
             if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
-            showCustomerPaymentPostSaveActions({businessName:AppData.storeConfig?.name||'ANAS ERP',receiptNumber:movementId,date:new Date().toISOString(),
-                customerName:customer.name||String(customer.id),method:'نقداً',debtBeforeMinor:BigInt(previousDebtCents),amountMinor:BigInt(amountCents),
-                footer:AppData.storeConfig?.footer||'تم استلام المبلغ بنجاح'});
+            if(typeof window!=='undefined'&&typeof document!=='undefined'&&typeof showCustomerPaymentPostSaveActions==='function'){
+                showCustomerPaymentPostSaveActions({businessName:AppData.storeConfig?.name||'ANAS ERP',receiptNumber:movementId,date:new Date().toISOString(),
+                    customerName:customer.name||String(customer.id),method:'نقداً',debtBeforeMinor:BigInt(previousDebtCents),amountMinor:BigInt(amountCents),
+                    footer:AppData.storeConfig?.footer||'تم استلام المبلغ بنجاح'});
+            }
         }
 
         async function anasPrintCustomerPaymentThermal(paper='58mm'){
@@ -9550,7 +9557,7 @@ function anasProfitQuantityToMillis(value) {
 function anasProfitInvoiceIsApproved(invoice) {
     if(!invoice||typeof invoice!=='object'||Array.isArray(invoice))return false;
     const status=String(invoice.status||'').trim().toUpperCase();
-    const excluded=new Set(['CANCELLED','CANCELED','VOID','VOIDED','DRAFT','REJECTED','REVERSED','DELETED','PENDING_APPROVAL','UNAPPROVED']);
+    const excluded=new Set(['CANCELLED','CANCELED','VOID','VOIDED','DRAFT','PENDING','AWAITING_APPROVAL','UNCONFIRMED','REJECTED','REVERSED','DELETED','PENDING_APPROVAL','UNAPPROVED']);
     return invoice.cancelled!==true&&invoice.isCancelled!==true&&invoice.reversed!==true&&
         invoice.approved!==false&&invoice.isApproved!==false&&invoice.posted!==false&&!excluded.has(status);
 }
@@ -9612,7 +9619,7 @@ function anasCalculateNetProfitCents({invoices=[],returns=[],fleetState=null,exp
         if(!expense||typeof expense!=='object'||Array.isArray(expense))continue;
         const label=[expense.account,expense.desc,expense.category,expense.type,expense.expenseType].filter(Boolean).join(' ');
         if(!distributionPattern.test(label))continue;
-        if(expense.paymentMethod==='driver_advance'||expense.settlementStatus==='pending'||String(expense.status||'').toUpperCase()==='PENDING')continue;
+        if((expense.paymentMethod==='driver_advance'&&expense.settlementStatus!=='settled')||expense.settlementStatus==='pending'||String(expense.status||'').toUpperCase()==='PENDING')continue;
         if(!inRange(expense,['date','createdAt','timestamp']))continue;
         const amount=anasProfitMoneyToCents(expense.amt??expense.amount);
         if(amount===null||amount<0n){invalidRows++;continue;}
