@@ -170,7 +170,9 @@ test('dark AI quick actions and invoice/settings actions have explicit dark surf
 
 test('sale return inventory restoration reduces exact reported COGS and net profit', () => {
   assert.ok(html.includes("const totalCostCents=profitSummary.cogsCents-restoredCostCents;"));
-  assert.ok(html.includes("const netProfitCents=salesCents-returnCents-(cogsCents-restoredCostCents)-truckExpenseCents;"));
+  assert.ok(html.includes("const confirmedSalesCents=salesCents-incompleteCostRevenueCents;"));
+  assert.ok(html.includes("const netProfitCents=confirmedSalesCents-returnCents-(cogsCents-restoredCostCents)-truckExpenseCents;"));
+  assert.ok(html.includes("salesCents,confirmedSalesCents,returnsCents:returnCents"));
   assert.ok(html.includes("const totalRevenueCents=profitSummary.salesCents-returnCents;"));
 });
 
