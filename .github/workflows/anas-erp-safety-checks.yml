@@ -1148,8 +1148,13 @@ jobs:
           end = s.find("\n        function ", mid + len("async function submitExpenseOperation()"))
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer-centime helpers"
           assert start >= 0 and mid > start and end > mid, "Could not isolate cash/expense functions"
+          audit_helper_start = s.find("function anasAppendAuditTrailEvent(event)")
+          audit_helper_end = s.find("\n        function anasEnsurePosCartZeroPriceApproved", audit_helper_start)
+          assert audit_helper_start >= 0 and audit_helper_end > audit_helper_start, "Could not isolate audit trail append helper"
+          audit_helper = s[audit_helper_start:audit_helper_end]
+          assert "AppData.auditTrail.unshift(record)" in audit_helper, "Audit trail helper extraction is incomplete"
           helper_fn = s[helper_start:helper_end]
-          cash_fn = helper_fn + s[start:mid]
+          cash_fn = helper_fn + audit_helper + s[start:mid]
           expense_fn = s[mid:end]
           assert "renderExpenses()" not in expense_fn, "Expense save must not call an undefined renderer after committing data"
           js = r"""
@@ -1272,11 +1277,16 @@ jobs:
           s = Path("index.html").read_text(encoding="utf-8")
           helper_start = s.find("const ANAS_QTY_SCALE = 1000000;")
           helper_end = s.find("function updatePaymentMethodFromAmount()", helper_start)
+          audit_helper_start = s.find("function anasAppendAuditTrailEvent(event)")
+          audit_helper_end = s.find("\n        function anasEnsurePosCartZeroPriceApproved", audit_helper_start)
+          assert audit_helper_start >= 0 and audit_helper_end > audit_helper_start, "Could not isolate audit trail append helper"
+          audit_helper = s[audit_helper_start:audit_helper_end]
+          assert "AppData.auditTrail.unshift(record)" in audit_helper, "Audit trail helper extraction is incomplete"
           start = s.find("function editSalesInvoice(invoiceId) {")
           end = s.find("// ================= إدارة المخزون وحساب الأرباح =================", start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate integer quantity helpers"
           assert start >= 0 and end > start, "Could not isolate invoice edit function"
-          function_js = s[helper_start:helper_end] + s[start:end]
+          function_js = s[helper_start:helper_end] + audit_helper + s[start:end]
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
@@ -2635,10 +2645,16 @@ jobs:
           purchase_helper_end=s.find("function savePurchaseItem()",purchase_helper_start)
           assert purchase_helper_start>=0 and purchase_helper_end>purchase_helper_start, "Could not isolate purchase centime helpers"
           purchase_helpers=s[purchase_helper_start:purchase_helper_end]
+          audit_helper_start = s.find("function anasAppendAuditTrailEvent(event)")
+          audit_helper_end = s.find("\n        function anasEnsurePosCartZeroPriceApproved", audit_helper_start)
+          assert audit_helper_start >= 0 and audit_helper_end > audit_helper_start, "Could not isolate audit trail append helper"
+          audit_helper = s[audit_helper_start:audit_helper_end]
+          assert "AppData.auditTrail.unshift(record)" in audit_helper, "Audit trail helper extraction is incomplete"
           truck=extract("function postTripStock(trip){","window.anasTruckSaveTrip = function(){","truck load")
           js=r"""
           const assert=require('node:assert/strict');
           const vm=require('node:vm');
+          const auditHelper=/*AUDIT_HELPER*/;
           const purchaseHelpers=/*PURCHASE_HELPERS*/;
           const purchase=/*PURCHASE*/;
           const truck=/*TRUCK*/;
@@ -2661,7 +2677,7 @@ jobs:
               updateUIState:()=>{},updateDashboardStats:()=>{},renderPurchasesTable:()=>{},
               Number,String,Object,Array,JSON,Date,Math
             };
-            vm.runInNewContext(purchaseHelpers+'\n'+purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
+            vm.runInNewContext(auditHelper+'\n'+purchaseHelpers+'\n'+purchase+'\nthis.runPurchase=savePurchaseItem;',ctx);
             ctx.runPurchase();
             assert.equal(ctx.AppData.products.length,0,'purchase must roll back if saveDB does not explicitly return true');
             assert.equal(ctx.AppData.purchases.length,0,'purchase record must not remain after implicit save result');
@@ -2685,7 +2701,7 @@ jobs:
           }
           console.log('Explicit save-success contract tests passed for purchases and truck loading');
           """
-          js=js.replace("/*PURCHASE_HELPERS*/",json.dumps(purchase_helpers)).replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
+          js=js.replace("/*AUDIT_HELPER*/",json.dumps(audit_helper)).replace("/*PURCHASE_HELPERS*/",json.dumps(purchase_helpers)).replace("/*PURCHASE*/",json.dumps(purchase)).replace("/*TRUCK*/",json.dumps(truck))
           Path("/tmp/anas-explicit-save-success-test.js").write_text(js,encoding="utf-8")
           PY
           node --check /tmp/anas-explicit-save-success-test.js
