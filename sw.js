@@ -29,6 +29,7 @@ const CORE = [
   './warehouse-transfer-audit.js',
   './truck-warehouse-reconciliation.js',
   './fleet/truck-settlement-engine.mjs',
+  './fleet-audit-bridge.mjs',
   './printing/arabic-escpos-engine.js',
   './sync/mutation_queue_orchestrator.mjs',
   './sync/mutation_reconciliation.mjs',

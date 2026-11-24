@@ -170,6 +170,9 @@ export async function buildStagingHosting(options = {}) {
 
   // Full ERP/POS app is isolated below /erp/, including its own PWA scope and offline assets.
   for (const relativePath of ERP_FILES) await copyRelative(rootDir, path.join(outDir, 'erp'), relativePath);
+  // The inlined runtime resolves this sibling import from /erp/index.html.
+  await fs.copyFile(path.join(rootDir, 'fleet/fleet-audit-bridge.mjs'),
+    path.join(outDir, 'erp/fleet-audit-bridge.mjs'));
 
   const erpIndexPath = path.join(outDir, 'erp', 'index.html');
   // Apply the search-first POS layout to the isolated Staging copy only; never rewrite source/main HTML.
@@ -367,6 +370,7 @@ export async function buildStagingHosting(options = {}) {
     'erp/storage/android-resilient-storage.js',
     'erp/fleet/truck-settlement-engine.mjs',
     'erp/fleet/truck-runtime.mjs',
+    'erp/fleet-audit-bridge.mjs',
     'erp/truck-warehouse-reconciliation.js',
     'erp/printing/arabic-escpos-engine.js',
     'erp/core/ai-operations-engine.js',
