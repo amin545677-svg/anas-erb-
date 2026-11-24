@@ -6014,7 +6014,8 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             };
             const shareText = buildInvoiceShareText(inv);
             actions.append(
-                makeButton('🖨️ طباعة الوصل', '#166534', '#fff', () => printLastConfirmedInvoice('thermal'), 'anasInvoicePrintBtn'),
+                makeButton('🖨️ حراري 58mm', '#166534', '#fff', async () => printLastConfirmedInvoice('thermal58'), 'anasInvoicePrintBtn'),
+                makeButton('🖨️ حراري 80mm', '#0f766e', '#fff', async () => printLastConfirmedInvoice('thermal80'), 'anasInvoicePrint80Btn'),
                 makeButton('📄 طباعة A4', '#334155', '#fff', () => printLastConfirmedInvoice('legalA4'), 'anasInvoiceA4Btn'),
                 makeButton('🟢 WhatsApp', '#16a34a', '#fff', () => {
                     const url = 'https://wa.me/?text=' + encodeURIComponent(shareText);
@@ -6049,13 +6050,27 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             finish.focus();
         }
 
-        function printLastConfirmedInvoice(type) {
+        async function printLastConfirmedInvoice(type) {
             if (!lastConfirmedInvoice) { alert('أكد الفاتورة أولًا. للطباعة لاحقًا بعد إغلاق النافذة، افتح سجل الفواتير واختر الفاتورة.'); return; }
-            if (type === 'legalA4') printLegalA4Invoice(lastConfirmedInvoice);
-            else printThermalReceipt(lastConfirmedInvoice);
+            if (type === 'legalA4') return printLegalA4Invoice(lastConfirmedInvoice);
+            return printThermalReceipt(lastConfirmedInvoice,type==='thermal80'?'80mm':'58mm');
         }
 
-        function printThermalReceipt(inv) {
+        async function printThermalReceipt(inv,paper='58mm') {
+            const thermal=window.ANASArabicEscPos;
+            if(thermal&&typeof thermal.buildInvoiceReceipt==='function'&&typeof thermal.printDocument==='function'&&window.ANASResilientStorage){
+                try{
+                    const toMinor=value=>{const cents=anasToCents(value??0);if(!Number.isSafeInteger(cents))throw new Error('مبلغ الفاتورة غير صالح للطباعة الحرارية.');return BigInt(cents);};
+                    const store=AppData.storeConfig||{};
+                    const doc=thermal.buildInvoiceReceipt({businessName:store.name||'ANAS ERP',invoiceNumber:inv.id,date:inv.date,customerName:inv.customer,
+                        oldDebtMinor:toMinor(inv.oldDebt??0),invoiceTotalMinor:toMinor(inv.total),paidMinor:toMinor(inv.paid),
+                        items:(Array.isArray(inv.items)?inv.items:[]).map(item=>({name:item.name,quantity:String(item.qty??0),unitPriceMinor:toMinor(item.price??0),
+                            totalMinor:toMinor(item.total??anasCentsToCurrency(anasLineTotalCents(anasToQtyUnits(item.qty??0),anasToCents(item.price??0))))})),footer:store.footer||'شكراً لثقتكم'});
+                    const result=await thermal.printDocument(doc,{printer:{paper},idempotencyKey:'ANAS-SALE-'+String(inv.id)+'-'+paper});
+                    if(result.status==='QUEUED_FOR_RETRY')alert('تم حفظ الوصل الحراري في قائمة الطباعة لإعادة المحاولة: '+result.queuedId);
+                    return result;
+                }catch(error){alert('تعذرت الطباعة الحرارية: '+String(error?.message||error));return null;}
+            }
             const area = document.getElementById('receiptPrintArea');
             const a4Area = document.getElementById('legalInvoiceA4Area');
             a4Area.classList.remove('printable');
@@ -7659,8 +7674,29 @@ function renderPurchasesTable() {
             collectionLocks.delete(collectionLockKey);
             if (typeof updateCashUI === 'function') updateCashUI();
             if (typeof renderCustomersDebts === 'function') renderCustomersDebts();
-            alert('تم تسجيل سند القبض وتوزيعه تلقائياً FIFO من أقدم فاتورة إلى أحدث فاتورة.');
+            showCustomerPaymentPostSaveActions({businessName:AppData.storeConfig?.name||'ANAS ERP',receiptNumber:movementId,date:new Date().toISOString(),
+                customerName:customer.name||String(customer.id),method:'نقداً',debtBeforeMinor:BigInt(previousDebtCents),amountMinor:BigInt(amountCents),
+                footer:AppData.storeConfig?.footer||'تم استلام المبلغ بنجاح'});
         }
+
+        async function anasPrintCustomerPaymentThermal(paper='58mm'){
+            const data=window.__ANAS_LAST_CUSTOMER_PAYMENT__,thermal=window.ANASArabicEscPos;
+            if(!data||!thermal||!window.ANASResilientStorage){alert('بيانات سند القبض أو محرك الطباعة الحرارية غير متاح.');return;}
+            try{const doc=thermal.buildPaymentReceipt(data);const result=await thermal.printDocument(doc,{printer:{paper},idempotencyKey:'ANAS-CUSTOMER-RECEIPT-'+data.receiptNumber+'-'+paper});
+                if(result.status==='QUEUED_FOR_RETRY')alert('حُفظ سند القبض في قائمة الطباعة لإعادة المحاولة: '+result.queuedId);return result;
+            }catch(error){alert('تعذرت طباعة سند القبض: '+String(error?.message||error));}
+        }
+        function showCustomerPaymentPostSaveActions(data){
+            window.__ANAS_LAST_CUSTOMER_PAYMENT__=data;
+            const old=document.getElementById('anasCustomerPaymentPostSaveDialog');if(old)old.remove();
+            const panel=document.createElement('section');panel.id='anasCustomerPaymentPostSaveDialog';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
+            panel.style.cssText='position:fixed;inset:0;z-index:2147483001;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.62);';
+            const card=document.createElement('div');card.style.cssText='width:min(100%,420px);padding:18px;border-radius:16px;background:var(--mp-card-bg,#fff);color:var(--mp-text-dark,#0f172a);direction:rtl;';
+            const title=document.createElement('h3');title.textContent='تم حفظ سند القبض';card.appendChild(title);
+            for(const paper of ['58mm','80mm']){const button=document.createElement('button');button.type='button';button.textContent='طباعة حرارية '+paper;button.style.cssText='display:block;width:100%;min-height:46px;margin:8px 0;border:0;border-radius:10px;background:#166534;color:#fff;font-weight:800;';button.addEventListener('click',()=>anasPrintCustomerPaymentThermal(paper));card.appendChild(button);}
+            const close=document.createElement('button');close.type='button';close.textContent='إنهاء';close.style.cssText='display:block;width:100%;min-height:44px;margin-top:8px;border:0;border-radius:10px;background:#e2e8f0;color:#0f172a;font-weight:800;';close.addEventListener('click',()=>panel.remove());card.appendChild(close);panel.appendChild(card);document.body.appendChild(panel);
+        }
+
         function openGoogleMaps(loc) {
             if(!loc) return;
             window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(loc), '_blank');
@@ -9848,6 +9884,33 @@ function anasCalculateNetProfitCents({invoices=[],returns=[],fleetState=null,exp
             return true;
         }
 
+
+        async function anasPrintCustomerStatementThermal(paper='58mm'){
+            const raw=prompt('أدخل معرّف العميل أو اسمه لطباعة كشف الحساب:');if(raw===null)return;
+            const value=String(raw).trim(),matches=(Array.isArray(AppData.customers)?AppData.customers:[]).filter(c=>c&&(String(c.id)===value||String(c.name||'').trim()===value));
+            if(matches.length!==1){alert(matches.length?'اسم العميل مكرر؛ أدخل المعرّف بدلاً منه.':'لم يُعثر على عميل واحد مطابق.');return;}
+            const customer=matches[0],range=getReportRange(),movements=(Array.isArray(AppData.clientMovements)?AppData.clientMovements:[]).filter(m=>String(m.clientId??'')===String(customer.id));
+            const centsOf=m=>{if(Number.isSafeInteger(m.amountCentimes))return BigInt(m.amountCentimes);const rawAmount=String(m.amount??'').trim().replace(',','.');if(!/^\d+(?:\.\d{1,2})?$/.test(rawAmount))return null;const [whole,fraction='']=rawAmount.split('.');return BigInt(whole)*100n+BigInt(fraction.padEnd(2,'0'));};
+            const signed=m=>{const amount=centsOf(m);if(amount===null)return null;return(m.direction||(['receipt','return_credit'].includes(m.type)?'credit':'debit'))==='credit'?-amount:amount;};
+            const dated=movements.map(m=>({m,d:reportParseDate(m.createdAt||m.date||m.timestamp)}));
+            const before=dated.filter(x=>x.d&&range.from&&reportLocalDateValue(x.d)<range.from);
+            const current=dated.filter(x=>x.d&&(!range.from||reportLocalDateValue(x.d)>=range.from)&&(!range.to||reportLocalDateValue(x.d)<=range.to)).sort((a,b)=>a.d-b.d||String(a.m.movementId||a.m.id||'').localeCompare(String(b.m.movementId||b.m.id||'')));
+            const opening=before.reduce((sum,x)=>{const delta=signed(x.m);if(delta===null)throw new Error('حركة افتتاحية غير صالحة في دفتر العميل.');return sum+delta;},0n);
+            let balance=opening,invoiceTotal=0n,paid=0n,returns=0n,adjustmentDebit=0n,adjustmentCredit=0n;
+            const rows=current.map(({m})=>{const amount=centsOf(m),delta=signed(m);if(amount===null||delta===null)throw new Error('توجد حركة غير صالحة؛ أوقفنا الطباعة لحماية كشف الحساب.');
+                balance+=delta;const credit=delta<0n?amount:0n,debit=delta<0n?0n:amount;
+                if(m.type==='invoice_debit')invoiceTotal+=amount;else if(m.type==='receipt')paid+=amount;else if(m.type==='return_credit')returns+=amount;else if(delta<0n)adjustmentCredit+=amount;else adjustmentDebit+=amount;
+                return{date:m.createdAt||m.date||m.timestamp||'—',description:({opening_balance:'رصيد افتتاحي',invoice_debit:'فاتورة آجلة',receipt:'سند قبض',return_credit:'مرتجع/إشعار دائن',adjustment:'تسوية'})[m.type]||m.type||'حركة',
+                    reference:m.referenceId||m.movementId||m.id||'—',debitMinor:debit,creditMinor:credit,balanceMinor:balance};});
+            const thermal=window.ANASArabicEscPos;if(!thermal||!window.ANASResilientStorage){alert('محرك الطباعة الحرارية غير متاح في هذه النسخة.');return;}
+            const doc=thermal.buildCustomerStatementReceipt({businessName:AppData.storeConfig?.name||'ANAS ERP',customerName:customer.name||String(customer.id),
+                periodFrom:range.from||'',periodTo:range.to||'',openingBalanceMinor:opening,invoiceTotalMinor:invoiceTotal,paidMinor:paid,returnCreditMinor:returns,
+                adjustmentDebitMinor:adjustmentDebit,adjustmentCreditMinor:adjustmentCredit,closingBalanceMinor:balance,rows,footer:AppData.storeConfig?.footer||'ANAS ERP'});
+            try{const result=await thermal.printDocument(doc,{printer:{paper},idempotencyKey:'ANAS-CUSTOMER-STATEMENT-'+customer.id+'-'+(range.from||'ALL')+'-'+(range.to||'ALL')+'-'+paper});
+                if(result.status==='QUEUED_FOR_RETRY')alert('حُفظ كشف الحساب في قائمة الطباعة لإعادة المحاولة: '+result.queuedId);return result;
+            }catch(error){alert('تعذرت طباعة كشف الحساب: '+String(error?.message||error));}
+        }
+
         function showReportDetails(title) {
             if(!applyReportDateRange()) return;
             const esc = value => anasEscapeHTML(String(value ?? ''));
@@ -10304,6 +10367,11 @@ function anasCalculateNetProfitCents({invoices=[],returns=[],fleetState=null,exp
                     });
                 }
                 content.innerHTML = renderQueryTable(headers, rows, detailed ? 'لا توجد حركات مطابقة للفترة والخيارات المحددة.' : 'لا يوجد عملاء مسجلون.');
+                if(title==='كشف حساب عميل'){
+                    const toolbar=document.createElement('div');toolbar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;';
+                    for(const paper of ['58mm','80mm']){const button=document.createElement('button');button.type='button';button.textContent='🖨️ كشف حراري '+paper;button.style.cssText='min-height:44px;padding:9px 14px;border:0;border-radius:10px;background:#166534;color:#fff;font-weight:800;';button.addEventListener('click',()=>anasPrintCustomerStatementThermal(paper));toolbar.appendChild(button);}
+                    content.insertBefore(toolbar,content.firstChild);
+                }
             } else if(title === 'كشف حساب المورد' || title === 'كشف حساب مورد') {
                 const suppliers=Array.isArray(AppData.suppliers)?AppData.suppliers:[], movements=Array.isArray(AppData.supplierMovements)?AppData.supplierMovements:[];
                 const {from,to}=getReportRange();
@@ -15497,6 +15565,7 @@ function quickSaleSearchKey(event){if(typeof handlePosSearchKeydown==='function'
     <script src="./reverse-ledger/reverse-ledger-modal.js"></script>
     <script src="./reverse-ledger/settlement-allocation-modal.js"></script>
     <script src="./supplier-account-statement.js"></script>
+    <script src="./printing/arabic-escpos-engine.js"></script>
     <script src="./cashbox-readonly-ledger.js"></script>
     <script src="./arabic-query-engine.js"></script>
     <script src="./customer-debt-protection.js"></script>
