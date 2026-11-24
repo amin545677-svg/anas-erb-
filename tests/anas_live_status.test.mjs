@@ -107,3 +107,50 @@ test('R46 report date extraction returns null when all record and invoice-ID dat
     id: 'INV-20260231-0001'
   }), null);
 });
+
+test('V42 invoice metadata compatibility permits later offline cash, category, product and expense saves without weakening invoice immutability', () => {
+  const committed = { invoices: [{ id: 'INV-1', total: 1550, paid: 1550, syncOpId: 'sale-op-1', syncCreatedAt: '2026-11-24T10:00:00.000Z' }] };
+  const appData = { invoices: [{ id: 'INV-1', total: 1550, paid: 1550 }], cashMovements: [], productCategories: [], products: [], expenses: [] };
+  const h = harness({ value: committed }, appData);
+  h.window.AppData = appData; h.window.__ANAS_GET_APP_DATA__ = () => appData;
+  h.window.ANASMutationQueue = { keys: { appData: 'appData' } };
+  let persisted = structuredClone(committed);
+  h.window.ANASResilientStorage.getItem = key => key === 'appData' ? persisted : null;
+  h.window.saveDB = () => {
+    const old = persisted.invoices[0], next = appData.invoices[0];
+    if (JSON.stringify(old) !== JSON.stringify(next)) throw new Error('Existing invoices ledger row was modified during a new operation');
+    persisted = structuredClone(appData); return true;
+  };
+  h.window.ANASMutationSync = { status: 'installed' };
+  const operations = [
+    () => appData.cashMovements.push({ id: 'CASH-1', amount: 2000, type: 'add' }),
+    () => appData.productCategories.push({ id: 'CAT-1', name: 'شاي السلطان' }),
+    () => appData.products.push({ id: 'P-1', name: 'شاي السلطان 100غ', stock: 1 }),
+    () => appData.expenses.push({ id: 'EXP-1', amount: 2000, description: 'مازوت' })
+  ];
+  for (const mutate of operations) { mutate(); assert.equal(h.window.saveDB(), true); }
+  assert.equal(appData.invoices[0].syncOpId, 'sale-op-1');
+  appData.invoices[0].total = 9999;
+  assert.throws(() => h.window.saveDB(), /Existing invoices ledger row was modified/);
+});
+
+test('last-seven-days report range includes today and excludes records before its inclusive lower bound', () => {
+  const h = harness({ value: {} }, {});
+  const rows = [{ id: 'today', date: '2026-11-24T23:59:00' }, { id: 'first-day', date: '2026-11-18T00:00:00' }, { id: 'old', date: '2026-11-17T23:59:59' }];
+  const filtered = h.window.anasFilterReportRowsByRange(rows, { from: '2026-11-18', to: '2026-11-24' });
+  assert.deepEqual(filtered.map(row => row.id), ['today', 'first-day']);
+});
+
+test('store movement KPIs use the saved invoice and canonical caisseBalance field', () => {
+  const h = harness({ value: {} }, {});
+  const result = h.window.anasBuildStoreMovementMetrics({ caisseBalance: 206090, invoices: [{ id: 'INV-1', date: '2026-11-24', total: 1550, paid: 1550 }], expenses: [{ id: 'EXP-1', date: '2026-11-24', amount: 2000 }] }, { from: '2026-11-24', to: '2026-11-24' });
+  assert.equal(result.metrics[0][1], 1550); assert.equal(result.metrics[1][1], 1550); assert.equal(result.metrics[5][1], 206090);
+});
+
+test('report range hook restores invoices on an inclusive last-seven-days boundary', () => {
+  const h = harness({ value: {} }, {});
+  h.window.getReportRange = () => ({ from: '2026-11-18', to: '2026-11-24' });
+  h.window.reportItemInRange = () => false;
+  h.window.anasInstallReportAndLedgerHooks();
+  assert.equal(h.window.reportItemInRange({ id: 'INV-TODAY', date: '2026-11-24T11:30:00' }), true);
+});

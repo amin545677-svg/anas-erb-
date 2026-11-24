@@ -404,6 +404,79 @@
     return normalizeReportDateValue(fromId)?fromId:null;
   }
   g.anasNormalizeReportDateValue=normalizeReportDateValue;g.anasGetReportRecordDate=reportRecordDate;
+  function reportRowInRange(row,range){
+    const bounds=range&&typeof range==='object'?range:(typeof g.getReportRange==='function'?g.getReportRange():{});
+    const parsed=normalizeReportDateValue(reportRecordDate(row));
+    if(!parsed)return !bounds.from&&!bounds.to;
+    const day=parsed.getFullYear()+'-'+String(parsed.getMonth()+1).padStart(2,'0')+'-'+String(parsed.getDate()).padStart(2,'0');
+    return(!bounds.from||day>=String(bounds.from))&&(!bounds.to||day<=String(bounds.to));
+  }
+  function filterReportRowsInRange(rows,range){return(Array.isArray(rows)?rows:[]).filter(row=>reportRowInRange(row,range));}
+  function buildStoreMovementMetrics(data,range){
+    const state=data&&typeof data==='object'?data:{},arr=key=>Array.isArray(state[key])?state[key]:[];
+    const val=(row,keys)=>{for(const key of keys){const n=Number(row&&row[key]);if(Number.isFinite(n))return n;}return 0;};
+    const sales=filterReportRowsInRange(arr('invoices'),range).filter(row=>!(row.cancelled||row.isCancelled||row.reversed||/cancel|void/i.test(String(row.status||''))));
+    const purchases=filterReportRowsInRange(arr('purchases'),range),expenses=filterReportRowsInRange(arr('expenses'),range);
+    const returns=filterReportRowsInRange(arr('returns'),range).filter(row=>row&&row.status==='POSTED'&&row.originalInvoiceType==='sales_invoice');
+    const returned=returns.reduce((sum,row)=>sum+val(row,['total','returnTotal','refundAmount','amount']),0);
+    const cash=sales.reduce((sum,row)=>sum+val(row,['cashPaid','cash','paid','paidAmount']),0);
+    const credit=sales.reduce((sum,row)=>sum+Math.max(0,val(row,['debt','remaining','remainingAmount','due'])),0);
+    const expenseTotal=expenses.reduce((sum,row)=>sum+val(row,['amount','total','value']),0);
+    return{sales,purchases,expenses,metrics:[
+      ['صافي المبيعات',sales.reduce((sum,row)=>sum+val(row,['total','grandTotal','amount']),0)-returned],
+      ['النقد',cash],['الآجل',credit],
+      ['المشتريات',purchases.reduce((sum,row)=>sum+val(row,['total','grandTotal','amount']),0)],
+      ['المصروفات',expenseTotal],
+      ['رصيد الصندوق',Number(state.caisseBalance??state.cashBalance??state.cashboxBalance??state.cash??(cash-expenseTotal))||0]
+    ]};
+  }
+  g.anasFilterReportRowsByRange=filterReportRowsInRange;
+  g.anasBuildStoreMovementMetrics=buildStoreMovementMetrics;
+  function hookReportItemInRange(){
+    const current=g.reportItemInRange;
+    if(typeof current!=='function'||current.__anasInclusiveDateRange)return false;
+    const wrapped=function(row,range){if(current.apply(this,arguments))return true;return reportRowInRange(row,range);};
+    wrapped.__anasInclusiveDateRange=true;g.reportItemInRange=wrapped;return true;
+  }
+  function stableJson(value){
+    if(value===null||typeof value!=='object')return JSON.stringify(value);
+    if(Array.isArray(value))return'['+value.map(stableJson).join(',')+']';
+    return'{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+stableJson(value[key])).join(',')+'}';
+  }
+  function persistedAppData(){
+    const keys=g.ANASMutationQueue&&g.ANASMutationQueue.keys,storage=g.ANASResilientStorage;
+    if(!keys||!keys.appData||!storage||typeof storage.getItem!=='function')return null;
+    try{const raw=storage.getItem(keys.appData);return typeof raw==='string'?JSON.parse(raw):raw;}catch(_){return null;}
+  }
+  function normalizeCommittedInvoiceMetadata(){
+    const getData=typeof g.__ANAS_GET_APP_DATA__==='function'?g.__ANAS_GET_APP_DATA__:()=>g.AppData;
+    const current=getData(),persisted=persistedAppData();
+    if(!current||!Array.isArray(current.invoices)||!persisted||!Array.isArray(persisted.invoices))return false;
+    const persistedById=new Map(persisted.invoices.filter(row=>row&&row.id!=null).map(row=>[String(row.id),row]));
+    let changed=false;
+    for(const row of current.invoices){
+      if(!row||row.id==null)continue;
+      const committed=persistedById.get(String(row.id));if(!committed)continue;
+      const strip=row=>{const copy={...row};delete copy.syncOpId;delete copy.syncCreatedAt;return copy;};
+      if(stableJson(strip(row))!==stableJson(strip(committed)))continue;
+      for(const key of ['syncOpId','syncCreatedAt'])if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key)){row[key]=committed[key];changed=true;}
+    }
+    return changed;
+  }
+  function hookV42InvoiceMetadataSave(){
+    const original=g.saveDB;if(typeof original!=='function'||original.__anasInvoiceMetadataCompat)return false;
+    const wrapped=function(){normalizeCommittedInvoiceMetadata();return original.apply(this,arguments);};
+    wrapped.__anasInvoiceMetadataCompat=true;g.saveDB=wrapped;return true;
+  }
+  function watchV42RuntimeInstall(){
+    let api=g.ANASMutationSync;
+    const hook=()=>{if(api&&api.status==='installed')hookV42InvoiceMetadataSave();};
+    try{Object.defineProperty(g,'ANASMutationSync',{configurable:true,enumerable:true,get(){return api;},set(value){api=value;hook();}});hook();}
+    catch(_){hook();}
+    return true;
+  }
+  g.anasInstallReportAndLedgerHooks=()=>{hookReportItemInRange();hookV42InvoiceMetadataSave();return true;};
+  watchV42RuntimeInstall();
   if(typeof g.reportParseDate==='function'&&!g.reportParseDate.__anasR46){
     const parser=value=>{const d=normalizeReportDateValue(value);return d?new Date(d.getFullYear(),d.getMonth(),d.getDate()):null;};
     parser.__anasR46=true;g.reportParseDate=parser;
@@ -411,19 +484,9 @@
   function renderStoreMovementReport(chartMode){
     if(typeof g.applyReportDateRange==='function'&&!g.applyReportDateRange())return false;
     const data=g.AppData||{},range=typeof g.getReportRange==='function'?g.getReportRange():{from:'',to:''};
-    const arr=k=>Array.isArray(data[k])?data[k]:[];
-    const inside=row=>{const d=normalizeReportDateValue(reportRecordDate(row));if(!d)return !range.from&&!range.to;const day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return(!range.from||day>=range.from)&&(!range.to||day<=range.to);};
+    const summary=buildStoreMovementMetrics(data,range);
+    const {sales,purchases,expenses,metrics}=summary;
     const val=(r,keys)=>{for(const k of keys){const n=Number(r&&r[k]);if(Number.isFinite(n))return n;}return 0;};
-    const sales=arr('invoices').filter(r=>inside(r)&&!(r.cancelled||r.isCancelled||r.reversed||/cancel|void/i.test(String(r.status||''))));
-    const purchases=arr('purchases').filter(inside),expenses=arr('expenses').filter(inside);
-    const postedReturns=arr('returns').filter(r=>inside(r)&&r&&r.status==='POSTED'&&r.originalInvoiceType==='sales_invoice');
-    const returnedTotal=postedReturns.reduce((s,r)=>s+val(r,['total','returnTotal','refundAmount','amount']),0);
-    const cash=sales.reduce((s,r)=>s+val(r,['cashPaid','cash','paid','paidAmount']),0);
-    const credit=sales.reduce((s,r)=>s+Math.max(0,val(r,['debt','remaining','remainingAmount','due'])),0);
-    const metrics=[['صافي المبيعات',sales.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)-returnedTotal],['النقد',cash],['الآجل',credit],
-      ['المشتريات',purchases.reduce((s,r)=>s+val(r,['total','grandTotal','amount']),0)],
-      ['المصروفات',expenses.reduce((s,r)=>s+val(r,['amount','total','value']),0)],
-      ['رصيد الصندوق',Number(data.cashBalance??data.cashboxBalance??data.cash??(cash-expenses.reduce((s,r)=>s+val(r,['amount','total','value']),0)))||0]];
     const fmt=n=>(Number(n)||0).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج';
     const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const title=g.document.getElementById('customReportTitle'),content=g.document.getElementById('customReportContent'),modal=g.document.getElementById('customReportModal');
@@ -520,7 +583,7 @@
     g.openView=wrapped;
     return true;
   }
-  function installNavigationHooks(){hookOpenView();hookShowReportDetails();}
+  function installNavigationHooks(){hookOpenView();hookShowReportDetails();hookReportItemInRange();}
   if(g.document.readyState==='loading'){
     g.document.addEventListener('DOMContentLoaded',function(){installNavigationHooks();scheduleDomRepairs();},{once:true});
   }else{installNavigationHooks();scheduleDomRepairs();}
