@@ -73,7 +73,74 @@ function expectedClosingCash(openingCash, cashMovements, bankMovements = []) {
  if(total<0n||total>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('رصيد الإقفال النقدي خارج المجال الآمن');
  return Number(total);
 }
+function buildDailyCashClosing(cashMovements,day,actualClosingCash){
+ if(!Array.isArray(cashMovements))throw new TypeError('سجل الحركات النقدية غير صالح');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(day||'')))throw new TypeError('تاريخ الإغلاق اليومي غير صالح');
+ const storedCents=value=>{
+  if(typeof value==='bigint')return value>=0n&&value<=BigInt(Number.MAX_SAFE_INTEGER)?Number(value):null;
+  if(typeof value==='number')return Number.isSafeInteger(value)&&value>=0?value:null;
+  if(typeof value!=='string'||!/^\d+$/.test(value.trim()))return null;
+  try{const n=BigInt(value.trim());return n<=BigInt(Number.MAX_SAFE_INTEGER)?Number(n):null;}catch(_){return null;}
+ };
+ const seen=new Set(),rows=[];
+ for(let index=0;index<cashMovements.length;index++){
+  const row=cashMovements[index];
+  if(!row||typeof row!=='object'||Array.isArray(row))throw new TypeError('سجل حركة نقدية غير صالح');
+  if(row.cashImpact===false||(row.paymentChannel&&row.paymentChannel!=='cash'))continue;
+  const id=String(row.id??row.movementId??'');
+  if(!id||seen.has(id))throw new Error('معرّف حركة نقدية مفقود أو مكرر');
+  seen.add(id);
+  const date=String(row.date||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('تاريخ حركة نقدية غير صالح');
+  if(date<=day)rows.push({row,date,id,index});
+ }
+ rows.sort((a,b)=>Date.parse(a.row.date)-Date.parse(b.row.date)||a.index-b.index);
+ const todayRows=rows.filter(x=>x.date===day);let opening=null,closing=null,incoming=0n,outgoing=0n,previous=null;
+ if(todayRows.length){
+  for(const entry of todayRows){
+   const before=storedCents(entry.row.balanceBeforeCentimes),after=storedCents(entry.row.balanceAfterCentimes),amount=parseCashCentimes(entry.row.amount);
+   if(before===null||after===null||amount===null||amount<=0||!['add','subtract'].includes(entry.row.type))throw new Error('حركة اليوم تفتقد رصيداً موثقاً أو مبلغاً صالحاً');
+   const beforeBig=BigInt(before),amountBig=BigInt(amount);
+   if(previous!==null&&beforeBig!==previous)throw new Error('تسلسل أرصدة حركات اليوم غير متطابق');
+   if(opening===null)opening=before;
+   const expected=beforeBig+(entry.row.type==='add'?amountBig:-amountBig);
+   if(expected<0n||expected>BigInt(Number.MAX_SAFE_INTEGER)||BigInt(after)!==expected)throw new Error('رصيد ما بعد الحركة لا يطابق أثرها بالسنتيم');
+   if(entry.row.type==='add')incoming+=amountBig;else outgoing+=amountBig;
+   previous=expected;closing=after;
+  }
+  const prior=rows.filter(x=>x.date<day).at(-1),priorBalance=prior?storedCents(prior.row.balanceAfterCentimes):null;
+  if(priorBalance!==null&&priorBalance!==opening)throw new Error('رصيد افتتاح اليوم لا يطابق إغلاق اليوم السابق');
+ }else{
+  const prior=rows.filter(x=>x.date<day).at(-1),priorBalance=prior?storedCents(prior.row.balanceAfterCentimes):null;
+  if(priorBalance!==null)opening=closing=priorBalance;
+  else if(actualClosingCash!=null&&rows.length===0)opening=closing=parseCashCentimes(actualClosingCash);
+  else throw new Error('لا يوجد رصيد افتتاحي/ختامي موثق لهذا اليوم');
+ }
+ const expected=BigInt(opening)+incoming-outgoing;
+ if(expected<0n||expected>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('رصيد الإغلاق خارج المجال الآمن');
+ const expectedClosingCentimes=Number(expected),actual=actualClosingCash==null?closing:parseCashCentimes(actualClosingCash);
+ return{day,openingBalanceCentimes:opening,incomingCentimes:Number(incoming),outgoingCentimes:Number(outgoing),expectedClosingCentimes,
+  actualClosingCentimes:actual,varianceCentimes:actual===null?null:actual-expectedClosingCentimes,matches:actual!==null&&actual===expectedClosingCentimes,movementCount:todayRows.length};
+}
+const originalSubmitCashOperation=root.submitCashOperation;
+if(typeof originalSubmitCashOperation==='function'){
+ const storageKey='ANAS_CASH_OPERATION_REQUEST_V1',clear=()=>{try{root.localStorage?.removeItem(storageKey);}catch(_){}};
+ ['cashAmountInput','cashDescInput','optAddCash','optSubtractCash'].forEach(id=>{const el=root.document&&root.document.getElementById(id);if(el)el.addEventListener(id.startsWith('opt')?'click':'input',clear);});
+ root.submitCashOperation=async function(){
+  const amount=root.document?.getElementById('cashAmountInput'),desc=root.document?.getElementById('cashDescInput'),add=root.document?.getElementById('optAddCash')?.classList?.contains('active');
+  const cents=parseCashCentimes(String(amount?.value??'').trim().replace(',','.'));if(cents===null||cents<=0)return originalSubmitCashOperation.apply(this,arguments);
+  const fingerprint=JSON.stringify([add?'add':'subtract',cents,String(desc?.value||'').trim()||'حركة نقدية',String(root.AppData?.currentUser?.id??'')]);
+  try{
+   const saved=JSON.parse(root.localStorage?.getItem(storageKey)||'null');
+   const request=saved&&saved.fingerprint===fingerprint&&saved.key?saved:{fingerprint,key:'CASH-REQ-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)};
+   if(!root.localStorage)throw new Error('localStorage unavailable');
+   root.localStorage.setItem(storageKey,JSON.stringify(request));root.__ANAS_CASH_OPERATION_IDEMPOTENCY_KEY__=request.key;
+  }catch(_){root.alert?.('تعذر تأمين مفتاح منع تكرار حركة الصندوق؛ لم يتم إرسال العملية.');return false;}
+  try{return await originalSubmitCashOperation.apply(this,arguments);}finally{delete root.__ANAS_CASH_OPERATION_IDEMPOTENCY_KEY__;}
+ };
+}
 root.expectedClosingCash=expectedClosingCash;
+root.anasBuildCashDailyClosing=buildDailyCashClosing;
 root.anasBuildCashLedger=buildCashLedger;
-if(typeof module!=='undefined'&&module.exports)module.exports={buildCashLedger,expectedClosingCash};
+if(typeof module!=='undefined'&&module.exports)module.exports={buildCashLedger,expectedClosingCash,buildDailyCashClosing};
 })(typeof window!=='undefined'?window:globalThis);

@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const { buildCashLedger } = require('../cashbox-readonly-ledger.js');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -74,6 +75,60 @@ test('expected closing cash includes cash only and excludes non-cash collection 
     { id:'BANK-2', type:'add', amount:'20.00', paymentChannel:'card', cashImpact:false }
   ];
   assert.equal(expectedClosingCash('100.00', cashMovements, bankMovements), 11050);
+});
+
+
+test('daily cash closing reconciles the exact centime balance chain and cash-only movements',()=>{
+ const {buildDailyCashClosing}=require('../cashbox-readonly-ledger.js'),day='2026-11-24';
+ const rows=[
+  {id:'DAY-IN',type:'add',amount:'12.50',date:day+'T09:00:00.000Z',balanceBeforeCentimes:10000,balanceAfterCentimes:11250},
+  {id:'DAY-OUT',type:'subtract',amount:'2.00',date:day+'T10:00:00.000Z',balanceBeforeCentimes:11250,balanceAfterCentimes:11050},
+  {id:'BANK-IN',type:'add',amount:'90.00',date:day+'T11:00:00.000Z',paymentChannel:'transfer',cashImpact:false}
+ ];
+ const result=buildDailyCashClosing(rows,day,'110.50');
+ assert.equal(result.openingBalanceCentimes,10000);assert.equal(result.incomingCentimes,1250);assert.equal(result.outgoingCentimes,200);
+ assert.equal(result.expectedClosingCentimes,11050);assert.equal(result.actualClosingCentimes,11050);assert.equal(result.varianceCentimes,0);
+ assert.equal(result.matches,true);assert.equal(result.movementCount,2);
+ const mismatch=buildDailyCashClosing(rows,day,'110.49');assert.equal(mismatch.matches,false);assert.equal(mismatch.varianceCentimes,-1);
+ assert.throws(()=>buildDailyCashClosing([...rows,{...rows[0]}],day,'110.50'),/مكرر/);
+ const broken=rows.map(x=>({...x}));broken[1].balanceBeforeCentimes=11249;
+ assert.throws(()=>buildDailyCashClosing(broken,day,'110.50'),/تسلسل/);
+});
+test('cash operation retry reuses one idempotency key and daily Z close reconciles',async()=>{
+ const fields={
+  cashAmountInput:{value:'12.50',listeners:{},addEventListener(n,fn){this.listeners[n]=fn;},focus(){}},
+  cashDescInput:{value:'تحصيل اختبار',listeners:{},addEventListener(n,fn){this.listeners[n]=fn;}},
+  optAddCash:{classList:{contains:()=>true},addEventListener(){}},
+  optSubtractCash:{classList:{contains:()=>false},addEventListener(){}}
+ };
+ const store=new Map(),localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)};
+ const ctx={AppData:{caisseBalance:100,cashMovements:[],auditTrail:[],currentUser:{id:'U1',name:'Tester'}},
+  document:{getElementById:id=>fields[id]||null},localStorage,alert(){},updateCashUI(){},
+  anasToCents:v=>Math.round(Number(v)*100),anasCentsToCurrency:v=>v/100,saveDB:()=>true,saveDBDurably:async()=>true,
+  anasAppendAuditTrailEvent:event=>ctx.AppData.auditTrail.push(event),console:{error(){}}};
+ ctx.window=ctx;
+ const start=html.indexOf('async function submitCashOperation()'),end=html.indexOf('async function submitExpenseOperation()',start);
+ assert.ok(start>=0&&end>start);
+ vm.runInNewContext(html.slice(start,end)+'\nthis.submitCashOperation=submitCashOperation;',ctx);
+ vm.runInNewContext(source,ctx);
+ await ctx.submitCashOperation();
+ const firstKey=ctx.AppData.cashMovements[0].idempotencyKey;
+ await ctx.submitCashOperation();
+ assert.equal(ctx.AppData.cashMovements.length,1);
+ assert.equal(ctx.AppData.cashMovements[0].idempotencyKey,firstKey);
+ fields.cashAmountInput.listeners.input();fields.cashAmountInput.value='13.00';
+ await ctx.submitCashOperation();
+ assert.equal(ctx.AppData.cashMovements.length,2);
+ assert.notEqual(ctx.AppData.cashMovements[1].idempotencyKey,firstKey);
+ const day=new Date().toISOString().slice(0,10);
+ assert.equal(ctx.anasBuildCashDailyClosing(ctx.AppData.cashMovements,day,ctx.AppData.caisseBalance).matches,true);
+});
+test('Z-report consumes daily cash reconciliation and persists the idempotency key',()=>{
+ assert.match(html,/anasBuildCashDailyClosing\(AppData\.cashMovements/);assert.match(html,/مطابقة حركات الصندوق ليوم/);
+ assert.match(html,/idempotencyKey: cashIdempotencyKey/);assert.match(html,/balanceBeforeCentimes: previousBalanceCents/);
+ assert.match(html,/balanceAfterCentimes: nextBalanceCents/);
+ assert.match(html,/existingCashOperation = \(Array\.isArray\(AppData\.cashMovements\) \? AppData\.cashMovements : \[\]\)\.find/);
+ assert.match(source,/ANAS_CASH_OPERATION_REQUEST_V1/);assert.match(source,/__ANAS_CASH_OPERATION_IDEMPOTENCY_KEY__/);
 });
 
 test('cash ledger excludes legacy cheque and transfer entries even if they remain in cashMovements', () => {

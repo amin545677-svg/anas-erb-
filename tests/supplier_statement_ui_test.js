@@ -83,6 +83,26 @@ function harness({ suppliers, supplierMovements }) {
 assert.match(fs.readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8'), /card\.setAttribute\('data-supplier-id', String\(s\.id \?\? ''\)\)/);
 assert.match(source, /forEach\(card=>\{const supplierId=card&&typeof card\.getAttribute==='function'\?card\.getAttribute\('data-supplier-id'\)/);
 assert.doesNotMatch(source, /forEach\(\(card,index\)=>\{const supplier=AppData\.suppliers\[index\]/);
+
+{
+ const rows=[
+  {id:'OPEN',supplierId:'S2',type:'opening_balance',amount:'10.01'},
+  {id:'PUR-A',supplierId:'S2',type:'purchase',amount:'20.10',referenceId:'INV-A'},
+  {id:'PUR-B',supplierId:'S2',type:'purchase',amount:'9.90',referenceId:'INV-B'},
+  {id:'PAY-A',supplierId:'S2',type:'payment',amount:'5.05',referenceId:'INV-A'},
+  {id:'PAY-B',supplierId:'S2',type:'payment',amount:'10.00',referenceId:'INV-B'},
+  {id:'RET-A',supplierId:'S2',type:'return_credit',amount:'2.50',referenceId:'RET-A'}
+ ];
+ const result=buildSupplierStatement('S2',[{id:'S2',name:'مورد دورة كاملة',balance:'22.46'}],rows);
+ assert.equal(result.totals.opening_balance,1001);assert.equal(result.totals.purchase,3000);
+ assert.equal(result.totals.payment,1505);assert.equal(result.totals.return_credit,250);
+ assert.equal(result.expectedBalanceCentimes,2246);assert.equal(result.varianceCentimes,0);assert.equal(result.valid.reconciliation,true);
+ const mismatch=buildSupplierStatement('S2',[{id:'S2',name:'مورد',balance:'22.45'}],rows);
+ assert.equal(mismatch.valid.reconciliation,false);assert.equal(mismatch.varianceCentimes,-1);
+ const duplicate=buildSupplierStatement('S2',[{id:'S2',name:'مورد',balance:'22.46'}],[...rows,{...rows[0]}]);
+ assert.equal(duplicate.valid.ledger,false);assert.equal(duplicate.valid.reconciliation,false);
+}
+
 console.log('Supplier statement UI tests passed');
 
 {

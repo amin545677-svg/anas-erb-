@@ -7085,6 +7085,17 @@ function renderPurchasesTable() {
             const hadAuditTrail = Object.prototype.hasOwnProperty.call(AppData, 'auditTrail');
             const previousAuditTrail = hadAuditTrail ? (Array.isArray(AppData.auditTrail) ? AppData.auditTrail.slice() : AppData.auditTrail) : null;
             const cashMovementId = 'CASH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+            const cashIdempotencyKey = String(globalThis.__ANAS_CASH_OPERATION_IDEMPOTENCY_KEY__ || cashMovementId);
+            const existingCashOperation = (Array.isArray(AppData.cashMovements) ? AppData.cashMovements : []).find(m => m && String(m.idempotencyKey || '') === cashIdempotencyKey);
+            if (existingCashOperation) {
+                const sameOperation = existingCashOperation.type === (isAdd ? 'add' : 'subtract') &&
+                    anasToCents(existingCashOperation.amount) === amountCents &&
+                    String(existingCashOperation.description || '') === desc &&
+                    String(existingCashOperation.userId ?? '') === String(AppData.currentUser && AppData.currentUser.id != null ? AppData.currentUser.id : '');
+                if (!sameOperation) { alert('مفتاح حركة الصندوق مستخدم لعملية مختلفة؛ أُوقف التكرار لحماية الحسابات.'); return false; }
+                alert('تم اعتماد حركة الصندوق سابقاً؛ لم يُكرر القيد.');
+                return true;
+            }
             const cashLocks = globalThis.__ANAS_CASH_OPERATION_LOCKS__ ||
                 (globalThis.__ANAS_CASH_OPERATION_LOCKS__ = new Set());
             const cashLockKey = 'cashbox';
@@ -7099,6 +7110,9 @@ function renderPurchasesTable() {
                 if (!hadMovements) AppData.cashMovements = [];
                 AppData.cashMovements.push({
                     id: cashMovementId,
+                    idempotencyKey: cashIdempotencyKey,
+                    balanceBeforeCentimes: previousBalanceCents,
+                    balanceAfterCentimes: nextBalanceCents,
                     referenceType: 'cash_operation', referenceId: cashMovementId,
                     type: isAdd ? 'add' : 'subtract',
                     amount: amt,
@@ -7110,6 +7124,7 @@ function renderPurchasesTable() {
                 if (typeof anasAppendAuditTrailEvent !== 'function') throw new Error('سجل التدقيق غير متاح؛ أُوقفت العملية دون حفظ غير مكتمل.');
                 anasAppendAuditTrailEvent({
                     id: 'AUD-CASH-' + String(cashMovementId),
+                    idempotencyKey: cashIdempotencyKey,
                     eventType: 'CASH_MOVEMENT_COMMITTED',
                     entityType: 'cash_movement',
                     entityId: String(cashMovementId),
@@ -13702,6 +13717,22 @@ function anasGetAiHubKpiMetrics(tabKey) {
             const totSales = anasGetZReportTotal(reportInvoices, 'total');
             const totPaid = anasGetZReportTotal(reportInvoices, 'paid');
             const totRem = anasGetZReportTotal(reportInvoices, 'remaining');
+            const reportRange = getReportRange();
+            const cashClosingDay = String(reportRange.to || new Date().toISOString().slice(0, 10));
+            let cashDailyClosing = null;
+            try {
+                cashDailyClosing = typeof window.anasBuildCashDailyClosing === 'function'
+                    ? window.anasBuildCashDailyClosing(AppData.cashMovements || [], cashClosingDay,
+                        cashClosingDay === new Date().toISOString().slice(0, 10) ? AppData.caisseBalance : null)
+                    : null;
+            } catch (cashClosingError) {
+                cashDailyClosing = { error: String(cashClosingError && cashClosingError.message || cashClosingError) };
+            }
+            const cashClosingLabel = cashDailyClosing && cashDailyClosing.matches
+                ? 'مطابق بالسنتيم'
+                : cashDailyClosing && cashDailyClosing.error
+                    ? 'تعذر التحقق: ' + cashDailyClosing.error
+                    : 'غير مطابق؛ فرق السنتيم: ' + (cashDailyClosing ? String(cashDailyClosing.varianceCentimes) : 'غير متاح');
             const area = document.getElementById('receiptPrintArea');
             area.innerHTML = `
                 <div style="text-align:center; border-bottom:2px dashed #000; padding-bottom:8px; margin-bottom:8px; line-height:1.5; overflow-wrap:anywhere;">
@@ -13717,6 +13748,9 @@ function anasGetAiHubKpiMetrics(tabKey) {
                     <hr style="border-top:1px dashed #000; margin:4px 0;">
                     <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px;">
                         <span>رصيد الصندوق الفعلي:</span><span>${anasFormatZReportCashBalance(AppData.caisseBalance)} د.ج</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;">
+                        <span>مطابقة حركات الصندوق ليوم ${anasEscapeHTML(cashClosingDay)}:</span><strong>${anasEscapeHTML(cashClosingLabel)}</strong>
                     </div>
                 </div>
             `;

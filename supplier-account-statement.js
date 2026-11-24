@@ -19,16 +19,22 @@ function buildSupplierStatement(supplierId,suppliers,movements){
   if(!Number.isFinite(x)&&!Number.isFinite(y))return String(a.id||'').localeCompare(String(b.id||''));
   if(!Number.isFinite(x))return 1;if(!Number.isFinite(y))return -1;return x-y;
  });
- const totals={opening_balance:0,purchase:0,payment:0},valid={opening_balance:true,purchase:true,payment:true};
- const balanceCentimes=parseCurrencyCentimes(matches[0].balance??0);
- valid.balance=balanceCentimes!==null;
+ const totals={opening_balance:0,purchase:0,payment:0,return_credit:0},valid={opening_balance:true,purchase:true,payment:true,return_credit:true};
+ const balanceCentimes=parseCurrencyCentimes(matches[0].balance??0);valid.balance=balanceCentimes!==null;
+ const movementIds=new Set();
  for(const row of rows){
-  if(!Object.prototype.hasOwnProperty.call(totals,row.type))continue;
+  const id=String(row.id??row.movementId??'');
+  if(!id||movementIds.has(id)){valid.ledger=false;continue;}
+  movementIds.add(id);
+  if(!Object.prototype.hasOwnProperty.call(totals,row.type)){valid.ledger=false;continue;}
   const cents=parseCurrencyCentimes(row.amount);
-  if(cents===null||!Number.isSafeInteger(totals[row.type]+cents))valid[row.type]=false;
-  else totals[row.type]+=cents;
+  if(cents===null||!Number.isSafeInteger(totals[row.type]+cents))valid[row.type]=false;else totals[row.type]+=cents;
  }
- return {supplier:matches[0],rows,totals,valid,balanceCentimes};
+ if(valid.ledger===undefined)valid.ledger=true;
+ const expectedBalanceCentimes=totals.opening_balance+totals.purchase-totals.payment-totals.return_credit;
+ valid.reconciliation=valid.ledger&&Object.keys(totals).every(type=>valid[type])&&valid.balance&&Number.isSafeInteger(expectedBalanceCentimes)&&expectedBalanceCentimes>=0&&expectedBalanceCentimes===balanceCentimes;
+ const varianceCentimes=valid.balance&&Number.isSafeInteger(expectedBalanceCentimes)?balanceCentimes-expectedBalanceCentimes:null;
+ return {supplier:matches[0],rows,totals,valid,balanceCentimes,expectedBalanceCentimes,varianceCentimes};
 }
 
 function showSupplierStatement(supplierId){
@@ -39,7 +45,7 @@ function showSupplierStatement(supplierId){
  const title=document.createElement('h2');title.textContent='كشف حساب المورد: '+String(result.supplier.name||'مورد بلا اسم');
  const close=document.createElement('button');close.type='button';close.textContent='إغلاق';close.onclick=()=>overlay.remove();panel.append(title,close);
  const money=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2})+' د.ج':'غير صالح';
- const summary=document.createElement('p');summary.textContent='الرصيد الحالي: '+money(result.balanceCentimes)+' | الرصيد الافتتاحي: '+money(result.totals.opening_balance)+' | المشتريات: '+money(result.totals.purchase)+' | التسديدات: '+money(result.totals.payment);panel.appendChild(summary);
+ const summary=document.createElement('p');summary.textContent='الرصيد الحالي: '+money(result.balanceCentimes)+' | الرصيد المحسوب: '+money(result.expectedBalanceCentimes)+' | الافتتاحي: '+money(result.totals.opening_balance)+' | المشتريات: '+money(result.totals.purchase)+' | التسديدات: '+money(result.totals.payment)+' | مرتجعات الشراء: '+money(result.totals.return_credit)+' | فرق المطابقة: '+money(result.varianceCentimes);summary.setAttribute('data-supplier-reconciliation',result.valid.reconciliation?'matched':'mismatch');panel.appendChild(summary);
  const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;margin-top:12px;';
  const headings=['التاريخ','نوع الحركة','المرجع','المبلغ','ملاحظات'];const trh=document.createElement('tr');headings.forEach(v=>{const th=document.createElement('th');th.textContent=v;trh.appendChild(th);});table.appendChild(trh);
  result.rows.forEach(m=>{const tr=document.createElement('tr');[m.date||'—',m.type||'غير مصنف',m.referenceId||'—',money(parseCurrencyCentimes(m.amount)),m.note||'—'].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);td.style.cssText='padding:8px;border-top:1px solid #e2e8f0;';tr.appendChild(td);});table.appendChild(tr);});
