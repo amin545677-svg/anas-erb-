@@ -579,6 +579,7 @@ jobs:
             confirm:()=>true, alert:m=>alerts.push(String(m)),
             saveDB:()=>{throw new Error('simulated storage exception');},
             anasValidateBackupData:data=>data,
+            anasBackupInventorySignature:()=> 'stable-inventory-signature',
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
