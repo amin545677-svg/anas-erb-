@@ -9627,9 +9627,10 @@ function anasCalculateNetProfitCents({invoices=[],returns=[],fleetState=null,exp
         if(amount===null||amount<0n){invalidRows++;continue;}
         truckExpenseCents+=amount;truckExpenseCount++;
     }
-    const netProfitCents=salesCents-returnCents-(cogsCents-restoredCostCents)-truckExpenseCents;
+    const confirmedSalesCents=salesCents-incompleteCostRevenueCents;
+    const netProfitCents=confirmedSalesCents-returnCents-(cogsCents-restoredCostCents)-truckExpenseCents;
     return{approvedInvoices,excludedInvoiceCount:(Array.isArray(invoices)?invoices.length:0)-approvedInvoices.length,
-        salesCents,returnsCents:returnCents,cogsCents,restoredCostCents,truckExpenseCents,truckExpenseCount,
+        salesCents,confirmedSalesCents,returnsCents:returnCents,cogsCents,restoredCostCents,truckExpenseCents,truckExpenseCount,
         netProfitCents,incompleteCostLines,incompleteCostRevenueCents,invalidRows,postedReturns};
 }
 
@@ -9872,7 +9873,7 @@ function anasCalculateNetProfitCents({invoices=[],returns=[],fleetState=null,exp
               <div class="profit-section" data-profit-panel="customer" hidden><h4>👥 تقارير الأرباح حسب العميل</h4>${renderRows(byCustomer,'لا توجد فواتير عملاء ضمن الفترة المحددة.','customer')}</div>
               <div class="profit-section" data-profit-panel="product" hidden><h4>🏷️ تقارير الأرباح حسب المنتج</h4>${renderRows(byProduct,'لا توجد منتجات مباعة ضمن الفترة المحددة.')}</div>
               <div class="profit-section" data-profit-panel="user" hidden><h4>👤 تقارير المبيعات والأرباح حسب المستخدم</h4>${renderRows(byUser,'لا توجد فواتير مرتبطة بالمستخدمين ضمن الفترة المحددة.','user')}<p class="profit-note">الفواتير القديمة التي لا تحتوي على بيانات المستخدم ستظهر باسم «غير محدد». تُسجَّل هوية المستخدم تلقائيًا في الفواتير الجديدة.</p></div>
-              <p class="profit-note" role="status">المعادلة المعتمدة: المبيعات المعتمدة − المرتجعات المرحّلة − تكلفة البضاعة المباعة + تكلفة المخزون المسترجع − مصاريف الشاحنات والتوزيع (${moneyFmtCents(profitSummary.truckExpenseCents)}). لا تُحتسب المصروفات العامة غير المرتبطة بالنقل والتوزيع ولا العهد غير المسوّاة.</p>
+              <p class="profit-note" role="status">المعادلة المعتمدة: المبيعات المعتمدة مكتملة التكلفة − المرتجعات المرحّلة − تكلفة البضاعة المباعة + تكلفة المخزون المسترجع − مصاريف الشاحنات والتوزيع (${moneyFmtCents(profitSummary.truckExpenseCents)}). لا تُحتسب المصروفات العامة غير المرتبطة بالنقل والتوزيع ولا العهد غير المسوّاة.</p>
               <p class="profit-note" role="status">تنبيه محاسبي: الربح المعروض يقتصر على البنود التي تتوفر لها تكلفة تاريخية محفوظة في سطر الفاتورة؛ لا يُستخدم سعر الشراء الحالي للمنتج بديلاً عن التكلفة التاريخية. لم تُسجّل البنود الناقصة التكلفة كتكلفة صفر؛ عددها ${incompleteCostLines} وقيمة مبيعاتها ${moneyFmt(incompleteCostRevenue)}، وهي مستبعدة من الربح المؤكد حتى استكمال التكلفة.</p>
               <button type="button" class="btn-full-submit" style="margin:10px 0;background:#1d4ed8" onclick="showProfitsReportModal()">↻ تحديث التقرير</button>`;
             document.getElementById('profitsModal').classList.add('active');

@@ -1447,3 +1447,49 @@ test('POS invoice cancellation rolls back audit and all ledgers on failed durabl
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('confirmed net profit excludes sales lines without historical cost and remains centime-exact', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const start = html.indexOf('function anasProfitMoneyToCents(');
+  const end = html.indexOf('function showProfitsReportModal()', start);
+  assert.ok(start >= 0 && end > start, 'profit calculation source must be available');
+  const calculate = new Function(html.slice(start, end) + '; return anasCalculateNetProfitCents;')();
+  const result = calculate({
+    invoices: [
+      { id:'KNOWN-AND-UNKNOWN', status:'POSTED', date:'2026-11-24', total:'100.00', items:[
+        { qty:'1', price:'50.00', total:'50.00', buyPrice:'20.00' },
+        { qty:'1', price:'50.00', total:'50.00' }
+      ] },
+      { id:'CANCELLED', status:'CANCELLED', date:'2026-11-24', total:'999.99', items:[] }
+    ],
+    returns:[{ returnId:'RET-1', status:'POSTED', returnType:'SALE_RETURN', originalInvoiceType:'sales_invoice', date:'2026-11-24', totalCentimes:1000, items:[{ restoredInventoryCostCentimes:400 }] }],
+    fleetState:{ trips:[{ openedAt:'2026-11-24', expenses:[{ createdAt:'2026-11-24', amountMinor:{ __anasFleetBigInt:'300' } }] }] },
+    expenses:[{ account:'نقل وتوزيع', amt:'2.00', date:'2026-11-24', settlementStatus:'settled' },{ account:'نقل', amt:'9.00', date:'2026-11-24', paymentMethod:'driver_advance', settlementStatus:'pending' }],
+    inRange:()=>true
+  });
+  assert.equal(result.approvedInvoices.length, 1); assert.equal(result.excludedInvoiceCount, 1);
+  assert.equal(result.salesCents, 10000n); assert.equal(result.confirmedSalesCents, 5000n);
+  assert.equal(result.incompleteCostRevenueCents, 5000n); assert.equal(result.returnsCents, 1000n);
+  assert.equal(result.cogsCents, 2000n); assert.equal(result.restoredCostCents, 400n);
+  assert.equal(result.truckExpenseCents, 500n); assert.equal(result.netProfitCents, 1900n);
+});
+
+test('ESC/POS invoice, payment and statement receipts reconcile exact balances, render Latin digits and support both paper widths', () => {
+  const engineSource = fs.readFileSync(path.join(ROOT, 'printing/arabic-escpos-engine.js'), 'utf8');
+  const windowObject = { localStorage:{ getItem:()=>null, setItem:()=>{} }, navigator:{} };
+  const moduleObject = { exports:{} }; new Function('window', 'module', engineSource)(windowObject, moduleObject);
+  const thermal = moduleObject.exports;
+  const invoice = thermal.buildInvoiceReceipt({ businessName:'ANAS ERP', invoiceNumber:'INV-١٢٣', date:'2026-۱۱-۲۴', oldDebtMinor:10000n, invoiceTotalMinor:25000n, paidMinor:15000n, items:[] });
+  const payment = thermal.buildPaymentReceipt({ businessName:'ANAS ERP', receiptNumber:'RC-٤٥٦', date:'2026-۱۱-۲۴', debtBeforeMinor:20000n, amountMinor:5000n });
+  const statement = thermal.buildCustomerStatementReceipt({ businessName:'ANAS ERP', customerName:'عميل اختبار', openingBalanceMinor:10000n, invoiceTotalMinor:25000n, paidMinor:15000n, returnCreditMinor:0n, adjustmentDebitMinor:0n, adjustmentCreditMinor:0n, closingBalanceMinor:20000n, rows:[] });
+  assert.ok(invoice.totals.some(row=>row[1]==='100.00 + 250.00 - 150.00 = 200.00'));
+  assert.ok(payment.totals.some(row=>row[1]==='200.00 - 50.00 = 150.00'));
+  assert.ok(statement.totals.some(row=>row[1]==='100.00 + 250.00 + 0.00 - 150.00 - 0.00 - 0.00 = 200.00'));
+  assert.throws(()=>thermal.buildCustomerStatementReceipt({ openingBalanceMinor:10000n, invoiceTotalMinor:25000n, paidMinor:15000n, closingBalanceMinor:19999n }), /STATEMENT_BALANCE_MISMATCH/);
+  const rendered=[]; const canvasFactory=()=>({width:0,height:0,getContext:()=>({measureText:()=>({width:1}),fillRect(){},scale(){},fillText(value){rendered.push(String(value));},drawImage(){}})});
+  for(const [paper,width] of [['58mm',384],['80mm',576]]) for(const document of [invoice,payment,statement]) assert.equal(thermal.renderReceiptCanvas(document,{paper,canvasFactory}).width,width,paper+' output width');
+  assert.ok(rendered.some(line=>line.includes('INV-123'))); assert.ok(rendered.some(line=>line.includes('2026-11-24')));
+  assert.ok(rendered.some(line=>line.includes('100.00 + 250.00 - 150.00 = 200.00')));
+  assert.ok(rendered.some(line=>line.includes('200.00 - 50.00 = 150.00')));
+  assert.ok(rendered.some(line=>line.includes('100.00 + 250.00 + 0.00 - 150.00 - 0.00 - 0.00 = 200.00')));
+});
