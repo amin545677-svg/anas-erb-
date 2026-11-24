@@ -469,6 +469,16 @@ jobs:
           inventory_helpers_end = s.find("\n        function anasBuildBackupExportPayload()", inventory_helpers_start)
           assert inventory_helpers_start >= 0 and inventory_helpers_end > inventory_helpers_start, "Could not isolate backup inventory normalization helpers"
           inventory_helpers = s[inventory_helpers_start:inventory_helpers_end]
+          required_inventory_helpers = (
+              "function anasBackupWarehouseDefinitions(data)",
+              "function anasBackupWarehouseStockEntries(product)",
+              "function anasBackupQuantityUnits(value, label)",
+              "function anasBackupInventorySignature(data)",
+              "function anasNormalizeBackupInventory(incoming)",
+          )
+          missing_inventory_helpers = [name for name in required_inventory_helpers if name not in inventory_helpers]
+          assert not missing_inventory_helpers, "Backup inventory helper tree is incomplete: " + ", ".join(missing_inventory_helpers)
+          assert "function anasToQtyUnits" in quantity_helpers and "function anasQtyFromUnits" in quantity_helpers, "Backup quantity helper tree is incomplete"
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
@@ -477,6 +487,13 @@ jobs:
           purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          barcode_helper_start = s.find("function anasNormalizeBarcode(value)")
+          barcode_helper_end = s.find(chr(10) + "        function ", barcode_helper_start + 10)
+          assert barcode_helper_start >= 0 and barcode_helper_end > barcode_helper_start, "Could not isolate barcode normalization helper"
+          barcode_helper = s[barcode_helper_start:barcode_helper_end]
+          purchase_helpers += chr(10) + barcode_helper
+          assert "function anasNormalizeBarcode(value)" in purchase_helpers, "Purchase ledger parity barcode helper is missing"
+          assert "function anasPurchaseToCents(value)" in purchase_helpers and "function anasPurchaseToQtyUnits(value)" in purchase_helpers and "function anasPurchaseLineTotalCents" in purchase_helpers and "function anasPurchaseCentsToCurrency(cents)" in purchase_helpers and "function anasPurchaseQtyFromUnits(units)" in purchase_helpers, "Purchase centime helper tree is incomplete"
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
           purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
@@ -616,7 +633,17 @@ jobs:
           inventory_helpers_end = s.find("\n        function anasBuildBackupExportPayload()", inventory_helpers_start)
           assert inventory_helpers_start >= 0 and inventory_helpers_end > inventory_helpers_start, "Could not isolate backup inventory normalization helpers"
           inventory_helpers = s[inventory_helpers_start:inventory_helpers_end]
-          assert "function anasBackupInventorySignature(data)" in inventory_helpers and "function anasNormalizeBackupInventory(incoming)" in inventory_helpers, "Backup inventory helper tree is incomplete"
+          required_inventory_helpers = (
+              "function anasBackupWarehouseDefinitions(data)",
+              "function anasBackupWarehouseStockEntries(product)",
+              "function anasBackupQuantityUnits(value, label)",
+              "function anasBackupInventorySignature(data)",
+              "function anasNormalizeBackupInventory(incoming)",
+          )
+          missing_inventory_helpers = [name for name in required_inventory_helpers if name not in inventory_helpers]
+          assert not missing_inventory_helpers, "Backup inventory helper tree is incomplete: " + ", ".join(missing_inventory_helpers)
+          assert "function anasToQtyUnits" in quantity_helpers and "function anasQtyFromUnits" in quantity_helpers, "Backup quantity helper tree is incomplete"
+
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
@@ -625,6 +652,13 @@ jobs:
           purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          barcode_helper_start = s.find("function anasNormalizeBarcode(value)")
+          barcode_helper_end = s.find(chr(10) + "        function ", barcode_helper_start + 10)
+          assert barcode_helper_start >= 0 and barcode_helper_end > barcode_helper_start, "Could not isolate barcode normalization helper"
+          barcode_helper = s[barcode_helper_start:barcode_helper_end]
+          purchase_helpers += chr(10) + barcode_helper
+          assert "function anasNormalizeBarcode(value)" in purchase_helpers, "Purchase ledger parity barcode helper is missing"
+          assert "function anasPurchaseToCents(value)" in purchase_helpers and "function anasPurchaseToQtyUnits(value)" in purchase_helpers and "function anasPurchaseLineTotalCents" in purchase_helpers and "function anasPurchaseCentsToCurrency(cents)" in purchase_helpers and "function anasPurchaseQtyFromUnits(units)" in purchase_helpers, "Purchase centime helper tree is incomplete"
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
           purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
@@ -708,7 +742,17 @@ jobs:
           inventory_helpers_end = s.find("\n        function anasBuildBackupExportPayload()", inventory_helpers_start)
           assert inventory_helpers_start >= 0 and inventory_helpers_end > inventory_helpers_start, "Could not isolate backup inventory normalization helpers"
           inventory_helpers = s[inventory_helpers_start:inventory_helpers_end]
-          assert "function anasBackupInventorySignature(data)" in inventory_helpers and "function anasNormalizeBackupInventory(incoming)" in inventory_helpers, "Backup inventory helper tree is incomplete"
+          required_inventory_helpers = (
+              "function anasBackupWarehouseDefinitions(data)",
+              "function anasBackupWarehouseStockEntries(product)",
+              "function anasBackupQuantityUnits(value, label)",
+              "function anasBackupInventorySignature(data)",
+              "function anasNormalizeBackupInventory(incoming)",
+          )
+          missing_inventory_helpers = [name for name in required_inventory_helpers if name not in inventory_helpers]
+          assert not missing_inventory_helpers, "Backup inventory helper tree is incomplete: " + ", ".join(missing_inventory_helpers)
+          assert "function anasToQtyUnits" in quantity_helpers and "function anasQtyFromUnits" in quantity_helpers, "Backup quantity helper tree is incomplete"
+
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
@@ -717,6 +761,13 @@ jobs:
           purchase_helpers_end = s.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = s[purchase_helpers_start:purchase_helpers_end]
+          barcode_helper_start = s.find("function anasNormalizeBarcode(value)")
+          barcode_helper_end = s.find(chr(10) + "        function ", barcode_helper_start + 10)
+          assert barcode_helper_start >= 0 and barcode_helper_end > barcode_helper_start, "Could not isolate barcode normalization helper"
+          barcode_helper = s[barcode_helper_start:barcode_helper_end]
+          purchase_helpers += chr(10) + barcode_helper
+          assert "function anasNormalizeBarcode(value)" in purchase_helpers, "Purchase ledger parity barcode helper is missing"
+          assert "function anasPurchaseToCents(value)" in purchase_helpers and "function anasPurchaseToQtyUnits(value)" in purchase_helpers and "function anasPurchaseLineTotalCents" in purchase_helpers and "function anasPurchaseCentsToCurrency(cents)" in purchase_helpers and "function anasPurchaseQtyFromUnits(units)" in purchase_helpers, "Purchase centime helper tree is incomplete"
           purchase_parity_start = s.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
           purchase_parity_end = s.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
@@ -2079,6 +2130,13 @@ jobs:
           purchase_helpers_end = app.find("\n        function anasValidatePurchaseLedgerParity", purchase_helpers_start)
           assert purchase_helpers_start >= 0 and purchase_helpers_end > purchase_helpers_start, "Could not isolate purchase centime helpers"
           purchase_helpers = app[purchase_helpers_start:purchase_helpers_end]
+          barcode_helper_start = app.find("function anasNormalizeBarcode(value)")
+          barcode_helper_end = app.find(chr(10) + "        function ", barcode_helper_start + 10)
+          assert barcode_helper_start >= 0 and barcode_helper_end > barcode_helper_start, "Could not isolate barcode normalization helper"
+          barcode_helper = app[barcode_helper_start:barcode_helper_end]
+          purchase_helpers += chr(10) + barcode_helper
+          assert "function anasNormalizeBarcode(value)" in purchase_helpers, "Cloud purchase ledger parity barcode helper is missing"
+          assert "function anasPurchaseToCents(value)" in purchase_helpers and "function anasPurchaseToQtyUnits(value)" in purchase_helpers and "function anasPurchaseLineTotalCents" in purchase_helpers and "function anasPurchaseCentsToCurrency(cents)" in purchase_helpers and "function anasPurchaseQtyFromUnits(units)" in purchase_helpers, "Cloud purchase centime helper tree is incomplete"
           purchase_parity_start = app.find("function anasValidatePurchaseLedgerParity(incoming, mode)")
           purchase_parity_end = app.find("\n        function savePurchaseItem()", purchase_parity_start)
           assert purchase_parity_start >= 0 and purchase_parity_end > purchase_parity_start, "Could not isolate purchase ledger parity validator"
