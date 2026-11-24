@@ -46,6 +46,8 @@ test('builds a staging-only full ERP/POS PWA and retains the reverse-ledger cons
       'printable HTML closing tags inside JavaScript strings must remain untouched');
     await fs.access(path.join(outDir, 'erp/pos/advanced-financial-engine.mjs'));
     await fs.access(path.join(outDir, 'erp/fleet/truck-runtime.mjs'));
+    await fs.access(path.join(outDir, 'erp/truck-warehouse-reconciliation.js'));
+    assert.ok(erp.includes('<script src="./truck-warehouse-reconciliation.js"></script>'), 'warehouse service loads in staging ERP shell');
     assert.match(erp, /data-anas-fleet-runtime/, 'fleet runtime must be inlined into the service-worker-cached ERP shell');
     assert.match(erp, /__ANAS_GET_APP_DATA__/, 'fleet runtime must use the scoped AppData bridge');
     const posRollbackSale = erp.indexOf('const rollbackSale = (e) => {');

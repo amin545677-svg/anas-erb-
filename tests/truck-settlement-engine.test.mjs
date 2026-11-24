@@ -29,3 +29,5 @@ test("fleet AppData rollback restores nested business data in place", async () =
   assert.deepEqual(live, before);
   assert.equal(Object.prototype.hasOwnProperty.call(live, "extraMutation"), false);
 });
+
+import "./truck-warehouse-reconciliation.test.mjs";
