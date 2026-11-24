@@ -607,6 +607,16 @@ jobs:
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
+          quantity_helpers_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          quantity_helpers_end = s.find("\n        function anasLineTotalCents", quantity_helpers_start)
+          assert quantity_helpers_start >= 0 and quantity_helpers_end > quantity_helpers_start, "Could not isolate backup quantity arithmetic helpers"
+          quantity_helpers = s[quantity_helpers_start:quantity_helpers_end]
+          assert "function anasToQtyUnits" in quantity_helpers and "function anasQtyFromUnits" in quantity_helpers, "Backup quantity helper tree is incomplete"
+          inventory_helpers_start = s.find("function anasBackupWarehouseDefinitions(data)")
+          inventory_helpers_end = s.find("\n        function anasBuildBackupExportPayload()", inventory_helpers_start)
+          assert inventory_helpers_start >= 0 and inventory_helpers_end > inventory_helpers_start, "Could not isolate backup inventory normalization helpers"
+          inventory_helpers = s[inventory_helpers_start:inventory_helpers_end]
+          assert "function anasBackupInventorySignature(data)" in inventory_helpers and "function anasNormalizeBackupInventory(incoming)" in inventory_helpers, "Backup inventory helper tree is incomplete"
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
@@ -626,12 +636,14 @@ jobs:
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
+          const quantityHelpers = /*INSERT_QUANTITY_HELPERS*/;
+          const inventoryHelpers = /*INSERT_INVENTORY_HELPERS*/;
           const validatorSource = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
           const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
           const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(quantityHelpers+'\n'+inventoryHelpers+'\n'+truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const make = (products,customers=[],suppliers=[])=>({products,customers,suppliers});
           const expectReject = (data,label) => {
             assert.throws(()=>ctx.validateBackup(data), /معرّف مكرر في قائمة/, label);
@@ -671,6 +683,8 @@ jobs:
             'legacy customer records without IDs remain importable');
           console.log('Backup restore duplicate record ID tests passed');
           """
+          js = js.replace("/*INSERT_QUANTITY_HELPERS*/", json.dumps(quantity_helpers))
+          js = js.replace("/*INSERT_INVENTORY_HELPERS*/", json.dumps(inventory_helpers))
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
           js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
@@ -685,6 +699,16 @@ jobs:
           from pathlib import Path
           import json
           s = Path("index.html").read_text(encoding="utf-8")
+          quantity_helpers_start = s.find("const ANAS_QTY_SCALE = 1000000;")
+          quantity_helpers_end = s.find("\n        function anasLineTotalCents", quantity_helpers_start)
+          assert quantity_helpers_start >= 0 and quantity_helpers_end > quantity_helpers_start, "Could not isolate backup quantity arithmetic helpers"
+          quantity_helpers = s[quantity_helpers_start:quantity_helpers_end]
+          assert "function anasToQtyUnits" in quantity_helpers and "function anasQtyFromUnits" in quantity_helpers, "Backup quantity helper tree is incomplete"
+          inventory_helpers_start = s.find("function anasBackupWarehouseDefinitions(data)")
+          inventory_helpers_end = s.find("\n        function anasBuildBackupExportPayload()", inventory_helpers_start)
+          assert inventory_helpers_start >= 0 and inventory_helpers_end > inventory_helpers_start, "Could not isolate backup inventory normalization helpers"
+          inventory_helpers = s[inventory_helpers_start:inventory_helpers_end]
+          assert "function anasBackupInventorySignature(data)" in inventory_helpers and "function anasNormalizeBackupInventory(incoming)" in inventory_helpers, "Backup inventory helper tree is incomplete"
           helper_start = s.find("function anasValidateTruckExpenseLinks(incoming)")
           helper_end = s.find("\n        function anasValidateIncomingSyncData", helper_start)
           assert helper_start >= 0 and helper_end > helper_start, "Could not isolate truck expense link validator"
@@ -704,12 +728,14 @@ jobs:
           js = r"""
           const assert = require('node:assert/strict');
           const vm = require('node:vm');
+          const quantityHelpers = /*INSERT_QUANTITY_HELPERS*/;
+          const inventoryHelpers = /*INSERT_INVENTORY_HELPERS*/;
           const validatorSource = /*INSERT_VALIDATOR*/;
           const truckExpenseValidator = /*INSERT_TRUCK_EXPENSE_VALIDATOR*/;
           const purchaseHelpers = /*INSERT_PURCHASE_HELPERS*/;
           const purchaseParity = /*INSERT_PURCHASE_PARITY*/;
           const ctx = {AppData:{}, Number, Object, Array, String, Set, Error};
-          vm.runInNewContext(truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
+          vm.runInNewContext(quantityHelpers+'\n'+inventoryHelpers+'\n'+truckExpenseValidator+'\n'+purchaseHelpers+'\n'+purchaseParity+'\n'+validatorSource+'\nthis.validateBackup=anasValidateBackupData;',ctx);
           const valid = () => ({products:[{id:'p1',stock:2}],customers:[{id:'c1',debt:0}],suppliers:[{id:'s1',balance:0}],caisseBalance:100,expenses:[{id:'e1',amt:5}],cashMovements:[{id:'m1',amount:5}]});
           ctx.AppData = {caisseBalance:75};
           const missingCashBalance = valid(); delete missingCashBalance.caisseBalance;
@@ -783,6 +809,8 @@ jobs:
           assert.equal(ctx.validateBackup(legacyInvoice).invoices.length,1,'legacy records with omitted optional numeric fields remain importable');
           console.log('Backup financial-value validation tests passed');
           """
+          js = js.replace("/*INSERT_QUANTITY_HELPERS*/", json.dumps(quantity_helpers))
+          js = js.replace("/*INSERT_INVENTORY_HELPERS*/", json.dumps(inventory_helpers))
           js = js.replace("/*INSERT_VALIDATOR*/", json.dumps(fn))
           js = js.replace("/*INSERT_TRUCK_EXPENSE_VALIDATOR*/", json.dumps(truck_links))
           js = js.replace("/*INSERT_PURCHASE_HELPERS*/", json.dumps(purchase_helpers))
@@ -2346,6 +2374,7 @@ jobs:
             confirm:()=>true, alert:m=>alerts.push(String(m)),
             saveDB:()=>false,
             anasValidateBackupData:data=>data,
+            anasBackupInventorySignature:()=> 'stable-inventory-signature',
             openView:()=>{throw new Error('must not navigate after failed save');},
             console
           };
