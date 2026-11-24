@@ -48,8 +48,32 @@ function rawbt(bytes){if(!root.location)throw Error("RAWBT_UNAVAILABLE");root.lo
 async function shareImage(canvas,name="ANAS_ERP_receipt.png"){const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error("IMAGE_EXPORT_FAILED")),"image/png"));const file=typeof File==="function"?new File([blob],name,{type:"image/png"}):null;if(root.navigator?.share&&file&&(!root.navigator.canShare||root.navigator.canShare({files:[file]}))){await root.navigator.share({files:[file],title:"ANAS ERP receipt"});return{status:"SHARED"};}throw Error("IMAGE_SHARE_UNAVAILABLE");}
 async function sendPreferred(bytes,settings={}){if(settings.transport==="android")return android(bytes);if(settings.transport==="rawbt")return rawbt(bytes);if(settings.transport==="bluetooth")return bluetooth(bytes,settings);let lastError=null;if(root.navigator?.bluetooth){try{return await bluetooth(bytes,settings);}catch(e){lastError=e;}}const bridge=root.Android||root.AnasPrinterBridge;if(bridge&&typeof bridge.printEscPosBase64==="function"){try{return await android(bytes);}catch(e){lastError=e;}}if(settings.allowRawBTFallback!==false)return rawbt(bytes);if(lastError)throw lastError;throw Error("NO_SUPPORTED_PRINTER_TRANSPORT");}
 async function printDocument(doc,options={}){const storage=root.ANASResilientStorage;if(!storage)throw Error("INDEXEDDB_STORAGE_NOT_READY");const settings={...getSettings(),...(options.printer||{})};const canvas=render(doc,{paper:settings.paper||"58mm",...options.render});const encoded=raster(canvas,options.raster);const queue=createQueue({storage,send:(bytes,meta)=>sendPreferred(bytes,{...settings,...meta})});const queued=await queue.enqueue(encoded.payload,{idempotencyKey:options.idempotencyKey,template:doc.template,paper:settings.paper||"58mm"});try{const result=await queue.retry(queued.id);return{...result,queuedId:queued.id,width:encoded.width,height:encoded.height};}catch(error){return{status:"QUEUED_FOR_RETRY",queuedId:queued.id,error:String(error?.message||error)};}}
+function isPhysicalPrinterConnected(){
+ const settings=getSettings();
+ const bridge=root.Android||root.AnasPrinterBridge;
+ if(settings.transport==="android"&&bridge&&typeof bridge.printEscPosBase64==="function")return true;
+ const bluetoothApi=root.navigator&&root.navigator.bluetooth;
+ if(!bluetoothApi||typeof bluetoothApi.getDevices!=="function"||!settings.deviceId)return false;
+ return bluetoothApi.getDevices().then(devices=>{
+  const device=(devices||[]).find(item=>item&&item.id===settings.deviceId);
+  return !!(device&&device.gatt&&typeof device.gatt.connect==="function");
+ }).catch(()=>false);
+}
 function saveSettings(s){if(!root.localStorage)throw Error("LOCAL_SETTINGS_UNAVAILABLE");if(!WIDTHS[s.paper||"58mm"])throw Error("INVALID_PAPER_SIZE");root.localStorage.setItem(SETTINGS,JSON.stringify({...s,paper:s.paper||"58mm",widthDots:WIDTHS[s.paper||"58mm"]}));}
 function getSettings(){try{return root.localStorage?JSON.parse(root.localStorage.getItem(SETTINGS)||"{}"):{};}catch(_){return{};}}
-const api=Object.freeze({PAPER_WIDTHS:WIDTHS,formatMinor:money,buildInvoiceReceipt:invoice,buildPaymentReceipt:payment,buildLoadManifest:manifest,buildTripSettlement:settlement,buildCustomerStatementReceipt:statement,renderReceiptCanvas:render,encodeMonoBitmap:mono,buildGSv0:gsv0,canvasToEscPos:raster,createPrintQueue:createQueue,sendViaBluetooth:bluetooth,sendViaAndroid:android,sendViaRawBT:rawbt,sendPreferred,printDocument,shareImage,saveSettings,getSettings});
-root.ANASArabicEscPos=api;if(typeof module!=="undefined"&&module.exports)module.exports=api;
+const api=Object.freeze({PAPER_WIDTHS:WIDTHS,isPhysicalPrinterConnected,formatMinor:money,buildInvoiceReceipt:invoice,buildPaymentReceipt:payment,buildLoadManifest:manifest,buildTripSettlement:settlement,buildCustomerStatementReceipt:statement,renderReceiptCanvas:render,encodeMonoBitmap:mono,buildGSv0:gsv0,canvasToEscPos:raster,createPrintQueue:createQueue,sendViaBluetooth:bluetooth,sendViaAndroid:android,sendViaRawBT:rawbt,sendPreferred,printDocument,shareImage,saveSettings,getSettings});
+root.ANASArabicEscPos=api;
+if(typeof root.printLastConfirmedInvoice==="function"&&!root.__ANAS_THERMAL_PRINT_ROUTER_INSTALLED){
+ const originalPrintLastConfirmedInvoice=root.printLastConfirmedInvoice;
+ root.printLastConfirmedInvoice=function(type){
+  if(type==="legalA4")return originalPrintLastConfirmedInvoice(type);
+  const connected=api.isPhysicalPrinterConnected();
+  const useTraditional=()=>{const active=root.ANASArabicEscPos;root.ANASArabicEscPos=null;try{return originalPrintLastConfirmedInvoice(type);}finally{root.ANASArabicEscPos=active;}};
+  return connected&&typeof connected.then==="function"
+   ?connected.then(isConnected=>isConnected?originalPrintLastConfirmedInvoice(type):useTraditional())
+   :(connected?originalPrintLastConfirmedInvoice(type):useTraditional());
+ };
+ root.__ANAS_THERMAL_PRINT_ROUTER_INSTALLED=true;
+}
+if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof window!=="undefined"?window:globalThis);
