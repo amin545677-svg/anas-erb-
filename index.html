@@ -8999,7 +8999,7 @@ function renderPurchasesTable() {
                     AppData.warehouseTransfers.unshift(doc);
                     AppData.stockMovements.unshift({id:id+'-OUT',productId:p.id,qty:-qty,type:movementTypes.out,referenceType:'warehouse_transfer',referenceId:id,warehouse:from,fromWarehouse:from,toWarehouse:to,date:doc.date},{id:id+'-IN',productId:p.id,qty,type:movementTypes.in,referenceType:'warehouse_transfer',referenceId:id,warehouse:to,fromWarehouse:from,toWarehouse:to,date:doc.date});
                     if(!Array.isArray(AppData.auditTrail))AppData.auditTrail=[];
-                    AppData.auditTrail.unshift({id:id+'-AUDIT',eventType:'WAREHOUSE_TRANSFER_COMMITTED',entityId:id,fromWarehouse:from,toWarehouse:to,productId:String(p.id),quantity:qty,createdAt:doc.date});
+                    AppData.auditTrail.unshift({id:id+'-AUDIT',eventType:'WAREHOUSE_TRANSFER_COMMITTED',entityType:'inventory_transfer',entityId:id,fromWarehouse:from,toWarehouse:to,productId:String(p.id),quantity:qty,createdAt:doc.date});
                     if(!saveDB())throw Error('تعذر الحفظ');
                     const finishFallback=()=>{document.getElementById('wtQty').value='';document.getElementById('wtNote').value='';wtInitScreen();renderInventoryList();alert('تم اعتماد سند التحويل '+doc.number+' وحفظ الأرصدة والتدقيق.');};if(typeof saveDBDurably==='function')return Promise.resolve().then(()=>saveDBDurably()).then(ok=>{if(ok!==true)throw Error('لم يؤكد التخزين الدائم حفظ التحويل.');finishFallback();}).catch(error=>{if(rollbackTransfer)rollbackTransfer();alert((error&&error.message)||'تعذر حفظ التحويل؛ أُعيدت البيانات.');}).finally(()=>{wtTransferInFlight=false;});finishFallback();wtTransferInFlight=false;return;
                 }
