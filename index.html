@@ -6050,11 +6050,11 @@ button *, .btn *, [role="button"] *, .menu-action-card * { color:inherit !import
             finish.focus();
         }
 
-        async function printLastConfirmedInvoice(type) {
+        function printLastConfirmedInvoice(type) {
             if (!lastConfirmedInvoice) { alert('أكد الفاتورة أولًا. للطباعة لاحقًا بعد إغلاق النافذة، افتح سجل الفواتير واختر الفاتورة.'); return; }
             if (type === 'legalA4') return printLegalA4Invoice(lastConfirmedInvoice);
             const paper=type==='thermal80'?'80mm':'58mm';
-            if(window.ANASArabicEscPos&&window.ANASResilientStorage)return printThermalReceiptWithEngine(lastConfirmedInvoice,paper);
+            if(window.ANASArabicEscPos&&window.ANASResilientStorage){printThermalReceiptWithEngine(lastConfirmedInvoice,paper);return;}
             return printThermalReceipt(lastConfirmedInvoice);
         }
 
@@ -7683,6 +7683,8 @@ function renderPurchasesTable() {
                 showCustomerPaymentPostSaveActions({businessName:AppData.storeConfig?.name||'ANAS ERP',receiptNumber:movementId,date:new Date().toISOString(),
                     customerName:customer.name||String(customer.id),method:'نقداً',debtBeforeMinor:BigInt(previousDebtCents),amountMinor:BigInt(amountCents),
                     footer:AppData.storeConfig?.footer||'تم استلام المبلغ بنجاح'});
+            }else if(typeof alert==='function'){
+                alert('تم تسجيل سند القبض وتوزيعه تلقائياً FIFO من أقدم فاتورة إلى أحدث فاتورة.');
             }
         }
 
