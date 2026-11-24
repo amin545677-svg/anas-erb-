@@ -8976,13 +8976,13 @@ function renderPurchasesTable() {
                 if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0)))throw Error('أدخل سعراً صحيحاً.');
                 if((buyPrice!==null&&(!Number.isFinite(buyPrice*qty)||buyPrice*qty>Number.MAX_SAFE_INTEGER))||(salePrice!==null&&(!Number.isFinite(salePrice*qty)||salePrice*qty>Number.MAX_SAFE_INTEGER)))throw Error('إجمالي قيمة التحويل يتجاوز المجال الرقمي الآمن.');
                 const available=wtBalance(p,from),destinationBalance=wtBalance(p,to);
-                if(!Number.isFinite(available)||available>Number.MAX_SAFE_INTEGER||!Number.isFinite(destinationBalance))throw Error('رصيد المصدر أو الوجهة غير صالح.');
+                if(!Number.isFinite(available))throw Error('رصيد المخزن المصدر غير صالح.');if(available>Number.MAX_SAFE_INTEGER)throw Error('رصيد المخزن المصدر يتجاوز المجال الرقمي الآمن.');if(!Number.isFinite(destinationBalance))throw Error('رصيد المخزن الوجهة غير صالح.');
                 if(qty>available)throw Error('الكمية غير كافية في '+from);
                 if(!Number.isFinite(destinationBalance+qty)||destinationBalance+qty>Number.MAX_SAFE_INTEGER)throw Error('رصيد الوجهة يتجاوز المجال الرقمي الآمن.');
                 if(!confirm('تأكيد تحويل '+qty+' '+(p.unit||'')+' من «'+from+'» إلى «'+to+'»؟ سيتم حفظ السند والحركات والتدقيق.'))return;
                 const service=window.ANASTruckWarehouseReconciliation;if(!service)throw Error('وحدة التحويل والتسوية غير جاهزة.');
                 const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');if(!hadStockMovements)AppData.stockMovements=[];
-                const movementsBefore=AppData.stockMovements.slice(),transfersBefore=(AppData.warehouseTransfers||[]).slice();
+                const movementsBefore=AppData.stockMovements.slice();const transfersBefore=(AppData.warehouseTransfers||[]).slice();
                 const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');const beforeMain=p.stock;
                 const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock;
                 if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
