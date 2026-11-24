@@ -8962,9 +8962,10 @@ function renderPurchasesTable() {
         }
         let wtTransferInFlight = false;
         async function wtCreateTransfer(){
-            if(wtTransferInFlight)return;if(!wtTryEnsureData())return;wtTransferInFlight=true;
+            if(wtTransferInFlight)return;
+            if(!wtTryEnsureData())return;const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
+            wtTransferInFlight=true;
             try{
-                const from=document.getElementById('wtFrom').value,to=document.getElementById('wtTo').value,pid=document.getElementById('wtProduct').value,qty=Number(document.getElementById('wtQty').value),note=document.getElementById('wtNote').value.trim(),buyRaw=document.getElementById('wtBuyPrice').value,saleRaw=document.getElementById('wtSalePrice').value,buyPrice=buyRaw===''?null:Number(buyRaw),salePrice=saleRaw===''?null:Number(saleRaw);
                 const matches=(AppData.products||[]).filter(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!=null&&String(x.id)===String(pid));if(matches.length!==1)throw Error(matches.length?'معرّف المنتج مكرر.':'اختر منتجاً صحيحاً.');const p=matches[0];
                 if(Array.isArray(p.warehouseStock)){alert('تعذر التحويل: خريطة أرصدة المخازن الفرعية تالفة لهذا المنتج. أصلح البيانات أو استعد نسخة سليمة قبل المتابعة.');return;}
                 if(Object.prototype.hasOwnProperty.call(AppData,'stockMovements')&&(!Array.isArray(AppData.stockMovements)||AppData.stockMovements.some(m=>!m||typeof m!=='object'||Array.isArray(m))))throw Error('سجل حركات المخزون تالف.');
@@ -8973,16 +8974,22 @@ function renderPurchasesTable() {
                 if(Object.prototype.hasOwnProperty.call(p,'stock')&&(!((typeof p.stock==='number')||(typeof p.stock==='string'))||String(p.stock).trim()===''||!Number.isFinite(Number(p.stock))||Number(p.stock)<0))throw Error('رصيد المخزن الرئيسي غير صالح.');
                 if(!from||!to||from===to||!Number.isFinite(qty)||qty<=0)throw Error('اختر مخزنين مختلفين وأدخل كمية صحيحة.');
                 if((buyPrice!==null&&(!Number.isFinite(buyPrice)||buyPrice<0))||(salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0)))throw Error('أدخل سعراً صحيحاً.');
-                const available=wtBalance(p,from),destination=wtBalance(p,to);if(!Number.isFinite(available)||!Number.isFinite(destination))throw Error('رصيد المصدر أو الوجهة غير صالح.');if(qty>available)throw Error('الكمية غير كافية في '+from);if(destination+qty>Number.MAX_SAFE_INTEGER)throw Error('رصيد الوجهة يتجاوز المجال الرقمي الآمن.');
+                if((buyPrice!==null&&(!Number.isFinite(buyPrice*qty)||buyPrice*qty>Number.MAX_SAFE_INTEGER))||(salePrice!==null&&(!Number.isFinite(salePrice*qty)||salePrice*qty>Number.MAX_SAFE_INTEGER)))throw Error('إجمالي قيمة التحويل يتجاوز المجال الرقمي الآمن.');
+                const available=wtBalance(p,from),destination=wtBalance(p,to);
+                if(!Number.isFinite(available)||!Number.isFinite(destination))throw Error('رصيد المصدر أو الوجهة غير صالح.');
+                if(qty>available)throw Error('الكمية غير كافية في '+from);
+                if(destination+qty>Number.MAX_SAFE_INTEGER)throw Error('رصيد الوجهة يتجاوز المجال الرقمي الآمن.');
                 if(!confirm('تأكيد تحويل '+qty+' '+(p.unit||'')+' من «'+from+'» إلى «'+to+'»؟ سيتم حفظ السند والحركات والتدقيق.'))return;
-                const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');if(!hadStockMovements)AppData.stockMovements=[];
-                const movementsBefore=AppData.stockMovements.slice(),hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock'),beforeMain=p.stock,hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock'),beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock;
-                if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
-                const usedTransferIds=new Set((AppData.warehouseTransfers||[]).map(x=>String(x&&x.id))),usedMovementIds=new Set(AppData.stockMovements.map(x=>String(x&&x.id))),usedTransferNumbers=new Set((AppData.warehouseTransfers||[]).map(x=>String(x&&x.number)));
+                const service=window.ANASTruckWarehouseReconciliation;if(!service)throw Error('وحدة التحويل والتسوية غير جاهزة.');
+                const usedTransferIds=new Set((AppData.warehouseTransfers||[]).map(x=>String(x&&x.id))),usedMovementIds=new Set((AppData.stockMovements||[]).map(x=>String(x&&x.id))),usedTransferNumbers=new Set((AppData.warehouseTransfers||[]).map(x=>String(x&&x.number)));
                 const seq=Date.now();let id;do{id='TR-'+seq+'-'+Math.random().toString(36).slice(2,9).toUpperCase();}while(usedTransferIds.has(id)||usedMovementIds.has(id+'-OUT')||usedMovementIds.has(id+'-IN'));
                 const base='TR-'+new Date().getFullYear()+'-'+String(seq).slice(-6);let transferNumber=base,n=2;while(usedTransferNumbers.has(transferNumber))transferNumber=base+'-'+n++;
-                const doc={id,number:transferNumber,date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'},service=window.ANASTruckWarehouseReconciliation;
-                if(!service)throw Error('وحدة التحويل والتسوية غير جاهزة.');
+                const doc={id,number:transferNumber,date:new Date().toISOString(),from,to,productId:p.id,productName:p.name,unit:p.unit||'',quantity:qty,buyPrice,salePrice,buyTotal:buyPrice===null?null:buyPrice*qty,saleTotal:salePrice===null?null:salePrice*qty,note,user:(AppData.currentUser&&AppData.currentUser.name)||'مستخدم',status:'معتمد'};
+                const hadStockMovements=Object.prototype.hasOwnProperty.call(AppData,'stockMovements');if(!hadStockMovements)AppData.stockMovements=[];
+                const movementsBefore=AppData.stockMovements.slice();
+                const hadMainStock=Object.prototype.hasOwnProperty.call(p,'stock');const beforeMain=p.stock;
+                const hadWarehouseStock=Object.prototype.hasOwnProperty.call(p,'warehouseStock');const beforeWarehouseStock=p.warehouseStock&&typeof p.warehouseStock==='object'?{...p.warehouseStock}:p.warehouseStock;
+                if(!p.warehouseStock||typeof p.warehouseStock!=='object'||Array.isArray(p.warehouseStock))p.warehouseStock={};
                 const movementTypes={out:'WAREHOUSE_TRANSFER_OUT',in:'WAREHOUSE_TRANSFER_IN'};
                 try{await service.commitWarehouseTransfer(AppData,doc,{saveDB:()=>saveDB(),saveDBDurably:()=>saveDBDurably(),movementTypes});}
                 catch(error){AppData.stockMovements=movementsBefore;if(!hadStockMovements)delete AppData.stockMovements;if(hadMainStock)p.stock=beforeMain;else delete p.stock;if(hadWarehouseStock)p.warehouseStock=beforeWarehouseStock;else delete p.warehouseStock;throw error;}
