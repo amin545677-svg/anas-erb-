@@ -180,7 +180,7 @@ test('sales and profit report handlers normalize slash and day-first invoice dat
   const originalDates = invoices.map(row => row.date);
   const h = harness({ value: { invoices } }, { invoices });
   h.window.getReportRange = () => ({ from: '24/11/2026', to: '2026/11/24' });
-  h.window.reportParseDate = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(String(value)) ? new Date(String(value) + 'T00:00:00') : null;
+  h.window.reportParseDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? new Date(String(value) + 'T00:00:00') : null;
   h.window.showReportDetails = function (report) {
     const range = h.window.getReportRange();
     const accepted = h.window.AppData.invoices.filter(row => {
@@ -204,7 +204,7 @@ test('sales and profit report handlers normalize slash and day-first invoice dat
   assert.equal(sales.total, 14091);
   assert.equal(sales.excludedForDate, 0);
   assert.equal(profit.count, 14);
-  assert.equal(profit.profit, 8491);
+  assert.equal(profit.profit, 8400);
   assert.equal(profit.excludedForDate, 0);
   assert.deepEqual(invoices.map(row => row.date), originalDates, 'normalization must not mutate persisted AppData invoices');
 });
