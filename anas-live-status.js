@@ -498,21 +498,24 @@
     if(!keys||!keys.appData||!storage||typeof storage.getItem!=='function')return null;
     try{const raw=storage.getItem(keys.appData);return typeof raw==='string'?JSON.parse(raw):raw;}catch(_){return null;}
   }
-  function normalizeCommittedInvoiceMetadata(){
+  function normalizeCommittedLedgerMetadata(collection){
     const getData=typeof g.__ANAS_GET_APP_DATA__==='function'?g.__ANAS_GET_APP_DATA__:()=>g.AppData;
     const current=getData(),persisted=persistedAppData();
-    if(!current||!Array.isArray(current.invoices)||!persisted||!Array.isArray(persisted.invoices))return false;
-    const persistedById=new Map(persisted.invoices.filter(row=>row&&row.id!=null).map(row=>[String(row.id),row]));
+    if(!current||!Array.isArray(current[collection])||!persisted||!Array.isArray(persisted[collection]))return false;
+    const identity=row=>row&&(row.id??row.movementId);
+    const persistedById=new Map(persisted[collection].filter(row=>row&&identity(row)!=null).map(row=>[String(identity(row)),row]));
     let changed=false;
-    for(const row of current.invoices){
-      if(!row||row.id==null)continue;
-      const committed=persistedById.get(String(row.id));if(!committed)continue;
-      const strip=row=>{const copy={...row};delete copy.syncOpId;delete copy.syncCreatedAt;return copy;};
+    for(const row of current[collection]){
+      if(!row||identity(row)==null)continue;
+      const committed=persistedById.get(String(identity(row)));if(!committed)continue;
+      const strip=value=>{const copy={...value};delete copy.syncOpId;delete copy.syncCreatedAt;return copy;};
       if(stableJson(strip(row))!==stableJson(strip(committed)))continue;
       for(const key of ['syncOpId','syncCreatedAt'])if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key)){row[key]=committed[key];changed=true;}
     }
     return changed;
   }
+  function normalizeCommittedInvoiceMetadata(){return normalizeCommittedLedgerMetadata('invoices');}
+  function normalizeCommittedCashMovementMetadata(){return normalizeCommittedLedgerMetadata('cashMovements');}
   function hookV42InvoiceMetadataSave(){
     const original=g.saveDB;if(typeof original!=='function'||original.__anasInvoiceMetadataCompat)return false;
     const fail=()=>markDurabilityFailure('⚠ فشل الحفظ المحلي');
@@ -526,7 +529,7 @@
     const wrapped=function(){
       durability('saving','… جارٍ الحفظ');emit('anas:durability-saving');
       let result;
-      try{normalizeCommittedInvoiceMetadata();result=original.apply(this,arguments);}
+      try{normalizeCommittedInvoiceMetadata();normalizeCommittedCashMovementMetadata();result=original.apply(this,arguments);}
       catch(error){fail();throw error;}
       if(result&&typeof result.then==='function')return result.then(finish,error=>{fail();throw error;});
       return finish(result);

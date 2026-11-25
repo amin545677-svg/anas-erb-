@@ -211,3 +211,54 @@ test('sales and profit report handlers normalize slash and day-first invoice dat
   assert.equal(profit.excludedForDate, 0);
   assert.deepEqual(invoices.map(row => row.date), originalDates, 'normalization must not mutate persisted AppData invoices');
 });
+
+\ntest('offline POS, product, cash movement and customer saves preserve append-only cash ledger metadata and green durability badge', () => {
+  const committed = {
+    invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000, syncOpId: 'invoice-op', syncCreatedAt: '2026-11-24T10:00:00.000Z' }],
+    cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', syncOpId: 'cash-op', syncCreatedAt: '2026-11-24T10:01:00.000Z' }]
+  };
+  const appData = {
+    invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000 }],
+    cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24' }],
+    products: [], customers: []
+  };
+  const snapshot = { value: structuredClone(committed) };
+  const h = harness(snapshot, appData);
+  h.window.AppData = appData;
+  h.window.__ANAS_GET_APP_DATA__ = () => appData;
+  h.window.ANASMutationQueue = { keys: { appData: 'appData' } };
+  let persisted = structuredClone(committed);
+  h.window.ANASResilientStorage.getItem = key => key === 'appData' ? persisted : null;
+  h.window.saveDB = () => {
+    for (const table of ['invoices', 'cashMovements']) {
+      const before = new Map((persisted[table] || []).map(row => [String(row.id ?? row.movementId), row]));
+      for (const row of appData[table] || []) {
+        const old = before.get(String(row.id ?? row.movementId));
+        if (!old) continue;
+        assert.equal(JSON.stringify(row), JSON.stringify(old), 'committed ' + table + ' rows remain immutable');
+      }
+    }
+    persisted = structuredClone(appData);
+    snapshot.value = structuredClone(appData);
+    return true;
+  };
+  h.window.ANASMutationSync = { status: 'installed' };
+  const save = mutate => { mutate(); assert.equal(h.window.saveDB(), true); assert.equal(h.durabilityBadge.textContent, '✓ محفوظ بأمان'); };
+  save(() => appData.invoices.push({ id: 'INV-POS-NEW', total: 2000, paid: 2000 }));
+  save(() => appData.products.push({ id: 'P-NEW', name: 'شاي قرية', stock: 1 }));
+  save(() => {
+    appData.cashMovements.push({ id: 'CASH-NEW', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24T10:02:00.000Z' });
+    appData.cashMovements[1].date = '2026-11-24';
+  });
+  save(() => appData.customers.push({ id: 'C-NEW', name: 'محمد دربا', city: 'النعامة' }));
+  assert.equal(appData.cashMovements[0].syncOpId, 'cash-op');
+  assert.equal(appData.invoices[0].syncOpId, 'invoice-op');
+  assert.throws(() => {
+    appData.cashMovements[0].amount = 1;
+    h.window.saveDB();
+  }, /Existing cashMovements ledger row was modified/);
+});
+
+test('live status source passes new Function syntax check', () => {
+  assert.doesNotThrow(() => new Function(source));
+});
