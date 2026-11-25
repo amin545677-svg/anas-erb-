@@ -26,14 +26,23 @@
     const badge = g.document.getElementById('anas-status-network-badge');
     if (badge) badge.textContent = online ? '● متصل' : '● غير متصل';
   }
+  let durableWriteFailed = false;
   function durability(state, label) {
     const b = bar(); if (!b) return;
     b.dataset.durabilityState = state;
     const badge = g.document.getElementById('anas-status-durability-badge');
     if (badge) badge.textContent = label;
   }
+  function markDurabilityFailure(message) {
+    durableWriteFailed = true;
+    durability('error', message || '⚠ فشل الحفظ المحلي');
+    emit('anas:durability-failed', { message: message || 'local durable write failed' });
+  }
   function syncLiveDurabilityStatusBar() {
     if (!bar()) return false;
+    if (durableWriteFailed) {
+      durability('error', '⚠ فشل الحفظ المحلي'); return false;
+    }
     const storage = g.ANASResilientStorage, data = g.AppData;
     if (!storage || typeof storage.getCommittedSnapshot !== 'function' ||
         typeof storage.canonicalizeJson !== 'function' || !data ||
@@ -60,15 +69,16 @@
       try {
         const result = await original.apply(this, arguments);
         if (result === true) {
+          durableWriteFailed = false;
           const committed = syncLiveDurabilityStatusBar();
-          emit(committed ? 'anas:durability-committed' : 'anas:durability-uncommitted');
+          if (committed) emit('anas:durability-committed');
+          else markDurabilityFailure('⚠ فشل تأكيد الحفظ المحلي');
         } else {
-          durability('uncommitted', '⚠ لم يكتمل الحفظ'); emit('anas:durability-uncommitted');
+          markDurabilityFailure('⚠ فشل الحفظ المحلي');
         }
         return result;
       } catch (error) {
-        durability('uncommitted', '⚠ فشل الحفظ');
-        emit('anas:durability-failed', { message: String(error && error.message || error) });
+        markDurabilityFailure('⚠ فشل الحفظ المحلي');
         throw error;
       }
     };
@@ -83,6 +93,9 @@
     hookDurableSave(); syncLiveDurabilityStatusBar();
   });
   g.document.addEventListener('anas:storage-committed', syncLiveDurabilityStatusBar);
+  ['anas:storage-restore-failed','anas:storage-rollback-failed','anas:durability-restore-failed'].forEach(type=>{
+    g.document.addEventListener(type,()=>markDurabilityFailure('⚠ فشل استرجاع الحالة السابقة'));
+  });
   g.document.addEventListener('anas:appdata-updated', syncLiveDurabilityStatusBar);
   g.document.addEventListener('anas:pos-cart-updated', syncLiveDurabilityStatusBar);
   hookDurableSave(); syncLiveDurabilityStatusBar();
@@ -396,7 +409,7 @@
     for(const k of ['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','updatedAt','updated_at']){
       const candidate=row[k];
       if(candidate===undefined||candidate===null||candidate==='')continue;
-      if(normalizeReportDateValue(candidate))return candidate;
+      const normalized=reportDayKey(candidate);if(normalized)return normalized;
     }
     const m=/(?:^|\D)(20\d{2})[-_/]?(\d{2})[-_/]?(\d{2})(?:\D|$)/.exec(String(row.id||row.invoiceId||''));
     if(!m)return null;
@@ -404,12 +417,49 @@
     return normalizeReportDateValue(fromId)?fromId:null;
   }
   g.anasNormalizeReportDateValue=normalizeReportDateValue;g.anasGetReportRecordDate=reportRecordDate;
+  function reportDayKey(value){
+    const parsed=normalizeReportDateValue(value);
+    return parsed?parsed.getFullYear()+'-'+String(parsed.getMonth()+1).padStart(2,'0')+'-'+String(parsed.getDate()).padStart(2,'0'):null;
+  }
+  function normalizeReportInvoiceRows(rows){
+    return(Array.isArray(rows)?rows:[]).map(row=>{
+      if(!row||typeof row!=='object')return row;
+      const day=reportDayKey(reportRecordDate(row));
+      if(!day)return row;
+      const copy={...row};
+      const dateKeys=['date','invoiceDate','createdAt','timestamp','time','day','created_at','invoice_date','updatedAt','updated_at'];
+      let normalized=false;
+      for(const key of dateKeys)if(copy[key]!==undefined&&copy[key]!==null&&copy[key]!==''){
+        if(reportDayKey(copy[key])){copy[key]=day;normalized=true;break;}
+      }
+      if(!normalized||copy.date!==day)copy.date=day;
+      return copy;
+    });
+  }
+  function withNormalizedReportInvoices(callback,receiver,args){
+    const originalData=g.AppData;
+    if(!originalData||!Array.isArray(originalData.invoices))return callback.apply(receiver,args||[]);
+    const originalRange=g.getReportRange;
+    const reportData={...originalData,invoices:normalizeReportInvoiceRows(originalData.invoices)};
+    try{
+      g.AppData=reportData;
+      if(typeof originalRange==='function')g.getReportRange=function(){
+        const range=originalRange.apply(this,arguments)||{};
+        return{...range,from:reportDayKey(range.from)||range.from||'',to:reportDayKey(range.to)||range.to||''};
+      };
+      return callback.apply(receiver,args||[]);
+    }finally{
+      g.AppData=originalData;
+      if(typeof originalRange==='function')g.getReportRange=originalRange;
+    }
+  }
+  g.anasNormalizeReportInvoiceRows=normalizeReportInvoiceRows;
   function reportRowInRange(row,range){
     const bounds=range&&typeof range==='object'?range:(typeof g.getReportRange==='function'?g.getReportRange():{});
-    const parsed=normalizeReportDateValue(reportRecordDate(row));
-    if(!parsed)return !bounds.from&&!bounds.to;
-    const day=parsed.getFullYear()+'-'+String(parsed.getMonth()+1).padStart(2,'0')+'-'+String(parsed.getDate()).padStart(2,'0');
-    return(!bounds.from||day>=String(bounds.from))&&(!bounds.to||day<=String(bounds.to));
+    const day=reportDayKey(reportRecordDate(row));
+    if(!day)return !bounds.from&&!bounds.to;
+    const from=reportDayKey(bounds.from),to=reportDayKey(bounds.to);
+    return(!from||day>=from)&&(!to||day<=to);
   }
   function filterReportRowsInRange(rows,range){return(Array.isArray(rows)?rows:[]).filter(row=>reportRowInRange(row,range));}
   function buildStoreMovementMetrics(data,range){
@@ -465,7 +515,22 @@
   }
   function hookV42InvoiceMetadataSave(){
     const original=g.saveDB;if(typeof original!=='function'||original.__anasInvoiceMetadataCompat)return false;
-    const wrapped=function(){normalizeCommittedInvoiceMetadata();return original.apply(this,arguments);};
+    const fail=()=>markDurabilityFailure('⚠ فشل الحفظ المحلي');
+    const finish=value=>{
+      if(value===false){fail();return value;}
+      durableWriteFailed=false;
+      if(syncLiveDurabilityStatusBar())emit('anas:durability-committed');
+      else fail();
+      return value;
+    };
+    const wrapped=function(){
+      durability('saving','… جارٍ الحفظ');emit('anas:durability-saving');
+      let result;
+      try{normalizeCommittedInvoiceMetadata();result=original.apply(this,arguments);}
+      catch(error){fail();throw error;}
+      if(result&&typeof result.then==='function')return result.then(finish,error=>{fail();throw error;});
+      return finish(result);
+    };
     wrapped.__anasInvoiceMetadataCompat=true;g.saveDB=wrapped;return true;
   }
   function watchV42RuntimeInstall(){
@@ -475,7 +540,7 @@
     catch(_){hook();}
     return true;
   }
-  g.anasInstallReportAndLedgerHooks=()=>{hookReportItemInRange();hookV42InvoiceMetadataSave();return true;};
+  g.anasInstallReportAndLedgerHooks=()=>{hookReportItemInRange();hookV42InvoiceMetadataSave();hookShowReportDetails();return true;};
   watchV42RuntimeInstall();
   if(typeof g.reportParseDate==='function'&&!g.reportParseDate.__anasR46){
     const parser=value=>{const d=normalizeReportDateValue(value);return d?new Date(d.getFullYear(),d.getMonth(),d.getDate()):null;};
@@ -510,7 +575,7 @@
       scheduleDomRepairs();
       if(title==='تقرير مصادقة حساب العميل'||title==='مصادقة حساب العميل')return renderCustomerReconciliationReport(title);
       if(title==='حركة المتجر'||title==='حركة المتجر - رسم بياني')return renderStoreMovementReport(title.includes('رسم بياني'));
-      const result=original.apply(this,arguments);
+      const result=withNormalizedReportInvoices(()=>original.apply(this,arguments),this,arguments);
       scheduleDomRepairs();
       return result;
     };

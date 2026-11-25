@@ -154,3 +154,57 @@ test('report range hook restores invoices on an inclusive last-seven-days bounda
   h.window.anasInstallReportAndLedgerHooks();
   assert.equal(h.window.reportItemInRange({ id: 'INV-TODAY', date: '2026-11-24T11:30:00' }), true);
 });
+
+test('durability badge fails closed after a failed persistent write and turns green only after a confirmed commit', () => {
+  const snapshot = { value: { revision: 1 } };
+  const appData = { revision: 1 };
+  const h = harness(snapshot, appData);
+  let writer = () => { throw new Error('disk quota exceeded'); };
+  h.window.saveDB = () => writer();
+  h.window.ANASMutationSync = { status: 'installed' };
+  assert.throws(() => h.window.saveDB(), /disk quota exceeded/);
+  assert.equal(h.bar.dataset.durabilityState, 'error');
+  assert.equal(h.durabilityBadge.textContent, '⚠ فشل الحفظ المحلي');
+  h.document.dispatchEvent({ type: 'anas:storage-committed' });
+  assert.equal(h.durabilityBadge.textContent, '⚠ فشل الحفظ المحلي', 'rollback/commit notifications must not clear a failed-write latch');
+  writer = () => { snapshot.value = { revision: 2 }; appData.revision = 2; return true; };
+  assert.equal(h.window.saveDB(), true);
+  assert.equal(h.bar.dataset.durabilityState, 'committed');
+  assert.equal(h.durabilityBadge.textContent, '✓ محفوظ بأمان');
+});
+
+test('sales and profit report handlers normalize slash and day-first invoice dates without exclusions', () => {
+  const invoices = Array.from({ length: 14 }, (_, i) => ({
+    id: 'INV-' + (i + 1), date: '2026/11/24', total: 1000 + i, cost: 400 + i
+  }));
+  const originalDates = invoices.map(row => row.date);
+  const h = harness({ value: { invoices } }, { invoices });
+  h.window.getReportRange = () => ({ from: '24/11/2026', to: '2026/11/24' });
+  h.window.reportParseDate = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(String(value)) ? new Date(String(value) + 'T00:00:00') : null;
+  h.window.showReportDetails = function (report) {
+    const range = h.window.getReportRange();
+    const accepted = h.window.AppData.invoices.filter(row => {
+      const parsed = h.window.reportParseDate(row.date);
+      if (!parsed) return false;
+      const day = parsed.toISOString().slice(0, 10);
+      return day >= range.from && day <= range.to;
+    });
+    return {
+      report,
+      count: accepted.length,
+      total: accepted.reduce((sum, row) => sum + row.total, 0),
+      profit: accepted.reduce((sum, row) => sum + row.total - row.cost, 0),
+      excludedForDate: h.window.AppData.invoices.length - accepted.length
+    };
+  };
+  h.window.anasInstallReportAndLedgerHooks();
+  const sales = h.window.showReportDetails('sales');
+  const profit = h.window.showReportDetails('profit');
+  assert.equal(sales.count, 14);
+  assert.equal(sales.total, 14091);
+  assert.equal(sales.excludedForDate, 0);
+  assert.equal(profit.count, 14);
+  assert.equal(profit.profit, 8491);
+  assert.equal(profit.excludedForDate, 0);
+  assert.deepEqual(invoices.map(row => row.date), originalDates, 'normalization must not mutate persisted AppData invoices');
+});
