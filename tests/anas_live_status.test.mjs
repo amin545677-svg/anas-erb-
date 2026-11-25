@@ -212,7 +212,8 @@ test('sales and profit report handlers normalize slash and day-first invoice dat
   assert.deepEqual(invoices.map(row => row.date), originalDates, 'normalization must not mutate persisted AppData invoices');
 });
 
-\ntest('offline POS, product, cash movement and customer saves preserve append-only cash ledger metadata and green durability badge', () => {
+
+test('offline POS, product, cash movement and customer saves preserve append-only cash ledger metadata and green durability badge', () => {
   const committed = {
     invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000, syncOpId: 'invoice-op', syncCreatedAt: '2026-11-24T10:00:00.000Z' }],
     cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', syncOpId: 'cash-op', syncCreatedAt: '2026-11-24T10:01:00.000Z' }]
