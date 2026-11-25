@@ -520,8 +520,14 @@
     const current=getData(),persisted=persistedAppData();
     if(!current||!Array.isArray(current.cashMovements)||!persisted||!Array.isArray(persisted.cashMovements))return false;
     const rows=current.cashMovements,committedRows=persisted.cashMovements;
-    const byId=new Map(committedRows.filter(row=>row&&(row.id??row.movementId)!=null)
-      .map(row=>[String(row.id??row.movementId),row]));
+    const identity=row=>row&&(row.id??row.movementId);
+    const byId=new Map();
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index],id=identity(row);
+      if(id==null)continue;
+      const key=String(id),positions=byId.get(key)||[];
+      positions.push(index);byId.set(key,positions);
+    }
     const comparable=value=>{
       const copy={...value};
       for(const key of ['syncOpId','syncCreatedAt','synced','syncStatus'])delete copy[key];
@@ -535,33 +541,52 @@
       Object.keys(target).forEach(key=>{if(!Object.prototype.hasOwnProperty.call(previous,key))delete target[key];});
       Object.assign(target,previous);
     };
+    const restoreCollection=()=>{
+      rows.splice(0,rows.length,...committedRows.map(row=>row&&typeof row==='object'?{...row}:row));
+    };
     const changedFields=(row,previous)=>{
-      const current=comparable(row),original=comparable(previous);
-      const keys=new Set([...Object.keys(current),...Object.keys(original)]);
-      return [...keys].filter(key=>stableJson(current[key])!==stableJson(original[key]));
+      const currentValue=comparable(row),original=comparable(previous);
+      const keys=new Set([...Object.keys(currentValue),...Object.keys(original)]);
+      return [...keys].filter(key=>stableJson(currentValue[key])!==stableJson(original[key]));
     };
     const rejection=(row,previous,index,fields)=>{
       const rowId=String((previous&&(previous.id??previous.movementId))??(row&&(row.id??row.movementId))??index);
       return new Error('Existing cashMovements ledger row was modified during a new operation' +
         ' (row='+rowId+', fields='+fields.join(',')+')');
     };
-    for(let index=0;index<rows.length;index++){
-      const row=rows[index];if(!row||typeof row!=='object')continue;
-      const identity=row.id??row.movementId;
-      const committed=(identity!=null&&byId.get(String(identity)))||committedRows[index];
-      if(!committed)continue;
+    for(let index=0;index<committedRows.length;index++){
+      const committed=committedRows[index];
+      if(!committed||typeof committed!=='object')continue;
+      const committedId=identity(committed);
+      let row=null;
+      if(committedId!=null){
+        const matches=byId.get(String(committedId))||[];
+        if(matches.length>1){
+          const duplicate=rows[matches[0]];
+          restoreCollection();
+          throw rejection(duplicate,committed,index,['id']);
+        }
+        if(matches.length===1)row=rows[matches[0]];
+        else{
+          const positional=rows[index];
+          restoreCollection();
+          throw rejection(positional&&typeof positional==='object'?positional:null,committed,index,['id']);
+        }
+      }else{
+        row=rows[index];
+        if(!row||typeof row!=='object'){
+          restoreCollection();
+          throw rejection(null,committed,index,['id']);
+        }
+      }
       const differences=changedFields(row,committed);
       if(differences.length){
         restore(row,committed);
         throw rejection(row,committed,index,differences);
       }
-      const committedId=committed.id??committed.movementId;
-      if(identity==null||String(identity)!==String(committedId)){
-        const error=rejection(row,committed,index,['id']);
-        restore(row,committed);
-        throw error;
+      for(const key of ['syncOpId','syncCreatedAt','synced','syncStatus']){
+        if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key))row[key]=committed[key];
       }
-      for(const key of ['syncOpId','syncCreatedAt'])if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key))row[key]=committed[key];
     }
     return true;
   }

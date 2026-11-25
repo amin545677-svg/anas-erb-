@@ -213,16 +213,16 @@ test('sales and profit report handlers normalize slash and day-first invoice dat
 });
 
 
-test('offline POS, product, cash movement and customer saves preserve append-only cash ledger metadata and reject financial mutations', () => {
+test('offline POS, unshift debt collection, product and customer saves preserve cash ledger identity and reject financial mutations', () => {
   const committed = {
     invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000, syncOpId: 'invoice-op', syncCreatedAt: '2026-11-24T10:00:00.000Z' }],
-    cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', syncOpId: 'cash-op', syncCreatedAt: '2026-11-24T10:01:00.000Z' }]
+    cashMovements: [
+      { id: 'SALE-CASH-INV-TEST', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', description: 'POS sale', referenceType: 'sales_invoice', referenceId: 'INV-BASE', cashImpact: 2000, paymentChannel: 'cash' },
+      { id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', syncOpId: 'cash-op', syncCreatedAt: '2026-11-24T10:01:00.000Z' }
+    ]
   };
-  const appData = {
-    invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000 }],
-    cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24' }],
-    products: [], customers: []
-  };
+  const appData = structuredClone(committed);
+  appData.products = []; appData.customers = [];
   const snapshot = { value: structuredClone(committed) };
   const h = harness(snapshot, appData);
   h.window.AppData = appData;
@@ -231,58 +231,79 @@ test('offline POS, product, cash movement and customer saves preserve append-onl
   let persisted = structuredClone(committed);
   h.window.ANASResilientStorage.getItem = key => key === 'appData' ? persisted : null;
   h.window.saveDB = () => {
-    for (const table of ['invoices', 'cashMovements']) {
-      const before = new Map((persisted[table] || []).map(row => [String(row.id ?? row.movementId), row]));
-      for (const row of appData[table] || []) {
-        const old = before.get(String(row.id ?? row.movementId));
-        if (!old) continue;
-        const canonical = value => {
-          const copy = { ...value };
-          if (table === 'cashMovements') {
-            for (const key of ['syncOpId', 'syncCreatedAt', 'synced', 'syncStatus']) delete copy[key];
-            const parts = String(copy.date || '').split('/');
-            if (parts.length === 3 && parts[0].length === 4) copy.date = parts[0] + '-' + parts[1].padStart(2, '0') + '-' + parts[2].padStart(2, '0');
-          }
-          return JSON.stringify(copy);
-        };
-        assert.equal(canonical(row), canonical(old), 'committed ' + table + ' rows remain immutable');
-      }
-    }
     persisted = structuredClone(appData);
     snapshot.value = structuredClone(appData);
     return true;
   };
   h.window.ANASMutationSync = { status: 'installed' };
+  h.document.dispatchEvent({ type: 'anas:storage-hydrated' });
+  const cashBase = () => appData.cashMovements.find(row => row.id === 'CASH-BASE');
+  const saleRow = () => appData.cashMovements.find(row => row.id === 'SALE-CASH-INV-TEST');
   const save = mutate => { mutate(); assert.equal(h.window.saveDB(), true); assert.equal(h.durabilityBadge.textContent, '✓ محفوظ بأمان'); };
   save(() => appData.invoices.push({ id: 'INV-POS-NEW', total: 2000, paid: 2000 }));
   save(() => appData.products.push({ id: 'P-NEW', name: 'شاي قرية', stock: 1 }));
-  save(() => {
-    appData.cashMovements.push({ id: 'CASH-NEW', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24T10:02:00.000Z' });
-    appData.cashMovements[1].date = '2026-11-24';
-  });
+  save(() => appData.cashMovements.push({ id: 'CASH-NEW', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24T10:02:00.000Z' }));
+  save(() => appData.cashMovements.unshift({ id: 'DEBT-RECEIPT-NEW', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', description: 'Debt collection' }));
+  assert.equal(appData.cashMovements[1].id, 'SALE-CASH-INV-TEST', 'the committed sale row may shift from index 0 to index 1 after unshift');
+  assert.equal(saleRow().description, 'POS sale');
   save(() => appData.customers.push({ id: 'C-NEW', name: 'محمد دربا', city: 'النعامة' }));
-  assert.equal(appData.cashMovements[0].syncOpId, 'cash-op');
+  assert.equal(cashBase().syncOpId, 'cash-op');
   assert.equal(appData.invoices[0].syncOpId, 'invoice-op');
   save(() => {
-    appData.cashMovements[0].date = '2026/11/24';
-    appData.cashMovements[0].syncStatus = 'synced';
-    appData.cashMovements[0].synced = true;
+    cashBase().date = '2026/11/24';
+    cashBase().syncStatus = 'synced';
+    cashBase().synced = true;
   });
-  assert.equal(appData.cashMovements[0].date, '2026/11/24', 'same-day date formatting is permitted');
+  assert.equal(cashBase().date, '2026/11/24', 'same-day date formatting is permitted');
   for (const [field, value] of [
     ['amount', 1], ['type', 'remove'], ['id', 'CASH-ALTERED'],
     ['currency', 'USD'], ['invoiceId', 'INV-ALTERED'],
     ['customerId', 'CUSTOMER-ALTERED'], ['account', 'OTHER-ACCOUNT'],
     ['truckId', 'TRUCK-ALTERED'], ['warehouseId', 'WAREHOUSE-ALTERED'], ['date', '2026-11-25']
   ]) {
-    const previous = appData.cashMovements[0][field];
+    const previous = cashBase()[field];
     assert.throws(() => {
-      appData.cashMovements[0][field] = value;
+      cashBase()[field] = value;
       h.window.saveDB();
     }, error => error.message.startsWith('Existing cashMovements ledger row was modified during a new operation') &&
       error.message.includes('(row=CASH-BASE, fields=' + field + ')'));
-    assert.equal(appData.cashMovements[0][field], previous, field + ' must be restored after rejection');
+    assert.equal(cashBase()[field], previous, field + ' must be restored after rejection');
   }
+  for (const [field, value] of [
+    ['amount', 1], ['type', 'remove'], ['id', 'SALE-ALTERED'],
+    ['currency', 'USD'], ['invoiceId', 'INV-ALTERED'], ['customerId', 'CUSTOMER-ALTERED'],
+    ['account', 'OTHER-ACCOUNT'], ['truckId', 'TRUCK-ALTERED'], ['warehouseId', 'WAREHOUSE-ALTERED'],
+    ['date', '2026-11-25'], ['description', 'changed'], ['referenceType', 'other'],
+    ['referenceId', 'INV-OTHER'], ['cashImpact', -2000], ['paymentChannel', 'card']
+  ]) {
+    const previous = saleRow()[field];
+    assert.throws(() => {
+      saleRow()[field] = value;
+      h.window.saveDB();
+    }, error => error.message.startsWith('Existing cashMovements ledger row was modified during a new operation') &&
+      error.message.includes('(row=SALE-CASH-INV-TEST, fields=' + field + ')'));
+    assert.equal(saleRow()[field], previous, field + ' must be restored after rejection');
+  }
+});
+test('cash ledger rejects deletion and duplicate committed IDs and restores the committed rows', () => {
+  const committed = { cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', date: '2026-11-24' }] };
+  const appData = structuredClone(committed);
+  const snapshot = { value: structuredClone(committed) };
+  const h = harness(snapshot, appData);
+  h.window.AppData = appData;
+  h.window.__ANAS_GET_APP_DATA__ = () => appData;
+  h.window.ANASMutationQueue = { keys: { appData: 'appData' } };
+  let persisted = structuredClone(committed);
+  h.window.ANASResilientStorage.getItem = key => key === 'appData' ? persisted : null;
+  h.window.saveDB = () => { persisted = structuredClone(appData); snapshot.value = structuredClone(appData); return true; };
+  h.window.ANASMutationSync = { status: 'installed' };
+  h.document.dispatchEvent({ type: 'anas:storage-hydrated' });
+  appData.cashMovements.length = 0;
+  assert.throws(() => h.window.saveDB(), /Existing cashMovements ledger row was modified during a new operation/);
+  assert.deepEqual(appData.cashMovements.map(row => row.id), ['CASH-BASE']);
+  appData.cashMovements.push({ id: 'CASH-BASE', amount: 2000, type: 'add', date: '2026-11-24' });
+  assert.throws(() => h.window.saveDB(), /Existing cashMovements ledger row was modified during a new operation/);
+  assert.deepEqual(appData.cashMovements.map(row => row.id), ['CASH-BASE']);
 });
 test('live status source passes new Function syntax check', () => {
   assert.doesNotThrow(() => new Function(source));
