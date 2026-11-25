@@ -515,7 +515,44 @@
     return changed;
   }
   function normalizeCommittedInvoiceMetadata(){return normalizeCommittedLedgerMetadata('invoices');}
-  function normalizeCommittedCashMovementMetadata(){return normalizeCommittedLedgerMetadata('cashMovements');}
+  function normalizeCommittedCashMovementMetadata(){
+    const getData=typeof g.__ANAS_GET_APP_DATA__==='function'?g.__ANAS_GET_APP_DATA__:()=>g.AppData;
+    const current=getData(),persisted=persistedAppData();
+    if(!current||!Array.isArray(current.cashMovements)||!persisted||!Array.isArray(persisted.cashMovements))return false;
+    const rows=current.cashMovements,committedRows=persisted.cashMovements;
+    const byId=new Map(committedRows.filter(row=>row&&(row.id??row.movementId)!=null)
+      .map(row=>[String(row.id??row.movementId),row]));
+    const comparable=value=>{
+      const copy={...value};
+      for(const key of ['syncOpId','syncCreatedAt','synced','syncStatus'])delete copy[key];
+      if(Object.prototype.hasOwnProperty.call(copy,'date')){
+        const day=reportDayKey(copy.date);
+        if(day)copy.date=day;
+      }
+      return copy;
+    };
+    const restore=(target,previous)=>{
+      Object.keys(target).forEach(key=>{if(!Object.prototype.hasOwnProperty.call(previous,key))delete target[key];});
+      Object.assign(target,previous);
+    };
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index];if(!row||typeof row!=='object')continue;
+      const identity=row.id??row.movementId;
+      const committed=(identity!=null&&byId.get(String(identity)))||committedRows[index];
+      if(!committed)continue;
+      if(stableJson(comparable(row))!==stableJson(comparable(committed))){
+        restore(row,committed);
+        throw new Error('Existing cashMovements ledger row was modified during a new operation');
+      }
+      const committedId=committed.id??committed.movementId;
+      if(identity==null||String(identity)!==String(committedId)){
+        restore(row,committed);
+        throw new Error('Existing cashMovements ledger row was modified during a new operation');
+      }
+      for(const key of ['syncOpId','syncCreatedAt'])if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key))row[key]=committed[key];
+    }
+    return true;
+  }
   function hookV42InvoiceMetadataSave(){
     const original=g.saveDB;if(typeof original!=='function'||original.__anasInvoiceMetadataCompat)return false;
     const fail=()=>markDurabilityFailure('⚠ فشل الحفظ المحلي');

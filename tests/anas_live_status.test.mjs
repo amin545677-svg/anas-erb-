@@ -213,13 +213,13 @@ test('sales and profit report handlers normalize slash and day-first invoice dat
 });
 
 
-test('offline POS, product, cash movement and customer saves preserve append-only cash ledger metadata and green durability badge', () => {
+test('offline POS, product, cash movement and customer saves preserve append-only cash ledger metadata and reject financial mutations', () => {
   const committed = {
     invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000, syncOpId: 'invoice-op', syncCreatedAt: '2026-11-24T10:00:00.000Z' }],
     cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', syncOpId: 'cash-op', syncCreatedAt: '2026-11-24T10:01:00.000Z' }]
   };
   const appData = {
-    invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000 }],
+    invoices: [{ id: 'INV-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', total: 2000, paid: 2000 }],
     cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24' }],
     products: [], customers: []
   };
@@ -254,12 +254,25 @@ test('offline POS, product, cash movement and customer saves preserve append-onl
   save(() => appData.customers.push({ id: 'C-NEW', name: 'محمد دربا', city: 'النعامة' }));
   assert.equal(appData.cashMovements[0].syncOpId, 'cash-op');
   assert.equal(appData.invoices[0].syncOpId, 'invoice-op');
-  assert.throws(() => {
-    appData.cashMovements[0].amount = 1;
-    h.window.saveDB();
-  }, /Existing cashMovements ledger row was modified/);
+  save(() => {
+    appData.cashMovements[0].date = '2026/11/24';
+    appData.cashMovements[0].syncStatus = 'synced';
+    appData.cashMovements[0].synced = true;
+  });
+  assert.equal(appData.cashMovements[0].date, '2026/11/24', 'same-day date formatting is permitted');
+  for (const [field, value] of [
+    ['amount', 1], ['type', 'remove'], ['id', 'CASH-ALTERED'],
+    ['currency', 'USD'], ['invoiceId', 'INV-ALTERED'],
+    ['customerId', 'CUSTOMER-ALTERED'], ['account', 'OTHER-ACCOUNT']
+  ]) {
+    const previous = appData.cashMovements[0][field];
+    assert.throws(() => {
+      appData.cashMovements[0][field] = value;
+      h.window.saveDB();
+    }, error => error.message === 'Existing cashMovements ledger row was modified during a new operation');
+    assert.equal(appData.cashMovements[0][field], previous, field + ' must be restored after rejection');
+  }
 });
-
 test('live status source passes new Function syntax check', () => {
   assert.doesNotThrow(() => new Function(source));
 });
