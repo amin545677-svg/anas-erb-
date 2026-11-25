@@ -90,7 +90,7 @@
   g.addEventListener('online', function () { network(true); });
   g.addEventListener('offline', function () { network(false); });
   g.document.addEventListener('anas:storage-hydrated', function () {
-    hookDurableSave(); syncLiveDurabilityStatusBar();
+    hookDurableSave(); hookV42InvoiceMetadataSave(); syncLiveDurabilityStatusBar();
   });
   g.document.addEventListener('anas:storage-committed', syncLiveDurabilityStatusBar);
   ['anas:storage-restore-failed','anas:storage-rollback-failed','anas:durability-restore-failed'].forEach(type=>{

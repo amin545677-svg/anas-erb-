@@ -89,11 +89,11 @@ test('R46 report dates parse Arabic digits and time suffixes, reject impossible 
   assert.equal(h.window.anasGetReportRecordDate({
     date: '2026-02-31',
     invoiceDate: '2026/11/8, 2:31:22 م'
-  }), '2026/11/8, 2:31:22 م', 'an invalid preferred field must not mask a valid invoiceDate');
+  }), '2026-11-08', 'an invalid preferred field must fall through to a normalized valid invoiceDate');
   assert.equal(h.window.anasGetReportRecordDate({
     date: 'not-a-date',
     createdAt: '٢٠٢٦/١١/٨، ٢:٣١:٢٢ ص'
-  }), '٢٠٢٦/١١/٨، ٢:٣١:٢٢ ص', 'createdAt is a valid fallback when earlier fields are malformed');
+  }), '2026-11-08', 'createdAt fallback is returned as a normalized day key');
   assert.equal(h.window.anasGetReportRecordDate({ id: 'INV-20261108-0001' }), '2026-11-08',
     'a valid date embedded in an invoice ID remains a fallback');
 });
@@ -166,7 +166,10 @@ test('durability badge fails closed after a failed persistent write and turns gr
   assert.equal(h.bar.dataset.durabilityState, 'error');
   assert.equal(h.durabilityBadge.textContent, '⚠ فشل الحفظ المحلي');
   h.document.dispatchEvent({ type: 'anas:storage-committed' });
-  assert.equal(h.durabilityBadge.textContent, '⚠ فشل الحفظ المحلي', 'rollback/commit notifications must not clear a failed-write latch');
+  assert.equal(h.durabilityBadge.textContent, '⚠ فشل الحفظ المحلي', 'commit notifications must not clear a failed-write latch');
+  writer = () => false;
+  assert.equal(h.window.saveDB(), false, 'a rejected durable write must remain a visible failure');
+  assert.equal(h.bar.dataset.durabilityState, 'error');
   writer = () => { snapshot.value = { revision: 2 }; appData.revision = 2; return true; };
   assert.equal(h.window.saveDB(), true);
   assert.equal(h.bar.dataset.durabilityState, 'committed');
