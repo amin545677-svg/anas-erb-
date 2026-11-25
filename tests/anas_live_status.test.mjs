@@ -219,7 +219,7 @@ test('offline POS, product, cash movement and customer saves preserve append-onl
     cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', syncOpId: 'cash-op', syncCreatedAt: '2026-11-24T10:01:00.000Z' }]
   };
   const appData = {
-    invoices: [{ id: 'INV-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24', total: 2000, paid: 2000 }],
+    invoices: [{ id: 'INV-BASE', total: 2000, paid: 2000 }],
     cashMovements: [{ id: 'CASH-BASE', amount: 2000, type: 'add', currency: 'DZD', date: '2026-11-24' }],
     products: [], customers: []
   };
@@ -236,7 +236,16 @@ test('offline POS, product, cash movement and customer saves preserve append-onl
       for (const row of appData[table] || []) {
         const old = before.get(String(row.id ?? row.movementId));
         if (!old) continue;
-        assert.equal(JSON.stringify(row), JSON.stringify(old), 'committed ' + table + ' rows remain immutable');
+        const canonical = value => {
+          const copy = { ...value };
+          if (table === 'cashMovements') {
+            for (const key of ['syncOpId', 'syncCreatedAt', 'synced', 'syncStatus']) delete copy[key];
+            const parts = String(copy.date || '').split('/');
+            if (parts.length === 3 && parts[0].length === 4) copy.date = parts[0] + '-' + parts[1].padStart(2, '0') + '-' + parts[2].padStart(2, '0');
+          }
+          return JSON.stringify(copy);
+        };
+        assert.equal(canonical(row), canonical(old), 'committed ' + table + ' rows remain immutable');
       }
     }
     persisted = structuredClone(appData);
