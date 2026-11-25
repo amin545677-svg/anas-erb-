@@ -535,19 +535,31 @@
       Object.keys(target).forEach(key=>{if(!Object.prototype.hasOwnProperty.call(previous,key))delete target[key];});
       Object.assign(target,previous);
     };
+    const changedFields=(row,previous)=>{
+      const current=comparable(row),original=comparable(previous);
+      const keys=new Set([...Object.keys(current),...Object.keys(original)]);
+      return [...keys].filter(key=>stableJson(current[key])!==stableJson(original[key]));
+    };
+    const rejection=(row,previous,index,fields)=>{
+      const rowId=String((previous&&(previous.id??previous.movementId))??(row&&(row.id??row.movementId))??index);
+      return new Error('Existing cashMovements ledger row was modified during a new operation' +
+        ' (row='+rowId+', fields='+fields.join(',')+')');
+    };
     for(let index=0;index<rows.length;index++){
       const row=rows[index];if(!row||typeof row!=='object')continue;
       const identity=row.id??row.movementId;
       const committed=(identity!=null&&byId.get(String(identity)))||committedRows[index];
       if(!committed)continue;
-      if(stableJson(comparable(row))!==stableJson(comparable(committed))){
+      const differences=changedFields(row,committed);
+      if(differences.length){
         restore(row,committed);
-        throw new Error('Existing cashMovements ledger row was modified during a new operation');
+        throw rejection(row,committed,index,differences);
       }
       const committedId=committed.id??committed.movementId;
       if(identity==null||String(identity)!==String(committedId)){
+        const error=rejection(row,committed,index,['id']);
         restore(row,committed);
-        throw new Error('Existing cashMovements ledger row was modified during a new operation');
+        throw error;
       }
       for(const key of ['syncOpId','syncCreatedAt'])if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key))row[key]=committed[key];
     }

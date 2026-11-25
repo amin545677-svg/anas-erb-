@@ -272,13 +272,15 @@ test('offline POS, product, cash movement and customer saves preserve append-onl
   for (const [field, value] of [
     ['amount', 1], ['type', 'remove'], ['id', 'CASH-ALTERED'],
     ['currency', 'USD'], ['invoiceId', 'INV-ALTERED'],
-    ['customerId', 'CUSTOMER-ALTERED'], ['account', 'OTHER-ACCOUNT']
+    ['customerId', 'CUSTOMER-ALTERED'], ['account', 'OTHER-ACCOUNT'],
+    ['truckId', 'TRUCK-ALTERED'], ['warehouseId', 'WAREHOUSE-ALTERED'], ['date', '2026-11-25']
   ]) {
     const previous = appData.cashMovements[0][field];
     assert.throws(() => {
       appData.cashMovements[0][field] = value;
       h.window.saveDB();
-    }, error => error.message === 'Existing cashMovements ledger row was modified during a new operation');
+    }, error => error.message.startsWith('Existing cashMovements ledger row was modified during a new operation') &&
+      error.message.includes('(row=CASH-BASE, fields=' + field + ')'));
     assert.equal(appData.cashMovements[0][field], previous, field + ' must be restored after rejection');
   }
 });
