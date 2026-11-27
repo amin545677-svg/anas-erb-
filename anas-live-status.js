@@ -514,7 +514,48 @@
     }
     return changed;
   }
-  function normalizeCommittedInvoiceMetadata(){return normalizeCommittedLedgerMetadata('invoices');}
+  function normalizeCommittedInvoiceMetadata(){
+    const getData=typeof g.__ANAS_GET_APP_DATA__==='function'?g.__ANAS_GET_APP_DATA__:()=>g.AppData;
+    const current=getData(),persisted=persistedAppData();
+    if(!current||!Array.isArray(current.invoices)||!persisted||!Array.isArray(persisted.invoices))return false;
+    const rows=current.invoices,committedRows=persisted.invoices,byId=new Map();
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index],id=row&&row.id;
+      if(id==null)continue;
+      const key=String(id),positions=byId.get(key)||[];
+      positions.push(index);byId.set(key,positions);
+    }
+    const comparable=value=>{
+      const copy={...value};
+      for(const key of ['syncOpId','syncCreatedAt','synced','syncStatus'])delete copy[key];
+      if(Object.prototype.hasOwnProperty.call(copy,'date')){
+        const day=reportDayKey(copy.date);
+        if(day)copy.date=day;
+      }
+      return copy;
+    };
+    const restoreCollection=()=>rows.splice(0,rows.length,...committedRows.map(row=>row&&typeof row==='object'?{...row}:row));
+    const reject=(row,committed,index,fields)=>{
+      const id=String((committed&&committed.id)??(row&&row.id)??index);
+      restoreCollection();
+      throw new Error('Existing invoices ledger row was modified during a new operation (row='+id+', fields='+fields.join(',')+')');
+    };
+    for(let index=0;index<committedRows.length;index++){
+      const committed=committedRows[index];
+      if(!committed||typeof committed!=='object')continue;
+      if(committed.id==null)reject(null,committed,index,['id']);
+      const matches=byId.get(String(committed.id))||[];
+      if(matches.length!==1)reject(matches.length?rows[matches[0]]:null,committed,index,['id']);
+      const row=rows[matches[0]],left=comparable(row),right=comparable(committed);
+      const keys=new Set([...Object.keys(left),...Object.keys(right)]);
+      const differences=[...keys].filter(key=>stableJson(left[key])!==stableJson(right[key]));
+      if(differences.length)reject(row,committed,index,differences);
+      for(const key of ['syncOpId','syncCreatedAt','synced','syncStatus']){
+        if(!Object.prototype.hasOwnProperty.call(row,key)&&Object.prototype.hasOwnProperty.call(committed,key))row[key]=committed[key];
+      }
+    }
+    return true;
+  }
   function normalizeCommittedCashMovementMetadata(){
     const getData=typeof g.__ANAS_GET_APP_DATA__==='function'?g.__ANAS_GET_APP_DATA__:()=>g.AppData;
     const current=getData(),persisted=persistedAppData();

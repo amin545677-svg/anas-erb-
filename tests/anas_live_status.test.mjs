@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const source = fs.readFileSync(new URL('../anas-live-status.js', import.meta.url), 'utf8');
+const indexSource = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function harness(snapshot, appData) {
   const winListeners = new Map(), docListeners = new Map(), timers = new Map();
   let nextTimerId = 0;
@@ -307,4 +308,47 @@ test('cash ledger rejects deletion and duplicate committed IDs and restores the 
 });
 test('live status source passes new Function syntax check', () => {
   assert.doesNotThrow(() => new Function(source));
+});
+
+test('POS invoice followed by saveProduct -> saveDB preserves immutable invoice and sync metadata', () => {
+  const committed = { invoices: [{ id: 'INV-POS-LOCK', date: '2026-11-27T09:15:00.000Z', total: 4200, paid: 4200, customerId: 'C-1', items: [{ productId: 'P-1', qty: 2, price: 2100 }], syncOpId: 'pos-op', syncCreatedAt: '2026-11-27T09:15:01.000Z', synced: true, syncStatus: 'synced' }] };
+  const appData = structuredClone(committed);
+  appData.invoices[0].date = '2026-11-27';
+  for (const key of ['syncOpId','syncCreatedAt','synced','syncStatus']) delete appData.invoices[0][key];
+  appData.products = [];
+  const h = harness({ value: structuredClone(committed) }, appData);
+  h.window.AppData = appData; h.window.__ANAS_GET_APP_DATA__ = () => appData;
+  h.window.ANASMutationQueue = { keys: { appData: 'appData' } };
+  let persisted = structuredClone(committed);
+  h.window.ANASResilientStorage.getItem = key => key === 'appData' ? persisted : null;
+  h.window.saveDB = () => { persisted = structuredClone(appData); return true; };
+  h.window.ANASMutationSync = { status: 'installed' };
+  h.window.saveProduct = () => { appData.products.push({ id: 'P-NEW', name: 'منتج جديد' }); return h.window.saveDB(); };
+  assert.equal(h.window.saveProduct(), true);
+  for (const key of ['syncOpId','syncCreatedAt','synced','syncStatus']) assert.equal(persisted.invoices[0][key], committed.invoices[0][key]);
+  assert.equal(persisted.invoices[0].total, 4200);
+  appData.invoices[0].total = 1;
+  assert.throws(() => h.window.saveDB(), /Existing invoices ledger row was modified/);
+  assert.equal(appData.invoices[0].total, 4200, 'a financial edit is restored');
+  appData.invoices.length = 0;
+  assert.throws(() => h.window.saveDB(), /Existing invoices ledger row was modified/);
+  assert.equal(appData.invoices[0].id, 'INV-POS-LOCK', 'deletion is restored');
+});
+
+test('report audit tries date fields in order and does not exclude a valid createdAt fallback', () => {
+  const marker = "const d=['date','invoiceDate','createdAt','timestamp','updatedAt'].map(k=>reportParseDate(row?.[k])).find(Boolean);";
+  const at = indexSource.indexOf(marker);
+  assert.notEqual(at, -1, 'report audit must use first-valid parsed date fallback');
+  const expression = marker.slice('const d='.length, -1);
+  const pickDate = new Function('row', 'reportParseDate', 'return ' + expression + ';');
+  const parse = value => {
+    if (value === 'not-a-date') return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  let auditExcluded = 0;
+  const d = pickDate({ date: 'not-a-date', invoiceDate: '', createdAt: '2026-11-27T10:00:00Z' }, parse);
+  if (!d) auditExcluded++;
+  assert.equal(auditExcluded, 0);
+  assert.equal(d.toISOString(), '2026-11-27T10:00:00.000Z');
 });
