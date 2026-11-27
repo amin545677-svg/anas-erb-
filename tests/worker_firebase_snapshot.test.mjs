@@ -7,9 +7,27 @@ import { resolve } from "node:path";
 const source = await readFile(resolve("cloudflare/worker_firebase_snapshot.js"), "utf8");
 const moduleUrl = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const { default: worker } = await import(moduleUrl);
-const allowedOrigin = "https://amin545677-svg.github.io";
+const allowedOrigin = "https://anas-erp-staging-a25e1.web.app";
 const MAX_BODY_BYTES_FOR_TEST = 700 * 1024;
-const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb" };
+const env = { FIREBASE_API_KEY: "test-key", FIREBASE_PROJECT_ID: "anas-erb", ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com" };
+
+test("staging Wrangler config is isolated from production Worker identity and origins", async () => {
+  const [staging, production] = await Promise.all([
+    readFile(resolve("cloudflare/wrangler-staging.toml"), "utf8"),
+    readFile(resolve("cloudflare/wrangler.toml"), "utf8")
+  ]);
+  assert.match(staging, /^name = "anas-erp-firebase-snapshot-staging"$/m);
+  assert.match(staging, /^FIREBASE_PROJECT_ID = "anas-erp-staging-a25e1"$/m);
+  assert.match(staging, /^ALLOWED_ORIGINS = "https:\/\/anas-erp-staging-a25e1\.web\.app,https:\/\/anas-erp-staging-a25e1\.firebaseapp\.com"$/m);
+  assert.match(staging, /^required = \["FIREBASE_API_KEY"\]$/m);
+  assert.match(production, /^name = "anas-erp-firebase-snapshot"$/m);
+  assert.match(production, /^FIREBASE_PROJECT_ID = "anas-erb"$/m);
+  assert.match(production, /^ALLOWED_ORIGINS = "https:\/\/amin545677-svg\.github\.io"$/m);
+  assert.doesNotMatch(staging, /anas-erb|amin545677-svg\.github\.io/);
+  assert.notEqual(staging.match(/^name = "([^"]+)"$/m)?.[1], production.match(/^name = "([^"]+)"$/m)?.[1]);
+  assert.notEqual(staging.match(/^FIREBASE_PROJECT_ID = "([^"]+)"$/m)?.[1], production.match(/^FIREBASE_PROJECT_ID = "([^"]+)"$/m)?.[1]);
+});
+
 
 function request(path, { method = "GET", body, auth = true } = {}) {
   const headers = new Headers({ Origin: allowedOrigin });
@@ -90,6 +108,67 @@ test("first snapshot upload uses an atomic create-only precondition", async () =
 });
 
 
+test("financial sub-ledgers are accepted and preserved in an atomic snapshot", async () => {
+  const oldFetch = globalThis.fetch;
+  let persistedPayload = "";
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    assert.equal(init.method, "PATCH");
+    persistedPayload = JSON.parse(init.body).fields.payload.stringValue;
+    return new Response(JSON.stringify({ updateTime: "2026-11-12T12:00:00.000000Z" }), { status: 200 });
+  };
+  const financialLedgers = {
+    products: [{ id: "p1", stock: 1 }],
+    customers: [{ id: "c1", debt: 0 }],
+    suppliers: [{ id: "s1", balance: 5 }],
+    bankMovements: [{ id: "B1", type: "add", amount: 10, referenceType: "sales_invoice", referenceId: "I1" }],
+    supplierMovements: [{ id: "S1", supplierId: "s1", type: "purchase", amount: 5, referenceType: "purchase_invoice", referenceId: "P1" }],
+    clientMovements: [{ movementId: "CM1", clientId: "c1", type: "receipt", amountCentimes: 1000, direction: "credit", referenceType: "customer_debt", referenceId: "c1", createdAt: "2026-11-12T12:00:00.000Z" }],
+    settlementAllocations: [{ allocationId: "A1", partyType: "customer", partyId: "c1", invoiceType: "sales_invoice", invoiceId: "I1", sourceMovementId: "CM1", sourceMovementType: "customer_debt", amountCentimes: 1000, createdAt: "2026-11-12T12:00:00.000Z" }]
+  };
+  try {
+    const response = await worker.fetch(request("/snapshot", {
+      method: "POST", body: { data: JSON.stringify(financialLedgers), revision: null }
+    }), env);
+    assert.equal(response.status, 200);
+    const saved = JSON.parse(persistedPayload);
+    for (const key of ["bankMovements", "supplierMovements", "clientMovements", "settlementAllocations"]) {
+      assert.deepEqual(saved[key], financialLedgers[key], key + " must survive snapshot serialization");
+    }
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("malformed and duplicate financial sub-ledgers fail closed before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid financial ledger must not reach Firestore");
+  };
+  try {
+    const base = { products: [{ id: "p1", stock: 1 }], customers: [] };
+    const invalidSnapshots = [
+      { ...base, bankMovements: [{ id: "B-DUP", amount: 1 }, { id: "B-DUP", amount: 2 }] },
+      { ...base, bankMovements: [{ id: "B-BAD", amount: -1 }] },
+      { ...base, supplierMovements: [{ id: "S-DUP", amount: 1 }, { id: "S-DUP", amount: 2 }] },
+      { ...base, supplierMovements: [{ id: "S-BAD", amount: "not-money" }] },
+      { ...base, clientMovements: [{ movementId: "CM-DUP", amountCentimes: 100 }, { movementId: "CM-DUP", amountCentimes: 200 }] },
+      { ...base, clientMovements: [{ movementId: "CM-BAD", amountCentimes: -1 }] },
+      { ...base, settlementAllocations: [{ allocationId: "A-DUP", amountCentimes: 100 }, { allocationId: "A-DUP", amountCentimes: 200 }] },
+      { ...base, settlementAllocations: [{ allocationId: "A-BAD", amountCentimes: 0 }] }
+    ];
+    for (const data of invalidSnapshots) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST", body: { data: JSON.stringify(data) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "invalid financial ledgers must never be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test("malformed stock magnitudes are rejected before any Firestore write", async () => {
   const oldFetch = globalThis.fetch;
   let firestoreCalls = 0;
@@ -109,6 +188,33 @@ test("malformed stock magnitudes are rejected before any Firestore write", async
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /integrity validation/i);
     assert.equal(firestoreCalls, 0, "invalid stock magnitudes must not be persisted");
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("invalid historical COGS and inventory valuation magnitudes are rejected before Firestore writes", async () => {
+  const oldFetch = globalThis.fetch;
+  let firestoreCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("identitytoolkit.googleapis.com")) return mockFirebaseLookup();
+    firestoreCalls++;
+    throw new Error("invalid valuation movement must not reach Firestore");
+  };
+  try {
+    const invalidMovements = [
+      { id: "SALE-COST-BAD", productId: "p1", qty: -1, type: "SALE_OUT",
+        originalSaleQuantityMicroUnits: 1000000, originalSaleCostCentimes: -1 },
+      { id: "RETURN-VARIANCE-BAD", productId: "p1", qty: -1, type: "RETURN_OUT",
+        inventoryBookValueCentimes: 10, valuationVarianceCentimes: Number.MAX_SAFE_INTEGER + 1 }
+    ];
+    for (const movement of invalidMovements) {
+      const response = await worker.fetch(request("/snapshot", {
+        method: "POST",
+        body: { data: JSON.stringify({ products: [{ id: "p1", stock: 1 }], customers: [], stockMovements: [movement] }) }
+      }), env);
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /integrity validation/i);
+    }
+    assert.equal(firestoreCalls, 0, "invalid valuation metadata must never be persisted");
   } finally { globalThis.fetch = oldFetch; }
 });
 
@@ -283,4 +389,39 @@ test("disallowed origins cannot use CORS preflight", async () => {
   }), env);
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+});
+
+
+test("health identifies the staging Firebase project without exposing secrets", async () => {
+  const stagingEnv = {
+    FIREBASE_API_KEY: "staging-test-key",
+    FIREBASE_PROJECT_ID: "anas-erp-staging-a25e1",
+    ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com"
+  };
+  const response = await worker.fetch(request("/health"), stagingEnv);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    service: "anas-erp-firebase-snapshot-staging",
+    projectId: "anas-erp-staging-a25e1",
+    configured: true
+  });
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), allowedOrigin);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("health does not misidentify the production Firebase project as staging", async () => {
+  const productionEnv = {
+    FIREBASE_API_KEY: "production-test-key",
+    FIREBASE_PROJECT_ID: "anas-erb",
+    ALLOWED_ORIGINS: "https://anas-erp-staging-a25e1.web.app,https://anas-erp-staging-a25e1.firebaseapp.com"
+  };
+  const response = await worker.fetch(request("/health"), productionEnv);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    service: "anas-erp-firebase-snapshot",
+    projectId: "anas-erb",
+    configured: true
+  });
 });

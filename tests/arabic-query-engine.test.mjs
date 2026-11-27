@@ -1,0 +1,124 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+assert.match(html, /<script\b[^>]*src=["']\.\/?arabic-query-engine\.js["'][^>]*><\/script>/i,
+  'index.html must load the standalone Arabic query engine');
+assert.match(html, /<script\b[^>]*src=["']\.\/?customer-debt-protection\.js["'][^>]*><\/script>/i,
+  'index.html must load the standalone customer debt protection module');
+
+const { anasNormalizeQueryText, anasQueryMatches, anasQueryScore, anasCompareProductNames } = require('../arabic-query-engine.js');
+const debt = require('../customer-debt-protection.js');
+
+test('normalizes Arabic alef variants, diacritics and tatweel', () => {
+  assert.equal(anasNormalizeQueryText('إِبْرَاهِيمـ'), 'ابراهيم');
+  assert.equal(anasNormalizeQueryText('ٱلْمَدْرَسَة ١٢'), 'المدرسه 12');
+});
+test('normalizes ta marbuta and ya variants for Algerian POS search', () => {
+  assert.equal(anasNormalizeQueryText('مدرسة هدى'), 'مدرسه هدي');
+});
+test('POS product results use Arabic collation and deterministic ID tie-breaking', () => {
+  const source = readFileSync(new URL('../arabic-query-engine.js', import.meta.url), 'utf8');
+  assert.ok(source.includes("new Intl.Collator('ar-DZ',{sensitivity:'base',numeric:true})"));
+  assert.ok(source.includes('productNameCollator.compare'));
+  assert.ok(source.includes('function anasCompareProductNames'));
+  assert.equal(anasCompareProductNames('منتج 2', 'منتج 10') < 0, true);
+  assert.ok(source.includes("localeCompare(String(b.p.id"));
+});
+
+test('normalizes Arabic-Indic and Persian digits to ASCII', () => {
+  assert.equal(anasNormalizeQueryText('باركود ١٢٣ ۴۵'), 'باركود 123 45');
+});
+test('matches every query token across multiple fields', () => {
+  assert.equal(anasQueryMatches(['زيت الزيتون', 'منتج غذائي'], 'الزيت منتج'), true);
+  assert.equal(anasQueryMatches(['زيت الزيتون', 'منتج غذائي'], 'الزيت دواء'), false);
+});
+test('empty query matches all records', () => {
+  assert.equal(anasQueryMatches(['أي منتج'], '   '), true);
+});
+test('ranks exact and prefix matches above partial matches', () => {
+  assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت الزيتون') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
+  assert.ok(anasQueryScore(['زيت الزيتون'], 'زيت') > anasQueryScore(['زيت الزيتون'], 'الزيت'));
+});
+test('customer directory uses standalone Arabic matching and customer debt controls', () => {
+  assert.match(html, /customerDirectorySearch/);
+  assert.match(html, /window\.anasNormalizeQueryText\(/);
+  assert.match(html, /window\.anasQueryMatches\(/);
+  assert.match(html, /data-customer-debt-filter="debt"/);
+  assert.match(html, /window\.anasCustomerDebtForSave\(/);
+  assert.match(html, /window\.anasCustomerDebtFilterMatches\(/);
+  assert.match(html, /window\.anasRenderCustomerDebtCollections\(/);
+});
+test('standalone modules are loaded by the application HTML', () => {
+  assert.ok(html.indexOf('id="app"') < html.indexOf('arabic-query-engine.js'));
+  assert.ok(html.indexOf('customer-debt-protection.js') > -1);
+});
+
+test('customer profile edits preserve stored debt and new customers accept opening debt', () => {
+  assert.equal(debt.anasCustomerDebtForSave(true, { debt: 8400 }, 0), 8400);
+  assert.equal(debt.anasCustomerDebtForSave(true, { debt: 8400 }, 999999), 8400);
+  assert.equal(debt.anasCustomerDebtForSave(true, {}, 999999), 0);
+  assert.equal(debt.anasCustomerDebtForSave(false, null, 1250), 1250);
+});
+test('customer debt filters distinguish positive, clear and malformed balances', () => {
+  assert.equal(debt.anasCustomerDebtFilterMatches({ debt: 125.5 }, 'debt'), true);
+  assert.equal(debt.anasCustomerDebtFilterMatches({ debt: 0 }, 'clear'), true);
+  assert.equal(debt.anasCustomerDebtFilterMatches({ debt: 'bad' }, 'debt'), false);
+  assert.equal(debt.anasCustomerDebtFilterMatches({ debt: 'bad' }, 'all'), true);
+});
+test('customer collection history is customer-isolated and includes valid receipts only', () => {
+  const movements = [
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: 100, date: '2026-01-01T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'B', type: 'add', amount: 200, date: '2026-01-02T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'remove', amount: 50, date: '2026-01-03T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: -5, date: '2026-01-04T10:00:00Z' },
+    { referenceType: 'cash_sale', referenceId: 'A', type: 'add', amount: 500, date: '2026-01-05T10:00:00Z' },
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: 75, date: '2026-01-06T10:00:00Z' }
+  ];
+  const selected = debt.anasGetCustomerDebtCollections('A', movements);
+  assert.equal(selected.length, 2);
+  assert.deepEqual(Array.from(selected, x => x.amount), [75, 100]);
+});
+test('customer collection history caps display to ten newest receipts', () => {
+  assert.equal(debt.anasGetCustomerDebtCollections('A', null).length, 0);
+  const movements = Array.from({ length: 12 }, (_, i) => ({
+    referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: i + 1,
+    date: new Date(Date.UTC(2026, 0, i + 1)).toISOString()
+  }));
+  const selected = debt.anasGetCustomerDebtCollections('A', movements);
+  assert.equal(selected.length, 10);
+  assert.equal(selected[0].amount, 12);
+  assert.equal(selected[9].amount, 3);
+});
+test('customer collection renderer escapes untrusted labels', () => {
+  const html = debt.anasRenderCustomerDebtCollections({ id: 'A' }, [
+    { referenceType: 'customer_debt', referenceId: 'A', type: 'add', amount: 50, date: '2026-01-01', userName: '<img src=x onerror=alert(1)>' }
+  ]);
+  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img/);
+});
+
+test('Arabic query engine is wired into customer debt, supplier debt, invoices, quick sale and reports', () => {
+  assert.ok(html.includes('id="customerDebtSearch"'));
+  assert.ok(html.includes('id="supplierDebtSearch"'));
+  assert.ok(html.includes('id="invoiceListSearch"'));
+  assert.ok(html.includes('filteredCustomers = customers.filter(c => c && window.anasQueryMatches('));
+  assert.ok(html.includes('filteredSuppliers = suppliers.filter(s => s && window.anasQueryMatches('));
+  assert.ok(html.includes('filteredInvoices = invoices.filter(inv => inv && window.anasQueryMatches('));
+  assert.ok(html.includes('window.anasQueryMatches([p.name,p.barcode,p.sku,p.code],q)'));
+  assert.ok(html.includes("window.anasQueryMatches([row.textContent || ''], q)"));
+  assert.ok(html.includes("window.anasQueryMatches([node.textContent || ''], q)"));
+});
+
+test('legacy POS and inventory paths use the shared Arabic and financial facades', () => {
+  assert.match(html, /window\.anasNormalizeQueryText\(value\)/);
+  assert.match(html, /window\.anasCompareProductNames/);
+  assert.match(html, /const visibleProducts = sortProductsDeterministically\(/);
+  assert.match(html, /ANASFinancialIntegerEngine = Object\.freeze/);
+  assert.match(html, /window\.confirmHasibPaymentDurable = confirmHasibPaymentDurable/);
+  assert.match(html, /window\.saveDB = saveDB/);
+  assert.match(html, /window\.collectCustDebt = collectCustDebt/);
+});

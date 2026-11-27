@@ -7,3 +7,21 @@ workers_dev = true
 OPENAI_MODEL = "gpt-4.1-mini"
 FIREBASE_PROJECT_ID = "anas-erb"
 ALLOWED_ORIGINS = "https://amin545677-svg.github.io"
+
+# Per-Firebase-UID and per-source-IP edge limits, evaluated before paid OpenAI calls.
+# Cloudflare counters are approximate per location; the higher IP ceiling reduces
+# accidental throttling for users behind shared mobile-carrier NAT addresses.
+[[ratelimits]]
+name = "AI_USER_RATE_LIMITER"
+namespace_id = "930001"
+simple = { limit = 12, period = 60 }
+
+[[ratelimits]]
+name = "AI_IP_RATE_LIMITER"
+namespace_id = "930002"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "AI_ANON_USER_RATE_LIMITER"
+namespace_id = "930003"
+simple = { limit = 3, period = 60 }

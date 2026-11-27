@@ -1,9 +1,75 @@
-const CACHE = 'anas-erp-v54-25-r2';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg'];
-const CORE_URLS = new Set(CORE.map(path => new URL(path, self.location.href).href));
+const APP_VERSION = 'r42';
+const CACHE = 'anas-erp-v54-25-r42';
+const CORE = [
+  './', './index.html', './manifest.webmanifest', './icons/icon.svg',
+  './anas-erp-ui-safe-enhancements.css',
+  './ai-excel-import-ui.js',
+  './ai-excel-import-ui.css',
+  './anas-pos-floating-cart.js',
+  './anas-live-status.js',
+  './anas-pos-floating-cart.css',
+  './reverse-ledger/reverse-ledger.js',
+  './reverse-ledger/reverse-ledger-modal.js',
+  './reverse-ledger/settlement-allocation-modal.js',
+  './storage/android-resilient-storage.js',
+  './core/ai-operations-engine.js',
+  './core/pos-quick-sale-transaction-bridge.js',
+  './micro-pos-core.js',
+  './pos/micro-pos-engine.mjs',
+  './pos/micro-pos-deep-core.mjs',
+  './pos/advanced-financial-engine.mjs',
+  './vendor/firebase/firebase-compat.js',
+  './vendor/xlsx/xlsx.full.min.js',
+  './vendor/pdfjs/pdf.min.js',
+  './vendor/pdfjs/pdf.worker.min.js',
+  './supplier-account-statement.js',
+  './cashbox-readonly-ledger.js',
+  './arabic-query-engine.js',
+  './customer-debt-protection.js',
+  './warehouse-transfer-audit.js',
+  './truck-warehouse-reconciliation.js',
+  './fleet/truck-settlement-engine.mjs',
+  './fleet-audit-bridge.mjs',
+  './printing/arabic-escpos-engine.js',
+  './sync/mutation_queue_orchestrator.mjs',
+  './sync/mutation_reconciliation.mjs',
+  './sync/mutation_capture.mjs',
+  './sync/mutation_keys.mjs',
+  './sync/firebase_snapshot_transport.mjs',
+  './sync/v42_runtime_installer.mjs',
+  './sync/v42_runtime_bootstrap.mjs',
+  './sync/v42_transactional_bridge.mjs',
+  './sync/v42-prepared-recovery-runtime.mjs',
+  './core/sovereign-kernel.mjs',
+  './safe-update-ui.js'
+];
+// OCR is a large optional offline pack. Cache each asset independently: one missing file or
+// quota failure must not discard every successfully cached OCR runtime/language asset.
+const OCR_ASSETS = [
+  './vendor/tesseract/tesseract.min.js',
+  './vendor/tesseract/worker.min.js',
+  './vendor/tesseract/core/tesseract-core.wasm.js',
+  './vendor/tesseract/core/tesseract-core-simd.wasm.js',
+  './vendor/tesseract/core/tesseract-core-lstm.wasm.js',
+  './vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
+  './vendor/tesseract/lang/ara.traineddata.gz',
+  './vendor/tesseract/lang/eng.traineddata.gz',
+  './vendor/tesseract/lang/fra.traineddata.gz'
+];
+const CORE_URLS = new Set([...CORE, ...OCR_ASSETS].map(path => new URL(path, self.location.href).href));
+
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(cache => cache.addAll(CORE))
+      .then(() => caches.open(CACHE).then(cache => Promise.allSettled(OCR_ASSETS.map(path => cache.add(path)))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', event => {
